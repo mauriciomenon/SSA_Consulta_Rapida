@@ -195,14 +195,16 @@ def _node_lines(
         node_text_color = node_target_text if node == graph_model.target else text_color
         safe_node = html_module.escape(node)
         safe_node_attr = html_module.escape(node, quote=True)
+        font_size = _node_font_size(node, node_w, node_h)
+        text_y = y0 + (node_h / 2.0) + (font_size * 0.34)
         lines.append(
             f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
             f'data-ssa="{safe_node_attr}" rx="5" ry="5" fill="{fill}" '
             f'stroke="{node_stroke}" stroke-width="0.8" />'
         )
         lines.append(
-            f'<text x="{(x0 + node_w / 2.0):.1f}" y="{(y0 + node_h / 2.0):.1f}" text-anchor="middle" dominant-baseline="middle" '
-            f'font-family="{html_module.escape(font_family)}" font-size="{_node_font_size(node, node_w, node_h):.1f}" fill="{node_text_color}">{safe_node}</text>'
+            f'<text x="{(x0 + node_w / 2.0):.1f}" y="{text_y:.1f}" text-anchor="middle" '
+            f'font-family="{html_module.escape(font_family)}" font-size="{font_size:.1f}" fill="{node_text_color}">{safe_node}</text>'
         )
     return lines
 

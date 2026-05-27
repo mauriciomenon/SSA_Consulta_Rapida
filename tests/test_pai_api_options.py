@@ -9,6 +9,7 @@ from core.pai_api_options import (
     PAI_API_BASE_URL_KEY,
     PAI_API_DATA_SCOPES_KEY,
     PAI_API_ENABLED_DATA_SCOPES,
+    PAI_API_EXTRA_SECTORS_KEY,
     PAI_API_LIMIT_KEY,
     PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES,
     PAI_API_MAX_LIMIT,
@@ -65,6 +66,19 @@ def test_pai_api_options_preserve_empty_sector_selection() -> None:
     options = normalize_pai_api_options({PAI_API_SECTORS_KEY: []})
 
     assert options.executor_sectors == ()
+
+
+def test_pai_api_options_include_extra_executor_sectors_for_sam_api_only() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_SECTORS_KEY: ["IEE3"],
+            PAI_API_EXTRA_SECTORS_KEY: " ieq1 , MEL5 , ieq1 ",
+        }
+    )
+
+    assert options.executor_sectors == ("IEE3",)
+    assert options.executor_sectors_extra == ("IEQ1", "MEL5")
+    assert options.all_executor_sectors == ("IEE3", "IEQ1", "MEL5")
 
 
 def test_pai_api_auto_refresh_defaults_are_explicit() -> None:

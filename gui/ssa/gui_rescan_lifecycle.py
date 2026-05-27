@@ -21,6 +21,7 @@ def connect_rescan_worker_lifecycle(
     worker,
     progress_dialog,
     *,
+    reload_on_success: bool,
     is_explicit_import: bool,
     normalized_kind: str,
     global_workers: list,
@@ -89,7 +90,7 @@ def connect_rescan_worker_lifecycle(
         nonlocal cancelled
         outcome = _resolve_rescan_outcome(worker)
         if cancelled:
-            _finish_cancelled_success(
+            _finish_rescan_as_cancelled(
                 window,
                 progress_dialog,
                 is_explicit_import=is_explicit_import,
@@ -106,6 +107,7 @@ def connect_rescan_worker_lifecycle(
             window,
             outcome,
             allow_reload=was_active_worker,
+            reload_on_success=reload_on_success,
             is_explicit_import=is_explicit_import,
             normalized_kind=normalized_kind,
             set_status_label_text=set_status_label_text,
@@ -206,7 +208,7 @@ def _resolve_rescan_outcome(worker) -> RescanOutcome:
         return RescanOutcome.UPDATED
 
 
-def _finish_cancelled_success(
+def _finish_rescan_as_cancelled(
     window,
     progress_dialog,
     *,
@@ -255,12 +257,14 @@ def _finish_successful_rescan(
     outcome: RescanOutcome,
     *,
     allow_reload: bool,
+    reload_on_success: bool,
     is_explicit_import: bool,
     normalized_kind: str,
     set_status_label_text,
 ) -> None:
     should_reload_data = (
         allow_reload
+        and reload_on_success
         and
         outcome == RescanOutcome.UPDATED
         and normalized_kind != "consolidate"

@@ -45,8 +45,9 @@ def get_gui_main_preferences_template_path() -> str:
     return GUI_MAIN_PREFERENCES_TEMPLATE_PATH
 
 
-# Contract: these columns must always be available in GUI defaults and mappings.
-REQUIRED_DISPLAY_COLUMNS: List[str] = [
+# Contract: these columns must always be available in GUI defaults and mappings,
+# but they are not all forced visible in the table.
+REQUIRED_GUI_COLUMNS: List[str] = [
     "numero_ssa",
     "localizacao_codigo",
     "situacao",
@@ -54,7 +55,6 @@ REQUIRED_DISPLAY_COLUMNS: List[str] = [
     "setor_executor",
     "derivada_de",
     "data_cadastro",
-    "grau_prioridade_emissao",
     "solicitante",
     "grau_prioridade_planejamento",
     "semana_programada",
@@ -241,23 +241,23 @@ COLUMN_HEADER_LABEL_VARIANTS: Dict[str, Dict[str, str]] = {
 
 DEFAULT_COLUMN_WIDTHS_WINDOWS: Dict[str, int] = {
     "#": 24,
-    "numero_ssa": 93,
+    "numero_ssa": 88,
     "localizacao_codigo": 86,
     "setor_executor": 80,
     "situacao": 51,
-    "descricao_ssa": 340,
+    "descricao_ssa": 420,
     "data_cadastro": 84,
     "setor_emissor": 72,
-    "derivada_de": 80,
+    "derivada_de": 72,
     "semana_programada": 92,
     "descricao_execucao": 330,
-    "semana_cadastro": 92,
+    "semana_cadastro": 74,
     "grau_prioridade": 95,
-    "grau_prioridade_emissao": 120,
+    "grau_prioridade_emissao": 86,
     "grau_prioridade_planejamento": 128,
-    "solicitante": 150,
+    "solicitante": 190,
     "data_arquivo_origem": 188,
-    "total_de_reprogramacoes": 130,
+    "total_de_reprogramacoes": 96,
     "execucao_parcial": 78,
     "semana_executada": 92,
     "responsavel_execucao": 150,
@@ -265,37 +265,37 @@ DEFAULT_COLUMN_WIDTHS_WINDOWS: Dict[str, int] = {
 
 DEFAULT_COLUMN_WIDTHS_DARWIN: Dict[str, int] = {
     **DEFAULT_COLUMN_WIDTHS_WINDOWS,
-    "descricao_ssa": 340,
+    "descricao_ssa": 420,
     "semana_programada": 72,
     "descricao_execucao": 330,
-    "semana_cadastro": 60,
-    "grau_prioridade_emissao": 96,
+    "semana_cadastro": 74,
+    "grau_prioridade_emissao": 86,
     "grau_prioridade_planejamento": 98,
-    "solicitante": 150,
-    "total_de_reprogramacoes": 82,
+    "solicitante": 190,
+    "total_de_reprogramacoes": 96,
     "execucao_parcial": 78,
     "semana_executada": 60,
 }
 
 DEFAULT_COLUMN_WIDTHS_LINUX: Dict[str, int] = {
     "#": 24,
-    "numero_ssa": 93,
+    "numero_ssa": 88,
     "localizacao_codigo": 86,
     "setor_executor": 65,
     "situacao": 51,
-    "descricao_ssa": 298,
+    "descricao_ssa": 420,
     "data_cadastro": 84,
     "setor_emissor": 58,
-    "derivada_de": 76,
+    "derivada_de": 72,
     "semana_programada": 88,
     "descricao_execucao": 282,
     "semana_cadastro": 74,
     "grau_prioridade": 95,
-    "grau_prioridade_emissao": 122,
+    "grau_prioridade_emissao": 86,
     "grau_prioridade_planejamento": 122,
-    "solicitante": 123,
+    "solicitante": 190,
     "data_arquivo_origem": 188,
-    "total_de_reprogramacoes": 130,
+    "total_de_reprogramacoes": 96,
     "execucao_parcial": 130,
     "semana_executada": 96,
     "responsavel_execucao": 150,
@@ -331,7 +331,7 @@ def _sanitize_width_map(raw_widths: Any) -> Dict[str, int]:
 
 def _resolve_platform_column_widths(
     platform_widths: Dict[str, Dict[str, int]] | None = None,
-    fallback_widths: Dict[str, int] | None = None,
+    override_widths: Dict[str, int] | None = None,
     *,
     platform_name: str | None = None,
 ) -> Dict[str, int]:
@@ -344,8 +344,8 @@ def _resolve_platform_column_widths(
     base_widths = copy.deepcopy(
         source_platforms.get(platform_key, DEFAULT_COLUMN_WIDTHS_BY_PLATFORM["linux"])
     )
-    if fallback_widths:
-        for key, value in fallback_widths.items():
+    if override_widths:
+        for key, value in override_widths.items():
             if isinstance(key, str) and isinstance(value, int):
                 base_widths[key] = value
     return base_widths
@@ -379,16 +379,15 @@ DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = {
         "localizacao_codigo",
         "situacao",
         "setor_emissor",
-        "setor_executor",
-        "derivada_de",
-        "data_cadastro",
-        "semana_cadastro",
-        "descricao_ssa",
-        "grau_prioridade_emissao",
-        "solicitante",
-        "grau_prioridade_planejamento",
-        "semana_programada",
-        "total_de_reprogramacoes",
+    "setor_executor",
+    "derivada_de",
+    "data_cadastro",
+    "semana_cadastro",
+    "descricao_ssa",
+    "solicitante",
+    "grau_prioridade_planejamento",
+    "semana_programada",
+    "total_de_reprogramacoes",
         "execucao_parcial",
         "descricao_execucao",
         "semana_executada",
@@ -402,6 +401,7 @@ DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = {
         "execucao_simples",
         "arquivo_origem",
         "responsavel_programacao",
+        "grau_prioridade_emissao",
     ],
     "column_display_names": copy.deepcopy(DEFAULT_COLUMN_DISPLAY_NAMES),
     "column_widths": copy.deepcopy(DEFAULT_COLUMN_WIDTHS_WINDOWS),
@@ -418,7 +418,7 @@ DEFAULT_GUI_MAIN_PREFERENCES["display_mappings"] = copy.deepcopy(
     DEFAULT_GUI_MAIN_PREFERENCES["column_display_names"]
 )
 DEFAULT_GUI_MAIN_PREFERENCES["required_display_columns"] = list(
-    REQUIRED_DISPLAY_COLUMNS
+    REQUIRED_GUI_COLUMNS
 )
 HARD_DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = copy.deepcopy(
     DEFAULT_GUI_MAIN_PREFERENCES
@@ -432,7 +432,7 @@ def _hard_default_preferences_copy() -> Dict[str, Any]:
         None,
     )
     defaults["display_mappings"] = copy.deepcopy(defaults["column_display_names"])
-    defaults["required_display_columns"] = list(REQUIRED_DISPLAY_COLUMNS)
+    defaults["required_display_columns"] = list(REQUIRED_GUI_COLUMNS)
     return defaults
 
 
@@ -599,17 +599,19 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
         display_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["display_columns"])
     if not display_columns:
         display_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["display_columns"])
-    for required in REQUIRED_DISPLAY_COLUMNS:
+    if isinstance(loaded_hidden, list):
+        hidden_columns = _unique_str_list(loaded_hidden)
+    else:
+        hidden_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["hidden_columns"])
+    for required in REQUIRED_GUI_COLUMNS:
         if required in explicit_hidden_columns:
+            continue
+        if required in hidden_columns:
             continue
         if required not in display_columns:
             display_columns.append(required)
     merged["display_columns"] = display_columns
 
-    if isinstance(loaded_hidden, list):
-        hidden_columns = _unique_str_list(loaded_hidden)
-    else:
-        hidden_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["hidden_columns"])
     hidden_columns = [
         column for column in hidden_columns if column not in display_columns
     ]
@@ -619,7 +621,7 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     allowed_name_keys = set(DEFAULT_COLUMN_DISPLAY_NAMES.keys())
     allowed_name_keys.update(display_columns)
     allowed_name_keys.update(hidden_columns)
-    allowed_name_keys.update(REQUIRED_DISPLAY_COLUMNS)
+    allowed_name_keys.update(REQUIRED_GUI_COLUMNS)
     loaded_names = _migrate_managed_legacy_column_labels(
         loaded_config.get("column_display_names")
     )
@@ -644,7 +646,7 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
                 )
                 continue
             names[key_clean] = value_clean
-    for required in REQUIRED_DISPLAY_COLUMNS:
+    for required in REQUIRED_GUI_COLUMNS:
         names.setdefault(
             required,
             DEFAULT_COLUMN_DISPLAY_NAMES.get(required, _build_fallback_label(required)),
@@ -748,7 +750,7 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
 
     merged["gui_settings"] = settings
 
-    merged["required_display_columns"] = list(REQUIRED_DISPLAY_COLUMNS)
+    merged["required_display_columns"] = list(REQUIRED_GUI_COLUMNS)
     return merged
 
 

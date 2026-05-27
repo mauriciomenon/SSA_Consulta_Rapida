@@ -37,6 +37,7 @@ class _MacOSStderrFilter:
             os.dup2(write_fd, 2)
             self._thread = threading.Thread(
                 target=self._pump_lines,
+                args=(read_fd, self._stderr_dup_fd),
                 name="ssa-macos-stderr-filter",
                 daemon=True,
             )
@@ -60,28 +61,19 @@ class _MacOSStderrFilter:
                 os.close(pipe_write_fd)
             except OSError:
                 pass
+        self._pipe_write_fd = None
         if self._thread is not None:
-            self._thread.join(timeout=0.5)
-        if self._pipe_read_fd is not None:
-            try:
-                os.close(self._pipe_read_fd)
-            except OSError:
-                pass
+            self._thread.join()
         if stderr_dup_fd is not None:
             try:
                 os.close(stderr_dup_fd)
             except OSError:
                 pass
         self._pipe_read_fd = None
-        self._pipe_write_fd = None
         self._stderr_dup_fd = None
         self._thread = None
 
-    def _pump_lines(self) -> None:
-        read_fd = self._pipe_read_fd
-        stderr_dup_fd = self._stderr_dup_fd
-        if read_fd is None or stderr_dup_fd is None:
-            return
+    def _pump_lines(self, read_fd: int, stderr_dup_fd: int) -> None:
         try:
             with os.fdopen(read_fd, "r", encoding="utf-8", errors="replace") as reader:
                 for line in reader:

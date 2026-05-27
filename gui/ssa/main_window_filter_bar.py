@@ -356,6 +356,7 @@ def build_pagination_filter_bar(
     column_selector.columns_changed.connect(window.on_columns_changed)
 
     quick_setor_executor_label = QLabel("Setor Executor:")
+    quick_setor_executor_label.setStyleSheet("padding:0; margin:0 1px 0 2px;")
     quick_setor_executor_combo = QComboBox()
     quick_setor_executor_combo.setToolTip(
         "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
@@ -435,8 +436,8 @@ def build_pagination_filter_bar(
         "Situacoes aplicadas junto com os demais filtros."
     )
     quick_situacao_box_layout = QHBoxLayout(cast(Any, quick_situacao_box))
-    quick_situacao_box_layout.setContentsMargins(0, 1, 1, 1)
-    quick_situacao_box_layout.setSpacing(0)
+    quick_situacao_box_layout.setContentsMargins(2, 1, 2, 1)
+    quick_situacao_box_layout.setSpacing(2)
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_scroll))
     quick_situacao_box.setSizePolicy(
         cast(Any, QSizePolicy.Policy.Expanding),
@@ -449,8 +450,8 @@ def build_pagination_filter_bar(
         "Filtro rapido de Setor Executor. Aplica junto com os demais filtros."
     )
     quick_setor_executor_box_layout = QHBoxLayout(cast(Any, quick_setor_executor_box))
-    quick_setor_executor_box_layout.setContentsMargins(1, 1, 2, 1)
-    quick_setor_executor_box_layout.setSpacing(1)
+    quick_setor_executor_box_layout.setContentsMargins(3, 1, 3, 1)
+    quick_setor_executor_box_layout.setSpacing(3)
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_label))
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_combo))
     quick_setor_executor_box.setSizePolicy(
@@ -494,7 +495,7 @@ def _build_quick_filter_box(object_name: str) -> QFrame:
     try:
         frame.setStyleSheet(
             f"QFrame#{object_name} {{"
-            "border:1px solid palette(mid);"
+            "border:1px solid palette(highlight);"
             "border-radius:4px;"
             "background:palette(window);"
             "}"

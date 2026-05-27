@@ -407,5 +407,3 @@ def _apply_grid_stretch(grid: Any, previous_cols: Any, next_cols: int) -> None:
             grid.setColumnStretch(col, 0)
         except Exception as exc:
             logger.debug("Falha ao resetar stretch de coluna no grid avancado: %s", exc)
-    for col in range(next_cols):
-        grid.setColumnStretch(col, 1)

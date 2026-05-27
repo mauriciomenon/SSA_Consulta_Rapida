@@ -1190,13 +1190,34 @@ def _sync_filter_controls_after_load(window) -> None:
                 raise ValueError("df_exibido indisponivel no pos-load")
             if hasattr(window, "_bump_filter_refresh_revision"):
                 window._bump_filter_refresh_revision()
-            paginator = getattr(window, "paginator", None)
-            if paginator is None:
-                raise ValueError("paginator indisponivel no pos-load")
-            paginator.set_dataframe(df_exibido)
+            base_df = getattr(window, "_df_last_search_filtered", None)
+            if base_df is None or getattr(base_df, "empty", True):
+                base_df = df_exibido
 
             def _measure_passthrough(_name, callback):
                 return callback()
+
+            sort_for_display = getattr(window, "_sort_filter_refresh_result", None)
+            if callable(sort_for_display):
+                df_exibido = sort_for_display(
+                    base_df,
+                    has_general_search=False,
+                    has_column_filters=False,
+                    has_advanced_filters=False,
+                    has_excluded_terminal_status=False,
+                    measure_timing=_measure_passthrough,
+                )
+            else:
+                df_exibido = base_df
+            window.df_exibido = df_exibido
+            paginator = getattr(window, "paginator", None)
+            if paginator is None:
+                raise ValueError("paginator indisponivel no pos-load")
+            paginator_was_blocked = paginator.blockSignals(True)
+            try:
+                paginator.set_dataframe(df_exibido)
+            finally:
+                paginator.blockSignals(paginator_was_blocked)
 
             window._render_filter_refresh_page(
                 current_details_ssa,
@@ -1511,7 +1532,6 @@ def rescan_data(
     explicit_files_tuple = tuple(str(path) for path in explicit_files or ())
     source_files_tuple = tuple(str(path) for path in source_files or ())
     normalized_kind = str(operation_kind or "import").strip().lower() or "import"
-    _ = reload_on_success
     is_explicit_import = bool(explicit_files_tuple or source_files_tuple)
     if is_explicit_import:
         normalized_mode = "explicit"
@@ -1649,6 +1669,7 @@ def rescan_data(
         window,
         worker,
         progress_dialog,
+        reload_on_success=bool(reload_on_success),
         is_explicit_import=is_explicit_import,
         normalized_kind=normalized_kind,
         global_workers=global_workers,

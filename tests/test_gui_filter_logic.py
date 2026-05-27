@@ -335,6 +335,9 @@ class TestGUIFilterLogic:
         undo_filter_btn = main_ctx["undo_filter_btn"]
         theme_button = getattr(self.window, "theme_button", None)
         preferences_button = getattr(self.window, "preferences_button", None)
+        status_progress_box = getattr(self.window, "status_progress_box", None)
+        filtered_status_label = getattr(self.window, "filtered_status_label", None)
+        week_label = getattr(self.window, "week_label", None)
 
         QApplication.processEvents()
 
@@ -391,6 +394,9 @@ class TestGUIFilterLogic:
         assert search_y < summary_y < paginator_y
         assert theme_button is not None
         assert preferences_button is not None
+        assert status_progress_box is not None
+        assert filtered_status_label is not None
+        assert week_label is not None
         assert str(preferences_button.text() or "") == "Preferencias"
         assert column_selector.isVisible() is False
         assert not getattr(paginator, "show_page_size_controls", True)
@@ -401,6 +407,18 @@ class TestGUIFilterLogic:
         assert (
             preferences_button.mapToGlobal(preferences_button.rect().topLeft()).x()
             < theme_button.mapToGlobal(theme_button.rect().topLeft()).x()
+        )
+        assert (
+            status_progress_box.mapToGlobal(status_progress_box.rect().topLeft()).x()
+            > self.window.api_button.mapToGlobal(self.window.api_button.rect().topLeft()).x()
+        )
+        assert (
+            filtered_status_label.mapToGlobal(filtered_status_label.rect().topLeft()).x()
+            > status_progress_box.mapToGlobal(status_progress_box.rect().topRight()).x()
+        )
+        assert (
+            week_label.mapToGlobal(week_label.rect().topLeft()).x()
+            > filtered_status_label.mapToGlobal(filtered_status_label.rect().topRight()).x()
         )
         assert str(quick_label.text() or "") == "Setor Executor:"
         assert quick_situacao_label.isVisible() is False
@@ -544,27 +562,35 @@ class TestGUIFilterLogic:
         ]
         assert captured["labels"][7:9] == [
             "Cache de filtros",
-            "Colunas e larguras",
+            "Colunas exibidas",
         ]
-        assert "Configurar colunas" in captured["buttons"]
-        assert "Validar segredo" in captured["buttons"]
-        assert "Gravar segredo" in captured["buttons"]
+        assert "Colunas" in captured["buttons"]
+        assert "Validar segredo no cofre" in captured["buttons"]
+        assert "Gravar segredo no cofre" in captured["buttons"]
         assert "SAM API" in captured["groups"]
+        assert "Interface" in captured["groups"]
+        assert "Tabela e colunas exibidas" in captured["groups"]
+        assert "Cache e comportamento" in captured["groups"]
         assert "Larguras de colunas" in captured["groups"]
         assert "Usuario SAM" in captured["labels"]
-        assert "Servico secreto" in captured["labels"]
-        assert "Senha SAM" in captured["labels"]
+        assert "Chave do cofre" in captured["labels"]
+        assert "Senha SAM para gravar no cofre" in captured["labels"]
+        assert "Setores extras (SAM API)" in captured["labels"]
         assert any(
             name.startswith("preferencesColumnWidthSpin_")
             for name in captured["width_spins"]
         )
-        assert captured["checks"]["preferencesAutoLoadCheck"] == "Carregar ao iniciar"
         assert (
-            captured["checks"]["preferencesShowProgressCheck"] == "Mostrar progresso"
+            captured["checks"]["preferencesAutoLoadCheck"]
+            == "Carregar dados do banco ao iniciar"
+        )
+        assert (
+            captured["checks"]["preferencesShowProgressCheck"]
+            == "Mostrar progresso na barra superior"
         )
         assert (
             captured["checks"]["preferencesPaiApiSecureRequiredCheck"]
-            == "Seguro obrigatorio"
+            == "Exigir cofre do sistema"
         )
         assert (
             captured["checks"]["preferencesDoubleClickDetailsCheck"]
@@ -838,6 +864,9 @@ class TestGUIFilterLogic:
                 QLineEdit, "preferencesPaiApiSecretServiceEdit"
             )
             password = dialog.findChild(QLineEdit, "preferencesPaiApiPasswordEdit")
+            executadas_check = dialog.findChild(
+                QCheckBox, "preferencesPaiApiScope_executadas"
+            )
             validate_button = dialog.findChild(
                 QPushButton, "preferencesPaiApiValidateSecretButton"
             )
@@ -847,8 +876,10 @@ class TestGUIFilterLogic:
             assert username is not None
             assert secret_service is not None
             assert password is not None
+            assert executadas_check is not None
             assert validate_button is not None
             assert store_button is not None
+            executadas_check.setChecked(True)
             username.setText("usr")
             secret_service.setText("scrap_report.sam")
             validate_button.click()
@@ -1740,7 +1771,7 @@ class TestGUIFilterLogic:
         ) == {"SAD", "SCA", "SES", "STE"}
         assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == ["100"]
 
-    def test_macro_baixar_waits_for_apply_button_before_filtering(self):
+    def test_macro_baixar_filters_immediately_when_selected(self):
         macro_df = pd.DataFrame(
             {
                 "numero_ssa": ["202600100", "202600101"],
@@ -1772,15 +1803,6 @@ class TestGUIFilterLogic:
 
         self.window.adv_macro_combo.setCurrentIndex(macro_idx)
         self.window._on_macro_filter_changed()
-        QApplication.processEvents()
-
-        assert self.window._advanced_filters.get("macro_filter") in (None, "")
-        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
-            "202600100",
-            "202600101",
-        ]
-
-        self.window._apply_advanced_filters_from_ui()
         QApplication.processEvents()
 
         assert self.window._advanced_filters.get("macro_filter") == "ssas_para_baixar"
@@ -2388,7 +2410,7 @@ class TestGUIFilterLogic:
     def test_details_and_default_display_order_place_emissor_before_executor(self):
         priority = list(gui_ssa.DETAIL_FIELD_PRIORITY)
         assert priority.index("setor_emissor") < priority.index("setor_executor")
-        required_columns = list(gui_ssa.REQUIRED_DISPLAY_COLUMNS)
+        required_columns = list(gui_ssa.REQUIRED_GUI_COLUMNS)
         assert required_columns.index("setor_emissor") < required_columns.index(
             "setor_executor"
         )
@@ -2404,7 +2426,6 @@ class TestGUIFilterLogic:
             "data_cadastro",
             "semana_cadastro",
             "descricao_ssa",
-            "grau_prioridade_emissao",
             "solicitante",
             "grau_prioridade_planejamento",
             "semana_programada",
@@ -2415,7 +2436,7 @@ class TestGUIFilterLogic:
             "responsavel_execucao",
         ]
         assert list(gui_ssa.GUI_MAIN_PREFERENCES["display_columns"]) == expected
-        assert list(gui_ssa.REQUIRED_DISPLAY_COLUMNS) == [
+        assert list(gui_ssa.REQUIRED_GUI_COLUMNS) == [
             "numero_ssa",
             "localizacao_codigo",
             "situacao",
@@ -2423,7 +2444,6 @@ class TestGUIFilterLogic:
             "setor_executor",
             "derivada_de",
             "data_cadastro",
-            "grau_prioridade_emissao",
             "solicitante",
             "grau_prioridade_planejamento",
             "semana_programada",
@@ -2446,26 +2466,26 @@ class TestGUIFilterLogic:
         default_widths = DEFAULT_COLUMN_WIDTHS
         if sys.platform == "darwin":
             expected = {
-                "grau_prioridade_emissao": 96,
+                "grau_prioridade_emissao": 86,
                 "grau_prioridade_planejamento": 98,
                 "execucao_parcial": 78,
-                "total_de_reprogramacoes": 82,
+                "total_de_reprogramacoes": 96,
                 "semana_executada": 60,
             }
         elif sys.platform == "win32":
             expected = {
-                "grau_prioridade_emissao": 120,
+                "grau_prioridade_emissao": 86,
                 "grau_prioridade_planejamento": 128,
                 "execucao_parcial": 78,
-                "total_de_reprogramacoes": 130,
+                "total_de_reprogramacoes": 96,
                 "semana_executada": 92,
             }
         else:
             expected = {
-                "grau_prioridade_emissao": 122,
+                "grau_prioridade_emissao": 86,
                 "grau_prioridade_planejamento": 122,
                 "execucao_parcial": 130,
-                "total_de_reprogramacoes": 130,
+                "total_de_reprogramacoes": 96,
                 "semana_executada": 96,
             }
 
@@ -2703,7 +2723,7 @@ class TestGUIFilterLogic:
             _, apply_btn, clear_btn, hide_btn = controls[label]
             assert apply_btn.text() == "↵"
             assert clear_btn.text() == "⌫"
-            assert hide_btn.text() == "Ocultar"
+            assert hide_btn.text() == "-"
             assert not apply_btn.isHidden()
             assert not clear_btn.isHidden()
             assert not hide_btn.isHidden()
@@ -3387,8 +3407,8 @@ class TestGUIFilterLogic:
         synced_height = next(iter(min_heights))
         assert synced_height == next(iter(max_heights))
         assert 250 <= synced_height <= 320
-        assert int(details_group.minimumHeight()) == min(360, synced_height + 30)
-        assert int(details_group.maximumHeight()) == min(360, synced_height + 30)
+        assert int(details_group.minimumHeight()) == synced_height
+        assert int(details_group.maximumHeight()) == synced_height
 
     def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):
         self.window.resize(1280, 880)
@@ -3754,7 +3774,7 @@ class TestGUIFilterLogic:
         executor_edit, executor_apply, _, _ = controls[executor_label]
         assert emissor_clear.text() == "⌫"
         assert "limpa o valor" in (emissor_clear.toolTip() or "").casefold()
-        assert emissor_hide.text() == "Ocultar"
+        assert emissor_hide.text() == "-"
         assert (
             "somente quando o filtro da coluna estiver vazio"
             in (emissor_hide.toolTip() or "").casefold()
@@ -5782,6 +5802,65 @@ class TestGUIFilterLogic:
         )
 
         assert calls == [("202100186", True)]
+
+    def test_derivadas_graph_label_click_uses_logical_pixmap_size(self, monkeypatch):
+        class _FakeSize:
+            def width(self):
+                return 90.0
+
+            def height(self):
+                return 30.0
+
+        class _FakePixmap:
+            def isNull(self):
+                return False
+
+            def deviceIndependentSize(self):
+                return _FakeSize()
+
+            def width(self):
+                return 180
+
+            def height(self):
+                return 60
+
+        label = self.window.details_graph_label
+        label.setFixedSize(200, 120)
+        label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 45.0, 20.0)])
+        calls: list[str] = []
+
+        monkeypatch.setattr(self.window, "_jump_to_ssa", calls.append)
+        monkeypatch.setattr(label, "pixmap", lambda: _FakePixmap())
+
+        cast(Any, QTest).mouseClick(
+            label,
+            Qt.MouseButton.LeftButton,
+            pos=QPoint(78, 60),
+        )
+
+        assert calls == ["202100186"]
+
+    def test_build_derivadas_graph_html_offsets_text_baseline_for_qt_svg(self):
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            {"target": "202600023", "children": ["202600024"]},
+            link_color="#4a90e2",
+            font_family="monospace",
+        )
+
+        rect_match = re.search(
+            r'<rect[^>]*\by="([^"]+)"[^>]*data-ssa="202600023"[^>]*/>',
+            html,
+        )
+        text_match = re.search(
+            r'<text[^>]*\by="([^"]+)"[^>]*>202600023</text>',
+            html,
+        )
+        assert rect_match is not None
+        assert text_match is not None
+        rect_top = float(rect_match.group(1))
+        text_y = float(text_match.group(1))
+        assert text_y > (rect_top + 15.0)
 
     def test_derivadas_graph_label_ignores_right_click(self, monkeypatch):
         label = self.window.details_graph_label
@@ -8892,6 +8971,35 @@ class TestGUIFilterLogic:
         assert "<NA>" not in executor_labels
         assert "<NA>" not in emissor_labels
         assert "MEL4" in executor_labels
+
+    def test_refresh_advanced_filter_options_restores_reprog_and_derivada_summaries(
+        self,
+    ):
+        df = self.base_df.copy()
+        df.loc[0, "num_reprogramacoes"] = "2"
+        df.loc[1, "num_reprogramacoes"] = "0"
+        df.loc[0, "derivada_de"] = "202600001"
+        df.loc[1, "derivada_de"] = ""
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window._advanced_filters = {
+            "num_reprogramacoes_values": ["2"],
+            "derivada_has": True,
+        }
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        reprog_button = self.window.adv_reprog_button
+        derivada_button = self.window.adv_derivada_button
+        assert str(reprog_button.text() or "") != "Selecionar"
+        assert "2" in str(reprog_button.toolTip() or "")
+        assert str(derivada_button.text() or "") != "Selecionar"
+        assert "has" in str(derivada_button.toolTip() or "")
 
     def test_on_header_clicked_sorts_num_reprogramacoes_mixed_types(self):
         mixed_df = self.base_df.assign(

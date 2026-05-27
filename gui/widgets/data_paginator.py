@@ -34,7 +34,7 @@ class DataPaginator(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(3)
 
-        self.prev_button = QPushButton("←")
+        self.prev_button = QPushButton("◂")
         self.prev_button.setToolTip("Pagina anterior")
         self.prev_button.clicked.connect(self.prev_page)
         self.prev_button.setEnabled(False)
@@ -49,7 +49,7 @@ class DataPaginator(QWidget):
             "font-size: 11px; font-weight: 400; padding:0; margin:0;"
         )
 
-        self.next_button = QPushButton("→")
+        self.next_button = QPushButton("▸")
         self.next_button.setToolTip("Proxima pagina")
         self.next_button.clicked.connect(self.next_page)
         self.next_button.setEnabled(False)

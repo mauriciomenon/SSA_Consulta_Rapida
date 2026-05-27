@@ -19,6 +19,7 @@ PAI_API_BASE_URL_KEY = "base_url"
 PAI_API_USERNAME_KEY = "sam_username"
 PAI_API_SECRET_SERVICE_KEY = "secret_service"  # nosec B105  # pragma: allowlist secret
 PAI_API_SECURE_REQUIRED_KEY = "secure_required"
+PAI_API_EXTRA_SECTORS_KEY = "executor_sectors_extra"
 
 PAI_API_ALLOWED_SECTORS = ("IEE3", "MEL4", "IEE1", "IEE4", "MEL3", "MEL1", "IEE2", "MEL2")
 PAI_API_DEFAULT_SECTORS = PAI_API_ALLOWED_SECTORS
@@ -63,6 +64,7 @@ class PaiApiGuiOptions:
     auto_refresh_enabled: bool
     auto_refresh_interval_minutes: int
     executor_sectors: tuple[str, ...]
+    executor_sectors_extra: tuple[str, ...]
     data_scopes: tuple[str, ...]
     limit: int
     number_of_years: int
@@ -71,11 +73,26 @@ class PaiApiGuiOptions:
     secret_service: str
     secure_required: bool
 
+    @property
+    def all_executor_sectors(self) -> tuple[str, ...]:
+        values: list[str] = []
+        seen: set[str] = set()
+        for raw_value in self.executor_sectors + self.executor_sectors_extra:
+            value = str(raw_value or "").strip().upper()
+            if not value:
+                continue
+            key = value.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            values.append(value)
+        return tuple(values)
+
 
 def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
     if not options.enabled:
         return "SAM API desabilitada nas opcoes."
-    if not options.executor_sectors:
+    if not options.all_executor_sectors:
         return "Nenhum setor executor habilitado para SAM API."
     if not options.data_scopes:
         return "Nenhum tipo de dado habilitado para SAM API."
@@ -122,6 +139,7 @@ def default_pai_api_settings() -> dict[str, Any]:
         PAI_API_USERNAME_KEY: "",
         PAI_API_SECRET_SERVICE_KEY: default_secret_service,
         PAI_API_SECURE_REQUIRED_KEY: True,
+        PAI_API_EXTRA_SECTORS_KEY: "",
     }
 
 
@@ -193,6 +211,9 @@ def normalize_pai_api_options(raw_settings: Mapping[str, Any] | None) -> PaiApiG
             max_value=PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES,
         ),
         executor_sectors=sectors,
+        executor_sectors_extra=_normalize_extra_sectors(
+            settings.get(PAI_API_EXTRA_SECTORS_KEY)
+        ),
         data_scopes=data_scopes,
         limit=_positive_int(
             settings.get(PAI_API_LIMIT_KEY),
@@ -250,6 +271,29 @@ def _normalize_ordered_values(
             continue
         seen.add(key)
         normalized.append(allowed_by_key[key])
+    return tuple(normalized)
+
+
+def _normalize_extra_sectors(raw_values: object) -> tuple[str, ...]:
+    if raw_values is None:
+        return ()
+    if isinstance(raw_values, str):
+        values = raw_values.split(",")
+    elif isinstance(raw_values, (list, tuple)):
+        values = raw_values
+    else:
+        return ()
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in values:
+        value = str(raw_value or "").strip().upper()
+        if not value or not value.isalnum():
+            continue
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(value)
     return tuple(normalized)
 
 

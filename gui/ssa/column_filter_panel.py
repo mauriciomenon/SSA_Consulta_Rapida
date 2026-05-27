@@ -321,7 +321,7 @@ def _create_column_filter_row_widget(
         tooltip="Limpa o valor desta coluna e reaplica os filtros.",
     )
     hide_btn = _build_column_filter_button(
-        "Ocultar",
+        "-",
         col,
         tooltip="Oculta a linha somente quando o filtro da coluna estiver vazio.",
     )

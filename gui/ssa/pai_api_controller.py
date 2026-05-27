@@ -102,7 +102,7 @@ def set_pai_api_boolean_option(
         PAI_API_SETTINGS_KEY, {}
     )
     previous_missing = key not in settings
-    previous_value = bool(settings.get(key, False))
+    previous_value = settings.get(key)
     update_pai_api_boolean_setting(preferences, key, enabled)
     persisted, _active = _persist_and_sync(window, preferences)
     if not persisted:
@@ -259,7 +259,7 @@ def sync_pai_api_auto_refresh(
         options.enabled
         and options.scrap_report_enabled
         and options.auto_refresh_enabled
-        and bool(options.executor_sectors)
+        and bool(options.all_executor_sectors)
     )
     if should_run:
         timer.setInterval(interval_ms)
@@ -313,11 +313,11 @@ def _run_auto_refresh_timeout(
 
 
 def _log_worker_output(text: str, *_args: Any) -> None:
-    logger.debug("SAM API worker output: %s", text)
+    logger.debug("SAM API worker output: %s", trim_pai_api_status_detail(text))
 
 
 def _log_worker_error(text: str, *_args: Any) -> None:
-    logger.debug("SAM API worker error: %s", text)
+    logger.debug("SAM API worker error: %s", trim_pai_api_status_detail(text))
 
 
 def _set_worker_progress(

@@ -13,10 +13,13 @@ import pandas as pd
 from gui.qt_stubs import (
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMenu,
     QPushButton,
@@ -24,6 +27,7 @@ from gui.qt_stubs import (
     QSignalBlocker,
     QSizePolicy,
     Qt,
+    QTextEdit,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -78,6 +82,8 @@ from .gui_filters_responsavel_state import responsavel_materialization_state
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 _DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
+_MACRO_EXECUTADAS_SETOR_KEY = "ssa_executadas_setor"
+_MACRO_EXECUTADAS_DIVISAO_KEY = "ssa_executadas_divisao"
 _is_widget_valid = _is_not_deleted
 _ADVANCED_MULTISELECT_FIELD_DEFS = (
     ("emis", "Emissor", True),
@@ -173,7 +179,7 @@ def _make_multiselect_box(
     self._attach_multiselect_menu(button, menu)
     button.setToolTip(placeholder)
     try:
-        box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
     except Exception as exc:
         logger.debug(
             "Falha ao definir size policy do groupbox multiselect '%s': %s", title, exc
@@ -533,13 +539,157 @@ def _make_advanced_macro_box(self):
     macro_combo = QComboBox()
     try:
         macro_combo.setMinimumWidth(100)
+        macro_combo.setMaximumWidth(240)
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do filtro macro: %s", exc)
     macro_combo.addItem("Nenhum", None)
     macro_combo.addItem("Baixar", "ssas_para_baixar")
+    macro_combo.addItem("SSA Executadas Setor", _MACRO_EXECUTADAS_SETOR_KEY)
+    macro_combo.addItem("SSA Executadas Divisao", _MACRO_EXECUTADAS_DIVISAO_KEY)
     macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
     macro_layout.addWidget(macro_combo)
     return macro_box, macro_combo
+
+
+def _macro_sector_filters(self, mode: str) -> tuple[set[str], set[str]]:
+    selected_sectors = {
+        str(value or "").strip().upper()
+        for value in _checked_values_from_checkboxes(
+            getattr(self, "adv_executor_checks", [])
+        )
+        if str(value or "").strip()
+    }
+    if mode == _MACRO_EXECUTADAS_DIVISAO_KEY:
+        prefixes = {value[:3] for value in selected_sectors if len(value) >= 3}
+        return set(), prefixes
+    return selected_sectors, set()
+
+
+def _macro_source_dataframe(self, mode: str) -> pd.DataFrame:
+    df = getattr(self, "df_completo", None)
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return pd.DataFrame()
+    required_cols = {"setor_executor", "semana_executada", "responsavel_execucao"}
+    if not required_cols.issubset(df.columns):
+        return pd.DataFrame()
+    working = df.copy()
+    setor_series = working["setor_executor"].astype("string").fillna("").str.strip().str.upper()
+    week_series = working["semana_executada"].astype("string").fillna("").str.strip()
+    exec_series = (
+        working["responsavel_execucao"].astype("string").fillna("").str.strip()
+    )
+    working = working.assign(
+        _macro_setor=setor_series,
+        _macro_week=week_series,
+        _macro_executor=exec_series.where(exec_series != "", "-"),
+    )
+    working = working[(working["_macro_setor"] != "") & (working["_macro_week"] != "")]
+    selected_sectors, selected_prefixes = _macro_sector_filters(self, mode)
+    if selected_sectors:
+        working = working[working["_macro_setor"].isin(selected_sectors)]
+    elif selected_prefixes:
+        working = working[
+            working["_macro_setor"].str[:3].isin(selected_prefixes)
+        ]
+    return working
+
+
+def _build_executadas_macro_report(self, mode: str) -> tuple[str, str]:
+    df = _macro_source_dataframe(self, mode)
+    if df.empty:
+        title = (
+            "SSA Executadas Divisao"
+            if mode == _MACRO_EXECUTADAS_DIVISAO_KEY
+            else "SSA Executadas Setor"
+        )
+        return title, "Nenhum dado executado disponivel para o recorte atual."
+    if mode == _MACRO_EXECUTADAS_DIVISAO_KEY:
+        title = "SSA Executadas Divisao"
+        df = df.assign(_macro_divisao=df["_macro_setor"].str[:3])
+        grouped = (
+            df.groupby(
+                ["_macro_divisao", "_macro_setor", "_macro_week", "_macro_executor"],
+                dropna=False,
+            )
+            .size()
+            .to_frame("total")
+            .reset_index()
+        )
+        lines = [title, ""]
+        for divisao in sorted(grouped["_macro_divisao"].dropna().unique()):
+            lines.append(str(divisao))
+            div_df = grouped[grouped["_macro_divisao"] == divisao]
+            for setor in sorted(
+                div_df["_macro_setor"].dropna().unique(),
+                key=lambda value: sector_sort_key(str(value), SECTOR_TO_DIV),
+            ):
+                lines.append(f"  {setor}")
+                setor_df = div_df[div_df["_macro_setor"] == setor]
+                for week in sorted(setor_df["_macro_week"].dropna().unique()):
+                    lines.append(f"    {week}")
+                    week_df = setor_df[setor_df["_macro_week"] == week]
+                    ordered_week_df = week_df.sort_values(
+                        ["_macro_executor", "total"],
+                        ascending=[True, False],
+                    )
+                    for row in ordered_week_df.itertuples(index=False):
+                        lines.append(
+                            f"      {row._macro_executor}: {int(row.total)}"
+                        )
+                lines.append("")
+        return title, "\n".join(lines).strip()
+    title = "SSA Executadas Setor"
+    grouped = (
+        df.groupby(["_macro_setor", "_macro_week", "_macro_executor"], dropna=False)
+        .size()
+        .to_frame("total")
+        .reset_index()
+    )
+    lines = [title, ""]
+    for setor in sorted(
+        grouped["_macro_setor"].dropna().unique(),
+        key=lambda value: sector_sort_key(str(value), SECTOR_TO_DIV),
+    ):
+        lines.append(str(setor))
+        setor_df = grouped[grouped["_macro_setor"] == setor]
+        for week in sorted(setor_df["_macro_week"].dropna().unique()):
+            lines.append(f"  {week}")
+            week_df = setor_df[setor_df["_macro_week"] == week]
+            ordered_week_df = week_df.sort_values(
+                ["_macro_executor", "total"],
+                ascending=[True, False],
+            )
+            for row in ordered_week_df.itertuples(index=False):
+                lines.append(f"    {row._macro_executor}: {int(row.total)}")
+        lines.append("")
+    return title, "\n".join(lines).strip()
+
+
+def _show_executadas_macro_dialog(self, mode: str) -> None:
+    title, report_text = _build_executadas_macro_report(self, mode)
+    dialog = QDialog(self)
+    dialog.setWindowTitle(title)
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(10, 10, 10, 10)
+    intro = QLabel(
+        "Resumo agrupado por semana e executor para os setores do recorte atual."
+    )
+    intro.setWordWrap(True)
+    layout.addWidget(intro)
+    output = QTextEdit()
+    output.setReadOnly(True)
+    try:
+        output.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+    except Exception as exc:
+        logger.debug("Falha ao desativar quebra de linha no relatorio macro: %s", exc)
+    output.setPlainText(report_text)
+    layout.addWidget(output, 1)
+    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+    buttons.rejected.connect(dialog.reject)
+    buttons.accepted.connect(dialog.accept)
+    layout.addWidget(buttons)
+    dialog.resize(720, 520)
+    dialog.exec()
 
 
 def _make_advanced_responsavel_fields(self, layout_baseline) -> dict[str, tuple]:
@@ -1007,9 +1157,18 @@ def _on_macro_filter_changed(self):
         choice = self.adv_macro_combo.currentData()
     except Exception:
         choice = None
+    if choice in {_MACRO_EXECUTADAS_SETOR_KEY, _MACRO_EXECUTADAS_DIVISAO_KEY}:
+        _show_executadas_macro_dialog(self, str(choice))
+        try:
+            with QSignalBlocker(self.adv_macro_combo):
+                self.adv_macro_combo.setCurrentIndex(0)
+        except Exception as exc:
+            logger.debug("Falha ao resetar macro de executadas apos abrir relatorio: %s", exc)
+        return
     preset = advanced_macro_filter_preset(choice)
     if preset is not None:
         _apply_advanced_macro_filter_preset(self, preset)
+        self._apply_advanced_filters_from_ui()
 
 
 def _reorganize_advanced_filters_grid(self, width: int):
@@ -1378,6 +1537,7 @@ def _refresh_include_exclude_multiselect(
     )
     setattr(self, checks_attr, include_checks)
     setattr(self, exclude_checks_attr, exclude_checks)
+    callback()
     return True
 
 
@@ -1438,6 +1598,11 @@ def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
             None,
         )
         self.adv_reprog_checks = include_checks
+        _update_multiselect_button(
+            self,
+            getattr(self, "adv_reprog_button", None),
+            self.adv_reprog_checks,
+        )
     except Exception as exc:
         logger.debug(
             "Failed to rebuild reprogramacoes menu in advanced filter UI: %s", exc
@@ -1508,6 +1673,12 @@ def _refresh_derivadas_menu(self, filters, apply_cb, selected_override=None):
             None,
         )
         self.adv_derivada_checks = include_checks
+        _update_multiselect_button(
+            self,
+            getattr(self, "adv_derivada_button", None),
+            self.adv_derivada_checks,
+            "Selecionar",
+        )
     except Exception as exc:
         logger.debug("Failed to rebuild derivadas menu in advanced filter UI: %s", exc)
         self.adv_derivada_checks = []
@@ -1565,7 +1736,7 @@ def _refresh_advanced_filter_options(self):
             and not getattr(self, "_adv_options_dirty", False)
             and cache.get("values") is not None
         ):
-            _refresh_derivadas_menu(self, filters, apply_cb)
+            _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
             return
 
         logger.debug(

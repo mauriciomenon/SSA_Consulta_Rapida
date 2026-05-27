@@ -851,11 +851,19 @@ def _apply_graph_navigation_hitboxes(graph_widget: Any, graph_svg: str) -> None:
     pixmap_getter = getattr(graph_widget, "pixmap", None)
     pixmap = pixmap_getter() if callable(pixmap_getter) else None
     if pixmap is not None:
-        width_getter = getattr(pixmap, "width", None)
-        height_getter = getattr(pixmap, "height", None)
-        if callable(width_getter) and callable(height_getter):
-            render_width = int(width_getter())
-            render_height = int(height_getter())
+        size_getter = getattr(pixmap, "deviceIndependentSize", None)
+        logical_size = size_getter() if callable(size_getter) else None
+        logical_width_getter = getattr(logical_size, "width", None)
+        logical_height_getter = getattr(logical_size, "height", None)
+        if callable(logical_width_getter) and callable(logical_height_getter):
+            render_width = int(logical_width_getter())
+            render_height = int(logical_height_getter())
+        else:
+            width_getter = getattr(pixmap, "width", None)
+            height_getter = getattr(pixmap, "height", None)
+            if callable(width_getter) and callable(height_getter):
+                render_width = int(width_getter())
+                render_height = int(height_getter())
     hitboxes = _graph_navigation_hitboxes_from_svg(
         graph_svg,
         render_width=float(max(1, render_width)),

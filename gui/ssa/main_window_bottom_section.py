@@ -25,6 +25,29 @@ from PyQt6.QtWidgets import (
 logger = logging.getLogger(__name__)
 
 
+def _pixmap_display_size(pixmap: Any) -> tuple[float, float]:
+    if pixmap is None:
+        return 0.0, 0.0
+    size_getter = getattr(pixmap, "deviceIndependentSize", None)
+    if callable(size_getter):
+        try:
+            size = size_getter()
+            width_getter = getattr(size, "width", None)
+            height_getter = getattr(size, "height", None)
+            if callable(width_getter) and callable(height_getter):
+                width = float(width_getter())
+                height = float(height_getter())
+                if width > 0.0 and height > 0.0:
+                    return width, height
+        except Exception as exc:
+            logger.debug("Falha ao medir pixmap em tamanho logico: %s", exc)
+    width_getter = getattr(pixmap, "width", None)
+    height_getter = getattr(pixmap, "height", None)
+    if callable(width_getter) and callable(height_getter):
+        return float(width_getter()), float(height_getter())
+    return 0.0, 0.0
+
+
 def _connect_window_slot(signal: Any, window: Any, slot_name: str) -> None:
     slot = getattr(window, slot_name, None)
     if callable(slot):
@@ -93,19 +116,16 @@ class DerivadasGraphLabel(QLabel):
         pixmap = self.pixmap()
         if pixmap is not None:
             is_null = getattr(pixmap, "isNull", None)
-            width_getter = getattr(pixmap, "width", None)
-            height_getter = getattr(pixmap, "height", None)
-            if (
-                callable(width_getter)
-                and callable(height_getter)
-                and not (callable(is_null) and is_null())
-            ):
-                pixmap_w = float(width_getter())
-                pixmap_h = float(height_getter())
+            if not (callable(is_null) and is_null()):
+                pixmap_w, pixmap_h = _pixmap_display_size(pixmap)
                 x -= max(0.0, (float(self.width()) - pixmap_w) / 2.0)
                 y -= max(0.0, (float(self.height()) - pixmap_h) / 2.0)
+        edge_tolerance = 3.0
         for ssa, left, top, right, bottom in self._ssa_hitboxes:
-            if left <= x <= right and top <= y <= bottom:
+            if (
+                (left - edge_tolerance) <= x <= (right + edge_tolerance)
+                and (top - edge_tolerance) <= y <= (bottom + edge_tolerance)
+            ):
                 return ssa
         return ""
 

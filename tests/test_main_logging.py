@@ -46,3 +46,5 @@ def test_set_logging_level_preserves_console_and_file_levels(tmp_path) -> None:
         main._file_logging_level = original_file_level
         if original_logger is not None:
             main.logger = original_logger
+        else:
+            setattr(main, "logger", None)

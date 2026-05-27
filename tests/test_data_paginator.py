@@ -37,9 +37,9 @@ class TestDataPaginator:
         assert paginator.page_info_label.text() == "3 de 3"
         assert paginator.prev_button.isEnabled() is True
         assert paginator.next_button.isEnabled() is False
-        assert paginator.prev_button.text() == "←"
+        assert paginator.prev_button.text() == "◂"
         assert paginator.prev_button.toolTip() == "Pagina anterior"
-        assert paginator.next_button.text() == "→"
+        assert paginator.next_button.text() == "▸"
         assert paginator.next_button.toolTip() == "Proxima pagina"
 
     def test_update_pagination_info_clamps_page_lower_bound(self):

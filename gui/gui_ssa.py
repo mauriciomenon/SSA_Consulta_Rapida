@@ -60,6 +60,7 @@ from core.pai_api_options import (
     PAI_API_BASE_URL_KEY,
     PAI_API_DATA_SCOPES_KEY,
     PAI_API_ENABLED_KEY,
+    PAI_API_EXTRA_SECTORS_KEY,
     PAI_API_LIMIT_KEY,
     PAI_API_NUMBER_OF_YEARS_KEY,
     PAI_API_SECRET_SERVICE_KEY,
@@ -80,7 +81,7 @@ from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
 from gui.gui_config import get_gui_main_preferences_path  # noqa: F401 - re-export for compatibility
 from gui.gui_config import load_gui_main_preferences  # noqa: F401 - re-export for compatibility
-from gui.gui_config import GUI_MAIN_PREFERENCES, REQUIRED_DISPLAY_COLUMNS
+from gui.gui_config import GUI_MAIN_PREFERENCES, REQUIRED_GUI_COLUMNS
 
 from gui.simple_width_manager import SimpleCacheManager  # noqa: E402
 from gui.simple_width_manager import SimpleWidthManager
@@ -201,6 +202,7 @@ try:
         QDialogButtonBox,
         QComboBox,
         QFileDialog,
+        QFrame,
         QGridLayout,
         QGroupBox,
         QHBoxLayout,
@@ -280,6 +282,7 @@ except ImportError as exc:
         FilterWorker,
         sip,
     )
+    QFrame: Any = QWidget
     QWidget = cast(Any, QWidget)
     QApplication = cast(Any, QApplication)
     QMainWindow = cast(Any, QMainWindow)
@@ -1045,9 +1048,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Colunas padrção para exibiçção (das configurações JSON)
         self.default_columns = GUI_MAIN_PREFERENCES.get(
-            "display_columns", list(REQUIRED_DISPLAY_COLUMNS)
+            "display_columns", list(REQUIRED_GUI_COLUMNS)
         )
-        for required_col in REQUIRED_DISPLAY_COLUMNS:
+        for required_col in REQUIRED_GUI_COLUMNS:
             if required_col not in self.default_columns:
                 self.default_columns.append(required_col)
 
@@ -1209,6 +1212,48 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         toolbar_layout.addWidget(cast(Any, self.api_button))
 
         self.update_derivadas_button = None
+        toolbar_layout.addSpacing(8)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedWidth(24)
+        progress_policy = self.progress_bar.sizePolicy()
+        progress_policy.setRetainSizeWhenHidden(True)
+        self.progress_bar.setSizePolicy(progress_policy)
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setRange(0, 0)
+
+        self.status_label = QLabel("Status: Aguardando carregamento dos dados...")
+        self.status_label.setStyleSheet(
+            "border:0; padding:0; margin:0;"
+        )
+        self.status_label.setMinimumWidth(180)
+        self.status_label.setMaximumWidth(16777215)
+        self.status_label.setSizePolicy(
+            cast(Any, QSizePolicy.Policy.Expanding),
+            cast(Any, QSizePolicy.Policy.Fixed),
+        )
+        self.status_progress_box = QFrame()
+        self.status_progress_box.setObjectName("toolbarStatusProgressBox")
+        self.status_progress_box.setStyleSheet(
+            "QFrame#toolbarStatusProgressBox {"
+            "border:1px solid palette(mid);"
+            "border-radius:4px;"
+            "padding:0;"
+            "margin:0;"
+            "}"
+        )
+        self.status_progress_box.setSizePolicy(
+            cast(Any, QSizePolicy.Policy.Expanding),
+            cast(Any, QSizePolicy.Policy.Fixed),
+        )
+        status_progress_layout = QHBoxLayout(cast(Any, self.status_progress_box))
+        status_progress_layout.setContentsMargins(5, 1, 5, 1)
+        status_progress_layout.setSpacing(6)
+        status_progress_layout.addWidget(cast(Any, self.progress_bar), 0)
+        status_progress_layout.addWidget(cast(Any, self.status_label), 1)
+        toolbar_layout.addWidget(cast(Any, self.status_progress_box), 1)
+
         # Semana Atual (YYYYWW) como indicador informativo na barra superior
         try:
             from datetime import date
@@ -1225,10 +1270,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         self.week_label.setStyleSheet(self._week_label_style)
         self.week_label.setToolTip("Semana ISO atual")
-        toolbar_layout.addSpacing(6)
-        toolbar_layout.addStretch()
-        toolbar_layout.addWidget(cast(Any, self.week_label))
-        toolbar_layout.addStretch()
 
         self.filtered_status_label = QLabel("0 de 0 SSAs")
         self.filtered_status_label.setStyleSheet(
@@ -1241,30 +1282,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             cast(Any, QSizePolicy.Policy.Fixed),
         )
         toolbar_layout.addWidget(cast(Any, self.filtered_status_label))
-
-        # Status em caixa e progresso
-        self.status_label = QLabel("Status: Aguardando carregamento dos dados...")
-        self.status_label.setStyleSheet(
-            "border:1px solid palette(mid); border-radius:4px; padding:1px 5px;"
-        )
-        # Keep toolbar geometry stable even when status text gets longer.
-        self.status_label.setMinimumWidth(250)
-        self.status_label.setMaximumWidth(460)
-        self.status_label.setSizePolicy(
-            cast(Any, QSizePolicy.Policy.Preferred),
-            cast(Any, QSizePolicy.Policy.Fixed),
-        )
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedWidth(24)
-        progress_policy = self.progress_bar.sizePolicy()
-        progress_policy.setRetainSizeWhenHidden(True)
-        self.progress_bar.setSizePolicy(progress_policy)
-        self.progress_bar.setVisible(False)
-        self.progress_bar.setRange(0, 0)
-
-        toolbar_layout.addWidget(cast(Any, self.status_label))
-        toolbar_layout.addWidget(cast(Any, self.progress_bar))
+        toolbar_layout.addWidget(cast(Any, self.week_label))
 
         self.preferences_button = QPushButton("Preferencias")
         self.preferences_button.setToolTip("Abrir preferencias da interface")
@@ -1644,11 +1662,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 seen.add(wid)
                 groups.append(widget)
         for widget in groups:
-            panel_target = target
-            if widget is getattr(self, "details_group", None):
-                panel_target = min(360, target + 30)
             self._set_widget_fixed_height_safe(
-                widget, panel_target, f"painel inferior {type(widget).__name__}"
+                widget, target, f"painel inferior {type(widget).__name__}"
             )
         try:
             current_kind = getattr(self, "_active_filter_panel_kind", None)
@@ -3030,7 +3045,51 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         dialog.setWindowTitle("Preferencias")
         layout = QVBoxLayout(cast(Any, dialog))
         layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+        content_scroll = QScrollArea()
+        content_scroll.setObjectName("preferencesContentScroll")
+        content_scroll.setWidgetResizable(True)
+        content_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(cast(Any, content_widget))
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(8)
+        content_scroll.setWidget(cast(Any, content_widget))
+        layout.addWidget(cast(Any, content_scroll), 1)
+
+        preferences_group_style = (
+            "QGroupBox#preferencesInterfaceGroup,"
+            "QGroupBox#preferencesBehaviorGroup,"
+            "QGroupBox#preferencesPaiApiGroup {"
+            "border:1px solid palette(mid);"
+            "border-radius:6px;"
+            "margin-top:8px;"
+            "padding-top:8px;"
+            "background:palette(alternate-base);"
+            "}"
+            "QGroupBox#preferencesTableGroup,"
+            "QGroupBox#preferencesColumnWidthsGroup {"
+            "border:1px solid palette(mid);"
+            "border-radius:6px;"
+            "margin-top:8px;"
+            "padding-top:8px;"
+            "background:palette(base);"
+            "}"
+            "QGroupBox::title {"
+            "subcontrol-origin: margin;"
+            "left: 8px;"
+            "padding: 0 3px;"
+            "}"
+        )
+        dialog.setStyleSheet(str(dialog.styleSheet() or "") + preferences_group_style)
+
+        interface_group = QGroupBox("Interface")
+        interface_group.setObjectName("preferencesInterfaceGroup")
+        interface_layout = QVBoxLayout(cast(Any, interface_group))
+        interface_layout.setContentsMargins(8, 8, 8, 8)
         grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(6)
         grid.addWidget(cast(Any, QLabel("Tema")), 0, 0)
         theme_combo = QComboBox()
         theme_combo.setObjectName("preferencesThemeCombo")
@@ -3143,14 +3202,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         grid.addWidget(cast(Any, cache_size_spin), 7, 1)
 
-        grid.addWidget(cast(Any, QLabel("Colunas e larguras")), 8, 0)
-        columns_button = QPushButton("Configurar colunas")
+        grid.addWidget(cast(Any, QLabel("Colunas exibidas")), 8, 0)
+        columns_button = QPushButton("Colunas")
         columns_button.setObjectName("preferencesColumnsButton")
         columns_button.setToolTip(
             "Abrir configuracao de colunas visiveis e larguras da tabela"
         )
         grid.addWidget(cast(Any, columns_button), 8, 1)
-        layout.addLayout(cast(Any, grid))
+        interface_layout.addLayout(cast(Any, grid))
+        content_layout.addWidget(cast(Any, interface_group))
 
         table_display_columns = list(getattr(self, "_current_display_columns", []) or [])
         current_display_columns = [
@@ -3184,6 +3244,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 return 120
 
+        table_group = QGroupBox("Tabela e colunas exibidas")
+        table_group.setObjectName("preferencesTableGroup")
+        table_layout = QVBoxLayout(cast(Any, table_group))
+        table_layout.setContentsMargins(8, 8, 8, 8)
+        table_layout.setSpacing(6)
         widths_group = QGroupBox("Larguras de colunas")
         widths_group.setObjectName("preferencesColumnWidthsGroup")
         widths_layout = QVBoxLayout(cast(Any, widths_group))
@@ -3212,25 +3277,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             widths_grid.addWidget(cast(Any, spin), row, base_col + 1)
         widths_scroll.setWidget(cast(Any, widths_container))
         widths_layout.addWidget(cast(Any, widths_scroll))
-        layout.addWidget(cast(Any, widths_group))
+        table_layout.addWidget(cast(Any, widths_group))
+        content_layout.addWidget(cast(Any, table_group))
 
+        behavior_group = QGroupBox("Cache e comportamento")
+        behavior_group.setObjectName("preferencesBehaviorGroup")
+        behavior_layout = QVBoxLayout(cast(Any, behavior_group))
+        behavior_layout.setContentsMargins(8, 8, 8, 8)
         toggles_layout = QGridLayout()
         toggles_layout.setContentsMargins(0, 6, 0, 0)
         toggles_layout.setSpacing(6)
 
-        auto_load_checkbox = QCheckBox("Carregar ao iniciar")
+        auto_load_checkbox = QCheckBox("Carregar dados do banco ao iniciar")
         auto_load_checkbox.setObjectName("preferencesAutoLoadCheck")
         auto_load_checkbox.setChecked(bool(gui_settings.get("auto_load", False)))
         toggles_layout.addWidget(cast(Any, auto_load_checkbox), 0, 0)
 
-        show_progress_checkbox = QCheckBox("Mostrar progresso")
+        show_progress_checkbox = QCheckBox("Mostrar progresso na barra superior")
         show_progress_checkbox.setObjectName("preferencesShowProgressCheck")
         show_progress_checkbox.setChecked(
             bool(gui_settings.get("show_progress_bar", True))
         )
         toggles_layout.addWidget(cast(Any, show_progress_checkbox), 0, 1)
 
-        enable_sort_checkbox = QCheckBox("Ordenar por coluna")
+        enable_sort_checkbox = QCheckBox("Permitir ordenacao por clique no cabecalho")
         enable_sort_checkbox.setObjectName("preferencesColumnSortingCheck")
         enable_sort_checkbox.setChecked(
             bool(gui_settings.get("enable_column_sorting", True))
@@ -3251,19 +3321,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         toggles_layout.addWidget(cast(Any, double_click_checkbox), 1, 1)
 
-        cache_enabled_checkbox = QCheckBox("Cache ligado")
+        cache_enabled_checkbox = QCheckBox("Usar cache de filtros")
         cache_enabled_checkbox.setObjectName("preferencesCacheEnabledCheck")
         cache_enabled_checkbox.setChecked(bool(gui_settings.get("cache_enabled", True)))
         toggles_layout.addWidget(cast(Any, cache_enabled_checkbox), 1, 2)
 
-        cache_auto_clear_checkbox = QCheckBox("Limpar cache automaticamente")
+        cache_auto_clear_checkbox = QCheckBox("Limpar cache ao recarregar dados")
         cache_auto_clear_checkbox.setObjectName("preferencesCacheAutoClearCheck")
         cache_auto_clear_checkbox.setChecked(
             bool(gui_settings.get("cache_auto_clear", False))
         )
         toggles_layout.addWidget(cast(Any, cache_auto_clear_checkbox), 2, 0, 1, 2)
 
-        layout.addLayout(cast(Any, toggles_layout))
+        behavior_layout.addLayout(cast(Any, toggles_layout))
+        content_layout.addWidget(cast(Any, behavior_group))
 
         api_group = QGroupBox("SAM API")
         api_group.setObjectName("preferencesPaiApiGroup")
@@ -3320,13 +3391,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_username_edit.setText(str(api_options.username or ""))
         api_layout.addWidget(cast(Any, api_username_edit), 5, 1, 1, 2)
 
-        api_layout.addWidget(cast(Any, QLabel("Servico secreto")), 6, 0)
+        api_layout.addWidget(cast(Any, QLabel("Chave do cofre")), 6, 0)
         api_secret_service_edit = QLineEdit()
         api_secret_service_edit.setObjectName("preferencesPaiApiSecretServiceEdit")
         api_secret_service_edit.setText(str(api_options.secret_service or ""))
         api_layout.addWidget(cast(Any, api_secret_service_edit), 6, 1, 1, 2)
 
-        api_layout.addWidget(cast(Any, QLabel("Senha SAM")), 7, 0)
+        api_layout.addWidget(cast(Any, QLabel("Senha SAM para gravar no cofre")), 7, 0)
         api_password_edit = QLineEdit()
         api_password_edit.setObjectName("preferencesPaiApiPasswordEdit")
         try:
@@ -3336,7 +3407,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_password_edit.setPlaceholderText("Senha apenas para gravar no cofre")
         api_layout.addWidget(cast(Any, api_password_edit), 7, 1, 1, 2)
 
-        api_secure_required_checkbox = QCheckBox("Seguro obrigatorio")
+        api_secure_required_checkbox = QCheckBox("Exigir cofre do sistema")
         api_secure_required_checkbox.setObjectName(
             "preferencesPaiApiSecureRequiredCheck"
         )
@@ -3346,11 +3417,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_secret_actions = QHBoxLayout()
         api_secret_actions.setContentsMargins(0, 0, 0, 0)
         api_secret_actions.setSpacing(6)
-        api_secret_validate_button = QPushButton("Validar segredo")
+        api_secret_validate_button = QPushButton("Validar segredo no cofre")
         api_secret_validate_button.setObjectName(
             "preferencesPaiApiValidateSecretButton"
         )
-        api_secret_store_button = QPushButton("Gravar segredo")
+        api_secret_store_button = QPushButton("Gravar segredo no cofre")
         api_secret_store_button.setObjectName("preferencesPaiApiStoreSecretButton")
         api_secret_actions.addWidget(cast(Any, api_secret_validate_button))
         api_secret_actions.addWidget(cast(Any, api_secret_store_button))
@@ -3377,7 +3448,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             sector_checks[sector] = checkbox
             api_layout.addWidget(cast(Any, checkbox), 15 + offset // 4, offset % 4)
 
-        layout.addWidget(cast(Any, api_group))
+        api_layout.addWidget(cast(Any, QLabel("Setores extras (SAM API)")), 17, 0)
+        api_extra_sectors_edit = QLineEdit()
+        api_extra_sectors_edit.setObjectName("preferencesPaiApiExtraSectorsEdit")
+        api_extra_sectors_edit.setPlaceholderText("Ex.: IEQ1, MEL5")
+        api_extra_sectors_edit.setToolTip(
+            "Setores adicionais usados apenas pela SAM API. Nao afeta importacao XLS."
+        )
+        api_extra_sectors_edit.setText(", ".join(api_options.executor_sectors_extra))
+        api_layout.addWidget(cast(Any, api_extra_sectors_edit), 17, 1, 1, 2)
+
+        content_layout.addWidget(cast(Any, api_group))
 
         defaults_button = QPushButton("Restaurar padrao")
         defaults_button.setObjectName("preferencesRestoreDefaultsButton")
@@ -3441,6 +3522,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             api_username_edit.setText(str(default_api_options.username or ""))
             api_secret_service_edit.setText(str(default_api_options.secret_service or ""))
             api_password_edit.clear()
+            api_extra_sectors_edit.setText(
+                ", ".join(default_api_options.executor_sectors_extra)
+            )
             api_secure_required_checkbox.setChecked(
                 bool(default_api_options.secure_required)
             )
@@ -3488,10 +3572,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 QMessageBox.warning(
                     self,
                     "SAM API",
-                    "Informe o Servico secreto antes de validar ou gravar o segredo.",
+                    "Informe a Chave do cofre antes de validar ou gravar o segredo.",
                 )
                 return None
             return username, secret_service
+
+        def _scraper_scopes_enabled() -> bool:
+            if not api_scrap_checkbox.isChecked():
+                return False
+            return any(
+                checkbox.isChecked() and scope != "consulta"
+                for scope, checkbox in scope_checks.items()
+            )
+
+        def _sync_api_secret_controls() -> None:
+            scraper_enabled = _scraper_scopes_enabled()
+            controls = (
+                api_username_edit,
+                api_secret_service_edit,
+                api_password_edit,
+                api_secure_required_checkbox,
+                api_secret_validate_button,
+                api_secret_store_button,
+            )
+            for widget in controls:
+                widget.setEnabled(scraper_enabled)
+            if scraper_enabled:
+                api_username_edit.setToolTip(
+                    "Obrigatorio quando houver escopos via xpath/scrap_report."
+                )
+            else:
+                api_username_edit.setToolTip(
+                    "Consulta REST nao exige usuario ou segredo."
+                )
 
         def _validate_secret() -> None:
             identity = _require_secret_identity()
@@ -3521,7 +3634,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 QMessageBox.warning(
                     self,
                     "SAM API",
-                    "Informe a Senha SAM para gravar o segredo.",
+                    "Informe a Senha SAM para gravar no cofre.",
                 )
                 return
             username, secret_service = identity
@@ -3545,11 +3658,28 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         api_secret_validate_button.clicked.connect(_validate_secret)
         api_secret_store_button.clicked.connect(_store_secret)
+        api_scrap_checkbox.toggled.connect(_sync_api_secret_controls)
+        for checkbox in scope_checks.values():
+            checkbox.toggled.connect(_sync_api_secret_controls)
+        _sync_api_secret_controls()
         selector = getattr(self, "column_selector", None)
         if selector is not None:
             columns_button.clicked.connect(selector.open_dialog)
         else:
             columns_button.setEnabled(False)
+
+        try:
+            primary_screen_getter = getattr(QApplication, "primaryScreen", None)
+            screen = primary_screen_getter() if callable(primary_screen_getter) else None
+            if screen is not None and hasattr(screen, "availableGeometry"):
+                available = screen.availableGeometry()
+                dialog.setMaximumHeight(max(600, int(available.height()) - 40))
+                dialog.resize(
+                    max(680, min(960, int(available.width()) - 80)),
+                    max(620, min(840, int(available.height()) - 80)),
+                )
+        except Exception as exc:
+            logger.debug("Falha ao limitar altura da tela de preferencias: %s", exc)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         selected_theme = str(theme_combo.currentData() or "").strip()
@@ -3702,6 +3832,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         updated_api_settings[PAI_API_SECURE_REQUIRED_KEY] = bool(
             api_secure_required_checkbox.isChecked()
         )
+        updated_api_settings[PAI_API_EXTRA_SECTORS_KEY] = str(
+            api_extra_sectors_edit.text() or ""
+        ).strip()
         updated_api_settings[PAI_API_DATA_SCOPES_KEY] = [
             scope for scope, checkbox in scope_checks.items() if checkbox.isChecked()
         ]

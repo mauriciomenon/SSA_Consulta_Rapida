@@ -138,7 +138,7 @@ class PaiApiRefreshWorker(QThread):
 
     def _run_refresh(self) -> None:
         options = self.config.options
-        sectors = tuple(options.executor_sectors)
+        sectors = tuple(options.all_executor_sectors)
         data_scopes = tuple(
             scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
         )
