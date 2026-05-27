@@ -20,6 +20,7 @@ import copy
 import json
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess  # nosec B404
 import sys
@@ -68,8 +69,13 @@ from core.pai_api_options import (
     normalize_pai_api_options,
     pai_api_data_scope_label,
 )
+from core.pai_scrap_report_provider import (
+    run_pai_scrap_report_secret_set,
+    run_pai_scrap_report_secret_validate,
+)
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
+from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
 from gui.gui_config import get_gui_main_preferences_path  # noqa: F401 - re-export for compatibility
 from gui.gui_config import load_gui_main_preferences  # noqa: F401 - re-export for compatibility
@@ -166,6 +172,7 @@ _TABLE_CELL_ALIGNMENT_LABELS = {
     "right": "Direita",
 }
 _DEFAULT_TABLE_CELL_ALIGNMENT = str(DEFAULT_GUI_SETTINGS["table_cell_alignment"])
+_APP_AUTHOR_TEXT = "Mauricio Menon"
 
 from armazenamento.database import query_db, vacuum_analyze_database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
@@ -203,6 +210,7 @@ try:
         QMessageBox,
         QProgressBar,
         QPushButton,
+        QScrollArea,
         QSizePolicy,
         QSpinBox,
         QStackedWidget,
@@ -251,6 +259,7 @@ except ImportError as exc:
         QMessageBox,
         QProgressBar,
         QPushButton,
+        QScrollArea,
         QSizePolicy,
         QSpinBox,
         QStackedWidget,
@@ -671,14 +680,7 @@ def resolve_git_commit_hash_text() -> str:
 
 def build_about_message(app_version: str) -> str:
     """Monta texto do dialogo Sobre."""
-    python_version = str(sys.version.split()[0]) if sys.version else "indisponivel"
-    pandas_version = str(getattr(pd, "__version__", "indisponivel"))
-    pyqt_version = str(PYQT_VERSION_STR or "indisponivel")
-    qt_version = str(QT_VERSION_STR or "indisponivel")
     build_info = _load_embedded_build_info()
-    uv_version = resolve_uv_version_text()
-    if uv_version == "indisponivel":
-        uv_version = str(build_info.get("uv_version") or uv_version)
     commit_hash = resolve_git_commit_hash_text()
     if commit_hash == "indisponivel":
         commit_hash = str(
@@ -686,27 +688,31 @@ def build_about_message(app_version: str) -> str:
             or build_info.get("git_commit")
             or commit_hash
         )
+    build_datetime = str(build_info.get("build_datetime") or "").strip() or "indisponivel"
     lines = [
         "Consulta Rapida de SSAs",
-        f"Versao app: {app_version}",
-        "",
-        f"Python: {python_version}",
-        f"uv: {uv_version}",
-        f"PyQt6: {pyqt_version}",
-        f"Qt: {qt_version}",
-        f"pandas: {pandas_version}",
+        f"Versao: {app_version}",
+        f"Autor: {_APP_AUTHOR_TEXT}",
+        f"Data ISO: {build_datetime}",
         f"Commit: {commit_hash}",
     ]
-    build_datetime = str(build_info.get("build_datetime") or "").strip()
-    if build_datetime:
-        lines.append(f"Build: {build_datetime}")
-    c_compiler_version = str(build_info.get("c_compiler_version") or "").strip()
-    if c_compiler_version:
-        lines.append(f"C/C++: {c_compiler_version}")
-    rustc_version = str(build_info.get("rustc_version") or "").strip()
-    if rustc_version:
-        lines.append(f"Rust: {rustc_version}")
     return "\n".join(lines)
+
+
+def build_about_summary_line(app_version: str) -> str:
+    build_info = _load_embedded_build_info()
+    build_datetime = str(build_info.get("build_datetime") or "").strip() or "indisponivel"
+    commit_hash = resolve_git_commit_hash_text()
+    if commit_hash == "indisponivel":
+        commit_hash = str(
+            build_info.get("git_commit_short")
+            or build_info.get("git_commit")
+            or commit_hash
+        )
+    return (
+        f"Versao {app_version} | {_APP_AUTHOR_TEXT} | "
+        f"{build_datetime} | {commit_hash}"
+    )
 
 
 # --- Worker Threads ---
@@ -3056,6 +3062,68 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, columns_button), 6, 1)
         layout.addLayout(cast(Any, grid))
 
+        table_display_columns = list(getattr(self, "_current_display_columns", []) or [])
+        current_display_columns = [
+            col
+            for col in table_display_columns
+            if str(col or "") != "#"
+        ]
+        current_column_index = {
+            str(col_name): idx for idx, col_name in enumerate(table_display_columns)
+            if str(col_name or "") != "#"
+        }
+        persisted_column_widths = GUI_MAIN_PREFERENCES.setdefault("column_widths", {})
+        width_spinboxes: dict[str, QSpinBox] = {}
+
+        def _current_width_for_column(col_name: str) -> int:
+            col_key = str(col_name or "")
+            idx = current_column_index.get(col_key)
+            if idx is not None and hasattr(self, "table_widget"):
+                try:
+                    width = int(self.table_widget.columnWidth(idx))
+                    if width > 0:
+                        return width
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao ler largura atual da coluna %s nas preferencias: %s",
+                        col_key,
+                        exc,
+                    )
+            try:
+                return int(persisted_column_widths.get(col_key, 120) or 120)
+            except Exception:
+                return 120
+
+        widths_group = QGroupBox("Larguras de colunas")
+        widths_group.setObjectName("preferencesColumnWidthsGroup")
+        widths_layout = QVBoxLayout(cast(Any, widths_group))
+        widths_layout.setContentsMargins(8, 8, 8, 8)
+        widths_layout.setSpacing(6)
+        widths_scroll = QScrollArea()
+        widths_scroll.setObjectName("preferencesColumnWidthsScroll")
+        widths_scroll.setWidgetResizable(True)
+        widths_scroll.setMinimumHeight(160)
+        widths_container = QWidget()
+        widths_grid = QGridLayout(cast(Any, widths_container))
+        widths_grid.setContentsMargins(0, 0, 0, 0)
+        widths_grid.setSpacing(6)
+        for offset, col_name in enumerate(current_display_columns):
+            label = QLabel(str(self.internal_to_display.get(col_name, col_name)))
+            label.setObjectName(f"preferencesColumnWidthLabel_{col_name}")
+            spin = QSpinBox()
+            spin.setObjectName(f"preferencesColumnWidthSpin_{col_name}")
+            spin.setRange(30, 1000)
+            spin.setSingleStep(5)
+            spin.setValue(_current_width_for_column(str(col_name)))
+            width_spinboxes[str(col_name)] = spin
+            row = offset // 2
+            base_col = (offset % 2) * 2
+            widths_grid.addWidget(cast(Any, label), row, base_col)
+            widths_grid.addWidget(cast(Any, spin), row, base_col + 1)
+        widths_scroll.setWidget(cast(Any, widths_container))
+        widths_layout.addWidget(cast(Any, widths_scroll))
+        layout.addWidget(cast(Any, widths_group))
+
         toggles_layout = QGridLayout()
         toggles_layout.setContentsMargins(0, 6, 0, 0)
         toggles_layout.setSpacing(6)
@@ -3162,32 +3230,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_secret_service_edit.setText(str(api_options.secret_service or ""))
         api_layout.addWidget(cast(Any, api_secret_service_edit), 5, 1, 1, 2)
 
+        api_layout.addWidget(cast(Any, QLabel("Senha SAM")), 6, 0)
+        api_password_edit = QLineEdit()
+        api_password_edit.setObjectName("preferencesPaiApiPasswordEdit")
+        try:
+            api_password_edit.setEchoMode(cast(Any, QLineEdit).EchoMode.Password)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar modo senha no campo SAM API: %s", exc)
+        api_password_edit.setPlaceholderText("Senha apenas para gravar no cofre")
+        api_layout.addWidget(cast(Any, api_password_edit), 6, 1, 1, 2)
+
         api_secure_required_checkbox = QCheckBox("Seguro obrigatorio")
         api_secure_required_checkbox.setObjectName(
             "preferencesPaiApiSecureRequiredCheck"
         )
         api_secure_required_checkbox.setChecked(bool(api_options.secure_required))
-        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 6, 0, 1, 2)
+        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 7, 0, 1, 2)
+
+        api_secret_actions = QHBoxLayout()
+        api_secret_actions.setContentsMargins(0, 0, 0, 0)
+        api_secret_actions.setSpacing(6)
+        api_secret_validate_button = QPushButton("Validar segredo")
+        api_secret_validate_button.setObjectName(
+            "preferencesPaiApiValidateSecretButton"
+        )
+        api_secret_store_button = QPushButton("Gravar segredo")
+        api_secret_store_button.setObjectName("preferencesPaiApiStoreSecretButton")
+        api_secret_actions.addWidget(cast(Any, api_secret_validate_button))
+        api_secret_actions.addWidget(cast(Any, api_secret_store_button))
+        api_secret_actions.addStretch(1)
+        api_layout.addLayout(cast(Any, api_secret_actions), 8, 0, 1, 3)
 
         selected_scopes = {value.casefold() for value in api_options.data_scopes}
         scope_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 7, 0)
+        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 9, 0)
         for offset, scope in enumerate(PAI_API_ALLOWED_DATA_SCOPES):
             checkbox = QCheckBox(pai_api_data_scope_label(scope))
             checkbox.setObjectName(f"preferencesPaiApiScope_{scope}")
             checkbox.setChecked(scope.casefold() in selected_scopes)
             scope_checks[scope] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 8 + offset // 3, offset % 3)
+            api_layout.addWidget(cast(Any, checkbox), 10 + offset // 3, offset % 3)
 
         selected_sectors = {value.casefold() for value in api_options.executor_sectors}
         sector_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 11, 0)
+        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 13, 0)
         for offset, sector in enumerate(PAI_API_ALLOWED_SECTORS):
             checkbox = QCheckBox(sector)
             checkbox.setObjectName(f"preferencesPaiApiSector_{sector}")
             checkbox.setChecked(sector.casefold() in selected_sectors)
             sector_checks[sector] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 12 + offset // 4, offset % 4)
+            api_layout.addWidget(cast(Any, checkbox), 14 + offset // 4, offset % 4)
 
         layout.addWidget(cast(Any, api_group))
 
@@ -3249,6 +3341,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             api_years_spin.setValue(int(default_api_options.number_of_years))
             api_username_edit.setText(str(default_api_options.username or ""))
             api_secret_service_edit.setText(str(default_api_options.secret_service or ""))
+            api_password_edit.clear()
             api_secure_required_checkbox.setChecked(
                 bool(default_api_options.secure_required)
             )
@@ -3260,22 +3353,97 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             }
             for sector, checkbox in sector_checks.items():
                 checkbox.setChecked(sector.casefold() in default_sectors)
+            for col_name, spin in width_spinboxes.items():
+                default_width = int(DEFAULT_COLUMN_WIDTHS.get(col_name, 120) or 120)
+                spin.setValue(default_width)
 
         defaults_button.clicked.connect(_restore_defaults)
-        layout.addWidget(cast(Any, defaults_button))
-
-        footer_label = QLabel(
-            f"Fonte: {get_gui_main_preferences_path()} | Consulta Rapida de SSAs v{self._app_version}"
-        )
+        footer_label = QLabel(build_about_summary_line(self._app_version))
         footer_label.setObjectName("preferencesFooterLabel")
-        layout.addWidget(cast(Any, footer_label))
+        footer_label.setStyleSheet("color: palette(mid);")
 
         button_flags = cast(Any, QDialogButtonBox.StandardButton.Ok)
         button_flags = button_flags | cast(Any, QDialogButtonBox.StandardButton.Cancel)
         buttons = QDialogButtonBox(button_flags)
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
-        layout.addWidget(cast(Any, buttons))
+        footer_row = QHBoxLayout()
+        footer_row.setContentsMargins(0, 6, 0, 0)
+        footer_row.setSpacing(8)
+        footer_row.addWidget(cast(Any, defaults_button))
+        footer_row.addWidget(cast(Any, footer_label), 1)
+        footer_row.addWidget(cast(Any, buttons))
+        layout.addLayout(cast(Any, footer_row))
+
+        def _require_secret_identity() -> tuple[str, str] | None:
+            username = str(api_username_edit.text() or "").strip()
+            secret_service = str(api_secret_service_edit.text() or "").strip()
+            if not username:
+                QMessageBox.warning(
+                    self,
+                    "SAM API",
+                    "Informe o Usuario SAM antes de validar ou gravar o segredo.",
+                )
+                return None
+            if not secret_service:
+                QMessageBox.warning(
+                    self,
+                    "SAM API",
+                    "Informe o Servico secreto antes de validar ou gravar o segredo.",
+                )
+                return None
+            return username, secret_service
+
+        def _validate_secret() -> None:
+            identity = _require_secret_identity()
+            if identity is None:
+                return
+            username, secret_service = identity
+            try:
+                run_pai_scrap_report_secret_validate(
+                    project_root=Path(project_root),
+                    username=username,
+                    secret_service=secret_service,
+                )
+            except Exception as exc:
+                logger.warning("Falha ao validar segredo SAM API: %s", exc)
+                QMessageBox.warning(self, "SAM API", f"Falha ao validar segredo: {exc}")
+                return
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Segredo SAM API validado.")
+            QMessageBox.information(self, "SAM API", "Segredo validado com sucesso.")
+
+        def _store_secret() -> None:
+            identity = _require_secret_identity()
+            if identity is None:
+                return
+            password = str(api_password_edit.text() or "")
+            if not password:
+                QMessageBox.warning(
+                    self,
+                    "SAM API",
+                    "Informe a Senha SAM para gravar o segredo.",
+                )
+                return
+            username, secret_service = identity
+            try:
+                run_pai_scrap_report_secret_set(
+                    project_root=Path(project_root),
+                    username=username,
+                    password=password,
+                    secret_service=secret_service,
+                )
+            except Exception as exc:
+                logger.warning("Falha ao gravar segredo SAM API: %s", exc)
+                QMessageBox.warning(self, "SAM API", f"Falha ao gravar segredo: {exc}")
+                return
+            api_password_edit.clear()
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Segredo SAM API gravado.")
+            QMessageBox.information(self, "SAM API", "Segredo gravado com sucesso.")
+
+        api_secret_validate_button.clicked.connect(_validate_secret)
+        api_secret_store_button.clicked.connect(_store_secret)
         selector = getattr(self, "column_selector", None)
         if selector is not None:
             columns_button.clicked.connect(selector.open_dialog)
@@ -3396,6 +3564,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.initialize_pai_api_auto_refresh()
             except Exception as exc:
                 logger.debug("Falha ao aplicar preferencias de SAM API: %s", exc)
+            settings_changed = True
+        width_settings_changed = False
+        saved_widths = getattr(self, "_saved_gui_column_widths", None)
+        if not isinstance(saved_widths, dict):
+            saved_widths = {}
+            self._saved_gui_column_widths = saved_widths
+        runtime_widths = getattr(self, "_gui_column_pixel_widths", None)
+        if not isinstance(runtime_widths, dict):
+            runtime_widths = {}
+            self._gui_column_pixel_widths = runtime_widths
+        prefs_widths = GUI_MAIN_PREFERENCES.setdefault("column_widths", {})
+        for col_name, spin in width_spinboxes.items():
+            new_width = int(spin.value())
+            previous_width = int(prefs_widths.get(col_name, 0) or 0)
+            if previous_width != new_width:
+                prefs_widths[col_name] = new_width
+                width_settings_changed = True
+            saved_widths[col_name] = new_width
+            runtime_widths[col_name] = new_width
+            column_index = current_column_index.get(col_name)
+            if column_index is None or not hasattr(self, "table_widget"):
+                continue
+            try:
+                old_width = int(self.table_widget.columnWidth(column_index))
+            except Exception:
+                old_width = new_width
+            if old_width != new_width:
+                self.table_widget.setColumnWidth(column_index, new_width)
+                self._on_header_section_resized(column_index, old_width, new_width)
+        if width_settings_changed:
             settings_changed = True
         if settings_changed and not os.environ.get("PYTEST_CURRENT_TEST"):
             self._persist_gui_preferences()

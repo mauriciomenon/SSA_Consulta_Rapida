@@ -111,6 +111,96 @@ class PaiScrapReportExecution:
     env: Mapping[str, str] | None = None
 
 
+def run_pai_scrap_report_secret_set(
+    *,
+    project_root: Path,
+    username: str,
+    password: str,
+    secret_service: str,
+    scrap_report_root: Path | None = None,
+    allow_sibling_scrap_report: bool = True,
+    runner: str = PAI_RUNNER_UV,
+    command_timeout_seconds: float = PAI_DEFAULT_COMMAND_TIMEOUT_SECONDS,
+    completed_runner: CompletedRunner = subprocess.run,
+) -> None:
+    execution = resolve_scrap_report_execution(
+        project_root,
+        override=scrap_report_root,
+        allow_sibling=allow_sibling_scrap_report,
+        runner=runner,
+    )
+    command = (
+        *execution.command_prefix,
+        "-c",
+        (
+            "import sys; "
+            "from scrap_report.secret_provider import build_secret_provider; "
+            "provider = build_secret_provider(); "
+            "provider.set_secret(sys.argv[1], sys.argv[2], sys.stdin.read());"
+        ),
+        str(secret_service).strip(),
+        str(username).strip(),
+    )
+    completed = completed_runner(
+        list(command),
+        cwd=str(execution.cwd),
+        capture_output=True,
+        text=True,
+        timeout=command_timeout_seconds,
+        check=False,
+        env=execution.env,
+        input=str(password),
+    )
+    stdout = str(getattr(completed, "stdout", "") or "")
+    stderr = str(getattr(completed, "stderr", "") or "")
+    returncode = int(getattr(completed, "returncode", 1))
+    if returncode != 0:
+        stderr_state = "present" if stderr.strip() else "empty"
+        stdout_state = "present" if stdout.strip() else "empty"
+        raise RuntimeError(
+            f"scrap_report secret set falhou "
+            f"(exit={returncode}, stderr={stderr_state}, stdout={stdout_state})."
+        )
+
+
+def run_pai_scrap_report_secret_validate(
+    *,
+    project_root: Path,
+    username: str,
+    secret_service: str,
+    scrap_report_root: Path | None = None,
+    allow_sibling_scrap_report: bool = True,
+    runner: str = PAI_RUNNER_UV,
+    command_timeout_seconds: float = PAI_DEFAULT_COMMAND_TIMEOUT_SECONDS,
+    completed_runner: CompletedRunner = subprocess.run,
+) -> None:
+    execution = resolve_scrap_report_execution(
+        project_root,
+        override=scrap_report_root,
+        allow_sibling=allow_sibling_scrap_report,
+        runner=runner,
+    )
+    command = (
+        *execution.command_prefix,
+        "-c",
+        (
+            "import sys; "
+            "from scrap_report.secret_provider import build_secret_provider; "
+            "provider = build_secret_provider(); "
+            "provider.get_secret(sys.argv[1], sys.argv[2]);"
+        ),
+        str(secret_service).strip(),
+        str(username).strip(),
+    )
+    _run_scrap_report_command(
+        command,
+        execution,
+        timeout_seconds=command_timeout_seconds,
+        runner=completed_runner,
+        label="secret validate",
+    )
+
+
 def resolve_scrap_report_root(
     project_root: Path,
     *,

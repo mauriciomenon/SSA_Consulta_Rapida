@@ -500,9 +500,15 @@ class TestGUIFilterLogic:
                 str(widget.objectName() or ""): widget
                 for widget in dialog.findChildren(QPushButton)
             }
+            width_spins = {
+                str(widget.objectName() or ""): widget.value()
+                for widget in dialog.findChildren(QSpinBox)
+                if str(widget.objectName() or "").startswith("preferencesColumnWidthSpin_")
+            }
             captured["labels"] = labels
             captured["checks"] = checks
             captured["buttons"] = [widget.text() for widget in buttons.values()]
+            captured["width_spins"] = width_spins
             captured["groups"] = [
                 widget.title()
                 for widget in dialog.findChildren(QGroupBox)
@@ -529,9 +535,17 @@ class TestGUIFilterLogic:
             "Colunas e larguras",
         ]
         assert "Configurar colunas" in captured["buttons"]
+        assert "Validar segredo" in captured["buttons"]
+        assert "Gravar segredo" in captured["buttons"]
         assert "SAM API" in captured["groups"]
+        assert "Larguras de colunas" in captured["groups"]
         assert "Usuario SAM" in captured["labels"]
         assert "Servico secreto" in captured["labels"]
+        assert "Senha SAM" in captured["labels"]
+        assert any(
+            name.startswith("preferencesColumnWidthSpin_")
+            for name in captured["width_spins"]
+        )
         assert captured["checks"]["preferencesAutoLoadCheck"] == "Carregar ao iniciar"
         assert (
             captured["checks"]["preferencesShowProgressCheck"] == "Mostrar progresso"
@@ -545,7 +559,8 @@ class TestGUIFilterLogic:
             == "Duplo clique abre detalhes"
         )
         assert "Restaurar padrao" in captured["buttons"]
-        assert "Consulta Rapida de SSAs v" in captured["footer"]
+        assert "Mauricio Menon" in captured["footer"]
+        assert "Versao " in captured["footer"]
 
     def test_preferences_dialog_applies_runtime_settings(self, monkeypatch):
         gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
@@ -561,6 +576,9 @@ class TestGUIFilterLogic:
         previous_cache_enabled = gui_settings.get("cache_enabled")
         previous_cache_auto_clear = gui_settings.get("cache_auto_clear")
         previous_pai_api = copy.deepcopy(gui_settings.get("pai_api"))
+        previous_column_widths = copy.deepcopy(gui_ssa.GUI_MAIN_PREFERENCES.get("column_widths"))
+        previous_saved_widths = copy.deepcopy(getattr(self.window, "_saved_gui_column_widths", {}))
+        previous_runtime_widths = copy.deepcopy(getattr(self.window, "_gui_column_pixel_widths", {}))
         paginator = getattr(self.window, "paginator", None)
         assert paginator is not None
         clear_calls: list[str] = []
@@ -628,6 +646,9 @@ class TestGUIFilterLogic:
             api_secure_required_check = dialog.findChild(
                 QCheckBox, "preferencesPaiApiSecureRequiredCheck"
             )
+            descricao_width_spin = dialog.findChild(
+                QSpinBox, "preferencesColumnWidthSpin_descricao_ssa"
+            )
             assert search_mode_combo is not None
             assert debounce_spin is not None
             assert page_size_spin is not None
@@ -648,6 +669,7 @@ class TestGUIFilterLogic:
             assert api_username_edit is not None
             assert api_secret_service_edit is not None
             assert api_secure_required_check is not None
+            assert descricao_width_spin is not None
 
             search_mode_combo.setCurrentIndex(
                 search_mode_combo.findData("regex")
@@ -671,6 +693,7 @@ class TestGUIFilterLogic:
             api_username_edit.setText("sam.user")
             api_secret_service_edit.setText("scrap_report.sam.alt")
             api_secure_required_check.setChecked(False)
+            descricao_width_spin.setValue(365)
             for checkbox in dialog.findChildren(QCheckBox):
                 object_name = str(checkbox.objectName() or "")
                 if object_name.startswith("preferencesPaiApiScope_"):
@@ -720,6 +743,9 @@ class TestGUIFilterLogic:
         assert pai_api_settings.get("sam_username") == "sam.user"
         assert pai_api_settings.get("secret_service") == "scrap_report.sam.alt"
         assert pai_api_settings.get("secure_required") is False
+        assert gui_ssa.GUI_MAIN_PREFERENCES.get("column_widths", {}).get("descricao_ssa") == 365
+        assert getattr(self.window, "_saved_gui_column_widths", {}).get("descricao_ssa") == 365
+        assert getattr(self.window, "_gui_column_pixel_widths", {}).get("descricao_ssa") == 365
 
         gui_settings["default_filter_mode"] = previous_mode
         gui_settings["debounce_delay"] = previous_delay
@@ -733,6 +759,75 @@ class TestGUIFilterLogic:
         gui_settings["cache_enabled"] = previous_cache_enabled
         gui_settings["cache_auto_clear"] = previous_cache_auto_clear
         gui_settings["pai_api"] = previous_pai_api
+        gui_ssa.GUI_MAIN_PREFERENCES["column_widths"] = previous_column_widths
+        self.window._saved_gui_column_widths = previous_saved_widths
+        self.window._gui_column_pixel_widths = previous_runtime_widths
+
+    def test_preferences_dialog_secret_buttons_delegate_to_provider(self, monkeypatch):
+        validate_calls: list[tuple[str, str]] = []
+        store_calls: list[tuple[str, str, str]] = []
+        info_messages: list[str] = []
+        warning_messages: list[str] = []
+
+        monkeypatch.setattr(
+            gui_ssa,
+            "run_pai_scrap_report_secret_validate",
+            lambda **kwargs: validate_calls.append(
+                (kwargs["username"], kwargs["secret_service"])
+            ),
+        )
+        monkeypatch.setattr(
+            gui_ssa,
+            "run_pai_scrap_report_secret_set",
+            lambda **kwargs: store_calls.append(
+                (kwargs["username"], kwargs["secret_service"], kwargs["password"])
+            ),
+        )
+        monkeypatch.setattr(
+            QMessageBox,
+            "information",
+            lambda *_args: info_messages.append(str(_args[2] if len(_args) > 2 else "")),
+        )
+        monkeypatch.setattr(
+            QMessageBox,
+            "warning",
+            lambda *_args: warning_messages.append(str(_args[2] if len(_args) > 2 else "")),
+        )
+
+        def _fake_exec(dialog):
+            username = dialog.findChild(QLineEdit, "preferencesPaiApiUsernameEdit")
+            secret_service = dialog.findChild(
+                QLineEdit, "preferencesPaiApiSecretServiceEdit"
+            )
+            password = dialog.findChild(QLineEdit, "preferencesPaiApiPasswordEdit")
+            validate_button = dialog.findChild(
+                QPushButton, "preferencesPaiApiValidateSecretButton"
+            )
+            store_button = dialog.findChild(
+                QPushButton, "preferencesPaiApiStoreSecretButton"
+            )
+            assert username is not None
+            assert secret_service is not None
+            assert password is not None
+            assert validate_button is not None
+            assert store_button is not None
+            username.setText("sam.user")
+            secret_service.setText("scrap_report.sam")
+            validate_button.click()
+            password.setText("abc123")
+            store_button.click()
+            assert password.text() == ""
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
+        assert validate_calls == [("sam.user", "scrap_report.sam")]
+        assert store_calls == [("sam.user", "scrap_report.sam", "abc123")]
+        assert warning_messages == []
+        assert any("validado" in message.lower() for message in info_messages)
+        assert any("gravado" in message.lower() for message in info_messages)
 
     def test_apply_progress_bar_preference_does_not_force_idle_visibility(self):
         self.window.progress_bar.setVisible(False)
