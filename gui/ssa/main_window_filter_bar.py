@@ -532,8 +532,8 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
             button.setCheckable(True)
             _set_fixed_height(window, button, 20, f"filtro rapido situacao {value}")
             try:
-                button.setMinimumWidth(24)
-                button.setMaximumWidth(36)
+                button.setMinimumWidth(28)
+                button.setMaximumWidth(40)
             except Exception as exc:
                 logger.debug("Falha ao limitar botao de situacao %s: %s", value, exc)
             try:
@@ -568,7 +568,8 @@ def _sync_quick_situacao_button(
         button.setToolTip(f"Liga ou desliga o filtro de situacao {value}.")
         style = str(getattr(window, "_week_label_style", "") or "")
         if style:
-            button.setStyleSheet(style)
+            compact_style = style.replace("padding:1px 5px;", "padding:0px 2px;")
+            button.setStyleSheet(compact_style)
     except Exception as exc:
         logger.debug("Falha ao sincronizar botao de situacao %s: %s", value, exc)
     finally:
