@@ -236,7 +236,8 @@ def test_run_pai_scrap_report_export_reports_sweep_label_on_failure(
         )
     assert "stderr=present" in str(excinfo.value)
     assert "stdout=present" in str(excinfo.value)
-    assert "token=" not in str(excinfo.value)
+    assert "detail=failed token=<redacted>" in str(excinfo.value)
+    assert "token=secret" not in str(excinfo.value)
     assert "password=" not in str(excinfo.value)
 
 

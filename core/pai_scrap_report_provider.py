@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess  # nosec B404
 import sys
@@ -155,11 +156,11 @@ def run_pai_scrap_report_secret_set(
     stderr = str(getattr(completed, "stderr", "") or "")
     returncode = int(getattr(completed, "returncode", 1))
     if returncode != 0:
-        stderr_state = "present" if stderr.strip() else "empty"
-        stdout_state = "present" if stdout.strip() else "empty"
-        raise RuntimeError(
-            f"scrap_report secret set falhou "
-            f"(exit={returncode}, stderr={stderr_state}, stdout={stdout_state})."
+        _raise_scrap_report_failure(
+            label="secret set",
+            returncode=returncode,
+            stderr=stderr,
+            stdout=stdout,
         )
 
 
@@ -214,7 +215,7 @@ def resolve_scrap_report_root(
         raise FileNotFoundError("scrap_report root was not provided.")
     root = candidate.expanduser().resolve(strict=False)
     cli_path = root / "src" / "scrap_report" / "cli.py"
-    if not (root / "pyproject.toml").is_file() or not cli_path.is_file():
+    if not _looks_like_scrap_report_root(root):
         raise FileNotFoundError(
             "Invalid scrap_report directory; missing pyproject.toml or "
             f"{cli_path}."
@@ -506,13 +507,47 @@ def _run_scrap_report_command(
     stderr = str(getattr(completed, "stderr", "") or "")
     returncode = int(getattr(completed, "returncode", 1))
     if returncode != 0:
-        stderr_state = "present" if stderr.strip() else "empty"
-        stdout_state = "present" if stdout.strip() else "empty"
-        raise RuntimeError(
-            f"scrap_report {label} falhou "
-            f"(exit={returncode}, stderr={stderr_state}, stdout={stdout_state})."
+        _raise_scrap_report_failure(
+            label=label,
+            returncode=returncode,
+            stderr=stderr,
+            stdout=stdout,
         )
     return PaiScrapReportCompleted(stdout=stdout, stderr=stderr)
+
+
+def _command_failure_detail(*, stderr: str, stdout: str) -> str:
+    for raw_text in (stderr, stdout):
+        for raw_line in raw_text.splitlines():
+            stripped = " ".join(raw_line.split()).strip()
+            if not stripped:
+                continue
+            redacted = re.sub(
+                r"(?i)\b(password|token|secret|senha)(\s*[:=]\s*)(\S+)",
+                r"\1\2<redacted>",
+                stripped,
+            )
+            if len(redacted) > 180:
+                return f"{redacted[:177]}..."
+            return redacted
+    return "sem detalhe textual"
+
+
+def _raise_scrap_report_failure(
+    *,
+    label: str,
+    returncode: int,
+    stderr: str,
+    stdout: str,
+) -> None:
+    stderr_state = "present" if stderr.strip() else "empty"
+    stdout_state = "present" if stdout.strip() else "empty"
+    failure_detail = _command_failure_detail(stderr=stderr, stdout=stdout)
+    raise RuntimeError(
+        f"scrap_report {label} falhou "
+        f"(exit={returncode}, stderr={stderr_state}, stdout={stdout_state}, "
+        f"detail={failure_detail})."
+    )
 
 
 def _optional_scrap_report_root(
