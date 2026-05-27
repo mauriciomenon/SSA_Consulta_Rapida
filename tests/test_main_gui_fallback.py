@@ -5,8 +5,26 @@ import os
 import subprocess
 import sys
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
+
+
+def test_gui_ssa_window_instantiates_when_pyqt_is_available() -> None:
+    from gui.gui_ssa import QT_AVAILABLE, SSAMainWindow
+
+    if not QT_AVAILABLE:
+        pytest.skip("PyQt6 indisponivel neste ambiente")
+
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+    window = SSAMainWindow()
+    try:
+        assert isinstance(window, SSAMainWindow)
+    finally:
+        window.close()
+        app.processEvents()
 
 
 def _patch_gui_import_failure(
@@ -23,6 +41,44 @@ def _patch_gui_import_failure(
         return real_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
+
+
+def _launcher_test_deps(show_calls: dict[str, int], exec_calls: dict[str, int]) -> tuple[type[Any], type[Any], type[Any]]:
+    class FakeWindow:
+        _startup_show_pending = False
+
+        def __init__(self) -> None:
+            self._startup_show_pending = bool(type(self)._startup_show_pending)
+
+        def show(self) -> None:
+            show_calls["count"] += 1
+
+    class FakeQApplication:
+        @staticmethod
+        def setWindowIcon(_icon) -> None:  # noqa: ANN001
+            return None
+
+        def __init__(self, _argv) -> None:  # noqa: ANN001
+            return None
+
+        def setApplicationName(self, _value: str) -> None:
+            return None
+
+        def setApplicationDisplayName(self, _value: str) -> None:
+            return None
+
+        def exec(self) -> int:
+            exec_calls["count"] += 1
+            return 0
+
+    class FakeIcon:
+        def __init__(self, _path: str) -> None:
+            return None
+
+        def isNull(self) -> bool:
+            return True
+
+    return FakeWindow, FakeQApplication, FakeIcon
 
 
 def test_main_gui_importerror_falls_back_to_cli(
@@ -105,47 +161,24 @@ with pytest.raises(RuntimeError, match="GUI unavailable"):
 def test_launch_gui_skips_show_when_startup_load_is_pending(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from gui import launcher
-    from PyQt6 import QtGui, QtWidgets
+    from gui.gui_ssa import QT_AVAILABLE
+
+    if not QT_AVAILABLE:
+        pytest.skip("PyQt6 indisponivel neste ambiente")
 
     show_calls = {"count": 0}
     exec_calls = {"count": 0}
+    FakeWindow, FakeQApplication, FakeIcon = _launcher_test_deps(
+        show_calls, exec_calls
+    )
+    FakeWindow._startup_show_pending = True  # type: ignore[attr-defined]
 
-    class FakeWindow:
-        def __init__(self) -> None:
-            self._startup_show_pending = True
-
-        def show(self) -> None:
-            show_calls["count"] += 1
-
-    class FakeQApplication:
-        @staticmethod
-        def setWindowIcon(_icon) -> None:  # noqa: ANN001
-            return None
-
-        def __init__(self, _argv) -> None:  # noqa: ANN001
-            return None
-
-        def setApplicationName(self, _value: str) -> None:
-            return None
-
-        def setApplicationDisplayName(self, _value: str) -> None:
-            return None
-
-        def exec(self) -> int:
-            exec_calls["count"] += 1
-            return 0
-
-    class FakeIcon:
-        def __init__(self, _path: str) -> None:
-            return None
-
-        def isNull(self) -> bool:
-            return True
-
+    monkeypatch.delitem(sys.modules, "gui.launcher", raising=False)
+    from PyQt6 import QtGui, QtWidgets
     monkeypatch.setattr(QtWidgets, "QApplication", FakeQApplication)
     monkeypatch.setattr(QtGui, "QIcon", FakeIcon)
     monkeypatch.setitem(sys.modules, "gui.gui_ssa", SimpleNamespace(SSAMainWindow=FakeWindow))
+    from gui import launcher
 
     launcher.launch_gui(os.getcwd(), ["app"], launcher.logging.getLogger("test"))
 
@@ -156,47 +189,23 @@ def test_launch_gui_skips_show_when_startup_load_is_pending(
 def test_launch_gui_shows_window_when_startup_load_is_not_pending(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from gui import launcher
-    from PyQt6 import QtGui, QtWidgets
+    from gui.gui_ssa import QT_AVAILABLE
+
+    if not QT_AVAILABLE:
+        pytest.skip("PyQt6 indisponivel neste ambiente")
 
     show_calls = {"count": 0}
     exec_calls = {"count": 0}
+    FakeWindow, FakeQApplication, FakeIcon = _launcher_test_deps(
+        show_calls, exec_calls
+    )
 
-    class FakeWindow:
-        def __init__(self) -> None:
-            self._startup_show_pending = False
-
-        def show(self) -> None:
-            show_calls["count"] += 1
-
-    class FakeQApplication:
-        @staticmethod
-        def setWindowIcon(_icon) -> None:  # noqa: ANN001
-            return None
-
-        def __init__(self, _argv) -> None:  # noqa: ANN001
-            return None
-
-        def setApplicationName(self, _value: str) -> None:
-            return None
-
-        def setApplicationDisplayName(self, _value: str) -> None:
-            return None
-
-        def exec(self) -> int:
-            exec_calls["count"] += 1
-            return 0
-
-    class FakeIcon:
-        def __init__(self, _path: str) -> None:
-            return None
-
-        def isNull(self) -> bool:
-            return True
-
+    monkeypatch.delitem(sys.modules, "gui.launcher", raising=False)
+    from PyQt6 import QtGui, QtWidgets
     monkeypatch.setattr(QtWidgets, "QApplication", FakeQApplication)
     monkeypatch.setattr(QtGui, "QIcon", FakeIcon)
     monkeypatch.setitem(sys.modules, "gui.gui_ssa", SimpleNamespace(SSAMainWindow=FakeWindow))
+    from gui import launcher
 
     launcher.launch_gui(os.getcwd(), ["app"], launcher.logging.getLogger("test"))
 
