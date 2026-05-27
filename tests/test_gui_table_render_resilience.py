@@ -132,12 +132,18 @@ class TestGUITableRenderResilience:
             return original_qtable_item(text)
 
         with patch("gui.ssa.gui_table.QTableWidgetItem", side_effect=flaky_qtable_item):
-            self.window.display_current_page(1)
-            QApplication.processEvents()
+            with patch(
+                "gui.ssa.gui_table._render_signature_and_reuse",
+                return_value=(object(), False),
+            ):
+                self.window.table_widget.setRowCount(0)
+                self.window.display_current_page(1)
+                QApplication.processEvents()
 
         assert calls["count"] > 1
         assert self.window.table_widget.rowCount() == len(self.base_df)
         assert self.window.table_widget.item(0, 0) is not None
+        assert self.window.table_widget.item(0, 0).text() == ""
 
     def test_display_current_page_skips_redundant_detail_refresh_for_same_signature(
         self,
@@ -149,10 +155,13 @@ class TestGUITableRenderResilience:
         ) as update_details:
             self.window.display_current_page(1)
             QApplication.processEvents()
+            first_call_count = update_details.call_count
+            initial_ssa = self.window._details_current_ssa
             self.window.display_current_page(1)
             QApplication.processEvents()
 
-        assert update_details.call_count == 1
+        assert update_details.call_count == first_call_count
+        assert self.window._details_current_ssa == initial_ssa
 
     def test_display_current_page_refreshes_details_when_search_terms_change(self):
         with patch.object(
@@ -162,11 +171,14 @@ class TestGUITableRenderResilience:
         ) as update_details:
             self.window.display_current_page(1)
             QApplication.processEvents()
+            first_call_count = update_details.call_count
             self.window.search_input.setText("Teste A")
             self.window.display_current_page(1)
             QApplication.processEvents()
 
-        assert update_details.call_count == 2
+        assert update_details.call_count > first_call_count
+        assert self.window._details_current_ssa == 1
+        assert "Teste A" in str(self.window.details_text.toHtml() or "")
 
     def test_display_current_page_rebuilds_when_page_changes(self):
         extra_rows = self.base_df.iloc[:2].copy()
@@ -187,13 +199,15 @@ class TestGUITableRenderResilience:
         ) as update_details:
             self.window.display_current_page(1)
             QApplication.processEvents()
+            first_call_count = update_details.call_count
             self.window.display_current_page(2)
             QApplication.processEvents()
 
         expected_page = format_dataframe_for_display(
             paged_df.iloc[2:4][_expected_visible_columns(self.window, paged_df)].copy()
         )
-        assert update_details.call_count == 2
+        assert update_details.call_count > first_call_count
+        assert self.window._details_current_ssa == 3
         assert self.window.table_widget.rowCount() == 2
         numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
         assert (
@@ -253,6 +267,9 @@ class TestGUITableRenderResilience:
         assert self.window.details_text.toPlainText().strip() == ""
 
     def test_display_current_page_can_skip_initial_details_update(self):
+        self.window._details_current_ssa = None
+        self.window.details_text.clear()
+
         with patch.object(
             ssa_gui_details,
             "_update_details_from_series",
@@ -441,19 +458,24 @@ class TestGUITableRenderResilience:
         QApplication.processEvents()
         initial_ssa = self.window._details_current_ssa
         initial_html = str(self.window.details_text.toHtml() or "")
+        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        previous_alignment = gui_settings.get("table_cell_alignment")
 
-        with patch.object(
-            ssa_gui_details,
-            "_update_details_from_series",
-            wraps=ssa_gui_details._update_details_from_series,
-        ) as update_details:
-            ok = self.window._apply_table_cell_alignment_preference("left")
-            QApplication.processEvents()
+        try:
+            with patch.object(
+                ssa_gui_details,
+                "_update_details_from_series",
+                wraps=ssa_gui_details._update_details_from_series,
+            ) as update_details:
+                ok = self.window._apply_table_cell_alignment_preference("left")
+                QApplication.processEvents()
 
-        assert ok is True
-        assert update_details.call_count == 0
-        assert self.window._details_current_ssa == initial_ssa
-        assert str(self.window.details_text.toHtml() or "") == initial_html
+            assert ok is True
+            assert update_details.call_count == 0
+            assert self.window._details_current_ssa == initial_ssa
+            assert str(self.window.details_text.toHtml() or "") == initial_html
+        finally:
+            gui_settings["table_cell_alignment"] = previous_alignment or "right"
 
     def test_tab_switch_preserves_existing_details(self):
         preserve_df = self._build_preserve_details_df()

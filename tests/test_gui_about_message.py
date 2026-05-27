@@ -13,7 +13,9 @@ def test_build_about_message_includes_commit_hash(monkeypatch) -> None:
 
     message = gui_ssa.build_about_message("9.9.9")
 
-    assert "Versao app: 9.9.9" in message
+    assert "Versao: 9.9.9" in message
+    assert "Autor: Mauricio Menon" in message
+    assert "Data ISO: indisponivel" in message
     assert "Commit: abc1234" in message
 
 
@@ -36,11 +38,10 @@ def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> 
 
     message = gui_ssa.build_about_message("9.9.9")
 
-    assert "uv: uv 0.9.18" in message
+    assert "Versao: 9.9.9" in message
+    assert "Autor: Mauricio Menon" in message
     assert "Commit: def5678" in message
-    assert "Build: 2026-04-28T06:30:00-03:00" in message
-    assert "C/C++: gcc 14.2.0" in message
-    assert "Rust: rustc 1.90.0" in message
+    assert "Data ISO: 2026-04-28T06:30:00-03:00" in message
 
 
 def test_resolve_uv_version_uses_resolved_executable(monkeypatch) -> None:

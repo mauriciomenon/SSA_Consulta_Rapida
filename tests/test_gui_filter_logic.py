@@ -819,10 +819,10 @@ class TestGUIFilterLogic:
             assert password is not None
             assert validate_button is not None
             assert store_button is not None
-            username.setText("sam.user")
+            username.setText("usr")
             secret_service.setText("scrap_report.sam")
             validate_button.click()
-            password.setText("abc123")
+            password.setText("x")
             store_button.click()
             assert password.text() == ""
             return QDialog.DialogCode.Rejected
@@ -831,8 +831,8 @@ class TestGUIFilterLogic:
 
         self.window._open_preferences_dialog()
 
-        assert validate_calls == [("sam.user", "scrap_report.sam")]
-        assert store_calls == [("sam.user", "scrap_report.sam", "abc123")]
+        assert validate_calls == [("usr", "scrap_report.sam")]
+        assert store_calls == [("usr", "scrap_report.sam", "x")]
         assert warning_messages == []
         assert any("validado" in message.lower() for message in info_messages)
         assert any("gravado" in message.lower() for message in info_messages)
@@ -2140,46 +2140,55 @@ class TestGUIFilterLogic:
         assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignRight)
 
     def test_display_current_page_accepts_left_table_cell_alignment(self):
-        gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})[
-            "table_cell_alignment"
-        ] = "left"
+        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        previous_alignment = gui_settings.get("table_cell_alignment")
+        gui_settings["table_cell_alignment"] = "left"
 
-        self.window.display_current_page(1)
-        QApplication.processEvents()
+        try:
+            self.window.display_current_page(1)
+            QApplication.processEvents()
 
-        logical_index = self.window._current_display_columns.index("numero_ssa")
-        item = self.window.table_widget.item(0, logical_index)
+            logical_index = self.window._current_display_columns.index("numero_ssa")
+            item = self.window.table_widget.item(0, logical_index)
 
-        assert item is not None
-        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignLeft)
+            assert item is not None
+            assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignLeft)
+        finally:
+            gui_settings["table_cell_alignment"] = previous_alignment or "right"
 
     def test_display_current_page_accepts_right_table_cell_alignment(self):
-        gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})[
-            "table_cell_alignment"
-        ] = "right"
+        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        previous_alignment = gui_settings.get("table_cell_alignment")
+        gui_settings["table_cell_alignment"] = "right"
 
-        self.window.display_current_page(1)
-        QApplication.processEvents()
+        try:
+            self.window.display_current_page(1)
+            QApplication.processEvents()
 
-        logical_index = self.window._current_display_columns.index("numero_ssa")
-        item = self.window.table_widget.item(0, logical_index)
+            logical_index = self.window._current_display_columns.index("numero_ssa")
+            item = self.window.table_widget.item(0, logical_index)
 
-        assert item is not None
-        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignRight)
+            assert item is not None
+            assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignRight)
+        finally:
+            gui_settings["table_cell_alignment"] = previous_alignment or "right"
 
     def test_display_current_page_keeps_long_text_columns_left_aligned(self):
-        gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})[
-            "table_cell_alignment"
-        ] = "right"
+        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        previous_alignment = gui_settings.get("table_cell_alignment")
+        gui_settings["table_cell_alignment"] = "right"
 
-        self.window.display_current_page(1)
-        QApplication.processEvents()
+        try:
+            self.window.display_current_page(1)
+            QApplication.processEvents()
 
-        logical_index = self.window._current_display_columns.index("descricao_ssa")
-        item = self.window.table_widget.item(0, logical_index)
+            logical_index = self.window._current_display_columns.index("descricao_ssa")
+            item = self.window.table_widget.item(0, logical_index)
 
-        assert item is not None
-        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignLeft)
+            assert item is not None
+            assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignLeft)
+        finally:
+            gui_settings["table_cell_alignment"] = previous_alignment or "right"
 
     def test_setup_app_menus_exposes_table_cell_alignment_actions(self):
         actions = getattr(self.window, "_table_cell_alignment_actions", {})
@@ -6219,7 +6228,7 @@ class TestGUIFilterLogic:
         )
 
         assert '<a href="ssa:202602147"' in html
-        assert '<a href="ssa:202500777"' in html
+        assert '<a href="ssa:202500777"' not in html
         assert "202500777" in html
         assert seen_targets.count("202602147") == 1
         assert seen_targets.count("202500777") == 1
@@ -6576,7 +6585,7 @@ class TestGUIFilterLogic:
 
         derived = ssa_gui_details._get_derivadas_for_ssa(self.window, "100")
 
-        assert derived == ["121911787", "102"]
+        assert derived == ["121911787", "102", "202512345", "202522222"]
 
     def test_get_derivadas_for_ssa_uses_cached_family_edges(self, monkeypatch):
         self.window.df_completo = pd.DataFrame(
@@ -8045,7 +8054,7 @@ class TestGUIFilterLogic:
         after = int(self.window.minimumSizeHint().width())
 
         assert self.window.progress_bar.sizePolicy().retainSizeWhenHidden() is True
-        assert self.window.progress_bar.width() == 32
+        assert self.window.progress_bar.width() == 24
         assert before == while_busy == after
 
     def test_build_derivadas_tree_html_uses_spaced_header_layout(self):

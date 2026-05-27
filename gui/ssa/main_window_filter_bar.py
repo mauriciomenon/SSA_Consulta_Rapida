@@ -629,7 +629,7 @@ def _build_column_filter_indicator(window: Any) -> QLabel:
         logger.debug("Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc)
     indicator.setToolTip(
         "Busca rapida: virgulas separam termos cumulativos (logica E). "
-        "Filtros por texto: virgulas representam alternativas dentro do mesmo campo. "
+        "Filtros por texto: virgulas representam alternativas dentro da mesma coluna. "
         "Entre filtros diferentes, as restricoes continuam cumulativas."
     )
     try:

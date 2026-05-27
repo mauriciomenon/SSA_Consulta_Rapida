@@ -772,7 +772,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._canonical_available_columns_cache_key = None
         self._canonical_available_columns_cache = None
         self._adv_values_cache = {}
-        self._df_last_search_filtered = pd.DataFrame()
         if reason:
             logger.debug("Data revision bump (%s): %s", reason, next_rev)
         return next_rev
@@ -1997,7 +1996,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     exc,
                 )
 
+            paginator_signals_were_blocked = False
+            try:
+                paginator_signals_were_blocked = bool(
+                    self.paginator.blockSignals(True)
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao bloquear sinais do paginator durante sort: %s", exc
+                )
             self.paginator.set_dataframe(self.df_exibido)
+            try:
+                self.paginator.blockSignals(paginator_signals_were_blocked)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao restaurar sinais do paginator apos sort: %s", exc
+                )
             current_page = max(
                 1,
                 min(

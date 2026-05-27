@@ -1103,6 +1103,10 @@ def _can_skip_reused_render_finalize(window, display_df) -> bool:
 def _finalize_page_render(
     window, display_df, render_signature, *, update_details, reuse_render=False
 ):
+    expected_alignment = _table_cell_alignment_from_preferences()
+    alignment_changed = (
+        getattr(window, "_last_table_cell_alignment", None) != expected_alignment
+    )
     if reuse_render and _can_skip_reused_render_finalize(window, display_df):
         try:
             window._ensure_nonzero_column_widths()
@@ -1112,6 +1116,15 @@ def _finalize_page_render(
         _refresh_initial_details(window, update_details=update_details)
         window._last_table_render_signature = render_signature
         return
+
+    if reuse_render and alignment_changed:
+        try:
+            _populate_table_items(window, display_df, expected_alignment)
+            window._last_table_cell_alignment = expected_alignment
+        except Exception as exc:
+            logger.debug(
+                "Falha ao reaplicar alinhamento em render reutilizado: %s", exc
+            )
 
     header = window.table_widget.horizontalHeader()
     _apply_rendered_table_widths(window, display_df)
