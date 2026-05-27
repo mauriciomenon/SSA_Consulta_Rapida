@@ -513,7 +513,9 @@ def _summary_from_state(
 
 
 def _format_sector_failure(sector: str, exc: Exception) -> str:
-    detail = trim_pai_api_status_detail(str(exc or "") or type(exc).__name__)
+    detail = " ".join(str(exc or "").split())
+    if not detail:
+        detail = type(exc).__name__
     return (
         f"setor {sector}: "
         f"{detail}"
@@ -530,7 +532,9 @@ def _format_total_failure(failures: Sequence[str]) -> str:
 
 
 def _format_ca_failure(exc: Exception) -> str:
-    detail = trim_pai_api_status_detail(str(exc or "") or type(exc).__name__)
+    detail = " ".join(str(exc or "").split())
+    if not detail:
+        detail = type(exc).__name__
     return (
         "SAM API: falha ao validar CA; DB inalterado. "
         f"{detail}"

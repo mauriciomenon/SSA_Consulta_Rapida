@@ -1244,7 +1244,7 @@ class FilterGUISSAMixin:
         if FilterWorker is not None and hasattr(FilterWorker, "_cache"):
             try:
                 FilterWorker._cache.clear()
-                logger.info("Cache de filtros limpo")
+                logger.debug("Cache de filtros limpo")
             except Exception as e:  # pragma: no cover
                 logger.debug("Falha ao limpar cache de filtros: %s", e)
         else:

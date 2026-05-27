@@ -377,8 +377,11 @@ def _finish_error(
 ) -> None:
     if window.active_pai_api_worker() is worker:
         window.set_active_pai_api_worker(None)
-    logger.warning("Falha na SAM API: %s", message)
-    window.set_pai_api_status(f"Status: Falha na SAM API: {_short_error_message(message)}")
+    short_message = _short_error_message(message)
+    logger.warning("Falha na SAM API: %s", short_message)
+    if short_message != message:
+        logger.info("Falha detalhada na SAM API: %s", message)
+    window.set_pai_api_status(f"Status: Falha na SAM API: {short_message}")
 
 
 def _worker_is_running(worker: Any) -> bool:

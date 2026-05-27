@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import logging
+import pytest
 
 from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
@@ -129,6 +130,11 @@ class _Worker:
 class _WorkerWithEmptySummary(_Worker):
     def summary(self) -> None:
         return None
+
+
+@pytest.fixture(autouse=True)
+def _reset_timer_instances() -> None:
+    _Timer.instances.clear()
 
 
 def test_status_for_options_error_maps_xpath_disabled_message() -> None:
@@ -425,6 +431,33 @@ def test_pai_api_error_status_is_short() -> None:
     assert window.worker is None
     assert len(window.statuses[-1]) <= 120
     assert window.statuses[-1].endswith("...")
+
+
+def test_pai_api_error_logs_short_warning_and_full_detail(caplog) -> None:
+    window = _Window()
+    worker = _Worker(None)
+    window.set_active_pai_api_worker(worker)
+    long_error = "scrap_report sam-api-flow falhou " + ("x" * 200)
+
+    with caplog.at_level(logging.INFO, logger="gui.ssa.pai_api_controller"):
+        pai_api_controller._finish_error(window, worker, long_error)
+
+    warning_messages = [
+        str(record.message)
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+    ]
+    info_messages = [
+        str(record.message)
+        for record in caplog.records
+        if record.levelno == logging.INFO
+    ]
+
+    assert len(warning_messages) == 1
+    assert "Falha na SAM API:" in warning_messages[0]
+    assert warning_messages[0].endswith("...")
+    assert len(info_messages) == 1
+    assert info_messages[0] == f"Falha detalhada na SAM API: {long_error}"
 
 
 def test_pai_api_sector_failure_logs_at_info(caplog) -> None:

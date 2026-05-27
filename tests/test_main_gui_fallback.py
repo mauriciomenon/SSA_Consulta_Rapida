@@ -202,3 +202,26 @@ def test_launch_gui_shows_window_when_startup_load_is_not_pending(
 
     assert show_calls["count"] == 1
     assert exec_calls["count"] == 1
+
+
+def test_should_filter_macos_stderr_line_matches_only_tsm_noise() -> None:
+    from gui import launcher
+
+    assert launcher._should_filter_macos_stderr_line(
+        "TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) "
+        "to send to port com.apple.tsm.uiserver\n"
+    )
+    assert not launcher._should_filter_macos_stderr_line("RuntimeError: boom\n")
+
+
+def test_install_macos_stderr_filter_skips_when_tsm_debug_is_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gui import launcher
+
+    monkeypatch.setattr(launcher.sys, "platform", "darwin")
+    monkeypatch.setenv("SSA_TSM_DEBUG", "1")
+
+    assert launcher._install_macos_stderr_filter(
+        launcher.logging.getLogger("test")
+    ) is None
