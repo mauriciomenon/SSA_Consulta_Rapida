@@ -32,7 +32,7 @@ class DataPaginator(QWidget):
     def init_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(3)
 
         self.prev_button = QPushButton("←")
         self.prev_button.setToolTip("Pagina anterior")
@@ -44,6 +44,9 @@ class DataPaginator(QWidget):
         self.page_info_label = QLabel("Pagina 1 de 1")
         self.page_info_label.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.page_info_label.setStyleSheet(
+            "font-size: 11px; font-weight: 400; padding:0; margin:0;"
         )
 
         self.next_button = QPushButton("→")

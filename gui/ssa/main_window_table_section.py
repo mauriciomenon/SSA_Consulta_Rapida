@@ -17,6 +17,14 @@ def build_main_table_widget(window: Any) -> QTableWidget:
     table_widget.setSelectionBehavior(
         cast(Any, QAbstractItemView.SelectionBehavior.SelectRows)
     )
+    try:
+        table_widget.setWordWrap(False)
+    except Exception as exc:
+        logger.debug("Falha ao desabilitar quebra de linha da tabela: %s", exc)
+    try:
+        table_widget.setTextElideMode(cast(Any, Qt.TextElideMode.ElideRight))
+    except Exception as exc:
+        logger.debug("Falha ao aplicar elide a direita na tabela: %s", exc)
     window._set_widget_min_height_safe(table_widget, 220, "tabela principal")
 
     header = table_widget.horizontalHeader()

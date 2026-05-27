@@ -394,10 +394,11 @@ def build_pagination_filter_bar(
     persistent_filters_layout.addWidget(cast(Any, exclude_ste_checkbox))
 
     pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
-    quick_situacao_label = QLabel("Situacao:")
+    quick_situacao_label = QLabel("")
     quick_situacao_label.setToolTip(
         "Filtro rapido por situacao. Cada botao liga ou desliga uma situacao."
     )
+    quick_situacao_label.setVisible(False)
     quick_situacao_widget = QWidget()
     quick_situacao_layout = QHBoxLayout(cast(Any, quick_situacao_widget))
     quick_situacao_layout.setContentsMargins(0, 0, 0, 0)
@@ -434,9 +435,8 @@ def build_pagination_filter_bar(
         "Situacoes aplicadas junto com os demais filtros."
     )
     quick_situacao_box_layout = QHBoxLayout(cast(Any, quick_situacao_box))
-    quick_situacao_box_layout.setContentsMargins(2, 1, 2, 1)
-    quick_situacao_box_layout.setSpacing(2)
-    quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_label))
+    quick_situacao_box_layout.setContentsMargins(1, 1, 2, 1)
+    quick_situacao_box_layout.setSpacing(1)
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_scroll))
     quick_situacao_box.setSizePolicy(
         cast(Any, QSizePolicy.Policy.Expanding),
@@ -449,8 +449,8 @@ def build_pagination_filter_bar(
         "Filtro rapido de Setor Executor. Aplica junto com os demais filtros."
     )
     quick_setor_executor_box_layout = QHBoxLayout(cast(Any, quick_setor_executor_box))
-    quick_setor_executor_box_layout.setContentsMargins(2, 1, 2, 1)
-    quick_setor_executor_box_layout.setSpacing(2)
+    quick_setor_executor_box_layout.setContentsMargins(1, 1, 2, 1)
+    quick_setor_executor_box_layout.setSpacing(1)
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_label))
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_combo))
     quick_setor_executor_box.setSizePolicy(

@@ -1206,13 +1206,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.preferences_button = QPushButton("Preferencias")
         self.preferences_button.setToolTip("Abrir preferencias da interface")
         self.preferences_button.clicked.connect(self._open_preferences_dialog)
-        self.preferences_button.setStyleSheet(self._week_label_style)
 
         theme_button = QPushButton("Tema")
         self.theme_button = theme_button
         theme_button.setToolTip("Selecionar tema em caixa de dialogo")
         theme_button.clicked.connect(self.toggle_theme_menu)
-        theme_button.setStyleSheet(self._week_label_style)
         toolbar_layout.addWidget(cast(Any, self.preferences_button))
         toolbar_layout.addWidget(cast(Any, theme_button))
 

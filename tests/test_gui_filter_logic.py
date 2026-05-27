@@ -324,6 +324,7 @@ class TestGUIFilterLogic:
         quick_label = main_ctx["quick_setor_executor_label"]
         quick_combo = main_ctx["quick_setor_executor_combo"]
         quick_box = main_ctx["quick_setor_executor_box"]
+        quick_situacao_label = main_ctx["quick_situacao_label"]
         quick_situacao_scroll = main_ctx["quick_situacao_scroll"]
         filters_summary_frame = main_ctx["filters_summary_frame"]
         clear_all_filters_btn = main_ctx["clear_all_filters_btn"]
@@ -393,11 +394,14 @@ class TestGUIFilterLogic:
         page_size_label = getattr(paginator, "page_size_label", None)
         assert page_size_label is not None
         assert page_size_label.parentWidget() is None
+        assert "font-size: 11px" in str(paginator.page_info_label.styleSheet() or "")
         assert (
             preferences_button.mapToGlobal(preferences_button.rect().topLeft()).x()
             < theme_button.mapToGlobal(theme_button.rect().topLeft()).x()
         )
         assert str(quick_label.text() or "") == "Setor Executor:"
+        assert quick_situacao_label.isVisible() is False
+        assert str(quick_situacao_label.text() or "") == ""
         quick_label_pos = quick_label.mapToGlobal(quick_label.rect().topLeft())
         quick_combo_pos = quick_combo.mapToGlobal(quick_combo.rect().topLeft())
         quick_box_pos = quick_box.mapToGlobal(quick_box.rect().topLeft())
@@ -2059,6 +2063,20 @@ class TestGUIFilterLogic:
 
         assert item is not None
         assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignRight)
+
+    def test_display_current_page_keeps_long_text_columns_left_aligned(self):
+        gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})[
+            "table_cell_alignment"
+        ] = "right"
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("descricao_ssa")
+        item = self.window.table_widget.item(0, logical_index)
+
+        assert item is not None
+        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignLeft)
 
     def test_setup_app_menus_exposes_table_cell_alignment_actions(self):
         actions = getattr(self.window, "_table_cell_alignment_actions", {})

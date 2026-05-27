@@ -53,6 +53,16 @@ _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP = {
     "center": Qt.AlignmentFlag.AlignHCenter,
     "right": Qt.AlignmentFlag.AlignRight,
 }
+_LEFT_ANCHORED_TEXT_COLUMNS = frozenset(
+    {
+        "descricao_ssa",
+        "descricao_execucao",
+        "descricao_localizacao",
+        "solicitante",
+        "responsavel_execucao",
+        "arquivo_origem",
+    }
+)
 _HASH_LINK_TOOLTIP = "Abrir SSA no SAM"
 _HASH_LINK_STYLE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 if QBrush is not None and QColor is not None:
@@ -647,6 +657,12 @@ def _table_cell_alignment_from_preferences():
     )
 
 
+def _table_cell_alignment_for_column(col_name: str, default_alignment):
+    if str(col_name or "").strip() in _LEFT_ANCHORED_TEXT_COLUMNS:
+        return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+    return default_alignment
+
+
 def _set_hash_column_item_metadata(window, item, row_idx):
     current_page, page_size = _current_pagination_values(window)
     item.setData(
@@ -683,16 +699,20 @@ def _populate_table_items(window, display_df, table_cell_alignment):
         for col_idx, (col_name, value) in enumerate(zip(columns_list, row_values)):
             try:
                 item_text = str(value)
+                effective_alignment = _table_cell_alignment_for_column(
+                    str(col_name or ""),
+                    table_cell_alignment,
+                )
                 item = window.table_widget.item(row_idx, col_idx)
                 if item is None:
                     item = QTableWidgetItem(item_text)
-                    item.setTextAlignment(table_cell_alignment)
+                    item.setTextAlignment(effective_alignment)
                     window.table_widget.setItem(row_idx, col_idx, item)
                 else:
                     if str(item.text() or "") != item_text:
                         item.setText(item_text)
-                    if item.textAlignment() != table_cell_alignment:
-                        item.setTextAlignment(table_cell_alignment)
+                    if item.textAlignment() != effective_alignment:
+                        item.setTextAlignment(effective_alignment)
                 if col_name == "#":
                     _set_hash_column_item_metadata(window, item, row_idx)
                     current_hash_positions.add((row_idx, col_idx))
@@ -1288,11 +1308,23 @@ def apply_table_cell_alignment(window, alignment_name: str) -> None:
     was_updates_enabled = bool(table.updatesEnabled())
     table.setUpdatesEnabled(False)
     try:
+        current_columns = _current_display_columns(window)
         for row_index in range(row_count):
             for column_index in range(column_count):
                 item = table.item(row_index, column_index)
-                if item is not None and item.textAlignment() != table_cell_alignment:
-                    item.setTextAlignment(table_cell_alignment)
+                if item is None:
+                    continue
+                col_name = (
+                    str(current_columns[column_index] or "")
+                    if 0 <= column_index < len(current_columns)
+                    else ""
+                )
+                effective_alignment = _table_cell_alignment_for_column(
+                    col_name,
+                    table_cell_alignment,
+                )
+                if item.textAlignment() != effective_alignment:
+                    item.setTextAlignment(effective_alignment)
         window._last_table_cell_alignment = table_cell_alignment
     finally:
         table.setUpdatesEnabled(was_updates_enabled)
