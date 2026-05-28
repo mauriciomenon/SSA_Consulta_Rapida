@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from typing import TypedDict
 
 from utils.robust_logging import get_robust_logger
 from utils.themes import normalize_theme
 
 logger = get_robust_logger().get_logger(__name__, "gui")
+
+
+class _ThemeDialogState(TypedDict):
+    changed: bool
 
 
 def _resolve_widget_screen_geometry(target_widget):
@@ -108,31 +113,22 @@ def _position_theme_dialog_within_screen(target_widget, dialog) -> None:
     )
 
 
-def show_theme_selection_dialog(
-    window,
-    *,
-    gui_prefs: dict,
-    theme_items: Sequence[tuple[str, str]],
-    persist_preferences_async: Callable[[dict], object],
-) -> None:
-    from PyQt6.QtWidgets import (
-        QCheckBox,
-        QComboBox,
-        QDialog,
-        QDialogButtonBox,
-        QLabel,
-        QListView,
-        QVBoxLayout,
-    )
-
+def _resolve_theme_selection_state(window, gui_prefs: dict) -> tuple[str, bool]:
     gui_settings = gui_prefs.get("gui_settings", {})
     theme_default = gui_settings.get("theme_default")
+    persisted_theme = gui_settings.get("theme")
     current_theme = normalize_theme(
         (getattr(window, "_current_theme", "") if window is not None else "")
+        or persisted_theme
         or theme_default
         or "gruvbox"
     )
-    is_default_theme = normalize_theme(theme_default or "") == current_theme
+    return current_theme, normalize_theme(theme_default or "") == current_theme
+
+
+def _build_screen_bound_theme_combo(dialog, theme_items, current_theme):
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import QComboBox, QListView
 
     class _ScreenBoundComboBox(QComboBox):
         def __init__(self_nonlocal, *args, **kwargs) -> None:
@@ -140,8 +136,6 @@ def show_theme_selection_dialog(
             self_nonlocal.setView(QListView(self_nonlocal))
 
         def showPopup(self_nonlocal) -> None:  # noqa: N802
-            from PyQt6.QtCore import QTimer
-
             def _clamp_popup() -> None:
                 try:
                     view = self_nonlocal.view()
@@ -157,14 +151,6 @@ def show_theme_selection_dialog(
             super().showPopup()
             QTimer.singleShot(0, _clamp_popup)
 
-    dialog = QDialog(window)
-    dialog.setWindowTitle("Selecionar Tema")
-    dialog.setModal(True)
-
-    layout = QVBoxLayout(dialog)
-    info_label = QLabel("Escolha um tema para a interface.")
-    layout.addWidget(info_label)
-
     theme_combo = _ScreenBoundComboBox(dialog)
     theme_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
     selected_index = 0
@@ -173,15 +159,35 @@ def show_theme_selection_dialog(
         if normalize_theme(key) == current_theme:
             selected_index = idx
     theme_combo.setCurrentIndex(selected_index)
+    return theme_combo
+
+
+def _build_theme_selection_dialog(window, theme_items, current_theme, is_default_theme):
+    from PyQt6.QtWidgets import (
+        QCheckBox,
+        QDialog,
+        QDialogButtonBox,
+        QLabel,
+        QVBoxLayout,
+    )
+
+    dialog = QDialog(window)
+    dialog.setWindowTitle("Selecionar Tema")
+    dialog.setModal(True)
+
+    layout = QVBoxLayout(dialog)
+    info_label = QLabel("Escolha um tema para a interface.")
+    layout.addWidget(info_label)
+
+    theme_combo = _build_screen_bound_theme_combo(dialog, theme_items, current_theme)
     layout.addWidget(theme_combo)
 
     default_checkbox = QCheckBox("Usar tema selecionado como padrao", dialog)
     default_checkbox.setChecked(is_default_theme)
-    default_checkbox_changed = False
+    dialog_state: _ThemeDialogState = {"changed": False}
 
     def _mark_default_checkbox_changed(*_args) -> None:
-        nonlocal default_checkbox_changed
-        default_checkbox_changed = True
+        dialog_state["changed"] = True
 
     default_checkbox.toggled.connect(_mark_default_checkbox_changed)
     layout.addWidget(default_checkbox)
@@ -193,18 +199,18 @@ def show_theme_selection_dialog(
     buttons.accepted.connect(dialog.accept)
     buttons.rejected.connect(dialog.reject)
     layout.addWidget(buttons)
+    return dialog, theme_combo, default_checkbox, dialog_state
 
-    try:
-        _position_theme_dialog_within_screen(
-            window if window is not None else dialog,
-            dialog,
-        )
-    except Exception as exc:
-        logger.debug("Falha ao limitar geometria do dialogo de tema: %s", exc)
 
-    if dialog.exec() != QDialog.DialogCode.Accepted:
-        return
-
+def _apply_theme_selection(
+    window,
+    *,
+    gui_prefs: dict,
+    theme_combo,
+    default_checkbox,
+    default_choice_changed: bool,
+    persist_preferences_async: Callable[[dict], object],
+) -> None:
     gui_settings = gui_prefs.setdefault("gui_settings", {})
     selected_theme_key = normalize_theme(str(theme_combo.currentData() or "gruvbox"))
     persisted_theme = normalize_theme(str(gui_settings.get("theme") or ""))
@@ -220,14 +226,50 @@ def show_theme_selection_dialog(
     if theme_changed:
         gui_settings["theme"] = selected_theme_key
 
-    default_choice_changed = _update_theme_default_choice(
+    default_changed = _update_theme_default_choice(
         gui_prefs=gui_prefs,
         selected_theme_key=selected_theme_key,
         set_as_default=default_checkbox.isChecked(),
-        default_choice_changed=default_checkbox_changed,
+        default_choice_changed=default_choice_changed,
     )
-    if theme_changed or default_choice_changed:
+    if theme_changed or default_changed:
         persist_preferences_async(gui_prefs)
+
+
+def show_theme_selection_dialog(
+    window,
+    *,
+    gui_prefs: dict,
+    theme_items: Sequence[tuple[str, str]],
+    persist_preferences_async: Callable[[dict], object],
+) -> None:
+    current_theme, is_default_theme = _resolve_theme_selection_state(window, gui_prefs)
+    dialog, theme_combo, default_checkbox, dialog_state = _build_theme_selection_dialog(
+        window,
+        theme_items,
+        current_theme,
+        is_default_theme,
+    )
+
+    try:
+        _position_theme_dialog_within_screen(
+            window,
+            dialog,
+        )
+    except Exception as exc:
+        logger.debug("Falha ao limitar geometria do dialogo de tema: %s", exc)
+
+    if dialog.exec() != dialog.DialogCode.Accepted:
+        return
+
+    _apply_theme_selection(
+        window,
+        gui_prefs=gui_prefs,
+        theme_combo=theme_combo,
+        default_checkbox=default_checkbox,
+        default_choice_changed=bool(dialog_state.get("changed")),
+        persist_preferences_async=persist_preferences_async,
+    )
 
 
 def _update_theme_default_choice(
