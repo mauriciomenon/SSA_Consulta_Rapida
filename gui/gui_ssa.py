@@ -1055,8 +1055,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Failed to load window icon resources: %s", exc)
 
+    @staticmethod
     def _sanitize_window_size_preferences(
-        self, width_value: Any, height_value: Any
+        width_value: Any, height_value: Any
     ) -> tuple[int, int]:
         default_width = int(DEFAULT_GUI_SETTINGS.get("window_width", 1200) or 1200)
         default_height = int(DEFAULT_GUI_SETTINGS.get("window_height", 890) or 890)
@@ -1483,6 +1484,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._data_revision = 0
         self._data_revision_request_id = None
         self._data_uuid = None
+        self._preferences_content_scroll_active = None
         self._num_reprog_sort_cache = ssa_table_sorting.empty_sort_cache()
         self._mixed_text_sort_cache = {
             **ssa_table_sorting.empty_sort_cache(),
@@ -3220,19 +3222,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         layout.setSpacing(8)
 
         class _ScreenBoundComboBox(QComboBox):
-            def __init__(self_nonlocal, *args, **kwargs) -> None:
+            def __init__(self, *args, **kwargs) -> None:
                 super().__init__(*args, **kwargs)
-                self_nonlocal.setView(QListView(self_nonlocal))
+                self.setView(QListView(self))
 
-            def showPopup(self_nonlocal) -> None:  # noqa: N802
+            def showPopup(self) -> None:  # noqa: N802
                 def _clamp_popup() -> None:
                     try:
-                        popup = self_nonlocal.view().window()
+                        popup = self.view().window()
                         if popup is None:
                             return
                         screen = None
                         try:
-                            handle = self_nonlocal.windowHandle()
+                            handle = self.windowHandle()
                             if handle is not None:
                                 screen = handle.screen()
                         except Exception as exc:
@@ -3245,9 +3247,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                                 screen_at = getattr(QApplication, "screenAt", None)
                                 if callable(screen_at):
                                     screen = screen_at(
-                                        self_nonlocal.mapToGlobal(
-                                            self_nonlocal.rect().center()
-                                        )
+                                        self.mapToGlobal(self.rect().center())
                                     )
                             except Exception as exc:
                                 logger.debug(
@@ -3937,7 +3937,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
             finally:
                 password = None
-                del password
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: Segredo SAM API gravado.")
             QMessageBox.information(self, "SAM API", "Segredo gravado com sucesso.")
@@ -3977,13 +3976,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Falha ao aplicar popup controlado em combo de preferencias: %s",
                     exc,
                 )
-        api_extra_sectors_edit.textChanged.connect(
-            lambda _text: _sync_preferences_extra_sector_validation(
+        def _on_extra_sectors_changed(_text: str) -> None:
+            _sync_preferences_extra_sector_validation(
                 api_extra_sectors_edit,
                 api_extra_sectors_status,
                 status_neutral=neutral_extra_sector_status,
             )
-        )
+
+        api_extra_sectors_edit.textChanged.connect(_on_extra_sectors_changed)
         _sync_preferences_extra_sector_validation(
             api_extra_sectors_edit,
             api_extra_sectors_status,
