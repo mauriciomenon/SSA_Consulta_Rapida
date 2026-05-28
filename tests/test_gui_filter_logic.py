@@ -1524,6 +1524,35 @@ class TestGUIFilterLogic:
         assert resolved["202512345"]["situacao"] == "STE"
         assert resolved["202512345"]["descricao_ssa"] == "Com hifen canonico"
 
+    def test_find_series_position_by_ssa_uses_cached_index_first(self, monkeypatch):
+        details_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600101", "202600102"],
+                "situacao": ["APG", "STE"],
+            }
+        )
+        cached_index = ssa_gui_details._get_df_ssa_series_index(self.window, details_df)
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_df_ssa_series_index",
+            lambda *_args, **_kwargs: cached_index,
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_cached_normalized_series",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("lookup must use DetailsSeriesIndex first")
+            ),
+        )
+
+        position, matched = ssa_gui_details._find_series_position_by_ssa(
+            self.window, details_df, "202600102"
+        )
+
+        assert position == 1
+        assert str(matched.get("numero_ssa")) == "202600102"
+
     def test_details_derivadas_tab_skips_graph_render_without_relations(
         self, monkeypatch
     ):

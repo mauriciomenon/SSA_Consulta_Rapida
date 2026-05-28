@@ -1126,6 +1126,13 @@ def _find_series_position_by_ssa(window, df, target: str):
     if df is None or df.empty or "numero_ssa" not in df.columns:
         return None, None
     try:
+        ssa_index = _get_df_ssa_series_index(window, df)
+        if isinstance(ssa_index, DetailsSeriesIndex):
+            position = cast(Any, ssa_index)._row_positions.get(target)
+            if position is None:
+                return None, None
+            matched = ssa_index.get(target)
+            return int(position), matched
         normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
         if normalized_series.empty:
             return None, None
