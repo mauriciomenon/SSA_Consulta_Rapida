@@ -496,6 +496,40 @@ class TestGUIFilterLogic:
         assert str(title.text() or "") == "Filtros por Texto"
         assert getattr(self.window, "_active_filter_panel_kind", None) == "columns"
 
+    def test_top_toolbar_uses_compact_font_contract_on_macos(self, monkeypatch):
+        monkeypatch.setattr(gui_ssa.sys, "platform", "darwin")
+
+        darwin_window = SSAMainWindow()
+        darwin_window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
+        darwin_window.show()
+        QApplication.processEvents()
+
+        try:
+            toolbar_font = getattr(darwin_window, "_toolbar_compact_font", None)
+            assert toolbar_font is not None
+            expected_size = toolbar_font.pointSizeF()
+            assert expected_size == pytest.approx(9.0)
+
+            top_widgets = [
+                darwin_window.quick_setor_executor_label,
+                darwin_window.quick_setor_executor_combo,
+                darwin_window.status_label,
+                darwin_window.week_label,
+                darwin_window.filtered_status_label,
+                darwin_window.api_button,
+                darwin_window.preferences_button,
+                darwin_window.theme_button,
+            ]
+            for widget in top_widgets:
+                assert widget.font().pointSizeF() == pytest.approx(expected_size)
+
+            assert darwin_window.quick_setor_executor_combo.maximumWidth() <= 86
+            assert darwin_window.quick_setor_executor_box.width() <= 185
+        finally:
+            darwin_window.close()
+            darwin_window.deleteLater()
+            QApplication.processEvents()
+
     def test_derivadas_panel_exposes_navigation_tooltips(self):
         main_ctx = self._panel_context()
         details_tree_text = main_ctx["details_tree_text"]
