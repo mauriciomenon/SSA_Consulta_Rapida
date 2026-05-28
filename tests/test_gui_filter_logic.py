@@ -6253,7 +6253,9 @@ class TestGUIFilterLogic:
 
         assert calls == ["202100186"]
 
-    def test_derivadas_graph_label_click_navigates_rendered_svg_pipeline(self):
+    def test_derivadas_graph_label_click_opens_context_panel_without_layout_regression(
+        self,
+    ):
         df = pd.DataFrame(
             {
                 "numero_ssa": ["202100046", "202100154"],
@@ -6274,6 +6276,23 @@ class TestGUIFilterLogic:
         self.window.table_widget.selectRow(0)
         self.window.update_details_from_selection()
         QApplication.processEvents()
+        ctx = self._panel_context()
+        before_shell_sizes = (
+            ctx["details_group"].width(),
+            ctx["details_group"].height(),
+            ctx["filters_panel_group"].width(),
+            ctx["filters_panel_group"].height(),
+        )
+        before_shell_tops = (
+            ctx["details_group"].mapToGlobal(QPoint(0, 0)).y(),
+            ctx["filters_panel_group"].mapToGlobal(QPoint(0, 0)).y(),
+        )
+        before_base_tabs = (
+            ctx["details_tab_bar"].mapToGlobal(QPoint(0, 0)).x(),
+            ctx["details_tab_bar"].mapToGlobal(QPoint(0, 0)).y(),
+            ctx["details_tab_bar"].tabRect(0).getRect(),
+            ctx["details_tab_bar"].tabRect(1).getRect(),
+        )
 
         label = self.window.details_graph_label
         pixmap = label.pixmap()
@@ -6299,8 +6318,42 @@ class TestGUIFilterLogic:
             pos=QPoint(click_x, click_y),
         )
         QApplication.processEvents()
+        context_state = getattr(self.window, "_details_context_state", None)
+        after_shell_sizes = (
+            ctx["details_group"].width(),
+            ctx["details_group"].height(),
+            ctx["filters_panel_group"].width(),
+            ctx["filters_panel_group"].height(),
+        )
+        after_shell_tops = (
+            ctx["details_group"].mapToGlobal(QPoint(0, 0)).y(),
+            ctx["filters_panel_group"].mapToGlobal(QPoint(0, 0)).y(),
+        )
+        after_base_tabs = (
+            ctx["details_tab_bar"].mapToGlobal(QPoint(0, 0)).x(),
+            ctx["details_tab_bar"].mapToGlobal(QPoint(0, 0)).y(),
+            ctx["details_tab_bar"].tabRect(0).getRect(),
+            ctx["details_tab_bar"].tabRect(1).getRect(),
+        )
 
-        assert self.window.table_widget.currentRow() == 1
+        assert self.window.table_widget.currentRow() == 0
+        assert ctx["details_tab_bar"].count() == 2
+        assert ctx["details_stack"].currentIndex() == 2
+        assert isinstance(context_state, dict)
+        assert context_state["tab_bar"].count() == 1
+        assert context_state["tab_bar"].isVisible() is True
+        assert context_state["tab_bar"].mapToGlobal(QPoint(0, 0)).y() == after_base_tabs[1]
+        assert context_state["tab_bar"].mapToGlobal(QPoint(0, 0)).x() > (
+            after_base_tabs[0] + ctx["details_tab_bar"].tabRect(1).right()
+        )
+        assert str(context_state.get("current_ssa") or "") == "202100154"
+        assert "Filha" in str(context_state["details_text"].toPlainText() or "")
+        assert context_state["tab_bar"].height() <= 22
+        assert context_state["graph_label"].height() > context_state["details_text"].height()
+        assert before_shell_sizes == after_shell_sizes
+        assert before_shell_tops == after_shell_tops
+        assert before_base_tabs == after_base_tabs
+        assert abs(after_shell_tops[0] - after_shell_tops[1]) <= 1
 
     def test_derivadas_graph_label_refresh_helper_reapplies_hitboxes(self, monkeypatch):
         class _FakeSize:
@@ -6761,9 +6814,9 @@ class TestGUIFilterLogic:
 
         html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
 
-        assert '<a href="ssa-panel:202602147"' in html
+        assert '<a href="ssa-context:202602147"' in html
         assert "202500777" in html
-        assert 'href="ssa-panel:202500777"' not in html
+        assert 'href="ssa-context:202500777"' not in html
 
     def test_get_related_ssas_for_series_falls_back_when_mapping_is_empty(self):
         series = self.base_df.iloc[0].copy()
@@ -7190,6 +7243,15 @@ class TestGUIFilterLogic:
         assert jump_mock.call_args.args[0] is self.window
         assert jump_mock.call_args.args[1] == "202500777"
         assert jump_mock.call_args.kwargs == {}
+
+    def test_details_anchor_ssa_context_opens_internal_context(self):
+        with patch("gui.ssa.gui_details._open_derivadas_context_panel") as open_mock:
+            self.window._on_details_anchor_clicked(QUrl("ssa-context:202500777"))
+
+        open_mock.assert_called_once()
+        assert open_mock.call_args.args[0] is self.window
+        assert open_mock.call_args.args[1] == "202500777"
+        assert open_mock.call_args.kwargs == {}
 
     def test_details_anchor_ssa_updates_details_without_refilter(self):
         df = pd.DataFrame(
@@ -8819,13 +8881,60 @@ class TestGUIFilterLogic:
                 )
 
         assert "Derivadas:" in html
-        assert '<a href="ssa-panel:202602147"' in html
+        assert '<a href="ssa-context:202602147"' in html
         assert "202500111" in html
         assert "num0" not in html
         assert "&gt;" not in html
         assert "dist=" not in html
         assert "&#8942;" in html
         assert "Sem Derivadas" in html
+
+    def test_derivadas_context_back_and_close_use_internal_tabs(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202100046", "202100154", "202100155"],
+                "situacao": ["APV", "STE", "SCA"],
+                "derivada_de": ["", "202100046", "202100154"],
+                "descricao_ssa": ["Pai", "Filha", "Neta"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        ssa_gui_details._open_derivadas_context_panel(self.window, "202100154")
+        ssa_gui_details._open_derivadas_context_panel(
+            self.window,
+            "202100155",
+            source_ssa="202100154",
+        )
+        QApplication.processEvents()
+
+        context_state = getattr(self.window, "_details_context_state", None)
+        assert isinstance(context_state, dict)
+        assert context_state["tab_bar"].count() == 2
+        assert str(context_state.get("current_ssa") or "") == "202100155"
+
+        cast(Any, QTest).mouseClick(
+            context_state["close_button"],
+            Qt.MouseButton.LeftButton,
+        )
+        QApplication.processEvents()
+
+        assert context_state["tab_bar"].count() == 1
+        assert str(context_state.get("current_ssa") or "") == "202100154"
+
+        cast(Any, QTest).mouseClick(
+            context_state["back_button"],
+            Qt.MouseButton.LeftButton,
+        )
+        QApplication.processEvents()
+
+        ctx = self._panel_context()
+        assert ctx["details_stack"].currentIndex() == 1
 
     def test_open_details_dialog_does_not_build_full_ssa_index_before_render(self):
         df = pd.DataFrame(

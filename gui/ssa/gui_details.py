@@ -9,9 +9,11 @@ import html as html_module
 import math
 import os
 import re
-from typing import Any, Mapping, cast
+from typing import Any, Callable, Mapping, cast
 
 import pandas as pd
+from PyQt6.QtCore import QEvent, QObject, Qt
+from PyQt6.QtWidgets import QFrame, QSizePolicy, QTextBrowser, QVBoxLayout, QWidget
 
 from core.dataframe_fingerprint import build_dataframe_filter_hash
 from gui.helpers.formatting_helpers import highlight_text
@@ -69,6 +71,31 @@ _SVG_NODE_RECT_RE = re.compile(
 )
 
 
+class _DerivadasGraphContextFilter(QObject):
+    def __init__(
+        self,
+        window: Any,
+        on_click: Callable[[Any, str], None],
+    ) -> None:
+        super().__init__(window)
+        self._on_click = on_click
+
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:  # noqa: N802
+        if a0 is None or a1 is None or a1.type() != QEvent.Type.MouseButtonPress:
+            return False
+        button_getter = getattr(a1, "button", None)
+        if not callable(button_getter) or button_getter() != Qt.MouseButton.LeftButton:
+            return False
+        ssa_at_event = getattr(a0, "_ssa_at_event", None)
+        if not callable(ssa_at_event):
+            return False
+        target = ssa_at_event(a1)
+        if not target:
+            return False
+        self._on_click(a0, target)
+        return True
+
+
 def configure_details_constants(
     details_dialog_font_size,
     details_dialog_table_padding,
@@ -78,6 +105,7 @@ def configure_details_constants(
     highlight_background_color,
     highlight_font_weight,
     mono_font_family,
+    highlight_text_color=None,
 ) -> None:
     DETAILS_CONFIG.update(
         details_dialog_font_size=details_dialog_font_size,
@@ -88,6 +116,7 @@ def configure_details_constants(
         highlight_background_color=highlight_background_color,
         highlight_font_weight=highlight_font_weight,
         mono_font_family=mono_font_family,
+        highlight_text_color=highlight_text_color,
     )
 
 
@@ -167,7 +196,7 @@ def _build_ssa_href(numero_ssa: str, *, panel_mode: bool) -> str:
     normalized = _normalize_ssa_value(None, numero_ssa)
     if not normalized:
         return ""
-    return f"ssa-panel:{normalized}" if panel_mode else f"ssa:{normalized}"
+    return f"ssa-context:{normalized}" if panel_mode else f"ssa:{normalized}"
 
 
 def _render_ssa_navigation_link(
@@ -792,15 +821,343 @@ def _clear_main_details_derivadas_panel(window) -> None:
 
 def _sync_main_details_derivadas_panel(window) -> None:
     stack = getattr(window, "details_stack", None)
+    context_state = getattr(window, "_details_context_state", None)
     try:
+        active_context = (
+            stack is not None
+            and isinstance(context_state, dict)
+            and stack.currentWidget() is context_state.get("page")
+        )
         active_derivadas = stack is not None and int(stack.currentIndex()) == 1
     except Exception as exc:
         logger.debug("Falha ao ler aba ativa de detalhes: %s", exc)
+        active_context = False
         active_derivadas = False
+    if active_context:
+        return
     if active_derivadas:
         refresh_main_details_derivadas_panel(window)
         return
     _clear_main_details_derivadas_panel(window)
+
+
+def _show_main_derivadas_page(window) -> None:
+    context_state = getattr(window, "_details_context_state", None)
+    if isinstance(context_state, dict):
+        _set_derivadas_context_controls_visible(context_state, False)
+    stack = getattr(window, "details_stack", None)
+    if stack is None:
+        return
+    try:
+        stack.setCurrentIndex(1)
+    except Exception as exc:
+        logger.debug("Falha ao reabrir painel principal de derivadas: %s", exc)
+        return
+    refresh_main_details_derivadas_panel(window)
+
+
+def _set_derivadas_context_controls_visible(state: Mapping[str, Any], visible: bool) -> None:
+    for key in ("tab_bar", "separator", "back_button", "close_button"):
+        widget = state.get(key)
+        setter = getattr(widget, "setVisible", None)
+        if callable(setter):
+            setter(bool(visible))
+
+
+def _render_context_graph_label(
+    window,
+    graph_label: Any,
+    tree_data: Mapping[str, object],
+    *,
+    link_color: str,
+    font_family: str,
+) -> None:
+    graph_html = _build_derivadas_graph_html(
+        window,
+        tree_data,
+        link_color=link_color,
+        font_family=font_family,
+    )
+    graph_svg = _extract_inline_svg_markup(graph_html)
+    svg_deps = load_svg_render_dependencies()
+    if graph_svg and svg_deps is not None:
+        graph_panel = graph_label.parentWidget() or graph_label
+        if render_graph_svg_pixmap(
+            graph_svg=graph_svg,
+            graph_label=graph_label,
+            graph_panel=graph_panel,
+            dependencies=svg_deps,
+        ):
+            graph_label.setVisible(True)
+            set_svg_markup = getattr(graph_label, "set_graph_svg_markup", None)
+            if callable(set_svg_markup):
+                set_svg_markup(graph_svg)
+            _apply_graph_navigation_hitboxes(graph_label, graph_svg)
+            return
+    _clear_graph_browser_markup(graph_label)
+    graph_label.clear()
+    graph_label.setText("Grafo de derivadas indisponivel.")
+    graph_label.setVisible(True)
+
+
+def _get_derivadas_context_entry_index(state: Mapping[str, Any], target: str) -> int:
+    entries = cast(list[dict[str, Any]], state.get("entries", []))
+    for index, entry in enumerate(entries):
+        if str(entry.get("ssa") or "") == target:
+            return index
+    return -1
+
+
+def _render_derivadas_context_entry(window, state: dict[str, Any], entry_index: int) -> None:
+    entries = state.get("entries", [])
+    if not isinstance(entries, list) or entry_index < 0 or entry_index >= len(entries):
+        return
+    entry = entries[entry_index]
+    if not isinstance(entry, dict):
+        return
+    series = entry.get("series")
+    if series is None:
+        return
+    tab_bar = state["tab_bar"]
+    details_text = state["details_text"]
+    graph_label = state["graph_label"]
+    target = str(entry.get("ssa") or "")
+    state["current_ssa"] = target
+    try:
+        if int(tab_bar.currentIndex()) != entry_index:
+            tab_bar.blockSignals(True)
+            tab_bar.setCurrentIndex(entry_index)
+            tab_bar.blockSignals(False)
+    except Exception as exc:
+        logger.debug("Falha ao alinhar aba contextual de derivadas: %s", exc)
+    font_size_pt, font_family = _resolve_details_render_fonts(window)
+    safe_font_family = font_family or DETAILS_CONFIG.mono_font_family
+    ssa_index = _get_cached_details_ssa_index(window)
+    if not ssa_index:
+        ssa_index = _get_window_ssa_series_index(window)
+    details_html = _format_details_html(
+        window,
+        series,
+        highlight_search_terms=True,
+        font_size_pt=font_size_pt,
+        linkify=False,
+        font_family=safe_font_family,
+        ssa_index=ssa_index,
+    )
+    details_text.setHtml(details_html)
+    roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
+    link_color = pick_css_color(
+        roles.get("accent"),
+        roles.get("panel_text"),
+        roles.get("label_color"),
+        fallback="#4a90e2",
+    )
+    tree_data = _collect_derivadas_tree_data(window, target)
+    if not _has_derivadas_graph_relations(tree_data):
+        _clear_graph_browser_markup(graph_label)
+        graph_label.clear()
+        graph_label.setText("Sem SSAs Derivadas.")
+        graph_label.setVisible(True)
+    else:
+        _render_context_graph_label(
+            window,
+            graph_label,
+            tree_data,
+            link_color=link_color,
+            font_family=safe_font_family,
+        )
+    state["back_button"].setEnabled(bool(entries))
+    state["close_button"].setEnabled(bool(entries))
+
+
+def _activate_derivadas_context_tab(window, index: int) -> None:
+    state = getattr(window, "_details_context_state", None)
+    if not isinstance(state, dict):
+        return
+    _render_derivadas_context_entry(window, state, int(index))
+
+
+def _go_back_derivadas_context(window) -> None:
+    state = getattr(window, "_details_context_state", None)
+    if not isinstance(state, dict):
+        return
+    entries = state.get("entries", [])
+    current_ssa = str(state.get("current_ssa") or "")
+    current_index = _get_derivadas_context_entry_index(state, current_ssa)
+    if current_index < 0 or current_index >= len(entries):
+        _show_main_derivadas_page(window)
+        return
+    entry = entries[current_index]
+    back_target = str(entry.get("back_to") or "").strip()
+    if back_target:
+        back_index = _get_derivadas_context_entry_index(state, back_target)
+        if back_index >= 0:
+            state["tab_bar"].setCurrentIndex(back_index)
+            return
+    if current_index > 0:
+        state["tab_bar"].setCurrentIndex(current_index - 1)
+        return
+    _show_main_derivadas_page(window)
+
+
+def _close_current_derivadas_context(window) -> None:
+    state = getattr(window, "_details_context_state", None)
+    if not isinstance(state, dict):
+        return
+    entries = state.get("entries", [])
+    current_ssa = str(state.get("current_ssa") or "")
+    current_index = _get_derivadas_context_entry_index(state, current_ssa)
+    if current_index < 0 or current_index >= len(entries):
+        _show_main_derivadas_page(window)
+        return
+    entry = entries.pop(current_index)
+    tab_bar = state["tab_bar"]
+    tab_bar.blockSignals(True)
+    tab_bar.removeTab(current_index)
+    tab_bar.blockSignals(False)
+    if not entries:
+        state["current_ssa"] = ""
+        _show_main_derivadas_page(window)
+        return
+    back_target = str(entry.get("back_to") or "").strip()
+    next_index = current_index
+    if back_target:
+        resolved_index = _get_derivadas_context_entry_index(state, back_target)
+        if resolved_index >= 0:
+            next_index = resolved_index
+    if next_index >= len(entries):
+        next_index = len(entries) - 1
+    tab_bar.setCurrentIndex(next_index)
+    _render_derivadas_context_entry(window, state, next_index)
+
+
+def _handle_derivadas_context_graph_click(window, watched: Any, target: str) -> None:
+    source_ssa = None
+    context_state = getattr(window, "_details_context_state", None)
+    if isinstance(context_state, dict) and watched is context_state.get("graph_label"):
+        source_ssa = str(context_state.get("current_ssa") or "") or None
+    _open_derivadas_context_panel(window, target, source_ssa=source_ssa)
+
+
+def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
+    existing_state = getattr(window, "_details_context_state", None)
+    if isinstance(existing_state, dict):
+        return existing_state
+    stack = getattr(window, "details_stack", None)
+    if stack is None:
+        return None
+    tab_bar = getattr(window, "details_context_tab_bar", None)
+    separator = getattr(window, "details_context_separator", None)
+    back_button = getattr(window, "details_context_back_button", None)
+    close_button = getattr(window, "details_context_close_button", None)
+    if tab_bar is None or back_button is None or close_button is None:
+        return None
+    from gui.ssa.main_window_bottom_section import DerivadasGraphLabel
+
+    page = QWidget(stack)
+    page.setSizePolicy(
+        QSizePolicy.Policy.Ignored,
+        QSizePolicy.Policy.Ignored,
+    )
+    page_layout = QVBoxLayout(page)
+    page_layout.setContentsMargins(0, 0, 0, 0)
+    page_layout.setSpacing(2)
+
+    details_text = QTextBrowser(page)
+    details_text.setMinimumHeight(0)
+    details_text.setReadOnly(True)
+    details_text.setOpenLinks(False)
+    details_text.setOpenExternalLinks(False)
+    details_text.setSizePolicy(
+        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Preferred,
+    )
+    try:
+        details_text.setFrameShape(QFrame.Shape.NoFrame)
+    except Exception as exc:
+        logger.debug("Falha ao configurar texto do contexto de derivadas: %s", exc)
+
+    graph_label = DerivadasGraphLabel(window)
+    graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    graph_label.setTextFormat(Qt.TextFormat.RichText)
+    graph_label.setStyleSheet("border:none; background:transparent;")
+    graph_label.setMinimumHeight(0)
+    graph_label.setToolTip("Clique em uma SSA do grafo para abrir no contexto")
+    graph_label.setSizePolicy(
+        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Expanding,
+    )
+
+    page_layout.addWidget(details_text, 2)
+    page_layout.addWidget(graph_label, 3)
+    stack.addWidget(page)
+
+    filter_handler = _DerivadasGraphContextFilter(
+        window,
+        lambda watched, target: _handle_derivadas_context_graph_click(
+            window,
+            watched,
+            target,
+        ),
+    )
+    main_graph_label = getattr(window, "details_graph_label", None)
+    if main_graph_label is not None:
+        main_graph_label.installEventFilter(filter_handler)
+    graph_label.installEventFilter(filter_handler)
+
+    state = {
+        "page": page,
+        "tab_bar": tab_bar,
+        "separator": separator,
+        "back_button": back_button,
+        "close_button": close_button,
+        "details_text": details_text,
+        "graph_label": graph_label,
+        "entries": [],
+        "current_ssa": "",
+        "click_filter": filter_handler,
+    }
+    setattr(window, "_details_context_state", state)
+    tab_bar.currentChanged.connect(
+        lambda index: _activate_derivadas_context_tab(window, int(index))
+    )
+    back_button.clicked.connect(lambda: _go_back_derivadas_context(window))
+    close_button.clicked.connect(lambda: _close_current_derivadas_context(window))
+    back_button.setEnabled(False)
+    close_button.setEnabled(False)
+    _set_derivadas_context_controls_visible(state, False)
+    return state
+
+
+def _open_derivadas_context_panel(window, numero_ssa, *, source_ssa: str | None = None) -> None:
+    resolved_target = _resolve_details_dialog_target(window, numero_ssa)
+    if resolved_target is None:
+        return
+    target, series = resolved_target
+    state = _ensure_derivadas_context_runtime(window)
+    stack = getattr(window, "details_stack", None)
+    if state is None or stack is None:
+        return
+    entry_index = _get_derivadas_context_entry_index(state, target)
+    entries = state["entries"]
+    if entry_index < 0:
+        entries.append(
+            {
+                "ssa": target,
+                "series": series,
+                "back_to": source_ssa or "",
+            }
+        )
+        state["tab_bar"].addTab(target)
+        entry_index = len(entries) - 1
+    else:
+        entry = entries[entry_index]
+        entry["series"] = series
+        if source_ssa and source_ssa != target:
+            entry["back_to"] = source_ssa
+    _set_derivadas_context_controls_visible(state, True)
+    stack.setCurrentWidget(state["page"])
+    state["tab_bar"].setCurrentIndex(entry_index)
 
 
 def _clear_graph_browser_markup(graph_browser: Any) -> None:
@@ -907,6 +1264,7 @@ def _render_derivadas_graph_svg_or_fallback(
 
 
 def _update_main_details_derivadas_panel(window, series, *, font_family: str | None) -> None:
+    _ensure_derivadas_context_runtime(window)
     try:
         (
             tree_browser,
@@ -935,7 +1293,7 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
             link_color=link_color,
             font_family=safe_font_family,
             tree_data_override=tree_data,
-            ssa_index={},
+            ssa_index=_get_cached_details_ssa_index(window),
         )
         tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
         _render_derivadas_graph_svg_or_fallback(
@@ -1321,6 +1679,9 @@ def _resolve_details_anchor_action(href: str) -> tuple[str, str | None, bool]:
         return ("copy", _extract_prefixed_anchor_target(href, "copy-ssa:"), True)
     if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
         return ("derivadas-tree", None, True)
+    for prefix in ("ssa-context:", "ssa_context://"):
+        if href.startswith(prefix):
+            return ("details-context", _extract_prefixed_anchor_target(href, prefix), False)
     for prefix in ("ssa-details:", "ssa_details://"):
         if href.startswith(prefix):
             return ("details-dialog", _extract_prefixed_anchor_target(href, prefix), True)
@@ -1356,6 +1717,9 @@ def _on_details_anchor_clicked(window, url):
     if action == "details-dialog":
         if target:
             _open_details_dialog_for_ssa(window, target)
+        return
+    if action == "details-context" and target:
+        _open_derivadas_context_panel(window, target)
         return
     if action == "jump" and target:
         if allow_refilter:

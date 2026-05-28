@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
     QTabBar,
     QTextBrowser,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -232,7 +233,15 @@ def _build_details_panel(window: Any) -> tuple[QWidget, dict[str, Any]]:
     details_layout.setContentsMargins(0, 0, 0, 0)
     details_layout.setSpacing(2)
 
-    details_header, details_tab_bar, details_title = _build_details_panel_header(window)
+    (
+        details_header,
+        details_tab_bar,
+        details_title,
+        details_context_tab_bar,
+        details_context_separator,
+        details_context_back_button,
+        details_context_close_button,
+    ) = _build_details_panel_header(window)
     details_layout.addWidget(cast(Any, details_header), 0)
 
     details_stack = QStackedWidget()
@@ -327,18 +336,24 @@ def _build_details_panel(window: Any) -> tuple[QWidget, dict[str, Any]]:
         "details_text": details_text,
         "details_tab_bar": details_tab_bar,
         "details_title": details_title,
+        "details_context_tab_bar": details_context_tab_bar,
+        "details_context_separator": details_context_separator,
+        "details_context_back_button": details_context_back_button,
+        "details_context_close_button": details_context_close_button,
         "details_stack": details_stack,
         "details_tree_text": details_tree_text,
         "details_graph_label": details_graph_label,
     }
 
 
-def _build_details_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
+def _build_details_panel_header(
+    window: Any,
+) -> tuple[QWidget, QTabBar, QLabel, QTabBar, QFrame, QToolButton, QToolButton]:
     details_panel_header = QWidget()
     _set_fixed_height(window, details_panel_header, 24, "cabecalho de abas de detalhes")
     details_header_layout = QHBoxLayout(cast(Any, details_panel_header))
     details_header_layout.setContentsMargins(0, 0, 0, 0)
-    details_header_layout.setSpacing(6)
+    details_header_layout.setSpacing(4)
 
     details_tab_bar = QTabBar()
     details_tab_bar.addTab("Detalhes")
@@ -379,8 +394,84 @@ def _build_details_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
 
     details_header_layout.addWidget(cast(Any, details_tab_bar), 0)
     details_header_layout.addWidget(cast(Any, details_title), 0)
-    details_header_layout.addStretch(1)
-    return details_panel_header, details_tab_bar, details_title
+
+    details_context_separator = QFrame()
+    try:
+        details_context_separator.setFrameShape(QFrame.Shape.VLine)
+        details_context_separator.setFrameShadow(QFrame.Shadow.Plain)
+        details_context_separator.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
+        )
+        details_context_separator.setVisible(False)
+    except Exception as exc:
+        logger.debug("Falha ao configurar separador de contexto de detalhes: %s", exc)
+    details_header_layout.addWidget(cast(Any, details_context_separator), 0)
+
+    details_context_tab_bar = QTabBar()
+    try:
+        details_context_tab_bar.setDocumentMode(True)
+        details_context_tab_bar.setDrawBase(False)
+        details_context_tab_bar.setUsesScrollButtons(True)
+        details_context_tab_bar.setElideMode(Qt.TextElideMode.ElideRight)
+        details_context_tab_bar.setExpanding(False)
+        details_context_tab_bar.setFixedHeight(22)
+        details_context_tab_bar.setMinimumWidth(0)
+        details_context_tab_bar.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
+        )
+        details_context_tab_bar.setVisible(False)
+        context_font = details_context_tab_bar.font()
+        context_font_size = context_font.pointSizeF()
+        if context_font_size <= 0:
+            context_font_size = float(context_font.pointSize() or 10)
+        context_font.setPointSizeF(max(7.0, context_font_size - 1.0))
+        details_context_tab_bar.setFont(context_font)
+        details_context_tab_bar.setStyleSheet(
+            "QTabBar::tab {"
+            "min-width:72px; max-width:104px; padding:1px 8px;"
+            "border:1px solid palette(mid);"
+            "border-bottom:0;"
+            "margin-right:1px;"
+            "}"
+            "QTabBar::tab:selected {"
+            "background:palette(highlight);"
+            "color:palette(highlighted-text);"
+            "}"
+            "QTabBar::tab:!selected {"
+            "background:palette(window);"
+            "color:palette(windowText);"
+            "}"
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar abas contextuais de detalhes: %s", exc)
+    details_header_layout.addWidget(cast(Any, details_context_tab_bar), 1)
+
+    details_context_back_button = QToolButton()
+    details_context_close_button = QToolButton()
+    try:
+        details_context_back_button.setAutoRaise(True)
+        details_context_back_button.setText("\u21a9")
+        details_context_back_button.setToolTip("Voltar ao contexto anterior")
+        details_context_back_button.setFixedSize(18, 18)
+        details_context_back_button.setVisible(False)
+        details_context_close_button.setAutoRaise(True)
+        details_context_close_button.setText("x")
+        details_context_close_button.setToolTip("Fechar contexto atual")
+        details_context_close_button.setFixedSize(18, 18)
+        details_context_close_button.setVisible(False)
+    except Exception as exc:
+        logger.debug("Falha ao configurar botoes contextuais de detalhes: %s", exc)
+    details_header_layout.addWidget(cast(Any, details_context_back_button), 0)
+    details_header_layout.addWidget(cast(Any, details_context_close_button), 0)
+    return (
+        details_panel_header,
+        details_tab_bar,
+        details_title,
+        details_context_tab_bar,
+        details_context_separator,
+        details_context_back_button,
+        details_context_close_button,
+    )
 
 
 def _build_column_filters_panel_shell(window: Any) -> dict[str, Any]:
