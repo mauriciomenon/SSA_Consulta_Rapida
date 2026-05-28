@@ -37,3 +37,6 @@ class DetailsSeriesIndex(Mapping[str, pd.Series]):
         if position is None:
             return default
         return self[key]
+
+    def get_position(self, key: str) -> int | None:
+        return self._row_positions.get(key)

@@ -1122,17 +1122,18 @@ def _get_direct_parent_for_series(series: pd.Series | None) -> str:
     return _normalize_ssa_relation_value(series.get("derivada_de"))
 
 
-def _find_series_position_by_ssa(window, df, target: str):
+def _find_series_position_by_ssa(window, df, target: str, *, use_index_lookup: bool = True):
     if df is None or df.empty or "numero_ssa" not in df.columns:
         return None, None
     try:
-        ssa_index = _get_df_ssa_series_index(window, df)
-        if isinstance(ssa_index, DetailsSeriesIndex):
-            position = cast(Any, ssa_index)._row_positions.get(target)
-            if position is None:
-                return None, None
-            matched = ssa_index.get(target)
-            return int(position), matched
+        if use_index_lookup:
+            ssa_index = _get_df_ssa_series_index(window, df)
+            if isinstance(ssa_index, DetailsSeriesIndex):
+                position = ssa_index.get_position(target)
+                if position is None:
+                    return None, None
+                matched = ssa_index.get(target)
+                return int(position), matched
         normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
         if normalized_series.empty:
             return None, None
@@ -1292,7 +1293,7 @@ def _get_series_for_ssa(window, numero_ssa):
     if match is not None:
         return match
     _position, match = _find_series_position_by_ssa(
-        window, getattr(window, "df_completo", None), target
+        window, getattr(window, "df_completo", None), target, use_index_lookup=False
     )
     return match
 
