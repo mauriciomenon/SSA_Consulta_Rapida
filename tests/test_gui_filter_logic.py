@@ -6059,6 +6059,48 @@ class TestGUIFilterLogic:
 
         assert calls == ["202100186"]
 
+    def test_derivadas_graph_label_click_uses_centered_display_coordinates(
+        self, monkeypatch
+    ):
+        class _FakeSize:
+            def width(self):
+                return 90.0
+
+            def height(self):
+                return 30.0
+
+        class _FakePixmap:
+            def isNull(self):
+                return False
+
+            def deviceIndependentSize(self):
+                return _FakeSize()
+
+            def width(self):
+                return 180
+
+            def height(self):
+                return 60
+
+        label = self.window.details_graph_label
+        label.setFixedSize(200, 120)
+        label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 45.0, 20.0)])
+        calls: list[str] = []
+
+        monkeypatch.setattr(self.window, "_jump_to_ssa", calls.append)
+        monkeypatch.setattr(label, "pixmap", lambda: _FakePixmap())
+
+        offset_x = int((label.width() - 90.0) / 2.0)
+        offset_y = int((label.height() - 30.0) / 2.0)
+
+        cast(Any, QTest).mouseClick(
+            label,
+            Qt.MouseButton.LeftButton,
+            pos=QPoint(offset_x + 27, offset_y + 15),
+        )
+
+        assert calls == ["202100186"]
+
     def test_derivadas_graph_label_refresh_helper_reapplies_hitboxes(self, monkeypatch):
         class _FakeSize:
             def width(self):
