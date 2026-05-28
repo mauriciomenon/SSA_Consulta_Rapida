@@ -7000,6 +7000,44 @@ class TestGUIFilterLogic:
         assert result is True
         assert opened == ["https://osprd.itaipu/SAM_SMA/"]
 
+    def test_open_url_in_browser_blocks_file_scheme(self, monkeypatch):
+        opened: list[str] = []
+        self.window.status_label.setText("Status: inicial")
+
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        result = self.window._open_url_in_browser(
+            "file:///tmp/ssa.html",
+            success_status="Status: deveria abrir",
+        )
+
+        assert result is False
+        assert opened == []
+        assert str(self.window.status_label.text() or "") == "Status: inicial"
+
+    def test_open_url_in_browser_blocks_external_host(self, monkeypatch):
+        opened: list[str] = []
+        self.window.status_label.setText("Status: inicial")
+
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        result = self.window._open_url_in_browser(
+            "https://example.com/SAM_SMA/",
+            success_status="Status: deveria abrir",
+        )
+
+        assert result is False
+        assert opened == []
+        assert str(self.window.status_label.text() or "") == "Status: inicial"
+
     def test_load_other_database_validates_selected_db_without_blocking_contract(
         self, monkeypatch, tmp_path
     ):
