@@ -253,7 +253,7 @@ def test_theme_popup_clamp_moves_geometry_inside_screen(monkeypatch):
         lambda: screen,
     )
 
-    gui_theme_dialog._clamp_theme_popup_to_screen(combo, popup)
+    gui_theme_dialog.clamp_theme_popup_to_screen(combo, popup)
 
     available = screen.availableGeometry()
     moved = popup.frameGeometry()

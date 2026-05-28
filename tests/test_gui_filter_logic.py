@@ -945,6 +945,43 @@ class TestGUIFilterLogic:
         assert any("validado" in message.lower() for message in info_messages)
         assert any("gravado" in message.lower() for message in info_messages)
 
+    def test_preferences_dialog_secret_buttons_require_identity(self, monkeypatch):
+        def _fake_exec(dialog):
+            username = dialog.findChild(QLineEdit, "preferencesPaiApiUsernameEdit")
+            secret_service = dialog.findChild(
+                QLineEdit, "preferencesPaiApiSecretServiceEdit"
+            )
+            executadas_check = dialog.findChild(
+                QCheckBox, "preferencesPaiApiScope_executadas"
+            )
+            validate_button = dialog.findChild(
+                QPushButton, "preferencesPaiApiValidateSecretButton"
+            )
+            store_button = dialog.findChild(
+                QPushButton, "preferencesPaiApiStoreSecretButton"
+            )
+            assert username is not None
+            assert secret_service is not None
+            assert executadas_check is not None
+            assert validate_button is not None
+            assert store_button is not None
+            username.clear()
+            secret_service.clear()
+            executadas_check.setChecked(True)
+            assert validate_button.isEnabled() is False
+            assert store_button.isEnabled() is False
+            username.setText("usr")
+            assert validate_button.isEnabled() is False
+            assert store_button.isEnabled() is False
+            secret_service.setText("scrap_report.sam")
+            assert validate_button.isEnabled() is True
+            assert store_button.isEnabled() is True
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
     def test_apply_progress_bar_preference_does_not_force_idle_visibility(self):
         self.window.progress_bar.setVisible(False)
 
@@ -1189,7 +1226,7 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(gui_ssa.QTimer, "singleShot", _fake_single_shot)
         monkeypatch.setattr(
             gui_ssa.ssa_gui_theme_dialog,
-            "_clamp_theme_popup_to_screen",
+            "clamp_theme_popup_to_screen",
             _fake_clamp,
         )
         monkeypatch.setattr(QDialog, "exec", _fake_exec)
@@ -10822,6 +10859,19 @@ class TestGUIFilterLogic:
         assert worker.wait_called_ms is None
         assert worker.deleted is True
         assert self.window.data_loader_thread is None
+
+    def test_close_event_stops_main_and_sector_debounce_timers(self):
+        self.window._debounce_timer.start()
+        self.window._sector_debounce_timer.start()
+        assert self.window._debounce_timer.isActive() is True
+        assert self.window._sector_debounce_timer.isActive() is True
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert self.window._debounce_timer.isActive() is False
+        assert self.window._sector_debounce_timer.isActive() is False
 
     def test_on_data_loaded_ignores_stale_request(self):
         original_df = self.window.df_completo.copy()

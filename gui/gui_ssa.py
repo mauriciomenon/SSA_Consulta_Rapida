@@ -3376,11 +3376,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             state["api_secret_service_edit"],
             api_password_edit,
             state["api_secure_required_checkbox"],
-            state["api_secret_validate_button"],
-            state["api_secret_store_button"],
         )
         for widget in controls:
             widget.setEnabled(scraper_enabled)
+        username = str(state["api_username_edit"].text() or "").strip()
+        secret_service = str(state["api_secret_service_edit"].text() or "").strip()
+        identity_ready = scraper_enabled and bool(username) and bool(secret_service)
+        state["api_secret_validate_button"].setEnabled(identity_ready)
+        state["api_secret_store_button"].setEnabled(identity_ready)
         if scraper_enabled:
             state["api_username_edit"].setToolTip(
                 "Obrigatorio quando houver escopos via xpath/scrap_report."
@@ -3489,9 +3492,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     exc,
                 )
 
-    def _on_preferences_extra_sectors_changed(
-        self, state: dict[str, Any], _text: str
-    ) -> None:
+    @staticmethod
+    def _on_preferences_extra_sectors_changed(state: dict[str, Any], _text: str) -> None:
         _sync_preferences_extra_sector_validation(
             state["api_extra_sectors_edit"],
             state["api_extra_sectors_status"],
@@ -3506,8 +3508,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         self._preferences_content_scroll_active = content_scroll
         try:
-            primary_screen_getter = getattr(QApplication, "primaryScreen", None)
-            screen = primary_screen_getter() if callable(primary_screen_getter) else None
+            screen = cast(Any, QApplication).primaryScreen()
             if screen is not None and hasattr(screen, "availableGeometry"):
                 available = screen.availableGeometry()
                 safe_width = max(640, int(available.width()) - 24)
@@ -3836,9 +3837,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         popup = self.view().window()
                         if popup is None:
                             return
-                        ssa_gui_theme_dialog._clamp_theme_popup_to_screen(
-                            self, popup
-                        )
+                        ssa_gui_theme_dialog.clamp_theme_popup_to_screen(self, popup)
                     except Exception as exc:
                         logger.debug(
                             "Falha ao limitar popup do combo de preferencias na tela: %s",
@@ -4454,6 +4453,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         for checkbox in scope_checks.values():
             checkbox.toggled.connect(
+                partial(
+                    self._sync_preferences_api_secret_controls,
+                    preference_state,
+                    api_password_edit,
+                )
+            )
+        for line_edit in (api_username_edit, api_secret_service_edit):
+            line_edit.textChanged.connect(
                 partial(
                     self._sync_preferences_api_secret_controls,
                     preference_state,
@@ -5694,6 +5701,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         Garante cleanup adequado dos QThreads para evitar o erro:
         'QThread: Destroyed while thread is still running'
         """
+        try:
+            self._debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce principal no closeEvent: %s", exc)
         try:
             self._sector_debounce_timer.stop()
         except Exception as exc:

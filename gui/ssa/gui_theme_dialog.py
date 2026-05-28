@@ -53,7 +53,7 @@ def _resolve_theme_dialog_screen_geometry(target_widget, dialog):
     return screen.availableGeometry()
 
 
-def _clamp_theme_popup_to_screen(combo_box, popup) -> None:
+def clamp_theme_popup_to_screen(combo_box, popup) -> None:
     available = _resolve_widget_screen_geometry(combo_box)
     if available is None:
         return
@@ -150,7 +150,7 @@ def show_theme_selection_dialog(
                     popup = view.window()
                     if popup is None:
                         return
-                    _clamp_theme_popup_to_screen(self_nonlocal, popup)
+                    clamp_theme_popup_to_screen(self_nonlocal, popup)
                 except Exception as exc:
                     logger.debug("Falha ao limitar popup do seletor de tema: %s", exc)
 
