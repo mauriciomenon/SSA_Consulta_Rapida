@@ -65,6 +65,9 @@ REQUIRED_GUI_COLUMNS: List[str] = [
     "responsavel_execucao",
 ]
 
+# Backward-compatible alias kept for existing imports and tests.
+REQUIRED_DISPLAY_COLUMNS = REQUIRED_GUI_COLUMNS
+
 DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "numero_ssa": "Numero SSA",
     "setor_executor": "Set. Exec.",

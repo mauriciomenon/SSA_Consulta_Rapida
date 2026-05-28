@@ -86,7 +86,21 @@ def test_main_log_level_updates_root_handlers(monkeypatch: pytest.MonkeyPatch) -
 
         assert root_logger.level == logging.DEBUG
         assert root_logger.handlers
-        assert all(handler.level == logging.DEBUG for handler in root_logger.handlers)
+        file_handlers = [
+            handler
+            for handler in root_logger.handlers
+            if isinstance(handler, logging.FileHandler)
+        ]
+        stream_handlers = [
+            handler
+            for handler in root_logger.handlers
+            if isinstance(handler, logging.StreamHandler)
+            and not isinstance(handler, logging.FileHandler)
+        ]
+        assert file_handlers
+        assert stream_handlers
+        assert all(handler.level == logging.DEBUG for handler in file_handlers)
+        assert all(handler.level == logging.DEBUG for handler in stream_handlers)
     finally:
         root_logger.setLevel(original_root_level)
         for handler, level in zip(root_logger.handlers, original_handler_levels):

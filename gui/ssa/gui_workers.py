@@ -1665,11 +1665,13 @@ def rescan_data(
         worker.progress, progress_dialog.update_progress, label="rescan.progress"
     )
 
+    should_reload_on_success = bool(reload_on_success or normalized_mode == "full")
+
     connect_rescan_worker_lifecycle(
         window,
         worker,
         progress_dialog,
-        reload_on_success=bool(reload_on_success),
+        reload_on_success=should_reload_on_success,
         is_explicit_import=is_explicit_import,
         normalized_kind=normalized_kind,
         global_workers=global_workers,

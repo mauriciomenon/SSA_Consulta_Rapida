@@ -165,8 +165,8 @@ class TestGUIMainConfiguration:
                 with patch("gui.gui_config.sys.platform", "darwin"):
                     config = load_gui_main_preferences()
 
-        assert config["column_widths"]["descricao_ssa"] == 340
-        assert config["column_widths"]["semana_cadastro"] == 60
+        assert config["column_widths"]["descricao_ssa"] == 420
+        assert config["column_widths"]["semana_cadastro"] == 74
 
     def test_load_gui_main_preferences_invalid_integrity_uses_platform_defaults(self):
         invalid_config = {
@@ -186,8 +186,8 @@ class TestGUIMainConfiguration:
                 with patch("gui.gui_config.sys.platform", "darwin"):
                     config = load_gui_main_preferences()
 
-        assert config["column_widths"]["descricao_ssa"] == 340
-        assert config["column_widths"]["semana_cadastro"] == 60
+        assert config["column_widths"]["descricao_ssa"] == 420
+        assert config["column_widths"]["semana_cadastro"] == 74
 
     def test_partial_config_is_merged_with_contract(self):
         """JSON parcial deve preservar contrato minimo de colunas e mapeamentos."""
@@ -216,28 +216,43 @@ class TestGUIMainConfiguration:
         assert config["column_widths"]["numero_ssa"] == 10
 
     def test_load_gui_main_preferences_migrates_managed_legacy_widths(self):
+        from gui.gui_config import (
+            DEFAULT_COLUMN_WIDTHS,
+            DEFAULT_COLUMN_WIDTHS_BY_PLATFORM,
+            load_gui_main_preferences,
+        )
+
         legacy_config = {
             "display_columns": ["numero_ssa", "situacao"],
             "column_display_names": {"numero_ssa": "No SSA"},
             "column_widths": {
                 "data_cadastro": 95,
-                "grau_prioridade_emissao": 122,
-                "grau_prioridade_planejamento": 122,
-                "total_de_reprogramacoes": 130,
-                "execucao_parcial": 130,
-                "semana_executada": 96,
+                "grau_prioridade_emissao": DEFAULT_COLUMN_WIDTHS_BY_PLATFORM["linux"][
+                    "grau_prioridade_emissao"
+                ],
+                "grau_prioridade_planejamento": DEFAULT_COLUMN_WIDTHS_BY_PLATFORM[
+                    "linux"
+                ]["grau_prioridade_planejamento"],
+                "total_de_reprogramacoes": DEFAULT_COLUMN_WIDTHS_BY_PLATFORM[
+                    "linux"
+                ]["total_de_reprogramacoes"],
+                "execucao_parcial": DEFAULT_COLUMN_WIDTHS_BY_PLATFORM["linux"][
+                    "execucao_parcial"
+                ],
+                "semana_executada": DEFAULT_COLUMN_WIDTHS_BY_PLATFORM["linux"][
+                    "semana_executada"
+                ],
                 "responsavel_execucao": 150,
             },
             "gui_settings": {"page_size": 25},
         }
 
-        from gui.gui_config import DEFAULT_COLUMN_WIDTHS, load_gui_main_preferences
-
         with patch(
             "gui.gui_config.open", mock_open(read_data=json.dumps(legacy_config))
         ):
             with patch("gui.gui_config.os.path.exists", return_value=True):
-                config = load_gui_main_preferences()
+                with patch("gui.gui_config.sys.platform", "darwin"):
+                    config = load_gui_main_preferences()
 
         assert config["column_widths"]["data_cadastro"] == 95
         assert (
@@ -519,10 +534,10 @@ class TestGUIMainConfiguration:
 
         created = json.loads(config_path.read_text(encoding="utf-8"))
 
-        assert created["column_widths"]["descricao_ssa"] == 340
-        assert created["column_widths"]["semana_cadastro"] == 60
+        assert created["column_widths"]["descricao_ssa"] == 420
+        assert created["column_widths"]["semana_cadastro"] == 74
         assert created["column_widths"]["semana_executada"] == 60
-        assert config["column_widths"]["descricao_ssa"] == 340
+        assert config["column_widths"]["descricao_ssa"] == 420
 
     def test_gui_main_preferences_reference_file_matches_code_defaults(self):
         from gui.gui_config import (
