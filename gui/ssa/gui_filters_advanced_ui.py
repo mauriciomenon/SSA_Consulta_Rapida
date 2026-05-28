@@ -1168,7 +1168,7 @@ def _on_macro_filter_changed(self):
     preset = advanced_macro_filter_preset(choice)
     if preset is not None:
         _apply_advanced_macro_filter_preset(self, preset)
-        self._apply_advanced_filters_from_ui()
+        _apply_advanced_filters_from_ui(self)
 
 
 def _reorganize_advanced_filters_grid(self, width: int):
