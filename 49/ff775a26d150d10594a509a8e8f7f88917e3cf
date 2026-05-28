@@ -1,0 +1,41 @@
+tests/test_gui_filter_logic.py
+  s_9f052ddda3b0ba::t_a4883240ad4cee 6290-6292,6295,6332-6334,6337,6344-6346,6348,6351,6355
+  s_9f052ddda3b0ba::t_944422666138fc 6293-6294,6335-6336,6347
+  s_9f052ddda3b0ba::t_a3d413a98bc002 6256-6258,6279-6285,6321-6326,6331,6339-6343,6349-6350,6353,6817,6819,7247-7254,8884,8892-8937
+  s_9f052ddda3b0ba::t_2a57b3d33e5257 7255
+  s_9f052ddda3b0ba::t_13f29d5e3b79fd 6286-6289,6327-6330,6354,6356
+  s_9f052ddda3b0ba::t_c926fb3824a60e 6352
+  s_9f052ddda3b0ba::t_5a9bd41699c278 8938
+gui/ssa/gui_details.py
+  s_9f052ddda3b0ba::t_588bccadffb5a7 83-84,86,89,92,95,904,906,934,944,967
+  s_9f052ddda3b0ba::t_d0603f7daa1b07 1071-1074,1091-1092
+  s_9f052ddda3b0ba::t_3df52f48f0cb5d 16,845-847,857,859-864,866,1049-1054,1111,1128,1158
+  s_9f052ddda3b0ba::t_e640f6ef44dd9d 1031
+  s_9f052ddda3b0ba::t_4c3f0a62289fb2 1267,1296,1682-1684,1721-1722
+  s_9f052ddda3b0ba::t_6ff975393e3544 824,826-830,834,836-837,844,848-856,858,865,867-903,905,907-933,935-943,945-966,968,970-1030,1032-1048,1055-1057,1062-1066,1068-1070,1075-1083,1085-1090,1093-1110,1112-1127,1129-1157,1159-1160
+  s_9f052ddda3b0ba::t_826be267f050db 1058-1061,1067,1084
+  s_9f052ddda3b0ba::t_3da0ad7cd0bd01 12,199
+  s_9f052ddda3b0ba::t_1eef0ff7a4004f 969
+  s_9f052ddda3b0ba::t_d4a2e6816f1bd7 15,74-82,85,87-88,90-91,93-94,96-98,108,119
+gui/ssa/main_window_bottom_section.py
+  s_9f052ddda3b0ba::t_83de396fab4230 21
+  s_9f052ddda3b0ba::t_3c46ce6428cdfb 455,460
+  s_9f052ddda3b0ba::t_a1521ad83a8ad0 402-404,418-421
+  s_9f052ddda3b0ba::t_cf504e212a82d0 236-244,339-342,349-351,356,397-401,405-417,422-454,456-459,461-474
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "49ff775a26d150d10594a509a8e8f7f88917e3cf",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
