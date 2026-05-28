@@ -30,7 +30,7 @@ from PyQt6.QtGui import QCloseEvent, QDesktopServices, QFont, QResizeEvent  # no
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QDialog, QGroupBox, QSpinBox  # noqa: E402
-from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QScrollArea  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
@@ -541,6 +541,10 @@ class TestGUIFilterLogic:
             ]
             footer_label = dialog.findChild(QLabel, "preferencesFooterLabel")
             captured["footer"] = str(footer_label.text() or "") if footer_label else ""
+            captured["has_widths_scroll"] = (
+                dialog.findChild(QScrollArea, "preferencesColumnWidthsScroll")
+                is not None
+            )
             columns_button = buttons.get("preferencesColumnsButton")
             assert columns_button is not None
             columns_button.click()
@@ -597,8 +601,13 @@ class TestGUIFilterLogic:
             == "Duplo clique abre detalhes"
         )
         assert "Restaurar padrao" in captured["buttons"]
-        assert "Mauricio Menon" in captured["footer"]
-        assert "Versao " in captured["footer"]
+        assert captured["footer"].startswith("Versao ")
+        assert len(captured["footer"].split(" | ")) == 5
+        assert any(
+            "Consulta REST nao exige credencial" in label
+            for label in captured["labels"]
+        )
+        assert captured["has_widths_scroll"] is False
 
     def test_preferences_dialog_applies_runtime_settings(self, monkeypatch):
         gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
@@ -937,6 +946,101 @@ class TestGUIFilterLogic:
         assert "persistencia falhou" in str(self.window.status_label.text() or "")
 
         gui_settings["default_filter_mode"] = previous_mode
+
+    def test_preferences_dialog_blocks_invalid_extra_sectors_before_save(
+        self, monkeypatch
+    ):
+        warnings: list[str] = []
+        previous_extra = copy.deepcopy(
+            gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+            .setdefault("pai_api", {})
+            .get("executor_sectors_extra")
+        )
+
+        def _fake_warning(*args):  # noqa: ANN002, ANN003
+            warnings.append(str(args[2] if len(args) > 2 else ""))
+
+        def _fake_exec(dialog):
+            extra_edit = dialog.findChild(
+                QLineEdit, "preferencesPaiApiExtraSectorsEdit"
+            )
+            extra_status = dialog.findChild(
+                QLabel, "preferencesPaiApiExtraSectorsValidationLabel"
+            )
+            assert extra_edit is not None
+            assert extra_status is not None
+            extra_edit.setText("BAD TOKEN, M*")
+            assert "invalidos" in str(extra_status.text() or "").lower()
+            return QDialog.DialogCode.Accepted
+
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+        monkeypatch.setattr(QMessageBox, "warning", _fake_warning)
+
+        self.window._open_preferences_dialog()
+
+        assert any("Corrija os Setores extras" in msg for msg in warnings)
+        current_extra = (
+            gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+            .setdefault("pai_api", {})
+            .get("executor_sectors_extra")
+        )
+        assert current_extra == previous_extra
+
+    def test_preferences_dialog_redirects_wheel_to_outer_scroll(self, monkeypatch):
+        captured: dict[str, Any] = {}
+
+        class _FakeDelta:
+            def y(self) -> int:
+                return 120
+
+        class _FakeWheelEvent:
+            def type(self):
+                return QEvent.Type.Wheel
+
+            def angleDelta(self):
+                return _FakeDelta()
+
+        def _fake_exec(dialog):
+            content_scroll = dialog.findChild(QScrollArea, "preferencesContentScroll")
+            page_size_spin = dialog.findChild(QSpinBox, "preferencesPageSizeSpin")
+            assert content_scroll is not None
+            assert page_size_spin is not None
+            scroll_bar = content_scroll.verticalScrollBar()
+            scroll_bar.setRange(0, 200)
+            scroll_bar.setSingleStep(25)
+            scroll_bar.setValue(50)
+            assert bool(page_size_spin.property("ignoreWheelInput")) is True
+            captured["handled"] = self.window.eventFilter(
+                page_size_spin, _FakeWheelEvent()
+            )
+            captured["scroll_value"] = scroll_bar.value()
+            captured["spin_value"] = page_size_spin.value()
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
+        assert captured["handled"] is True
+        assert captured["scroll_value"] == 25
+        assert captured["spin_value"] == 50
+
+    def test_preferences_theme_combo_uses_list_view_popup(self, monkeypatch):
+        captured: dict[str, str] = {}
+
+        def _fake_exec(dialog):
+            combo = dialog.findChild(QComboBox, "preferencesThemeCombo")
+            assert combo is not None
+            captured["combo_style"] = str(combo.styleSheet() or "")
+            captured["view_type"] = type(combo.view()).__name__
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
+        assert "combobox-popup: 0" in captured["combo_style"]
+        assert captured["view_type"] == "QListView"
 
     def test_details_derivadas_tab_refreshes_when_selection_changes(self, monkeypatch):
         df = pd.DataFrame(
@@ -1450,12 +1554,17 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters.get("situacao") == "APV"
         assert rebuild_calls == 0
         assert refresh_calls == 1
+        assert "qlineargradient" in str(buttons["APV"].styleSheet() or "")
+        assert "font-weight:700" in str(buttons["APV"].styleSheet() or "")
 
         buttons["STE"].setChecked(True)
         QApplication.processEvents()
         assert self.window._active_column_filters.get("situacao") == "APV, STE"
         assert rebuild_calls == 0
         assert refresh_calls == 2
+        assert "qlineargradient" in str(buttons["STE"].styleSheet() or "")
+        assert "font-weight:700" in str(buttons["STE"].styleSheet() or "")
+        assert "qlineargradient" not in str(buttons["AMP"].styleSheet() or "")
 
     def test_quick_setor_executor_clears_existing_advanced_exclusions(self):
         self.window._advanced_filters = {
@@ -5763,6 +5872,32 @@ class TestGUIFilterLogic:
 
         assert hitboxes == [("202100186", 100.0, 40.0, 260.0, 100.0)]
 
+    @staticmethod
+    def test_graph_navigation_hitboxes_ignore_stroke_width_attribute():
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="286" height="106" '
+            'viewBox="0 0 286 106">'
+            '<rect x="8" y="8" width="80" height="30" data-ssa="202100046" '
+            'rx="5" ry="5" fill="#000" stroke="#fff" stroke-width="0.8" />'
+            "</svg>"
+        )
+
+        hitboxes = ssa_gui_details._graph_navigation_hitboxes_from_svg(
+            svg,
+            render_width=400,
+            render_height=148,
+        )
+
+        assert hitboxes == [
+            (
+                "202100046",
+                pytest.approx(11.1888111888),
+                pytest.approx(11.1698113208),
+                pytest.approx(123.0769230769),
+                pytest.approx(53.0566037736),
+            )
+        ]
+
     def test_derivadas_tree_html_handles_cycle_in_descendants(self):
         html = ssa_gui_details._build_derivadas_tree_html(
             self.window,
@@ -5838,6 +5973,58 @@ class TestGUIFilterLogic:
             pos=QPoint(78, 60),
         )
 
+        assert calls == ["202100186"]
+
+    def test_derivadas_graph_label_refresh_helper_reapplies_hitboxes(self, monkeypatch):
+        class _FakeSize:
+            def width(self):
+                return 180.0
+
+            def height(self):
+                return 90.0
+
+        class _FakePixmap:
+            def isNull(self):
+                return False
+
+            def deviceIndependentSize(self):
+                return _FakeSize()
+
+            def width(self):
+                return 180
+
+            def height(self):
+                return 90
+
+        label = self.window.details_graph_label
+        label.resize(260, 170)
+        label.set_graph_svg_markup(
+            '<svg viewBox="0 0 200 100">'
+            '<rect data-ssa="202100186" x="50" y="20" width="80" height="30" />'
+            "</svg>"
+        )
+        monkeypatch.setattr(label, "pixmap", lambda: _FakePixmap())
+        refresh_calls: list[str] = []
+
+        def _refresh_hitboxes(widget, svg: str):
+            refresh_calls.append(svg)
+            ssa_gui_details.reapply_graph_navigation_hitboxes(widget, svg)
+
+        monkeypatch.setattr(
+            self.window, "_refresh_derivadas_graph_hitboxes", _refresh_hitboxes
+        )
+        calls: list[str] = []
+        monkeypatch.setattr(self.window, "_jump_to_ssa", calls.append)
+
+        label._refresh_hitboxes_from_svg()
+
+        cast(Any, QTest).mouseClick(
+            label,
+            Qt.MouseButton.LeftButton,
+            pos=QPoint(103, 66),
+        )
+
+        assert refresh_calls
         assert calls == ["202100186"]
 
     def test_build_derivadas_graph_html_offsets_text_baseline_for_qt_svg(self):

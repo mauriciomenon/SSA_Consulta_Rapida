@@ -62,11 +62,27 @@ def _set_fixed_height(window: Any, widget: QWidget, height: int, label: str) -> 
     widget.setFixedHeight(height)
 
 
+def _event_position_in_graph_space(widget: Any, event: Any) -> tuple[float, float]:
+    position_getter = getattr(event, "position", None)
+    point = position_getter() if callable(position_getter) else event.pos()
+    x = float(point.x())
+    y = float(point.y())
+    pixmap = widget.pixmap()
+    if pixmap is not None:
+        is_null = getattr(pixmap, "isNull", None)
+        if not (callable(is_null) and is_null()):
+            pixmap_w, pixmap_h = _pixmap_display_size(pixmap)
+            x -= max(0.0, (float(widget.width()) - pixmap_w) / 2.0)
+            y -= max(0.0, (float(widget.height()) - pixmap_h) / 2.0)
+    return x, y
+
+
 class DerivadasGraphLabel(QLabel):
     def __init__(self, window: Any) -> None:
         super().__init__()
         self._window = window
         self._ssa_hitboxes: list[tuple[str, float, float, float, float]] = []
+        self._graph_svg_markup = ""
         self.setMouseTracking(True)
 
     def set_ssa_hitboxes(
@@ -74,6 +90,20 @@ class DerivadasGraphLabel(QLabel):
     ) -> None:
         self._ssa_hitboxes = list(hitboxes)
         self._set_node_cursor(False)
+
+    def set_graph_svg_markup(self, graph_svg: str) -> None:
+        self._graph_svg_markup = str(graph_svg or "")
+
+    def clear_graph_svg_markup(self) -> None:
+        self._graph_svg_markup = ""
+
+    def resizeEvent(self, a0: Any) -> None:  # noqa: N802
+        self._refresh_hitboxes_from_svg()
+        super().resizeEvent(a0)
+
+    def setPixmap(self, a0: Any) -> None:  # noqa: N802
+        super().setPixmap(a0)
+        self._refresh_hitboxes_from_svg()
 
     def mouseMoveEvent(self, ev: Any) -> None:  # noqa: N802
         self._set_node_cursor(bool(self._ssa_at_event(ev)))
@@ -108,18 +138,15 @@ class DerivadasGraphLabel(QLabel):
             return
         super().mousePressEvent(ev)
 
+    def _refresh_hitboxes_from_svg(self) -> None:
+        if not self._graph_svg_markup:
+            return
+        refresher = getattr(self._window, "_refresh_derivadas_graph_hitboxes", None)
+        if callable(refresher):
+            refresher(self, self._graph_svg_markup)
+
     def _ssa_at_event(self, event: Any) -> str:
-        position_getter = getattr(event, "position", None)
-        point = position_getter() if callable(position_getter) else event.pos()
-        x = float(point.x())
-        y = float(point.y())
-        pixmap = self.pixmap()
-        if pixmap is not None:
-            is_null = getattr(pixmap, "isNull", None)
-            if not (callable(is_null) and is_null()):
-                pixmap_w, pixmap_h = _pixmap_display_size(pixmap)
-                x -= max(0.0, (float(self.width()) - pixmap_w) / 2.0)
-                y -= max(0.0, (float(self.height()) - pixmap_h) / 2.0)
+        x, y = _event_position_in_graph_space(self, event)
         edge_tolerance = 3.0
         for ssa, left, top, right, bottom in self._ssa_hitboxes:
             if (
@@ -133,7 +160,16 @@ class DerivadasGraphLabel(QLabel):
 def build_bottom_filter_section(window: Any) -> dict[str, Any]:
     bottom_layout = QHBoxLayout()
 
-    details_group, details_context = _build_details_panel(window)
+    details_panel, details_context = _build_details_panel(window)
+    details_group = QGroupBox("")
+    details_group.setObjectName("detailsPanelGroup")
+    details_group.setSizePolicy(
+        QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+    )
+    details_shell_layout = QVBoxLayout(cast(Any, details_group))
+    details_shell_layout.setContentsMargins(4, 2, 4, 4)
+    details_shell_layout.setSpacing(2)
+    details_shell_layout.addWidget(cast(Any, details_panel), 1)
     bottom_layout.addWidget(cast(Any, details_group), 2)
     bottom_layout.setAlignment(cast(Any, details_group), Qt.AlignmentFlag.AlignTop)
 
@@ -190,11 +226,10 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
     }
 
 
-def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
-    details_group = QGroupBox("")
-    details_group.setObjectName("detailsPanelGroup")
-    details_layout = QVBoxLayout(cast(Any, details_group))
-    details_layout.setContentsMargins(4, 2, 4, 4)
+def _build_details_panel(window: Any) -> tuple[QWidget, dict[str, Any]]:
+    details_panel = QWidget()
+    details_layout = QVBoxLayout(cast(Any, details_panel))
+    details_layout.setContentsMargins(0, 0, 0, 0)
     details_layout.setSpacing(2)
 
     details_header, details_tab_bar, details_title = _build_details_panel_header(window)
@@ -203,7 +238,7 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
     details_stack = QStackedWidget()
     details_text = QTextBrowser()
     try:
-        details_group.setSizePolicy(
+        details_panel.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
         )
     except Exception as exc:
@@ -288,7 +323,7 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
     except Exception as exc:
         logger.debug("Falha ao conectar abas de detalhes: %s", exc)
 
-    return details_group, {
+    return details_panel, {
         "details_text": details_text,
         "details_tab_bar": details_tab_bar,
         "details_title": details_title,
@@ -429,7 +464,7 @@ def _build_filter_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
     except Exception as exc:
         logger.debug("Falha ao configurar barra local de abas de filtros: %s", exc)
 
-    filter_panel_title = QLabel("Filtros por Selecao")
+    filter_panel_title = QLabel("Por texto")
     try:
         filter_panel_title.setAlignment(cast(Any, Qt).AlignmentFlag.AlignCenter)
         filter_panel_title.setStyleSheet("font-weight:600; color:palette(windowText);")

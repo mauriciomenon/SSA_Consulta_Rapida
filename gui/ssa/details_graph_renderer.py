@@ -196,7 +196,9 @@ def _node_lines(
         safe_node = html_module.escape(node)
         safe_node_attr = html_module.escape(node, quote=True)
         font_size = _node_font_size(node, node_w, node_h)
-        text_y = y0 + (node_h / 2.0) + (font_size * 0.34)
+        text_ascent = font_size * 0.74
+        text_descent = font_size * 0.26
+        text_y = y0 + ((node_h - (text_ascent + text_descent)) / 2.0) + text_ascent
         lines.append(
             f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
             f'data-ssa="{safe_node_attr}" rx="5" ry="5" fill="{fill}" '

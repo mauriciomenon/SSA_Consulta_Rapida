@@ -61,9 +61,10 @@ _SVG_VIEWBOX_RE = re.compile(
     re.IGNORECASE,
 )
 _SVG_NODE_RECT_RE = re.compile(
-    r'<rect(?=[^>]*\bdata-ssa="([^"]+)")(?=[^>]*\bx="([0-9.]+)")'
-    r'(?=[^>]*\by="([0-9.]+)")(?=[^>]*\bwidth="([0-9.]+)")'
-    r'(?=[^>]*\bheight="([0-9.]+)")[^>]*>',
+    r'<rect(?=[^>]*\bdata-ssa="([^"]+)")(?=[^>]*(?<![-\w])x="([0-9.]+)")'
+    r'(?=[^>]*(?<![-\w])y="([0-9.]+)")'
+    r'(?=[^>]*(?<![-\w])width="([0-9.]+)")'
+    r'(?=[^>]*(?<![-\w])height="([0-9.]+)")[^>]*>',
     re.IGNORECASE,
 )
 
@@ -732,6 +733,9 @@ def _clear_main_details_derivadas_panel(window) -> None:
             continue
         try:
             _set_graph_navigation_hitboxes(widget, [])
+            clear_svg_markup = getattr(widget, "clear_graph_svg_markup", None)
+            if callable(clear_svg_markup):
+                clear_svg_markup()
             widget.clear()
             if attr in ("details_graph_label", "details_graph_text"):
                 widget.setVisible(False)
@@ -778,6 +782,9 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
         if not _has_derivadas_graph_relations(tree_data):
             tree_browser.setVisible(False)
             _set_graph_navigation_hitboxes(graph_browser, [])
+            clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
+            if callable(clear_svg_markup):
+                clear_svg_markup()
             if hasattr(graph_browser, "setPixmap"):
                 graph_browser.clear()
             graph_browser.setText("Sem SSAs Derivadas.")
@@ -811,17 +818,29 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
             ):
                 tree_browser.setVisible(True)
                 _set_graph_navigation_hitboxes(graph_browser, [])
+                clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
+                if callable(clear_svg_markup):
+                    clear_svg_markup()
                 graph_browser.setText("Grafo de derivadas indisponivel.")
             else:
                 tree_browser.setVisible(False)
+                set_svg_markup = getattr(graph_browser, "set_graph_svg_markup", None)
+                if callable(set_svg_markup):
+                    set_svg_markup(graph_svg)
                 _apply_graph_navigation_hitboxes(graph_browser, graph_svg)
         elif hasattr(graph_browser, "setHtml"):
             tree_browser.setVisible(True)
             _set_graph_navigation_hitboxes(graph_browser, [])
+            clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
+            if callable(clear_svg_markup):
+                clear_svg_markup()
             graph_browser.setHtml(graph_html or "Grafo de derivadas indisponivel.")
         else:
             tree_browser.setVisible(True)
             _set_graph_navigation_hitboxes(graph_browser, [])
+            clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
+            if callable(clear_svg_markup):
+                clear_svg_markup()
             graph_browser.setText("Grafo de derivadas indisponivel.")
     except Exception as exc:
         logger.debug("Falha ao atualizar painel principal de derivadas: %s", exc)
@@ -870,6 +889,10 @@ def _apply_graph_navigation_hitboxes(graph_widget: Any, graph_svg: str) -> None:
         render_height=float(max(1, render_height)),
     )
     _set_graph_navigation_hitboxes(graph_widget, hitboxes)
+
+
+def reapply_graph_navigation_hitboxes(graph_widget: Any, graph_svg: str) -> None:
+    _apply_graph_navigation_hitboxes(graph_widget, graph_svg)
 
 
 def _graph_navigation_hitboxes_from_svg(

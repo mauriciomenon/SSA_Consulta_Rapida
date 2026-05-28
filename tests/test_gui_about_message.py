@@ -19,6 +19,30 @@ def test_build_about_message_includes_commit_hash(monkeypatch) -> None:
     assert "Commit: abc1234" in message
 
 
+def test_build_about_summary_line_includes_host_full_hash_and_iso(monkeypatch) -> None:
+    monkeypatch.setattr(
+        gui_ssa,
+        "_load_embedded_build_info",
+        lambda: {"build_datetime": "2026-05-27T23:30:00-03:00"},
+    )
+    monkeypatch.setattr(
+        gui_ssa,
+        "resolve_git_commit_hash_text",
+        lambda **kwargs: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        if kwargs.get("short") is False
+        else "aaaaaaa",
+    )
+    monkeypatch.setattr(gui_ssa.getpass, "getuser", lambda: "menon")
+    monkeypatch.setattr(gui_ssa.socket, "gethostname", lambda: "mac-mini")
+
+    summary = gui_ssa.build_about_summary_line("9.9.9")
+
+    assert summary == (
+        "Versao 9.9.9 | menon | mac-mini | "
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | 2026-05-27T23:30:00-03:00"
+    )
+
+
 def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> None:
     build_info = tmp_path / "build_info.json"
     build_info.write_text(

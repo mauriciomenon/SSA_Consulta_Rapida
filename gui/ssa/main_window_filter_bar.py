@@ -20,6 +20,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from gui.helpers.theme_helpers import pick_css_color
+from utils.themes import get_theme_roles
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,6 +40,75 @@ def _set_fixed_height(window: Any, widget: Any, height: int, label: str) -> None
         setter(widget, height, label)
         return
     widget.setFixedHeight(height)
+
+
+def _apply_toolbar_compact_font(window: Any, widget: Any) -> None:
+    toolbar_font = getattr(window, "_toolbar_compact_font", None)
+    if toolbar_font is None:
+        return
+    try:
+        widget.setFont(cast(Any, QFont(toolbar_font)))
+    except Exception as exc:
+        logger.debug("Falha ao aplicar fonte compacta da barra superior: %s", exc)
+
+
+def _quick_situacao_button_style(window: Any, *, selected: bool) -> str:
+    roles = get_theme_roles(str(getattr(window, "_current_theme", "gruvbox") or "gruvbox"))
+    panel_bg = pick_css_color(
+        roles.get("panel_bg"),
+        roles.get("summary_frame_bg"),
+        roles.get("input_bg"),
+        fallback="#2b2f3c",
+    )
+    panel_text = pick_css_color(
+        roles.get("panel_text"),
+        roles.get("label_color"),
+        roles.get("support_text_color"),
+        fallback="#e6e7ee",
+    )
+    panel_border = pick_css_color(
+        roles.get("panel_border"),
+        roles.get("input_border"),
+        roles.get("border"),
+        fallback="#666b84",
+    )
+    accent = pick_css_color(
+        roles.get("accent"),
+        roles.get("input_border_focus"),
+        fallback="#a46ff5",
+    )
+    accent_soft = pick_css_color(
+        roles.get("accent_soft"),
+        roles.get("summary_frame_bg"),
+        fallback="#5c477c",
+    )
+    if selected:
+        return (
+            "QPushButton {"
+            f"color:{panel_text};"
+            f"background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 {accent_soft}, stop:1 {panel_bg});"
+            f"border:1px solid {accent};"
+            "border-radius:4px;"
+            "padding:0px 2px;"
+            "font-weight:700;"
+            "}"
+            "QPushButton:hover {"
+            f"border:1px solid {accent};"
+            "}"
+        )
+    return (
+        "QPushButton {"
+        f"color:{panel_text};"
+        f"background:{panel_bg};"
+        f"border:1px solid {panel_border};"
+        "border-radius:4px;"
+        "padding:0px 2px;"
+        "font-weight:500;"
+        "}"
+        "QPushButton:hover {"
+        f"border:1px solid {accent};"
+        "}"
+    )
 
 
 def _create_search_controls(window: Any) -> dict[str, Any]:
@@ -357,6 +429,7 @@ def build_pagination_filter_bar(
 
     quick_setor_executor_label = QLabel("Setor Executor:")
     quick_setor_executor_label.setStyleSheet("padding:0; margin:0 0 0 1px;")
+    _apply_toolbar_compact_font(window, quick_setor_executor_label)
     quick_setor_executor_combo = QComboBox()
     quick_setor_executor_combo.setToolTip(
         "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
@@ -538,10 +611,17 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
             except Exception as exc:
                 logger.debug("Falha ao limitar botao de situacao %s: %s", value, exc)
             try:
-                font = button.font()
-                if font.pointSize() > 0:
-                    font.setPointSize(max(8, font.pointSize() - 1))
+                compact_font = getattr(window, "_toolbar_compact_font", None)
+                if compact_font is not None:
+                    font = QFont(compact_font)
+                    if font.pointSize() > 0:
+                        font.setPointSize(max(8, font.pointSize() - 1))
                     button.setFont(font)
+                else:
+                    font = button.font()
+                    if font.pointSize() > 0:
+                        font.setPointSize(max(8, font.pointSize() - 1))
+                        button.setFont(font)
             except Exception as exc:
                 logger.debug("Falha ao reduzir fonte do botao de situacao %s: %s", value, exc)
             toggle_handler = getattr(window, "_on_quick_situacao_toggled", None)
@@ -567,10 +647,12 @@ def _sync_quick_situacao_button(
     try:
         button.setChecked(value in selected_values)
         button.setToolTip(f"Liga ou desliga o filtro de situacao {value}.")
-        style = str(getattr(window, "_week_label_style", "") or "")
-        if style:
-            compact_style = style.replace("padding:1px 5px;", "padding:0px 1px;")
-            button.setStyleSheet(compact_style)
+        button.setStyleSheet(
+            _quick_situacao_button_style(
+                window,
+                selected=value in selected_values,
+            )
+        )
     except Exception as exc:
         logger.debug("Falha ao sincronizar botao de situacao %s: %s", value, exc)
     finally:
@@ -584,6 +666,7 @@ def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
         combo.setMinimumContentsLength(4)
         combo.setMaxVisibleItems(14)
         _set_fixed_height(window, combo, 22, "combo rapido de setor executor")
+        _apply_toolbar_compact_font(window, combo)
         combo.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Fixed),
             cast(Any, QSizePolicy.Policy.Fixed),

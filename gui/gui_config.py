@@ -248,17 +248,17 @@ DEFAULT_COLUMN_WIDTHS_WINDOWS: Dict[str, int] = {
     "localizacao_codigo": 86,
     "setor_executor": 80,
     "situacao": 51,
-    "descricao_ssa": 420,
+    "descricao_ssa": 500,
     "data_cadastro": 84,
     "setor_emissor": 72,
-    "derivada_de": 72,
+    "derivada_de": 80,
     "semana_programada": 92,
     "descricao_execucao": 330,
     "semana_cadastro": 74,
     "grau_prioridade": 95,
     "grau_prioridade_emissao": 86,
     "grau_prioridade_planejamento": 128,
-    "solicitante": 190,
+    "solicitante": 250,
     "data_arquivo_origem": 188,
     "total_de_reprogramacoes": 96,
     "execucao_parcial": 78,
@@ -268,13 +268,13 @@ DEFAULT_COLUMN_WIDTHS_WINDOWS: Dict[str, int] = {
 
 DEFAULT_COLUMN_WIDTHS_DARWIN: Dict[str, int] = {
     **DEFAULT_COLUMN_WIDTHS_WINDOWS,
-    "descricao_ssa": 420,
+    "descricao_ssa": 500,
     "semana_programada": 72,
     "descricao_execucao": 330,
     "semana_cadastro": 74,
     "grau_prioridade_emissao": 86,
     "grau_prioridade_planejamento": 98,
-    "solicitante": 190,
+    "solicitante": 250,
     "total_de_reprogramacoes": 96,
     "execucao_parcial": 78,
     "semana_executada": 60,
@@ -286,17 +286,17 @@ DEFAULT_COLUMN_WIDTHS_LINUX: Dict[str, int] = {
     "localizacao_codigo": 86,
     "setor_executor": 65,
     "situacao": 51,
-    "descricao_ssa": 420,
+    "descricao_ssa": 500,
     "data_cadastro": 84,
     "setor_emissor": 58,
-    "derivada_de": 72,
+    "derivada_de": 80,
     "semana_programada": 88,
     "descricao_execucao": 282,
     "semana_cadastro": 74,
     "grau_prioridade": 95,
     "grau_prioridade_emissao": 86,
     "grau_prioridade_planejamento": 122,
-    "solicitante": 190,
+    "solicitante": 250,
     "data_arquivo_origem": 188,
     "total_de_reprogramacoes": 96,
     "execucao_parcial": 130,
@@ -489,6 +489,7 @@ _MANAGED_LEGACY_COLUMN_LABELS = {
 }
 _MANAGED_LEGACY_WIDTH_KEYS = {
     "descricao_ssa",
+    "derivada_de",
     "semana_programada",
     "descricao_execucao",
     "grau_prioridade_emissao",
@@ -498,6 +499,11 @@ _MANAGED_LEGACY_WIDTH_KEYS = {
     "execucao_parcial",
     "semana_executada",
     "responsavel_execucao",
+}
+_MANAGED_LEGACY_WIDTH_BASELINES = {
+    "descricao_ssa": {420},
+    "derivada_de": {72},
+    "solicitante": {190},
 }
 _VALID_TABLE_CELL_ALIGNMENTS = {"left", "center", "right"}
 
@@ -562,6 +568,9 @@ def _migrate_managed_legacy_widths(
                 if isinstance(width_map, dict)
             ),
         }
+        previous_default_candidates.update(
+            _MANAGED_LEGACY_WIDTH_BASELINES.get(key, set())
+        )
         previous_default_candidates.discard(None)
         if not previous_default_candidates:
             continue

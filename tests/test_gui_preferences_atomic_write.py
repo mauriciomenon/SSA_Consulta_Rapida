@@ -129,11 +129,26 @@ def test_theme_dialog_accepting_current_default_does_not_write(monkeypatch):
         def apply_theme(self, theme: str) -> None:
             self.applied.append(theme)
 
-    monkeypatch.setattr(
-        QtWidgets.QDialog,
-        "exec",
-        lambda _dialog: QtWidgets.QDialog.DialogCode.Accepted,
-    )
+    captured = {}
+
+    def _accept_dialog(dialog):
+        combo = dialog.findChild(QtWidgets.QComboBox)
+        assert combo is not None
+        screen = QtWidgets.QApplication.primaryScreen()
+        assert screen is not None
+        available = screen.availableGeometry()
+        geometry = dialog.frameGeometry()
+        captured["combo_style"] = str(combo.styleSheet() or "")
+        captured["combo_view_type"] = type(combo.view()).__name__
+        captured["inside_screen"] = (
+            geometry.left() >= available.left()
+            and geometry.top() >= available.top()
+            and geometry.right() <= available.right()
+            and geometry.bottom() <= available.bottom()
+        )
+        return QtWidgets.QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", _accept_dialog)
 
     persist_calls = []
 
@@ -153,6 +168,9 @@ def test_theme_dialog_accepting_current_default_does_not_write(monkeypatch):
 
     assert window.applied == ["gruvbox"]
     assert persist_calls == []
+    assert "combobox-popup: 0" in captured["combo_style"]
+    assert captured["combo_view_type"] == "QListView"
+    assert captured["inside_screen"] is True
 
     temporary_window = _Window()
     temporary_window._current_theme = "windows7"
@@ -170,3 +188,73 @@ def test_theme_dialog_accepting_current_default_does_not_write(monkeypatch):
     assert temporary_window.applied == ["windows7"]
     assert temporary_prefs["gui_settings"]["theme_default"] == "gruvbox"
     assert persist_calls == []
+
+
+def test_theme_popup_clamp_moves_geometry_inside_screen(monkeypatch):
+    from PyQt6.QtCore import QPoint, QRect
+    from PyQt6.QtWidgets import QApplication
+
+    from gui.ssa import gui_theme_dialog
+
+    class _FakeScreen:
+        def availableGeometry(self):
+            return QRect(100, 50, 900, 600)
+
+    class _FakeHandle:
+        def __init__(self, screen):
+            self._screen = screen
+
+        def screen(self):
+            return self._screen
+
+    class _FakeCombo:
+        def __init__(self, screen):
+            self._screen = screen
+
+        def windowHandle(self):
+            return _FakeHandle(self._screen)
+
+        def mapToGlobal(self, point):
+            return point
+
+        class _Rect:
+            @staticmethod
+            def center():
+                return QPoint(0, 0)
+
+        def rect(self):
+            return self._Rect()
+
+    class _FakePopup:
+        def __init__(self):
+            self._geometry = QRect(950, 620, 180, 120)
+
+        def adjustSize(self):
+            return None
+
+        def frameGeometry(self):
+            return QRect(self._geometry)
+
+        def move(self, x, y):
+            self._geometry.moveTo(x, y)
+
+    screen = _FakeScreen()
+    combo = _FakeCombo(screen)
+    popup = _FakePopup()
+
+    monkeypatch.setattr(
+        QApplication,
+        "screenAt",
+        lambda *_args: screen,
+    )
+    monkeypatch.setattr(
+        QApplication,
+        "primaryScreen",
+        lambda: screen,
+    )
+
+    gui_theme_dialog._clamp_theme_popup_to_screen(combo, popup)
+
+    available = screen.availableGeometry()
+    moved = popup.frameGeometry()
+    assert available.contains(moved)

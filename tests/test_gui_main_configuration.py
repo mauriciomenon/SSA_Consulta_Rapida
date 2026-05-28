@@ -165,7 +165,9 @@ class TestGUIMainConfiguration:
                 with patch("gui.gui_config.sys.platform", "darwin"):
                     config = load_gui_main_preferences()
 
-        assert config["column_widths"]["descricao_ssa"] == 420
+        assert config["column_widths"]["descricao_ssa"] == 500
+        assert config["column_widths"]["derivada_de"] == 80
+        assert config["column_widths"]["solicitante"] == 250
         assert config["column_widths"]["semana_cadastro"] == 74
 
     def test_load_gui_main_preferences_invalid_integrity_uses_platform_defaults(self):
@@ -186,7 +188,9 @@ class TestGUIMainConfiguration:
                 with patch("gui.gui_config.sys.platform", "darwin"):
                     config = load_gui_main_preferences()
 
-        assert config["column_widths"]["descricao_ssa"] == 420
+        assert config["column_widths"]["descricao_ssa"] == 500
+        assert config["column_widths"]["derivada_de"] == 80
+        assert config["column_widths"]["solicitante"] == 250
         assert config["column_widths"]["semana_cadastro"] == 74
 
     def test_partial_config_is_merged_with_contract(self):
@@ -535,10 +539,12 @@ class TestGUIMainConfiguration:
 
         created = json.loads(config_path.read_text(encoding="utf-8"))
 
-        assert created["column_widths"]["descricao_ssa"] == 420
+        assert created["column_widths"]["descricao_ssa"] == 500
+        assert created["column_widths"]["derivada_de"] == 80
+        assert created["column_widths"]["solicitante"] == 250
         assert created["column_widths"]["semana_cadastro"] == 74
         assert created["column_widths"]["semana_executada"] == 60
-        assert config["column_widths"]["descricao_ssa"] == 420
+        assert config["column_widths"]["descricao_ssa"] == 500
 
     def test_gui_main_preferences_reference_file_matches_code_defaults(self):
         from gui.gui_config import (

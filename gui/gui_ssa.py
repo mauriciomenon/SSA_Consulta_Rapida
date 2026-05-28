@@ -17,11 +17,14 @@ Para executar: python gui_ssa.py
 # flake8: noqa
 
 import copy
+import getpass
 import json
 import logging
 import os
 from pathlib import Path
+import re
 import shutil
+import socket
 import subprocess  # nosec B404
 import sys
 import threading
@@ -77,9 +80,9 @@ from core.pai_scrap_report_provider import (
 )
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
-from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
 from gui.gui_config import get_gui_main_preferences_path  # noqa: F401 - re-export for compatibility
+from gui.gui_config import get_default_column_widths
 from gui.gui_config import load_gui_main_preferences  # noqa: F401 - re-export for compatibility
 from gui.gui_config import GUI_MAIN_PREFERENCES, REQUIRED_GUI_COLUMNS
 
@@ -175,6 +178,7 @@ _TABLE_CELL_ALIGNMENT_LABELS = {
 }
 _DEFAULT_TABLE_CELL_ALIGNMENT = str(DEFAULT_GUI_SETTINGS["table_cell_alignment"])
 _APP_AUTHOR_TEXT = "Mauricio Menon"
+_PAI_API_EXTRA_SECTOR_RE = re.compile(r"^[A-Z0-9]{3,4}$")
 
 from armazenamento.database import query_db, vacuum_analyze_database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
@@ -208,6 +212,7 @@ try:
         QHBoxLayout,
         QLabel,
         QLineEdit,
+        QListView,
         QMainWindow,
         QMenu,
         QMessageBox,
@@ -660,14 +665,17 @@ def _iter_installation_guide_candidates():
         yield path
 
 
-def resolve_git_commit_hash_text() -> str:
-    """Resolve hash curto do commit atual para exibicao em UI."""
+def resolve_git_commit_hash_text(*, short: bool = True) -> str:
+    """Resolve the current git commit hash for UI display."""
     git_exe = shutil.which("git")
     if not git_exe:
         return "indisponivel"
+    cmd = [git_exe, "rev-parse", "--short", "HEAD"]
+    if not short:
+        cmd = [git_exe, "rev-parse", "HEAD"]
     try:
         result = subprocess.run(  # nosec B603
-            [git_exe, "rev-parse", "--short", "HEAD"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=2,
@@ -706,17 +714,90 @@ def build_about_message(app_version: str) -> str:
 def build_about_summary_line(app_version: str) -> str:
     build_info = _load_embedded_build_info()
     build_datetime = str(build_info.get("build_datetime") or "").strip() or "indisponivel"
-    commit_hash = resolve_git_commit_hash_text()
+    commit_hash = resolve_git_commit_hash_text(short=False)
     if commit_hash == "indisponivel":
         commit_hash = str(
-            build_info.get("git_commit_short")
-            or build_info.get("git_commit")
+            build_info.get("git_commit")
+            or build_info.get("git_commit_short")
             or commit_hash
         )
+    try:
+        current_user = str(getpass.getuser() or "").strip() or "indisponivel"
+    except Exception:
+        current_user = "indisponivel"
+    try:
+        current_host = str(socket.gethostname() or "").strip() or "indisponivel"
+    except Exception:
+        current_host = "indisponivel"
     return (
-        f"Versao {app_version} | {_APP_AUTHOR_TEXT} | "
-        f"{build_datetime} | {commit_hash}"
+        f"Versao {app_version} | {current_user} | {current_host} | "
+        f"{commit_hash} | {build_datetime}"
     )
+
+
+def _normalize_pai_api_extra_sector_tokens(raw_text: str) -> tuple[list[str], list[str]]:
+    normalized: list[str] = []
+    invalid: list[str] = []
+    seen = set()
+    for raw_token in str(raw_text or "").split(","):
+        token = raw_token.strip().upper()
+        if not token:
+            continue
+        if not token.isascii() or _PAI_API_EXTRA_SECTOR_RE.fullmatch(token) is None:
+            invalid.append(token)
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        normalized.append(token)
+    return normalized, invalid
+
+
+def _sync_preferences_extra_sector_validation(
+    line_edit: Any,
+    status_label: Any,
+    *,
+    status_neutral: str,
+) -> bool:
+    neutral_box_style = (
+        "color: palette(mid);"
+        "border:1px solid palette(mid);"
+        "border-radius:4px;"
+        "padding:2px 6px;"
+    )
+    valid_box_style = (
+        "color: palette(window-text);"
+        "border:1px solid palette(highlight);"
+        "border-radius:4px;"
+        "padding:2px 6px;"
+    )
+    invalid_box_style = (
+        "color: #d96c6c;"
+        "border:1px solid #d96c6c;"
+        "border-radius:4px;"
+        "padding:2px 6px;"
+    )
+    normalized, invalid = _normalize_pai_api_extra_sector_tokens(
+        str(line_edit.text() or "")
+    )
+    if invalid:
+        status_label.setText(
+            "Setores extras invalidos: "
+            + ", ".join(invalid)
+            + ". Use 3 ou 4 letras/numeros ASCII por token."
+        )
+        status_label.setStyleSheet(invalid_box_style)
+        line_edit.setStyleSheet("border:1px solid #d96c6c;")
+        return False
+    if normalized:
+        status_label.setText("Setores extras validos para a SAM API.")
+        status_label.setStyleSheet(valid_box_style)
+        line_edit.setStyleSheet("")
+        return True
+    status_label.setText(status_neutral)
+    status_label.setStyleSheet(neutral_box_style)
+    line_edit.setStyleSheet("")
+    return True
 
 
 # --- Worker Threads ---
@@ -1058,8 +1139,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if base_font.pointSizeF() <= 0:
                 base_font.setPointSizeF(11.0)
             self._info_font = base_font
+            toolbar_font = QFont(base_font)
+            if toolbar_font.pointSizeF() <= 0:
+                toolbar_font.setPointSizeF(10.0)
+            if sys.platform == "darwin":
+                toolbar_font.setPointSizeF(min(toolbar_font.pointSizeF(), 10.0))
+            self._toolbar_compact_font = toolbar_font
         except Exception:
             self._info_font = None
+            self._toolbar_compact_font = None
 
         # Carrega mapeamentos de exibicao com merge defensivo para evitar labels tecnicos.
         # Fonte canonica: defaults + column_display_names + display_mappings.
@@ -1247,6 +1335,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.status_label.setStyleSheet(
             "border:0; padding:0; margin:0;"
         )
+        if sys.platform == "darwin" and self._toolbar_compact_font is not None:
+            cast(Any, self.status_label).setFont(cast(Any, self._toolbar_compact_font))
         self.status_label.setMinimumWidth(180)
         self.status_label.setMaximumWidth(16777215)
         self.status_label.setSizePolicy(
@@ -1289,12 +1379,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "border-radius:4px; padding:1px 5px;"
         )
         self.week_label.setStyleSheet(self._week_label_style)
+        if sys.platform == "darwin" and self._toolbar_compact_font is not None:
+            cast(Any, self.week_label).setFont(cast(Any, self._toolbar_compact_font))
         self.week_label.setToolTip("Semana ISO atual")
 
         self.filtered_status_label = QLabel("0 de 0 SSAs")
         self.filtered_status_label.setStyleSheet(
             "border:1px solid palette(mid); border-radius:4px; padding:1px 5px;"
         )
+        if sys.platform == "darwin" and self._toolbar_compact_font is not None:
+            cast(Any, self.filtered_status_label).setFont(
+                cast(Any, self._toolbar_compact_font)
+            )
         self.filtered_status_label.setMinimumWidth(122)
         self.filtered_status_label.setMaximumWidth(188)
         self.filtered_status_label.setSizePolicy(
@@ -1312,6 +1408,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.theme_button = theme_button
         theme_button.setToolTip("Selecionar tema em caixa de dialogo")
         theme_button.clicked.connect(self.toggle_theme_menu)
+        if sys.platform == "darwin" and self._toolbar_compact_font is not None:
+            for toolbar_widget in (
+                self.open_sam_button,
+                self.load_button,
+                self.api_button,
+                self.preferences_button,
+                theme_button,
+            ):
+                cast(Any, toolbar_widget).setFont(cast(Any, self._toolbar_compact_font))
         toolbar_layout.addWidget(cast(Any, self.preferences_button))
         toolbar_layout.addWidget(cast(Any, theme_button))
 
@@ -2235,6 +2340,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def eventFilter(self, obj, event):
         try:
+            wheel_event_type = getattr(getattr(QEvent, "Type", None), "Wheel", None)
+            if wheel_event_type is not None and event.type() == wheel_event_type:
+                property_getter = getattr(obj, "property", None)
+                if callable(property_getter) and bool(
+                    property_getter("ignoreWheelInput")
+                ):
+                    scroll = getattr(self, "_preferences_content_scroll_active", None)
+                    if scroll is not None:
+                        try:
+                            delta = event.angleDelta().y()
+                        except Exception:
+                            delta = 0
+                        if delta:
+                            bar = scroll.verticalScrollBar()
+                            step_getter = getattr(bar, "singleStep", None)
+                            step = int(step_getter() if callable(step_getter) else 20)
+                            direction = -1 if delta > 0 else 1
+                            bar.setValue(int(bar.value()) + (step * direction))
+                    return True
             if TSM_DEBUG_ENABLED:
                 probes = getattr(self, "_tsm_debug_widget_roles", None)
                 if isinstance(probes, dict):
@@ -2560,6 +2684,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._sync_column_filter_input_from_active_filter("situacao")
         self._sync_advanced_filter_ui()
         self._mark_profile_as_custom()
+        self._refresh_quick_situacao_buttons()
         self._refresh_after_filter_change()
 
     def _populate_quick_setor_executor_combo(
@@ -3066,6 +3191,72 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         layout = QVBoxLayout(cast(Any, dialog))
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
+
+        class _ScreenBoundComboBox(QComboBox):
+            def __init__(self_nonlocal, *args, **kwargs) -> None:
+                super().__init__(*args, **kwargs)
+                self_nonlocal.setView(QListView(self_nonlocal))
+
+            def showPopup(self_nonlocal) -> None:  # noqa: N802
+                def _clamp_popup() -> None:
+                    try:
+                        popup = self_nonlocal.view().window()
+                        if popup is None:
+                            return
+                        screen = None
+                        try:
+                            handle = self_nonlocal.windowHandle()
+                            if handle is not None:
+                                screen = handle.screen()
+                        except Exception as exc:
+                            logger.debug(
+                                "Falha ao obter screen do combo de preferencias: %s",
+                                exc,
+                            )
+                        if screen is None:
+                            try:
+                                screen_at = getattr(QApplication, "screenAt", None)
+                                if callable(screen_at):
+                                    screen = screen_at(
+                                        self_nonlocal.mapToGlobal(
+                                            self_nonlocal.rect().center()
+                                        )
+                                    )
+                            except Exception as exc:
+                                logger.debug(
+                                    "Falha ao obter screenAt do combo de preferencias: %s",
+                                    exc,
+                                )
+                        if screen is None:
+                            primary_screen_getter = getattr(
+                                QApplication, "primaryScreen", None
+                            )
+                            screen = (
+                                primary_screen_getter()
+                                if callable(primary_screen_getter)
+                                else None
+                            )
+                        if screen is None or not hasattr(screen, "availableGeometry"):
+                            return
+                        available = screen.availableGeometry()
+                        popup.adjustSize()
+                        geometry = popup.frameGeometry()
+                        max_x = available.right() - geometry.width() + 1
+                        max_y = available.bottom() - geometry.height() + 1
+                        target_x = max(available.left(), min(geometry.x(), max_x))
+                        target_y = max(available.top(), min(geometry.y(), max_y))
+                        if target_x != geometry.x() or target_y != geometry.y():
+                            popup.move(target_x, target_y)
+                    except Exception as exc:
+                        logger.debug(
+                            "Falha ao limitar popup do combo de preferencias na tela: %s",
+                            exc,
+                        )
+
+                super().showPopup()
+                _clamp_popup()
+                QTimer.singleShot(0, _clamp_popup)
+
         content_scroll = QScrollArea()
         content_scroll.setObjectName("preferencesContentScroll")
         content_scroll.setWidgetResizable(True)
@@ -3109,10 +3300,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         interface_layout.setContentsMargins(8, 8, 8, 8)
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(6)
-        grid.addWidget(cast(Any, QLabel("Tema")), 0, 0)
-        theme_combo = QComboBox()
+        cast(Any, grid).setHorizontalSpacing(8)
+        cast(Any, grid).setVerticalSpacing(8)
+        preferences_compact_field_width = 320
+        preferences_numeric_field_width = 180
+
+        theme_label = QLabel("Tema")
+        grid.addWidget(cast(Any, theme_label), 0, 0)
+        theme_combo = _ScreenBoundComboBox()
         theme_combo.setObjectName("preferencesThemeCombo")
+        theme_combo.setMaxVisibleItems(10)
+        theme_combo.setMaximumWidth(preferences_compact_field_width)
         theme_items = []
         if ssa_gui_theme is not None:
             theme_items = list(ssa_gui_theme.get_theme_dialog_items())
@@ -3126,9 +3324,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             theme_combo.setCurrentIndex(current_theme_index)
         grid.addWidget(cast(Any, theme_combo), 0, 1)
 
-        grid.addWidget(cast(Any, QLabel("Modo da busca")), 1, 0)
-        search_mode_combo = QComboBox()
+        search_mode_label = QLabel("Modo da busca")
+        grid.addWidget(cast(Any, search_mode_label), 0, 2)
+        search_mode_combo = _ScreenBoundComboBox()
         search_mode_combo.setObjectName("preferencesSearchModeCombo")
+        search_mode_combo.setMaximumWidth(preferences_compact_field_width)
         search_mode_combo.setToolTip(
             "Define como a busca superior interpreta termos sem prefixo explicito"
         )
@@ -3148,11 +3348,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if key == current_search_mode:
                 current_search_mode_index = index
         search_mode_combo.setCurrentIndex(current_search_mode_index)
-        grid.addWidget(cast(Any, search_mode_combo), 1, 1)
+        grid.addWidget(cast(Any, search_mode_combo), 0, 3)
 
-        grid.addWidget(cast(Any, QLabel("Debounce ms")), 2, 0)
+        debounce_label = QLabel("Debounce ms")
+        grid.addWidget(cast(Any, debounce_label), 1, 0)
         debounce_spin = QSpinBox()
         debounce_spin.setObjectName("preferencesDebounceSpin")
+        debounce_spin.setMaximumWidth(preferences_numeric_field_width)
         debounce_spin.setToolTip("Atraso antes de aplicar a busca superior")
         debounce_spin.setRange(
             int(getattr(ssa_system_controller, "SEARCH_DEBOUNCE_MIN_MS", 100)),
@@ -3168,37 +3370,45 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 or getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250)
             )
         )
-        grid.addWidget(cast(Any, debounce_spin), 2, 1)
+        grid.addWidget(cast(Any, debounce_spin), 1, 1)
 
-        grid.addWidget(cast(Any, QLabel("Linhas por pagina")), 3, 0)
+        page_size_label = QLabel("Linhas por pagina")
+        grid.addWidget(cast(Any, page_size_label), 1, 2)
         page_size_spin = QSpinBox()
         page_size_spin.setObjectName("preferencesPageSizeSpin")
+        page_size_spin.setMaximumWidth(preferences_numeric_field_width)
         page_size_spin.setRange(10, 500)
         page_size_spin.setSingleStep(10)
         page_size_spin.setValue(int(getattr(self, "_restored_page_size", 50) or 50))
-        grid.addWidget(cast(Any, page_size_spin), 3, 1)
+        grid.addWidget(cast(Any, page_size_spin), 1, 3)
 
-        grid.addWidget(cast(Any, QLabel("Largura da janela")), 4, 0)
+        window_width_label = QLabel("Largura da janela")
+        grid.addWidget(cast(Any, window_width_label), 2, 0)
         window_width_spin = QSpinBox()
         window_width_spin.setObjectName("preferencesWindowWidthSpin")
+        window_width_spin.setMaximumWidth(preferences_numeric_field_width)
         window_width_spin.setRange(960, 2800)
         window_width_spin.setSingleStep(20)
         window_width_spin.setValue(int(getattr(self, "_restored_window_width", 1200) or 1200))
-        grid.addWidget(cast(Any, window_width_spin), 4, 1)
+        grid.addWidget(cast(Any, window_width_spin), 2, 1)
 
-        grid.addWidget(cast(Any, QLabel("Altura da janela")), 5, 0)
+        window_height_label = QLabel("Altura da janela")
+        grid.addWidget(cast(Any, window_height_label), 2, 2)
         window_height_spin = QSpinBox()
         window_height_spin.setObjectName("preferencesWindowHeightSpin")
+        window_height_spin.setMaximumWidth(preferences_numeric_field_width)
         window_height_spin.setRange(720, 1800)
         window_height_spin.setSingleStep(20)
         window_height_spin.setValue(
             int(getattr(self, "_restored_window_height", 890) or 890)
         )
-        grid.addWidget(cast(Any, window_height_spin), 5, 1)
+        grid.addWidget(cast(Any, window_height_spin), 2, 3)
 
-        grid.addWidget(cast(Any, QLabel("Alinhamento da tabela")), 6, 0)
-        alignment_combo = QComboBox()
+        alignment_label = QLabel("Alinhamento da tabela")
+        grid.addWidget(cast(Any, alignment_label), 3, 0)
+        alignment_combo = _ScreenBoundComboBox()
         alignment_combo.setObjectName("preferencesAlignmentCombo")
+        alignment_combo.setMaximumWidth(preferences_compact_field_width)
         current_alignment = str(
             gui_settings.get("table_cell_alignment", _DEFAULT_TABLE_CELL_ALIGNMENT)
             or _DEFAULT_TABLE_CELL_ALIGNMENT
@@ -3209,26 +3419,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if key == current_alignment:
                 current_alignment_index = index
         alignment_combo.setCurrentIndex(current_alignment_index)
-        grid.addWidget(cast(Any, alignment_combo), 6, 1)
+        grid.addWidget(cast(Any, alignment_combo), 3, 1)
 
-        grid.addWidget(cast(Any, QLabel("Cache de filtros")), 7, 0)
+        cache_size_label = QLabel("Cache de filtros")
+        grid.addWidget(cast(Any, cache_size_label), 3, 2)
         cache_size_spin = QSpinBox()
         cache_size_spin.setObjectName("preferencesCacheSizeSpin")
+        cache_size_spin.setMaximumWidth(preferences_numeric_field_width)
         cache_size_spin.setRange(10, 500)
         cache_size_spin.setSingleStep(10)
         cache_size_spin.setValue(int(gui_settings.get("filter_cache_size", 50) or 50))
         cache_size_spin.setToolTip(
             "Quantidade maxima de entradas reaproveitadas nos filtros"
         )
-        grid.addWidget(cast(Any, cache_size_spin), 7, 1)
+        grid.addWidget(cast(Any, cache_size_spin), 3, 3)
 
-        grid.addWidget(cast(Any, QLabel("Colunas exibidas")), 8, 0)
+        columns_label = QLabel("Colunas exibidas")
+        grid.addWidget(cast(Any, columns_label), 4, 0)
         columns_button = QPushButton("Colunas")
         columns_button.setObjectName("preferencesColumnsButton")
+        columns_button.setMaximumWidth(220)
         columns_button.setToolTip(
             "Abrir configuracao de colunas visiveis e larguras da tabela"
         )
-        grid.addWidget(cast(Any, columns_button), 8, 1)
+        grid.addWidget(cast(Any, columns_button), 4, 1)
         interface_layout.addLayout(cast(Any, grid))
         content_layout.addWidget(cast(Any, interface_group))
 
@@ -3274,29 +3488,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         widths_layout = QVBoxLayout(cast(Any, widths_group))
         widths_layout.setContentsMargins(8, 8, 8, 8)
         widths_layout.setSpacing(6)
-        widths_scroll = QScrollArea()
-        widths_scroll.setObjectName("preferencesColumnWidthsScroll")
-        widths_scroll.setWidgetResizable(True)
-        widths_scroll.setMinimumHeight(160)
         widths_container = QWidget()
         widths_grid = QGridLayout(cast(Any, widths_container))
         widths_grid.setContentsMargins(0, 0, 0, 0)
-        widths_grid.setSpacing(6)
+        cast(Any, widths_grid).setHorizontalSpacing(14)
+        cast(Any, widths_grid).setVerticalSpacing(8)
         for offset, col_name in enumerate(current_display_columns):
             label = QLabel(str(self.internal_to_display.get(col_name, col_name)))
             label.setObjectName(f"preferencesColumnWidthLabel_{col_name}")
             spin = QSpinBox()
             spin.setObjectName(f"preferencesColumnWidthSpin_{col_name}")
+            spin.setMaximumWidth(132)
             spin.setRange(30, 1000)
             spin.setSingleStep(5)
             spin.setValue(_current_width_for_column(str(col_name)))
             width_spinboxes[str(col_name)] = spin
-            row = offset // 2
-            base_col = (offset % 2) * 2
+            row = offset // 3
+            base_col = (offset % 3) * 2
             widths_grid.addWidget(cast(Any, label), row, base_col)
             widths_grid.addWidget(cast(Any, spin), row, base_col + 1)
-        widths_scroll.setWidget(cast(Any, widths_container))
-        widths_layout.addWidget(cast(Any, widths_scroll))
+        widths_layout.addWidget(cast(Any, widths_container))
         table_layout.addWidget(cast(Any, widths_group))
         content_layout.addWidget(cast(Any, table_group))
 
@@ -3378,46 +3589,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_auto_refresh_checkbox.setChecked(bool(api_options.auto_refresh_enabled))
         api_layout.addWidget(cast(Any, api_auto_refresh_checkbox), 0, 2)
 
-        api_layout.addWidget(cast(Any, QLabel("Intervalo (min)")), 1, 0)
+        api_security_info = QLabel(
+            "Consulta REST nao exige credencial. Cofre do sistema so vale para "
+            "escopos via xpath/scrap_report. macOS: Keychain | Windows: "
+            "Credential Manager ou DPAPI | Linux: Secret Service."
+        )
+        api_security_info.setObjectName("preferencesPaiApiSecurityInfoLabel")
+        api_security_info.setWordWrap(True)
+        api_security_info.setStyleSheet("color: palette(window-text);")
+        api_layout.addWidget(cast(Any, api_security_info), 1, 0, 1, 3)
+
+        api_layout.addWidget(cast(Any, QLabel("Intervalo (min)")), 2, 0)
         api_interval_spin = QSpinBox()
         api_interval_spin.setObjectName("preferencesPaiApiIntervalSpin")
         api_interval_spin.setRange(1, 24 * 60)
         api_interval_spin.setValue(int(api_options.auto_refresh_interval_minutes))
-        api_layout.addWidget(cast(Any, api_interval_spin), 1, 1)
+        api_layout.addWidget(cast(Any, api_interval_spin), 2, 1)
 
-        api_layout.addWidget(cast(Any, QLabel("Limite por setor")), 2, 0)
+        api_layout.addWidget(cast(Any, QLabel("Limite por setor")), 3, 0)
         api_limit_spin = QSpinBox()
         api_limit_spin.setObjectName("preferencesPaiApiLimitSpin")
         api_limit_spin.setRange(1, 1000)
         api_limit_spin.setValue(int(api_options.limit))
-        api_layout.addWidget(cast(Any, api_limit_spin), 2, 1)
+        api_layout.addWidget(cast(Any, api_limit_spin), 3, 1)
 
-        api_layout.addWidget(cast(Any, QLabel("Anos retroativos")), 3, 0)
+        api_layout.addWidget(cast(Any, QLabel("Anos retroativos")), 4, 0)
         api_years_spin = QSpinBox()
         api_years_spin.setObjectName("preferencesPaiApiYearsSpin")
         api_years_spin.setRange(1, 10)
         api_years_spin.setValue(int(api_options.number_of_years))
-        api_layout.addWidget(cast(Any, api_years_spin), 3, 1)
+        api_layout.addWidget(cast(Any, api_years_spin), 4, 1)
 
-        api_layout.addWidget(cast(Any, QLabel("Base URL REST")), 4, 0)
+        api_layout.addWidget(cast(Any, QLabel("Base URL REST")), 5, 0)
         api_base_url_edit = QLineEdit()
         api_base_url_edit.setObjectName("preferencesPaiApiBaseUrlEdit")
         api_base_url_edit.setText(str(api_options.base_url or ""))
-        api_layout.addWidget(cast(Any, api_base_url_edit), 4, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_base_url_edit), 5, 1, 1, 2)
 
-        api_layout.addWidget(cast(Any, QLabel("Usuario SAM")), 5, 0)
+        api_layout.addWidget(cast(Any, QLabel("Usuario SAM")), 6, 0)
         api_username_edit = QLineEdit()
         api_username_edit.setObjectName("preferencesPaiApiUsernameEdit")
         api_username_edit.setText(str(api_options.username or ""))
-        api_layout.addWidget(cast(Any, api_username_edit), 5, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_username_edit), 6, 1, 1, 2)
 
-        api_layout.addWidget(cast(Any, QLabel("Chave do cofre")), 6, 0)
+        api_layout.addWidget(cast(Any, QLabel("Chave do cofre")), 7, 0)
         api_secret_service_edit = QLineEdit()
         api_secret_service_edit.setObjectName("preferencesPaiApiSecretServiceEdit")
         api_secret_service_edit.setText(str(api_options.secret_service or ""))
-        api_layout.addWidget(cast(Any, api_secret_service_edit), 6, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_secret_service_edit), 7, 1, 1, 2)
 
-        api_layout.addWidget(cast(Any, QLabel("Senha SAM para gravar no cofre")), 7, 0)
+        api_layout.addWidget(cast(Any, QLabel("Senha SAM para gravar no cofre")), 8, 0)
         api_password_edit = QLineEdit()
         api_password_edit.setObjectName("preferencesPaiApiPasswordEdit")
         try:
@@ -3425,14 +3646,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao aplicar modo senha no campo SAM API: %s", exc)
         api_password_edit.setPlaceholderText("Senha apenas para gravar no cofre")
-        api_layout.addWidget(cast(Any, api_password_edit), 7, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_password_edit), 8, 1, 1, 2)
 
         api_secure_required_checkbox = QCheckBox("Exigir cofre do sistema")
         api_secure_required_checkbox.setObjectName(
             "preferencesPaiApiSecureRequiredCheck"
         )
         api_secure_required_checkbox.setChecked(bool(api_options.secure_required))
-        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 8, 0, 1, 2)
+        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 9, 0, 1, 2)
 
         api_secret_actions = QHBoxLayout()
         api_secret_actions.setContentsMargins(0, 0, 0, 0)
@@ -3446,29 +3667,29 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_secret_actions.addWidget(cast(Any, api_secret_validate_button))
         api_secret_actions.addWidget(cast(Any, api_secret_store_button))
         api_secret_actions.addStretch(1)
-        api_layout.addLayout(cast(Any, api_secret_actions), 9, 0, 1, 3)
+        api_layout.addLayout(cast(Any, api_secret_actions), 10, 0, 1, 3)
 
         selected_scopes = {value.casefold() for value in api_options.data_scopes}
         scope_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 10, 0)
+        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 11, 0)
         for offset, scope in enumerate(PAI_API_ALLOWED_DATA_SCOPES):
             checkbox = QCheckBox(pai_api_data_scope_label(scope))
             checkbox.setObjectName(f"preferencesPaiApiScope_{scope}")
             checkbox.setChecked(scope.casefold() in selected_scopes)
             scope_checks[scope] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 11 + offset // 3, offset % 3)
+            api_layout.addWidget(cast(Any, checkbox), 12 + offset // 3, offset % 3)
 
         selected_sectors = {value.casefold() for value in api_options.executor_sectors}
         sector_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 14, 0)
+        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 15, 0)
         for offset, sector in enumerate(PAI_API_ALLOWED_SECTORS):
             checkbox = QCheckBox(sector)
             checkbox.setObjectName(f"preferencesPaiApiSector_{sector}")
             checkbox.setChecked(sector.casefold() in selected_sectors)
             sector_checks[sector] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 15 + offset // 4, offset % 4)
+            api_layout.addWidget(cast(Any, checkbox), 16 + offset // 4, offset % 4)
 
-        api_layout.addWidget(cast(Any, QLabel("Setores extras (SAM API)")), 17, 0)
+        api_layout.addWidget(cast(Any, QLabel("Setores extras (SAM API)")), 18, 0)
         api_extra_sectors_edit = QLineEdit()
         api_extra_sectors_edit.setObjectName("preferencesPaiApiExtraSectorsEdit")
         api_extra_sectors_edit.setPlaceholderText("Ex.: IEQ1, MEL5")
@@ -3476,7 +3697,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Setores adicionais usados apenas pela SAM API. Nao afeta importacao XLS."
         )
         api_extra_sectors_edit.setText(", ".join(api_options.executor_sectors_extra))
-        api_layout.addWidget(cast(Any, api_extra_sectors_edit), 17, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_extra_sectors_edit), 18, 1, 1, 2)
+        api_extra_sectors_status = QLabel(
+            "Formato: IEE, MEL1, IEQ1. Somente 3 ou 4 letras/numeros ASCII por token."
+        )
+        api_extra_sectors_status.setObjectName(
+            "preferencesPaiApiExtraSectorsValidationLabel"
+        )
+        api_extra_sectors_status.setWordWrap(True)
+        api_layout.addWidget(cast(Any, api_extra_sectors_status), 19, 1, 1, 2)
 
         content_layout.addWidget(cast(Any, api_group))
 
@@ -3494,6 +3723,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         default_api_options = normalize_pai_api_options(
             DEFAULT_GUI_SETTINGS.get("pai_api", {})
+        )
+        runtime_default_widths = get_default_column_widths()
+        neutral_extra_sector_status = (
+            "Formato: IEE, MEL1, IEQ1. Somente 3 ou 4 letras/numeros ASCII por token."
         )
 
         def _restore_defaults() -> None:
@@ -3557,13 +3790,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             for sector, checkbox in sector_checks.items():
                 checkbox.setChecked(sector.casefold() in default_sectors)
             for col_name, spin in width_spinboxes.items():
-                default_width = int(DEFAULT_COLUMN_WIDTHS.get(col_name, 120) or 120)
+                default_width = int(runtime_default_widths.get(col_name, 120) or 120)
                 spin.setValue(default_width)
+            _sync_preferences_extra_sector_validation(
+                api_extra_sectors_edit,
+                api_extra_sectors_status,
+                status_neutral=neutral_extra_sector_status,
+            )
 
         defaults_button.clicked.connect(_restore_defaults)
         footer_label = QLabel(build_about_summary_line(self._app_version))
         footer_label.setObjectName("preferencesFooterLabel")
-        footer_label.setStyleSheet("color: palette(mid);")
+        footer_label.setStyleSheet("color: palette(window-text);")
 
         button_flags = cast(Any, QDialogButtonBox.StandardButton.Ok)
         button_flags = button_flags | cast(Any, QDialogButtonBox.StandardButton.Cancel)
@@ -3650,6 +3888,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if identity is None:
                 return
             password = str(api_password_edit.text() or "")
+            api_password_edit.clear()
             if not password:
                 QMessageBox.warning(
                     self,
@@ -3671,7 +3910,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
             finally:
                 password = None
-                api_password_edit.clear()
+                del password
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: Segredo SAM API gravado.")
             QMessageBox.information(self, "SAM API", "Segredo gravado com sucesso.")
@@ -3681,6 +3920,48 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_scrap_checkbox.toggled.connect(_sync_api_secret_controls)
         for checkbox in scope_checks.values():
             checkbox.toggled.connect(_sync_api_secret_controls)
+        wheel_guard_widgets = (
+            theme_combo,
+            search_mode_combo,
+            debounce_spin,
+            page_size_spin,
+            window_width_spin,
+            window_height_spin,
+            alignment_combo,
+            cache_size_spin,
+            api_interval_spin,
+            api_limit_spin,
+            api_years_spin,
+            *tuple(width_spinboxes.values()),
+        )
+        for widget in wheel_guard_widgets:
+            try:
+                widget.setProperty("ignoreWheelInput", True)
+                widget.installEventFilter(self)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao proteger wheel no dialogo de preferencias: %s", exc
+                )
+        for combo_widget in (theme_combo, search_mode_combo, alignment_combo):
+            try:
+                combo_widget.setStyleSheet("QComboBox { combobox-popup: 0; }")
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao aplicar popup controlado em combo de preferencias: %s",
+                    exc,
+                )
+        api_extra_sectors_edit.textChanged.connect(
+            lambda _text: _sync_preferences_extra_sector_validation(
+                api_extra_sectors_edit,
+                api_extra_sectors_status,
+                status_neutral=neutral_extra_sector_status,
+            )
+        )
+        _sync_preferences_extra_sector_validation(
+            api_extra_sectors_edit,
+            api_extra_sectors_status,
+            status_neutral=neutral_extra_sector_status,
+        )
         _sync_api_secret_controls()
         selector = getattr(self, "column_selector", None)
         if selector is not None:
@@ -3688,19 +3969,38 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         else:
             columns_button.setEnabled(False)
 
+        previous_preferences_scroll = getattr(
+            self, "_preferences_content_scroll_active", None
+        )
+        self._preferences_content_scroll_active = content_scroll
         try:
             primary_screen_getter = getattr(QApplication, "primaryScreen", None)
             screen = primary_screen_getter() if callable(primary_screen_getter) else None
             if screen is not None and hasattr(screen, "availableGeometry"):
                 available = screen.availableGeometry()
-                dialog.setMaximumHeight(max(600, int(available.height()) - 40))
-                dialog.resize(
-                    max(680, min(960, int(available.width()) - 80)),
-                    max(620, min(840, int(available.height()) - 80)),
-                )
+                safe_width = max(640, int(available.width()) - 24)
+                safe_height = max(520, int(available.height()) - 24)
+                dialog.setMaximumWidth(safe_width)
+                dialog.setMaximumHeight(safe_height)
+                dialog.resize(min(1360, safe_width), min(920, safe_height))
         except Exception as exc:
             logger.debug("Falha ao limitar altura da tela de preferencias: %s", exc)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        try:
+            accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        finally:
+            self._preferences_content_scroll_active = previous_preferences_scroll
+        if not accepted:
+            return
+        if not _sync_preferences_extra_sector_validation(
+            api_extra_sectors_edit,
+            api_extra_sectors_status,
+            status_neutral=neutral_extra_sector_status,
+        ):
+            QMessageBox.warning(
+                self,
+                "Preferencias",
+                "Corrija os Setores extras da SAM API antes de salvar.",
+            )
             return
         selected_theme = str(theme_combo.currentData() or "").strip()
         selected_search_mode = str(search_mode_combo.currentData() or "contains").strip()
@@ -3852,9 +4152,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         updated_api_settings[PAI_API_SECURE_REQUIRED_KEY] = bool(
             api_secure_required_checkbox.isChecked()
         )
-        updated_api_settings[PAI_API_EXTRA_SECTORS_KEY] = str(
-            api_extra_sectors_edit.text() or ""
-        ).strip()
+        updated_api_settings[PAI_API_EXTRA_SECTORS_KEY] = ", ".join(
+            _normalize_pai_api_extra_sector_tokens(
+                str(api_extra_sectors_edit.text() or "")
+            )[0]
+        )
         updated_api_settings[PAI_API_DATA_SCOPES_KEY] = [
             scope for scope, checkbox in scope_checks.items() if checkbox.isChecked()
         ]
@@ -3964,6 +4266,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _refresh_main_details_derivadas_panel(self):
         return ssa_gui_details.refresh_main_details_derivadas_panel(self)
+
+    def _refresh_derivadas_graph_hitboxes(self, graph_widget, graph_svg: str):
+        return ssa_gui_details.reapply_graph_navigation_hitboxes(
+            graph_widget, graph_svg
+        )
 
     def _get_derivadas_for_ssa(self, numero_ssa):
         return ssa_gui_details._get_derivadas_for_ssa(self, numero_ssa)
