@@ -1,0 +1,22 @@
+.github/workflows/release-windows.yml
+  s_9f052ddda3b0ba::t_ee8e48094490b0 52
+.github/workflows/minimal-ci.yml
+  s_9f052ddda3b0ba::t_ee8e48094490b0 90
+  s_9f052ddda3b0ba::t_f4e8ba29308fee 92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "26031dc576881dfdc5cb617f5278cdacff7be19d",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
