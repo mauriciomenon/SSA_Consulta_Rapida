@@ -3578,20 +3578,30 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         details_group = None
+        filters_panel_group = None
         inner_groups = []
         for ctx in self._iter_panel_contexts():
-            for key in ("details_group", "adv_filters_group", "col_filters_group"):
+            for key in (
+                "details_group",
+                "filters_panel_group",
+                "adv_filters_group",
+                "col_filters_group",
+            ):
                 widget = ctx.get(key)
                 if widget is None:
                     continue
                 if key == "details_group":
                     details_group = widget
                     continue
+                if key == "filters_panel_group":
+                    filters_panel_group = widget
+                    continue
                 if widget in inner_groups:
                     continue
                 inner_groups.append(widget)
 
         assert details_group is not None
+        assert filters_panel_group is not None
         assert len(inner_groups) >= 2
         min_heights = {int(g.minimumHeight()) for g in inner_groups}
         max_heights = {int(g.maximumHeight()) for g in inner_groups}
@@ -3600,8 +3610,9 @@ class TestGUIFilterLogic:
         synced_height = next(iter(min_heights))
         assert synced_height == next(iter(max_heights))
         assert 250 <= synced_height <= 320
-        assert int(details_group.minimumHeight()) == synced_height
-        assert int(details_group.maximumHeight()) == synced_height
+        assert int(details_group.minimumHeight()) >= synced_height
+        assert int(details_group.maximumHeight()) >= synced_height
+        assert abs(int(details_group.height()) - int(filters_panel_group.height())) <= 4
 
     def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):
         self.window.resize(1280, 880)

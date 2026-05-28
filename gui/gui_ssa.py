@@ -1793,21 +1793,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _sync_bottom_panel_heights(self) -> None:
         target = self._compute_bottom_panel_target_height()
         seen = set()
-        groups = []
         context = getattr(self, "_filter_panel_context", None)
-        if isinstance(context, dict):
-            for key in ("details_group", "col_filters_group", "adv_filters_group"):
-                widget = context.get(key)
-                if widget is None:
-                    continue
-                wid = id(widget)
-                if wid in seen:
-                    continue
-                seen.add(wid)
-                groups.append(widget)
+        if not isinstance(context, dict):
+            return
+        groups = []
+        for key in ("col_filters_group", "adv_filters_group"):
+            widget = context.get(key)
+            if widget is None:
+                continue
+            wid = id(widget)
+            if wid in seen:
+                continue
+            seen.add(wid)
+            groups.append(widget)
         for widget in groups:
             self._set_widget_fixed_height_safe(
                 widget, target, f"painel inferior {type(widget).__name__}"
+            )
+        details_group = context.get("details_group")
+        details_target = target
+        filters_panel_group = context.get("filters_panel_group")
+        active_panel_kind = getattr(self, "_active_filter_panel_kind", None)
+        active_inner_group = context.get(
+            "adv_filters_group" if active_panel_kind == "advanced" else "col_filters_group"
+        )
+        if (
+            details_group is not None
+            and filters_panel_group is not None
+            and active_inner_group is not None
+        ):
+            try:
+                shell_delta = max(
+                    0,
+                    int(filters_panel_group.height()) - int(active_inner_group.height()),
+                )
+            except Exception:
+                shell_delta = 0
+            details_target += shell_delta
+            self._set_widget_fixed_height_safe(
+                details_group,
+                details_target,
+                f"painel inferior {type(details_group).__name__}",
             )
         try:
             current_kind = getattr(self, "_active_filter_panel_kind", None)
