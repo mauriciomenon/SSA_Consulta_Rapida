@@ -1162,7 +1162,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if toolbar_font.pointSizeF() <= 0:
                 toolbar_font.setPointSizeF(10.0)
             if sys.platform == "darwin":
-                toolbar_font.setPointSizeF(min(toolbar_font.pointSizeF(), 10.0))
+                toolbar_font.setPointSizeF(min(toolbar_font.pointSizeF(), 9.0))
             self._toolbar_compact_font = toolbar_font
         except Exception:
             self._info_font = None
@@ -3266,6 +3266,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         if screen is None or not hasattr(screen, "availableGeometry"):
                             return
                         available = screen.availableGeometry()
+                        try:
+                            popup.setMaximumHeight(max(180, int(available.height()) - 12))
+                        except Exception as exc:
+                            logger.debug(
+                                "Falha ao limitar altura do popup de preferencias: %s",
+                                exc,
+                            )
                         popup.adjustSize()
                         geometry = popup.frameGeometry()
                         max_x = available.right() - geometry.width() + 1
@@ -3320,6 +3327,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "}"
         )
         dialog.setStyleSheet(str(dialog.styleSheet() or "") + preferences_group_style)
+        theme_roles = dict(getattr(self, "_current_theme_roles", {}) or {})
+        support_text_color = str(
+            theme_roles.get("support_text_color")
+            or theme_roles.get("label_color")
+            or theme_roles.get("panel_text")
+            or "#d7d9e6"
+        ).strip() or "#d7d9e6"
+        footer_text_color = str(
+            theme_roles.get("panel_text")
+            or theme_roles.get("label_color")
+            or support_text_color
+            or "#e6e7ee"
+        ).strip() or "#e6e7ee"
 
         interface_group = QGroupBox("Interface")
         interface_group.setObjectName("preferencesInterfaceGroup")
@@ -3327,13 +3347,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         interface_layout.setContentsMargins(8, 8, 8, 8)
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
-        cast(Any, grid).setHorizontalSpacing(8)
+        cast(Any, grid).setHorizontalSpacing(6)
         cast(Any, grid).setVerticalSpacing(8)
-        preferences_compact_field_width = 320
-        preferences_numeric_field_width = 180
+        cast(Any, grid).setColumnStretch(0, 0)
+        cast(Any, grid).setColumnStretch(1, 1)
+        cast(Any, grid).setColumnStretch(2, 0)
+        cast(Any, grid).setColumnStretch(3, 1)
+        preferences_compact_field_width = 280
+        preferences_numeric_field_width = 152
+        label_alignment = (
+            cast(Any, Qt).AlignmentFlag.AlignRight
+            | cast(Any, Qt).AlignmentFlag.AlignVCenter
+        )
 
         theme_label = QLabel("Tema")
-        grid.addWidget(cast(Any, theme_label), 0, 0)
+        grid.addWidget(cast(Any, theme_label), 0, 0, label_alignment)
         theme_combo = _ScreenBoundComboBox()
         theme_combo.setObjectName("preferencesThemeCombo")
         theme_combo.setMaxVisibleItems(10)
@@ -3352,7 +3380,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, theme_combo), 0, 1)
 
         search_mode_label = QLabel("Modo da busca")
-        grid.addWidget(cast(Any, search_mode_label), 0, 2)
+        grid.addWidget(cast(Any, search_mode_label), 0, 2, label_alignment)
         search_mode_combo = _ScreenBoundComboBox()
         search_mode_combo.setObjectName("preferencesSearchModeCombo")
         search_mode_combo.setMaximumWidth(preferences_compact_field_width)
@@ -3378,7 +3406,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, search_mode_combo), 0, 3)
 
         debounce_label = QLabel("Debounce ms")
-        grid.addWidget(cast(Any, debounce_label), 1, 0)
+        grid.addWidget(cast(Any, debounce_label), 1, 0, label_alignment)
         debounce_spin = QSpinBox()
         debounce_spin.setObjectName("preferencesDebounceSpin")
         debounce_spin.setMaximumWidth(preferences_numeric_field_width)
@@ -3400,7 +3428,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, debounce_spin), 1, 1)
 
         page_size_label = QLabel("Linhas por pagina")
-        grid.addWidget(cast(Any, page_size_label), 1, 2)
+        grid.addWidget(cast(Any, page_size_label), 1, 2, label_alignment)
         page_size_spin = QSpinBox()
         page_size_spin.setObjectName("preferencesPageSizeSpin")
         page_size_spin.setMaximumWidth(preferences_numeric_field_width)
@@ -3410,7 +3438,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, page_size_spin), 1, 3)
 
         window_width_label = QLabel("Largura da janela")
-        grid.addWidget(cast(Any, window_width_label), 2, 0)
+        grid.addWidget(cast(Any, window_width_label), 2, 0, label_alignment)
         window_width_spin = QSpinBox()
         window_width_spin.setObjectName("preferencesWindowWidthSpin")
         window_width_spin.setMaximumWidth(preferences_numeric_field_width)
@@ -3420,7 +3448,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, window_width_spin), 2, 1)
 
         window_height_label = QLabel("Altura da janela")
-        grid.addWidget(cast(Any, window_height_label), 2, 2)
+        grid.addWidget(cast(Any, window_height_label), 2, 2, label_alignment)
         window_height_spin = QSpinBox()
         window_height_spin.setObjectName("preferencesWindowHeightSpin")
         window_height_spin.setMaximumWidth(preferences_numeric_field_width)
@@ -3432,7 +3460,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, window_height_spin), 2, 3)
 
         alignment_label = QLabel("Alinhamento da tabela")
-        grid.addWidget(cast(Any, alignment_label), 3, 0)
+        grid.addWidget(cast(Any, alignment_label), 3, 0, label_alignment)
         alignment_combo = _ScreenBoundComboBox()
         alignment_combo.setObjectName("preferencesAlignmentCombo")
         alignment_combo.setMaximumWidth(preferences_compact_field_width)
@@ -3449,7 +3477,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, alignment_combo), 3, 1)
 
         cache_size_label = QLabel("Cache de filtros")
-        grid.addWidget(cast(Any, cache_size_label), 3, 2)
+        grid.addWidget(cast(Any, cache_size_label), 3, 2, label_alignment)
         cache_size_spin = QSpinBox()
         cache_size_spin.setObjectName("preferencesCacheSizeSpin")
         cache_size_spin.setMaximumWidth(preferences_numeric_field_width)
@@ -3462,10 +3490,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, cache_size_spin), 3, 3)
 
         columns_label = QLabel("Colunas exibidas")
-        grid.addWidget(cast(Any, columns_label), 4, 0)
+        grid.addWidget(cast(Any, columns_label), 4, 0, label_alignment)
         columns_button = QPushButton("Colunas")
         columns_button.setObjectName("preferencesColumnsButton")
-        columns_button.setMaximumWidth(220)
+        columns_button.setMaximumWidth(preferences_compact_field_width)
         columns_button.setToolTip(
             "Abrir configuracao de colunas visiveis e larguras da tabela"
         )
@@ -3518,7 +3546,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         widths_container = QWidget()
         widths_grid = QGridLayout(cast(Any, widths_container))
         widths_grid.setContentsMargins(0, 0, 0, 0)
-        cast(Any, widths_grid).setHorizontalSpacing(14)
+        cast(Any, widths_grid).setHorizontalSpacing(8)
         cast(Any, widths_grid).setVerticalSpacing(8)
         for offset, col_name in enumerate(current_display_columns):
             label = QLabel(str(self.internal_to_display.get(col_name, col_name)))
@@ -3532,9 +3560,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             width_spinboxes[str(col_name)] = spin
             row = offset // 3
             base_col = (offset % 3) * 2
-            widths_grid.addWidget(cast(Any, label), row, base_col)
+            widths_grid.addWidget(cast(Any, label), row, base_col, label_alignment)
             widths_grid.addWidget(cast(Any, spin), row, base_col + 1)
-        widths_layout.addWidget(cast(Any, widths_container))
+        widths_layout.addWidget(
+            cast(Any, widths_container),
+            0,
+            cast(Any, Qt).AlignmentFlag.AlignLeft
+            | cast(Any, Qt).AlignmentFlag.AlignTop,
+        )
         table_layout.addWidget(cast(Any, widths_group))
         content_layout.addWidget(cast(Any, table_group))
 
@@ -3616,14 +3649,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_auto_refresh_checkbox.setChecked(bool(api_options.auto_refresh_enabled))
         api_layout.addWidget(cast(Any, api_auto_refresh_checkbox), 0, 2)
 
-        api_security_info = QLabel(
+        api_security_info_text = (
             "Consulta REST nao exige credencial. Cofre do sistema so vale para "
             "escopos via xpath/scrap_report. macOS: Keychain | Windows: "
             "Credential Manager ou DPAPI | Linux: Secret Service."
         )
+        api_security_info_warning = (
+            api_security_info_text
+            + " Aviso: desativar 'Exigir cofre do sistema' reduz a garantia de "
+            "armazenamento protegido do segredo."
+        )
+        api_security_info = QLabel(api_security_info_text)
         api_security_info.setObjectName("preferencesPaiApiSecurityInfoLabel")
         api_security_info.setWordWrap(True)
-        api_security_info.setStyleSheet("color: palette(window-text);")
         api_layout.addWidget(cast(Any, api_security_info), 1, 0, 1, 3)
 
         api_layout.addWidget(cast(Any, QLabel("Intervalo (min)")), 2, 0)
@@ -3828,7 +3866,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         defaults_button.clicked.connect(_restore_defaults)
         footer_label = QLabel(build_about_summary_line(self._app_version))
         footer_label.setObjectName("preferencesFooterLabel")
-        footer_label.setStyleSheet("color: palette(window-text);")
+        footer_label.setStyleSheet(
+            f"color: {footer_text_color}; background: transparent; font-weight:600;"
+        )
 
         button_flags = cast(Any, QDialogButtonBox.StandardButton.Ok)
         button_flags = button_flags | cast(Any, QDialogButtonBox.StandardButton.Cancel)
@@ -3890,6 +3930,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 api_username_edit.setToolTip(
                     "Consulta REST nao exige usuario ou segredo."
                 )
+            secure_required = bool(api_secure_required_checkbox.isChecked())
+            warning_active = scraper_enabled and not secure_required
+            info_text = (
+                api_security_info_warning if warning_active else api_security_info_text
+            )
+            info_style = (
+                "color: #f0d6a0; border:1px solid #d6a35a; border-radius:4px; "
+                "padding:4px 6px;"
+                if warning_active
+                else (
+                    f"color: {support_text_color}; border:1px solid palette(mid);"
+                    "border-radius:4px; padding:4px 6px;"
+                )
+            )
+            api_security_info.setText(info_text)
+            api_security_info.setStyleSheet(info_style)
 
         def _validate_secret() -> None:
             identity = _require_secret_identity()
@@ -3944,6 +4000,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_secret_validate_button.clicked.connect(_validate_secret)
         api_secret_store_button.clicked.connect(_store_secret)
         api_scrap_checkbox.toggled.connect(_sync_api_secret_controls)
+        api_secure_required_checkbox.toggled.connect(_sync_api_secret_controls)
         for checkbox in scope_checks.values():
             checkbox.toggled.connect(_sync_api_secret_controls)
         wheel_guard_widgets = (
@@ -3964,6 +4021,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 widget.setProperty("ignoreWheelInput", True)
                 widget.installEventFilter(self)
+                line_edit_getter = getattr(widget, "lineEdit", None)
+                line_edit = line_edit_getter() if callable(line_edit_getter) else None
+                if line_edit is not None:
+                    line_edit.setProperty("ignoreWheelInput", True)
+                    line_edit.installEventFilter(self)
             except Exception as exc:
                 logger.debug(
                     "Falha ao proteger wheel no dialogo de preferencias: %s", exc

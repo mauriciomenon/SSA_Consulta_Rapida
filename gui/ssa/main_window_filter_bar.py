@@ -86,11 +86,11 @@ def _quick_situacao_button_style(window: Any, *, selected: bool) -> str:
         return (
             "QPushButton {"
             f"color:{panel_text};"
-            f"background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 {accent_soft}, stop:1 {panel_bg});"
+            f"background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 {accent}, stop:1 {accent_soft});"
             f"border:1px solid {accent};"
             "border-radius:4px;"
-            "padding:0px 2px;"
-            "font-weight:700;"
+            "padding:0px 3px;"
+            "font-weight:800;"
             "}"
             "QPushButton:hover {"
             f"border:1px solid {accent};"
@@ -349,7 +349,7 @@ def build_filters_summary_bar(
     filters_summary_items_layout.setSpacing(6)
 
     filters_summary_scroll = QScrollArea()
-    filters_summary_scroll.setWidgetResizable(False)
+    filters_summary_scroll.setWidgetResizable(True)
     filters_summary_scroll.setWidget(cast(Any, filters_summary_items_widget))
     filters_summary_scroll.setFrameShape(QFrame.Shape.NoFrame)
     _set_fixed_height(
@@ -693,7 +693,7 @@ def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
 
 
 def _build_exclude_ste_checkbox(window: Any) -> QCheckBox:
-    checkbox = QCheckBox("Nao esta em SCA/SES/STE")
+    checkbox = QCheckBox("Ocultar SCA/SES/STE")
     checkbox.setToolTip("Oculta SSAs com situacao SCA, SES ou STE")
     try:
         checkbox.setChecked(False)
