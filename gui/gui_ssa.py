@@ -485,6 +485,18 @@ _TSM_DEBUG_EVENT_NAMES = {
     QEvent.Type.Show: "show",
     QEvent.Type.Hide: "hide",
 }
+_TSM_DEBUG_SENSITIVE_ROLE_PARTS = {
+    "search_input",
+    "password",
+    "secret",
+    "username",
+}
+_TSM_DEBUG_SENSITIVE_OBJECT_PARTS = {
+    "password",
+    "secret",
+    "username",
+    "searchinput",
+}
 
 DIVISAO_SETORES = {
     "SMME": ["MEL1", "MEL2", "MEL3", "MEL4"],
@@ -932,6 +944,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if not TSM_DEBUG_ENABLED or widget is None:
             return
         try:
+            role_text = str(role or "").strip().lower()
+            object_name = str(getattr(widget, "objectName", lambda: "")() or "").lower()
+            if any(part in role_text for part in _TSM_DEBUG_SENSITIVE_ROLE_PARTS):
+                return
+            if any(part in object_name for part in _TSM_DEBUG_SENSITIVE_OBJECT_PARTS):
+                return
             probes = getattr(self, "_tsm_debug_widget_roles", None)
             if not isinstance(probes, dict):
                 probes = {}
@@ -1465,16 +1483,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._data_revision = 0
         self._data_revision_request_id = None
         self._data_uuid = None
-        self._num_reprog_sort_cache = {
-            "source_marker": None,
-            "source_len": 0,
-            "keys_df": None,
-        }
+        self._num_reprog_sort_cache = ssa_table_sorting.empty_sort_cache()
         self._mixed_text_sort_cache = {
+            **ssa_table_sorting.empty_sort_cache(),
             "column_name": None,
-            "source_marker": None,
-            "source_len": 0,
-            "keys_df": None,
         }
         self._resize_timer_cls = QTimer
         ssa_gui_resize.initialize_resize_controller(self, QTimer)
@@ -2080,7 +2092,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
 
     def _sort_num_reprogramacoes_robust(self, ascending: bool) -> pd.DataFrame:
-        return ssa_table_sorting.sort_num_reprogramacoes_robust(self, ascending)
+        sorted_df, cache_store = ssa_table_sorting.sort_num_reprogramacoes_robust(
+            self.df_exibido,
+            ascending,
+            self._num_reprog_sort_cache,
+            builder=self._build_num_reprogramacoes_sort_keys,
+        )
+        self._num_reprog_sort_cache = cache_store
+        if sorted_df is None:
+            raise RuntimeError("sort_num_reprogramacoes_robust returned no DataFrame")
+        return sorted_df
 
     def _build_num_reprogramacoes_sort_keys(
         self, source_df: pd.DataFrame
@@ -2098,37 +2119,53 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _get_mixed_text_sort_keys(
         self, source_df: pd.DataFrame, column_name: str
     ) -> pd.DataFrame:
-        return ssa_table_sorting.get_mixed_text_sort_keys(
-            self, source_df, column_name
+        keys_df, cache_store = ssa_table_sorting.get_mixed_text_sort_keys(
+            source_df,
+            column_name,
+            self._mixed_text_sort_cache,
+            builder=self._build_mixed_text_sort_keys,
         )
+        self._mixed_text_sort_cache = cache_store
+        return keys_df
 
     def _sort_mixed_text_column_robust(
         self, column_name: str, ascending: bool
     ) -> pd.DataFrame:
-        return ssa_table_sorting.sort_mixed_text_column_robust(
-            self, column_name, ascending
+        sorted_df, cache_store = ssa_table_sorting.sort_mixed_text_column_robust(
+            self.df_exibido,
+            column_name,
+            ascending,
+            self._mixed_text_sort_cache,
+            builder=self._build_mixed_text_sort_keys,
         )
+        self._mixed_text_sort_cache = cache_store
+        if sorted_df is None:
+            raise RuntimeError("sort_mixed_text_column_robust returned no DataFrame")
+        return sorted_df
 
     def _reset_mixed_text_sort_cache(self) -> None:
         self._mixed_text_sort_cache = {
+            **ssa_table_sorting.empty_sort_cache(),
             "column_name": None,
-            "source_marker": None,
-            "source_len": 0,
-            "keys_df": None,
         }
 
     def _get_num_reprogramacoes_sort_keys(self) -> pd.DataFrame:
-        return ssa_table_sorting.get_num_reprogramacoes_sort_keys(self)
+        keys_df, cache_store = ssa_table_sorting.get_num_reprogramacoes_sort_keys(
+            self.df_exibido,
+            self._num_reprog_sort_cache,
+            builder=self._build_num_reprogramacoes_sort_keys,
+        )
+        self._num_reprog_sort_cache = cache_store
+        return keys_df
 
     def _reset_num_reprogramacoes_sort_cache(self) -> None:
-        self._num_reprog_sort_cache = {
-            "source_marker": None,
-            "source_len": 0,
-            "keys_df": None,
-        }
+        self._num_reprog_sort_cache = ssa_table_sorting.empty_sort_cache()
 
     def _prime_num_reprogramacoes_sort_cache(self) -> None:
-        ssa_table_sorting.prime_num_reprogramacoes_sort_cache(self)
+        self._num_reprog_sort_cache = ssa_table_sorting.prime_num_reprogramacoes_sort_cache(
+            self.df_exibido,
+            builder=self._build_num_reprogramacoes_sort_keys,
+        )
 
     def _resolve_header_column_name(self, logical_index: int) -> str | None:
         if logical_index < 0 or self.table_widget.columnCount() == 0:
@@ -2164,16 +2201,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self.df_exibido = self._sort_num_reprogramacoes_robust(
                         self.sort_ascending
                     )
-                    sorted_keys = getattr(self, "_last_num_reprog_sorted_keys", None)
-                    if isinstance(
-                        sorted_keys, pd.DataFrame
-                    ) and sorted_keys.index.equals(self.df_exibido.index):
-                        ssa_table_sorting.store_num_reprogramacoes_sort_cache(
-                            self, self.df_exibido, sorted_keys
-                        )
-                    else:
-                        self._prime_num_reprogramacoes_sort_cache()
-                    self._last_num_reprog_sorted_keys = None
                 else:
                     if self._should_use_mixed_text_sort(self.sort_column):
                         self.df_exibido = self._sort_mixed_text_column_robust(
@@ -5410,6 +5437,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         Garante cleanup adequado dos QThreads para evitar o erro:
         'QThread: Destroyed while thread is still running'
         """
+        try:
+            self._sector_debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce de setor no closeEvent: %s", exc)
         try:
             from gui.ssa.gui_preferences_persistence import shutdown_gui_preferences_writer
 

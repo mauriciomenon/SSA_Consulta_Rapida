@@ -89,18 +89,22 @@ def test_render_marker_sample_includes_all_rows_for_small_page():
 def test_mixed_text_sort_does_not_retain_cache_above_row_limit():
     rows = table_sorting.MAX_SORT_CACHE_ROWS + 1
     df = pd.DataFrame({"situacao": ["B", "A"] * ((rows // 2) + 1)}).iloc[:rows]
-    window = _DummySortWindow(df)
-    window._mixed_text_sort_cache = {
+    cache_store = {
         "column_name": "situacao",
         "source_marker": ("old-token",),
         "source_len": 5,
         "keys_df": pd.DataFrame({"stale": [1]}),
     }
 
-    table_sorting.sort_mixed_text_column_robust(window, "situacao", ascending=True)
+    _sorted_df, next_cache = table_sorting.sort_mixed_text_column_robust(
+        df,
+        "situacao",
+        ascending=True,
+        cache_store=cache_store,
+    )
 
-    assert window._mixed_text_sort_cache["keys_df"] is None
-    assert window._mixed_text_sort_cache["source_len"] == 0
+    assert next_cache["keys_df"] is None
+    assert next_cache["source_len"] == 0
 
 
 def test_mixed_text_sort_cache_token_changes_after_sampled_value_mutation():
@@ -123,17 +127,44 @@ def test_mixed_text_sort_treats_scientific_notation_as_numeric():
 def test_num_reprogramacoes_sort_does_not_retain_cache_above_row_limit():
     rows = table_sorting.MAX_SORT_CACHE_ROWS + 1
     df = pd.DataFrame({"num_reprogramacoes": list(range(rows))})
-    window = _DummySortWindow(df)
-    window._num_reprog_sort_cache = {
+    cache_store = {
         "source_marker": ("old-token",),
         "source_len": 5,
         "keys_df": pd.DataFrame({"stale": [1]}),
     }
 
-    table_sorting.sort_num_reprogramacoes_robust(window, ascending=True)
+    _sorted_df, next_cache = table_sorting.sort_num_reprogramacoes_robust(
+        df,
+        ascending=True,
+        cache_store=cache_store,
+    )
 
-    assert window._num_reprog_sort_cache["keys_df"] is None
-    assert window._num_reprog_sort_cache["source_len"] == 0
+    assert next_cache["keys_df"] is None
+    assert next_cache["source_len"] == 0
+
+
+def test_num_reprogramacoes_sort_keeps_missing_values_last_in_both_directions():
+    df = pd.DataFrame(
+        {"num_reprogramacoes": pd.Series([2, None, "Reprogramacao #1", ""], dtype="object")}
+    )
+
+    asc_df, _asc_cache = table_sorting.sort_num_reprogramacoes_robust(
+        df,
+        ascending=True,
+        cache_store=None,
+    )
+    desc_df, _desc_cache = table_sorting.sort_num_reprogramacoes_robust(
+        df,
+        ascending=False,
+        cache_store=None,
+    )
+
+    assert asc_df is not None
+    assert desc_df is not None
+    for sorted_df in (asc_df, desc_df):
+        values = sorted_df["num_reprogramacoes"].tolist()
+        assert values[:2] == [value for value in values if value not in ("", None)][:2]
+        assert set(values[-2:]) == {"", None}
 
 
 def test_best_fit_visible_columns_skips_hash_column_only():
