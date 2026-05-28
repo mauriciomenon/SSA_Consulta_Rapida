@@ -1213,11 +1213,13 @@ class TestGUIFilterLogic:
         self, monkeypatch
     ):
         clamp_calls: list[tuple[str, str, bool]] = []
+        timer_delays: list[int] = []
 
         def _fake_base_show_popup(_self) -> None:
             return None
 
-        def _fake_single_shot(_delay, callback) -> None:
+        def _fake_single_shot(delay, callback) -> None:
+            timer_delays.append(int(delay))
             callback()
 
         def _fake_clamp(combo_box, popup) -> None:
@@ -1247,6 +1249,7 @@ class TestGUIFilterLogic:
         self.window._open_preferences_dialog()
 
         assert len(clamp_calls) >= 1
+        assert timer_delays == [80]
         assert all(name == "preferencesThemeCombo" for name, _popup_type, _ok in clamp_calls)
         assert all(ok for _name, _popup_type, ok in clamp_calls)
 

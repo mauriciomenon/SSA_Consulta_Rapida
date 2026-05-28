@@ -3840,8 +3840,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         )
 
                 super().showPopup()
-                _clamp_popup()
-                QTimer.singleShot(0, _clamp_popup)
+                QTimer.singleShot(80, _clamp_popup)
 
         content_scroll = QScrollArea()
         content_scroll.setObjectName("preferencesContentScroll")

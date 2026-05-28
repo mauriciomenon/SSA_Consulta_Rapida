@@ -149,7 +149,7 @@ def _build_screen_bound_theme_combo(dialog, theme_items, current_theme):
                     logger.debug("Falha ao limitar popup do seletor de tema: %s", exc)
 
             super().showPopup()
-            QTimer.singleShot(0, _clamp_popup)
+            QTimer.singleShot(80, _clamp_popup)
 
     theme_combo = _ScreenBoundComboBox(dialog)
     theme_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
