@@ -6153,6 +6153,55 @@ class TestGUIFilterLogic:
 
         assert calls == ["202100186"]
 
+    def test_derivadas_graph_label_click_navigates_rendered_svg_pipeline(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202100046", "202100154"],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "202100046"],
+                "descricao_ssa": ["Pai", "Filha"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        self.window.details_tab_bar.setCurrentIndex(1)
+        QApplication.processEvents()
+        self.window.table_widget.selectRow(0)
+        self.window.update_details_from_selection()
+        QApplication.processEvents()
+
+        label = self.window.details_graph_label
+        pixmap = label.pixmap()
+        hitboxes = getattr(label, "_ssa_hitboxes", [])
+
+        assert pixmap is not None
+        assert pixmap.isNull() is False
+        assert len(hitboxes) >= 2
+
+        child_ssa, left, top, right, bottom = hitboxes[-1]
+        logical_size = pixmap.deviceIndependentSize()
+        offset_x = int((label.width() - float(logical_size.width())) / 2.0)
+        offset_y = int((label.height() - float(logical_size.height())) / 2.0)
+        click_x = offset_x + int((left + right) / 2.0)
+        click_y = offset_y + int((top + bottom) / 2.0)
+
+        assert child_ssa == "202100154"
+        assert self.window.table_widget.currentRow() == 0
+
+        cast(Any, QTest).mouseClick(
+            label,
+            Qt.MouseButton.LeftButton,
+            pos=QPoint(click_x, click_y),
+        )
+        QApplication.processEvents()
+
+        assert self.window.table_widget.currentRow() == 1
+
     def test_derivadas_graph_label_refresh_helper_reapplies_hitboxes(self, monkeypatch):
         class _FakeSize:
             def width(self):
