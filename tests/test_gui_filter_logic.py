@@ -9276,9 +9276,30 @@ class TestGUIFilterLogic:
 
         assert wide_hspace >= narrow_hspace
         assert wide_vspace >= narrow_vspace
+        assert wide_hspace >= 16
+        assert wide_vspace >= 12
         assert wide_gap >= narrow_gap
-        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 320
-        assert int(state.grid_widgets["action_box"].maximumWidth()) <= 320
+        assert wide_gap >= narrow_gap + 4
+        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 300
+        assert int(state.grid_widgets["action_box"].maximumWidth()) <= 300
+
+    def test_reorganize_advanced_filters_grid_caps_single_column_width(self):
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+
+        self.window.resize(420, 760)
+        QApplication.processEvents()
+        self.window._reorganize_advanced_filters_grid(420)
+        QApplication.processEvents()
+
+        state = self.window._advanced_filter_panel_state
+        grid = state.main_grid
+
+        assert state.grid_cols == 1
+        assert int(grid.horizontalSpacing()) == 4
+        assert int(grid.verticalSpacing()) == 3
+        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 460
+        assert int(state.grid_widgets["action_box"].maximumWidth()) <= 460
 
     def test_reprogramacoes_menu_builds_without_responsavel_materialized(self):
         self.window.df_completo = self.base_df.assign(

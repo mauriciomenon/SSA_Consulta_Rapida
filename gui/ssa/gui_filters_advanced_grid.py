@@ -95,10 +95,10 @@ def update_advanced_filters_action_buttons(window: Any, width: int) -> None:
     grid_cols = _current_grid_cols(window, state)
     if width > 0:
         cell_width = max(112, int(width // grid_cols))
-        pair_budget = max(116, cell_width - 10)
-        per_button_budget = max(56, int((pair_budget - 6) // 2))
-        max_width = min(max_width, per_button_budget)
-        min_width = min(min_width, max_width)
+        pair_budget = max(96, cell_width - 10)
+        per_button_budget = max(48, int((pair_budget - 6) // 2))
+        max_width = max(48, min(max_width, per_button_budget))
+        min_width = min(min_width, per_button_budget, max_width)
     new_dims = (min_width, max_width)
     current_dims = state.action_btn_dims
     if current_dims == new_dims:
@@ -133,7 +133,6 @@ def enforce_advanced_filters_compact_metrics(window: Any) -> None:
 
 
 def reorganize_advanced_filters_grid(window: Any, width: int) -> None:
-    enforce_advanced_filters_compact_metrics(window)
     effective_width, max_scroll_h, controls_scroll = _resolve_grid_viewport_metrics(
         window, width
     )
@@ -143,11 +142,12 @@ def reorganize_advanced_filters_grid(window: Any, width: int) -> None:
     if grid is not None:
         _apply_responsive_grid_spacing(grid, effective_width)
     update_advanced_filters_action_buttons(window, effective_width)
-    apply_advanced_filters_font_policy(window, effective_width)
     if effective_width < LAYOUT_MIN_VALID_WIDTH:
         return
     if _advanced_grid_recently_applied(window, effective_width, max_scroll_h):
         return
+    enforce_advanced_filters_compact_metrics(window)
+    apply_advanced_filters_font_policy(window, effective_width)
     _store_advanced_grid_viewport_metrics(window, effective_width, max_scroll_h)
     try:
         plan = _build_grid_plan(
@@ -269,10 +269,13 @@ def _visible_grid_widgets(window: Any):
 def _apply_responsive_grid_spacing(grid: Any, effective_width: int) -> None:
     if grid is None:
         return
-    if effective_width >= 930:
+    if effective_width >= 900:
+        horizontal_spacing = 16
+        vertical_spacing = 12
+    elif effective_width >= 700:
         horizontal_spacing = 12
         vertical_spacing = 9
-    elif effective_width >= 700:
+    elif effective_width >= 560:
         horizontal_spacing = 8
         vertical_spacing = 6
     else:
@@ -421,13 +424,12 @@ def _resolve_grid_cell_width_budget(grid: Any, effective_width: int, cols: int) 
 def _apply_widget_width_cap(widget: Any, width_budget: int, cols: int) -> None:
     if widget is None:
         return
-    unbounded_max_width = 16777215
     if cols <= 1:
-        max_width = unbounded_max_width
+        max_width = min(max(280, width_budget), 460)
     elif cols == 2:
-        max_width = min(max(240, width_budget), 360)
+        max_width = min(max(232, width_budget), 340)
     else:
-        max_width = min(max(210, width_budget), 320)
+        max_width = min(max(200, width_budget), 300)
     try:
         widget.setMaximumWidth(max_width)
     except Exception as exc:
@@ -463,8 +465,14 @@ def _apply_grid_plan(
 def _apply_grid_stretch(grid: Any, previous_cols: Any, next_cols: int) -> None:
     if previous_cols == next_cols:
         return
-    for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
+    reset_until = max(LAYOUT_GRID_MAX_COLS, int(previous_cols or 0), int(next_cols or 0))
+    for col in range(0, reset_until + 1):
         try:
             grid.setColumnStretch(col, 0)
         except Exception as exc:
             logger.debug("Falha ao resetar stretch de coluna no grid avancado: %s", exc)
+    for col in range(0, max(1, int(next_cols))):
+        try:
+            grid.setColumnStretch(col, 1)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar stretch de coluna no grid avancado: %s", exc)
