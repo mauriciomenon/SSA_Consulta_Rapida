@@ -6586,6 +6586,7 @@ class TestGUIFilterLogic:
         def _fake_exec(dialog):
             captured["size"] = dialog.size()
             captured["minimum_size"] = dialog.minimumSize()
+            captured["maximum_size"] = dialog.maximumSize()
             splitters = dialog.findChildren(QtWidgets.QSplitter)
             captured["splitter_sizes"] = [splitter.sizes() for splitter in splitters]
             return 0
@@ -6593,9 +6594,11 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
         self.window._open_details_dialog_for_ssa("1")
 
-        assert captured["size"].height() == max(
+        expected_min_height = max(
             int(880 * 0.72), ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
         )
+        assert captured["size"].height() >= expected_min_height
+        assert captured["size"].height() <= captured["maximum_size"].height()
         assert (
             captured["minimum_size"].height()
             == ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT

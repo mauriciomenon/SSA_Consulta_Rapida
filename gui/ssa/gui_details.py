@@ -859,6 +859,7 @@ def _render_derivadas_graph_svg_or_fallback(
             )
             return
         tree_browser.setVisible(False)
+        graph_browser.setVisible(True)
         set_svg_markup = getattr(graph_browser, "set_graph_svg_markup", None)
         if callable(set_svg_markup):
             set_svg_markup(graph_svg)
@@ -1203,9 +1204,12 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
                         num_norm,
                     )
                     return
-                if row_in_page < 0 or row_in_page >= window.table_widget.rowCount():
+                table_widget = getattr(window, "table_widget", None)
+                if table_widget is None:
                     return
-                window.table_widget.selectRow(row_in_page)
+                if row_in_page < 0 or row_in_page >= table_widget.rowCount():
+                    return
+                table_widget.selectRow(row_in_page)
             except Exception as exc:
                 logger.debug(
                     "Falha ao selecionar linha %s no salto para SSA %s: %s",
