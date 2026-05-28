@@ -1,0 +1,20 @@
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_1cdeb604f28121 3702,3705-3707,3709-3729,3731-3732,3734-3736,3743,3746
+  s_9f052ddda3b0ba::t_c173214a0d2fec 3703-3704,3708,3730
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "aa3e5128783ef7251b54100af039464900adff1e",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
