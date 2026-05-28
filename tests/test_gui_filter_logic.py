@@ -496,21 +496,28 @@ class TestGUIFilterLogic:
         assert str(title.text() or "") == "Filtros por Texto"
         assert getattr(self.window, "_active_filter_panel_kind", None) == "columns"
 
-    def test_top_toolbar_uses_compact_font_contract_on_macos(self, monkeypatch):
+    def test_only_quick_situacao_uses_compact_font_on_macos(self, monkeypatch):
         monkeypatch.setattr(gui_ssa.sys, "platform", "darwin")
 
         darwin_window = SSAMainWindow()
         darwin_window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
+        darwin_window.df_completo = self.base_df.copy()
+        darwin_window.df_exibido = self.base_df.copy()
+        darwin_window._df_last_search_filtered = self.base_df.copy()
+        darwin_window.paginator.set_dataframe(self.base_df.copy())
+        darwin_window.display_current_page(1)
+        darwin_window._refresh_quick_situacao_buttons()
         darwin_window.show()
         QApplication.processEvents()
 
         try:
             toolbar_font = getattr(darwin_window, "_toolbar_compact_font", None)
             assert toolbar_font is not None
-            expected_size = toolbar_font.pointSizeF()
-            assert expected_size == pytest.approx(9.0)
+            compact_size = toolbar_font.pointSizeF()
+            base_size = darwin_window.font().pointSizeF()
+            assert compact_size == pytest.approx(9.0)
 
-            top_widgets = [
+            default_font_widgets = [
                 darwin_window.quick_setor_executor_label,
                 darwin_window.quick_setor_executor_combo,
                 darwin_window.status_label,
@@ -520,8 +527,14 @@ class TestGUIFilterLogic:
                 darwin_window.preferences_button,
                 darwin_window.theme_button,
             ]
-            for widget in top_widgets:
-                assert widget.font().pointSizeF() == pytest.approx(expected_size)
+            for widget in default_font_widgets:
+                assert widget.font().pointSizeF() == pytest.approx(base_size)
+
+            buttons = getattr(darwin_window, "quick_situacao_buttons", None)
+            assert isinstance(buttons, dict)
+            assert buttons
+            for button in buttons.values():
+                assert button.font().pointSizeF() < base_size
 
             assert darwin_window.quick_setor_executor_combo.maximumWidth() <= 86
             assert darwin_window.quick_setor_executor_box.width() <= 185
@@ -6351,8 +6364,17 @@ class TestGUIFilterLogic:
             after_base_tabs[0] + ctx["details_tab_bar"].tabRect(1).right()
         )
         assert str(context_state.get("current_ssa") or "") == "202100154"
-        assert "Filha" in str(context_state["details_text"].toPlainText() or "")
+        assert "Filha" in str(context_state["details_text"].text() or "")
         assert context_state["tab_bar"].height() <= 22
+        assert (
+            context_state["scroll_area"].verticalScrollBarPolicy()
+            == Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        assert not hasattr(context_state["details_text"], "verticalScrollBarPolicy")
+        assert context_state["graph_label"].minimumHeight() >= 360
+        context_pixmap = context_state["graph_label"].pixmap()
+        assert context_pixmap is not None
+        assert context_pixmap.deviceIndependentSize().height() >= 80
         assert context_state["graph_label"].height() > context_state["details_text"].height()
         assert before_shell_sizes == after_shell_sizes
         assert before_shell_tops == after_shell_tops

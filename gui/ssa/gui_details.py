@@ -13,7 +13,14 @@ from typing import Any, Callable, Mapping, cast
 
 import pandas as pd
 from PyQt6.QtCore import QEvent, QObject, Qt
-from PyQt6.QtWidgets import QFrame, QSizePolicy, QTextBrowser, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QFrame,
+    QLabel,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core.dataframe_fingerprint import build_dataframe_filter_hash
 from gui.helpers.formatting_helpers import highlight_text
@@ -881,22 +888,32 @@ def _render_context_graph_label(
     graph_svg = _extract_inline_svg_markup(graph_html)
     svg_deps = load_svg_render_dependencies()
     if graph_svg and svg_deps is not None:
-        graph_panel = graph_label.parentWidget() or graph_label
+        details_group = getattr(window, "details_group", None)
+        details_width_getter = getattr(details_group, "width", None)
+        details_width = (
+            int(details_width_getter()) if callable(details_width_getter) else 0
+        )
+        render_width = max(360, int(graph_label.width()), details_width - 48)
+        graph_label.setMinimumWidth(render_width)
+        graph_label.resize(render_width, 360)
         if render_graph_svg_pixmap(
             graph_svg=graph_svg,
             graph_label=graph_label,
-            graph_panel=graph_panel,
+            graph_panel=graph_label,
             dependencies=svg_deps,
+            max_scale=3.0,
         ):
             graph_label.setVisible(True)
             set_svg_markup = getattr(graph_label, "set_graph_svg_markup", None)
             if callable(set_svg_markup):
                 set_svg_markup(graph_svg)
             _apply_graph_navigation_hitboxes(graph_label, graph_svg)
+            graph_label.setFixedHeight(360)
             return
     _clear_graph_browser_markup(graph_label)
     graph_label.clear()
     graph_label.setText("Grafo de derivadas indisponivel.")
+    graph_label.setFixedHeight(360)
     graph_label.setVisible(True)
 
 
@@ -944,7 +961,7 @@ def _render_derivadas_context_entry(window, state: dict[str, Any], entry_index: 
         font_family=safe_font_family,
         ssa_index=ssa_index,
     )
-    details_text.setHtml(details_html)
+    details_text.setText(details_html)
     roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
     link_color = pick_css_color(
         roles.get("accent"),
@@ -957,6 +974,7 @@ def _render_derivadas_context_entry(window, state: dict[str, Any], entry_index: 
         _clear_graph_browser_markup(graph_label)
         graph_label.clear()
         graph_label.setText("Sem SSAs Derivadas.")
+        graph_label.setFixedHeight(360)
         graph_label.setVisible(True)
     else:
         _render_context_graph_label(
@@ -1063,33 +1081,48 @@ def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
     page_layout.setContentsMargins(0, 0, 0, 0)
     page_layout.setSpacing(2)
 
-    details_text = QTextBrowser(page)
-    details_text.setMinimumHeight(0)
-    details_text.setReadOnly(True)
-    details_text.setOpenLinks(False)
-    details_text.setOpenExternalLinks(False)
+    scroll_area = QScrollArea(page)
+    scroll_area.setWidgetResizable(True)
+    scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    scroll_area.setSizePolicy(
+        QSizePolicy.Policy.Ignored,
+        QSizePolicy.Policy.Ignored,
+    )
+
+    scroll_contents = QWidget(scroll_area)
+    scroll_layout = QVBoxLayout(scroll_contents)
+    scroll_layout.setContentsMargins(0, 0, 0, 0)
+    scroll_layout.setSpacing(2)
+
+    details_text = QLabel(scroll_contents)
+    details_text.setTextFormat(Qt.TextFormat.RichText)
+    details_text.setWordWrap(True)
+    details_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     details_text.setSizePolicy(
         QSizePolicy.Policy.Expanding,
-        QSizePolicy.Policy.Preferred,
+        QSizePolicy.Policy.Minimum,
     )
-    try:
-        details_text.setFrameShape(QFrame.Shape.NoFrame)
-    except Exception as exc:
-        logger.debug("Falha ao configurar texto do contexto de derivadas: %s", exc)
 
     graph_label = DerivadasGraphLabel(window)
-    graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    graph_label.setAlignment(
+        Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
+    )
     graph_label.setTextFormat(Qt.TextFormat.RichText)
     graph_label.setStyleSheet("border:none; background:transparent;")
-    graph_label.setMinimumHeight(0)
+    graph_label.setFixedHeight(360)
     graph_label.setToolTip("Clique em uma SSA do grafo para abrir no contexto")
     graph_label.setSizePolicy(
         QSizePolicy.Policy.Expanding,
-        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Fixed,
     )
 
-    page_layout.addWidget(details_text, 2)
-    page_layout.addWidget(graph_label, 3)
+    scroll_layout.addWidget(details_text, 0)
+    scroll_layout.addWidget(graph_label, 0)
+    scroll_layout.addStretch(1)
+    scroll_area.setWidget(scroll_contents)
+    page_layout.addWidget(scroll_area, 1)
     stack.addWidget(page)
 
     filter_handler = _DerivadasGraphContextFilter(
@@ -1111,6 +1144,7 @@ def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
         "separator": separator,
         "back_button": back_button,
         "close_button": close_button,
+        "scroll_area": scroll_area,
         "details_text": details_text,
         "graph_label": graph_label,
         "entries": [],

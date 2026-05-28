@@ -45,6 +45,7 @@ def render_graph_svg_pixmap(
     graph_label: Any,
     graph_panel: Any,
     dependencies: SvgRenderDependencies,
+    max_scale: float = 1.4,
 ) -> bool:
     if not graph_svg:
         return False
@@ -61,7 +62,7 @@ def render_graph_svg_pixmap(
     natural_h = max(1, int(default_size.height()))
     available_w = max(120, graph_panel.width() - 24)
     available_h = max(120, graph_panel.height() - 24)
-    scale = min(1.4, available_w / natural_w, available_h / natural_h)
+    scale = min(max_scale, available_w / natural_w, available_h / natural_h)
     render_w = max(1, int(natural_w * scale))
     render_h = max(1, int(natural_h * scale))
     cached_pixmap = _cached_svg_pixmap(

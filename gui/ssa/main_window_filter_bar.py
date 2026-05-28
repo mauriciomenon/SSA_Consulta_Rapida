@@ -429,7 +429,6 @@ def build_pagination_filter_bar(
 
     quick_setor_executor_label = QLabel("Setor Executor:")
     quick_setor_executor_label.setStyleSheet("padding:0; margin:0 0 0 1px;")
-    _apply_toolbar_compact_font(window, quick_setor_executor_label)
     quick_setor_executor_combo = QComboBox()
     quick_setor_executor_combo.setToolTip(
         "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
@@ -666,7 +665,6 @@ def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
         combo.setMinimumContentsLength(4)
         combo.setMaxVisibleItems(14)
         _set_fixed_height(window, combo, 22, "combo rapido de setor executor")
-        _apply_toolbar_compact_font(window, combo)
         combo.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Fixed),
             cast(Any, QSizePolicy.Policy.Fixed),

@@ -1364,8 +1364,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.status_label.setStyleSheet(
             "border:0; padding:0; margin:0;"
         )
-        if sys.platform == "darwin" and self._toolbar_compact_font is not None:
-            cast(Any, self.status_label).setFont(cast(Any, self._toolbar_compact_font))
         self.status_label.setMinimumWidth(180)
         self.status_label.setMaximumWidth(16777215)
         self.status_label.setSizePolicy(
@@ -1408,18 +1406,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "border-radius:4px; padding:1px 5px;"
         )
         self.week_label.setStyleSheet(self._week_label_style)
-        if sys.platform == "darwin" and self._toolbar_compact_font is not None:
-            cast(Any, self.week_label).setFont(cast(Any, self._toolbar_compact_font))
         self.week_label.setToolTip("Semana ISO atual")
 
         self.filtered_status_label = QLabel("0 de 0 SSAs")
         self.filtered_status_label.setStyleSheet(
             "border:1px solid palette(mid); border-radius:4px; padding:1px 5px;"
         )
-        if sys.platform == "darwin" and self._toolbar_compact_font is not None:
-            cast(Any, self.filtered_status_label).setFont(
-                cast(Any, self._toolbar_compact_font)
-            )
         self.filtered_status_label.setMinimumWidth(122)
         self.filtered_status_label.setMaximumWidth(188)
         self.filtered_status_label.setSizePolicy(
@@ -1437,15 +1429,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.theme_button = theme_button
         theme_button.setToolTip("Selecionar tema em caixa de dialogo")
         theme_button.clicked.connect(self.toggle_theme_menu)
-        if sys.platform == "darwin" and self._toolbar_compact_font is not None:
-            for toolbar_widget in (
-                self.open_sam_button,
-                self.load_button,
-                self.api_button,
-                self.preferences_button,
-                theme_button,
-            ):
-                cast(Any, toolbar_widget).setFont(cast(Any, self._toolbar_compact_font))
         toolbar_layout.addWidget(cast(Any, self.preferences_button))
         toolbar_layout.addWidget(cast(Any, theme_button))
 
