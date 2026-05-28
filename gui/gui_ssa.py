@@ -827,6 +827,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     Inherits from FilterGUISSAMixin for filter-related methods.
     """
 
+    _preferences_content_scroll_active: QScrollArea | None
+    _num_reprog_sort_cache: dict[str, Any]
+    _mixed_text_sort_cache: dict[str, Any]
+
     def _set_widget_min_height_safe(
         self, widget: QWidget, height: int, label: str
     ) -> None:
@@ -4558,7 +4562,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _refresh_main_details_derivadas_panel(self):
         return ssa_gui_details.refresh_main_details_derivadas_panel(self)
 
-    def _refresh_derivadas_graph_hitboxes(self, graph_widget, graph_svg: str):
+    @staticmethod
+    def _refresh_derivadas_graph_hitboxes(graph_widget, graph_svg: str):
         return ssa_gui_details.reapply_graph_navigation_hitboxes(
             graph_widget, graph_svg
         )

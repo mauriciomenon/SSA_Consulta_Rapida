@@ -83,7 +83,8 @@ class _MacOSStderrFilter:
         self._stderr_dup_fd = None
         self._thread = None
 
-    def _pump_lines(self, read_fd: int, stderr_dup_fd: int) -> None:
+    @staticmethod
+    def _pump_lines(read_fd: int, stderr_dup_fd: int) -> None:
         try:
             with os.fdopen(read_fd, "r", encoding="utf-8", errors="replace") as reader:
                 for line in reader:
