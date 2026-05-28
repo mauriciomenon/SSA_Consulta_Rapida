@@ -9105,6 +9105,44 @@ class TestGUIFilterLogic:
         self.window._reorganize_advanced_filters_grid(800)
         assert state.layout_mode in {"cols_2", "cols_3", "cols_4"}
 
+    def test_reorganize_advanced_filters_grid_increases_spacing_and_caps_wide_cells(
+        self,
+    ):
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+
+        self.window.resize(980, 760)
+        QApplication.processEvents()
+        self.window._reorganize_advanced_filters_grid(980)
+        QApplication.processEvents()
+
+        state = self.window._advanced_filter_panel_state
+        grid = state.main_grid
+        narrow_hspace = int(grid.horizontalSpacing())
+        narrow_vspace = int(grid.verticalSpacing())
+        narrow_emis = state.grid_widgets["emis_box"].geometry()
+        narrow_exec = state.grid_widgets["exec_box"].geometry()
+        narrow_gap = int(narrow_exec.x() - (narrow_emis.x() + narrow_emis.width()))
+
+        self.window.resize(1680, 900)
+        QApplication.processEvents()
+        self.window._reorganize_advanced_filters_grid(1680)
+        QApplication.processEvents()
+
+        state = self.window._advanced_filter_panel_state
+        grid = state.main_grid
+        wide_hspace = int(grid.horizontalSpacing())
+        wide_vspace = int(grid.verticalSpacing())
+        wide_emis = state.grid_widgets["emis_box"].geometry()
+        wide_exec = state.grid_widgets["exec_box"].geometry()
+        wide_gap = int(wide_exec.x() - (wide_emis.x() + wide_emis.width()))
+
+        assert wide_hspace >= narrow_hspace
+        assert wide_vspace >= narrow_vspace
+        assert wide_gap >= narrow_gap
+        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 320
+        assert int(state.grid_widgets["action_box"].maximumWidth()) <= 320
+
     def test_reprogramacoes_menu_builds_without_responsavel_materialized(self):
         self.window.df_completo = self.base_df.assign(
             num_reprogramacoes=[0, 1, 2, 2, 3]

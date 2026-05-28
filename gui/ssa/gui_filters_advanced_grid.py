@@ -137,6 +137,11 @@ def reorganize_advanced_filters_grid(window: Any, width: int) -> None:
     effective_width, max_scroll_h, controls_scroll = _resolve_grid_viewport_metrics(
         window, width
     )
+    grid, visible = _visible_grid_widgets(window)
+    if not visible:
+        return
+    if grid is not None:
+        _apply_responsive_grid_spacing(grid, effective_width)
     update_advanced_filters_action_buttons(window, effective_width)
     apply_advanced_filters_font_policy(window, effective_width)
     if effective_width < LAYOUT_MIN_VALID_WIDTH:
@@ -144,9 +149,6 @@ def reorganize_advanced_filters_grid(window: Any, width: int) -> None:
     if _advanced_grid_recently_applied(window, effective_width, max_scroll_h):
         return
     _store_advanced_grid_viewport_metrics(window, effective_width, max_scroll_h)
-    grid, visible = _visible_grid_widgets(window)
-    if not visible:
-        return
     try:
         plan = _build_grid_plan(
             window,
@@ -165,7 +167,13 @@ def reorganize_advanced_filters_grid(window: Any, width: int) -> None:
         controls_scroll.setMaximumHeight(plan.scroll_height)
     if not _grid_relayout_needed(window, plan, len(visible)):
         return
-    _apply_grid_plan(window, grid=grid, visible=visible, plan=plan)
+    _apply_grid_plan(
+        window,
+        grid=grid,
+        visible=visible,
+        plan=plan,
+        effective_width=effective_width,
+    )
 
 
 def _current_grid_cols(window: Any, state: Any) -> int:
@@ -256,6 +264,25 @@ def _visible_grid_widgets(window: Any):
         if (widget := widgets.get(name)) is not None
     ]
     return grid, visible
+
+
+def _apply_responsive_grid_spacing(grid: Any, effective_width: int) -> None:
+    if grid is None:
+        return
+    if effective_width >= 930:
+        horizontal_spacing = 12
+        vertical_spacing = 9
+    elif effective_width >= 700:
+        horizontal_spacing = 8
+        vertical_spacing = 6
+    else:
+        horizontal_spacing = 4
+        vertical_spacing = 3
+    try:
+        grid.setHorizontalSpacing(horizontal_spacing)
+        grid.setVerticalSpacing(vertical_spacing)
+    except Exception as exc:
+        logger.debug("Falha ao aplicar espacamento responsivo do grid avancado: %s", exc)
 
 
 def _advanced_grid_spacing_metrics(grid: Any):
@@ -382,7 +409,39 @@ def _grid_relayout_needed(window: Any, plan: Any, visible_count: int) -> bool:
     )
 
 
-def _apply_grid_plan(window: Any, *, grid: Any, visible: list[tuple[str, Any]], plan):
+def _resolve_grid_cell_width_budget(grid: Any, effective_width: int, cols: int) -> int:
+    spacing, horizontal_padding, _vertical_spacing, _vertical_padding = (
+        _advanced_grid_spacing_metrics(grid)
+    )
+    usable_width = max(0, int(effective_width) - int(horizontal_padding))
+    total_spacing = max(0, cols - 1) * max(0, int(spacing))
+    return max(0, (usable_width - total_spacing) // max(1, cols))
+
+
+def _apply_widget_width_cap(widget: Any, width_budget: int, cols: int) -> None:
+    if widget is None:
+        return
+    unbounded_max_width = 16777215
+    if cols <= 1:
+        max_width = unbounded_max_width
+    elif cols == 2:
+        max_width = min(max(240, width_budget), 360)
+    else:
+        max_width = min(max(210, width_budget), 320)
+    try:
+        widget.setMaximumWidth(max_width)
+    except Exception as exc:
+        logger.debug("Falha ao limitar largura de box no grid avancado: %s", exc)
+
+
+def _apply_grid_plan(
+    window: Any,
+    *,
+    grid: Any,
+    visible: list[tuple[str, Any]],
+    plan,
+    effective_width: int,
+):
     state = advanced_panel_state(window)
     if state is None:
         return
@@ -390,10 +449,12 @@ def _apply_grid_plan(window: Any, *, grid: Any, visible: list[tuple[str, Any]], 
     state.grid_cols = plan.cols
     state.last_widget_count = len(visible)
     state.layout_mode = plan.layout_mode
+    width_budget = _resolve_grid_cell_width_budget(grid, effective_width, plan.cols)
     for idx, (_, widget) in enumerate(visible):
         row = idx // plan.cols
         col = idx % plan.cols
         grid.addWidget(widget, row, col)
+        _apply_widget_width_cap(widget, width_budget, plan.cols)
         if not widget.isVisible():
             widget.show()
     _apply_grid_stretch(grid, previous_cols, plan.cols)
