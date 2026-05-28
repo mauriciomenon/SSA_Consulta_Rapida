@@ -9377,8 +9377,7 @@ Delivered in this slice:
    - uv-first command format standardized to `uv run --python 3.13 ...`
    - fallback policy explicitly documented (`3.12 -> 3.11 -> 3.10`)
    - `requirements*.txt` kept as compatibility path.
-4. GUI continuity docs added:
-   - `ANALISE_PROFUNDA_GUI.md`
+4. GUI continuity docs kept tracked:
    - `GUI_SSA_REFACTOR_NOTES.md`
 5. local directories clarified for operations:
    - `.uv-matrix`: isolated uv virtualenvs used for multi-version validation.

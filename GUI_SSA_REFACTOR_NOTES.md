@@ -49,11 +49,9 @@ Manter `gui/gui_ssa.py` estavel como facade publica enquanto a logica continua m
    - e sidequest; manter concentrado em um arquivo, sem invadir GUI PyQt6.
 
 ## Referencias
-- `ANALISE_PROFUNDA_GUI.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/RECOVERY_BACKLOG.md`
 - `docs/PENDING_ACTION_MATRIX.md`
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

@@ -80,7 +80,6 @@ Total itens: 108
 3. Compatibility note:
    - keep `requirements*.txt` for non-uv environments only.
 4. Reference docs for GUI continuity:
-   - `ANALISE_PROFUNDA_GUI.md`
    - `GUI_SSA_REFACTOR_NOTES.md`
 
 ## Update 2026-02-28 (streamlit usability slice: layout + discoverability)
