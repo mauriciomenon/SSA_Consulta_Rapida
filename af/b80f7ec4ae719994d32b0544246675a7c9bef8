@@ -1,0 +1,19 @@
+gui/ssa/gui_filters_advanced_ui.py
+  s_9f052ddda3b0ba::t_b5afe220c0457d 1171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "afb80f7ec4ae719994d32b0544246675a7c9bef8",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
