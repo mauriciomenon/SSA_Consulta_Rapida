@@ -324,6 +324,7 @@ if QT_AVAILABLE:
     from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
     from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
     from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
+    from gui.ssa import gui_theme_dialog as ssa_gui_theme_dialog  # noqa: E402
     from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
     from gui.ssa import list_export_controller as ssa_list_export_controller  # noqa: E402
     from gui.ssa import main_window_resize as ssa_gui_resize  # noqa: E402
@@ -3835,55 +3836,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         popup = self.view().window()
                         if popup is None:
                             return
-                        screen = None
-                        try:
-                            handle = self.windowHandle()
-                            if handle is not None:
-                                screen = handle.screen()
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao obter screen do combo de preferencias: %s",
-                                exc,
-                            )
-                        if screen is None:
-                            try:
-                                screen_at = getattr(QApplication, "screenAt", None)
-                                if callable(screen_at):
-                                    screen = screen_at(
-                                        self.mapToGlobal(self.rect().center())
-                                    )
-                            except Exception as exc:
-                                logger.debug(
-                                    "Falha ao obter screenAt do combo de preferencias: %s",
-                                    exc,
-                                )
-                        if screen is None:
-                            primary_screen_getter = getattr(
-                                QApplication, "primaryScreen", None
-                            )
-                            screen = (
-                                primary_screen_getter()
-                                if callable(primary_screen_getter)
-                                else None
-                            )
-                        if screen is None or not hasattr(screen, "availableGeometry"):
-                            return
-                        available = screen.availableGeometry()
-                        try:
-                            popup.setMaximumHeight(max(180, int(available.height()) - 12))
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao limitar altura do popup de preferencias: %s",
-                                exc,
-                            )
-                        popup.adjustSize()
-                        geometry = popup.frameGeometry()
-                        max_x = available.right() - geometry.width() + 1
-                        max_y = available.bottom() - geometry.height() + 1
-                        target_x = max(available.left(), min(geometry.x(), max_x))
-                        target_y = max(available.top(), min(geometry.y(), max_y))
-                        if target_x != geometry.x() or target_y != geometry.y():
-                            popup.move(target_x, target_y)
+                        ssa_gui_theme_dialog._clamp_theme_popup_to_screen(
+                            self, popup
+                        )
                     except Exception as exc:
                         logger.debug(
                             "Falha ao limitar popup do combo de preferencias na tela: %s",

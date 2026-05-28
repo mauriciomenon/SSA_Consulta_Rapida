@@ -1125,6 +1125,47 @@ class TestGUIFilterLogic:
         assert "combobox-popup: 0" in captured["combo_style"]
         assert captured["view_type"] == "QListView"
 
+    def test_preferences_theme_combo_popup_uses_shared_clamp_helper(
+        self, monkeypatch
+    ):
+        clamp_calls: list[tuple[str, str, bool]] = []
+
+        def _fake_base_show_popup(_self) -> None:
+            return None
+
+        def _fake_single_shot(_delay, callback) -> None:
+            callback()
+
+        def _fake_clamp(combo_box, popup) -> None:
+            clamp_calls.append(
+                (
+                    str(combo_box.objectName() or ""),
+                    type(popup).__name__,
+                    popup is not None,
+                )
+            )
+
+        def _fake_exec(dialog):
+            combo = dialog.findChild(QComboBox, "preferencesThemeCombo")
+            assert combo is not None
+            combo.showPopup()
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QComboBox, "showPopup", _fake_base_show_popup)
+        monkeypatch.setattr(gui_ssa.QTimer, "singleShot", _fake_single_shot)
+        monkeypatch.setattr(
+            gui_ssa.ssa_gui_theme_dialog,
+            "_clamp_theme_popup_to_screen",
+            _fake_clamp,
+        )
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
+        assert len(clamp_calls) >= 1
+        assert all(name == "preferencesThemeCombo" for name, _popup_type, _ok in clamp_calls)
+        assert all(ok for _name, _popup_type, ok in clamp_calls)
+
     def test_details_derivadas_tab_refreshes_when_selection_changes(self, monkeypatch):
         df = pd.DataFrame(
             {

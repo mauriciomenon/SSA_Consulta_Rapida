@@ -8,7 +8,7 @@ from utils.themes import normalize_theme
 logger = get_robust_logger().get_logger(__name__, "gui")
 
 
-def _resolve_theme_dialog_screen_geometry(target_widget, dialog):
+def _resolve_widget_screen_geometry(target_widget):
     from PyQt6.QtWidgets import QApplication
 
     screen = None
@@ -18,50 +18,49 @@ def _resolve_theme_dialog_screen_geometry(target_widget, dialog):
             if handle is not None:
                 screen = handle.screen()
         except Exception as exc:
-            logger.debug("Falha ao obter screen do dialogo de tema: %s", exc)
+            logger.debug("Falha ao obter screen do widget de tema: %s", exc)
         if screen is None:
             try:
-                screen = QApplication.screenAt(target_widget.frameGeometry().center())
+                screen = QApplication.screenAt(target_widget.mapToGlobal(target_widget.rect().center()))
             except Exception as exc:
-                logger.debug("Falha ao obter screenAt do dialogo de tema: %s", exc)
-    if screen is None:
-        try:
-            screen = dialog.screen()
-        except Exception as exc:
-            logger.debug("Falha ao obter screen atual do dialogo de tema: %s", exc)
+                logger.debug("Falha ao obter screenAt do widget de tema: %s", exc)
     if screen is None:
         try:
             screen = QApplication.primaryScreen()
         except Exception as exc:
-            logger.debug("Falha ao obter screen primario do dialogo de tema: %s", exc)
+            logger.debug("Falha ao obter screen primario do widget de tema: %s", exc)
+    if screen is None or not hasattr(screen, "availableGeometry"):
+        return None
+    return screen.availableGeometry()
+
+
+def _resolve_theme_dialog_screen_geometry(target_widget, dialog):
+    from PyQt6.QtWidgets import QApplication
+
+    available = _resolve_widget_screen_geometry(target_widget)
+    if available is not None:
+        return available
+    try:
+        screen = dialog.screen()
+    except Exception as exc:
+        logger.debug("Falha ao obter screen atual do dialogo de tema: %s", exc)
+        screen = None
+    if screen is None or not hasattr(screen, "availableGeometry"):
+        primary_screen_getter = getattr(QApplication, "primaryScreen", None)
+        screen = primary_screen_getter() if callable(primary_screen_getter) else None
     if screen is None or not hasattr(screen, "availableGeometry"):
         return None
     return screen.availableGeometry()
 
 
 def _clamp_theme_popup_to_screen(combo_box, popup) -> None:
-    from PyQt6.QtWidgets import QApplication
-
-    screen = None
-    try:
-        handle = combo_box.windowHandle()
-        if handle is not None:
-            screen = handle.screen()
-    except Exception as exc:
-        logger.debug("Falha ao obter screen do seletor de tema: %s", exc)
-    if screen is None:
-        try:
-            screen = QApplication.screenAt(combo_box.mapToGlobal(combo_box.rect().center()))
-        except Exception as exc:
-            logger.debug("Falha ao obter screenAt do seletor de tema: %s", exc)
-    if screen is None:
-        try:
-            screen = QApplication.primaryScreen()
-        except Exception as exc:
-            logger.debug("Falha ao obter screen primario do seletor de tema: %s", exc)
-    if screen is None or not hasattr(screen, "availableGeometry"):
+    available = _resolve_widget_screen_geometry(combo_box)
+    if available is None:
         return
-    available = screen.availableGeometry()
+    try:
+        popup.setMaximumHeight(max(180, int(available.height()) - 12))
+    except Exception as exc:
+        logger.debug("Falha ao limitar altura do popup de tema: %s", exc)
     popup.adjustSize()
     geometry = popup.frameGeometry()
     max_x = available.right() - geometry.width() + 1
