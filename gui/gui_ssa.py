@@ -3628,42 +3628,67 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if FilterWorker is not None:
                 FilterWorker.reset_shared_cache(max_size=selected_cache_size)
             settings_changed = True
-        auto_load_enabled = bool(state["auto_load_checkbox"].isChecked())
-        if auto_load_enabled != bool(gui_settings.get("auto_load", False)):
-            gui_settings["auto_load"] = auto_load_enabled
-            settings_changed = True
-        show_progress_enabled = bool(state["show_progress_checkbox"].isChecked())
-        if show_progress_enabled != bool(gui_settings.get("show_progress_bar", True)):
-            gui_settings["show_progress_bar"] = show_progress_enabled
-            self._apply_progress_bar_preference(show_progress_enabled)
-            settings_changed = True
-        column_sorting_enabled = bool(state["enable_sort_checkbox"].isChecked())
-        if column_sorting_enabled != bool(
-            gui_settings.get("enable_column_sorting", True)
-        ):
-            gui_settings["enable_column_sorting"] = column_sorting_enabled
-            self._apply_column_sorting_preference(column_sorting_enabled)
-            settings_changed = True
-        show_details_enabled = bool(state["show_details_checkbox"].isChecked())
-        if show_details_enabled != bool(gui_settings.get("show_details_panel", True)):
-            gui_settings["show_details_panel"] = show_details_enabled
-            self._apply_details_panel_visibility_preference(show_details_enabled)
-            settings_changed = True
-        double_click_enabled = bool(state["double_click_checkbox"].isChecked())
-        if double_click_enabled != bool(
-            gui_settings.get("enable_double_click_details", True)
-        ):
-            gui_settings["enable_double_click_details"] = double_click_enabled
-            self._double_click_details_enabled = double_click_enabled
-            settings_changed = True
-        cache_enabled = bool(state["cache_enabled_checkbox"].isChecked())
-        if cache_enabled != bool(gui_settings.get("cache_enabled", True)):
-            gui_settings["cache_enabled"] = cache_enabled
-            settings_changed = True
-        cache_auto_clear = bool(state["cache_auto_clear_checkbox"].isChecked())
-        if cache_auto_clear != bool(gui_settings.get("cache_auto_clear", False)):
-            gui_settings["cache_auto_clear"] = cache_auto_clear
-            if cache_auto_clear:
+        toggle_specs = (
+            ("auto_load_checkbox", "auto_load", False, None, None, False),
+            (
+                "show_progress_checkbox",
+                "show_progress_bar",
+                True,
+                self._apply_progress_bar_preference,
+                None,
+                False,
+            ),
+            (
+                "enable_sort_checkbox",
+                "enable_column_sorting",
+                True,
+                self._apply_column_sorting_preference,
+                None,
+                False,
+            ),
+            (
+                "show_details_checkbox",
+                "show_details_panel",
+                True,
+                self._apply_details_panel_visibility_preference,
+                None,
+                False,
+            ),
+            (
+                "double_click_checkbox",
+                "enable_double_click_details",
+                True,
+                None,
+                "_double_click_details_enabled",
+                False,
+            ),
+            ("cache_enabled_checkbox", "cache_enabled", True, None, None, False),
+            (
+                "cache_auto_clear_checkbox",
+                "cache_auto_clear",
+                False,
+                None,
+                None,
+                True,
+            ),
+        )
+        for (
+            checkbox_key,
+            setting_key,
+            default_value,
+            apply_callback,
+            instance_attr,
+            clear_cache_on_enable,
+        ) in toggle_specs:
+            selected_enabled = bool(state[checkbox_key].isChecked())
+            if selected_enabled == bool(gui_settings.get(setting_key, default_value)):
+                continue
+            gui_settings[setting_key] = selected_enabled
+            if apply_callback is not None:
+                apply_callback(selected_enabled)
+            if instance_attr is not None:
+                setattr(self, instance_attr, selected_enabled)
+            if clear_cache_on_enable and selected_enabled:
                 try:
                     self.clear_filter_cache()
                 except Exception as exc:
