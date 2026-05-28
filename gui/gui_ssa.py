@@ -17,6 +17,7 @@ Para executar: python gui_ssa.py
 # flake8: noqa
 
 import copy
+from functools import partial
 import getpass
 import json
 import logging
@@ -1211,6 +1212,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._show_progress_bar_enabled = bool(
             gui_settings.get("show_progress_bar", True)
         )
+        self._cached_default_mode = str(
+            gui_settings.get("default_filter_mode", "contains") or "contains"
+        )
         self._details_panel_enabled = bool(
             gui_settings.get("show_details_panel", True)
         )
@@ -1271,6 +1275,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get(
             "column_widths", {}
         ).copy()
+        self._gui_column_pixel_widths = {}
 
         debounce_delay = ssa_system_controller.resolve_search_debounce_ms(
             gui_settings,
@@ -3213,6 +3218,549 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return True
         return self._persist_gui_preferences()
 
+    def _restore_preferences_dialog_defaults(
+        self,
+        state: dict[str, Any],
+        api_password_edit: QLineEdit,
+        *_args: object,
+    ) -> None:
+        theme_index = state["theme_combo"].findData(state["default_theme"])
+        if theme_index >= 0:
+            state["theme_combo"].setCurrentIndex(theme_index)
+        search_mode_index = state["search_mode_combo"].findData(
+            state["default_search_mode"]
+        )
+        if search_mode_index >= 0:
+            state["search_mode_combo"].setCurrentIndex(search_mode_index)
+        default_gui_settings = state["default_gui_settings"]
+        state["debounce_spin"].setValue(int(default_gui_settings.get("debounce_delay", 800)))
+        state["page_size_spin"].setValue(int(default_gui_settings.get("page_size", 50)))
+        state["window_width_spin"].setValue(
+            int(default_gui_settings.get("window_width", 1200))
+        )
+        state["window_height_spin"].setValue(
+            int(default_gui_settings.get("window_height", 890))
+        )
+        alignment_index = state["alignment_combo"].findData(state["default_alignment"])
+        if alignment_index >= 0:
+            state["alignment_combo"].setCurrentIndex(alignment_index)
+        state["cache_size_spin"].setValue(
+            int(default_gui_settings.get("filter_cache_size", 50))
+        )
+        state["auto_load_checkbox"].setChecked(bool(default_gui_settings.get("auto_load", False)))
+        state["show_progress_checkbox"].setChecked(
+            bool(default_gui_settings.get("show_progress_bar", True))
+        )
+        state["enable_sort_checkbox"].setChecked(
+            bool(default_gui_settings.get("enable_column_sorting", True))
+        )
+        state["show_details_checkbox"].setChecked(
+            bool(default_gui_settings.get("show_details_panel", True))
+        )
+        state["double_click_checkbox"].setChecked(
+            bool(default_gui_settings.get("enable_double_click_details", True))
+        )
+        state["cache_enabled_checkbox"].setChecked(
+            bool(default_gui_settings.get("cache_enabled", True))
+        )
+        state["cache_auto_clear_checkbox"].setChecked(
+            bool(default_gui_settings.get("cache_auto_clear", False))
+        )
+        default_api_options = state["default_api_options"]
+        state["api_enabled_checkbox"].setChecked(bool(default_api_options.enabled))
+        state["api_scrap_checkbox"].setChecked(bool(default_api_options.scrap_report_enabled))
+        state["api_auto_refresh_checkbox"].setChecked(
+            bool(default_api_options.auto_refresh_enabled)
+        )
+        state["api_interval_spin"].setValue(
+            int(default_api_options.auto_refresh_interval_minutes)
+        )
+        state["api_limit_spin"].setValue(int(default_api_options.limit))
+        state["api_years_spin"].setValue(int(default_api_options.number_of_years))
+        state["api_base_url_edit"].setText(str(default_api_options.base_url or ""))
+        state["api_username_edit"].setText(str(default_api_options.username or ""))
+        state["api_secret_service_edit"].setText(
+            str(default_api_options.secret_service or "")
+        )
+        api_password_edit.clear()
+        state["api_extra_sectors_edit"].setText(
+            ", ".join(default_api_options.executor_sectors_extra)
+        )
+        state["api_secure_required_checkbox"].setChecked(
+            bool(default_api_options.secure_required)
+        )
+        default_scopes = {value.casefold() for value in default_api_options.data_scopes}
+        for scope, checkbox in state["scope_checks"].items():
+            checkbox.setChecked(scope.casefold() in default_scopes)
+        default_sectors = {
+            value.casefold() for value in default_api_options.executor_sectors
+        }
+        for sector, checkbox in state["sector_checks"].items():
+            checkbox.setChecked(sector.casefold() in default_sectors)
+        for col_name, spin in state["width_spinboxes"].items():
+            default_width = int(state["runtime_default_widths"].get(col_name, 120) or 120)
+            spin.setValue(default_width)
+        _sync_preferences_extra_sector_validation(
+            state["api_extra_sectors_edit"],
+            state["api_extra_sectors_status"],
+            status_neutral=state["neutral_extra_sector_status"],
+        )
+        self._sync_preferences_api_secret_controls(state, api_password_edit)
+
+    def _require_preferences_secret_identity(
+        self, state: dict[str, Any]
+    ) -> tuple[str, str] | None:
+        username = str(state["api_username_edit"].text() or "").strip()
+        secret_service = str(state["api_secret_service_edit"].text() or "").strip()
+        if not username:
+            QMessageBox.warning(
+                self,
+                "SAM API",
+                "Informe o Usuario SAM antes de validar ou gravar o segredo.",
+            )
+            return None
+        if not secret_service:
+            QMessageBox.warning(
+                self,
+                "SAM API",
+                "Informe a Chave do cofre antes de validar ou gravar o segredo.",
+            )
+            return None
+        return username, secret_service
+
+    @staticmethod
+    def _preferences_scraper_scopes_enabled(state: dict[str, Any]) -> bool:
+        if not state["api_scrap_checkbox"].isChecked():
+            return False
+        return any(
+            checkbox.isChecked() and scope != "consulta"
+            for scope, checkbox in state["scope_checks"].items()
+        )
+
+    def _sync_preferences_api_secret_controls(
+        self,
+        state: dict[str, Any],
+        api_password_edit: QLineEdit,
+        *_args: object,
+    ) -> None:
+        scraper_enabled = self._preferences_scraper_scopes_enabled(state)
+        controls = (
+            state["api_username_edit"],
+            state["api_secret_service_edit"],
+            api_password_edit,
+            state["api_secure_required_checkbox"],
+            state["api_secret_validate_button"],
+            state["api_secret_store_button"],
+        )
+        for widget in controls:
+            widget.setEnabled(scraper_enabled)
+        if scraper_enabled:
+            state["api_username_edit"].setToolTip(
+                "Obrigatorio quando houver escopos via xpath/scrap_report."
+            )
+        else:
+            state["api_username_edit"].setToolTip(
+                "Consulta REST nao exige usuario ou segredo."
+            )
+        secure_required = bool(state["api_secure_required_checkbox"].isChecked())
+        warning_active = scraper_enabled and not secure_required
+        info_text = (
+            state["api_security_info_warning"]
+            if warning_active
+            else state["api_security_info_text"]
+        )
+        info_style = (
+            "color: #f0d6a0; border:1px solid #d6a35a; border-radius:4px; "
+            "padding:4px 6px;"
+            if warning_active
+            else (
+                f"color: {state['support_text_color']}; border:1px solid palette(mid);"
+                "border-radius:4px; padding:4px 6px;"
+            )
+        )
+        state["api_security_info"].setText(info_text)
+        state["api_security_info"].setStyleSheet(info_style)
+
+    def _validate_preferences_secret(
+        self, state: dict[str, Any], *_args: object
+    ) -> None:
+        identity = self._require_preferences_secret_identity(state)
+        if identity is None:
+            return
+        username, secret_service = identity
+        try:
+            run_pai_scrap_report_secret_validate(
+                project_root=Path(project_root),
+                username=username,
+                secret_service=secret_service,
+            )
+        except Exception as exc:
+            logger.warning("Falha ao validar segredo SAM API: %s", exc)
+            QMessageBox.warning(self, "SAM API", f"Falha ao validar segredo: {exc}")
+            return
+        if hasattr(self, "status_label"):
+            self.status_label.setText("Status: Segredo SAM API validado.")
+        QMessageBox.information(self, "SAM API", "Segredo validado com sucesso.")
+
+    def _store_preferences_secret(
+        self,
+        state: dict[str, Any],
+        api_password_edit: QLineEdit,
+        *_args: object,
+    ) -> None:
+        identity = self._require_preferences_secret_identity(state)
+        if identity is None:
+            return
+        password = str(api_password_edit.text() or "")
+        api_password_edit.clear()
+        if not password:
+            QMessageBox.warning(
+                self,
+                "SAM API",
+                "Informe a Senha SAM para gravar no cofre.",
+            )
+            return
+        username, secret_service = identity
+        try:
+            run_pai_scrap_report_secret_set(
+                project_root=Path(project_root),
+                username=username,
+                password=password,
+                secret_service=secret_service,
+            )
+        except Exception as exc:
+            logger.warning("Falha ao gravar segredo SAM API: %s", exc)
+            QMessageBox.warning(self, "SAM API", f"Falha ao gravar segredo: {exc}")
+            return
+        if hasattr(self, "status_label"):
+            self.status_label.setText("Status: Segredo SAM API gravado.")
+        QMessageBox.information(self, "SAM API", "Segredo gravado com sucesso.")
+
+    def _apply_preferences_wheel_guards(self, widgets: tuple[Any, ...]) -> None:
+        for widget in widgets:
+            try:
+                widget.setProperty("ignoreWheelInput", True)
+                widget.installEventFilter(self)
+                line_edit_getter = getattr(widget, "lineEdit", None)
+                line_edit = line_edit_getter() if callable(line_edit_getter) else None
+                if line_edit is not None:
+                    line_edit.setProperty("ignoreWheelInput", True)
+                    line_edit.installEventFilter(self)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao proteger wheel no dialogo de preferencias: %s", exc
+                )
+
+    @staticmethod
+    def _apply_preferences_combo_popup_styles(combos: tuple[Any, ...]) -> None:
+        for combo_widget in combos:
+            try:
+                combo_widget.setStyleSheet("QComboBox { combobox-popup: 0; }")
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao aplicar popup controlado em combo de preferencias: %s",
+                    exc,
+                )
+
+    def _on_preferences_extra_sectors_changed(
+        self, state: dict[str, Any], _text: str
+    ) -> None:
+        _sync_preferences_extra_sector_validation(
+            state["api_extra_sectors_edit"],
+            state["api_extra_sectors_status"],
+            status_neutral=state["neutral_extra_sector_status"],
+        )
+
+    def _execute_preferences_dialog(
+        self, dialog: QDialog, content_scroll: QScrollArea
+    ) -> bool:
+        previous_preferences_scroll = getattr(
+            self, "_preferences_content_scroll_active", None
+        )
+        self._preferences_content_scroll_active = content_scroll
+        try:
+            primary_screen_getter = getattr(QApplication, "primaryScreen", None)
+            screen = primary_screen_getter() if callable(primary_screen_getter) else None
+            if screen is not None and hasattr(screen, "availableGeometry"):
+                available = screen.availableGeometry()
+                safe_width = max(640, int(available.width()) - 24)
+                safe_height = max(520, int(available.height()) - 24)
+                dialog.setMaximumWidth(safe_width)
+                dialog.setMaximumHeight(safe_height)
+                dialog.resize(min(1360, safe_width), min(920, safe_height))
+        except Exception as exc:
+            logger.debug("Falha ao limitar altura da tela de preferencias: %s", exc)
+        try:
+            return dialog.exec() == QDialog.DialogCode.Accepted
+        finally:
+            self._preferences_content_scroll_active = previous_preferences_scroll
+
+    def _validate_preferences_dialog_before_save(
+        self, state: dict[str, Any]
+    ) -> bool:
+        if _sync_preferences_extra_sector_validation(
+            state["api_extra_sectors_edit"],
+            state["api_extra_sectors_status"],
+            status_neutral=state["neutral_extra_sector_status"],
+        ):
+            return True
+        QMessageBox.warning(
+            self,
+            "Preferencias",
+            "Corrija os Setores extras da SAM API antes de salvar.",
+        )
+        return False
+
+    def _apply_preferences_general_settings(
+        self, state: dict[str, Any]
+    ) -> tuple[bool, str, int, bool]:
+        gui_settings = state["gui_settings"]
+        selected_theme = str(state["theme_combo"].currentData() or "").strip()
+        selected_search_mode = str(
+            state["search_mode_combo"].currentData() or "contains"
+        ).strip()
+        selected_debounce = int(state["debounce_spin"].value())
+        page_size = int(state["page_size_spin"].value())
+        current_window_width = int(
+            gui_settings.get(
+                "window_width",
+                getattr(
+                    self,
+                    "_restored_window_width",
+                    max(int(self.width()), 1),
+                ),
+            )
+            or max(int(self.width()), 1)
+        )
+        current_window_height = int(
+            gui_settings.get(
+                "window_height",
+                getattr(
+                    self,
+                    "_restored_window_height",
+                    max(int(self.height()), 1),
+                ),
+            )
+            or max(int(self.height()), 1)
+        )
+        selected_window_width, selected_window_height = (
+            self._sanitize_window_size_preferences(
+                state["window_width_spin"].value(),
+                state["window_height_spin"].value(),
+            )
+        )
+        applied_window_width, applied_window_height = self._fit_window_size_to_screen(
+            selected_window_width,
+            selected_window_height,
+        )
+        page_size_saved = self._save_page_size_pref(page_size)
+        settings_changed = False
+        if (
+            selected_search_mode
+            and selected_search_mode != state["current_search_mode"]
+        ):
+            gui_settings["default_filter_mode"] = selected_search_mode
+            self._cached_default_mode = selected_search_mode
+            settings_changed = True
+        current_debounce = int(
+            gui_settings.get(
+                "debounce_delay",
+                getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250),
+            )
+            or getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250)
+        )
+        if selected_debounce != current_debounce:
+            gui_settings["debounce_delay"] = selected_debounce
+            try:
+                self._debounce_timer.setInterval(selected_debounce)
+            except Exception as exc:
+                logger.debug("Falha ao atualizar debounce da busca: %s", exc)
+            settings_changed = True
+        if (
+            current_window_width != selected_window_width
+            or current_window_height != selected_window_height
+        ):
+            gui_settings["window_width"] = selected_window_width
+            gui_settings["window_height"] = selected_window_height
+            self._restored_window_width = selected_window_width
+            self._restored_window_height = selected_window_height
+            try:
+                self.resize(applied_window_width, applied_window_height)
+                self._last_window_width = self.width()
+            except Exception as exc:
+                logger.debug("Falha ao aplicar tamanho da janela via preferencias: %s", exc)
+            settings_changed = True
+        selected_alignment = str(
+            state["alignment_combo"].currentData() or _DEFAULT_TABLE_CELL_ALIGNMENT
+        ).strip()
+        if selected_alignment and selected_alignment != state["current_alignment"]:
+            self._apply_table_cell_alignment_preference(selected_alignment)
+        selected_cache_size = int(state["cache_size_spin"].value())
+        if selected_cache_size != int(gui_settings.get("filter_cache_size", 50) or 50):
+            gui_settings["filter_cache_size"] = selected_cache_size
+            if FilterWorker is not None and FilterCache is not None:
+                FilterWorker._cache = FilterCache(max_size=selected_cache_size)
+            settings_changed = True
+        auto_load_enabled = bool(state["auto_load_checkbox"].isChecked())
+        if auto_load_enabled != bool(gui_settings.get("auto_load", False)):
+            gui_settings["auto_load"] = auto_load_enabled
+            settings_changed = True
+        show_progress_enabled = bool(state["show_progress_checkbox"].isChecked())
+        if show_progress_enabled != bool(gui_settings.get("show_progress_bar", True)):
+            gui_settings["show_progress_bar"] = show_progress_enabled
+            self._apply_progress_bar_preference(show_progress_enabled)
+            settings_changed = True
+        column_sorting_enabled = bool(state["enable_sort_checkbox"].isChecked())
+        if column_sorting_enabled != bool(
+            gui_settings.get("enable_column_sorting", True)
+        ):
+            gui_settings["enable_column_sorting"] = column_sorting_enabled
+            self._apply_column_sorting_preference(column_sorting_enabled)
+            settings_changed = True
+        show_details_enabled = bool(state["show_details_checkbox"].isChecked())
+        if show_details_enabled != bool(gui_settings.get("show_details_panel", True)):
+            gui_settings["show_details_panel"] = show_details_enabled
+            self._apply_details_panel_visibility_preference(show_details_enabled)
+            settings_changed = True
+        double_click_enabled = bool(state["double_click_checkbox"].isChecked())
+        if double_click_enabled != bool(
+            gui_settings.get("enable_double_click_details", True)
+        ):
+            gui_settings["enable_double_click_details"] = double_click_enabled
+            self._double_click_details_enabled = double_click_enabled
+            settings_changed = True
+        cache_enabled = bool(state["cache_enabled_checkbox"].isChecked())
+        if cache_enabled != bool(gui_settings.get("cache_enabled", True)):
+            gui_settings["cache_enabled"] = cache_enabled
+            settings_changed = True
+        cache_auto_clear = bool(state["cache_auto_clear_checkbox"].isChecked())
+        if cache_auto_clear != bool(gui_settings.get("cache_auto_clear", False)):
+            gui_settings["cache_auto_clear"] = cache_auto_clear
+            if cache_auto_clear:
+                try:
+                    self.clear_filter_cache()
+                except Exception as exc:
+                    logger.debug("Falha ao limpar cache ao aplicar preferencia: %s", exc)
+            settings_changed = True
+        return settings_changed, selected_theme, page_size, page_size_saved
+
+    def _apply_preferences_api_settings(self, state: dict[str, Any]) -> bool:
+        gui_settings = state["gui_settings"]
+        updated_api_settings = copy.deepcopy(gui_settings.get("pai_api", {}))
+        updated_api_settings[PAI_API_ENABLED_KEY] = bool(
+            state["api_enabled_checkbox"].isChecked()
+        )
+        updated_api_settings[PAI_API_SCRAP_ENABLED_KEY] = bool(
+            state["api_scrap_checkbox"].isChecked()
+        )
+        updated_api_settings[PAI_API_AUTO_REFRESH_ENABLED_KEY] = bool(
+            state["api_auto_refresh_checkbox"].isChecked()
+        )
+        updated_api_settings[PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY] = int(
+            state["api_interval_spin"].value()
+        )
+        updated_api_settings[PAI_API_LIMIT_KEY] = int(state["api_limit_spin"].value())
+        updated_api_settings[PAI_API_NUMBER_OF_YEARS_KEY] = int(
+            state["api_years_spin"].value()
+        )
+        updated_api_settings[PAI_API_BASE_URL_KEY] = str(
+            state["api_base_url_edit"].text() or ""
+        ).strip()
+        updated_api_settings[PAI_API_USERNAME_KEY] = str(
+            state["api_username_edit"].text() or ""
+        ).strip()
+        updated_api_settings[PAI_API_SECRET_SERVICE_KEY] = str(
+            state["api_secret_service_edit"].text() or ""
+        ).strip()
+        updated_api_settings[PAI_API_SECURE_REQUIRED_KEY] = bool(
+            state["api_secure_required_checkbox"].isChecked()
+        )
+        updated_api_settings[PAI_API_EXTRA_SECTORS_KEY] = ", ".join(
+            _normalize_pai_api_extra_sector_tokens(
+                str(state["api_extra_sectors_edit"].text() or "")
+            )[0]
+        )
+        updated_api_settings[PAI_API_DATA_SCOPES_KEY] = [
+            scope
+            for scope, checkbox in state["scope_checks"].items()
+            if checkbox.isChecked()
+        ]
+        updated_api_settings[PAI_API_SECTORS_KEY] = [
+            sector
+            for sector, checkbox in state["sector_checks"].items()
+            if checkbox.isChecked()
+        ]
+        if updated_api_settings == gui_settings.get("pai_api", {}):
+            return False
+        gui_settings["pai_api"] = updated_api_settings
+        try:
+            self.initialize_pai_api_auto_refresh()
+        except Exception as exc:
+            logger.debug("Falha ao aplicar preferencias de SAM API: %s", exc)
+        return True
+
+    def _apply_preferences_column_widths(self, state: dict[str, Any]) -> bool:
+        width_settings_changed = False
+        saved_widths = getattr(self, "_saved_gui_column_widths", None)
+        if not isinstance(saved_widths, dict):
+            saved_widths = {}
+            self._saved_gui_column_widths = saved_widths
+        runtime_widths = getattr(self, "_gui_column_pixel_widths", None)
+        if not isinstance(runtime_widths, dict):
+            runtime_widths = {}
+            self._gui_column_pixel_widths = runtime_widths
+        prefs_widths = GUI_MAIN_PREFERENCES.setdefault("column_widths", {})
+        for col_name, spin in state["width_spinboxes"].items():
+            new_width = int(spin.value())
+            previous_width = int(prefs_widths.get(col_name, 0) or 0)
+            if previous_width != new_width:
+                prefs_widths[col_name] = new_width
+                width_settings_changed = True
+            saved_widths[col_name] = new_width
+            runtime_widths[col_name] = new_width
+            column_index = state["current_column_index"].get(col_name)
+            if column_index is None or not hasattr(self, "table_widget"):
+                continue
+            try:
+                old_width = int(self.table_widget.columnWidth(column_index))
+            except Exception:
+                old_width = new_width
+            if old_width != new_width:
+                self.table_widget.setColumnWidth(column_index, new_width)
+                self._on_header_section_resized(column_index, old_width, new_width)
+        return width_settings_changed
+
+    def _apply_preferences_dialog_changes(self, state: dict[str, Any]) -> None:
+        updates_changed = False
+        try:
+            self.setUpdatesEnabled(False)
+            updates_changed = True
+            (
+                settings_changed,
+                selected_theme,
+                page_size,
+                page_size_saved,
+            ) = self._apply_preferences_general_settings(state)
+            if self._apply_preferences_api_settings(state):
+                settings_changed = True
+            if self._apply_preferences_column_widths(state):
+                settings_changed = True
+            if settings_changed and not os.environ.get("PYTEST_CURRENT_TEST"):
+                self._persist_gui_preferences()
+            if selected_theme and selected_theme != state["current_theme"]:
+                self.apply_theme(selected_theme)
+            paginator = getattr(self, "paginator", None)
+            if paginator is not None:
+                paginator.change_page_size(page_size)
+            if not page_size_saved and hasattr(self, "status_label"):
+                self.status_label.setText(
+                    "Status: Linhas por pagina atualizadas, mas a persistencia falhou."
+                )
+        finally:
+            if updates_changed:
+                self.setUpdatesEnabled(True)
+                self.update()
+
     def _open_preferences_dialog(self) -> None:
         gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
         dialog = QDialog(self)
@@ -3793,77 +4341,64 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         neutral_extra_sector_status = (
             "Formato: IEE, MEL1, IEQ1. Somente 3 ou 4 letras/numeros ASCII por token."
         )
+        preference_state: dict[str, Any] = {
+            "default_gui_settings": DEFAULT_GUI_SETTINGS,
+            "default_theme": default_theme,
+            "default_search_mode": default_search_mode,
+            "default_alignment": default_alignment,
+            "default_api_options": default_api_options,
+            "runtime_default_widths": runtime_default_widths,
+            "neutral_extra_sector_status": neutral_extra_sector_status,
+            "support_text_color": support_text_color,
+            "gui_settings": gui_settings,
+            "current_theme": current_theme,
+            "current_search_mode": current_search_mode,
+            "current_alignment": current_alignment,
+            "current_column_index": current_column_index,
+            "theme_combo": theme_combo,
+            "search_mode_combo": search_mode_combo,
+            "debounce_spin": debounce_spin,
+            "page_size_spin": page_size_spin,
+            "window_width_spin": window_width_spin,
+            "window_height_spin": window_height_spin,
+            "alignment_combo": alignment_combo,
+            "cache_size_spin": cache_size_spin,
+            "auto_load_checkbox": auto_load_checkbox,
+            "show_progress_checkbox": show_progress_checkbox,
+            "enable_sort_checkbox": enable_sort_checkbox,
+            "show_details_checkbox": show_details_checkbox,
+            "double_click_checkbox": double_click_checkbox,
+            "cache_enabled_checkbox": cache_enabled_checkbox,
+            "cache_auto_clear_checkbox": cache_auto_clear_checkbox,
+            "api_enabled_checkbox": api_enabled_checkbox,
+            "api_scrap_checkbox": api_scrap_checkbox,
+            "api_auto_refresh_checkbox": api_auto_refresh_checkbox,
+            "api_security_info": api_security_info,
+            "api_security_info_text": api_security_info_text,
+            "api_security_info_warning": api_security_info_warning,
+            "api_interval_spin": api_interval_spin,
+            "api_limit_spin": api_limit_spin,
+            "api_years_spin": api_years_spin,
+            "api_base_url_edit": api_base_url_edit,
+            "api_username_edit": api_username_edit,
+            "api_secret_service_edit": api_secret_service_edit,
+            "api_secure_required_checkbox": api_secure_required_checkbox,
+            "api_secret_validate_button": api_secret_validate_button,
+            "api_secret_store_button": api_secret_store_button,
+            "scope_checks": scope_checks,
+            "sector_checks": sector_checks,
+            "api_extra_sectors_edit": api_extra_sectors_edit,
+            "api_extra_sectors_status": api_extra_sectors_status,
+            "width_spinboxes": width_spinboxes,
+        }
 
-        def _restore_defaults() -> None:
-            theme_index = theme_combo.findData(default_theme)
-            if theme_index >= 0:
-                theme_combo.setCurrentIndex(theme_index)
-            search_mode_index = search_mode_combo.findData(default_search_mode)
-            if search_mode_index >= 0:
-                search_mode_combo.setCurrentIndex(search_mode_index)
-            debounce_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("debounce_delay", 800)))
-            page_size_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("page_size", 50)))
-            window_width_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("window_width", 1200)))
-            window_height_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("window_height", 890)))
-            alignment_index = alignment_combo.findData(default_alignment)
-            if alignment_index >= 0:
-                alignment_combo.setCurrentIndex(alignment_index)
-            cache_size_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("filter_cache_size", 50)))
-            auto_load_checkbox.setChecked(bool(DEFAULT_GUI_SETTINGS.get("auto_load", False)))
-            show_progress_checkbox.setChecked(
-                bool(DEFAULT_GUI_SETTINGS.get("show_progress_bar", True))
+        defaults_button.clicked.connect(
+            partial(
+                self._restore_preferences_dialog_defaults,
+                preference_state,
+                api_password_edit,
             )
-            enable_sort_checkbox.setChecked(
-                bool(DEFAULT_GUI_SETTINGS.get("enable_column_sorting", True))
-            )
-            show_details_checkbox.setChecked(
-                bool(DEFAULT_GUI_SETTINGS.get("show_details_panel", True))
-            )
-            double_click_checkbox.setChecked(
-                bool(DEFAULT_GUI_SETTINGS.get("enable_double_click_details", True))
-            )
-            cache_enabled_checkbox.setChecked(
-                bool(DEFAULT_GUI_SETTINGS.get("cache_enabled", True))
-            )
-            cache_auto_clear_checkbox.setChecked(
-                bool(DEFAULT_GUI_SETTINGS.get("cache_auto_clear", False))
-            )
-            api_enabled_checkbox.setChecked(bool(default_api_options.enabled))
-            api_scrap_checkbox.setChecked(bool(default_api_options.scrap_report_enabled))
-            api_auto_refresh_checkbox.setChecked(
-                bool(default_api_options.auto_refresh_enabled)
-            )
-            api_interval_spin.setValue(int(default_api_options.auto_refresh_interval_minutes))
-            api_limit_spin.setValue(int(default_api_options.limit))
-            api_years_spin.setValue(int(default_api_options.number_of_years))
-            api_base_url_edit.setText(str(default_api_options.base_url or ""))
-            api_username_edit.setText(str(default_api_options.username or ""))
-            api_secret_service_edit.setText(str(default_api_options.secret_service or ""))
-            api_password_edit.clear()
-            api_extra_sectors_edit.setText(
-                ", ".join(default_api_options.executor_sectors_extra)
-            )
-            api_secure_required_checkbox.setChecked(
-                bool(default_api_options.secure_required)
-            )
-            default_scopes = {value.casefold() for value in default_api_options.data_scopes}
-            for scope, checkbox in scope_checks.items():
-                checkbox.setChecked(scope.casefold() in default_scopes)
-            default_sectors = {
-                value.casefold() for value in default_api_options.executor_sectors
-            }
-            for sector, checkbox in sector_checks.items():
-                checkbox.setChecked(sector.casefold() in default_sectors)
-            for col_name, spin in width_spinboxes.items():
-                default_width = int(runtime_default_widths.get(col_name, 120) or 120)
-                spin.setValue(default_width)
-            _sync_preferences_extra_sector_validation(
-                api_extra_sectors_edit,
-                api_extra_sectors_status,
-                status_neutral=neutral_extra_sector_status,
-            )
-
-        defaults_button.clicked.connect(_restore_defaults)
+        )
         footer_label = QLabel(build_about_summary_line(self._app_version))
         footer_label.setObjectName("preferencesFooterLabel")
         footer_label.setStyleSheet(
@@ -3883,126 +4418,38 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         footer_row.addWidget(cast(Any, buttons))
         layout.addLayout(cast(Any, footer_row))
 
-        def _require_secret_identity() -> tuple[str, str] | None:
-            username = str(api_username_edit.text() or "").strip()
-            secret_service = str(api_secret_service_edit.text() or "").strip()
-            if not username:
-                QMessageBox.warning(
-                    self,
-                    "SAM API",
-                    "Informe o Usuario SAM antes de validar ou gravar o segredo.",
-                )
-                return None
-            if not secret_service:
-                QMessageBox.warning(
-                    self,
-                    "SAM API",
-                    "Informe a Chave do cofre antes de validar ou gravar o segredo.",
-                )
-                return None
-            return username, secret_service
-
-        def _scraper_scopes_enabled() -> bool:
-            if not api_scrap_checkbox.isChecked():
-                return False
-            return any(
-                checkbox.isChecked() and scope != "consulta"
-                for scope, checkbox in scope_checks.items()
-            )
-
-        def _sync_api_secret_controls() -> None:
-            scraper_enabled = _scraper_scopes_enabled()
-            controls = (
-                api_username_edit,
-                api_secret_service_edit,
+        api_secret_validate_button.clicked.connect(
+            partial(self._validate_preferences_secret, preference_state)
+        )
+        api_secret_store_button.clicked.connect(
+            partial(
+                self._store_preferences_secret,
+                preference_state,
                 api_password_edit,
-                api_secure_required_checkbox,
-                api_secret_validate_button,
-                api_secret_store_button,
             )
-            for widget in controls:
-                widget.setEnabled(scraper_enabled)
-            if scraper_enabled:
-                api_username_edit.setToolTip(
-                    "Obrigatorio quando houver escopos via xpath/scrap_report."
-                )
-            else:
-                api_username_edit.setToolTip(
-                    "Consulta REST nao exige usuario ou segredo."
-                )
-            secure_required = bool(api_secure_required_checkbox.isChecked())
-            warning_active = scraper_enabled and not secure_required
-            info_text = (
-                api_security_info_warning if warning_active else api_security_info_text
+        )
+        api_scrap_checkbox.toggled.connect(
+            partial(
+                self._sync_preferences_api_secret_controls,
+                preference_state,
+                api_password_edit,
             )
-            info_style = (
-                "color: #f0d6a0; border:1px solid #d6a35a; border-radius:4px; "
-                "padding:4px 6px;"
-                if warning_active
-                else (
-                    f"color: {support_text_color}; border:1px solid palette(mid);"
-                    "border-radius:4px; padding:4px 6px;"
-                )
+        )
+        api_secure_required_checkbox.toggled.connect(
+            partial(
+                self._sync_preferences_api_secret_controls,
+                preference_state,
+                api_password_edit,
             )
-            api_security_info.setText(info_text)
-            api_security_info.setStyleSheet(info_style)
-
-        def _validate_secret() -> None:
-            identity = _require_secret_identity()
-            if identity is None:
-                return
-            username, secret_service = identity
-            try:
-                run_pai_scrap_report_secret_validate(
-                    project_root=Path(project_root),
-                    username=username,
-                    secret_service=secret_service,
-                )
-            except Exception as exc:
-                logger.warning("Falha ao validar segredo SAM API: %s", exc)
-                QMessageBox.warning(self, "SAM API", f"Falha ao validar segredo: {exc}")
-                return
-            if hasattr(self, "status_label"):
-                self.status_label.setText("Status: Segredo SAM API validado.")
-            QMessageBox.information(self, "SAM API", "Segredo validado com sucesso.")
-
-        def _store_secret() -> None:
-            identity = _require_secret_identity()
-            if identity is None:
-                return
-            password = str(api_password_edit.text() or "")
-            api_password_edit.clear()
-            if not password:
-                QMessageBox.warning(
-                    self,
-                    "SAM API",
-                    "Informe a Senha SAM para gravar no cofre.",
-                )
-                return
-            username, secret_service = identity
-            try:
-                run_pai_scrap_report_secret_set(
-                    project_root=Path(project_root),
-                    username=username,
-                    password=password,
-                    secret_service=secret_service,
-                )
-            except Exception as exc:
-                logger.warning("Falha ao gravar segredo SAM API: %s", exc)
-                QMessageBox.warning(self, "SAM API", f"Falha ao gravar segredo: {exc}")
-                return
-            finally:
-                password = None
-            if hasattr(self, "status_label"):
-                self.status_label.setText("Status: Segredo SAM API gravado.")
-            QMessageBox.information(self, "SAM API", "Segredo gravado com sucesso.")
-
-        api_secret_validate_button.clicked.connect(_validate_secret)
-        api_secret_store_button.clicked.connect(_store_secret)
-        api_scrap_checkbox.toggled.connect(_sync_api_secret_controls)
-        api_secure_required_checkbox.toggled.connect(_sync_api_secret_controls)
+        )
         for checkbox in scope_checks.values():
-            checkbox.toggled.connect(_sync_api_secret_controls)
+            checkbox.toggled.connect(
+                partial(
+                    self._sync_preferences_api_secret_controls,
+                    preference_state,
+                    api_password_edit,
+                )
+            )
         wheel_guard_widgets = (
             theme_combo,
             search_mode_combo,
@@ -4017,289 +4464,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             api_years_spin,
             *tuple(width_spinboxes.values()),
         )
-        for widget in wheel_guard_widgets:
-            try:
-                widget.setProperty("ignoreWheelInput", True)
-                widget.installEventFilter(self)
-                line_edit_getter = getattr(widget, "lineEdit", None)
-                line_edit = line_edit_getter() if callable(line_edit_getter) else None
-                if line_edit is not None:
-                    line_edit.setProperty("ignoreWheelInput", True)
-                    line_edit.installEventFilter(self)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao proteger wheel no dialogo de preferencias: %s", exc
-                )
-        for combo_widget in (theme_combo, search_mode_combo, alignment_combo):
-            try:
-                combo_widget.setStyleSheet("QComboBox { combobox-popup: 0; }")
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar popup controlado em combo de preferencias: %s",
-                    exc,
-                )
-        def _on_extra_sectors_changed(_text: str) -> None:
-            _sync_preferences_extra_sector_validation(
-                api_extra_sectors_edit,
-                api_extra_sectors_status,
-                status_neutral=neutral_extra_sector_status,
-            )
-
-        api_extra_sectors_edit.textChanged.connect(_on_extra_sectors_changed)
-        _sync_preferences_extra_sector_validation(
-            api_extra_sectors_edit,
-            api_extra_sectors_status,
-            status_neutral=neutral_extra_sector_status,
+        self._apply_preferences_wheel_guards(wheel_guard_widgets)
+        self._apply_preferences_combo_popup_styles(
+            (theme_combo, search_mode_combo, alignment_combo)
         )
-        _sync_api_secret_controls()
+        api_extra_sectors_edit.textChanged.connect(
+            partial(self._on_preferences_extra_sectors_changed, preference_state)
+        )
+        self._on_preferences_extra_sectors_changed(preference_state, "")
+        self._sync_preferences_api_secret_controls(preference_state, api_password_edit)
         selector = getattr(self, "column_selector", None)
         if selector is not None:
             columns_button.clicked.connect(selector.open_dialog)
         else:
             columns_button.setEnabled(False)
 
-        previous_preferences_scroll = getattr(
-            self, "_preferences_content_scroll_active", None
-        )
-        self._preferences_content_scroll_active = content_scroll
-        try:
-            primary_screen_getter = getattr(QApplication, "primaryScreen", None)
-            screen = primary_screen_getter() if callable(primary_screen_getter) else None
-            if screen is not None and hasattr(screen, "availableGeometry"):
-                available = screen.availableGeometry()
-                safe_width = max(640, int(available.width()) - 24)
-                safe_height = max(520, int(available.height()) - 24)
-                dialog.setMaximumWidth(safe_width)
-                dialog.setMaximumHeight(safe_height)
-                dialog.resize(min(1360, safe_width), min(920, safe_height))
-        except Exception as exc:
-            logger.debug("Falha ao limitar altura da tela de preferencias: %s", exc)
-        try:
-            accepted = dialog.exec() == QDialog.DialogCode.Accepted
-        finally:
-            self._preferences_content_scroll_active = previous_preferences_scroll
+        accepted = self._execute_preferences_dialog(dialog, content_scroll)
         if not accepted:
             return
-        if not _sync_preferences_extra_sector_validation(
-            api_extra_sectors_edit,
-            api_extra_sectors_status,
-            status_neutral=neutral_extra_sector_status,
-        ):
-            QMessageBox.warning(
-                self,
-                "Preferencias",
-                "Corrija os Setores extras da SAM API antes de salvar.",
-            )
+        if not self._validate_preferences_dialog_before_save(preference_state):
             return
-        selected_theme = str(theme_combo.currentData() or "").strip()
-        selected_search_mode = str(search_mode_combo.currentData() or "contains").strip()
-        selected_debounce = int(debounce_spin.value())
-        page_size = int(page_size_spin.value())
-        current_window_width = int(
-            gui_settings.get(
-                "window_width",
-                getattr(
-                    self,
-                    "_restored_window_width",
-                    DEFAULT_GUI_SETTINGS.get("window_width", 1200),
-                ),
-            )
-            or DEFAULT_GUI_SETTINGS.get("window_width", 1200)
-        )
-        current_window_height = int(
-            gui_settings.get(
-                "window_height",
-                getattr(
-                    self,
-                    "_restored_window_height",
-                    DEFAULT_GUI_SETTINGS.get("window_height", 890),
-                ),
-            )
-            or DEFAULT_GUI_SETTINGS.get("window_height", 890)
-        )
-        selected_window_width, selected_window_height = (
-            self._sanitize_window_size_preferences(
-                window_width_spin.value(),
-                window_height_spin.value(),
-            )
-        )
-        applied_window_width, applied_window_height = self._fit_window_size_to_screen(
-            selected_window_width,
-            selected_window_height,
-        )
-        page_size_saved = self._save_page_size_pref(page_size)
-        settings_changed = False
-        if (
-            selected_search_mode
-            and selected_search_mode != current_search_mode
-        ):
-            gui_settings["default_filter_mode"] = selected_search_mode
-            self._cached_default_mode = selected_search_mode
-            settings_changed = True
-        current_debounce = int(
-            gui_settings.get(
-                "debounce_delay",
-                getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250),
-            )
-            or getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250)
-        )
-        if selected_debounce != current_debounce:
-            gui_settings["debounce_delay"] = selected_debounce
-            try:
-                self._debounce_timer.setInterval(selected_debounce)
-            except Exception as exc:
-                logger.debug("Falha ao atualizar debounce da busca: %s", exc)
-            settings_changed = True
-        if (
-            current_window_width != selected_window_width
-            or current_window_height != selected_window_height
-        ):
-            gui_settings["window_width"] = selected_window_width
-            gui_settings["window_height"] = selected_window_height
-            self._restored_window_width = selected_window_width
-            self._restored_window_height = selected_window_height
-            try:
-                self.resize(applied_window_width, applied_window_height)
-                self._last_window_width = self.width()
-            except Exception as exc:
-                logger.debug("Falha ao aplicar tamanho da janela via preferencias: %s", exc)
-            settings_changed = True
-        selected_alignment = str(
-            alignment_combo.currentData() or _DEFAULT_TABLE_CELL_ALIGNMENT
-        ).strip()
-        if selected_alignment and selected_alignment != current_alignment:
-            self._apply_table_cell_alignment_preference(selected_alignment)
-        selected_cache_size = int(cache_size_spin.value())
-        if selected_cache_size != int(gui_settings.get("filter_cache_size", 50) or 50):
-            gui_settings["filter_cache_size"] = selected_cache_size
-            if FilterWorker is not None and FilterCache is not None:
-                FilterWorker._cache = FilterCache(max_size=selected_cache_size)
-            settings_changed = True
-        auto_load_enabled = bool(auto_load_checkbox.isChecked())
-        if auto_load_enabled != bool(gui_settings.get("auto_load", False)):
-            gui_settings["auto_load"] = auto_load_enabled
-            settings_changed = True
-        show_progress_enabled = bool(show_progress_checkbox.isChecked())
-        if show_progress_enabled != bool(gui_settings.get("show_progress_bar", True)):
-            gui_settings["show_progress_bar"] = show_progress_enabled
-            self._apply_progress_bar_preference(show_progress_enabled)
-            settings_changed = True
-        column_sorting_enabled = bool(enable_sort_checkbox.isChecked())
-        if column_sorting_enabled != bool(
-            gui_settings.get("enable_column_sorting", True)
-        ):
-            gui_settings["enable_column_sorting"] = column_sorting_enabled
-            self._apply_column_sorting_preference(column_sorting_enabled)
-            settings_changed = True
-        show_details_enabled = bool(show_details_checkbox.isChecked())
-        if show_details_enabled != bool(gui_settings.get("show_details_panel", True)):
-            gui_settings["show_details_panel"] = show_details_enabled
-            self._apply_details_panel_visibility_preference(show_details_enabled)
-            settings_changed = True
-        double_click_enabled = bool(double_click_checkbox.isChecked())
-        if double_click_enabled != bool(
-            gui_settings.get("enable_double_click_details", True)
-        ):
-            gui_settings["enable_double_click_details"] = double_click_enabled
-            self._double_click_details_enabled = double_click_enabled
-            settings_changed = True
-        cache_enabled = bool(cache_enabled_checkbox.isChecked())
-        if cache_enabled != bool(gui_settings.get("cache_enabled", True)):
-            gui_settings["cache_enabled"] = cache_enabled
-            settings_changed = True
-        cache_auto_clear = bool(cache_auto_clear_checkbox.isChecked())
-        if cache_auto_clear != bool(gui_settings.get("cache_auto_clear", False)):
-            gui_settings["cache_auto_clear"] = cache_auto_clear
-            if cache_auto_clear:
-                try:
-                    self.clear_filter_cache()
-                except Exception as exc:
-                    logger.debug("Falha ao limpar cache ao aplicar preferencia: %s", exc)
-            settings_changed = True
-        updated_api_settings = copy.deepcopy(gui_settings.get("pai_api", {}))
-        updated_api_settings[PAI_API_ENABLED_KEY] = bool(api_enabled_checkbox.isChecked())
-        updated_api_settings[PAI_API_SCRAP_ENABLED_KEY] = bool(
-            api_scrap_checkbox.isChecked()
-        )
-        updated_api_settings[PAI_API_AUTO_REFRESH_ENABLED_KEY] = bool(
-            api_auto_refresh_checkbox.isChecked()
-        )
-        updated_api_settings[PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY] = int(
-            api_interval_spin.value()
-        )
-        updated_api_settings[PAI_API_LIMIT_KEY] = int(api_limit_spin.value())
-        updated_api_settings[PAI_API_NUMBER_OF_YEARS_KEY] = int(api_years_spin.value())
-        updated_api_settings[PAI_API_BASE_URL_KEY] = str(
-            api_base_url_edit.text() or ""
-        ).strip()
-        updated_api_settings[PAI_API_USERNAME_KEY] = str(
-            api_username_edit.text() or ""
-        ).strip()
-        updated_api_settings[PAI_API_SECRET_SERVICE_KEY] = str(
-            api_secret_service_edit.text() or ""
-        ).strip()
-        updated_api_settings[PAI_API_SECURE_REQUIRED_KEY] = bool(
-            api_secure_required_checkbox.isChecked()
-        )
-        updated_api_settings[PAI_API_EXTRA_SECTORS_KEY] = ", ".join(
-            _normalize_pai_api_extra_sector_tokens(
-                str(api_extra_sectors_edit.text() or "")
-            )[0]
-        )
-        updated_api_settings[PAI_API_DATA_SCOPES_KEY] = [
-            scope for scope, checkbox in scope_checks.items() if checkbox.isChecked()
-        ]
-        updated_api_settings[PAI_API_SECTORS_KEY] = [
-            sector for sector, checkbox in sector_checks.items() if checkbox.isChecked()
-        ]
-        if updated_api_settings != gui_settings.get("pai_api", {}):
-            gui_settings["pai_api"] = updated_api_settings
-            try:
-                self.initialize_pai_api_auto_refresh()
-            except Exception as exc:
-                logger.debug("Falha ao aplicar preferencias de SAM API: %s", exc)
-            settings_changed = True
-        width_settings_changed = False
-        saved_widths = getattr(self, "_saved_gui_column_widths", None)
-        if not isinstance(saved_widths, dict):
-            saved_widths = {}
-            self._saved_gui_column_widths = saved_widths
-        runtime_widths = getattr(self, "_gui_column_pixel_widths", None)
-        if not isinstance(runtime_widths, dict):
-            runtime_widths = {}
-            self._gui_column_pixel_widths = runtime_widths
-        prefs_widths = GUI_MAIN_PREFERENCES.setdefault("column_widths", {})
-        for col_name, spin in width_spinboxes.items():
-            new_width = int(spin.value())
-            previous_width = int(prefs_widths.get(col_name, 0) or 0)
-            if previous_width != new_width:
-                prefs_widths[col_name] = new_width
-                width_settings_changed = True
-            saved_widths[col_name] = new_width
-            runtime_widths[col_name] = new_width
-            column_index = current_column_index.get(col_name)
-            if column_index is None or not hasattr(self, "table_widget"):
-                continue
-            try:
-                old_width = int(self.table_widget.columnWidth(column_index))
-            except Exception:
-                old_width = new_width
-            if old_width != new_width:
-                self.table_widget.setColumnWidth(column_index, new_width)
-                self._on_header_section_resized(column_index, old_width, new_width)
-        if width_settings_changed:
-            settings_changed = True
-        if settings_changed and not os.environ.get("PYTEST_CURRENT_TEST"):
-            self._persist_gui_preferences()
-        if selected_theme and selected_theme != current_theme:
-            self.apply_theme(selected_theme)
-        paginator = getattr(self, "paginator", None)
-        if paginator is not None:
-            paginator.change_page_size(page_size)
-        if not page_size_saved and hasattr(self, "status_label"):
-            self.status_label.setText(
-                "Status: Linhas por pagina atualizadas, mas a persistencia falhou."
-            )
+        self._apply_preferences_dialog_changes(preference_state)
 
     def _get_series_from_row(self, row: int):
         visible_numero = self._get_visible_numero_ssa_from_row(row)
