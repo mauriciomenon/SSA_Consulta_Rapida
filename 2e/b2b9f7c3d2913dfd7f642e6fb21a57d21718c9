@@ -1,0 +1,35 @@
+gui/ssa/table_sorting.py
+  s_9f052ddda3b0ba::t_40c05d50807b0b 116,303,368,375-376
+  s_9f052ddda3b0ba::t_b4331b0468e233 386-391,394-398,401,404
+  s_9f052ddda3b0ba::t_270c9ec0320f52 63-64,67-68,71,185-186,204,211,300,317-318,320-328
+  s_9f052ddda3b0ba::t_c38b8da5e27bb5 156-158,226-228,329-361
+  s_9f052ddda3b0ba::t_8527ab224da8de 57,159,207,229,244,252-254,259,281-299,301-302,304-305,307-314
+  s_9f052ddda3b0ba::t_7924bba4e0efe6 49,55,60,153,155,161,170,176,182,219,225,230,236,242-243
+  s_9f052ddda3b0ba::t_dd3fa5b1e30d73 5,34-48,50,52,54,58-59,61,69-70,72,150-152,154,166-169,171,173,175,178-181,183,205-206,208-210,212,216-218,220,222,224,234-235,237,239,241,245-247,251,255,263-270,274,276-278
+tests/test_table_performance_guards.py
+  s_9f052ddda3b0ba::t_d8330cf8f07ca4 162-163
+  s_9f052ddda3b0ba::t_0721a5fa8f3104 164-167
+  s_9f052ddda3b0ba::t_dd8e77faecf448 92,99-104,106-107,130,136-160
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_31a53120a72223 488-499,947-952
+  s_9f052ddda3b0ba::t_e13c9aab759bc4 1488,2148
+  s_9f052ddda3b0ba::t_88834b83d4f5fd 5441-5443
+  s_9f052ddda3b0ba::t_80c795bbd8746d 1486,2095-2101,2104,2122-2126,2128-2129,2134-2141,2144,2153-2159,2162,2165-2168
+  s_9f052ddda3b0ba::t_6a813fed798455 2102-2103,2142-2143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2eb2b9f7c3d2913dfd7f642e6fb21a57d21718c9",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
