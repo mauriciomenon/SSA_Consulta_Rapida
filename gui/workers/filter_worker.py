@@ -46,6 +46,14 @@ class FilterWorker(QThread):
     # Cache de classe compartilhado entre instancias
     _cache = FilterCache(max_size=50)
 
+    @classmethod
+    def reset_shared_cache(cls, max_size: int = 50) -> None:
+        cls._cache = FilterCache(max_size=max_size)
+
+    @classmethod
+    def clear_shared_cache(cls) -> None:
+        cls._cache.clear()
+
     def __init__(
         self,
         df_completo,

@@ -1515,8 +1515,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Configura cache size da configuração
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         cache_size = gui_settings.get("filter_cache_size", 50)
-        if FilterWorker is not None and FilterCache is not None:
-            FilterWorker._cache = FilterCache(max_size=cache_size)
+        if FilterWorker is not None:
+            FilterWorker.reset_shared_cache(max_size=int(cache_size))
         else:
             logger.warning(
                 "FilterWorker/FilterCache indisponivel; cache de filtro nao inicializado"
@@ -3521,8 +3521,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         finally:
             self._preferences_content_scroll_active = previous_preferences_scroll
 
+    @staticmethod
     def _validate_preferences_dialog_before_save(
-        self, state: dict[str, Any]
+        parent: QWidget, state: dict[str, Any]
     ) -> bool:
         if _sync_preferences_extra_sector_validation(
             state["api_extra_sectors_edit"],
@@ -3531,7 +3532,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         ):
             return True
         QMessageBox.warning(
-            self,
+            parent,
             "Preferencias",
             "Corrija os Setores extras da SAM API antes de salvar.",
         )
@@ -3624,8 +3625,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         selected_cache_size = int(state["cache_size_spin"].value())
         if selected_cache_size != int(gui_settings.get("filter_cache_size", 50) or 50):
             gui_settings["filter_cache_size"] = selected_cache_size
-            if FilterWorker is not None and FilterCache is not None:
-                FilterWorker._cache = FilterCache(max_size=selected_cache_size)
+            if FilterWorker is not None:
+                FilterWorker.reset_shared_cache(max_size=selected_cache_size)
             settings_changed = True
         auto_load_enabled = bool(state["auto_load_checkbox"].isChecked())
         if auto_load_enabled != bool(gui_settings.get("auto_load", False)):
@@ -4508,7 +4509,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         accepted = self._execute_preferences_dialog(dialog, content_scroll)
         if not accepted:
             return
-        if not self._validate_preferences_dialog_before_save(preference_state):
+        if not self._validate_preferences_dialog_before_save(self, preference_state):
             return
         self._apply_preferences_dialog_changes(preference_state)
 

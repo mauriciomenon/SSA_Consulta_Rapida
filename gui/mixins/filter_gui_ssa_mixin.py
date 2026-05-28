@@ -1241,9 +1241,9 @@ class FilterGUISSAMixin:
     def clear_filter_cache(self):
         """Limpa o cache de filtros."""
         # Usa logger e verifica disponibilidade do FilterWorker e cache
-        if FilterWorker is not None and hasattr(FilterWorker, "_cache"):
+        if FilterWorker is not None:
             try:
-                FilterWorker._cache.clear()
+                FilterWorker.clear_shared_cache()
                 logger.debug("Cache de filtros limpo")
             except Exception as e:  # pragma: no cover
                 logger.debug("Falha ao limpar cache de filtros: %s", e)
