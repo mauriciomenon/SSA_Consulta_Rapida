@@ -9,6 +9,15 @@ import pandas as pd
 
 
 MAX_SORT_CACHE_ROWS = 120_000
+PLAIN_TEXT_SORT_COLUMNS = frozenset(
+    {
+        "descricao_ssa",
+        "descricao_execucao",
+        "solicitante",
+        "responsavel_programacao",
+        "responsavel_execucao",
+    }
+)
 
 
 def empty_num_reprogramacoes_sort_keys(index: pd.Index | None = None) -> pd.DataFrame:
@@ -70,6 +79,8 @@ def should_use_mixed_text_sort(source_df: pd.DataFrame, column_name: str) -> boo
     if not isinstance(source_df, pd.DataFrame):
         return False
     if column_name not in source_df.columns:
+        return False
+    if column_name in PLAIN_TEXT_SORT_COLUMNS:
         return False
     series = source_df[column_name]
     dtype = getattr(series, "dtype", None)
@@ -134,8 +145,6 @@ def get_mixed_text_sort_keys(
         _store_mixed_text_sort_cache(
             window, column_name, source_marker, source_len, keys_df
         )
-    if not isinstance(keys_df, pd.DataFrame):
-        keys_df = _build_mixed_text_sort_keys_for_window(window, source_df[column_name])
     return keys_df
 
 
@@ -202,8 +211,6 @@ def get_num_reprogramacoes_sort_keys(window: Any) -> pd.DataFrame:
     if keys_df is None:
         keys_df = _build_num_reprogramacoes_sort_keys_for_window(window, source_df)
         _store_num_reprogramacoes_sort_cache(window, source_marker, source_len, keys_df)
-    if not isinstance(keys_df, pd.DataFrame):
-        keys_df = _build_num_reprogramacoes_sort_keys_for_window(window, source_df)
     return keys_df
 
 
@@ -242,7 +249,7 @@ def _store_mixed_text_sort_cache(
     source_len: int,
     keys_df: pd.DataFrame,
 ) -> None:
-    _store_sort_cache(
+    _store_or_reset_sort_cache(
         window,
         cache_attr="_mixed_text_sort_cache",
         reset_method="_reset_mixed_text_sort_cache",
@@ -262,7 +269,7 @@ def _store_num_reprogramacoes_sort_cache(
     source_len: int,
     keys_df: pd.DataFrame,
 ) -> None:
-    _store_sort_cache(
+    _store_or_reset_sort_cache(
         window,
         cache_attr="_num_reprog_sort_cache",
         reset_method="_reset_num_reprogramacoes_sort_cache",
@@ -275,7 +282,7 @@ def _store_num_reprogramacoes_sort_cache(
     )
 
 
-def _store_sort_cache(
+def _store_or_reset_sort_cache(
     window: Any,
     *,
     cache_attr: str,
@@ -312,19 +319,21 @@ def _get_sort_cache_base_token(source_df: pd.DataFrame) -> str:
 
 def _sample_sort_cache_values(
     source_df: pd.DataFrame, columns: tuple[str, ...]
-) -> tuple[tuple[str, ...], ...]:
+) -> tuple[tuple[object | None, ...], ...]:
     if source_df.empty:
         return tuple()
     row_indexes = sorted({0, len(source_df.index) // 2, len(source_df.index) - 1})
-    values: list[tuple[str, ...]] = []
-    for row_index in row_indexes:
-        row_values: list[str] = []
+    safe_columns = [column for column in columns if column in source_df.columns]
+    sampled_df = source_df.iloc[row_indexes][safe_columns] if safe_columns else None
+    values: list[tuple[object | None, ...]] = []
+    for sample_pos in range(len(row_indexes)):
+        row_values: list[object | None] = []
         for column in columns:
-            if column not in source_df.columns:
+            if sampled_df is None or column not in safe_columns:
                 row_values.append("")
                 continue
-            value = source_df.iloc[row_index][column]
-            row_values.append("" if pd.isna(value) else str(value))
+            value = sampled_df.iloc[sample_pos][column]
+            row_values.append(None if pd.isna(value) else value)
         values.append(tuple(row_values))
     return tuple(values)
 

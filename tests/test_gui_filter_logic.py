@@ -9113,6 +9113,46 @@ class TestGUIFilterLogic:
                 self.window.df_exibido.index
             )
 
+    def test_on_header_clicked_uses_plain_sort_for_descriptive_text_columns(self):
+        mixed_df = pd.DataFrame(
+            {
+                "numero_ssa": [1001, 1002, 1003, 1004, 1005],
+                "situacao": ["APV"] * 5,
+                "derivada_de": [""] * 5,
+                "localizacao_codigo": ["LOC1"] * 5,
+                "descricao_localizacao": ["Desc"] * 5,
+                "equipamento": ["EQ"] * 5,
+                "semana_cadastro": [202501] * 5,
+                "semana_programada": [202503] * 5,
+                "data_cadastro": ["2025-01-01"] * 5,
+                "descricao_ssa": ["beta", "Alpha", "#tag", "10-item", None],
+                "setor_executor": ["MEG2"] * 5,
+                "setor_emissor": ["MEG2"] * 5,
+                "descricao_execucao": ["Execucao"] * 5,
+                "solicitante": ["User"] * 5,
+            }
+        )
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window._df_last_search_filtered = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("descricao_ssa")
+
+        with patch.object(
+            self.window,
+            "_build_mixed_text_sort_keys",
+            wraps=self.window._build_mixed_text_sort_keys,
+        ) as build_keys:
+            self.window.on_header_clicked(logical_index)
+
+        assert build_keys.called is False
+        sorted_values = self.window.df_exibido["descricao_ssa"].tolist()
+        assert sorted_values[:4] == ["#tag", "10-item", "Alpha", "beta"]
+        assert pd.isna(sorted_values[4])
+
     def test_on_header_clicked_reuses_num_reprogramacoes_sort_cache(self):
         mixed_df = self.base_df.assign(
             num_reprogramacoes=pd.Series(
