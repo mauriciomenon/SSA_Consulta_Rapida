@@ -3753,6 +3753,10 @@ class TestGUIFilterLogic:
         assert 250 <= synced_height <= 320
         assert int(details_group.minimumHeight()) >= synced_height
         assert int(details_group.maximumHeight()) >= synced_height
+        assert int(filters_panel_group.minimumHeight()) >= synced_height
+        assert int(filters_panel_group.maximumHeight()) >= synced_height
+        assert int(details_group.height()) <= synced_height + 60
+        assert int(filters_panel_group.height()) <= synced_height + 60
         assert abs(int(details_group.height()) - int(filters_panel_group.height())) <= 4
 
     def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):

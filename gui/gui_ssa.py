@@ -1828,13 +1828,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             and active_inner_group is not None
         ):
             try:
-                shell_delta = max(
-                    0,
-                    int(filters_panel_group.height()) - int(active_inner_group.height()),
+                shell_layout = filters_panel_group.layout()
+                _, _, _, bottom_margin = (
+                    shell_layout.getContentsMargins()
+                    if shell_layout is not None
+                    else (0, 0, 0, 0)
                 )
+                shell_delta = max(0, int(active_inner_group.y()) + int(bottom_margin))
             except Exception:
                 shell_delta = 0
             details_target += shell_delta
+            self._set_widget_fixed_height_safe(
+                filters_panel_group,
+                details_target,
+                f"painel inferior {type(filters_panel_group).__name__}",
+            )
             self._set_widget_fixed_height_safe(
                 details_group,
                 details_target,
