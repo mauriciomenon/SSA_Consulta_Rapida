@@ -7454,6 +7454,80 @@ class TestGUIFilterLogic:
         assert self.window.search_input.text() == f"={target_ssa}"
         assert getattr(self.window, "_pending_jump_to_ssa", None) is None
 
+    def test_jump_to_ssa_cancels_pending_details_clear_for_offpage_target(
+        self, monkeypatch
+    ):
+        rows = 220
+        df = self._build_heavy_filters_df(rows)
+        target_pos = 157
+        target_ssa = str(df.iloc[target_pos]["numero_ssa"])
+        target_desc = str(df.iloc[target_pos]["descricao_ssa"])
+        first_desc = str(df.iloc[0]["descricao_ssa"])
+
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.iloc[:50].copy().reset_index(drop=True)
+        self.window._df_last_search_filtered = self.window.df_exibido.copy()
+        self.window.paginator.page_size = 50
+        self.window.paginator.set_dataframe(self.window.df_exibido.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        self.window.table_widget.selectRow(0)
+        QApplication.processEvents()
+
+        self.window._jump_to_ssa(target_ssa, _allow_refilter=False)
+
+        deadline = time.time() + 0.25
+        while time.time() < deadline:
+            QApplication.processEvents()
+            time.sleep(0.01)
+
+        details_html = str(self.window.details_text.toHtml() or "")
+        timer = getattr(self.window, "_details_update_timer", None)
+        assert str(getattr(self.window, "_details_current_ssa", "")) == target_ssa
+        assert target_desc in details_html
+        assert first_desc not in details_html
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+        assert timer is not None
+        assert timer.isActive() is False
+        assert getattr(self.window, "_pending_details_series", "sentinel") is None
+
+    def test_jump_to_ssa_shows_fallback_details_when_refilter_stays_offpage(
+        self, monkeypatch
+    ):
+        rows = 220
+        df = self._build_heavy_filters_df(rows)
+        target_pos = 157
+        target_ssa = str(df.iloc[target_pos]["numero_ssa"])
+        target_desc = str(df.iloc[target_pos]["descricao_ssa"])
+        first_desc = str(df.iloc[0]["descricao_ssa"])
+
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.iloc[:50].copy().reset_index(drop=True)
+        self.window._df_last_search_filtered = self.window.df_exibido.copy()
+        self.window.paginator.page_size = 50
+        self.window.paginator.set_dataframe(self.window.df_exibido.copy())
+        self.window.display_current_page(1)
+        self.window.table_widget.selectRow(0)
+        QApplication.processEvents()
+
+        def fake_initiate_filtering():
+            self.window._active_filter_request_id = None
+
+        monkeypatch.setattr(self.window, "initiate_filtering", fake_initiate_filtering)
+        self.window.filter_thread = None
+
+        self.window._jump_to_ssa(target_ssa)
+
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert self.window.search_input.text() == f"={target_ssa}"
+        assert str(getattr(self.window, "_details_current_ssa", "")) == target_ssa
+        assert target_desc in details_html
+        assert first_desc not in details_html
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+        assert getattr(self.window, "_pending_jump_to_ssa", None) is None
+
     def test_on_filter_error_recovers_pending_jump_with_exact_ssa_fallback(self):
         rows = 220
         df = self._build_heavy_filters_df(rows)

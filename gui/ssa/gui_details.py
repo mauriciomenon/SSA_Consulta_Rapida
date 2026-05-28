@@ -452,59 +452,83 @@ def _hydrate_ssa_index_candidates(
     ssa_index.update(resolved)
 
 
-def _resolve_ssa_series_candidates(
-    window,
-    candidates,
-    *,
-    existing: Mapping[str, pd.Series] | None = None,
-) -> dict[str, pd.Series]:
-    resolved: dict[str, pd.Series] = {}
-    remaining = {
+def _normalize_ssa_candidate_keys(window, candidates) -> set[str]:
+    return {
         normalized
         for normalized in (
             _normalize_ssa_value(window, candidate) for candidate in candidates
         )
         if normalized
     }
-    if existing:
-        resolved.update(
-            {
-                key: value
-                for key, value in existing.items()
-                if key in remaining and value is not None
-            }
-        )
-        remaining.difference_update(resolved.keys())
+
+
+def _seed_resolved_ssa_candidates(
+    existing: Mapping[str, pd.Series] | None,
+    remaining: set[str],
+) -> dict[str, pd.Series]:
+    if not existing:
+        return {}
+    resolved = {
+        key: value
+        for key, value in existing.items()
+        if key in remaining and value is not None
+    }
+    remaining.difference_update(resolved.keys())
+    return resolved
+
+
+def _hydrate_resolved_ssa_candidates_from_df(
+    window,
+    df,
+    remaining: set[str],
+    resolved: dict[str, pd.Series],
+) -> None:
+    if (
+        not remaining
+        or df is None
+        or df.empty
+        or "numero_ssa" not in getattr(df, "columns", [])
+    ):
+        return
+    normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
+    if normalized_series.empty:
+        return
+    matches = normalized_series.isin(remaining)
+    if not bool(matches.any()):
+        return
+    matched_positions = matches.to_numpy().nonzero()[0]
+    for matched_position in matched_positions:
+        normalized_value = normalized_series.iloc[int(matched_position)]
+        key = str(normalized_value or "").strip()
+        if not key or key in resolved:
+            continue
+        matched = df.iloc[int(matched_position)]
+        resolved[key] = matched
+    remaining.difference_update(resolved.keys())
+
+
+def _resolve_ssa_series_candidates(
+    window,
+    candidates,
+    *,
+    existing: Mapping[str, pd.Series] | None = None,
+) -> dict[str, pd.Series]:
+    remaining = _normalize_ssa_candidate_keys(window, candidates)
+    resolved = _seed_resolved_ssa_candidates(existing, remaining)
     if not remaining:
         return resolved
-
-    def hydrate_from_df(df) -> None:
-        nonlocal remaining
-        if (
-            not remaining
-            or df is None
-            or df.empty
-            or "numero_ssa" not in getattr(df, "columns", [])
-        ):
-            return
-        normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
-        if normalized_series.empty:
-            return
-        matches = normalized_series.isin(remaining)
-        if not bool(matches.any()):
-            return
-        matched_positions = matches.to_numpy().nonzero()[0]
-        for matched_position in matched_positions:
-            normalized_value = normalized_series.iloc[int(matched_position)]
-            key = str(normalized_value or "").strip()
-            if not key or key in resolved:
-                continue
-            matched = df.iloc[int(matched_position)]
-            resolved[key] = matched
-        remaining.difference_update(resolved.keys())
-
-    hydrate_from_df(getattr(window, "df_exibido", None))
-    hydrate_from_df(getattr(window, "df_completo", None))
+    _hydrate_resolved_ssa_candidates_from_df(
+        window,
+        getattr(window, "df_exibido", None),
+        remaining,
+        resolved,
+    )
+    _hydrate_resolved_ssa_candidates_from_df(
+        window,
+        getattr(window, "df_completo", None),
+        remaining,
+        resolved,
+    )
     return resolved
 
 
@@ -1158,20 +1182,38 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
             pos, matched_series = _find_series_position_by_ssa(
                 window, getattr(window, "df_exibido", None), num_norm
             )
-        if pos is None and not _allow_refilter:
+        if pos is None:
+            fallback_series = _get_series_for_ssa(window, num_norm)
+            if fallback_series is None:
+                return
             try:
                 table_widget = getattr(window, "table_widget", None)
-                if table_widget is not None and hasattr(table_widget, "clearSelection"):
-                    table_widget.clearSelection()
+                if (
+                    table_widget is not None
+                    and hasattr(table_widget, "clearSelection")
+                    and hasattr(table_widget, "selectionModel")
+                ):
+                    selection_model = table_widget.selectionModel()
+                    if selection_model is not None and selection_model.hasSelection():
+                        table_widget.clearSelection()
             except Exception as exc:
                 logger.debug(
                     "Falha ao limpar selecao no salto para SSA %s fora da pagina: %s",
                     num_norm,
                     exc,
                 )
-            _update_details_from_series(window, _get_series_for_ssa(window, num_norm))
-            return
-        if pos is None:
+            try:
+                details_timer = getattr(window, "_details_update_timer", None)
+                if details_timer is not None and hasattr(details_timer, "stop"):
+                    details_timer.stop()
+                setattr(window, "_pending_details_series", None)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao cancelar atualizacao pendente no salto para SSA %s: %s",
+                    num_norm,
+                    exc,
+                )
+            _update_details_from_series(window, fallback_series)
             return
         paginator = getattr(window, "paginator", None)
         if paginator is None:
