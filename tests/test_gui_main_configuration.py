@@ -217,8 +217,8 @@ class TestGUIMainConfiguration:
 
     def test_load_gui_main_preferences_migrates_managed_legacy_widths(self):
         from gui.gui_config import (
-            DEFAULT_COLUMN_WIDTHS,
             DEFAULT_COLUMN_WIDTHS_BY_PLATFORM,
+            get_default_column_widths,
             load_gui_main_preferences,
         )
 
@@ -253,31 +253,32 @@ class TestGUIMainConfiguration:
             with patch("gui.gui_config.os.path.exists", return_value=True):
                 with patch("gui.gui_config.sys.platform", "darwin"):
                     config = load_gui_main_preferences()
+                    runtime_widths = get_default_column_widths(platform_name="darwin")
 
         assert config["column_widths"]["data_cadastro"] == 95
         assert (
             config["column_widths"]["grau_prioridade_emissao"]
-            == DEFAULT_COLUMN_WIDTHS["grau_prioridade_emissao"]
+            == runtime_widths["grau_prioridade_emissao"]
         )
         assert (
             config["column_widths"]["grau_prioridade_planejamento"]
-            == DEFAULT_COLUMN_WIDTHS["grau_prioridade_planejamento"]
+            == runtime_widths["grau_prioridade_planejamento"]
         )
         assert (
             config["column_widths"]["total_de_reprogramacoes"]
-            == DEFAULT_COLUMN_WIDTHS["total_de_reprogramacoes"]
+            == runtime_widths["total_de_reprogramacoes"]
         )
         assert (
             config["column_widths"]["execucao_parcial"]
-            == DEFAULT_COLUMN_WIDTHS["execucao_parcial"]
+            == runtime_widths["execucao_parcial"]
         )
         assert (
             config["column_widths"]["semana_executada"]
-            == DEFAULT_COLUMN_WIDTHS["semana_executada"]
+            == runtime_widths["semana_executada"]
         )
         assert (
             config["column_widths"]["responsavel_execucao"]
-            == DEFAULT_COLUMN_WIDTHS["responsavel_execucao"]
+            == runtime_widths["responsavel_execucao"]
         )
 
     def test_load_gui_main_preferences_preserves_explicit_hidden_required_columns(self):

@@ -354,6 +354,20 @@ def _resolve_platform_column_widths(
     return base_widths
 
 
+def get_default_column_widths(
+    *,
+    platform_name: str | None = None,
+    platform_widths: Dict[str, Dict[str, int]] | None = None,
+    override_widths: Dict[str, int] | None = None,
+) -> Dict[str, int]:
+    """Return the canonical default column widths for the requested platform."""
+    return _resolve_platform_column_widths(
+        platform_widths=platform_widths,
+        override_widths=override_widths,
+        platform_name=platform_name,
+    )
+
+
 DEFAULT_COLUMN_WIDTHS: Dict[str, int] = _resolve_platform_column_widths()
 
 DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
@@ -430,9 +444,8 @@ HARD_DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = copy.deepcopy(
 
 def _hard_default_preferences_copy() -> Dict[str, Any]:
     defaults = copy.deepcopy(HARD_DEFAULT_GUI_MAIN_PREFERENCES)
-    defaults["column_widths"] = _resolve_platform_column_widths(
-        defaults.get("column_widths_by_platform"),
-        None,
+    defaults["column_widths"] = get_default_column_widths(
+        platform_widths=defaults.get("column_widths_by_platform"),
     )
     defaults["display_mappings"] = copy.deepcopy(defaults["column_display_names"])
     defaults["required_display_columns"] = list(REQUIRED_GUI_COLUMNS)
@@ -676,18 +689,19 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
             platform_widths[normalized_key].update(raw_widths)
     merged["column_widths_by_platform"] = platform_widths
 
+    runtime_default_widths = get_default_column_widths(platform_widths=platform_widths)
     loaded_widths = _migrate_managed_legacy_widths(
         loaded_config.get("column_widths"),
-        _resolve_platform_column_widths(platform_widths),
+        runtime_default_widths,
     )
-    widths = _resolve_platform_column_widths(
-        platform_widths,
-        None if loaded_platform_widths else loaded_widths,
+    widths = get_default_column_widths(
+        platform_widths=platform_widths,
+        override_widths=None if loaded_platform_widths else loaded_widths,
     )
-    widths.setdefault("#", DEFAULT_COLUMN_WIDTHS["#"])
+    widths.setdefault("#", runtime_default_widths["#"])
     for column in display_columns:
         if column not in widths:
-            widths[column] = DEFAULT_COLUMN_WIDTHS.get(column, 120)
+            widths[column] = runtime_default_widths.get(column, 120)
     merged["column_widths"] = widths
 
     settings = copy.deepcopy(DEFAULT_GUI_SETTINGS)

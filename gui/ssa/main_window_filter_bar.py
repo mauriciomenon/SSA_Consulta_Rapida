@@ -356,7 +356,7 @@ def build_pagination_filter_bar(
     column_selector.columns_changed.connect(window.on_columns_changed)
 
     quick_setor_executor_label = QLabel("Setor Executor:")
-    quick_setor_executor_label.setStyleSheet("padding:0; margin:0 1px 0 2px;")
+    quick_setor_executor_label.setStyleSheet("padding:0; margin:0 0 0 1px;")
     quick_setor_executor_combo = QComboBox()
     quick_setor_executor_combo.setToolTip(
         "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
@@ -450,8 +450,8 @@ def build_pagination_filter_bar(
         "Filtro rapido de Setor Executor. Aplica junto com os demais filtros."
     )
     quick_setor_executor_box_layout = QHBoxLayout(cast(Any, quick_setor_executor_box))
-    quick_setor_executor_box_layout.setContentsMargins(3, 1, 3, 1)
-    quick_setor_executor_box_layout.setSpacing(3)
+    quick_setor_executor_box_layout.setContentsMargins(2, 1, 2, 1)
+    quick_setor_executor_box_layout.setSpacing(2)
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_label))
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_combo))
     quick_setor_executor_box.setSizePolicy(
@@ -579,8 +579,8 @@ def _sync_quick_situacao_button(
 
 def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
     try:
-        combo.setMinimumWidth(74)
-        combo.setMaximumWidth(86)
+        combo.setMinimumWidth(72)
+        combo.setMaximumWidth(84)
         combo.setMinimumContentsLength(4)
         combo.setMaxVisibleItems(14)
         _set_fixed_height(window, combo, 22, "combo rapido de setor executor")
@@ -630,8 +630,9 @@ def _build_column_filter_indicator(window: Any) -> QLabel:
         logger.debug("Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc)
     indicator.setToolTip(
         "Busca rapida: virgulas separam termos cumulativos (logica E). "
-        "Filtros por texto: virgulas representam alternativas dentro da mesma coluna. "
-        "Entre filtros diferentes, as restricoes continuam cumulativas."
+        "Filtros por texto por coluna: virgulas representam alternativas "
+        "dentro da mesma coluna (logica OU local). "
+        "Entre colunas diferentes, as restricoes continuam cumulativas."
     )
     try:
         indicator.setVisible(False)
