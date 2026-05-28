@@ -603,31 +603,26 @@ def _migrate_managed_legacy_platform_widths(
     return migrated
 
 
-def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
-    merged = copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
-
-    # Preserve unknown top-level keys to avoid breaking custom features.
-    for key, value in loaded_config.items():
-        if key in _MERGE_KEYS:
-            continue
-        merged[key] = copy.deepcopy(value)
-
-    loaded_hidden = loaded_config.get("hidden_columns")
+def _merge_display_and_hidden_columns(
+    loaded_display: Any,
+    loaded_hidden: Any,
+) -> tuple[list[str], list[str]]:
     explicit_hidden_columns = set()
     if isinstance(loaded_hidden, list):
         explicit_hidden_columns = set(_unique_str_list(loaded_hidden))
 
-    loaded_display = loaded_config.get("display_columns")
     if isinstance(loaded_display, list):
         display_columns = _unique_str_list(loaded_display)
     else:
         display_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["display_columns"])
     if not display_columns:
         display_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["display_columns"])
+
     if isinstance(loaded_hidden, list):
         hidden_columns = _unique_str_list(loaded_hidden)
     else:
         hidden_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["hidden_columns"])
+
     for required in REQUIRED_GUI_COLUMNS:
         if required in explicit_hidden_columns:
             continue
@@ -635,23 +630,26 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
             continue
         if required not in display_columns:
             display_columns.append(required)
-    merged["display_columns"] = display_columns
 
     hidden_columns = [
         column for column in hidden_columns if column not in display_columns
     ]
-    merged["hidden_columns"] = hidden_columns
+    return display_columns, hidden_columns
 
+
+def _merge_column_display_names(
+    loaded_names: Any,
+    display_columns: list[str],
+    hidden_columns: list[str],
+) -> dict[str, str]:
     names = copy.deepcopy(DEFAULT_COLUMN_DISPLAY_NAMES)
     allowed_name_keys = set(DEFAULT_COLUMN_DISPLAY_NAMES.keys())
     allowed_name_keys.update(display_columns)
     allowed_name_keys.update(hidden_columns)
     allowed_name_keys.update(REQUIRED_GUI_COLUMNS)
-    loaded_names = _migrate_managed_legacy_column_labels(
-        loaded_config.get("column_display_names")
-    )
-    if isinstance(loaded_names, dict):
-        for key, value in loaded_names.items():
+    migrated_names = _migrate_managed_legacy_column_labels(loaded_names)
+    if isinstance(migrated_names, dict):
+        for key, value in migrated_names.items():
             if not isinstance(key, str) or not isinstance(value, str):
                 continue
             key_clean = key.strip()
@@ -681,40 +679,27 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
             column,
             DEFAULT_COLUMN_DISPLAY_NAMES.get(column, _build_fallback_label(column)),
         )
-    merged["column_display_names"] = names
-    merged["display_mappings"] = copy.deepcopy(names)
+    return names
 
+
+def _merge_platform_widths(loaded_platform_widths: Any) -> dict[str, dict[str, int]]:
     platform_widths = copy.deepcopy(DEFAULT_COLUMN_WIDTHS_BY_PLATFORM)
-    loaded_platform_widths = _migrate_managed_legacy_platform_widths(
-        loaded_config.get("column_widths_by_platform")
+    migrated_platform_widths = _migrate_managed_legacy_platform_widths(
+        loaded_platform_widths
     )
-    if isinstance(loaded_platform_widths, dict):
-        for platform_key, raw_widths in loaded_platform_widths.items():
+    if isinstance(migrated_platform_widths, dict):
+        for platform_key, raw_widths in migrated_platform_widths.items():
             if not isinstance(platform_key, str):
                 continue
             normalized_key = _normalize_platform_key(platform_key)
             if normalized_key not in platform_widths:
                 continue
             platform_widths[normalized_key].update(raw_widths)
-    merged["column_widths_by_platform"] = platform_widths
+    return platform_widths
 
-    runtime_default_widths = get_default_column_widths(platform_widths=platform_widths)
-    loaded_widths = _migrate_managed_legacy_widths(
-        loaded_config.get("column_widths"),
-        runtime_default_widths,
-    )
-    widths = get_default_column_widths(
-        platform_widths=platform_widths,
-        override_widths=None if loaded_platform_widths else loaded_widths,
-    )
-    widths.setdefault("#", runtime_default_widths["#"])
-    for column in display_columns:
-        if column not in widths:
-            widths[column] = runtime_default_widths.get(column, 120)
-    merged["column_widths"] = widths
 
+def _merge_gui_settings(loaded_settings: Any) -> dict[str, Any]:
     settings = copy.deepcopy(DEFAULT_GUI_SETTINGS)
-    loaded_settings = loaded_config.get("gui_settings")
     if isinstance(loaded_settings, dict):
         for key, value in loaded_settings.items():
             if not isinstance(key, str):
@@ -723,7 +708,6 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
             if not key_clean:
                 continue
 
-            # Keep unknown keys for forward compatibility.
             if key_clean not in DEFAULT_GUI_SETTINGS:
                 settings[key_clean] = copy.deepcopy(value)
                 continue
@@ -756,6 +740,7 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
                 continue
 
             settings[key_clean] = copy.deepcopy(value)
+
     table_cell_alignment = (
         str(
             settings.get(
@@ -773,8 +758,53 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
         )
         table_cell_alignment = DEFAULT_GUI_SETTINGS["table_cell_alignment"]
     settings["table_cell_alignment"] = table_cell_alignment
+    return settings
 
-    merged["gui_settings"] = settings
+
+def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
+    merged = copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+
+    # Preserve unknown top-level keys to avoid breaking custom features.
+    for key, value in loaded_config.items():
+        if key in _MERGE_KEYS:
+            continue
+        merged[key] = copy.deepcopy(value)
+
+    display_columns, hidden_columns = _merge_display_and_hidden_columns(
+        loaded_config.get("display_columns"),
+        loaded_config.get("hidden_columns"),
+    )
+    merged["display_columns"] = display_columns
+    merged["hidden_columns"] = hidden_columns
+
+    names = _merge_column_display_names(
+        loaded_config.get("column_display_names"),
+        display_columns,
+        hidden_columns,
+    )
+    merged["column_display_names"] = names
+    merged["display_mappings"] = copy.deepcopy(names)
+
+    loaded_platform_widths = loaded_config.get("column_widths_by_platform")
+    platform_widths = _merge_platform_widths(loaded_platform_widths)
+    merged["column_widths_by_platform"] = platform_widths
+
+    runtime_default_widths = get_default_column_widths(platform_widths=platform_widths)
+    loaded_widths = _migrate_managed_legacy_widths(
+        loaded_config.get("column_widths"),
+        runtime_default_widths,
+    )
+    widths = get_default_column_widths(
+        platform_widths=platform_widths,
+        override_widths=None if loaded_platform_widths else loaded_widths,
+    )
+    widths.setdefault("#", runtime_default_widths["#"])
+    for column in display_columns:
+        if column not in widths:
+            widths[column] = runtime_default_widths.get(column, 120)
+    merged["column_widths"] = widths
+
+    merged["gui_settings"] = _merge_gui_settings(loaded_config.get("gui_settings"))
 
     merged["required_display_columns"] = list(REQUIRED_GUI_COLUMNS)
     return merged
