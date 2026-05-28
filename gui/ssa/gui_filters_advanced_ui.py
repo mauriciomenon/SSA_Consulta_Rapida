@@ -632,9 +632,9 @@ def _build_executadas_macro_report(self, mode: str) -> tuple[str, str]:
                         ["_macro_executor", "total"],
                         ascending=[True, False],
                     )
-                    for row in ordered_week_df.itertuples(index=False):
+                    for row in ordered_week_df.to_dict("records"):
                         lines.append(
-                            f"      {row._macro_executor}: {int(row.total)}"
+                            f"      {row['_macro_executor']}: {int(row['total'])}"
                         )
                 lines.append("")
         return title, "\n".join(lines).strip()
@@ -659,8 +659,8 @@ def _build_executadas_macro_report(self, mode: str) -> tuple[str, str]:
                 ["_macro_executor", "total"],
                 ascending=[True, False],
             )
-            for row in ordered_week_df.itertuples(index=False):
-                lines.append(f"    {row._macro_executor}: {int(row.total)}")
+            for row in ordered_week_df.to_dict("records"):
+                lines.append(f"    {row['_macro_executor']}: {int(row['total'])}")
         lines.append("")
     return title, "\n".join(lines).strip()
 
@@ -738,7 +738,7 @@ def _build_advanced_derivada_field(self, deriv_button, deriv_menu):
             getattr(self, "adv_derivada_checks", None),
             "Selecionar",
         ),
-        self._apply_advanced_filters_from_ui,
+        True,
         None,
         None,
     )

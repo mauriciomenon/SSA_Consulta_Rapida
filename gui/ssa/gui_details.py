@@ -625,7 +625,7 @@ def _schedule_details_update(window, series) -> None:
 
 
 def _clear_main_details_state(window) -> None:
-    window._details_current_ssa = None
+    setattr(window, "_details_current_ssa", None)
     window.details_text.setProperty("details_render_signature", None)
     window.details_text.clear()
     setattr(window, "_details_current_series_for_derivadas", None)
@@ -731,9 +731,9 @@ def _update_details_from_series(window, series):
         return
     render_signature = _get_details_render_signature(window, series)
     try:
-        window._details_current_ssa = series.get("numero_ssa")
+        setattr(window, "_details_current_ssa", series.get("numero_ssa"))
     except Exception:
-        window._details_current_ssa = None
+        setattr(window, "_details_current_ssa", None)
 
     try:
         _render_main_details_html(window, series, render_signature)
