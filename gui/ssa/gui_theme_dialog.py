@@ -156,7 +156,6 @@ def show_theme_selection_dialog(
                     logger.debug("Falha ao limitar popup do seletor de tema: %s", exc)
 
             super().showPopup()
-            _clamp_popup()
             QTimer.singleShot(0, _clamp_popup)
 
     dialog = QDialog(window)
@@ -207,47 +206,46 @@ def show_theme_selection_dialog(
     if dialog.exec() != QDialog.DialogCode.Accepted:
         return
 
-    selected_theme_key = normalize_theme(str(theme_combo.currentData() or "gruvbox"))
-    try:
-        window.apply_theme(selected_theme_key)
-    except Exception as exc:
-        logger.warning(
-            "Falha ao aplicar tema selecionado '%s': %s", selected_theme_key, exc
-        )
-        return
-
     gui_settings = gui_prefs.setdefault("gui_settings", {})
-    _persist_theme_default_choice(
+    selected_theme_key = normalize_theme(str(theme_combo.currentData() or "gruvbox"))
+    persisted_theme = normalize_theme(str(gui_settings.get("theme") or ""))
+    theme_changed = persisted_theme != selected_theme_key
+    if window is not None:
+        try:
+            window.apply_theme(selected_theme_key)
+        except Exception as exc:
+            logger.warning(
+                "Falha ao aplicar tema selecionado '%s': %s", selected_theme_key, exc
+            )
+            return
+    if theme_changed:
+        gui_settings["theme"] = selected_theme_key
+
+    default_choice_changed = _update_theme_default_choice(
         gui_prefs=gui_prefs,
         selected_theme_key=selected_theme_key,
         set_as_default=default_checkbox.isChecked(),
         default_choice_changed=default_checkbox_changed,
-        persist_preferences_async=persist_preferences_async,
     )
+    if theme_changed or default_choice_changed:
+        persist_preferences_async(gui_prefs)
 
 
-def _persist_theme_default_choice(
+def _update_theme_default_choice(
     *,
     gui_prefs: dict,
     selected_theme_key: str,
     set_as_default: bool,
     default_choice_changed: bool,
-    persist_preferences_async: Callable[[dict], object],
 ) -> bool:
     gui_settings = gui_prefs.setdefault("gui_settings", {})
     previous_default = normalize_theme(str(gui_settings.get("theme_default") or ""))
     if set_as_default:
         if previous_default != selected_theme_key:
             gui_settings["theme_default"] = selected_theme_key
-            persist_preferences_async(gui_prefs)
             return True
         return False
-    if (
-        default_choice_changed
-        and previous_default == selected_theme_key
-        and "theme_default" in gui_settings
-    ):
+    if default_choice_changed and "theme_default" in gui_settings:
         gui_settings.pop("theme_default", None)
-        persist_preferences_async(gui_prefs)
         return True
     return False
