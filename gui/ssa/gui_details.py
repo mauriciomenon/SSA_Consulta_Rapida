@@ -1153,6 +1153,97 @@ def _find_series_position_by_ssa(window, df, target: str, *, use_index_lookup: b
         return None, None
 
 
+def _show_jump_fallback_details(window, num_norm: str, fallback_series: pd.Series) -> None:
+    try:
+        table_widget = getattr(window, "table_widget", None)
+        if (
+            table_widget is not None
+            and hasattr(table_widget, "clearSelection")
+            and hasattr(table_widget, "selectionModel")
+        ):
+            selection_model = table_widget.selectionModel()
+            if selection_model is not None and selection_model.hasSelection():
+                table_widget.clearSelection()
+    except Exception as exc:
+        logger.debug(
+            "Falha ao limpar selecao no salto para SSA %s fora da pagina: %s",
+            num_norm,
+            exc,
+        )
+    try:
+        details_timer = getattr(window, "_details_update_timer", None)
+        if details_timer is not None and hasattr(details_timer, "stop"):
+            details_timer.stop()
+        setattr(window, "_pending_details_series", None)
+    except Exception as exc:
+        logger.debug(
+            "Falha ao cancelar atualizacao pendente no salto para SSA %s: %s",
+            num_norm,
+            exc,
+        )
+    _update_details_from_series(window, fallback_series)
+
+
+def _display_jump_target_page(
+    window,
+    paginator,
+    pos: int,
+    matched_series: pd.Series | None,
+    num_norm: str,
+) -> None:
+    page_size = int(getattr(paginator, "page_size", 50))
+    if page_size <= 0:
+        logger.warning(
+            "Page size invalido ao saltar para SSA %s: %s", num_norm, page_size
+        )
+        return
+    page = int(pos // page_size + 1)
+    try:
+        paginator.current_page = page
+    except Exception as exc:
+        logger.debug(
+            "Falha ao atualizar pagina atual no salto para SSA %s: %s",
+            num_norm,
+            exc,
+        )
+    window.display_current_page(page, update_details=False)
+    row_in_page = int(pos % page_size)
+    _update_details_from_series(window, matched_series)
+
+    def _select_target_row_later() -> None:
+        try:
+            if int(getattr(paginator, "current_page", 1)) != page:
+                logger.debug(
+                    "Selecao adiada ignorada para SSA %s: pagina atual mudou",
+                    num_norm,
+                )
+                return
+            table_widget = getattr(window, "table_widget", None)
+            if table_widget is None:
+                return
+            if row_in_page < 0 or row_in_page >= table_widget.rowCount():
+                return
+            table_widget.selectRow(row_in_page)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao selecionar linha %s no salto para SSA %s: %s",
+                row_in_page,
+                num_norm,
+                exc,
+            )
+
+    try:
+        QTimer.singleShot(0, _select_target_row_later)
+    except Exception as exc:
+        logger.debug(
+            "Falha ao agendar selecao da linha %s no salto para SSA %s: %s",
+            row_in_page,
+            num_norm,
+            exc,
+        )
+        _select_target_row_later()
+
+
 def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
     num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
@@ -1194,90 +1285,13 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
             fallback_series = _get_series_for_ssa(window, num_norm)
             if fallback_series is None:
                 return
-            try:
-                table_widget = getattr(window, "table_widget", None)
-                if (
-                    table_widget is not None
-                    and hasattr(table_widget, "clearSelection")
-                    and hasattr(table_widget, "selectionModel")
-                ):
-                    selection_model = table_widget.selectionModel()
-                    if selection_model is not None and selection_model.hasSelection():
-                        table_widget.clearSelection()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao limpar selecao no salto para SSA %s fora da pagina: %s",
-                    num_norm,
-                    exc,
-                )
-            try:
-                details_timer = getattr(window, "_details_update_timer", None)
-                if details_timer is not None and hasattr(details_timer, "stop"):
-                    details_timer.stop()
-                setattr(window, "_pending_details_series", None)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao cancelar atualizacao pendente no salto para SSA %s: %s",
-                    num_norm,
-                    exc,
-                )
-            _update_details_from_series(window, fallback_series)
+            _show_jump_fallback_details(window, num_norm, fallback_series)
             return
         paginator = getattr(window, "paginator", None)
         if paginator is None:
             _update_details_from_series(window, matched_series)
             return
-        page_size = int(getattr(paginator, "page_size", 50))
-        if page_size <= 0:
-            logger.warning(
-                "Page size invalido ao saltar para SSA %s: %s", num_norm, page_size
-            )
-            return
-        page = int(pos // page_size + 1)
-        try:
-            paginator.current_page = page
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar pagina atual no salto para SSA %s: %s",
-                num_norm,
-                exc,
-            )
-        window.display_current_page(page, update_details=False)
-        row_in_page = int(pos % page_size)
-        _update_details_from_series(window, matched_series)
-
-        def _select_target_row_later():
-            try:
-                if int(getattr(paginator, "current_page", 1)) != page:
-                    logger.debug(
-                        "Selecao adiada ignorada para SSA %s: pagina atual mudou",
-                        num_norm,
-                    )
-                    return
-                table_widget = getattr(window, "table_widget", None)
-                if table_widget is None:
-                    return
-                if row_in_page < 0 or row_in_page >= table_widget.rowCount():
-                    return
-                table_widget.selectRow(row_in_page)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao selecionar linha %s no salto para SSA %s: %s",
-                    row_in_page,
-                    num_norm,
-                    exc,
-                )
-
-        try:
-            QTimer.singleShot(0, _select_target_row_later)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao agendar selecao da linha %s no salto para SSA %s: %s",
-                row_in_page,
-                num_norm,
-                exc,
-            )
-            _select_target_row_later()
+        _display_jump_target_page(window, paginator, pos, matched_series, num_norm)
     except Exception as exc:
         logger.debug("Falha ao navegar para SSA %s: %s", numero_ssa, exc)
 
