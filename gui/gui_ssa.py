@@ -3699,48 +3699,51 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _apply_preferences_api_settings(self, state: dict[str, Any]) -> bool:
         gui_settings = state["gui_settings"]
         updated_api_settings = copy.deepcopy(gui_settings.get("pai_api", {}))
-        updated_api_settings[PAI_API_ENABLED_KEY] = bool(
-            state["api_enabled_checkbox"].isChecked()
+        api_scalar_specs = (
+            (PAI_API_ENABLED_KEY, "api_enabled_checkbox", "isChecked", bool),
+            (PAI_API_SCRAP_ENABLED_KEY, "api_scrap_checkbox", "isChecked", bool),
+            (
+                PAI_API_AUTO_REFRESH_ENABLED_KEY,
+                "api_auto_refresh_checkbox",
+                "isChecked",
+                bool,
+            ),
+            (
+                PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY,
+                "api_interval_spin",
+                "value",
+                int,
+            ),
+            (PAI_API_LIMIT_KEY, "api_limit_spin", "value", int),
+            (PAI_API_NUMBER_OF_YEARS_KEY, "api_years_spin", "value", int),
+            (PAI_API_BASE_URL_KEY, "api_base_url_edit", "text", lambda value: str(value or "").strip()),
+            (PAI_API_USERNAME_KEY, "api_username_edit", "text", lambda value: str(value or "").strip()),
+            (
+                PAI_API_SECRET_SERVICE_KEY,
+                "api_secret_service_edit",
+                "text",
+                lambda value: str(value or "").strip(),
+            ),
+            (
+                PAI_API_SECURE_REQUIRED_KEY,
+                "api_secure_required_checkbox",
+                "isChecked",
+                bool,
+            ),
         )
-        updated_api_settings[PAI_API_SCRAP_ENABLED_KEY] = bool(
-            state["api_scrap_checkbox"].isChecked()
-        )
-        updated_api_settings[PAI_API_AUTO_REFRESH_ENABLED_KEY] = bool(
-            state["api_auto_refresh_checkbox"].isChecked()
-        )
-        updated_api_settings[PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY] = int(
-            state["api_interval_spin"].value()
-        )
-        updated_api_settings[PAI_API_LIMIT_KEY] = int(state["api_limit_spin"].value())
-        updated_api_settings[PAI_API_NUMBER_OF_YEARS_KEY] = int(
-            state["api_years_spin"].value()
-        )
-        updated_api_settings[PAI_API_BASE_URL_KEY] = str(
-            state["api_base_url_edit"].text() or ""
-        ).strip()
-        updated_api_settings[PAI_API_USERNAME_KEY] = str(
-            state["api_username_edit"].text() or ""
-        ).strip()
-        updated_api_settings[PAI_API_SECRET_SERVICE_KEY] = str(
-            state["api_secret_service_edit"].text() or ""
-        ).strip()
-        updated_api_settings[PAI_API_SECURE_REQUIRED_KEY] = bool(
-            state["api_secure_required_checkbox"].isChecked()
-        )
+        for setting_key, widget_key, value_attr, caster in api_scalar_specs:
+            raw_value = getattr(state[widget_key], value_attr)()
+            updated_api_settings[setting_key] = caster(raw_value)
         updated_api_settings[PAI_API_EXTRA_SECTORS_KEY] = ", ".join(
             _normalize_pai_api_extra_sector_tokens(
                 str(state["api_extra_sectors_edit"].text() or "")
             )[0]
         )
         updated_api_settings[PAI_API_DATA_SCOPES_KEY] = [
-            scope
-            for scope, checkbox in state["scope_checks"].items()
-            if checkbox.isChecked()
+            scope for scope, checkbox in state["scope_checks"].items() if checkbox.isChecked()
         ]
         updated_api_settings[PAI_API_SECTORS_KEY] = [
-            sector
-            for sector, checkbox in state["sector_checks"].items()
-            if checkbox.isChecked()
+            sector for sector, checkbox in state["sector_checks"].items() if checkbox.isChecked()
         ]
         if updated_api_settings == gui_settings.get("pai_api", {}):
             return False
