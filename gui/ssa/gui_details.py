@@ -624,76 +624,75 @@ def _schedule_details_update(window, series) -> None:
     timer.start()
 
 
-def _update_details_from_series(window, series):
-    """Atualiza o painel de detalhes a partir de uma serie ja resolvida."""
-    if series is None:
-        window._details_current_ssa = None
-        window.details_text.setProperty("details_render_signature", None)
-        window.details_text.clear()
-        setattr(window, "_details_current_series_for_derivadas", None)
-        _clear_main_details_derivadas_panel(window)
-        return
-    render_signature = None
-    render_signature = _get_details_render_signature(window, series)
+def _clear_main_details_state(window) -> None:
+    window._details_current_ssa = None
+    window.details_text.setProperty("details_render_signature", None)
+    window.details_text.clear()
+    setattr(window, "_details_current_series_for_derivadas", None)
+    _clear_main_details_derivadas_panel(window)
+
+
+def _resolve_details_render_fonts(window) -> tuple[float | None, str | None]:
+    font_size_pt = None
+    font_family = None
+    if not hasattr(window, "details_group"):
+        return font_size_pt, font_family
     try:
-        window._details_current_ssa = series.get("numero_ssa")
+        base_font = window.details_group.font()
+        size = base_font.pointSizeF()
+        if size <= 0:
+            size = float(base_font.pointSize())
+        if size > 0:
+            font_size_pt = max(size - 1.0, 8.0)
+        family = str(base_font.family() or "").strip()
+        if family:
+            font_family = family
     except Exception:
-        window._details_current_ssa = None
+        return None, None
+    return font_size_pt, font_family
 
-    try:
-        font_size_pt = None
-        font_family = None
-        if hasattr(window, "details_group"):
-            try:
-                base_font = window.details_group.font()
-                size = base_font.pointSizeF()
-                if size <= 0:
-                    size = float(base_font.pointSize())
-                if size > 0:
-                    font_size_pt = max(size - 1.0, 8.0)
-                family = str(base_font.family() or "").strip()
-                if family:
-                    font_family = family
-            except Exception:
-                font_size_pt = None
-                font_family = None
-        details_ssa_index: Mapping[str, pd.Series] = {}
-        current_sources = (
-            getattr(window, "df_exibido", None),
-            getattr(window, "df_completo", None),
-        )
-        cached_sources = getattr(window, "_details_ssa_index_sources", None)
-        cached_lookup = getattr(window, "_details_ssa_series_index", None)
-        if (
-            isinstance(cached_sources, tuple)
-            and len(cached_sources) == 4
-            and cached_sources[0] is current_sources[0]
-            and cached_sources[1] is current_sources[1]
-            and cached_sources[2] == getattr(window, "_data_revision", None)
-            and cached_sources[3] == getattr(window, "_data_uuid", None)
-            and isinstance(cached_lookup, dict)
-        ):
-            details_ssa_index = cached_lookup
-        html_content = _format_details_html(
-            window,
-            series,
-            highlight_search_terms=True,
-            font_size_pt=font_size_pt,
-            linkify=True,
-            font_family=font_family,
-            ssa_index=details_ssa_index,
-        )
-        window.details_text.setHtml(html_content)
-        window.details_text.setProperty("details_render_signature", render_signature)
-        setattr(window, "_details_current_series_for_derivadas", series)
-        setattr(window, "_details_current_derivadas_font_family", font_family)
-        _sync_main_details_derivadas_panel(window)
-        return
-    except Exception as exc:
-        logger.debug(
-            "Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc
-        )
 
+def _get_cached_details_ssa_index(window) -> Mapping[str, pd.Series]:
+    details_ssa_index: Mapping[str, pd.Series] = {}
+    current_sources = (
+        getattr(window, "df_exibido", None),
+        getattr(window, "df_completo", None),
+    )
+    cached_sources = getattr(window, "_details_ssa_index_sources", None)
+    cached_lookup = getattr(window, "_details_ssa_series_index", None)
+    if (
+        isinstance(cached_sources, tuple)
+        and len(cached_sources) == 4
+        and cached_sources[0] is current_sources[0]
+        and cached_sources[1] is current_sources[1]
+        and cached_sources[2] == getattr(window, "_data_revision", None)
+        and cached_sources[3] == getattr(window, "_data_uuid", None)
+        and isinstance(cached_lookup, dict)
+    ):
+        details_ssa_index = cached_lookup
+    return details_ssa_index
+
+
+def _render_main_details_html(window, series, render_signature) -> bool:
+    font_size_pt, font_family = _resolve_details_render_fonts(window)
+    html_content = _format_details_html(
+        window,
+        series,
+        highlight_search_terms=True,
+        font_size_pt=font_size_pt,
+        linkify=True,
+        font_family=font_family,
+        ssa_index=_get_cached_details_ssa_index(window),
+    )
+    window.details_text.setHtml(html_content)
+    window.details_text.setProperty("details_render_signature", render_signature)
+    setattr(window, "_details_current_series_for_derivadas", series)
+    setattr(window, "_details_current_derivadas_font_family", font_family)
+    _sync_main_details_derivadas_panel(window)
+    return True
+
+
+def _build_plaintext_details(window, series) -> str:
     def field_sort_key(item):
         col, _ = item
         try:
@@ -701,9 +700,8 @@ def _update_details_from_series(window, series):
         except ValueError:
             return (1, col)
 
-    sorted_items = sorted(series.items(), key=field_sort_key)
     lines = []
-    for col, value in sorted_items:
+    for col, value in sorted(series.items(), key=field_sort_key):
         if col in HIDDEN_DETAIL_FIELDS or str(col).startswith("_"):
             continue
         formatted_value = format_cell(value, col)
@@ -715,13 +713,38 @@ def _update_details_from_series(window, series):
             col, window.internal_to_display.get(col, col)
         )
         lines.append(f"{display_name}: {formatted_value}")
-    details_str = "\n".join(lines)
+    return "\n".join(lines)
+
+
+def _render_main_details_plaintext(window, series, render_signature) -> None:
+    window.details_text.setPlainText(_build_plaintext_details(window, series))
+    window.details_text.setProperty("details_render_signature", render_signature)
+    setattr(window, "_details_current_series_for_derivadas", series)
+    setattr(window, "_details_current_derivadas_font_family", None)
+    _sync_main_details_derivadas_panel(window)
+
+
+def _update_details_from_series(window, series):
+    """Atualiza o painel de detalhes a partir de uma serie ja resolvida."""
+    if series is None:
+        _clear_main_details_state(window)
+        return
+    render_signature = _get_details_render_signature(window, series)
     try:
-        window.details_text.setPlainText(details_str)
-        window.details_text.setProperty("details_render_signature", render_signature)
-        setattr(window, "_details_current_series_for_derivadas", series)
-        setattr(window, "_details_current_derivadas_font_family", None)
-        _sync_main_details_derivadas_panel(window)
+        window._details_current_ssa = series.get("numero_ssa")
+    except Exception:
+        window._details_current_ssa = None
+
+    try:
+        _render_main_details_html(window, series, render_signature)
+        return
+    except Exception as exc:
+        logger.debug(
+            "Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc
+        )
+
+    try:
+        _render_main_details_plaintext(window, series, render_signature)
     except Exception as exc:
         logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
 
@@ -756,39 +779,130 @@ def _sync_main_details_derivadas_panel(window) -> None:
     _clear_main_details_derivadas_panel(window)
 
 
-def _update_main_details_derivadas_panel(window, series, *, font_family: str | None) -> None:
+def _clear_graph_browser_markup(graph_browser: Any) -> None:
+    _set_graph_navigation_hitboxes(graph_browser, [])
+    clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
+    if callable(clear_svg_markup):
+        clear_svg_markup()
+
+
+def _set_graph_browser_message(
+    tree_browser: Any,
+    graph_browser: Any,
+    message: str,
+    *,
+    tree_visible: bool,
+    use_html: bool = False,
+) -> None:
+    tree_browser.setVisible(tree_visible)
+    _clear_graph_browser_markup(graph_browser)
+    if hasattr(graph_browser, "setPixmap"):
+        graph_browser.clear()
+    if use_html and hasattr(graph_browser, "setHtml"):
+        graph_browser.setHtml(message)
+    else:
+        graph_browser.setText(message)
+    graph_browser.setVisible(True)
+
+
+def _resolve_derivadas_panel_payload(
+    window, series, font_family: str | None
+) -> tuple[Any, Any, str, Mapping[str, object], str, str]:
     tree_browser = getattr(window, "details_tree_text", None)
     graph_label = getattr(window, "details_graph_label", None)
     graph_browser = graph_label or getattr(window, "details_graph_text", None)
     if tree_browser is None or graph_browser is None:
-        return
-    try:
-        numero_ssa = series.get("numero_ssa")
-    except Exception as exc:
-        logger.debug("Falha ao ler SSA para painel principal de derivadas: %s", exc)
-        _clear_main_details_derivadas_panel(window)
-        return
+        raise ValueError("details panel widgets unavailable")
+    numero_ssa = series.get("numero_ssa")
     normalized = _normalize_ssa_relation_value(numero_ssa)
     if not normalized:
+        raise ValueError("invalid numero_ssa for derivadas panel")
+    roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
+    link_color = str(
+        roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
+    )
+    safe_font_family = font_family or DETAILS_CONFIG.mono_font_family
+    tree_data = _collect_derivadas_tree_data(window, normalized)
+    return tree_browser, graph_browser, normalized, tree_data, link_color, safe_font_family
+
+
+def _render_derivadas_graph_svg_or_fallback(
+    window,
+    tree_browser: Any,
+    graph_browser: Any,
+    tree_data: Mapping[str, object],
+    *,
+    link_color: str,
+    font_family: str,
+) -> None:
+    graph_html = _build_derivadas_graph_html(
+        window,
+        tree_data,
+        link_color=link_color,
+        font_family=font_family,
+    )
+    graph_svg = _extract_inline_svg_markup(graph_html)
+    svg_deps = load_svg_render_dependencies()
+    if graph_svg and svg_deps is not None:
+        graph_panel = graph_browser.parentWidget() or graph_browser
+        if not render_graph_svg_pixmap(
+            graph_svg=graph_svg,
+            graph_label=graph_browser,
+            graph_panel=graph_panel,
+            dependencies=svg_deps,
+        ):
+            _set_graph_browser_message(
+                tree_browser,
+                graph_browser,
+                "Grafo de derivadas indisponivel.",
+                tree_visible=True,
+            )
+            return
+        tree_browser.setVisible(False)
+        set_svg_markup = getattr(graph_browser, "set_graph_svg_markup", None)
+        if callable(set_svg_markup):
+            set_svg_markup(graph_svg)
+        _apply_graph_navigation_hitboxes(graph_browser, graph_svg)
+        return
+    if hasattr(graph_browser, "setHtml"):
+        _set_graph_browser_message(
+            tree_browser,
+            graph_browser,
+            graph_html or "Grafo de derivadas indisponivel.",
+            tree_visible=True,
+            use_html=True,
+        )
+        return
+    _set_graph_browser_message(
+        tree_browser,
+        graph_browser,
+        "Grafo de derivadas indisponivel.",
+        tree_visible=True,
+    )
+
+
+def _update_main_details_derivadas_panel(window, series, *, font_family: str | None) -> None:
+    try:
+        (
+            tree_browser,
+            graph_browser,
+            normalized,
+            tree_data,
+            link_color,
+            safe_font_family,
+        ) = _resolve_derivadas_panel_payload(window, series, font_family)
+    except Exception as exc:
+        logger.debug("Falha ao resolver painel principal de derivadas: %s", exc)
         _clear_main_details_derivadas_panel(window)
         return
     try:
-        roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
-        link_color = str(
-            roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
-        )
-        safe_font_family = font_family or DETAILS_CONFIG.mono_font_family
-        tree_data = _collect_derivadas_tree_data(window, normalized)
         if not _has_derivadas_graph_relations(tree_data):
-            tree_browser.setVisible(False)
-            _set_graph_navigation_hitboxes(graph_browser, [])
-            clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
-            if callable(clear_svg_markup):
-                clear_svg_markup()
-            if hasattr(graph_browser, "setPixmap"):
-                graph_browser.clear()
-            graph_browser.setText("Sem SSAs Derivadas.")
-            graph_browser.setVisible(True)
+            _set_graph_browser_message(
+                tree_browser,
+                graph_browser,
+                "Sem SSAs Derivadas.",
+                tree_visible=False,
+            )
             return
         tree_html = _build_derivadas_tree_html(
             window,
@@ -799,49 +913,14 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
             ssa_index={},
         )
         tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
-        graph_browser.setVisible(True)
-        graph_html = _build_derivadas_graph_html(
+        _render_derivadas_graph_svg_or_fallback(
             window,
+            tree_browser,
+            graph_browser,
             tree_data,
             link_color=link_color,
             font_family=safe_font_family,
         )
-        graph_svg = _extract_inline_svg_markup(graph_html)
-        svg_deps = load_svg_render_dependencies()
-        if graph_svg and svg_deps is not None:
-            graph_panel = graph_browser.parentWidget() or graph_browser
-            if not render_graph_svg_pixmap(
-                graph_svg=graph_svg,
-                graph_label=graph_browser,
-                graph_panel=graph_panel,
-                dependencies=svg_deps,
-            ):
-                tree_browser.setVisible(True)
-                _set_graph_navigation_hitboxes(graph_browser, [])
-                clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
-                if callable(clear_svg_markup):
-                    clear_svg_markup()
-                graph_browser.setText("Grafo de derivadas indisponivel.")
-            else:
-                tree_browser.setVisible(False)
-                set_svg_markup = getattr(graph_browser, "set_graph_svg_markup", None)
-                if callable(set_svg_markup):
-                    set_svg_markup(graph_svg)
-                _apply_graph_navigation_hitboxes(graph_browser, graph_svg)
-        elif hasattr(graph_browser, "setHtml"):
-            tree_browser.setVisible(True)
-            _set_graph_navigation_hitboxes(graph_browser, [])
-            clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
-            if callable(clear_svg_markup):
-                clear_svg_markup()
-            graph_browser.setHtml(graph_html or "Grafo de derivadas indisponivel.")
-        else:
-            tree_browser.setVisible(True)
-            _set_graph_navigation_hitboxes(graph_browser, [])
-            clear_svg_markup = getattr(graph_browser, "clear_graph_svg_markup", None)
-            if callable(clear_svg_markup):
-                clear_svg_markup()
-            graph_browser.setText("Grafo de derivadas indisponivel.")
     except Exception as exc:
         logger.debug("Falha ao atualizar painel principal de derivadas: %s", exc)
         _clear_main_details_derivadas_panel(window)
@@ -1165,6 +1244,32 @@ def _get_series_for_ssa(window, numero_ssa):
     return match
 
 
+def _extract_prefixed_anchor_target(href: str, prefix: str) -> str:
+    return href[len(prefix) :].strip().lstrip("/")
+
+
+def _resolve_details_anchor_action(href: str) -> tuple[str, str | None, bool]:
+    if href.startswith("copy-ssa:"):
+        return ("copy", _extract_prefixed_anchor_target(href, "copy-ssa:"), True)
+    if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
+        return ("derivadas-tree", None, True)
+    for prefix in ("ssa-details:", "ssa_details://"):
+        if href.startswith(prefix):
+            return ("details-dialog", _extract_prefixed_anchor_target(href, prefix), True)
+    for prefix, allow_refilter in (
+        ("ssa-panel:", True),
+        ("ssa:", False),
+        ("ssa://", False),
+    ):
+        if href.startswith(prefix):
+            return (
+                "jump",
+                _extract_prefixed_anchor_target(href, prefix),
+                allow_refilter,
+            )
+    return ("", None, False)
+
+
 def _on_details_anchor_clicked(window, url):
     try:
         href = url.toString()
@@ -1172,41 +1277,23 @@ def _on_details_anchor_clicked(window, url):
         return
     if not href:
         return
-    if href.startswith("copy-ssa:"):
-        target = href[len("copy-ssa:") :].strip().lstrip("/")
+    action, target, allow_refilter = _resolve_details_anchor_action(href)
+    if action == "copy":
         if target:
             window._copy_ssa_to_clipboard(target)
         return
-    if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
-        current_ssa = getattr(window, "_details_current_ssa", None)
-        _show_derivadas_tree_for_ssa(window, current_ssa)
+    if action == "derivadas-tree":
+        _show_derivadas_tree_for_ssa(window, getattr(window, "_details_current_ssa", None))
         return
-    if href.startswith("ssa-details:"):
-        target = href[len("ssa-details:") :].strip().lstrip("/")
+    if action == "details-dialog":
         if target:
             _open_details_dialog_for_ssa(window, target)
         return
-    if href.startswith("ssa_details://"):
-        target = href[len("ssa_details://") :].strip().lstrip("/")
-        if target:
-            _open_details_dialog_for_ssa(window, target)
-        return
-    allow_refilter = True
-    if href.startswith("ssa-panel:"):
-        target = href[len("ssa-panel:") :]
-    elif href.startswith("ssa:"):
-        target = href[len("ssa:") :]
-        allow_refilter = False
-    elif href.startswith("ssa://"):
-        target = href[len("ssa://") :]
-        allow_refilter = False
-    else:
-        return
-    target = target.strip().lstrip("/")
-    if target and allow_refilter:
-        _jump_to_ssa(window, target)
-    elif target:
-        _jump_to_ssa(window, target, _allow_refilter=False)
+    if action == "jump" and target:
+        if allow_refilter:
+            _jump_to_ssa(window, target)
+        else:
+            _jump_to_ssa(window, target, _allow_refilter=False)
 
 
 def _resolve_current_db_path():
