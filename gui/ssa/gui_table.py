@@ -996,7 +996,7 @@ def _rebuild_table_widget(window, header, display_df, display_headers):
         window.table_widget.setHorizontalHeaderLabels(display_headers)
         table_cell_alignment = _table_cell_alignment_from_preferences()
         _populate_table_items(window, display_df, table_cell_alignment)
-        window._last_table_cell_alignment = table_cell_alignment
+        setattr(window, "_last_table_cell_alignment", table_cell_alignment)
 
 
 def _restore_interactive_header_mode(header):
@@ -1120,7 +1120,7 @@ def _finalize_page_render(
     if reuse_render and alignment_changed:
         try:
             _populate_table_items(window, display_df, expected_alignment)
-            window._last_table_cell_alignment = expected_alignment
+            setattr(window, "_last_table_cell_alignment", expected_alignment)
         except Exception as exc:
             logger.debug(
                 "Falha ao reaplicar alinhamento em render reutilizado: %s", exc
@@ -1338,6 +1338,6 @@ def apply_table_cell_alignment(window, alignment_name: str) -> None:
                 )
                 if item.textAlignment() != effective_alignment:
                     item.setTextAlignment(effective_alignment)
-        window._last_table_cell_alignment = table_cell_alignment
+        setattr(window, "_last_table_cell_alignment", table_cell_alignment)
     finally:
         table.setUpdatesEnabled(was_updates_enabled)
