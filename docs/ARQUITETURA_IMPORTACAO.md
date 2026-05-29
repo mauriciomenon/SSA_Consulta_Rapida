@@ -76,15 +76,11 @@ Referencia completa:
 ## Fonte de verdade para operacao
 
 - Estado operacional e decisoes de ciclo:
-  - `docs/RECOVERY_BACKLOG.md`
-  - `docs/NEXT_CHAT_MIGRATION.md`
-  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  - `README.md`
+  - `docs/README.md`
 
 ## Historico tecnico detalhado
 
-O conteudo detalhado legado desta arquitetura foi arquivado em:
-
-- `docs/archive/ARQUITETURA_IMPORTACAO_legacy_until_20260309_1901.md`
+O conteudo detalhado legado desta arquitetura nao e mais publicado no repositorio.
 
 <!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
-

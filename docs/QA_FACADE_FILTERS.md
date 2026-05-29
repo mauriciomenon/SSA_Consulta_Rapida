@@ -133,7 +133,7 @@ uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters
 uv run pytest -q tests/test_gui_filters_advanced_logic.py
 ```
 
-6. Update `docs/RECOVERY_BACKLOG.md` for deferred non-blockers.
+6. Register deferred non-blockers in the PR/conversation without publishing internal backlog files.
 
 ## PR checklist text (copy/paste)
 
@@ -160,9 +160,6 @@ Use this checklist before claiming done:
    - include clear now vs backlog classification
 
 Migration note:
-- next chat starter prompts are maintained in:
-  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-  - `docs/NEXT_CHAT_MIGRATION.md`
+- next chat starter prompts are no longer published in repository docs.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

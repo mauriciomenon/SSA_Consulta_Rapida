@@ -6,7 +6,7 @@
 - Baseline usado para este DOC_SYNC:
   - `2b8746564f64a11bf93fc70f030239260ec53059 2026-05-20 22:46:32 -0300 DOC_SYNC: update merge readiness handoff`.
 - Este documento e documentacao apenas; confirmar o head operacional real com `git log -1`.
-- Este documento e um mapa de revisao para PR/merge; nao substitui `docs/RECOVERY_BACKLOG.md`.
+- Este documento e um mapa de revisao para PR/merge; nao substitui o estado real do PR/checks.
 
 ## Function Map
 

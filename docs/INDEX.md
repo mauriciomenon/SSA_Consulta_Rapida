@@ -62,11 +62,10 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 ## Regras de leitura
 
 1. Baseline ativo de versao: `4.37`.
-2. Arquivos em `docs/archive/` sao historicos e nao substituem docs ativos.
-3. Em conflito de informacao, prevalece:
+2. Em conflito de informacao, prevalece:
    - `AGENTS.md` (raiz)
    - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
-   - topo dos docs de controle (`RECOVERY_BACKLOG`, `NEXT_CHAT_MIGRATION`, `AGENTS_HANDOFF_NEXT_CYCLE`)
+   - `README.md` e este indice
 
 ## Leitura recomendada (ordem)
 
@@ -78,19 +77,13 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 
 ## Controle operacional
 
-- `docs/RECOVERY_BACKLOG.md`
-- `docs/NEXT_CHAT_MIGRATION.md`
-- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
 - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
-- `docs/PENDING_ACTION_MATRIX.md`
 
 ### Alertas de curto prazo
 
 1. Debt transversal BLE001 (broad `except Exception`) permanece alto.
-2. Referencia canonica da campanha:
-   - `docs/RECOVERY_BACKLOG.md` (Priority Note 2026-03-10)
-   - `docs/PENDING_ACTION_MATRIX.md` (Update 2026-03-10 near-term stabilization queue)
+2. Pendencias novas devem ser tratadas no PR/conversa, sem publicar backlog interno no repositorio.
 
 ## Politicas (frozen)
 
@@ -117,7 +110,6 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
 - `docs/WORKERS_API_DOCUMENTATION.md`
 - `docs/WORKERS_ARCHITECTURE_DIAGRAMS.md`
-- `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
 ## Build e distribuicao
 
@@ -138,26 +130,10 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/TESTING_HEADLESS.md`
 - `docs/LINTING_MINIMAL.md`
 - `docs/OTIMIZACAO_STARTUP.md`
-- `docs/MCP_SERVERS_STATUS.md`
-- `docs/OPENCODE_CONFIG.md`
-- `docs/QWEN_CODE_DELEGATION_CONFIG.md`
-
 ## Diagramas tecnicos
 
 - `docs/diagrams/arquitetura_importacao.puml`
 - `docs/diagrams/fluxo_sequencia_importacao.puml`
 - `docs/diagrams/diagrama_classes.puml`
-
-## Arquivo historico (copias de transicao para auditoria)
-
-Os arquivos abaixo sao snapshots de transicao e nao substituem os docs ativos
-de mesmo tema em `docs/`.
-
-- `docs/archive/NEXT_CHAT_MIGRATION_legacy_until_20260309_1735.md`
-- `docs/archive/AGENTS_HANDOFF_NEXT_CYCLE_legacy_until_20260309_1735.md`
-- `docs/archive/ARQUITETURA_IMPORTACAO_legacy_until_20260309_1901.md`
-- `docs/archive/TROUBLESHOOTING_legacy_until_20260309_1901.md`
-- `docs/archive/TROUBLESHOOTING_IMPORTACAO_legacy_until_20260309_1901.md`
-- `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
 <!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->

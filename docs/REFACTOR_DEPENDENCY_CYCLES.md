@@ -208,7 +208,7 @@ All existing import paths continue to work:
 
 ## References
 
-- Original plan (archived): docs/archive/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md
+- Original plan archive is no longer published in this repository.
 - Import analysis script: scripts_manutencao/analyze_imports.py
 - Test suite: temp/test_refactor.py
 
@@ -231,8 +231,7 @@ Impact:
 - Layer violations: None (was: utils --> armazenamento)
 - All tests pass, backward compatibility maintained
 
-References: docs/archive/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md
+References: internal archive removed from the public repository.
 ```
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

@@ -49,9 +49,7 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - reorder/sort/resize do header preservam detalhes e mapeamento visual.
   - popup de derivadas consolidado com arvore textual, grafo SVG e exportacao.
   - importacao e update por SSA endurecidos contra downgrade de `situacao` e DB invalido.
-- Docs vivos de controle consolidados em torno de `AGENTS.md`, `docs/README.md`,
-  `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` e
-  `docs/RECOVERY_BACKLOG.md`.
+- Docs vivos de controle consolidados em torno de `AGENTS.md`, `README.md` e `docs/README.md`.
 - Backlog real priorizado para a proxima rodada:
   - blindagem de storage contra limpeza legacy com letras
   - aliases validos em `_needs_db_only_derivadas_sync`
@@ -64,9 +62,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 ### **Documentacao da versao**
 - `README.md` (baseline `4.37`)
 - `docs/README.md`
-- `docs/NEXT_CHAT_MIGRATION.md`
-- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-- `docs/RECOVERY_BACKLOG.md`
 
 ### **Delta local apos a promocao da baseline**
 - `404a710e` `fix(gui): Sync prefs reference and external check docs`
@@ -152,14 +147,12 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 ### **Principais entregas**
 - Full rescan real executado de ponta a ponta com evidencia em:
   - `docs/indicios_importacao.md` (secao da sessao 2026-03-09)
-  - `docs/RECOVERY_BACKLOG.md` (update de full rescan real)
 - Baseline local promovido para `4.33` em:
   - `VERSION`
   - `config/version.json`
   - docs ativos de referencia
 - Governanca de docs refinada:
   - `docs/INDEX.md` e `docs/README.md` atualizados como navegacao canonica.
-  - guias longos migrados para versoes ativas curtas com snapshots em `docs/archive/`.
 - Saude do DB apos rescan:
   - `integrity_check=ok`
   - coluna `id` presente
@@ -168,8 +161,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Documentacao da versao**
 - `README.md` (v4.33 no topo)
-- `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
-- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
 - `docs/FILTER_TAB_OPTIMIZATIONS.md` (baseline `v4.33`)
 
 ### **Sync documental 2026-03-10**
@@ -177,11 +168,7 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - PR `#45` segue aberto contra `dev`.
   - sem threads abertas na revisao.
   - merge bloqueado por checks externos (`CodeFactor`, `code/snyk`, `security/snyk`).
-- Docs de controle sincronizados com esse estado:
-  - `docs/RECOVERY_BACKLOG.md`
-  - `docs/NEXT_CHAT_MIGRATION.md`
-  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-  - `docs/PENDING_ACTION_MATRIX.md`
+- Docs de controle sincronizados com esse estado foram removidos do repositorio publico em limpeza posterior.
 
 ---
 
@@ -206,8 +193,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Documentacao da versao**
 - `README.md` (v4.30 no topo)
-- `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
-- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
 - `docs/FILTER_TAB_OPTIMIZATIONS.md` (baseline `v4.30`)
 
 ---
@@ -231,17 +216,11 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - guardrails de cancelamento/retorno inesperado em `core/app_logic.py`
   - timeout configuravel de reader join em `scripts/pytest_stream_common.py`
 - Regressao focada adicionada para command handlers, importer e stream wrappers.
-- Handoff sincronizado com bloco `CURRENT TRUTH` no topo de:
-  - `docs/NEXT_CHAT_MIGRATION.md`
-  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Handoff sincronizado em docs internos posteriormente removidos do repositorio publico.
 - Entregas streamlit (`v4.24.1`) e hardening (`v4.25.0`) preservadas no historico da branch.
 
 ### **Documentacao da versao**
 - `README.md` (v4.29 no topo)
-- `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
-- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
-- `docs/PENDING_ACTION_MATRIX.md`
-- `docs/RECOVERY_BACKLOG.md`
 
 ---
 
