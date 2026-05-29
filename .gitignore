@@ -25,6 +25,19 @@ __pycache__/
 *.db
 *.db-journal
 
+# Local-only internal handoff/backlog artifacts removed from public GitHub refs.
+GUI_SSA_REFACTOR_NOTES.md
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+docs/MCP_SERVERS_STATUS.md
+docs/NEXT_CHAT_MIGRATION.md
+docs/NUNCA_CONFIE_IA.md
+docs/OHMYOPENCODE_MANUAL.md
+docs/OPENCODE_CONFIG.md
+docs/PENDING_ACTION_MATRIX.md
+docs/QWEN_CODE_DELEGATION_CONFIG.md
+docs/RECOVERY_BACKLOG.md
+docs/archive/
+
 # C extensions
 *.so
 
