@@ -1,0 +1,9 @@
+utils/version.py
+  s_082d1ff7d55d96::t_3eea0ebb377cc5 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c6b8b5406941a8e448be8855f43e885786c957ea",
+  "prompts": {}
+}
