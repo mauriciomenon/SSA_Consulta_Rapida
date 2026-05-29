@@ -84,7 +84,6 @@ def test_repository_line_ending_policy_covers_build_scripts() -> None:
     for relative_path in (
         "pyoxidizer.bzl",
         "docs/GUIA_DISTRIBUICAO.md",
-        "docs/RECOVERY_BACKLOG.md",
     ):
         data = (PROJECT_ROOT / relative_path).read_bytes()
         assert b"\r\n" not in data

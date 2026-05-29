@@ -49,7 +49,6 @@ SSA_Consulta_Rapida/
 │   └── dist/                    # Executaveis gerados
 ├── 
 ├── docs/                        # Documentacao
-│   ├── PENDING_ACTION_MATRIX.md # Status e planejamento
 │   ├── ARQUITETURA_IMPORTACAO.md # Analises tecnicas ativas
 │   ├── TROUBLESHOOTING.md       # Solucao de problemas
 │   ├── CHANGELOG_IMPLEMENTACOES.md # Historico de implementacao
@@ -110,10 +109,9 @@ python -c "from utils import setup_project_structure as s; print(s.setup_dirs())
 4. **TROUBLESHOOTING.md** - Solucao de problemas
 
 #### **Nivel 2 - Documentos Especializados**
-1. **PENDING_ACTION_MATRIX.md** - Status e planejamento
-2. **ARQUITETURA_IMPORTACAO.md** - Analises consolidadas
-3. **CHANGELOG_IMPLEMENTACOES.md** - Historico de desenvolvimento
-4. **BUILD_SYSTEM.md** - Sistema de build
+1. **ARQUITETURA_IMPORTACAO.md** - Analises consolidadas
+2. **CHANGELOG_IMPLEMENTACOES.md** - Historico de desenvolvimento
+3. **BUILD_SYSTEM.md** - Sistema de build
 
 #### **Nivel 3 - Documentos de Referencia**
 1. **REGRAS_DE_OURO.md** - Boas praticas
@@ -428,4 +426,3 @@ def funcao_com_tratamento():
 **Status**: Estrutura estabilizada e pronta para crescimento sustentavel.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

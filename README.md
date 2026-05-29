@@ -86,29 +86,23 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - `P2`: revisar hotspots restantes da thread principal apos o sprint GUI
   - `P2`: decidir a paridade CLI vs GUI para diff/full import e discovery
   - `P2`: tratar hardening residual de rollback/error boundary em `database*`
-  - `P2`: consolidar a reorganizacao de docs historicos apontada em `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
+  - `P2`: manter somente documentacao operacional publica necessaria no repositorio
 - Docs vivos para continuidade:
   - `AGENTS.md` -> regras, proibicoes, processo e politicas obrigatorias
   - `docs/ARCH_DB_UPSERT.md` -> ordem real de decisao no update por `numero_ssa`
   - `docs/ARQUITETURA_IMPORTACAO.md` -> discovery/import + metadados de snapshot
   - `docs/TROUBLESHOOTING_IMPORTACAO.md` -> diagnostico pratico para regressao de estado/import
-  - `docs/NEXT_CHAT_MIGRATION.md` -> roteiro curto para proximo chat
-  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` -> handoff de execucao
-  - `docs/RECOVERY_BACKLOG.md` -> backlog priorizado e historico
   - `docs/README.md` -> indice da documentacao viva
-  - `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md` -> estudo de reorganizacao de docs legados/historicos
 - Estado de review auxiliar:
   - configuracao MCP local do Kluster foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   - timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo nem review clean
 - Primeira acao obrigatoria na proxima conversa:
   - revisar o estado atual do PR `dev -> main` e os checks mais recentes
-  - ler `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` e `docs/RECOVERY_BACKLOG.md` pelo topo vivo
   - começar por `svp03-targeted-repro` antes de abrir outro patch de filtros
   - revalidar se existe residuo local antes de abrir frente nova
   - referencias operacionais:
     - `.github/instructions/kluster-code-verify.instructions.md`
     - `docs/CCR_LLM_PROVIDERS_SETUP.md`
-    - `docs/OPENCODE_CONFIG.md`
 
 ## Historical Snapshot (2026-03-23 19:01 -0300)
 

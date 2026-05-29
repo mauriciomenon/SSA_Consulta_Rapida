@@ -174,8 +174,8 @@ Importante:
 
 Ao retomar esta frente, conferir tambem:
 1. `docs/README.md`
-2. `docs/NEXT_CHAT_MIGRATION.md`
-3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+2. `README.md`
+3. `AGENTS.md`
 
 ## Deferido
 
