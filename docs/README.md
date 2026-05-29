@@ -43,9 +43,8 @@
 1. Em caso de conflito, prevalece:
    - `AGENTS.md` (raiz)
    - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
-   - topo dos docs de controle (`RECOVERY_BACKLOG`, `NEXT_CHAT_MIGRATION`, `AGENTS_HANDOFF_NEXT_CYCLE`)
-2. Conteudo em `docs/archive/` e historico.
-3. Nao usar snapshot antigo como fonte de verdade para operacao atual.
+   - `README.md`
+2. Nao usar snapshot antigo como fonte de verdade para operacao atual.
 
 ## Leitura rapida por objetivo
 
@@ -84,29 +83,20 @@
 ## Controle de continuidade
 
 - `AGENTS.md`
-- `docs/RECOVERY_BACKLOG.md`
-- `docs/NEXT_CHAT_MIGRATION.md`
-- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/HISTORICO_RELEASES.md`
-- `docs/NUNCA_CONFIE_IA.md`
-- `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
 ## Primeira leitura obrigatoria no proximo chat
 
 1. `AGENTS.md`
-2. `docs/NEXT_CHAT_MIGRATION.md`
-3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-4. `docs/RECOVERY_BACKLOG.md`
-5. `docs/NUNCA_CONFIE_IA.md`
+2. `README.md`
+3. `docs/README.md`
+4. `docs/HISTORICO_RELEASES.md`
 
 ## Passo 0 obrigatorio antes de novo patch
 
-1. ler `docs/RECOVERY_BACKLOG.md` e `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` pelo topo
-2. revisar se existe slice local aberto antes de criar frente nova
-3. usar `docs/NUNCA_CONFIE_IA.md` como checklist antes de tocar em fluxos criticos de dados
-4. referencias:
-   - `.github/instructions/kluster-code-verify.instructions.md`
-   - `docs/NUNCA_CONFIE_IA.md`
+1. revisar se existe slice local aberto antes de criar frente nova
+2. ler `AGENTS.md`, `README.md` e `docs/README.md`
+3. registrar pendencias na conversa ou no PR, sem publicar backlog interno no repositorio
 
 ## Tooling padrao
 

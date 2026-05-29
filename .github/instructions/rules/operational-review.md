@@ -36,10 +36,7 @@ Ler nesta ordem:
 1. AGENTS.md
 2. README.md
 3. docs/README.md
-4. docs/NEXT_CHAT_MIGRATION.md
-5. docs/AGENTS_HANDOFF_NEXT_CYCLE.md
-6. docs/RECOVERY_BACKLOG.md
-7. .github/instructions/kluster-code-verify.instructions.md
+4. .github/instructions/kluster-code-verify.instructions.md
 
 ### FASE 3 - LEITURA DO PR
 
