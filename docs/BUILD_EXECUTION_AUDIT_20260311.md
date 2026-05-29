@@ -286,9 +286,6 @@ Legenda de status:
 - `docs/BUILD_MULTIPLATFORM.md`
 - `docs/BUILD_TOOLING_LESSONS_LEARNED.md`
 - `docs/BUILD_3X3_RUNBOOK.md`
-- `docs/NEXT_CHAT_MIGRATION.md`
-- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-- `docs/RECOVERY_BACKLOG.md`
+- internal continuity docs removed from the public repository
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

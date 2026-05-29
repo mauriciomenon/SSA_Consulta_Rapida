@@ -10,7 +10,7 @@
 ## Current Truth
 
 - Active baseline is the current `dev` branch state unless user defines another target.
-- Recovery/hardening history is context only; active follow-up backlog is `docs/RECOVERY_BACKLOG.md`.
+- Recovery/hardening history is context only; public operational docs must stay minimal.
 - Stable behavior from previous golden/release-candidate cycles must be preserved.
 
 ## Objetivo
@@ -71,7 +71,7 @@ Requirements -> Development -> Review -> Testing -> Data -> Deployment -> Operat
 3. Implementar em slice pequeno.
 4. Validar localmente: `python -m py_compile` + `ruff check` + `ty check` + `pytest` focado.
 5. Commit atomico (um por slice), push, checar bots/checks.
-6. Itens nao bloqueantes: registrar em `docs/RECOVERY_BACKLOG.md` (sem arrumar tudo agora).
+6. Itens nao bloqueantes: registrar na conversa ou no PR, sem publicar backlog interno no repositorio.
 7. Priorizar risco real; evitar refatoracao transversal fora de escopo.
 8. Quando alterar config, fazer backup com timestamp.
 9. Responder comentarios de PR: corrigidos e nao corrigidos com status claro.
@@ -110,7 +110,7 @@ Cada slice deve declarar:
 
 - Todo comentario deve receber resposta.
 - Se corrigido: responder com commit hash e arquivo/linha.
-- Se nao corrigido agora: responder com motivo + item no `docs/RECOVERY_BACKLOG.md`.
+- Se nao corrigido agora: responder com motivo e status no PR/conversa.
 - Nao deixar comentario sem status.
 - Quando houver melhoria percebida durante o ciclo, atualizar tambem a descricao do PR.
 

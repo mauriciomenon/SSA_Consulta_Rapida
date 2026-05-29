@@ -69,7 +69,7 @@ Para cada comentario analisado:
 
 - Todo comentario deve receber resposta
 - Se corrigido: responder com commit hash e arquivo/linha
-- Se nao corrigido agora: responder com motivo + item no docs/RECOVERY_BACKLOG.md
+- Se nao corrigido agora: responder com motivo e status no PR/conversa
 - Nao deixar comentario sem status
 
 ## Saida Final

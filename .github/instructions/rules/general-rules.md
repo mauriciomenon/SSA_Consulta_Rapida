@@ -50,18 +50,14 @@ Antes de agir, ler:
 - AGENTS.md (na raiz do projeto)
 - README.md
 - docs/README.md
-- docs/NEXT_CHAT_MIGRATION.md
-- docs/AGENTS_HANDOFF_NEXT_CYCLE.md
-- docs/RECOVERY_BACKLOG.md
 - .github/instructions/kluster-code-verify.instructions.md
 
 ## Fonte de Verdade
 
 - AGENTS.md (topo dos docs vivos)
 - README atual
-- docs de handoff e migration
-- RECOVERY_BACKLOG para pendencias reais
-- snapshots historicos sao contexto, nao contrato atual
+- docs publicos versionados
+- pendencias internas devem ficar no PR/conversa, nao em backlog publico
 
 ## Processo Padrao
 

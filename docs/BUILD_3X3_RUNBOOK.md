@@ -279,9 +279,8 @@ uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
 4. push para `dev`
 5. atualizar:
    - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
-   - `docs/NEXT_CHAT_MIGRATION.md`
-   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-   - `docs/RECOVERY_BACKLOG.md`
+   - `README.md`
+   - `docs/README.md`
 
 ## Nota operacional do baseline atual
 

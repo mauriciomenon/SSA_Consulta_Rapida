@@ -109,10 +109,9 @@ wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_pyoxidizer_debian.sh 
 
 ## Notas
 
-1. Para fluxo operacional e handoff, usar `docs/RECOVERY_BACKLOG.md`.
+1. Para fluxo operacional e handoff, usar o PR/conversa atual.
 2. Para troubleshooting geral, usar `docs/TROUBLESHOOTING.md`.
 3. Para troubleshooting de importacao, usar `docs/TROUBLESHOOTING_IMPORTACAO.md`.
 4. Antes dos comandos WSL acima, ajuste `$REPO_ROOT` para o caminho montado do repo no seu ambiente.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
