@@ -1,0 +1,55 @@
+docs/ESTRUTURA_PROJETO.md
+  s_112f22d1753d8a::t_4441b33ce1c293 112-114
+.github/instructions/rules/operational-review.md
+  s_112f22d1753d8a::t_473996172ba669 39
+docs/BUILD_EXECUTION_AUDIT_20260311.md
+  s_112f22d1753d8a::t_4441b33ce1c293 289
+.github/instructions/rules/general-rules.md
+  s_112f22d1753d8a::t_a7d24feb0a9798 59-60
+.github/instructions/rules/pr-comments-review.md
+  s_112f22d1753d8a::t_a7d24feb0a9798 72
+docs/INDEX.md
+  s_112f22d1753d8a::t_a7d24feb0a9798 65,68,86
+docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md
+  s_112f22d1753d8a::t_4441b33ce1c293 177-178
+README.md
+  s_112f22d1753d8a::t_a7d24feb0a9798 89
+docs/BUILD_3X3_RUNBOOK.md
+  s_112f22d1753d8a::t_4441b33ce1c293 282-283
+docs/QA_FACADE_FILTERS.md
+  s_112f22d1753d8a::t_4441b33ce1c293 136,163
+docs/TROUBLESHOOTING.md
+  s_112f22d1753d8a::t_4441b33ce1c293 9,40,51,55-57
+docs/ARQUITETURA_IMPORTACAO.md
+  s_112f22d1753d8a::t_4441b33ce1c293 79-80,84
+AGENTS.md
+  s_112f22d1753d8a::t_a7d24feb0a9798 13,74,113
+docs/REFACTOR_DEPENDENCY_CYCLES.md
+  s_112f22d1753d8a::t_4441b33ce1c293 211,234
+docs/COMANDOS_RAPIDOS.md
+  s_112f22d1753d8a::t_4441b33ce1c293 112
+.gitignore
+  s_112f22d1753d8a::t_6ca75539b9f094 28-40
+docs/README.md
+  s_112f22d1753d8a::t_a7d24feb0a9798 46-47,91-93,97-99
+docs/MERGE_READINESS_ARCHITECTURE.md
+  s_112f22d1753d8a::t_4441b33ce1c293 9
+docs/HISTORICO_RELEASES.md
+  s_112f22d1753d8a::t_4441b33ce1c293 52,171,219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "bdf379b004ec53c008957f75eea761a3556287da",
+  "prompts": {},
+  "sessions": {
+    "s_112f22d1753d8a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e712e-3692-73d1-bb56-2ce80136b6c8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
