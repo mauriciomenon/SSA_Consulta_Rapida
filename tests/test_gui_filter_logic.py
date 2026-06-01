@@ -3178,6 +3178,22 @@ class TestGUIFilterLogic:
         assert column_calls["count"] == 0
         assert self.window.df_exibido is filtered
 
+    def test_refresh_after_filter_change_ignores_stale_search_base_for_pending_text(
+        self,
+    ):
+        stale_filtered = self.base_df[self.base_df["numero_ssa"] == 1].copy()
+        self.window._df_last_search_filtered = stale_filtered
+        self.window._active_filter_search_display = "Teste A"
+        self.window._pending_search_display = ""
+        self.window.search_input.setText("Teste B")
+        self.window._debounce_timer.stop()
+        self.window._active_column_filters = {"situacao": "STE"}
+
+        self.window._refresh_after_filter_change()
+
+        assert self.window.df_exibido["numero_ssa"].tolist() == [2]
+        assert self.window._active_filter_search_display == "Teste B"
+
     def test_set_filtered_count_status_accepts_suffix(self):
         self.window._set_filtered_count_status(filtered_total=2, original_total=5)
         status = self.window.filtered_status_label.text()

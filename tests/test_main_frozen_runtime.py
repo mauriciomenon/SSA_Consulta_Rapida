@@ -8,6 +8,24 @@ import pytest
 from launchers import main_runtime
 
 
+def test_get_project_root_uses_meipass_for_pyinstaller(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle_root = tmp_path / "_MEIPASS"
+    exe_dir = tmp_path / "dist"
+    executable = exe_dir / "SSA_GUI"
+    bundle_root.mkdir()
+    exe_dir.mkdir()
+    executable.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(bundle_root), raising=False)
+    monkeypatch.setattr(sys, "executable", str(executable))
+
+    assert Path(main_runtime._get_project_root()) == bundle_root.resolve()
+
+
 def test_seed_runtime_folder_reports_copy_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

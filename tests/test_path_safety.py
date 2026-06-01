@@ -36,3 +36,22 @@ def test_ensure_path_is_allowed_accepts_explicit_extra_root(tmp_path: Path) -> N
     )
 
     assert result == external_file.resolve()
+
+
+def test_ensure_path_is_allowed_uses_extra_roots_set_after_import(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    external_root = tmp_path / "runtime"
+    external_root.mkdir()
+    external_file = external_root / "ssas.db"
+    external_file.write_text("ok", encoding="utf-8")
+    monkeypatch.setenv("SSA_EXTRA_ALLOWED_PATHS", str(external_root))
+
+    result = ensure_path_is_allowed(
+        external_file,
+        purpose="runtime_db",
+        must_exist=True,
+        expect_directory=False,
+    )
+
+    assert result == external_file.resolve()

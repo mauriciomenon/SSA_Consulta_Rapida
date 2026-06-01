@@ -61,7 +61,13 @@ def current_general_search_text(window: Any, *, is_widget_valid) -> str:
 
 
 def _snapshot_search_text(window: Any) -> str:
-    return str(getattr(window, "_active_filter_search_display", "") or "").strip()
+    try:
+        active_display = getattr(window, "_active_filter_search_display", "")
+        if active_display is None:
+            return ""
+        return str(active_display).strip()
+    except RuntimeError:
+        return ""
 
 
 def select_general_filter_source_candidate(

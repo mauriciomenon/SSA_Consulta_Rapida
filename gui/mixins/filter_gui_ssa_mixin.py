@@ -2305,22 +2305,25 @@ class FilterGUISSAMixin:
         self._build_column_filters_panel()
 
     def _filter_refresh_has_general_search(self) -> bool:
-        try:
-            for widget in self._iter_search_inputs():
-                if widget.text().strip():
-                    return True
-        except Exception as exc:
-            logger.debug("Falha ao ler campos de busca no refresh de filtros: %s", exc)
         active_search_display = str(
             getattr(self, "_active_filter_search_display", "") or ""
         ).strip()
-        pending_search_display = str(
-            getattr(self, "_pending_search_display", "") or ""
-        ).strip()
-        return bool(active_search_display or pending_search_display)
+        if not active_search_display:
+            return False
+        try:
+            live_search_texts = [
+                str(widget.text() or "").strip()
+                for widget in self._iter_search_inputs()
+            ]
+        except Exception as exc:
+            logger.debug("Falha ao ler campos de busca no refresh de filtros: %s", exc)
+            return True
+        if not live_search_texts:
+            return True
+        return all(text == active_search_display for text in live_search_texts)
 
     def _filter_refresh_base_dataframe(self, has_general_search: bool) -> pd.DataFrame:
-        if has_general_search or not self._df_last_search_filtered.empty:
+        if has_general_search:
             return self._df_last_search_filtered
         return self.df_completo
 
@@ -2594,6 +2597,13 @@ class FilterGUISSAMixin:
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
         timer = FilterRefreshTimer()
         current_details_ssa = getattr(self, "_details_current_ssa", None)
+        active_search_display = str(
+            getattr(self, "_active_filter_search_display", "") or ""
+        ).strip()
+        current_search_text = self._current_general_search_text()
+        if current_search_text != active_search_display:
+            self.initiate_filtering()
+            return
         has_general_search = self._filter_refresh_has_general_search()
         base = self._filter_refresh_base_dataframe(has_general_search)
         filtered = base

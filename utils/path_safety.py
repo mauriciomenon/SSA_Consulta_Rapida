@@ -50,6 +50,21 @@ def _load_allowed_roots() -> List[Path]:
 
 
 ALLOWED_ROOTS: List[Path] = _load_allowed_roots()
+_ALLOWED_ROOTS_ENV_VALUE = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")
+
+
+def refresh_allowed_roots() -> List[Path]:
+    global ALLOWED_ROOTS, _ALLOWED_ROOTS_ENV_VALUE
+    ALLOWED_ROOTS = _load_allowed_roots()
+    _ALLOWED_ROOTS_ENV_VALUE = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")
+    return list(ALLOWED_ROOTS)
+
+
+def get_allowed_roots() -> List[Path]:
+    current_env_value = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")
+    if current_env_value != _ALLOWED_ROOTS_ENV_VALUE:
+        return refresh_allowed_roots()
+    return list(ALLOWED_ROOTS)
 
 
 def _is_within(path: Path, base: Path) -> bool:
@@ -98,7 +113,7 @@ def ensure_path_is_allowed(
     else:
         candidate = candidate.resolve()
 
-    allowed = ALLOWED_ROOTS
+    allowed = get_allowed_roots()
     if extra_allowed_roots:
         allowed = _unique(
             [
