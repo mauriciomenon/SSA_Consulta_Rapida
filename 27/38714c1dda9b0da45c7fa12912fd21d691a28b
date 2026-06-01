@@ -1,0 +1,23 @@
+tests/test_filter_refresh_pipeline.py
+  s_d6fa161e244185::t_17b1158cdd21d5 64,73
+  s_d6fa161e244185::t_2b3433cf687134 55-63,65-72
+gui/ssa/filter_refresh_pipeline.py
+  s_d6fa161e244185::t_8f5b1d899d1609 57-59
+  s_d6fa161e244185::t_d25f113113f033 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2738714c1dda9b0da45c7fa12912fd21d691a28b",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
