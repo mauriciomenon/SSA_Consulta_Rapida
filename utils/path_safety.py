@@ -156,13 +156,20 @@ def reserve_unique_path(
     base, ext = os.path.splitext(destination)
     attempt_limit = max(int(max_attempts), 1)
 
-    normalized_destination = os.path.abspath(destination)
+    normalized_destination = os.path.realpath(destination)
     if reserved_paths is not None:
-        if normalized_destination not in reserved_paths and not os.path.exists(
-            destination
-        ):
-            reserved_paths.add(normalized_destination)
-            return destination
+        if normalized_destination not in reserved_paths and not os.path.exists(destination):
+            if touch:
+                try:
+                    Path(destination).touch(exist_ok=False)
+                except FileExistsError:
+                    pass
+                else:
+                    reserved_paths.add(normalized_destination)
+                    return destination
+            else:
+                reserved_paths.add(normalized_destination)
+                return destination
     elif touch:
         try:
             Path(destination).touch(exist_ok=False)
@@ -175,11 +182,19 @@ def reserve_unique_path(
     attempts = 0
     while attempts < attempt_limit:
         candidate = f"{base}__{idx}{ext}"
-        normalized_candidate = os.path.abspath(candidate)
+        normalized_candidate = os.path.realpath(candidate)
         if reserved_paths is not None:
-            if normalized_candidate not in reserved_paths and not os.path.exists(
-                candidate
+            if (
+                normalized_candidate not in reserved_paths
+                and not os.path.exists(candidate)
             ):
+                if touch:
+                    try:
+                        Path(candidate).touch(exist_ok=False)
+                    except FileExistsError:
+                        idx += 1
+                        attempts += 1
+                        continue
                 reserved_paths.add(normalized_candidate)
                 return candidate
         elif touch:

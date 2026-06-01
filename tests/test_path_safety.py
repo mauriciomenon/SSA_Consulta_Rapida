@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import pytest
 
-from utils.path_safety import PathSafetyError, ensure_path_is_allowed
+from utils.path_safety import PathSafetyError, ensure_path_is_allowed, reserve_unique_path
 
 
 @pytest.mark.parametrize("value", ["", "   ", b"", b"   "])
@@ -55,3 +55,31 @@ def test_ensure_path_is_allowed_uses_extra_roots_set_after_import(
     )
 
     assert result == external_file.resolve()
+
+
+def test_reserve_unique_path_with_reserved_set_and_touch_reserves_on_disk(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    reserved_paths: set[str] = set()
+
+    result = reserve_unique_path(target, reserved_paths=reserved_paths, touch=True)
+
+    assert result == str(target)
+    assert target.exists()
+    assert str(target.resolve()) in reserved_paths
+
+
+def test_reserve_unique_path_with_reserved_set_and_touch_reserves_next_candidate(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    target.write_text("old", encoding="utf-8")
+    reserved_paths = {str(target.resolve())}
+    expected = tmp_path / "entrada__1.xlsx"
+
+    result = reserve_unique_path(target, reserved_paths=reserved_paths, touch=True)
+
+    assert result == str(expected)
+    assert expected.exists()
+    assert str(expected.resolve()) in reserved_paths
