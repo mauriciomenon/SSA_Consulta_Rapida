@@ -1,0 +1,19 @@
+gui/mixins/filter_gui_ssa_mixin.py
+  s_d6fa161e244185::t_5060a712261551 904,2596,2604,2607-2611
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "af82bbf6af0198b507ba3f3b2d58861c398446d7",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
