@@ -1,0 +1,25 @@
+core/regex_safety.py
+  s_d6fa161e244185::t_6c72aa7525085d 40,75,86,88,100,117
+  s_d6fa161e244185::t_8e01cf474f791a 98-99
+  s_d6fa161e244185::t_71ee6fe70c456a 60-73
+  s_d6fa161e244185::t_4813297f695a8a 7,15-25,32,35-39,41-42,44-51,54,58,74,76-80,104,112-116,118-119,128,130-135
+tests/test_app_logic_filter_contract.py
+  s_d6fa161e244185::t_6a3a89bbf2db6e 674
+  s_d6fa161e244185::t_9bbadb3c412e62 14,665-673,675-688
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7ee877eb05f32a09e791e5af9bb9d10f3eced90e",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
