@@ -49,6 +49,7 @@ APP_VERSION_LONG = get_app_version_long()
 # Rastreador de paginação por DataFrame (id -> estado retornado pelo printer)
 CLI_PAGINATION_TRACKER: Dict[int, Dict[str, Any]] = {}
 DEFAULT_FILTER_TERMS_CACHE: Dict[str, Any] = {}
+RAW_ANSI_ESCAPE = "\x1b"
 
 
 class _CLIPaginationTrackerManager:
@@ -1297,7 +1298,14 @@ def start_cli_loop(db_path: str, table_name: str):
             prompt_text = (
                 f"[{len(current_df)} SSAs] Buscar termos por virgula ou comando: "
             )
-            user_input = input(prompt_text).strip()
+            raw_user_input = input(prompt_text)
+            if RAW_ANSI_ESCAPE in raw_user_input:
+                print(
+                    "Entrada ignorada: tecla de direcao nao foi processada pelo "
+                    "terminal. Digite o filtro novamente."
+                )
+                continue
+            user_input = raw_user_input.strip()
 
             if not user_input:
                 continue

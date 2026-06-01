@@ -201,6 +201,63 @@ def test_start_cli_loop_accumulates_literal_terms_without_rewriting(
     ]
 
 
+def test_start_cli_loop_ignores_raw_ansi_arrow_input(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base_df = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
+    parse_calls: list[list[str]] = []
+    render_calls: list[tuple[pd.DataFrame, list[str]]] = []
+
+    monkeypatch.setattr(
+        cli,
+        "_get_initial_state",
+        lambda *_args, **_kwargs: (base_df, []),
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
+    )
+    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
+    monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
+    monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
+
+    def _fake_parse_search_terms(terms, default_mode="contains"):
+        values = list(terms)
+        parse_calls.append(values)
+        return [(default_mode, term) for term in values]
+
+    def _fake_render_single_page(
+        df, _display_map, _settings, _print_cache, terms, **_kwargs
+    ):
+        render_calls.append((df, list(terms)))
+        return None
+
+    inputs = iter(["\x1b[A!scc", "!ses", "q"])
+
+    def _fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "parse_search_terms", _fake_parse_search_terms)
+    monkeypatch.setattr(cli, "filter_dataframe", lambda df, _parsed_terms: df)
+    monkeypatch.setattr(cli, "_render_single_page", _fake_render_single_page)
+    monkeypatch.setattr(builtins, "input", _fake_input)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.start_cli_loop("dummy.db", "ssa_table")
+
+    assert excinfo.value.code == 0
+    assert parse_calls == [["!ses"]]
+    assert render_calls == [(base_df, ["!ses"])]
+    assert "Entrada ignorada" in capsys.readouterr().out
+
+
 def test_start_cli_loop_back_rerenders_previous_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
