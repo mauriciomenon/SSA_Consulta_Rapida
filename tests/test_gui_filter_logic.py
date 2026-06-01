@@ -4120,6 +4120,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         filtered_before = self.window.df_exibido.copy()
 
+        self.window._safe_store_last_filter_state("test_column_filter")
         self.window._active_column_filters["setor_executor"] = "SETOR_00"
         self.window._refresh_after_filter_change()
         QApplication.processEvents()
