@@ -2607,14 +2607,6 @@ class FilterGUISSAMixin:
             or has_advanced_filters
             or has_excluded_terminal_status
         )
-        if has_post_search_filters:
-            undo_state = getattr(self, "_last_filter_state", None)
-            applied_search_text = str(
-                getattr(self, "_active_filter_search_display", "") or ""
-            )
-            if isinstance(undo_state, dict) and applied_search_text:
-                undo_state["search_text"] = applied_search_text
-                undo_state["pending_search_display"] = applied_search_text
         filtered = self._apply_filter_refresh_filters_and_update_cache(
             filtered,
             has_post_search_filters=has_post_search_filters,

@@ -3285,6 +3285,43 @@ class TestGUIFilterLogic:
         assert len(self.window.df_exibido) == len(realistic_df)
         assert self.window.undo_filter_btn.isEnabled() is False
 
+    def test_general_search_undo_after_column_filter_restores_applied_state(self):
+        realistic_df = self._build_realistic_base_df_50()
+        self.window._sync_filtering = True
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        column_value = str(realistic_df.iloc[0]["setor_executor"])
+        filtered_by_column = realistic_df[
+            realistic_df["setor_executor"].astype(str) == column_value
+        ]
+        target_ssa = str(filtered_by_column.iloc[0]["numero_ssa"])
+
+        self.window._active_column_filters["setor_executor"] = column_value
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+        assert len(self.window.df_exibido) == len(filtered_by_column)
+
+        self.window.search_input.setText(f"={target_ssa}")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert len(self.window.df_exibido) == 1
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert (
+            self.window._active_column_filters.get("setor_executor") == column_value
+        )
+        assert Counter(self.window.df_exibido["numero_ssa"]) == Counter(
+            filtered_by_column["numero_ssa"]
+        )
+
     def test_general_search_button_click_filters_real_table_content(self):
         realistic_df = self._build_realistic_base_df_50()
         assert len(realistic_df) == 50
@@ -4331,7 +4368,7 @@ class TestGUIFilterLogic:
 
         assert self.window._last_filter_state is not None
         snapshot = self.window._last_filter_state
-        assert snapshot.get("search_text", "").strip() == "Marca"
+        assert snapshot.get("search_text", "").strip() == ""
         assert "coluna_temporaria_teste" not in (
             snapshot.get("active_column_filters") or {}
         )
