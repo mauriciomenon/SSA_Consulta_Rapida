@@ -1,0 +1,21 @@
+interface/cli.py
+  s_d6fa161e244185::t_5b4d9276310cad 124,166-168
+tests/test_cli_pagination_tracker_prune.py
+  s_d6fa161e244185::t_5b4d9276310cad 64-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1d65050b02a89881144c176783f4491b48c163cc",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
