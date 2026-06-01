@@ -1,0 +1,23 @@
+tests/test_path_safety.py
+  s_d6fa161e244185::t_f15168bbe3c121 9,58-70
+  s_d6fa161e244185::t_e6ea614c2b4572 71-85
+utils/path_safety.py
+  s_d6fa161e244185::t_f15168bbe3c121 161-172,187-189,191-197
+  s_d6fa161e244185::t_f2da8be2a1d04f 159,185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d0bd24a9661627d27d7473d8ea4df24b36344f59",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
