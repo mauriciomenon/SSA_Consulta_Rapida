@@ -399,8 +399,9 @@ def _execute_simple_insert(
     )
     insert_time = time.time() - insert_start
 
+    commit_start = time.time()
     conn.commit()
-    commit_time = time.time() - insert_start - insert_time
+    commit_time = time.time() - commit_start
     total_time = time.time() - insert_start
     logger.info(
         "Desempenho insercao %s: insercao=%.2fs, commit=%.2fs, total=%.2fs, throughput=%.1f registros/s",
