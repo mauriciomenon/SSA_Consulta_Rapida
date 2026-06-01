@@ -121,7 +121,7 @@ class _CLIPaginationTrackerManager:
             return 0
         next_page = state.get("next_page")
         if next_page is None:
-            return int(state.get("total_pages", 0))
+            return 0
         return max(0, int(next_page))
 
     def state_for(self, df: pd.DataFrame) -> Dict[str, Any]:
@@ -163,7 +163,9 @@ def _pagination_state_key_for_df(df: pd.DataFrame) -> int | None:
 def _last_rendered_page_for(df: pd.DataFrame) -> int:
     state = _PAGINATION_TRACKER_MANAGER.state_for(df)
     total_pages = max(0, int(state.get("total_pages", 0)))
-    rendered_pages = max(1, int(state.get("rendered_pages", 1)))
+    rendered_pages = max(0, int(state.get("rendered_pages", 0)))
+    if rendered_pages == 0:
+        return 0
     next_page = state.get("next_page")
     if next_page is None:
         return max(0, total_pages - rendered_pages)
