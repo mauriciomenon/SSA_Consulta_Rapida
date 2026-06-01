@@ -158,6 +158,32 @@ def test_initialize_database_connection_clears_only_current_db_cache(
         database_module._resolved_table_cache.clear()
 
 
+def test_resolved_table_cache_prunes_oldest_entry():
+    from armazenamento import database as database_module
+
+    try:
+        database_module._resolved_table_cache.clear()
+        max_entries = database_module._RESOLVED_TABLE_CACHE_MAX_ENTRIES
+        for index in range(max_entries + 1):
+            database_module._store_resolved_table_cache(
+                (f"/tmp/cache-{index}.sqlite", "ssa_table"),
+                f"table_{index}",
+            )
+
+        assert len(database_module._resolved_table_cache) == max_entries
+        assert ("/tmp/cache-0.sqlite", "ssa_table") not in (
+            database_module._resolved_table_cache
+        )
+        assert (
+            database_module._resolved_table_cache[
+                (f"/tmp/cache-{max_entries}.sqlite", "ssa_table")
+            ]
+            == f"table_{max_entries}"
+        )
+    finally:
+        database_module._resolved_table_cache.clear()
+
+
 def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):
     """Testa a inserção bem-sucedida de um DataFrame."""
     table_name = "teste_usuarios"

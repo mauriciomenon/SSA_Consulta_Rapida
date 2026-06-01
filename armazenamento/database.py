@@ -43,6 +43,7 @@ MAX_TEXT_LEN = 1000
 # Flag global para controlar modo otimizado (substituiu monkey-patching)
 _use_optimized_mode = False
 _resolved_table_cache: dict[tuple[str, str], str] = {}
+_RESOLVED_TABLE_CACHE_MAX_ENTRIES = 256
 _VALID_COLUMN_DEFINITIONS = frozenset({"TEXT", "INTEGER", "REAL", "NUMERIC", "BLOB"})
 
 
@@ -71,6 +72,12 @@ def _clear_resolved_table_cache(db_path: str | None = None) -> None:
     stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
     for key in stale_keys:
         _resolved_table_cache.pop(key, None)
+
+
+def _store_resolved_table_cache(cache_key: tuple[str, str], resolved_table: str) -> None:
+    _resolved_table_cache[cache_key] = resolved_table
+    while len(_resolved_table_cache) > _RESOLVED_TABLE_CACHE_MAX_ENTRIES:
+        _resolved_table_cache.pop(next(iter(_resolved_table_cache)))
 
 
 # --- Gerenciamento de Conexao ---
@@ -453,7 +460,7 @@ def _resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
             (CANONICAL_SSA_TABLE,),
         ).fetchone()
         if canonical_row:
-            _resolved_table_cache[cache_key] = CANONICAL_SSA_TABLE
+            _store_resolved_table_cache(cache_key, CANONICAL_SSA_TABLE)
             return CANONICAL_SSA_TABLE
 
     row = conn.execute(
@@ -466,9 +473,9 @@ def _resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
             (CANONICAL_SSA_TABLE,),
         ).fetchone()
         if canonical_row:
-            _resolved_table_cache[cache_key] = CANONICAL_SSA_TABLE
+            _store_resolved_table_cache(cache_key, CANONICAL_SSA_TABLE)
             return CANONICAL_SSA_TABLE
-    _resolved_table_cache[cache_key] = safe_table_name
+    _store_resolved_table_cache(cache_key, safe_table_name)
     return safe_table_name
 
 
