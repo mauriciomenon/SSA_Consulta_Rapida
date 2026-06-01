@@ -650,7 +650,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
 def reset_database(
     db_path: str,
     mode: str = "table",
-    _table_name: str = CANONICAL_SSA_TABLE,  # parametro legado nao usado
+    _table_name: str = CANONICAL_SSA_TABLE,
     schema_path: str | None = None,
 ) -> bool:
     """Reseta o banco de dados.
@@ -670,6 +670,13 @@ def reset_database(
                 schema_path = (
                     DEFAULT_SCHEMA_FILE  # usa padrao e resolucao em initialize_database
                 )
+            if os.path.exists(db_path):
+                with get_db_connection(db_path) as conn:
+                    table_name = _resolve_target_table(conn, _table_name)
+                    conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                        f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}"
+                    )
+                    conn.commit()
             initialize_database(db_path, schema_path)
             _clear_resolved_table_cache(db_path)
             return True
