@@ -622,6 +622,45 @@ def test_filter_dataframe_blocks_heavy_regex_patterns() -> None:
     assert out.empty
 
 
+def test_filter_dataframe_allows_unquantified_alternation_group() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "descricao_ssa": ["aaaa", "b", "motor"],
+        }
+    )
+
+    out = filter_dataframe(df, ["~(a+|b)"], ["descricao_ssa"])
+
+    assert list(out["numero_ssa"]) == ["202500001", "202500002"]
+
+
+def test_filter_dataframe_allows_nested_unquantified_alternation_group() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "descricao_ssa": ["aaaa", "b", "motor"],
+        }
+    )
+
+    out = filter_dataframe(df, ["~((a+|b))"], ["descricao_ssa"])
+
+    assert list(out["numero_ssa"]) == ["202500001", "202500002"]
+
+
+def test_filter_dataframe_blocks_nested_quantified_alternation_group() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "descricao_ssa": ["aaaaaaaaaaaaaaaaaaaa", "b"],
+        }
+    )
+
+    out = filter_dataframe(df, ["~((a+|b))+"], ["descricao_ssa"])
+
+    assert out.empty
+
+
 def test_parse_search_terms_supports_negative_regex_marker() -> None:
     terms = parse_search_terms(["!~STE"])
 

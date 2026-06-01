@@ -20,7 +20,7 @@ def _true_mask(series: pd.Series) -> pd.Series:
 
 
 def _has_quantified_risky_group(pattern_text: str) -> bool:
-    stack: list[tuple[bool, bool]] = []
+    stack: list[tuple[bool, bool, bool]] = []
     escaped = False
     for index, char in enumerate(pattern_text):
         if escaped:
@@ -30,32 +30,34 @@ def _has_quantified_risky_group(pattern_text: str) -> bool:
             escaped = True
             continue
         if char == "(":
-            stack.append((False, False))
+            stack.append((False, False, False))
             continue
         if not stack:
             continue
-        has_quantifier, has_alternation = stack[-1]
+        has_quantifier, has_alternation, has_nested_quantifier = stack[-1]
         if char == "|":
-            stack[-1] = (has_quantifier, True)
+            stack[-1] = (has_quantifier, True, has_nested_quantifier)
             continue
         if char == "?" and index > 0 and pattern_text[index - 1] == "(":
             continue
         if char in _QUANTIFIER_START_CHARS:
-            stack[-1] = (True, has_alternation)
+            stack[-1] = (True, has_alternation, has_nested_quantifier)
             continue
         if char != ")":
             continue
         stack.pop()
         next_char = pattern_text[index + 1] if index + 1 < len(pattern_text) else ""
-        if not next_char and has_quantifier and has_alternation:
-            return True
-        if next_char in _QUANTIFIER_START_CHARS and (has_quantifier or has_alternation):
+        group_has_quantifier = has_quantifier or has_nested_quantifier
+        if next_char in _QUANTIFIER_START_CHARS and (
+            group_has_quantifier or has_alternation
+        ):
             return True
         if stack:
-            parent_quantifier, parent_alternation = stack[-1]
+            parent_quantifier, parent_alternation, parent_nested_quantifier = stack[-1]
             stack[-1] = (
-                parent_quantifier or has_quantifier,
-                parent_alternation or has_alternation,
+                parent_quantifier,
+                parent_alternation,
+                parent_nested_quantifier or group_has_quantifier,
             )
     return False
 
