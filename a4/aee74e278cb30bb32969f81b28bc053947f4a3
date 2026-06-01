@@ -1,0 +1,21 @@
+tests/test_cli_loop_filter_rounds.py
+  s_d6fa161e244185::t_84a33aaa13fdd8 204-260
+interface/cli.py
+  s_d6fa161e244185::t_84a33aaa13fdd8 52,1301-1308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a4aee74e278cb30bb32969f81b28bc053947f4a3",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
