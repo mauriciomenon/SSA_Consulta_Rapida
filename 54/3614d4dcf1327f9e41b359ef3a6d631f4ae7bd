@@ -1,0 +1,35 @@
+launchers/main_runtime.py
+  s_d6fa161e244185::t_606b1996bfe39b 53
+gui/ssa/filter_search_undo_controller.py
+  s_d6fa161e244185::t_606b1996bfe39b 64-70
+utils/path_safety.py
+  s_d6fa161e244185::t_606b1996bfe39b 53-67,116
+gui/mixins/filter_gui_ssa_mixin.py
+  s_d6fa161e244185::t_ea7e952934b1f2 2311-2323
+  s_d6fa161e244185::t_c9298adf98872c 2600-2606
+  s_d6fa161e244185::t_606b1996bfe39b 2326
+tests/test_gui_filter_logic.py
+  s_d6fa161e244185::t_ea7e952934b1f2 3181-3183,3186
+  s_d6fa161e244185::t_606b1996bfe39b 3184-3185,3187-3194,3196
+  s_d6fa161e244185::t_c9298adf98872c 3195
+tests/test_path_safety.py
+  s_d6fa161e244185::t_606b1996bfe39b 39-57
+tests/test_main_frozen_runtime.py
+  s_d6fa161e244185::t_606b1996bfe39b 11-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "543614d4dcf1327f9e41b359ef3a6d631f4ae7bd",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
