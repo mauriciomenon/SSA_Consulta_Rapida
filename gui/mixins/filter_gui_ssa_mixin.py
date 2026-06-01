@@ -901,7 +901,7 @@ class FilterGUISSAMixin:
         self._df_last_search_filtered = df_filtrado
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
-        self._refresh_after_filter_change()
+        self._refresh_after_filter_change(commit_pending_search=False)
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
         search_text = ""
         current_search_request_id = getattr(
@@ -2593,7 +2593,7 @@ class FilterGUISSAMixin:
             filtered_rows,
         )
 
-    def _refresh_after_filter_change(self):
+    def _refresh_after_filter_change(self, *, commit_pending_search: bool = True):
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
         timer = FilterRefreshTimer()
         current_details_ssa = getattr(self, "_details_current_ssa", None)
@@ -2601,10 +2601,14 @@ class FilterGUISSAMixin:
             getattr(self, "_active_filter_search_display", "") or ""
         ).strip()
         current_search_text = self._current_general_search_text()
-        if current_search_text != active_search_display:
+        if commit_pending_search and current_search_text != active_search_display:
             self.initiate_filtering()
             return
-        has_general_search = self._filter_refresh_has_general_search()
+        has_general_search = (
+            self._filter_refresh_has_general_search()
+            if commit_pending_search
+            else bool(active_search_display)
+        )
         base = self._filter_refresh_base_dataframe(has_general_search)
         filtered = base
         (
