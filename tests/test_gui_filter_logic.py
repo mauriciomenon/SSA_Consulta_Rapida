@@ -11941,7 +11941,9 @@ class TestGUIFilterLogic:
         self.window._pending_search_display = "SVP, R001"
         self.window.df_exibido = self.base_df.iloc[0:0].copy()
         self.window._df_last_search_filtered = self.base_df.iloc[0:0].copy()
-        with patch.object(self.window, "_refresh_after_filter_change", lambda: None):
+        with patch.object(
+            self.window, "_refresh_after_filter_change", lambda **_kwargs: None
+        ):
             self.window.on_filter_finished(self.base_df.iloc[0:0].copy(), request_id=88)
 
         status = str(self.window.filtered_status_label.text() or "")
