@@ -52,3 +52,22 @@ def test_filter_refresh_pipeline_applies_column_filter_normally():
 
     assert filtered["situacao"].tolist() == ["APV"]
     assert cache_update is not None
+
+
+def test_filter_refresh_pipeline_applies_terminal_exclusion_without_post_filters():
+    df = pd.DataFrame({"situacao": ["APV", "STE", "SCA", "SES"]})
+
+    filtered, cache_update = apply_filter_refresh_pipeline(
+        df,
+        has_post_search_filters=False,
+        has_excluded_terminal_status=True,
+        cache_key=("revision", "terminal-only"),
+        cached=None,
+        apply_advanced_filters=None,
+        apply_column_filters=lambda frame: frame,
+        measure_timing=_measure,
+        logger=_Logger(),
+    )
+
+    assert filtered["situacao"].tolist() == ["APV"]
+    assert cache_update is not None

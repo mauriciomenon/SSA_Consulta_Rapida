@@ -54,7 +54,9 @@ def apply_filter_refresh_pipeline(
         measure_timing=measure_timing,
         logger=logger,
     )
-    if has_post_search_filters and cache_key is not None:
+    if (
+        has_post_search_filters or has_excluded_terminal_status
+    ) and cache_key is not None:
         return filtered, FilterRefreshLastResult(
             cache_key,
             has_post_search_filters,
@@ -107,8 +109,7 @@ def _apply_terminal_status_stage(
     logger: Any,
 ) -> pd.DataFrame:
     if (
-        has_post_search_filters
-        and has_excluded_terminal_status
+        has_excluded_terminal_status
         and not filtered.empty
         and "situacao" in filtered.columns
     ):
