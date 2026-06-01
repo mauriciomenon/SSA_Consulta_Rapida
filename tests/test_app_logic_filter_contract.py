@@ -11,6 +11,7 @@ import pytest
 from armazenamento import database
 from core import app_logic
 from core.app_logic import filter_dataframe, get_filtered_data, parse_search_terms
+from core.regex_safety import is_safe_regex_pattern
 from core.search_filter import apply_general_search_terms
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin
 from gui.ssa.search_refinement import can_reuse_refined_search
@@ -659,6 +660,32 @@ def test_filter_dataframe_blocks_nested_quantified_alternation_group() -> None:
     out = filter_dataframe(df, ["~((a+|b))+"], ["descricao_ssa"])
 
     assert out.empty
+
+
+@pytest.mark.parametrize(
+    ("pattern", "reject_quantifiers", "expected"),
+    [
+        ("^foo", False, True),
+        ("(a+|b)", False, True),
+        ("((a+|b))", False, True),
+        ("((a+|b))+", False, False),
+        ("(a+)+$", False, False),
+        ("(?=foo)", False, False),
+        (r"\(\?=foo\)", False, True),
+        (r"(foo)\1", False, False),
+        ("foo.*bar", False, True),
+        ("foo.*bar", True, False),
+        (r"foo\.\*bar", True, True),
+        ("(" * 17, False, False),
+    ],
+)
+def test_regex_safety_scanner_preserves_policy(
+    pattern: str, reject_quantifiers: bool, expected: bool
+) -> None:
+    assert (
+        is_safe_regex_pattern(pattern, reject_quantifiers=reject_quantifiers)
+        is expected
+    )
 
 
 def test_parse_search_terms_supports_negative_regex_marker() -> None:
