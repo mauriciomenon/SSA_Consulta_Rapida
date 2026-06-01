@@ -1,0 +1,21 @@
+gui/ssa/filter_search_undo_controller.py
+  s_d6fa161e244185::t_53ece05de82fca 64
+tests/test_gui_filter_logic.py
+  s_d6fa161e244185::t_53ece05de82fca 3288-3324,4371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "655ad1f5c35b96c219db0bdf8eda3d4e4d2e33c5",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
