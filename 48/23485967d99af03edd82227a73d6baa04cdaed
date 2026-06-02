@@ -1,0 +1,22 @@
+tests/test_cli_loop_filter_rounds.py
+  s_d6fa161e244185::t_5e1f5704fe63ce 459,476
+  s_d6fa161e244185::t_5b5a4ca38ba3c4 449-458,460-475,482-516,518-519
+  s_d6fa161e244185::t_ca26d9f39e91e4 477-481,517
+  s_d6fa161e244185::t_54335935b29dc9 520-577
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4823485967d99af03edd82227a73d6baa04cdaed",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
