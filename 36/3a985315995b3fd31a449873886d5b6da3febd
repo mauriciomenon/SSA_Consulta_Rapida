@@ -1,0 +1,21 @@
+tests/test_config_manager_atomic_save.py
+  s_d6fa161e244185::t_ac0b027c4a39ba 243-260
+core/config_manager.py
+  s_d6fa161e244185::t_ac0b027c4a39ba 309-314,318,322-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "363a985315995b3fd31a449873886d5b6da3febd",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
