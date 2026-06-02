@@ -221,7 +221,14 @@ def _normalize_sheet_file_path(value: Any) -> str:
     normalized = str(value).strip()
     if not normalized:
         return ""
-    return os.path.abspath(os.path.expanduser(normalized))
+    expanded = os.path.abspath(os.path.expanduser(normalized))
+    return str(
+        ensure_path_is_allowed(
+            expanded,
+            purpose="sync derivadas sheet file",
+            expect_directory=False,
+        )
+    )
 
 
 def _sheet_stats_has_parse_evidence(stats: dict[str, Any] | None) -> bool:
