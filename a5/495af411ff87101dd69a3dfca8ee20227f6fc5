@@ -1,0 +1,21 @@
+launchers/build_multiplatform.py
+  s_d6fa161e244185::t_7d06993d5a92b0 632-650
+  s_d6fa161e244185::t_40ce78d0a0232a 676,678,684,694,700
+  s_d6fa161e244185::t_7f0ed6d236c51d 702-706,708-725,727-747
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a5495af411ff87101dd69a3dfca8ee20227f6fc5",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
