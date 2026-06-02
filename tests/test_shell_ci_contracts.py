@@ -528,6 +528,32 @@ def test_opencode_review_script_adds_lfs_note() -> None:
     assert "manual review" in prompt
 
 
+def test_opencode_review_script_rejects_unsafe_cli_arguments() -> None:
+    module = _load_opencode_review_module()
+
+    assert module.require_cli_option_value("MODEL", "github-copilot/gpt-4.1") == (
+        "github-copilot/gpt-4.1"
+    )
+    assert module.require_prompt_argument("Review this PR") == "Review this PR"
+
+    with pytest.raises(RuntimeError, match="MODEL"):
+        module.require_cli_option_value("MODEL", "--help")
+    with pytest.raises(RuntimeError, match="AGENT"):
+        module.require_cli_option_value("AGENT", "plan mode")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument(" --model attacker")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("bad\x00prompt")
+    with pytest.raises(RuntimeError, match="MODEL"):
+        module.require_cli_option_value("MODEL", "")
+    with pytest.raises(RuntimeError, match="AGENT"):
+        module.require_cli_option_value("AGENT", "   ")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("   ")
+
+
 def test_codeql_precheck_runs_advanced_when_default_setup_is_unverified() -> None:
     workflow = _read_repo_text(".github", "workflows", "codeql.yml")
 

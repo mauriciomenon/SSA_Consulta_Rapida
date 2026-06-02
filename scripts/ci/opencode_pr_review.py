@@ -3,7 +3,8 @@ from __future__ import annotations
 import codecs
 import json
 import os
-import subprocess
+# This CI helper uses argv lists with shell=False.
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
@@ -52,25 +53,31 @@ def truncate_diff(path: Path, output_path: Path | None = None, limit: int = DIFF
 
 def run_checked(command: list[str], *, stdout_path: Path | None = None, timeout: int | None = None) -> None:
     if stdout_path is None:
-        subprocess.run(command, check=True, text=True, timeout=timeout)
+        # command is an argv list; shell is never enabled.
+        subprocess.run(  # nosec B603
+            command,
+            check=True,
+            text=True,
+            timeout=timeout,
+        )
         return
-    result = subprocess.run(
-        command,
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=timeout,
-    )
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
-    stdout_path.write_text(result.stdout or "", encoding="utf-8", newline="\n")
+    with stdout_path.open("w", encoding="utf-8", newline="\n") as output_file:
+        # command is an argv list; shell is never enabled.
+        result = subprocess.run(  # nosec B603
+            command,
+            check=False,
+            text=True,
+            stdout=output_file,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
     if result.returncode != 0:
         print(f"Command failed with exit code {result.returncode}: {command[0]}")
         print(f"stdout captured in: {stdout_path}")
         raise subprocess.CalledProcessError(
             result.returncode,
             command,
-            output=result.stdout,
             stderr=result.stderr,
         )
 
@@ -85,24 +92,45 @@ def build_prompt(base_prompt: str, diff_text: str) -> str:
     )
 
 
+def require_cli_option_value(name: str, value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise RuntimeError(f"{name} must not be empty")
+    if text.startswith("-") or any(char.isspace() for char in text):
+        raise RuntimeError(f"{name} contains an unsafe CLI option value")
+    return text
+
+
+def require_prompt_argument(prompt: str) -> str:
+    text = str(prompt or "")
+    if not text.strip():
+        raise RuntimeError("PROMPT must not be empty")
+    if text.lstrip().startswith("-") or "\x00" in text:
+        raise RuntimeError("PROMPT contains an unsafe CLI argument")
+    return text
+
+
 def fetch_pr_diff(pr_number: int, diff_file: Path) -> None:
     run_checked(["gh", "pr", "diff", str(pr_number), "--patch"], stdout_path=diff_file)
 
 
 def run_opencode_review(model: str, agent: str, review_diff_file: Path, prompt: str, review_file: Path) -> None:
+    safe_model = require_cli_option_value("MODEL", model)
+    safe_agent = require_cli_option_value("AGENT", agent)
+    safe_prompt = require_prompt_argument(prompt)
     run_checked(
         [
             "opencode",
             "run",
             "--model",
-            model,
+            safe_model,
             "--agent",
-            agent,
+            safe_agent,
             "--file",
             str(review_diff_file),
             "--format",
             "default",
-            prompt,
+            safe_prompt,
         ],
         stdout_path=review_file,
         timeout=1200,
@@ -141,11 +169,11 @@ def required_env(name: str) -> str:
 def main() -> int:
     event_path = Path(required_env("GITHUB_EVENT_PATH"))
     runner_temp = Path(required_env("RUNNER_TEMP"))
-    model = required_env("MODEL")
-    agent = os.environ.get("AGENT") or "plan"
+    model = require_cli_option_value("MODEL", required_env("MODEL"))
+    agent = require_cli_option_value("AGENT", os.environ.get("AGENT") or "plan")
     workflow = os.environ.get("GITHUB_WORKFLOW", "opencode")
     job = os.environ.get("GITHUB_JOB", "opencode")
-    prompt = os.environ.get("PROMPT") or DEFAULT_PROMPT
+    prompt = require_prompt_argument(os.environ.get("PROMPT") or DEFAULT_PROMPT)
 
     event = json.loads(event_path.read_text(encoding="utf-8"))
     pr_number = extract_pr_number(event)
