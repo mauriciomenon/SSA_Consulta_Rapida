@@ -2959,6 +2959,12 @@ class TestGUIFilterLogic:
         from gui.ssa import column_filter_panel
 
         monkeypatch.setattr(column_filter_panel, "QMenu", _FakeMenu)
+        monkeypatch.setattr(
+            self.window,
+            "_expand_column_alias_for_filter",
+            lambda _col: (_ for _ in ()).throw(RuntimeError("alias expansion failed")),
+        )
+        self.window._active_column_filters = None
 
         self.window._open_add_column_filter_menu()
         menu_columns = {action.data() for action in created_actions}
@@ -2976,6 +2982,16 @@ class TestGUIFilterLogic:
         assert "justificativa" not in menu_columns
         assert "parciais" not in menu_columns
         assert "situacao_da_parcial" not in menu_columns
+
+        created_actions.clear()
+        self.window._active_column_filters = {"Data Cadastro": ""}
+        self.window._open_add_column_filter_menu()
+        menu_columns = {action.data() for action in created_actions}
+        assert "Data Cadastro" in menu_columns
+        active_action = next(
+            action for action in created_actions if action.data() == "Data Cadastro"
+        )
+        assert active_action.checked is True
 
     def test_get_canonical_available_columns_keeps_active_filter_even_outside_non_null_cache(
         self,
