@@ -1,0 +1,27 @@
+tests/test_database_verification.py
+  s_d6fa161e244185::t_8165cabd700c6b 430-477
+  s_d6fa161e244185::t_1d92ebd9a8cc7b 534-535,606-653
+utils/db_maintenance.py
+  s_d6fa161e244185::t_5d64328200f562 234-237,242,252-253,259-260,264,272,277,287,301,327,358,361,364-369,371-372,377-378,382-383,390-392
+  s_d6fa161e244185::t_34c0409b87e6cf 59-60,91-95,251
+  s_d6fa161e244185::t_c540fd38b0bfd5 16
+  s_d6fa161e244185::t_154d9a633d13ba 238-239,244,246-247,310
+  s_d6fa161e244185::t_f12a69f41a654a 250,271,276,285,325,370,373-376,379-381
+  s_d6fa161e244185::t_45324172df6b43 254-258,261,266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "44c923b61d1722bad1e2493064442b926ebfe4a0",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
