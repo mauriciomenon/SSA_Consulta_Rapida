@@ -1,0 +1,26 @@
+tests/test_shell_ci_contracts.py
+  s_d6fa161e244185::t_75ea5e6e3a56a5 547-552
+  s_d6fa161e244185::t_cecebc43dea2c8 531-546,555-556
+  s_d6fa161e244185::t_5118638c364b5c 553-554
+scripts/ci/opencode_pr_review.py
+  s_d6fa161e244185::t_d42da43a013f0b 65,68-74
+  s_d6fa161e244185::t_1ae7e445402b36 6-7,56-57,66-67
+  s_d6fa161e244185::t_a1786e5f7757b6 58-62
+  s_d6fa161e244185::t_4a65cc4d96aa93 95-112,118-120,126,128,133,172-173,176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6975f5bb2da1b29b985e297de164576fc4eea4f7",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
