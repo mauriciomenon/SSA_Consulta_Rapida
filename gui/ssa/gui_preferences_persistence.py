@@ -59,7 +59,7 @@ class PreferencesWriter:
         with self._lock:
             if self._stopped:
                 return False
-            self._queue.put(gui_prefs)
+            self._queue.put(_snapshot_preferences(gui_prefs))
             return True
 
     @property
@@ -78,7 +78,7 @@ class PreferencesWriter:
                     prefs_snapshot
                 )
                 self._write_func(
-                    _snapshot_preferences(prefs_snapshot),
+                    prefs_snapshot,
                     retries=self._retries,
                 )
             finally:
@@ -138,20 +138,13 @@ _GUI_PREFERENCES_WRITER = PreferencesWriter(persist_gui_preferences, retries=1)
 
 def _get_gui_preferences_writer() -> PreferencesWriter:
     global _GUI_PREFERENCES_WRITER
-    writer_to_shutdown: PreferencesWriter | None = None
     with _GUI_PREFERENCES_WRITER_LOCK:
         if not _GUI_PREFERENCES_WRITER.is_stopped:
             return _GUI_PREFERENCES_WRITER
-        writer_to_shutdown = _GUI_PREFERENCES_WRITER
-
-    writer_to_shutdown.shutdown(timeout=None)
-
-    with _GUI_PREFERENCES_WRITER_LOCK:
-        if _GUI_PREFERENCES_WRITER is writer_to_shutdown:
-            _GUI_PREFERENCES_WRITER = PreferencesWriter(
-                persist_gui_preferences,
-                retries=1,
-            )
+        _GUI_PREFERENCES_WRITER = PreferencesWriter(
+            persist_gui_preferences,
+            retries=1,
+        )
         return _GUI_PREFERENCES_WRITER
 
 
