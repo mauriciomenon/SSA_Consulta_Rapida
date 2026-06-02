@@ -1386,7 +1386,6 @@ def start_cli_loop(db_path: str, table_name: str):
                     if (
                         normalized_ssa
                         and ssa_number.isdigit()
-                        and len(ssa_number) == len(normalized_ssa)
                     ):
                         if "numero_ssa" in current_df.columns:
                             numero_series = current_df["numero_ssa"].astype(str)
@@ -1398,7 +1397,6 @@ def start_cli_loop(db_path: str, table_name: str):
                                 _show_ssa_details(matching_rows.iloc[0], display_map)
                                 continue
                             print(f"SSA {ssa_number} não encontrada na tabela atual.")
-                            continue
 
                     # Se não é SSA, aplica filtro acumulativo conforme o contrato atual:
                     # termos separados por virgula, sem reinterpretar operadores como OU/E.
