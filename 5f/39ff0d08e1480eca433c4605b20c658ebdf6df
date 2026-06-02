@@ -1,0 +1,23 @@
+gui/ssa/gui_preferences_persistence.py
+  s_d6fa161e244185::t_c7a559ec4ca6b8 144-147
+  s_d6fa161e244185::t_33d06961162c37 62,81
+tests/test_gui_preferences_atomic_write.py
+  s_d6fa161e244185::t_c7a559ec4ca6b8 148-184
+  s_d6fa161e244185::t_33d06961162c37 1,115-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5f39ff0d08e1480eca433c4605b20c658ebdf6df",
+  "prompts": {},
+  "sessions": {
+    "s_d6fa161e244185": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8147-c45f-7470-9f38-8cca9f100995",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
