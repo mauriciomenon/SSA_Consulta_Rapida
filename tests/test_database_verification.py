@@ -263,6 +263,47 @@ class TestDatabaseMaintenance:
 
         assert report["column_counts"]["bad-name"] == 1
 
+    def test_analyze_table_structure_uses_canonical_table_without_legacy_alias(
+        self,
+        tmp_path,
+    ):
+        db_path = os.path.join(tmp_path, "maintenance_canonical_only.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute('CREATE TABLE ssa_table (numero_ssa TEXT, "bad-name" TEXT)')
+        conn.execute(
+            'INSERT INTO ssa_table (numero_ssa, "bad-name") VALUES (?, ?)',
+            ("202512345", "abc"),
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.analyze_table_structure()
+
+        assert report["column_counts"]["numero_ssa"] == 1
+        assert report["column_counts"]["bad-name"] == 1
+
+    def test_analyze_table_structure_accepts_legacy_view_for_read_only_analysis(
+        self,
+        tmp_path,
+    ):
+        db_path = os.path.join(tmp_path, "maintenance_view_only_analysis.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE raw_ssa (numero_ssa TEXT, descricao_ssa TEXT)")
+        conn.execute(
+            "INSERT INTO raw_ssa (numero_ssa, descricao_ssa) VALUES (?, ?)",
+            ("202512345", "Descricao"),
+        )
+        conn.execute("CREATE VIEW ssas AS SELECT * FROM raw_ssa")
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.analyze_table_structure()
+
+        assert report["column_counts"]["numero_ssa"] == 1
+        assert report["column_counts"]["descricao_ssa"] == 1
+
     def test_analyze_table_structure_escapes_schema_identifier_with_quote(
         self,
         tmp_path,
@@ -357,6 +398,35 @@ class TestDatabaseMaintenance:
         assert report["issues"]["missing_numero_ssa"] == []
         assert report["issues"]["duplicate_numbers"] == {}
 
+    def test_sanity_check_uses_canonical_table_without_legacy_alias(self, tmp_path):
+        db_path = os.path.join(tmp_path, "maintenance_sanity_canonical_only.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa TEXT,
+                descricao_ssa TEXT,
+                setor_emissor TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO ssa_table (numero_ssa, descricao_ssa, setor_emissor)
+            VALUES (?, ?, ?)
+            """,
+            ("202512345", "Descricao", "AREA"),
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["total_records"] == 1
+        assert report["summary"]["missing_numero_ssa"] == 0
+        assert report["summary"]["missing_descricao"] == 0
+
     def test_sanity_check_uses_legacy_numero_ssa_when_normalized_is_blank(
         self,
         tmp_path,
@@ -377,6 +447,42 @@ class TestDatabaseMaintenance:
 
         assert report["issues"]["missing_numero_ssa"] == []
         assert report["issues"]["duplicate_numbers"] == {}
+
+    def test_sanity_check_empty_records_treats_blank_strings_as_empty(
+        self,
+        tmp_path,
+    ):
+        legacy_numero = "N\u00famero da SSA"
+        db_path = os.path.join(tmp_path, "maintenance_blank_empty_records.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            f"""
+            CREATE TABLE ssas (
+                numero_ssa TEXT,
+                "{legacy_numero}" TEXT,
+                descricao_ssa TEXT,
+                setor_emissor TEXT
+            )
+            """
+        )
+        conn.executemany(
+            f"""
+            INSERT INTO ssas (numero_ssa, "{legacy_numero}", descricao_ssa, setor_emissor)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                ("", "", " ", ""),
+                ("", "202512345", "", ""),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["issues"]["empty_records"] == [0]
+        assert report["summary"]["empty_records"] == 1
 
     def test_migrate_duplicate_columns_moves_all_legacy_sources_once(
         self,
@@ -535,6 +641,59 @@ class TestDatabaseMaintenance:
 
         assert result["backup_created"] is None
         assert result["migration_plan"][0]["records_to_migrate"] == 1
+
+    def test_migrate_duplicate_columns_dry_run_uses_canonical_table(self, tmp_path):
+        legacy_numero = "N\u00famero da SSA"
+        db_path = os.path.join(tmp_path, "maintenance_migrate_canonical_only.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(f'CREATE TABLE ssa_table (numero_ssa TEXT, "{legacy_numero}" TEXT)')
+        conn.execute(
+            f'INSERT INTO ssa_table (numero_ssa, "{legacy_numero}") VALUES (?, ?)',
+            ("", "202512345"),
+        )
+        conn.commit()
+        conn.close()
+
+        migrator = DatabaseMigrator(db_path)
+        result = migrator.migrate_duplicate_columns(dry_run=True)
+
+        assert result["backup_created"] is None
+        assert result["migration_plan"][0]["source"] == legacy_numero
+        assert result["migration_plan"][0]["target"] == "numero_ssa"
+        assert result["migration_plan"][0]["records_to_migrate"] == 1
+
+    def test_migrate_duplicate_columns_updates_canonical_table_behind_legacy_view(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        legacy_numero = "N\u00famero da SSA"
+        db_path = os.path.join(tmp_path, "maintenance_migrate_view_alias.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(f'CREATE TABLE ssa_table (numero_ssa TEXT, "{legacy_numero}" TEXT)')
+        conn.execute(
+            f'INSERT INTO ssa_table (numero_ssa, "{legacy_numero}") VALUES (?, ?)',
+            ("", "202512345"),
+        )
+        conn.execute("CREATE VIEW ssas AS SELECT * FROM ssa_table")
+        conn.commit()
+        conn.close()
+
+        migrator = DatabaseMigrator(db_path)
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "create_backup",
+            lambda: str(tmp_path / "backup.db"),
+        )
+
+        result = migrator.migrate_duplicate_columns(dry_run=False)
+
+        assert result["migration_stats"]["updated_rows"] == 1
+        with sqlite3.connect(db_path) as check_conn:
+            stored = check_conn.execute(
+                "SELECT numero_ssa FROM ssa_table"
+            ).fetchone()[0]
+        assert stored == "202512345"
 
     def test_perform_sanity_check_uses_central_dayfirst_date_parser(self, tmp_path):
         db_path = os.path.join(tmp_path, "maintenance_dayfirst.db")

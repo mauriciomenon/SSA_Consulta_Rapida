@@ -13,6 +13,7 @@ import os
 import shutil
 import sqlite3
 import uuid
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -20,6 +21,7 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 
 from shared.date_utils import parse_any_date
+from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from shared.numero_ssa import normalize_strict
 from utils.db_maintenance_report import render_database_analysis_report
 from utils.path_safety import ensure_path_is_allowed
@@ -66,6 +68,31 @@ def _quote_sqlite_identifier(identifier: str) -> str:
     return f'"{safe_identifier.replace(chr(34), chr(34) * 2)}"'
 
 
+def _resolve_maintenance_table(
+    conn: sqlite3.Connection,
+    *,
+    require_table: bool = False,
+) -> str:
+    """Resolve an SSA table or read-only view for maintenance operations."""
+    candidate_names = (CANONICAL_SSA_TABLE, *LEGACY_SSA_TABLE_ALIASES)
+    placeholders = ", ".join("?" for _name in candidate_names)
+    rows = conn.execute(  # nosemgrep
+        f"SELECT name, type FROM sqlite_master WHERE name IN ({placeholders})",  # nosec B608
+        candidate_names,
+    ).fetchall()
+    objects = {str(name): str(object_type) for name, object_type in rows}
+    if objects.get(CANONICAL_SSA_TABLE) == "table":
+        return CANONICAL_SSA_TABLE
+    for alias in LEGACY_SSA_TABLE_ALIASES:
+        if objects.get(alias) == "table":
+            return alias
+    if not require_table:
+        for alias in LEGACY_SSA_TABLE_ALIASES:
+            if objects.get(alias) == "view":
+                return alias
+    raise DatabaseMaintenanceError("Tabela SSA nao encontrada para manutencao")
+
+
 class DatabaseMaintenanceError(Exception):
     """Erro durante operacoes de manutencao do banco de dados."""
 
@@ -99,8 +126,8 @@ class DatabaseAnalyzer:
         backup_path = str(backup_dir_path / backup_filename)
 
         try:
-            with sqlite3.connect(self.db_path) as source_conn:
-                with sqlite3.connect(backup_path) as backup_conn:
+            with closing(sqlite3.connect(self.db_path)) as source_conn:
+                with closing(sqlite3.connect(backup_path)) as backup_conn:
                     source_conn.backup(backup_conn, pages=1000)
             try:
                 shutil.copystat(self.db_path, backup_path)
@@ -114,14 +141,20 @@ class DatabaseAnalyzer:
     def analyze_table_structure(self) -> Dict[str, Any]:
         """Analisa a estrutura da tabela identificando duplicacoes."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn:
                 cursor = conn.cursor()
+                table_name = _resolve_maintenance_table(conn)
+                quoted_table = _quote_sqlite_identifier(table_name)
 
                 # Obter informacoes das colunas
-                cursor.execute("PRAGMA table_info(ssas)")
+                cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                    f"PRAGMA table_info({quoted_table})"
+                )
                 columns_info = cursor.fetchall()
 
-                column_counts = self._count_populated_columns(cursor, columns_info)
+                column_counts = self._count_populated_columns(
+                    cursor, columns_info, quoted_table
+                )
 
                 # Identificar duplicacoes potenciais
                 duplicated_groups = self._identify_duplicate_columns(
@@ -142,6 +175,7 @@ class DatabaseAnalyzer:
         self,
         cursor: sqlite3.Cursor,
         columns_info: List[Tuple],
+        quoted_table: str,
     ) -> Dict[str, int]:
         column_names = [col_info[1] for col_info in columns_info]
         if not column_names:
@@ -155,7 +189,7 @@ class DatabaseAnalyzer:
             for col_name in column_names
         ]
         cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-            f"SELECT {', '.join(select_exprs)} FROM ssas"  # nosec B608
+            f"SELECT {', '.join(select_exprs)} FROM {quoted_table}"  # nosec B608
         )
         counts = cursor.fetchone() or []
         return {
@@ -258,15 +292,26 @@ class DatabaseAnalyzer:
         issues: Dict[str, Any],
         numero_col: str | None,
     ) -> None:
-        essential_cols = (
-            [numero_col, "descricao_ssa", "setor_emissor"]
-            if numero_col
-            else ["descricao_ssa", "setor_emissor"]
+        numero_cols = [
+            col for col in ["numero_ssa", "N\u00famero da SSA"] if col in df.columns
+        ]
+        essential_groups = []
+        if numero_cols:
+            essential_groups.append(numero_cols)
+        elif numero_col and numero_col in df.columns:
+            essential_groups.append([numero_col])
+        essential_groups.extend(
+            [col] for col in ["descricao_ssa", "setor_emissor"] if col in df.columns
         )
-        existing_essential = [col for col in essential_cols if col in df.columns]
-        if existing_essential:
-            empty_records = df[df[existing_essential].isna().all(axis=1)]
-            issues["empty_records"] = empty_records.index.tolist()
+        if not essential_groups:
+            return
+
+        group_missing_masks = []
+        for columns in essential_groups:
+            normalized_values = df[columns].replace(r"^\s*$", pd.NA, regex=True)
+            group_missing_masks.append(normalized_values.isna().all(axis=1))
+        empty_mask = pd.concat(group_missing_masks, axis=1).all(axis=1)
+        issues["empty_records"] = df[empty_mask].index.tolist()
 
     def _build_sanity_summary(self, issues: Dict[str, Any]) -> Dict[str, int]:
         return {
@@ -294,8 +339,13 @@ class DatabaseAnalyzer:
         }
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                df = pd.read_sql_query("SELECT * FROM ssas", conn)
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                table_name = _resolve_maintenance_table(conn)
+                quoted_table = _quote_sqlite_identifier(table_name)
+                df = pd.read_sql_query(
+                    f"SELECT * FROM {quoted_table}",  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
+                    conn,
+                )
 
                 if df.empty:
                     return {
@@ -343,7 +393,9 @@ class DatabaseMigrator:
 
         migration_plan = []
 
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            table_name = _resolve_maintenance_table(conn, require_table=True)
+            quoted_table = _quote_sqlite_identifier(table_name)
             for concept, columns in duplicated_groups.items():
                 if len(columns) < 2:
                     continue
@@ -367,6 +419,7 @@ class DatabaseMigrator:
                     conn,
                     [source_col["name"] for source_col in migration_sources],
                     target_col["name"],
+                    quoted_table,
                 )
 
                 # Migrar somente de coluna legado para coluna normalizada.
@@ -404,6 +457,7 @@ class DatabaseMigrator:
         conn: sqlite3.Connection,
         sources: List[str],
         target: str,
+        quoted_table: str,
     ) -> Dict[str, int]:
         if not sources:
             return {}
@@ -427,7 +481,7 @@ class DatabaseMigrator:
                 """
             )
         row = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-            f"SELECT {', '.join(count_exprs)} FROM ssas"  # nosec B608
+            f"SELECT {', '.join(count_exprs)} FROM {quoted_table}"  # nosec B608
         ).fetchone()
         if row is None:
             return {source: 0 for source in sources}
@@ -441,6 +495,7 @@ class DatabaseMigrator:
         target: str,
         quoted_source: str,
         quoted_target: str,
+        quoted_table: str,
         normalizer,
     ) -> Dict[str, Any]:
         select_cursor = conn.cursor()
@@ -451,7 +506,7 @@ class DatabaseMigrator:
         )
         select_query = (
             f"SELECT rowid, {quoted_source} "
-            f"FROM ssas WHERE {pending_condition}"  # nosec B608
+            f"FROM {quoted_table} WHERE {pending_condition}"  # nosec B608
         )
         select_cursor.execute(select_query)
         affected_rows = 0
@@ -469,7 +524,7 @@ class DatabaseMigrator:
                 updates.append((normalized, rowid))
             if updates:
                 update_cursor.executemany(
-                    f"UPDATE ssas SET {quoted_target} = ? WHERE rowid = ?",  # nosec B608
+                    f"UPDATE {quoted_table} SET {quoted_target} = ? WHERE rowid = ?",  # nosec B608
                     updates,
                 )
                 affected_rows += len(updates)
@@ -488,13 +543,14 @@ class DatabaseMigrator:
         target: str,
         quoted_source: str,
         quoted_target: str,
+        quoted_table: str,
     ) -> Dict[str, Any]:
         pending_condition = PENDING_MIGRATION_CONDITION.format(
             target=quoted_target,
             source=quoted_source,
         )
         update_query = (
-            f"UPDATE ssas SET {quoted_target} = {quoted_source} "
+            f"UPDATE {quoted_table} SET {quoted_target} = {quoted_source} "
             f"WHERE {pending_condition}"  # nosec B608
         )
         cursor.execute(update_query)
@@ -508,11 +564,15 @@ class DatabaseMigrator:
     def _execute_migration(self, migration_plan: List[Dict]) -> Dict[str, Any]:
         """Executa o plano de migracao no banco de dados."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn:
                 cursor = conn.cursor()
+                table_name = _resolve_maintenance_table(conn, require_table=True)
+                quoted_table = _quote_sqlite_identifier(table_name)
                 valid_columns = {
                     row[1]
-                    for row in cursor.execute("PRAGMA table_info(ssas)").fetchall()
+                    for row in cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                        f"PRAGMA table_info({quoted_table})"
+                    ).fetchall()
                 }
                 stats: Dict[str, Any] = {
                     "updated_rows": 0,
@@ -531,7 +591,7 @@ class DatabaseMigrator:
                     target = migration["target"]
                     if source not in valid_columns or target not in valid_columns:
                         raise ValueError(
-                            f"Coluna de migracao ausente em ssas: {source!r} -> {target!r}"
+                            f"Coluna de migracao ausente em {table_name}: {source!r} -> {target!r}"
                         )
                     quoted_source = _quote_sqlite_identifier(source)
                     quoted_target = _quote_sqlite_identifier(target)
@@ -546,6 +606,7 @@ class DatabaseMigrator:
                             target=target,
                             quoted_source=quoted_source,
                             quoted_target=quoted_target,
+                            quoted_table=quoted_table,
                         )
                     else:
                         normalizer, skipped_counter = normalizer_config
@@ -555,6 +616,7 @@ class DatabaseMigrator:
                             target=target,
                             quoted_source=quoted_source,
                             quoted_target=quoted_target,
+                            quoted_table=quoted_table,
                             normalizer=normalizer,
                         )
 
