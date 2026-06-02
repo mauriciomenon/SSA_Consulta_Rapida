@@ -11,7 +11,7 @@ import os
 import re
 import sqlite3
 import time
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from typing import Any, Literal, cast
 
 import pandas as pd
@@ -267,9 +267,10 @@ def vacuum_analyze_database(db_path: str, *, timeout: float = 30.0) -> dict[str,
         logger.error(error)
         return {"ok": False, "error": error, "db_path": db_path}
     try:
-        with sqlite3.connect(db_path, timeout=float(timeout)) as conn:
+        with closing(sqlite3.connect(db_path, timeout=float(timeout))) as conn:
             conn.execute("VACUUM")
             conn.execute("ANALYZE")
+            conn.commit()
         _clear_resolved_table_cache(str(db_path))
         return {"ok": True, "db_path": db_path}
     except sqlite3.Error as exc:
