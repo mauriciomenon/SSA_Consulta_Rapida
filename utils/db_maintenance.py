@@ -13,6 +13,7 @@ import os
 import shutil
 import sqlite3
 import uuid
+from collections import Counter
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
@@ -55,8 +56,8 @@ LEGACY_CONCEPT_COLUMN_MAPPING = {
 }
 
 PENDING_MIGRATION_CONDITION = (
-    "({target} IS NULL OR {target} = '') "
-    "AND ({source} IS NOT NULL AND {source} != '')"
+    "({target} IS NULL OR TRIM(CAST({target} AS TEXT)) = '') "
+    "AND ({source} IS NOT NULL AND TRIM(CAST({source} AS TEXT)) != '')"
 )
 
 
@@ -87,9 +88,11 @@ def _resolve_maintenance_table(
         if objects.get(alias) == "table":
             return alias
     if not require_table:
-        for alias in LEGACY_SSA_TABLE_ALIASES:
-            if objects.get(alias) == "view":
-                return alias
+        if objects.get(CANONICAL_SSA_TABLE) == "view":
+            return CANONICAL_SSA_TABLE
+        for view_alias in LEGACY_SSA_TABLE_ALIASES:
+            if objects.get(view_alias) == "view":
+                return view_alias
     raise DatabaseMaintenanceError("Tabela SSA nao encontrada para manutencao")
 
 
@@ -228,39 +231,50 @@ class DatabaseAnalyzer:
 
         return groups
 
-    def _check_numero_ssa(self, df: pd.DataFrame, issues: Dict[str, Any]) -> str | None:
-        numero_cols = ["N\u00famero da SSA", "numero_ssa"]
+    def _coalesced_numero_series(
+        self,
+        df: pd.DataFrame,
+    ) -> tuple[pd.Series | None, str | None]:
+        numero_cols = LEGACY_CONCEPT_COLUMN_MAPPING["numero_ssa"]
+        target_col = numero_cols[-1]
         present_cols = [col for col in numero_cols if col in df.columns]
         if not present_cols:
-            return None
+            return None, None
 
-        numero_col = "numero_ssa" if "numero_ssa" in present_cols else present_cols[0]
+        numero_col = target_col if target_col in present_cols else present_cols[0]
         priority_cols = (
-            ["numero_ssa"] + [col for col in present_cols if col != "numero_ssa"]
-            if "numero_ssa" in present_cols
+            [target_col] + [col for col in present_cols if col != target_col]
+            if target_col in present_cols
             else present_cols
         )
-        numero_series = df[priority_cols].replace("", pd.NA).T.bfill().T.iloc[:, 0]
+        numero_values = df[priority_cols]
+        numero_series = numero_values.bfill(axis=1).iloc[:, 0]
+        return numero_series, numero_col
+
+    def _check_numero_ssa(
+        self,
+        df: pd.DataFrame,
+        issues: Dict[str, Any],
+    ) -> tuple[str | None, pd.Series | None]:
+        numero_series, numero_col = self._coalesced_numero_series(df)
+        if numero_series is None:
+            return None, None
+
         missing_numero = df[numero_series.isna()]
-        issues["missing_numero_ssa"] = missing_numero.index.tolist()
+        issues["missing_numero_ssa"].extend(missing_numero.index.tolist())
 
-        valid_numbers = numero_series.dropna()
-        duplicates = valid_numbers[valid_numbers.duplicated(keep=False)]
-        if not duplicates.empty:
-            issues["duplicate_numbers"] = duplicates.value_counts().to_dict()
-
-        return numero_col
+        return numero_col, numero_series
 
     def _check_missing_fields(self, df: pd.DataFrame, issues: Dict[str, Any]) -> None:
         for col in ["descricao_ssa"]:
             if col in df.columns:
-                missing_desc = df[df[col].isna() | (df[col] == "")]
-                issues["missing_descricao"] = missing_desc.index.tolist()
+                missing_desc = df[df[col].isna()]
+                issues["missing_descricao"].extend(missing_desc.index.tolist())
 
         for col in ["setor_emissor"]:
             if col in df.columns:
-                missing_emissor = df[df[col].isna() | (df[col] == "")]
-                issues["missing_area_emissora"] = missing_emissor.index.tolist()
+                missing_emissor = df[df[col].isna()]
+                issues["missing_area_emissora"].extend(missing_emissor.index.tolist())
 
         location_cols = [
             col
@@ -268,9 +282,9 @@ class DatabaseAnalyzer:
             if col in df.columns
         ]
         if location_cols:
-            location_values = df[location_cols].replace("", pd.NA)
+            location_values = df[location_cols]
             missing_loc = df[location_values.isna().all(axis=1)]
-            issues["missing_localizacao"] = missing_loc.index.tolist()
+            issues["missing_localizacao"].extend(missing_loc.index.tolist())
 
     def _check_invalid_dates(self, df: pd.DataFrame, issues: Dict[str, Any]) -> None:
         for col in ["data_cadastro"]:
@@ -284,7 +298,7 @@ class DatabaseAnalyzer:
                 invalid_dates = df[
                     parsed_dates.isna() & series.notna() & (series != "")
                 ]
-                issues["invalid_dates"] = invalid_dates.index.tolist()
+                issues["invalid_dates"].extend(invalid_dates.index.tolist())
 
     def _check_empty_records(
         self,
@@ -293,7 +307,7 @@ class DatabaseAnalyzer:
         numero_col: str | None,
     ) -> None:
         numero_cols = [
-            col for col in ["numero_ssa", "N\u00famero da SSA"] if col in df.columns
+            col for col in LEGACY_CONCEPT_COLUMN_MAPPING["numero_ssa"] if col in df.columns
         ]
         essential_groups = []
         if numero_cols:
@@ -308,10 +322,9 @@ class DatabaseAnalyzer:
 
         group_missing_masks = []
         for columns in essential_groups:
-            normalized_values = df[columns].replace(r"^\s*$", pd.NA, regex=True)
-            group_missing_masks.append(normalized_values.isna().all(axis=1))
+            group_missing_masks.append(df[columns].isna().all(axis=1))
         empty_mask = pd.concat(group_missing_masks, axis=1).all(axis=1)
-        issues["empty_records"] = df[empty_mask].index.tolist()
+        issues["empty_records"].extend(df[empty_mask].index.tolist())
 
     def _build_sanity_summary(self, issues: Dict[str, Any]) -> Dict[str, int]:
         return {
@@ -342,24 +355,41 @@ class DatabaseAnalyzer:
             with closing(sqlite3.connect(self.db_path)) as conn:
                 table_name = _resolve_maintenance_table(conn)
                 quoted_table = _quote_sqlite_identifier(table_name)
-                df = pd.read_sql_query(
+                chunks = pd.read_sql_query(
                     f"SELECT * FROM {quoted_table}",  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
                     conn,
+                    chunksize=5000,
                 )
 
-                if df.empty:
+                total_records = 0
+                number_counts: Counter[str] = Counter()
+                for df in chunks:
+                    if df.empty:
+                        continue
+                    df.index = range(total_records, total_records + len(df))
+                    normalized_df = df.replace(r"^\s*$", pd.NA, regex=True)
+                    total_records += len(df)
+
+                    numero_col, numero_series = self._check_numero_ssa(
+                        normalized_df,
+                        issues,
+                    )
+                    if numero_series is not None:
+                        number_counts.update(str(value) for value in numero_series.dropna())
+                    self._check_missing_fields(normalized_df, issues)
+                    self._check_invalid_dates(normalized_df, issues)
+                    self._check_empty_records(normalized_df, issues, numero_col)
+
+                if total_records == 0:
                     return {
                         "total_records": 0,
                         "issues": issues,
                         "summary": self._build_sanity_summary(issues),
                     }
 
-                total_records = len(df)
-
-                numero_col = self._check_numero_ssa(df, issues)
-                self._check_missing_fields(df, issues)
-                self._check_invalid_dates(df, issues)
-                self._check_empty_records(df, issues, numero_col)
+                issues["duplicate_numbers"] = {
+                    number: count for number, count in number_counts.items() if count > 1
+                }
 
                 return {
                     "total_records": total_records,

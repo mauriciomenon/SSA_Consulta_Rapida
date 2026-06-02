@@ -427,6 +427,54 @@ class TestDatabaseMaintenance:
         assert report["summary"]["missing_numero_ssa"] == 0
         assert report["summary"]["missing_descricao"] == 0
 
+    def test_sanity_check_reads_canonical_view_for_read_only_analysis(self, tmp_path):
+        db_path = os.path.join(tmp_path, "maintenance_sanity_canonical_view.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE source_rows (
+                numero_ssa TEXT,
+                descricao_ssa TEXT,
+                setor_emissor TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO source_rows (numero_ssa, descricao_ssa, setor_emissor)
+            VALUES (?, ?, ?)
+            """,
+            ("202512345", "Descricao", "AREA"),
+        )
+        conn.execute("CREATE VIEW ssa_table AS SELECT * FROM source_rows")
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["total_records"] == 1
+        assert report["summary"]["missing_numero_ssa"] == 0
+
+    def test_sanity_check_keeps_duplicate_numbers_across_chunks(self, tmp_path):
+        db_path = os.path.join(tmp_path, "maintenance_sanity_chunk_duplicates.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        rows = [
+            ("202512345" if index in (1, 5001) else str(202600000 + index),)
+            for index in range(5002)
+        ]
+        conn.executemany("INSERT INTO ssa_table (numero_ssa) VALUES (?)", rows)
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["total_records"] == 5002
+        assert report["issues"]["duplicate_numbers"] == {"202512345": 2}
+        assert report["summary"]["duplicate_numbers"] == 2
+
     def test_sanity_check_uses_legacy_numero_ssa_when_normalized_is_blank(
         self,
         tmp_path,
@@ -483,6 +531,8 @@ class TestDatabaseMaintenance:
 
         assert report["issues"]["empty_records"] == [0]
         assert report["summary"]["empty_records"] == 1
+        assert report["issues"]["missing_descricao"] == [0, 1]
+        assert report["issues"]["missing_area_emissora"] == [0, 1]
 
     def test_migrate_duplicate_columns_moves_all_legacy_sources_once(
         self,
@@ -552,6 +602,55 @@ class TestDatabaseMaintenance:
             ("202500046", "", "202500046"),
             ("202500047", "202500048", ""),
         ]
+
+    def test_migrate_duplicate_columns_treats_whitespace_target_as_empty(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        db_path = os.path.join(tmp_path, "maintenance_whitespace_target.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE ssas (
+                numero_ssa TEXT,
+                legacy_numero TEXT
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO ssas (numero_ssa, legacy_numero) VALUES (?, ?)",
+            ("   ", "2025-12345"),
+        )
+        conn.commit()
+        conn.close()
+
+        migrator = DatabaseMigrator(db_path)
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "create_backup",
+            lambda: str(tmp_path / "backup.db"),
+        )
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "analyze_table_structure",
+            lambda: {
+                "duplicated_groups": {
+                    "numero_ssa": [
+                        {"name": "numero_ssa", "count": 0, "is_legacy": False},
+                        {"name": "legacy_numero", "count": 1, "is_legacy": True},
+                    ]
+                }
+            },
+        )
+
+        result = migrator.migrate_duplicate_columns(dry_run=False)
+
+        assert result["migration_plan"][0]["records_to_migrate"] == 1
+        assert result["migration_stats"]["updated_rows"] == 1
+        with sqlite3.connect(db_path) as check_conn:
+            stored = check_conn.execute("SELECT numero_ssa FROM ssas").fetchone()[0]
+        assert stored == "202512345"
 
     def test_migrate_duplicate_columns_skips_invalid_numero_ssa_values(
         self,
