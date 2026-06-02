@@ -629,6 +629,25 @@ VSVersionInfo(
 
     def _sync_macos_gui_display_name(self, dist_dir, config=None, *, sign_bundle=False):
         """Atualiza CFBundleName e CFBundleDisplayName do app GUI no macOS."""
+        app_bundle = self._resolve_macos_gui_app_bundle_for_display_name(dist_dir, config)
+        if app_bundle is None:
+            return None
+
+        info_plist_path = app_bundle / "Contents" / "Info.plist"
+        if not info_plist_path.exists():
+            logger.error("Info.plist nao encontrado no bundle GUI: %s", info_plist_path)
+            return None
+
+        if not self._update_macos_info_plist_display_name(info_plist_path):
+            return None
+
+        if sign_bundle and platform.system() == "Darwin":
+            if not self._sign_macos_gui_app_bundle(app_bundle):
+                return None
+
+        return app_bundle
+
+    def _resolve_macos_gui_app_bundle_for_display_name(self, dist_dir, config=None):
         app_bundle = None
         gui_config = (config or {}).get("gui_config") or {}
         if isinstance(gui_config, dict):
@@ -654,18 +673,15 @@ VSVersionInfo(
                 dist_dir,
             )
             return None
+        return app_bundle
 
-        info_plist_path = app_bundle / "Contents" / "Info.plist"
-        if not info_plist_path.exists():
-            logger.error("Info.plist nao encontrado no bundle GUI: %s", info_plist_path)
-            return None
-
+    def _update_macos_info_plist_display_name(self, info_plist_path):
         try:
             with open(info_plist_path, "rb") as plist_file:
                 plist_data = plistlib.load(plist_file)
         except (OSError, plistlib.InvalidFileException, ValueError) as exc:
             logger.error("Falha ao ler Info.plist '%s': %s", info_plist_path, exc)
-            return None
+            return False
 
         plist_data["CFBundleName"] = self.APP_DISPLAY_NAME
         plist_data["CFBundleDisplayName"] = self.APP_DISPLAY_NAME
@@ -675,59 +691,60 @@ VSVersionInfo(
                 plistlib.dump(plist_data, plist_file)
         except OSError as exc:
             logger.error("Falha ao atualizar Info.plist '%s': %s", info_plist_path, exc)
-            return None
+            return False
 
         logger.info(
             "Nome de exibicao do bundle macOS atualizado para '%s'",
             self.APP_DISPLAY_NAME,
         )
-        if sign_bundle and platform.system() == "Darwin":
-            codesign_cmd = shutil.which("codesign")
-            if not codesign_cmd:
-                logger.error("codesign nao encontrado para validar bundle macOS")
-                return None
+        return True
 
-            codesign_identity = os.environ.get("MACOS_CODESIGN_IDENTITY") or "-"
-            sign_result = self._run_command(
-                [
-                    codesign_cmd,
-                    "--force",
-                    "--deep",
-                    "--sign",
-                    codesign_identity,
-                    str(app_bundle),
-                ],
-                timeout=300,
-                capture_output=True,
-                text=True,
-                cwd=str(self.base_dir),
+    def _sign_macos_gui_app_bundle(self, app_bundle):
+        codesign_cmd = shutil.which("codesign")
+        if not codesign_cmd:
+            logger.error("codesign nao encontrado para validar bundle macOS")
+            return False
+
+        codesign_identity = os.environ.get("MACOS_CODESIGN_IDENTITY") or "-"
+        sign_result = self._run_command(
+            [
+                codesign_cmd,
+                "--force",
+                "--deep",
+                "--sign",
+                codesign_identity,
+                str(app_bundle),
+            ],
+            timeout=300,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if sign_result.returncode != 0:
+            logger.error("Falha ao assinar bundle macOS: %s", sign_result.stderr.strip())
+            return False
+
+        verify_result = self._run_command(
+            [
+                codesign_cmd,
+                "--verify",
+                "--deep",
+                "--strict",
+                "--verbose=2",
+                str(app_bundle),
+            ],
+            timeout=300,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if verify_result.returncode != 0:
+            logger.error(
+                "Falha ao verificar assinatura do bundle macOS: %s",
+                (verify_result.stderr or verify_result.stdout).strip(),
             )
-            if sign_result.returncode != 0:
-                logger.error("Falha ao assinar bundle macOS: %s", sign_result.stderr.strip())
-                return None
-
-            verify_result = self._run_command(
-                [
-                    codesign_cmd,
-                    "--verify",
-                    "--deep",
-                    "--strict",
-                    "--verbose=2",
-                    str(app_bundle),
-                ],
-                timeout=300,
-                capture_output=True,
-                text=True,
-                cwd=str(self.base_dir),
-            )
-            if verify_result.returncode != 0:
-                logger.error(
-                    "Falha ao verificar assinatura do bundle macOS: %s",
-                    (verify_result.stderr or verify_result.stdout).strip(),
-                )
-                return None
-
-        return app_bundle
+            return False
+        return True
 
     def _create_macos_dmg(self, dist_dir, *, app_bundle=None):
         """Gera instalador DMG a partir do bundle .app da GUI."""
