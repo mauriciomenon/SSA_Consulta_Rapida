@@ -13,6 +13,16 @@ from launchers.build_multiplatform import MultiPlatformBuilder
 from dev_env.build import write_build_info
 
 
+_MACOS_TOOL_PATHS = {
+    "codesign": "/usr/bin/codesign",
+    "hdiutil": "/usr/bin/hdiutil",
+}
+
+
+def _macos_tool_path(name):
+    return _MACOS_TOOL_PATHS.get(name)
+
+
 def test_load_version_rejects_missing_version_json(tmp_path: Path) -> None:
     builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
     builder.base_dir = tmp_path
@@ -436,10 +446,7 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -520,10 +527,7 @@ def test_post_process_macos_fails_when_codesign_verify_fails(
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -570,10 +574,7 @@ def test_post_process_macos_fails_when_hdiutil_returns_error(
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -617,10 +618,7 @@ def test_post_process_macos_allows_null_gui_config_name(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -666,10 +664,7 @@ def test_post_process_macos_uses_configured_codesign_identity(tmp_path, monkeypa
     monkeypatch.setenv("MACOS_CODESIGN_IDENTITY", "Developer ID Application: Example")
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -714,10 +709,7 @@ def test_post_process_macos_skips_codesign_when_sign_disabled(tmp_path, monkeypa
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -761,10 +753,7 @@ def test_post_process_macos_uses_configured_gui_bundle_name(tmp_path, monkeypatc
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -791,7 +780,7 @@ def test_post_process_macos_dmg_fails_when_gui_app_missing(tmp_path, monkeypatch
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None,
+        _macos_tool_path,
     )
     ok = builder.post_process(
         "macos_arm64", {"post_build": {"compress": False, "package": "dmg"}}
