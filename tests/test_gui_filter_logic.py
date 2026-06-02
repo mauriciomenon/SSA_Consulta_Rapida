@@ -42,6 +42,7 @@ from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import details_derivadas_model  # noqa: E402
 from gui.ssa import filter_aliases  # noqa: E402
 from gui.ssa import gui_filters_advanced_layout as advanced_layout  # noqa: E402
+from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
 from gui.ssa import gui_filters_multiselect_menu as advanced_menu  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
@@ -4762,6 +4763,41 @@ class TestGUIFilterLogic:
         assert getattr(self.window, "adv_responsavel_emissor_menu", None) is None
         assert getattr(self.window, "adv_responsavel_emissor_checks", None) is None
         assert getattr(self.window, "adv_responsavel_emissor_exclude", None) is None
+
+    def test_advanced_exclude_checkbox_is_owned_by_field_layout(self):
+        exclude = getattr(self.window, "adv_status_exclude", None)
+
+        assert exclude is not None
+        assert exclude.text() == "Diferente"
+        assert exclude.isVisible() is True
+
+        parent = exclude.parentWidget()
+        assert isinstance(parent, QGroupBox)
+        assert parent.title() == "Situacao"
+        assert parent.layout() is not None
+        assert parent.layout().indexOf(exclude) >= 0
+        assert getattr(self.window, "adv_year_emissao_exclude", None) is None
+
+    def test_include_only_advanced_menus_do_not_render_exclude_column(self):
+        def menu_labels(menu):
+            labels = []
+            for action in menu.actions():
+                widget = action.defaultWidget()
+                if widget is None:
+                    continue
+                labels.extend(label.text() for label in widget.findChildren(QLabel))
+            return labels
+
+        advanced_ui._refresh_reprogramacoes_menu(self.window, ["0", "1"], {}, None)
+        advanced_ui._refresh_derivadas_menu(self.window, {}, None)
+
+        self.window.adv_reprog_checks[0].setChecked(True)
+        self.window.adv_derivada_checks[0].setChecked(True)
+
+        assert "Nao conter" not in menu_labels(self.window.adv_reprog_menu)
+        assert "Nao conter" not in menu_labels(self.window.adv_derivada_menu)
+        assert "Diferente" not in self.window.adv_reprog_button.toolTip()
+        assert "Diferente" not in self.window.adv_derivada_button.toolTip()
 
     def test_ensure_responsavel_options_materialized_runs_once_when_dirty(self):
         responsavel_state = self.window.responsavel_materialization_state

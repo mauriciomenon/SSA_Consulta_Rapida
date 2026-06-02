@@ -187,14 +187,7 @@ def _make_multiselect_box(
     exclude = None
     if with_exclude:
         exclude = QCheckBox("Diferente")
-        try:
-            exclude.setVisible(False)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ocultar checkbox de exclusao no multiselect '%s': %s",
-                title,
-                exc,
-            )
+        layout.addWidget(exclude)
     layout.addWidget(button, 1)
     return box, button, menu, exclude
 
@@ -738,7 +731,7 @@ def _build_advanced_derivada_field(self, deriv_button, deriv_menu):
             getattr(self, "adv_derivada_checks", None),
             "Selecionar",
         ),
-        True,
+        False,
         None,
         None,
     )
@@ -1593,7 +1586,7 @@ def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
                 getattr(self, "adv_reprog_button", None),
                 getattr(self, "adv_reprog_checks", None),
             ),
-            True,
+            False,
             None,
             None,
         )
@@ -1668,7 +1661,7 @@ def _refresh_derivadas_menu(self, filters, apply_cb, selected_override=None):
                 getattr(self, "adv_derivada_checks", None),
                 "Selecionar",
             ),
-            True,
+            False,
             None,
             None,
         )
