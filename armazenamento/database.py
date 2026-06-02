@@ -235,7 +235,9 @@ def query_db(
                 _validate_read_only_query(effective_query)
 
             logger.debug(
-                "Executando consulta: %s com params: %s", effective_query, params
+                "Executando consulta: %s com %s parametros",
+                effective_query,
+                len(params or ()),
             )
             # pd.read_sql_query e otimo para SELECTs
             df = pd.read_sql_query(
@@ -248,9 +250,9 @@ def query_db(
         return df
     except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.exception(
-            "Erro ao executar consulta '%s' com params=%s: %s",
+            "Erro ao executar consulta '%s' com %s parametros: %s",
             query or table_name,
-            params,
+            len(params or ()),
             e,
         )
         if raise_on_error:
@@ -284,7 +286,11 @@ IfExistsPolicy = Literal["fail", "replace", "append"]
 
 
 def _is_ssa_target_alias(name: str) -> bool:
-    return name in {CANONICAL_SSA_TABLE, *LEGACY_SSA_TABLE_ALIASES}
+    lookup_name = str(name or "").strip().casefold()
+    return lookup_name in {
+        CANONICAL_SSA_TABLE.casefold(),
+        *(alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES),
+    }
 
 
 def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
@@ -347,6 +353,8 @@ def _validate_read_only_query(query: str) -> None:
     single_statement = normalized[:-1].rstrip() if normalized.endswith(";") else normalized
     if ";" in single_statement:
         raise ValueError("Custom SQL query must be a single statement")
+    if not single_statement:
+        raise ValueError("Custom SQL query must not be empty")
 
     first_token = single_statement.split(None, 1)[0].casefold()
     if first_token not in {"select", "with"}:
@@ -490,7 +498,7 @@ def _resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
             return str(canonical_row[0])
 
     row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE lower(name)=?",
+        "SELECT name FROM sqlite_master WHERE type IN ('table', 'view') AND lower(name)=?",
         (lookup_name,),
     ).fetchone()
     if row:

@@ -310,6 +310,21 @@ def test_query_db_rejects_multi_statement_custom_query(temp_db_path):
         )
 
 
+def test_query_db_rejects_semicolon_only_custom_query(temp_db_path):
+    """query_db must reject semicolon-only SQL with a clean validation error."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="Custom SQL query must not be empty"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            ";",
+            raise_on_error=True,
+        )
+
+
 def test_query_db_rejects_params_without_custom_query(temp_db_path):
     """params without placeholders must fail before sqlite raises a generic error."""
     with get_db_connection(temp_db_path) as conn:
@@ -446,6 +461,47 @@ def test_query_db_sql_error_returns_empty_df_when_raise_disabled(temp_db_path):
     assert df_result.empty
 
 
+def test_query_db_does_not_log_parameter_values(temp_db_path, caplog):
+    """query_db must not expose bound parameter values in diagnostic logs."""
+    secret_param = "secret-param-value"
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS teste_log_params (
+                nome TEXT
+            );
+            """
+        )
+        conn.execute("INSERT INTO teste_log_params (nome) VALUES (?)", (secret_param,))
+        conn.commit()
+
+    caplog.set_level(logging.DEBUG, logger="armazenamento.database")
+
+    df_result = query_db(
+        temp_db_path,
+        "teste_log_params",
+        "SELECT * FROM teste_log_params WHERE nome = ?",
+        params=(secret_param,),
+    )
+
+    assert len(df_result) == 1
+    assert secret_param not in caplog.text
+    assert "1 parametros" in caplog.text
+
+    caplog.clear()
+    df_error = query_db(
+        temp_db_path,
+        "teste_log_params",
+        "SELECT coluna_inexistente FROM teste_log_params WHERE nome = ?",
+        params=(secret_param,),
+        raise_on_error=False,
+    )
+
+    assert df_error.empty
+    assert secret_param not in caplog.text
+    assert "1 parametros" in caplog.text
+
+
 def test_query_db_unexpected_error_is_not_suppressed(temp_db_path, monkeypatch):
     """Unexpected runtime errors must propagate even when raise_on_error is False."""
     with get_db_connection(temp_db_path) as conn:
@@ -487,6 +543,17 @@ def test_resolve_target_table_returns_actual_database_identifier_casing(temp_db_
         resolved = resolve_target_table(conn, "ssa_table")
 
     assert resolved == "SSA_TABLE"
+
+
+def test_resolve_target_table_ignores_indexes_when_matching_identifier(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE indexed_source (id INTEGER)")
+        conn.execute("CREATE INDEX IDX_INDEXED_SOURCE_ID ON indexed_source (id)")
+        conn.commit()
+
+        resolved = resolve_target_table(conn, "idx_indexed_source_id")
+
+    assert resolved == "idx_indexed_source_id"
 
 
 def test_resolve_target_table_cache_is_connection_specific_for_memory_db():
@@ -576,6 +643,30 @@ def test_insert_dataframe_to_db_rejects_replace_for_canonical_ssa_table(temp_db_
 
     with pytest.raises(ValueError, match="if_exists='replace' e proibido"):
         insert_dataframe_to_db(df, temp_db_path, "ssas", if_exists="replace")
+
+
+def test_insert_dataframe_to_db_rejects_replace_for_canonical_ssa_table_casing(
+    temp_db_path,
+):
+    df = pd.DataFrame(
+        [
+            {"numero_ssa": "202500001", "descricao_ssa": "SSA 1"},
+        ]
+    )
+
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE SSA_TABLE (
+                numero_ssa TEXT,
+                descricao_ssa TEXT
+            );
+            """
+        )
+        conn.commit()
+
+    with pytest.raises(ValueError, match="if_exists='replace' e proibido"):
+        insert_dataframe_to_db(df, temp_db_path, "ssa_table", if_exists="replace")
 
 
 def test_insert_dataframe_to_db_allows_replace_for_generic_table(temp_db_path):
