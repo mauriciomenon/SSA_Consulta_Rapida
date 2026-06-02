@@ -60,7 +60,10 @@ PENDING_MIGRATION_CONDITION = (
 
 def _quote_sqlite_identifier(identifier: str) -> str:
     """Escapa identificador SQLite vindo do schema local."""
-    return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
+    safe_identifier = str(identifier)
+    if "\x00" in safe_identifier:
+        raise ValueError(f"Identificador SQLite invalido: {identifier!r}")
+    return f'"{safe_identifier.replace(chr(34), chr(34) * 2)}"'
 
 
 class DatabaseMaintenanceError(Exception):
@@ -151,7 +154,9 @@ class DatabaseAnalyzer:
             )
             for col_name in column_names
         ]
-        cursor.execute(f"SELECT {', '.join(select_exprs)} FROM ssas")  # nosec B608
+        cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+            f"SELECT {', '.join(select_exprs)} FROM ssas"  # nosec B608
+        )
         counts = cursor.fetchone() or []
         return {
             col_name: int(count or 0)
@@ -421,7 +426,7 @@ class DatabaseMigrator:
                 ) AS pending_{index}
                 """
             )
-        row = conn.execute(
+        row = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
             f"SELECT {', '.join(count_exprs)} FROM ssas"  # nosec B608
         ).fetchone()
         if row is None:

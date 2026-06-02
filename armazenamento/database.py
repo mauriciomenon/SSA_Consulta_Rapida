@@ -225,8 +225,12 @@ def query_db(
         with get_db_connection(db_path) as conn:
             effective_query = query
             if not effective_query:
+                if params:
+                    raise ValueError("params require a custom SQL query")
                 resolved_table = _resolve_target_table(conn, table_name)
                 effective_query = f"SELECT * FROM {_quote_identifier(resolved_table)}"  # nosec B608  # skipcq: BAN-B608
+            else:
+                _validate_read_only_query(effective_query)
 
             logger.debug(
                 "Executando consulta: %s com params: %s", effective_query, params
@@ -329,6 +333,21 @@ def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
     FROM {table_name}
     """
     return query_template.format(table_name=quoted_table_name)  # nosec B608
+
+
+def _validate_read_only_query(query: str) -> None:
+    """Reject custom DB queries that are not a single read-only statement."""
+    normalized = str(query or "").strip()
+    if not normalized:
+        raise ValueError("Custom SQL query must not be empty")
+
+    single_statement = normalized[:-1].rstrip() if normalized.endswith(";") else normalized
+    if ";" in single_statement:
+        raise ValueError("Custom SQL query must be a single statement")
+
+    first_token = single_statement.split(None, 1)[0].casefold()
+    if first_token not in {"select", "with"}:
+        raise ValueError("Custom SQL query must be read-only")
 
 
 def _validate_insert_policy(table_name: str, if_exists: IfExistsPolicy) -> None:

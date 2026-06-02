@@ -263,6 +263,28 @@ class TestDatabaseMaintenance:
 
         assert report["column_counts"]["bad-name"] == 1
 
+    def test_analyze_table_structure_escapes_schema_identifier_with_quote(
+        self,
+        tmp_path,
+    ):
+        """Schema-derived identifiers must be escaped before dynamic SQL."""
+        malicious_col = 'bad"; DROP TABLE ssas; --'
+        quoted_col = malicious_col.replace('"', '""')
+        db_path = os.path.join(tmp_path, "maintenance_quoted_identifier.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(f'CREATE TABLE ssas (numero_ssa INTEGER, "{quoted_col}" TEXT)')
+        conn.execute(
+            f'INSERT INTO ssas (numero_ssa, "{quoted_col}") VALUES (?, ?)',
+            (1, "abc"),
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.analyze_table_structure()
+
+        assert report["column_counts"][malicious_col] == 1
+
     def test_analyze_table_structure_counts_legacy_numero_ssa_column(self, tmp_path):
         legacy_numero = "N\u00famero da SSA"
         db_path = os.path.join(tmp_path, "maintenance_legacy_identifier.db")

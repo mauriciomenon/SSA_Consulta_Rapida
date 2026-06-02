@@ -279,6 +279,51 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
     assert list(df_result.columns) == ["id", "nome", "idade"]
 
 
+def test_query_db_rejects_non_read_only_custom_query(temp_db_path):
+    """query_db must not execute write statements through the custom query path."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="read-only"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            "DELETE FROM teste_query_guard",
+            raise_on_error=True,
+        )
+
+
+def test_query_db_rejects_multi_statement_custom_query(temp_db_path):
+    """query_db must reject appended statements in custom SQL."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="single statement"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            "SELECT * FROM teste_query_guard; DROP TABLE teste_query_guard",
+            raise_on_error=True,
+        )
+
+
+def test_query_db_rejects_params_without_custom_query(temp_db_path):
+    """params without placeholders must fail before sqlite raises a generic error."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="params require a custom SQL query"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            params=(1,),
+            raise_on_error=True,
+        )
+
+
 def test_count_table_rows_counts_resolved_table_and_rejects_invalid_identifier(
     temp_db_path,
     sample_dataframe,
