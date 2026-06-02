@@ -25,6 +25,7 @@ from armazenamento.database import get_db_connection  # noqa: E402
 from armazenamento.database import initialize_database  # noqa: E402
 from armazenamento.database import insert_dataframe_to_db  # noqa: E402
 from armazenamento.database import query_db  # noqa: E402
+from armazenamento.database import resolve_target_table  # noqa: E402
 from armazenamento.database import vacuum_analyze_database  # noqa: E402
 
 # --- Fixtures ---
@@ -464,6 +465,46 @@ def test_query_db_unexpected_error_is_not_suppressed(temp_db_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="falha inesperada"):
         query_db(temp_db_path, "teste_erro_runtime", raise_on_error=False)
+
+
+def test_resolve_target_table_keeps_unrelated_view_when_canonical_exists(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.execute("CREATE TABLE unrelated_source (id INTEGER)")
+        conn.execute("CREATE VIEW unrelated_view AS SELECT id FROM unrelated_source")
+        conn.commit()
+
+        resolved = resolve_target_table(conn, "unrelated_view")
+
+    assert resolved == "unrelated_view"
+
+
+def test_resolve_target_table_returns_actual_database_identifier_casing(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE SSA_TABLE (numero_ssa TEXT)")
+        conn.commit()
+
+        resolved = resolve_target_table(conn, "ssa_table")
+
+    assert resolved == "SSA_TABLE"
+
+
+def test_resolve_target_table_cache_is_connection_specific_for_memory_db():
+    conn_a = sqlite3.connect(":memory:")
+    conn_b = sqlite3.connect(":memory:")
+    try:
+        conn_a.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn_a.execute("CREATE VIEW ssas AS SELECT * FROM ssa_table")
+        conn_a.commit()
+
+        conn_b.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        conn_b.commit()
+
+        assert resolve_target_table(conn_a, "ssas") == "ssa_table"
+        assert resolve_target_table(conn_b, "ssas") == "ssas"
+    finally:
+        conn_a.close()
+        conn_b.close()
 
 
 def test_vacuum_analyze_database_runs_sqlite_maintenance(temp_db_path):

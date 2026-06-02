@@ -69,6 +69,8 @@ def _clear_resolved_table_cache(db_path: str | None = None) -> None:
         return
 
     normalized_path = ":memory:" if db_path == ":memory:" else os.path.abspath(db_path)
+    if normalized_path == ":memory:":
+        return
     stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
     for key in stale_keys:
         _resolved_table_cache.pop(key, None)
@@ -468,34 +470,35 @@ def _resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
         raise ValueError(f"Invalid SQL identifier for table: {table_name!r}")
 
     lookup_name = safe_table_name.casefold()
-    cache_key = (_get_connection_db_path(conn), lookup_name)
-    if cache_key in _resolved_table_cache:
+    conn_db_path = _get_connection_db_path(conn)
+    cache_key = None if conn_db_path == ":memory:" else (conn_db_path, lookup_name)
+    if cache_key is not None and cache_key in _resolved_table_cache:
         return _resolved_table_cache[cache_key]
 
-    if lookup_name == CANONICAL_SSA_TABLE.casefold() or lookup_name in {
+    is_ssa_target = lookup_name == CANONICAL_SSA_TABLE.casefold() or lookup_name in {
         alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
-    }:
+    }
+
+    if is_ssa_target:
         canonical_row = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (CANONICAL_SSA_TABLE,),
+            "SELECT name FROM sqlite_master WHERE type='table' AND lower(name)=?",
+            (CANONICAL_SSA_TABLE.casefold(),),
         ).fetchone()
         if canonical_row:
-            _store_resolved_table_cache(cache_key, CANONICAL_SSA_TABLE)
-            return CANONICAL_SSA_TABLE
+            if cache_key is not None:
+                _store_resolved_table_cache(cache_key, str(canonical_row[0]))
+            return str(canonical_row[0])
 
     row = conn.execute(
-        "SELECT name, type FROM sqlite_master WHERE lower(name)=?",
+        "SELECT name FROM sqlite_master WHERE lower(name)=?",
         (lookup_name,),
     ).fetchone()
-    if row and row[1] == "view":
-        canonical_row = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (CANONICAL_SSA_TABLE,),
-        ).fetchone()
-        if canonical_row:
-            _store_resolved_table_cache(cache_key, CANONICAL_SSA_TABLE)
-            return CANONICAL_SSA_TABLE
-    _store_resolved_table_cache(cache_key, safe_table_name)
+    if row:
+        if cache_key is not None:
+            _store_resolved_table_cache(cache_key, str(row[0]))
+        return str(row[0])
+    if cache_key is not None:
+        _store_resolved_table_cache(cache_key, safe_table_name)
     return safe_table_name
 
 
