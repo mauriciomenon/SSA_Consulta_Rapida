@@ -3921,6 +3921,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         cast(Any, grid).setColumnStretch(4, 0)
         cast(Any, grid).setColumnStretch(5, 1)
         preferences_numeric_field_width = 152
+        interface_first_column_field_width = 180
         label_alignment = (
             cast(Any, Qt).AlignmentFlag.AlignRight
             | cast(Any, Qt).AlignmentFlag.AlignVCenter
@@ -3933,7 +3934,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             theme_combo.setView(QListView(cast(Any, theme_combo)))
         theme_combo.setObjectName("preferencesThemeCombo")
         theme_combo.setMaxVisibleItems(10)
-        theme_combo.setMinimumWidth(160)
+        theme_combo.setFixedWidth(interface_first_column_field_width)
         theme_combo.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Fixed),
             cast(Any, QSizePolicy.Policy.Fixed),
@@ -4009,7 +4010,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, page_size_label), 1, 0, label_alignment)
         page_size_spin = QSpinBox()
         page_size_spin.setObjectName("preferencesPageSizeSpin")
-        page_size_spin.setMaximumWidth(preferences_numeric_field_width)
+        page_size_spin.setFixedWidth(interface_first_column_field_width)
         page_size_spin.setRange(10, 500)
         page_size_spin.setSingleStep(10)
         page_size_spin.setValue(int(getattr(self, "_restored_page_size", 50) or 50))
@@ -4043,7 +4044,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if QT_AVAILABLE and "QListView" in globals():
             alignment_combo.setView(QListView(cast(Any, alignment_combo)))
         alignment_combo.setObjectName("preferencesAlignmentCombo")
-        alignment_combo.setMinimumWidth(140)
+        alignment_combo.setFixedWidth(interface_first_column_field_width)
         alignment_combo.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Fixed),
             cast(Any, QSizePolicy.Policy.Fixed),

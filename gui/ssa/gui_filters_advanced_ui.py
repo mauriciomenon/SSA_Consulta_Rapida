@@ -995,10 +995,11 @@ def _make_advanced_filter_auxiliary_controls(self, fields, responsavel_fields, b
 
 def _make_advanced_filter_panel_grid(self, outer, grid_container, grid_container_layout):
     main_grid = QGridLayout()
-    main_grid.setContentsMargins(0, 0, 0, 4)
+    main_grid.setContentsMargins(0, 0, 0, 2)
     main_grid.setHorizontalSpacing(4)
-    main_grid.setVerticalSpacing(3)
-    grid_container_layout.addLayout(main_grid)
+    main_grid.setVerticalSpacing(2)
+    grid_container_layout.addLayout(main_grid, 0)
+    grid_container_layout.addStretch(1)
     controls_scroll = _configure_advanced_panel_scroll(self, outer, grid_container)
     return main_grid, None, None, None, controls_scroll
 

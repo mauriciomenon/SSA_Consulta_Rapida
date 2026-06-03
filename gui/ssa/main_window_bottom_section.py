@@ -168,8 +168,8 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
         QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
     )
     details_shell_layout = QVBoxLayout(cast(Any, details_group))
-    details_shell_layout.setContentsMargins(4, 2, 4, 4)
-    details_shell_layout.setSpacing(2)
+    details_shell_layout.setContentsMargins(2, 0, 2, 2)
+    details_shell_layout.setSpacing(1)
     details_shell_layout.addWidget(cast(Any, details_panel), 1)
     bottom_layout.addWidget(cast(Any, details_group), 2)
     bottom_layout.setAlignment(cast(Any, details_group), Qt.AlignmentFlag.AlignTop)
@@ -183,8 +183,8 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
 
     filters_panel_group = QGroupBox("")
     filters_panel_layout = QVBoxLayout(cast(Any, filters_panel_group))
-    filters_panel_layout.setContentsMargins(4, 2, 4, 4)
-    filters_panel_layout.setSpacing(2)
+    filters_panel_layout.setContentsMargins(2, 0, 2, 2)
+    filters_panel_layout.setSpacing(1)
 
     (
         filter_panel_header,
@@ -261,8 +261,11 @@ def _build_details_panel(window: Any) -> tuple[QWidget, dict[str, Any]]:
         logger.debug("Falha ao configurar expansao do painel de detalhes: %s", exc)
     try:
         details_text.setFrameShape(QFrame.Shape.NoFrame)
+        details_document = details_text.document()
+        if details_document is not None:
+            details_document.setDocumentMargin(2)
     except Exception as exc:
-        logger.debug("Falha ao remover frame do painel de detalhes: %s", exc)
+        logger.debug("Falha ao ajustar area util do painel de detalhes: %s", exc)
     try:
         details_viewport = details_text.viewport()
         if details_viewport is not None:

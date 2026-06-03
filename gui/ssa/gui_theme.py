@@ -354,15 +354,12 @@ def _apply_details_and_group_styles(
                 logger.debug(
                     "Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc
                 )
-        if normalized in light_themes:
-            _set_stylesheet_if_changed(window.details_text, "")
-        else:
-            _set_stylesheet_if_changed(
-                window.details_text,
-                "QTextEdit {"
-                f" color: {panel_text}; background: {panel_bg}; border: none; padding:4px;"
-                " }",
-            )
+        _set_stylesheet_if_changed(
+            window.details_text,
+            "QTextEdit {"
+            f" color: {panel_text}; background: {panel_bg}; border: none; padding:2px;"
+            " }",
+        )
 
     for group_name in ("details_group", "col_filters_group", "adv_filters_group"):
         _apply_group_style(window, group_name, normalized, light_themes, group_css)

@@ -274,12 +274,9 @@ def _visible_grid_widgets(window: Any):
 def _apply_responsive_grid_spacing(grid: Any, effective_width: int) -> None:
     if grid is None:
         return
-    if effective_width >= 900:
-        horizontal_spacing = 12
-        vertical_spacing = 4
-    elif effective_width >= 700:
+    if effective_width >= 1400:
         horizontal_spacing = 8
-        vertical_spacing = 4
+        vertical_spacing = 2
     elif effective_width >= 560:
         horizontal_spacing = 8
         vertical_spacing = 3
@@ -432,9 +429,11 @@ def _apply_widget_width_cap(widget: Any, width_budget: int, cols: int) -> None:
     if cols <= 1:
         max_width = min(max(280, width_budget), 460)
     elif cols == 2:
-        max_width = min(max(232, width_budget), 340)
+        max_width = min(max(232, width_budget), 420)
+    elif cols == 3:
+        max_width = min(max(220, width_budget), 420)
     else:
-        max_width = min(max(200, width_budget), 300)
+        max_width = min(max(200, width_budget), 420)
     try:
         widget.setMaximumWidth(max_width)
     except Exception as exc:

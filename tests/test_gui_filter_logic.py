@@ -714,11 +714,22 @@ class TestGUIFilterLogic:
             info = dialog.findChild(QLabel, "preferencesPaiApiSecurityInfoLabel")
             assert support is not None
             assert info is not None
+            first_column_fields = [
+                dialog.findChild(QComboBox, "preferencesThemeCombo"),
+                dialog.findChild(QSpinBox, "preferencesPageSizeSpin"),
+                dialog.findChild(QComboBox, "preferencesAlignmentCombo"),
+            ]
+            assert all(widget is not None for widget in first_column_fields)
             first_item = widths_layout.itemAt(0)
             assert first_item is not None
             captured["widths_alignment"] = int(first_item.alignment())
             captured["support_style"] = str(support.styleSheet() or "")
             captured["info_style"] = str(info.styleSheet() or "")
+            captured["first_column_right_edges"] = [
+                int(widget.geometry().x() + widget.geometry().width())
+                for widget in first_column_fields
+                if widget is not None
+            ]
             return QDialog.DialogCode.Rejected
 
         monkeypatch.setattr(QDialog, "exec", _fake_exec)
@@ -726,6 +737,7 @@ class TestGUIFilterLogic:
         self.window._open_preferences_dialog()
 
         assert captured["widths_alignment"] == 0
+        assert len(set(captured["first_column_right_edges"])) == 1
         assert not re.search(
             r"(^|;)\s*color:\s*palette\(mid\)\s*(;|$)",
             captured["support_style"],
@@ -2388,8 +2400,14 @@ class TestGUIFilterLogic:
             for widget in state.grid_widgets.values()
             if widget is not None
         ]
+        widget_tops = [
+            widget.geometry().y()
+            for widget in state.grid_widgets.values()
+            if widget is not None
+        ]
 
         assert widget_bottoms
+        assert min(widget_tops) <= 2
         bottom_gap = viewport_height - max(widget_bottoms)
         assert bottom_gap >= 4
         assert scroll.verticalScrollBar().maximum() == 0
@@ -5149,6 +5167,20 @@ class TestGUIFilterLogic:
         second_size = getattr(self.window, "_details_text_small_font_base_size", None)
         assert second_font is first_font
         assert second_size == first_size
+
+    def test_apply_theme_styles_details_text_with_theme_roles_on_light_theme(self):
+        self.window.apply_theme("mint-light")
+        QApplication.processEvents()
+
+        roles = dict(getattr(self.window, "_current_theme_roles", {}) or {})
+        style = str(self.window.details_text.styleSheet() or "")
+        document = self.window.details_text.document()
+
+        assert roles["panel_text"] in style
+        assert roles["panel_bg"] in style
+        assert "padding:2px" in style
+        assert document is not None
+        assert document.documentMargin() == pytest.approx(2.0)
 
     def test_apply_theme_rebuilds_cached_details_font_when_base_font_changes(self):
         self.window.apply_theme("gruvbox")
@@ -10148,13 +10180,10 @@ class TestGUIFilterLogic:
         wide_exec = state.grid_widgets["exec_box"].geometry()
         wide_gap = int(wide_exec.x() - (wide_emis.x() + wide_emis.width()))
 
-        assert wide_hspace >= narrow_hspace
-        assert wide_vspace >= narrow_vspace
-        assert wide_hspace >= 12
-        assert wide_vspace >= 4
-        assert wide_gap >= narrow_gap
-        assert wide_gap >= narrow_gap + 4
-        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 300
+        assert 8 <= wide_hspace <= narrow_hspace
+        assert 2 <= wide_vspace <= narrow_vspace
+        assert wide_gap <= max(narrow_gap, 8)
+        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 420
         assert "action_box" not in state.grid_widgets
 
     def test_reorganize_advanced_filters_grid_caps_narrow_width(self):
