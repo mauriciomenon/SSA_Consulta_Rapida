@@ -1,0 +1,97 @@
+gui/ssa/gui_filters_advanced_panel_state.py
+  s_a60b2cf2b41d3c::t_b43d63491a2249 13-15,25-26,28
+gui/ssa/gui_filters_advanced_ui.py
+  s_a60b2cf2b41d3c::t_803b371e255541 407-409,772-780,790,948-959,1654-1660,1731-1738,1797
+  s_a60b2cf2b41d3c::t_7f7c0ac5a7397d 436
+  s_a60b2cf2b41d3c::t_3f23b5b417611b 986
+  s_a60b2cf2b41d3c::t_b43d63491a2249 29,189,511-552,832,991,995,1221,1273,1479-1484,1584-1589,1602
+gui/gui_ssa.py
+  s_a60b2cf2b41d3c::t_661b3bf9efe4d0 4295,4301-4307,4311-4314,4320-4326,4328-4330,4338,4346
+  s_a60b2cf2b41d3c::t_934387baf9cbfd 5731-5735
+  s_a60b2cf2b41d3c::t_1836585d41bc2f 2368-2371
+  s_a60b2cf2b41d3c::t_3be91abf0e1538 4614
+  s_a60b2cf2b41d3c::t_370f4ae21a359d 2859-2860,2865
+  s_a60b2cf2b41d3c::t_6856f0e15af9ff 3901-3902,3960,3979,3982,3989,3992,3999,4002,4011,4014,4030,4033,4043,4046,4053,4187-4188,4195,4200,4205,4220,4229,4234,4236,4241,4243,4247,4249,4253,4255,4259,4261,4269,4276,4290,4294
+  s_a60b2cf2b41d3c::t_1be1bbff83254a 2861-2864,3913-3914,3934-3935,4016-4017
+  s_a60b2cf2b41d3c::t_daa01eeb8b6c24 3432-3435,3469-3472,3912,3933,4015
+scripts/derivadas_cli.py
+  s_a60b2cf2b41d3c::t_8062732893418a 290-305
+tests/test_gui_filter_logic.py
+  s_a60b2cf2b41d3c::t_57ded49174458c 6393,6448,6450-6453,6462,6490,6492-6495,6507,6658-6663,6674
+  s_a60b2cf2b41d3c::t_214367c6331adf 4846-4848
+  s_a60b2cf2b41d3c::t_e3c2bcb5ce85fb 10091-10093
+  s_a60b2cf2b41d3c::t_f4130529fd412b 6399-6400
+  s_a60b2cf2b41d3c::t_5a75dadb21c115 8131-8189
+  s_a60b2cf2b41d3c::t_3a73a08bc99d0c 2322,10069
+  s_a60b2cf2b41d3c::t_b7c5b73d7c5b79 4830-4831
+  s_a60b2cf2b41d3c::t_8e22946e2d70d2 4829,4835-4838,4841-4845
+  s_a60b2cf2b41d3c::t_81a55871f7e2fb 2203-2205
+  s_a60b2cf2b41d3c::t_b1d40c74da7018 28-29,6402-6409,6413-6420
+  s_a60b2cf2b41d3c::t_728d5411cd64ea 6395-6398,6401,6410-6412,6421-6422
+  s_a60b2cf2b41d3c::t_3fc7e37939ed18 617-623,679-685,2307,2311-2313,2316-2321,2323
+  s_a60b2cf2b41d3c::t_8f9433feaa8a85 4857-4858,4870,10076,10088,10094
+  s_a60b2cf2b41d3c::t_3c578087e0dae3 8190-8240
+  s_a60b2cf2b41d3c::t_e460f242a237d7 10070
+  s_a60b2cf2b41d3c::t_94aec9f807238b 10074,10095
+  s_a60b2cf2b41d3c::t_cc23676a1655bd 1685-1686
+  s_a60b2cf2b41d3c::t_c229fdf67a1695 2314-2315
+  s_a60b2cf2b41d3c::t_03a9efc43c268e 1759
+  s_a60b2cf2b41d3c::t_52ce898f071e43 487-495,4851-4856,4859-4869,4871
+  s_a60b2cf2b41d3c::t_82d950be2dab71 468,483-484,1758
+  s_a60b2cf2b41d3c::t_db0617361d2c9c 1914-1924
+  s_a60b2cf2b41d3c::t_a18c8cd085a864 1760
+  s_a60b2cf2b41d3c::t_dd832f52534eba 11457-11458,11461,11469
+  s_a60b2cf2b41d3c::t_063b5d816b3999 611-616,1245,1284-1285
+tests/test_gui_theme_dialog.py
+  s_a60b2cf2b41d3c::t_063b5d816b3999 83,123-124
+tests/test_derivadas_maintenance.py
+  s_a60b2cf2b41d3c::t_3488b77069e14a 75,108
+gui/ssa/gui_filters_advanced_grid.py
+  s_a60b2cf2b41d3c::t_d08956fb4d1a2e 247
+  s_a60b2cf2b41d3c::t_b5b5d55600a2a2 279-282,285
+  s_a60b2cf2b41d3c::t_67314a3b18dbed 105-106
+  s_a60b2cf2b41d3c::t_b43d63491a2249 45-51,376
+armazenamento/derivadas_sync.py
+  s_a60b2cf2b41d3c::t_b531f1686a4fd1 984-985
+  s_a60b2cf2b41d3c::t_4463a4e508e35a 2072
+gui/ssa/filter_summary_presenter.py
+  s_a60b2cf2b41d3c::t_5b9d04fae95a57 173-176
+  s_a60b2cf2b41d3c::t_f2796c833bf6b7 22,25-26,177-180,208,216,243,286,289,302
+  s_a60b2cf2b41d3c::t_1bc617e7cb1e68 44
+gui/ssa/gui_filters_advanced_layout.py
+  s_a60b2cf2b41d3c::t_f0ad3f0ccb4cb2 14-16
+gui/ssa/main_window_bottom_section.py
+  s_a60b2cf2b41d3c::t_3be91abf0e1538 138
+  s_a60b2cf2b41d3c::t_a4536aa03b8c4f 584
+  s_a60b2cf2b41d3c::t_b43d63491a2249 189-194,230,528,577,579-583,585-599,601-608
+  s_a60b2cf2b41d3c::t_a9579bb772d164 219,617,629
+gui/ssa/main_window_filter_bar.py
+  s_a60b2cf2b41d3c::t_b43d63491a2249 116,120-134,136-137,140-144,146-150,152-156,162-165,733
+  s_a60b2cf2b41d3c::t_0e8293133a64ba 151
+  s_a60b2cf2b41d3c::t_e1f187ded18b2a 56-58,117-119,135,138-139,145,157-161
+gui/ssa/gui_theme_dialog.py
+  s_a60b2cf2b41d3c::t_b68051ad85031a 132-134
+gui/ssa/table_context_menu.py
+  s_a60b2cf2b41d3c::t_47e4e4673e9a13 134
+  s_a60b2cf2b41d3c::t_3be91abf0e1538 21,59,82-89,91-97
+  s_a60b2cf2b41d3c::t_7102d40ebd7c57 5,12,135-139
+  s_a60b2cf2b41d3c::t_3b7dee425e46df 90,108-109,127-133,140-144
+gui/ssa/filter_summary_style.py
+  s_a60b2cf2b41d3c::t_3e91226134b600 12,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "44e3bf00832715150d9c0bfa78ce5e184112d295",
+  "prompts": {},
+  "sessions": {
+    "s_a60b2cf2b41d3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8903-b8d8-7c22-9de6-c16171858a1f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
