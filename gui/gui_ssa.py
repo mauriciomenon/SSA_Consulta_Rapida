@@ -2365,6 +2365,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                             "header_context_apply_column_filter"
                         )
                     self._active_column_filters[col_name] = normalized_term
+                    if col_name == "setor_executor":
+                        self._sync_advanced_executor_filter_from_active_filters(
+                            clear_exclude=True
+                        )
                     self._mark_profile_as_custom()
                     self._build_column_filters_panel()
                     self._refresh_after_filter_change()
@@ -2852,12 +2856,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         selected_values = self._normalize_filter_sequence_values(
             advanced_filters.get("setor_executor")
         )
-        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        active_filters = getattr(self, "_active_column_filters", None)
+        if not isinstance(active_filters, dict):
+            try:
+                active_filters = OrderedDict(active_filters or {})
+            except (TypeError, ValueError):
+                active_filters = OrderedDict()
+            self._active_column_filters = active_filters
         if selected_values:
             active_filters["setor_executor"] = ", ".join(selected_values)
         elif clear_when_missing:
             active_filters.pop("setor_executor", None)
-        self._active_column_filters = active_filters
 
     def _sync_advanced_executor_ui_from_active_filter(self) -> None:
         active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
@@ -3420,7 +3429,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 secret_service=secret_service,
             )
         except Exception as exc:
-            logger.warning("Falha ao validar segredo SAM API: %s", exc)
+            logger.warning(
+                "Falha ao validar segredo SAM API: tipo=%s",
+                type(exc).__name__,
+            )
             QMessageBox.warning(self, "SAM API", f"Falha ao validar segredo: {exc}")
             return
         if hasattr(self, "status_label"):
@@ -3454,7 +3466,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 secret_service=secret_service,
             )
         except Exception as exc:
-            logger.warning("Falha ao gravar segredo SAM API: %s", exc)
+            logger.warning(
+                "Falha ao gravar segredo SAM API: tipo=%s",
+                type(exc).__name__,
+            )
             QMessageBox.warning(self, "SAM API", f"Falha ao gravar segredo: {exc}")
             return
         if hasattr(self, "status_label"):
@@ -3821,27 +3836,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        class _ScreenBoundComboBox(QComboBox):
-            def __init__(self, *args, **kwargs) -> None:
-                super().__init__(*args, **kwargs)
-                self.setView(QListView(self))
-
-            def showPopup(self) -> None:  # noqa: N802
-                def _clamp_popup() -> None:
-                    try:
-                        popup = self.view().window()
-                        if popup is None:
-                            return
-                        ssa_gui_theme_dialog.clamp_theme_popup_to_screen(self, popup)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao limitar popup do combo de preferencias na tela: %s",
-                            exc,
-                        )
-
-                super().showPopup()
-                QTimer.singleShot(80, _clamp_popup)
-
         content_scroll = QScrollArea()
         content_scroll.setObjectName("preferencesContentScroll")
         content_scroll.setWidgetResizable(True)
@@ -3904,6 +3898,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         cast(Any, grid).setColumnStretch(1, 1)
         cast(Any, grid).setColumnStretch(2, 0)
         cast(Any, grid).setColumnStretch(3, 1)
+        cast(Any, grid).setColumnStretch(4, 0)
+        cast(Any, grid).setColumnStretch(5, 1)
         preferences_compact_field_width = 280
         preferences_numeric_field_width = 152
         label_alignment = (
@@ -3913,7 +3909,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         theme_label = QLabel("Tema")
         grid.addWidget(cast(Any, theme_label), 0, 0, label_alignment)
-        theme_combo = _ScreenBoundComboBox()
+        theme_combo = QComboBox()
+        if QT_AVAILABLE and "QListView" in globals():
+            theme_combo.setView(QListView(cast(Any, theme_combo)))
         theme_combo.setObjectName("preferencesThemeCombo")
         theme_combo.setMaxVisibleItems(10)
         theme_combo.setMaximumWidth(preferences_compact_field_width)
@@ -3932,7 +3930,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         search_mode_label = QLabel("Modo da busca")
         grid.addWidget(cast(Any, search_mode_label), 0, 2, label_alignment)
-        search_mode_combo = _ScreenBoundComboBox()
+        search_mode_combo = QComboBox()
+        if QT_AVAILABLE and "QListView" in globals():
+            search_mode_combo.setView(QListView(cast(Any, search_mode_combo)))
         search_mode_combo.setObjectName("preferencesSearchModeCombo")
         search_mode_combo.setMaximumWidth(preferences_compact_field_width)
         search_mode_combo.setToolTip(
@@ -3957,7 +3957,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, search_mode_combo), 0, 3)
 
         debounce_label = QLabel("Debounce ms")
-        grid.addWidget(cast(Any, debounce_label), 1, 0, label_alignment)
+        grid.addWidget(cast(Any, debounce_label), 0, 4, label_alignment)
         debounce_spin = QSpinBox()
         debounce_spin.setObjectName("preferencesDebounceSpin")
         debounce_spin.setMaximumWidth(preferences_numeric_field_width)
@@ -3976,30 +3976,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 or getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250)
             )
         )
-        grid.addWidget(cast(Any, debounce_spin), 1, 1)
+        grid.addWidget(cast(Any, debounce_spin), 0, 5)
 
         page_size_label = QLabel("Linhas por pagina")
-        grid.addWidget(cast(Any, page_size_label), 1, 2, label_alignment)
+        grid.addWidget(cast(Any, page_size_label), 1, 0, label_alignment)
         page_size_spin = QSpinBox()
         page_size_spin.setObjectName("preferencesPageSizeSpin")
         page_size_spin.setMaximumWidth(preferences_numeric_field_width)
         page_size_spin.setRange(10, 500)
         page_size_spin.setSingleStep(10)
         page_size_spin.setValue(int(getattr(self, "_restored_page_size", 50) or 50))
-        grid.addWidget(cast(Any, page_size_spin), 1, 3)
+        grid.addWidget(cast(Any, page_size_spin), 1, 1)
 
         window_width_label = QLabel("Largura da janela")
-        grid.addWidget(cast(Any, window_width_label), 2, 0, label_alignment)
+        grid.addWidget(cast(Any, window_width_label), 1, 2, label_alignment)
         window_width_spin = QSpinBox()
         window_width_spin.setObjectName("preferencesWindowWidthSpin")
         window_width_spin.setMaximumWidth(preferences_numeric_field_width)
         window_width_spin.setRange(960, 2800)
         window_width_spin.setSingleStep(20)
         window_width_spin.setValue(int(getattr(self, "_restored_window_width", 1200) or 1200))
-        grid.addWidget(cast(Any, window_width_spin), 2, 1)
+        grid.addWidget(cast(Any, window_width_spin), 1, 3)
 
         window_height_label = QLabel("Altura da janela")
-        grid.addWidget(cast(Any, window_height_label), 2, 2, label_alignment)
+        grid.addWidget(cast(Any, window_height_label), 1, 4, label_alignment)
         window_height_spin = QSpinBox()
         window_height_spin.setObjectName("preferencesWindowHeightSpin")
         window_height_spin.setMaximumWidth(preferences_numeric_field_width)
@@ -4008,11 +4008,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         window_height_spin.setValue(
             int(getattr(self, "_restored_window_height", 890) or 890)
         )
-        grid.addWidget(cast(Any, window_height_spin), 2, 3)
+        grid.addWidget(cast(Any, window_height_spin), 1, 5)
 
         alignment_label = QLabel("Alinhamento da tabela")
-        grid.addWidget(cast(Any, alignment_label), 3, 0, label_alignment)
-        alignment_combo = _ScreenBoundComboBox()
+        grid.addWidget(cast(Any, alignment_label), 2, 0, label_alignment)
+        alignment_combo = QComboBox()
+        if QT_AVAILABLE and "QListView" in globals():
+            alignment_combo.setView(QListView(cast(Any, alignment_combo)))
         alignment_combo.setObjectName("preferencesAlignmentCombo")
         alignment_combo.setMaximumWidth(preferences_compact_field_width)
         current_alignment = str(
@@ -4025,10 +4027,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if key == current_alignment:
                 current_alignment_index = index
         alignment_combo.setCurrentIndex(current_alignment_index)
-        grid.addWidget(cast(Any, alignment_combo), 3, 1)
+        grid.addWidget(cast(Any, alignment_combo), 2, 1)
 
         cache_size_label = QLabel("Cache de filtros")
-        grid.addWidget(cast(Any, cache_size_label), 3, 2, label_alignment)
+        grid.addWidget(cast(Any, cache_size_label), 2, 2, label_alignment)
         cache_size_spin = QSpinBox()
         cache_size_spin.setObjectName("preferencesCacheSizeSpin")
         cache_size_spin.setMaximumWidth(preferences_numeric_field_width)
@@ -4038,17 +4040,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         cache_size_spin.setToolTip(
             "Quantidade maxima de entradas reaproveitadas nos filtros"
         )
-        grid.addWidget(cast(Any, cache_size_spin), 3, 3)
+        grid.addWidget(cast(Any, cache_size_spin), 2, 3)
 
         columns_label = QLabel("Colunas exibidas")
-        grid.addWidget(cast(Any, columns_label), 4, 0, label_alignment)
+        grid.addWidget(cast(Any, columns_label), 2, 4, label_alignment)
         columns_button = QPushButton("Colunas")
         columns_button.setObjectName("preferencesColumnsButton")
         columns_button.setMaximumWidth(preferences_compact_field_width)
         columns_button.setToolTip(
             "Abrir configuracao de colunas visiveis e larguras da tabela"
         )
-        grid.addWidget(cast(Any, columns_button), 4, 1)
+        grid.addWidget(cast(Any, columns_button), 2, 5)
         interface_layout.addLayout(cast(Any, grid))
         content_layout.addWidget(cast(Any, interface_group))
 
@@ -4182,23 +4184,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_group.setObjectName("preferencesPaiApiGroup")
         api_layout = QGridLayout(cast(Any, api_group))
         api_layout.setSpacing(6)
+        for col in (1, 3, 5):
+            cast(Any, api_layout).setColumnStretch(col, 1)
         api_settings = copy.deepcopy(gui_settings.get("pai_api", {}))
         api_options = normalize_pai_api_options(api_settings)
 
         api_enabled_checkbox = QCheckBox("SAM API habilitada")
         api_enabled_checkbox.setObjectName("preferencesPaiApiEnabledCheck")
         api_enabled_checkbox.setChecked(bool(api_options.enabled))
-        api_layout.addWidget(cast(Any, api_enabled_checkbox), 0, 0)
+        api_layout.addWidget(cast(Any, api_enabled_checkbox), 0, 0, 1, 2)
 
         api_scrap_checkbox = QCheckBox("Consulta via xpath/scrap_report")
         api_scrap_checkbox.setObjectName("preferencesPaiApiScrapCheck")
         api_scrap_checkbox.setChecked(bool(api_options.scrap_report_enabled))
-        api_layout.addWidget(cast(Any, api_scrap_checkbox), 0, 1)
+        api_layout.addWidget(cast(Any, api_scrap_checkbox), 0, 2, 1, 2)
 
         api_auto_refresh_checkbox = QCheckBox("Atualizacao automatica")
         api_auto_refresh_checkbox.setObjectName("preferencesPaiApiAutoRefreshCheck")
         api_auto_refresh_checkbox.setChecked(bool(api_options.auto_refresh_enabled))
-        api_layout.addWidget(cast(Any, api_auto_refresh_checkbox), 0, 2)
+        api_layout.addWidget(cast(Any, api_auto_refresh_checkbox), 0, 4, 1, 2)
 
         api_security_info_text = (
             "Consulta REST nao exige credencial. Cofre do sistema so vale para "
@@ -4213,7 +4217,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_security_info = QLabel(api_security_info_text)
         api_security_info.setObjectName("preferencesPaiApiSecurityInfoLabel")
         api_security_info.setWordWrap(True)
-        api_layout.addWidget(cast(Any, api_security_info), 1, 0, 1, 3)
+        api_layout.addWidget(cast(Any, api_security_info), 1, 0, 1, 6)
 
         api_layout.addWidget(cast(Any, QLabel("Intervalo (min)")), 2, 0)
         api_interval_spin = QSpinBox()
@@ -4222,39 +4226,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_interval_spin.setValue(int(api_options.auto_refresh_interval_minutes))
         api_layout.addWidget(cast(Any, api_interval_spin), 2, 1)
 
-        api_layout.addWidget(cast(Any, QLabel("Limite por setor")), 3, 0)
+        api_layout.addWidget(cast(Any, QLabel("Limite por setor")), 2, 2)
         api_limit_spin = QSpinBox()
         api_limit_spin.setObjectName("preferencesPaiApiLimitSpin")
         api_limit_spin.setRange(1, 1000)
         api_limit_spin.setValue(int(api_options.limit))
-        api_layout.addWidget(cast(Any, api_limit_spin), 3, 1)
+        api_layout.addWidget(cast(Any, api_limit_spin), 2, 3)
 
-        api_layout.addWidget(cast(Any, QLabel("Anos retroativos")), 4, 0)
+        api_layout.addWidget(cast(Any, QLabel("Anos retroativos")), 2, 4)
         api_years_spin = QSpinBox()
         api_years_spin.setObjectName("preferencesPaiApiYearsSpin")
         api_years_spin.setRange(1, 10)
         api_years_spin.setValue(int(api_options.number_of_years))
-        api_layout.addWidget(cast(Any, api_years_spin), 4, 1)
+        api_layout.addWidget(cast(Any, api_years_spin), 2, 5)
 
-        api_layout.addWidget(cast(Any, QLabel("Base URL REST")), 5, 0)
+        api_layout.addWidget(cast(Any, QLabel("Base URL REST")), 3, 0)
         api_base_url_edit = QLineEdit()
         api_base_url_edit.setObjectName("preferencesPaiApiBaseUrlEdit")
         api_base_url_edit.setText(str(api_options.base_url or ""))
-        api_layout.addWidget(cast(Any, api_base_url_edit), 5, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_base_url_edit), 3, 1, 1, 5)
 
-        api_layout.addWidget(cast(Any, QLabel("Usuario SAM")), 6, 0)
+        api_layout.addWidget(cast(Any, QLabel("Usuario SAM")), 4, 0)
         api_username_edit = QLineEdit()
         api_username_edit.setObjectName("preferencesPaiApiUsernameEdit")
         api_username_edit.setText(str(api_options.username or ""))
-        api_layout.addWidget(cast(Any, api_username_edit), 6, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_username_edit), 4, 1)
 
-        api_layout.addWidget(cast(Any, QLabel("Chave do cofre")), 7, 0)
+        api_layout.addWidget(cast(Any, QLabel("Chave do cofre")), 4, 2)
         api_secret_service_edit = QLineEdit()
         api_secret_service_edit.setObjectName("preferencesPaiApiSecretServiceEdit")
         api_secret_service_edit.setText(str(api_options.secret_service or ""))
-        api_layout.addWidget(cast(Any, api_secret_service_edit), 7, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_secret_service_edit), 4, 3, 1, 3)
 
-        api_layout.addWidget(cast(Any, QLabel("Senha SAM para gravar no cofre")), 8, 0)
+        api_layout.addWidget(cast(Any, QLabel("Senha SAM para gravar no cofre")), 5, 0)
         api_password_edit = QLineEdit()
         api_password_edit.setObjectName("preferencesPaiApiPasswordEdit")
         try:
@@ -4262,14 +4266,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao aplicar modo senha no campo SAM API: %s", exc)
         api_password_edit.setPlaceholderText("Senha apenas para gravar no cofre")
-        api_layout.addWidget(cast(Any, api_password_edit), 8, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_password_edit), 5, 1, 1, 3)
 
         api_secure_required_checkbox = QCheckBox("Exigir cofre do sistema")
         api_secure_required_checkbox.setObjectName(
             "preferencesPaiApiSecureRequiredCheck"
         )
         api_secure_required_checkbox.setChecked(bool(api_options.secure_required))
-        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 9, 0, 1, 2)
+        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 5, 4, 1, 2)
 
         api_secret_actions = QHBoxLayout()
         api_secret_actions.setContentsMargins(0, 0, 0, 0)
@@ -4283,29 +4287,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_secret_actions.addWidget(cast(Any, api_secret_validate_button))
         api_secret_actions.addWidget(cast(Any, api_secret_store_button))
         api_secret_actions.addStretch(1)
-        api_layout.addLayout(cast(Any, api_secret_actions), 10, 0, 1, 3)
+        api_layout.addLayout(cast(Any, api_secret_actions), 6, 0, 1, 6)
 
         selected_scopes = {value.casefold() for value in api_options.data_scopes}
         scope_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 11, 0)
+        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 7, 0)
+        scope_start_row = 8
         for offset, scope in enumerate(PAI_API_ALLOWED_DATA_SCOPES):
             checkbox = QCheckBox(pai_api_data_scope_label(scope))
             checkbox.setObjectName(f"preferencesPaiApiScope_{scope}")
             checkbox.setChecked(scope.casefold() in selected_scopes)
             scope_checks[scope] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 12 + offset // 3, offset % 3)
+            api_layout.addWidget(
+                cast(Any, checkbox),
+                scope_start_row + offset // 3,
+                (offset % 3) * 2,
+                1,
+                2,
+            )
 
         selected_sectors = {value.casefold() for value in api_options.executor_sectors}
         sector_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 15, 0)
+        scope_rows = max(1, (len(PAI_API_ALLOWED_DATA_SCOPES) + 2) // 3)
+        sector_label_row = scope_start_row + scope_rows
+        sector_start_row = sector_label_row + 1
+        api_layout.addWidget(cast(Any, QLabel("Setores executores")), sector_label_row, 0)
         for offset, sector in enumerate(PAI_API_ALLOWED_SECTORS):
             checkbox = QCheckBox(sector)
             checkbox.setObjectName(f"preferencesPaiApiSector_{sector}")
             checkbox.setChecked(sector.casefold() in selected_sectors)
             sector_checks[sector] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 16 + offset // 4, offset % 4)
+            api_layout.addWidget(
+                cast(Any, checkbox),
+                sector_start_row + offset // 3,
+                (offset % 3) * 2,
+                1,
+                2,
+            )
 
-        api_layout.addWidget(cast(Any, QLabel("Setores extras (SAM API)")), 18, 0)
+        sector_rows = max(1, (len(PAI_API_ALLOWED_SECTORS) + 2) // 3)
+        extras_row = sector_start_row + sector_rows
+        api_layout.addWidget(cast(Any, QLabel("Setores extras (SAM API)")), extras_row, 0)
         api_extra_sectors_edit = QLineEdit()
         api_extra_sectors_edit.setObjectName("preferencesPaiApiExtraSectorsEdit")
         api_extra_sectors_edit.setPlaceholderText("Ex.: IEQ1, MEL5")
@@ -4313,7 +4335,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Setores adicionais usados apenas pela SAM API. Nao afeta importacao XLS."
         )
         api_extra_sectors_edit.setText(", ".join(api_options.executor_sectors_extra))
-        api_layout.addWidget(cast(Any, api_extra_sectors_edit), 18, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_extra_sectors_edit), extras_row, 1, 1, 5)
         api_extra_sectors_status = QLabel(
             "Formato: IEE, MEL1, IEQ1. Somente 3 ou 4 letras/numeros ASCII por token."
         )
@@ -4321,7 +4343,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "preferencesPaiApiExtraSectorsValidationLabel"
         )
         api_extra_sectors_status.setWordWrap(True)
-        api_layout.addWidget(cast(Any, api_extra_sectors_status), 19, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_extra_sectors_status), extras_row + 1, 1, 1, 5)
 
         content_layout.addWidget(cast(Any, api_group))
 
@@ -4589,6 +4611,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 copy_row_data=self.copy_row_data,
                 export_current_list_txt=self._export_current_list_txt,
                 get_series_from_row=self._get_series_from_row,
+                open_details_dialog=self._open_details_dialog_for_ssa,
                 jump_to_ssa=self._jump_to_ssa,
                 filter_by_derivadas=self._filter_by_derivadas,
                 clear_derivadas_filter=self._clear_derivadas_filter,
@@ -5704,6 +5727,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._sector_debounce_timer.stop()
         except Exception as exc:
             logger.debug("Falha ao parar debounce de setor no closeEvent: %s", exc)
+        try:
+            advanced_apply_timer = getattr(self, "_advanced_apply_timer", None)
+            if advanced_apply_timer is not None:
+                advanced_apply_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce avancado no closeEvent: %s", exc)
         try:
             from gui.ssa.gui_preferences_persistence import shutdown_gui_preferences_writer
 

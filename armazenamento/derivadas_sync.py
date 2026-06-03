@@ -981,8 +981,8 @@ def _build_summary_rows(
 
 def _fetch_all_ssa(conn: sqlite3.Connection, table_name: str) -> set[str]:
     safe_table = _validate_table_name(table_name)
-    rows = conn.execute(
-        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'  # nosec B608  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    rows = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'  # nosec B608
     ).fetchall()
     out: set[str] = set()
     for row in rows:
@@ -2069,7 +2069,7 @@ def run_derivadas_maintenance(
     db_path: str,
     table_name: str = "ssa_table",
     *,
-    min_interval_seconds: int = 3600,
+    min_interval_seconds: int = 14400,
     auto_heal: bool = True,
     full_rebuild: bool = False,
     actor: str | None = None,

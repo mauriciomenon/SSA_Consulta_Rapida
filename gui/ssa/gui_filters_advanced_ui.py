@@ -26,6 +26,7 @@ from gui.qt_stubs import (
     QScrollArea,
     QSignalBlocker,
     QSizePolicy,
+    QTimer,
     Qt,
     QTextEdit,
     QToolButton,
@@ -185,9 +186,7 @@ def _make_multiselect_box(
             "Falha ao definir size policy do groupbox multiselect '%s': %s", title, exc
         )
     exclude = None
-    if with_exclude:
-        exclude = QCheckBox("Diferente")
-        layout.addWidget(exclude)
+    _ = with_exclude
     layout.addWidget(button, 1)
     return box, button, menu, exclude
 
@@ -405,6 +404,9 @@ def _make_reprogramacoes_controls(self, layout_baseline):
     reprog_mode.addItem("= Igual", "eq")
     reprog_mode.addItem("<= Menor ou igual", "lte")
     reprog_mode.addItem(">= Maior ou igual", "gte")
+    reprog_mode.currentIndexChanged.connect(
+        lambda *_: _schedule_advanced_filters_apply(self)
+    )
     _, reprog_base_min, reprog_base_max = layout_baseline
     reprog_min = max(70, min(108, reprog_base_min - 8))
     reprog_max = max(reprog_min + 40, min(196, reprog_base_max + 46))
@@ -431,7 +433,7 @@ def _make_reprogramacoes_controls(self, layout_baseline):
     )
     try:
         btn_min = max(54, min(68, reprog_min - 24))
-        btn_max = max(btn_min + 8, min(82, reprog_max - 34))
+        btn_max = max(btn_min + 8, min(104, reprog_max - 18))
         reprog_button.setMinimumWidth(btn_min)
         reprog_button.setMaximumWidth(btn_max)
         reprog_button.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
@@ -504,6 +506,48 @@ def _make_advanced_action_box(self):
     action_layout.addWidget(apply_btn)
     action_layout.addWidget(clear_btn)
     return action_box, apply_btn, clear_btn
+
+
+def _advanced_apply_interval_ms(self) -> int:
+    debounce_timer = getattr(self, "_debounce_timer", None)
+    try:
+        if debounce_timer is not None and _is_not_deleted(debounce_timer):
+            interval = int(debounce_timer.interval())
+            if interval > 0:
+                return interval
+    except Exception as exc:
+        logger.debug("Falha ao ler debounce principal dos filtros avancados: %s", exc)
+    return 250
+
+
+def _run_advanced_apply_timer_timeout(self) -> None:
+    try:
+        _apply_advanced_filters_from_ui(self)
+    except Exception as exc:
+        logger.warning("Falha ao aplicar filtros avancados por debounce: %s", exc)
+
+
+def _schedule_advanced_filters_apply(self) -> None:
+    timer = getattr(self, "_advanced_apply_timer", None)
+    if timer is None:
+        try:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda: _run_advanced_apply_timer_timeout(self))
+            self._advanced_apply_timer = timer
+        except Exception as exc:
+            logger.warning("Falha ao criar debounce dos filtros avancados: %s", exc)
+            _run_advanced_apply_timer_timeout(self)
+            return
+    try:
+        if _is_not_deleted(timer):
+            timer.stop()
+            timer.setInterval(_advanced_apply_interval_ms(self))
+            timer.start()
+            return
+    except Exception as exc:
+        logger.warning("Falha ao reiniciar debounce dos filtros avancados: %s", exc)
+    _run_advanced_apply_timer_timeout(self)
 
 
 def _reset_advanced_menu_hooks(self) -> None:
@@ -725,12 +769,15 @@ def _build_advanced_derivada_field(self, deriv_button, deriv_menu):
         deriv_menu,
         deriv_values,
         deriv_selected,
-        lambda *_: _update_multiselect_button(
-            self,
-            deriv_button,
-            getattr(self, "adv_derivada_checks", None),
-            "Selecionar",
-        ),
+            lambda *_: (
+                _update_multiselect_button(
+                    self,
+                    deriv_button,
+                    getattr(self, "adv_derivada_checks", None),
+                    "Selecionar",
+                ),
+                _schedule_advanced_filters_apply(self),
+            ),
         False,
         None,
         None,
@@ -740,7 +787,7 @@ def _build_advanced_derivada_field(self, deriv_button, deriv_menu):
         lambda: _refresh_derivadas_menu(
             self,
             getattr(self, "_advanced_filters", None) or {},
-            lambda: self._apply_advanced_filters_from_ui(),
+            lambda: _schedule_advanced_filters_apply(self),
             selected_override=_collect_derivadas_selected_from_checks(self),
         ),
     )
@@ -782,6 +829,7 @@ def _advanced_filter_metric_controls(
     apply_btn,
     clear_btn,
 ):
+    _ = apply_btn, clear_btn
     return (
         fields["emis"][1],
         fields["exec"][1],
@@ -801,8 +849,6 @@ def _advanced_filter_metric_controls(
         responsavel_fields["sol"][1],
         responsavel_fields["prog"][1],
         responsavel_fields["exec_resp"][1],
-        apply_btn,
-        clear_btn,
     )
 
 
@@ -899,6 +945,18 @@ def _make_advanced_filter_auxiliary_controls(self, fields, responsavel_fields, b
     week_exec_box, week_exec_start, week_exec_end = _make_week_range_box(
         "Execucao (AnoSemana)"
     )
+    for week_field in (
+        week_emissao_start,
+        week_emissao_end,
+        week_exec_start,
+        week_exec_end,
+    ):
+        try:
+            week_field.textChanged.connect(
+                lambda *_: _schedule_advanced_filters_apply(self)
+            )
+        except Exception as exc:
+            logger.debug("Falha ao conectar debounce de semana avancada: %s", exc)
     macro_box, macro_combo = _make_advanced_macro_box(self)
     return {
         "reprog_box": reprog_box,
@@ -925,16 +983,16 @@ def _make_advanced_filter_auxiliary_controls(self, fields, responsavel_fields, b
 
 def _make_advanced_filter_panel_grid(self, outer, grid_container, grid_container_layout):
     main_grid = QGridLayout()
-    main_grid.setContentsMargins(0, 0, 0, 0)
+    main_grid.setContentsMargins(0, 0, 0, 4)
     main_grid.setHorizontalSpacing(4)
     main_grid.setVerticalSpacing(3)
-    action_box, apply_btn, clear_btn = _make_advanced_action_box(self)
     grid_container_layout.addLayout(main_grid)
     controls_scroll = _configure_advanced_panel_scroll(self, outer, grid_container)
-    return main_grid, action_box, apply_btn, clear_btn, controls_scroll
+    return main_grid, None, None, None, controls_scroll
 
 
 def _advanced_filter_grid_widgets(fields: dict, controls: dict, action_box) -> dict:
+    _ = action_box
     emis_box, _, _, _ = fields["emis"]
     exec_box, _, _, _ = fields["exec"]
     status_box, _, _, _ = fields["status"]
@@ -961,7 +1019,6 @@ def _advanced_filter_grid_widgets(fields: dict, controls: dict, action_box) -> d
         "sol_box": sol_box,
         "prog_box": prog_box,
         "exec_resp_box": exec_resp_box,
-        "action_box": action_box,
     }
 
 
@@ -1161,7 +1218,7 @@ def _on_macro_filter_changed(self):
     preset = advanced_macro_filter_preset(choice)
     if preset is not None:
         _apply_advanced_macro_filter_preset(self, preset)
-        _apply_advanced_filters_from_ui(self)
+        _schedule_advanced_filters_apply(self)
 
 
 def _reorganize_advanced_filters_grid(self, width: int):
@@ -1213,6 +1270,7 @@ def _on_adv_sector_exclude_changed(self, *_):
         return
     _update_sector_filter_buttons(self, context="exclude")
     self._schedule_sector_options_refresh()
+    _schedule_advanced_filters_apply(self)
 
 
 def _schedule_sector_options_refresh(self):
@@ -1418,6 +1476,12 @@ def _show_advanced_filter_notice(self, notice: str | None) -> None:
 
 
 def _apply_advanced_filters_from_ui(self, store_only: bool = False):
+    timer = getattr(self, "_advanced_apply_timer", None)
+    try:
+        if timer is not None and _is_not_deleted(timer):
+            timer.stop()
+    except Exception as exc:
+        logger.debug("Falha ao parar debounce pendente dos filtros avancados: %s", exc)
     previous_filters = dict(getattr(self, "_advanced_filters", None) or {})
     if not store_only:
         try:
@@ -1517,7 +1581,12 @@ def _refresh_include_exclude_multiselect(
             exclude_checks=getattr(self, exclude_checks_attr, None),
         )
 
-    callback = on_change if callable(on_change) else update_summary
+    def callback(*args):
+        update_summary(*args)
+        if callable(on_change):
+            on_change(*args)
+        _schedule_advanced_filters_apply(self)
+
     include_checks, exclude_checks = self._rebuild_multiselect_menu(
         button,
         menu,
@@ -1530,7 +1599,7 @@ def _refresh_include_exclude_multiselect(
     )
     setattr(self, checks_attr, include_checks)
     setattr(self, exclude_checks_attr, exclude_checks)
-    callback()
+    update_summary()
     return True
 
 
@@ -1582,9 +1651,13 @@ def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
             getattr(self, "adv_reprog_menu", None),
             values,
             selected,
-            lambda *_: _update_multiselect_button(self,
-                getattr(self, "adv_reprog_button", None),
-                getattr(self, "adv_reprog_checks", None),
+            lambda *_: (
+                _update_multiselect_button(
+                    self,
+                    getattr(self, "adv_reprog_button", None),
+                    getattr(self, "adv_reprog_checks", None),
+                ),
+                apply_cb() if callable(apply_cb) else None,
             ),
             False,
             None,
@@ -1655,11 +1728,14 @@ def _refresh_derivadas_menu(self, filters, apply_cb, selected_override=None):
             getattr(self, "adv_derivada_menu", None),
             deriv_values,
             selected,
-            lambda *_: _update_multiselect_button(
-                self,
-                getattr(self, "adv_derivada_button", None),
-                getattr(self, "adv_derivada_checks", None),
-                "Selecionar",
+            lambda *_: (
+                _update_multiselect_button(
+                    self,
+                    getattr(self, "adv_derivada_button", None),
+                    getattr(self, "adv_derivada_checks", None),
+                    "Selecionar",
+                ),
+                apply_cb() if callable(apply_cb) else None,
             ),
             False,
             None,
@@ -1718,7 +1794,7 @@ def _refresh_advanced_filter_options(self):
         filters = self._advanced_filters or {}
 
         def apply_cb():
-            return self._apply_advanced_filters_from_ui()
+            return _schedule_advanced_filters_apply(self)
 
         ui_state = _read_advanced_filter_ui_state(self, df, filters)
         cache = getattr(self, "_adv_values_cache", {})

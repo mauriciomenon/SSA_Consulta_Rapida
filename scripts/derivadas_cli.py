@@ -287,9 +287,22 @@ def _build_parser() -> argparse.ArgumentParser:
         "maintenance",
         help="Run interval-guarded low-cost maintenance (scan + optional heal)",
     )
-    maintenance_parser.add_argument("--min-interval-seconds", type=int, default=3600)
-    maintenance_parser.add_argument("--no-auto-heal", action="store_true")
-    maintenance_parser.add_argument("--full-rebuild", action="store_true")
+    maintenance_parser.add_argument(
+        "--min-interval-seconds",
+        type=int,
+        default=14400,
+        help="Minimum wait between maintenance runs in seconds (default: 14400)",
+    )
+    maintenance_parser.add_argument(
+        "--no-auto-heal",
+        action="store_true",
+        help="Disable automatic healing actions during maintenance",
+    )
+    maintenance_parser.add_argument(
+        "--full-rebuild",
+        action="store_true",
+        help="Force a full rebuild instead of incremental maintenance",
+    )
     maintenance_parser.set_defaults(func=_handle_maintenance)
 
     info_parser = sub.add_parser("info", help="Show hierarchy profile for one SSA")

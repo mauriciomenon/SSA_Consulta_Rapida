@@ -42,8 +42,13 @@ def apply_advanced_filters_font_policy(window: Any, width: int) -> None:
             base_pt = current
     except Exception as exc:
         logger.debug("Falha ao ler fonte base do grupo de filtros avancados: %s", exc)
-    _ = width
-    control_pt = max(9, min(12, base_pt))
+    if width < 760:
+        target_pt = 10
+    elif width < 980:
+        target_pt = 11
+    else:
+        target_pt = 12
+    control_pt = max(10, min(target_pt, base_pt if base_pt > 0 else target_pt))
     title_pt = max(control_pt, min(12, control_pt + 1))
     try:
         boxes = (
@@ -97,8 +102,8 @@ def update_advanced_filters_action_buttons(window: Any, width: int) -> None:
         cell_width = max(112, int(width // grid_cols))
         pair_budget = max(96, cell_width - 10)
         per_button_budget = max(48, int((pair_budget - 6) // 2))
-        max_width = max(48, min(max_width, per_button_budget))
-        min_width = min(min_width, per_button_budget, max_width)
+        min_width = max(48, min(min_width, per_button_budget))
+        max_width = max(min_width, min(max_width, per_button_budget))
     new_dims = (min_width, max_width)
     current_dims = state.action_btn_dims
     if current_dims == new_dims:
@@ -239,7 +244,7 @@ def _resolve_grid_viewport_metrics(window: Any, width: int):
                     80,
                     min(
                         LAYOUT_ADV_PANEL_MAX_HEIGHT,
-                        group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 8),
+                        group_h - 4,
                     ),
                 )
     except Exception as exc:
@@ -270,14 +275,14 @@ def _apply_responsive_grid_spacing(grid: Any, effective_width: int) -> None:
     if grid is None:
         return
     if effective_width >= 900:
-        horizontal_spacing = 16
-        vertical_spacing = 12
-    elif effective_width >= 700:
         horizontal_spacing = 12
-        vertical_spacing = 9
+        vertical_spacing = 6
+    elif effective_width >= 700:
+        horizontal_spacing = 8
+        vertical_spacing = 5
     elif effective_width >= 560:
         horizontal_spacing = 8
-        vertical_spacing = 6
+        vertical_spacing = 4
     else:
         horizontal_spacing = 4
         vertical_spacing = 3
@@ -368,7 +373,7 @@ def _compute_grid_cell_min_width(
     p75 = widths[p75_idx]
     avg = sum(widths) // len(widths)
     dynamic_baseline = max(p75, avg) + 22
-    result = max(174, min(300, max(base_cell_min, dynamic_baseline)))
+    result = max(150, min(280, max(min(base_cell_min, 188), dynamic_baseline)))
     if state is not None:
         state.cell_min_width = result
         state.cell_min_width_widget_key = widget_key

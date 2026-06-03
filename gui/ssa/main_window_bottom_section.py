@@ -135,7 +135,7 @@ class DerivadasGraphLabel(QLabel):
         if ssa:
             jump = getattr(self._window, "_jump_to_ssa", None)
             if callable(jump):
-                jump(ssa)
+                jump(ssa, _allow_refilter=False)
             return
         super().mousePressEvent(ev)
 
@@ -186,7 +186,12 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
     filters_panel_layout.setContentsMargins(4, 2, 4, 4)
     filters_panel_layout.setSpacing(2)
 
-    filter_panel_header, filter_panel_tab_bar, filter_panel_title = (
+    (
+        filter_panel_header,
+        filter_panel_tab_bar,
+        filter_panel_title,
+        clear_selection_filters_btn,
+    ) = (
         _build_filter_panel_header(window)
     )
     filters_panel_layout.addWidget(cast(Any, filter_panel_header), 0)
@@ -211,6 +216,7 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
         filter_panel_title,
         filters_panel_stack,
         adv_group,
+        clear_selection_filters_btn,
     )
 
     return {
@@ -221,6 +227,7 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
         "filters_panel_group": filters_panel_group,
         "filter_panel_tab_bar": filter_panel_tab_bar,
         "filter_panel_title": filter_panel_title,
+        "clear_selection_filters_btn": clear_selection_filters_btn,
         "filters_panel_stack": filters_panel_stack,
         **details_context,
         **column_context,
@@ -518,7 +525,7 @@ def _build_column_filters_panel_shell(window: Any) -> dict[str, Any]:
     }
 
 
-def _build_filter_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
+def _build_filter_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel, QToolButton]:
     filter_panel_header = QWidget()
     _set_fixed_height(window, filter_panel_header, 24, "cabecalho de abas de filtros")
     filter_panel_header_layout = QHBoxLayout(cast(Any, filter_panel_header))
@@ -567,13 +574,38 @@ def _build_filter_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
 
     filter_panel_header_layout.addWidget(cast(Any, filter_panel_tab_bar), 0)
     filter_panel_header_layout.addWidget(cast(Any, filter_panel_title), 1)
-    right_balance = QWidget()
+    clear_selection_filters_btn = QToolButton()
     try:
-        right_balance.setFixedWidth(202)
+        clear_selection_filters_btn.setObjectName("clearSelectionFiltersButton")
+        clear_selection_filters_btn.setText("x")
+        clear_selection_filters_btn.setToolTip("Limpar filtros por selecao")
+        clear_selection_filters_btn.setFixedSize(22, 22)
+        clear_selection_filters_btn.setAutoRaise(True)
+        clear_selection_filters_btn.setVisible(False)
+        clear_selection_filters_btn.setStyleSheet(
+            "QToolButton#clearSelectionFiltersButton {"
+            "border:1px solid palette(mid);"
+            "border-radius:3px;"
+            "font-weight:700;"
+            "padding:0;"
+            "}"
+            "QToolButton#clearSelectionFiltersButton:hover {"
+            "border:1px solid palette(highlight);"
+            "background:palette(alternate-base);"
+            "}"
+        )
+        _connect_window_slot(
+            clear_selection_filters_btn.clicked, window, "_clear_advanced_filters"
+        )
     except Exception as exc:
-        logger.debug("Falha ao configurar balanceador da area de filtros: %s", exc)
-    filter_panel_header_layout.addWidget(cast(Any, right_balance), 0)
-    return filter_panel_header, filter_panel_tab_bar, filter_panel_title
+        logger.debug("Falha ao configurar limpeza de filtros por selecao: %s", exc)
+    filter_panel_header_layout.addWidget(cast(Any, clear_selection_filters_btn), 0)
+    return (
+        filter_panel_header,
+        filter_panel_tab_bar,
+        filter_panel_title,
+        clear_selection_filters_btn,
+    )
 
 
 def _connect_filter_panel_tabs(
@@ -582,6 +614,7 @@ def _connect_filter_panel_tabs(
     filter_panel_title: QLabel,
     filters_panel_stack: QStackedWidget,
     adv_group: QWidget,
+    clear_selection_filters_btn: QToolButton,
 ) -> None:
     def _activate_filter_panel(index: int) -> None:
         active_index = 1 if int(index) == 1 else 0
@@ -593,6 +626,7 @@ def _connect_filter_panel_tabs(
             filter_panel_title.setText(
                 "Filtros por Selecao" if active_index == 1 else "Filtros por Texto"
             )
+            clear_selection_filters_btn.setVisible(active_index == 1)
         except Exception as exc:
             logger.debug("Falha ao trocar painel local de filtros: %s", exc)
         if active_index == 1:

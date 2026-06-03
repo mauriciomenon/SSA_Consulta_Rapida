@@ -25,8 +25,8 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core import app_logic  # noqa: E402
-from PyQt6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QTimer, QUrl  # noqa: E402
-from PyQt6.QtGui import QCloseEvent, QDesktopServices, QFont, QResizeEvent  # noqa: E402
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QSize, Qt, QTimer, QUrl  # noqa: E402
+from PyQt6.QtGui import QCloseEvent, QDesktopServices, QFont, QMouseEvent, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QDialog, QGroupBox, QSpinBox  # noqa: E402
@@ -465,6 +465,7 @@ class TestGUIFilterLogic:
         assert main_ctx["details_title"].isVisible() is False
         tab_bar = main_ctx["filter_panel_tab_bar"]
         title = main_ctx["filter_panel_title"]
+        clear_selection_filters_btn = main_ctx["clear_selection_filters_btn"]
         stack = main_ctx["filters_panel_stack"]
 
         assert isinstance(tab_bar, QtWidgets.QTabBar)
@@ -479,7 +480,18 @@ class TestGUIFilterLogic:
         assert "font-weight:400;" in tab_css
         assert stack.currentIndex() == 1
         assert str(title.text() or "") == "Filtros por Selecao"
+        assert str(clear_selection_filters_btn.text() or "") == "x"
+        assert clear_selection_filters_btn.width() <= 24
         assert getattr(self.window, "_active_filter_panel_kind", None) == "advanced"
+
+        self.window._advanced_filters = {"situacao": ["SAD"]}
+        self.window._advanced_filters_active = True
+        cast(Any, QTest).mouseClick(
+            clear_selection_filters_btn, Qt.MouseButton.LeftButton
+        )
+        QApplication.processEvents()
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
 
         tab_bar.setCurrentIndex(1)
         QApplication.processEvents()
@@ -596,6 +608,19 @@ class TestGUIFilterLogic:
                 dialog.findChild(QScrollArea, "preferencesColumnWidthsScroll")
                 is not None
             )
+            scroll = dialog.findChild(QScrollArea, "preferencesContentScroll")
+            assert scroll is not None
+            content = scroll.widget()
+            assert content is not None
+            content_layout = content.layout()
+            captured["content_layout_type"] = type(content_layout).__name__
+            captured["group_order"] = []
+            if isinstance(content_layout, QtWidgets.QVBoxLayout):
+                for index in range(content_layout.count()):
+                    item = content_layout.itemAt(index)
+                    widget = item.widget() if item is not None else None
+                    if isinstance(widget, QGroupBox):
+                        captured["group_order"].append(str(widget.objectName() or ""))
             columns_button = buttons.get("preferencesColumnsButton")
             assert columns_button is not None
             columns_button.click()
@@ -651,6 +676,13 @@ class TestGUIFilterLogic:
             captured["checks"]["preferencesDoubleClickDetailsCheck"]
             == "Duplo clique abre detalhes"
         )
+        assert captured["content_layout_type"] == "QVBoxLayout"
+        assert captured["group_order"] == [
+            "preferencesInterfaceGroup",
+            "preferencesTableGroup",
+            "preferencesBehaviorGroup",
+            "preferencesPaiApiGroup",
+        ]
         assert "Restaurar padrao" in captured["buttons"]
         assert captured["footer"].startswith("Versao ")
         assert len(captured["footer"].split(" | ")) == 5
@@ -1210,7 +1242,7 @@ class TestGUIFilterLogic:
         assert "combobox-popup: 0" in captured["combo_style"]
         assert captured["view_type"] == "QListView"
 
-    def test_preferences_theme_combo_popup_uses_shared_clamp_helper(
+    def test_preferences_theme_combo_popup_does_not_use_delayed_clamp(
         self, monkeypatch
     ):
         clamp_calls: list[tuple[str, str, bool]] = []
@@ -1249,10 +1281,8 @@ class TestGUIFilterLogic:
 
         self.window._open_preferences_dialog()
 
-        assert len(clamp_calls) >= 1
-        assert timer_delays == [80]
-        assert all(name == "preferencesThemeCombo" for name, _popup_type, _ok in clamp_calls)
-        assert all(ok for _name, _popup_type, ok in clamp_calls)
+        assert clamp_calls == []
+        assert timer_delays == []
 
     def test_details_derivadas_tab_refreshes_when_selection_changes(self, monkeypatch):
         df = pd.DataFrame(
@@ -1652,7 +1682,8 @@ class TestGUIFilterLogic:
         reprog_button = self.window.adv_reprog_button
 
         assert reprog_mode.maximumWidth() <= 126
-        assert reprog_button.maximumWidth() <= 82
+        sem_dados_width = reprog_button.fontMetrics().horizontalAdvance("Sem dados")
+        assert sem_dados_width + 16 <= reprog_button.maximumWidth() <= 104
         assert reprog_mode.maximumHeight() <= 24
         assert reprog_button.maximumHeight() <= 24
         assert str(reprog_button.toolTip() or "") in {"Nº", "Nenhum dado disponivel"}
@@ -1724,6 +1755,9 @@ class TestGUIFilterLogic:
         assert getattr(self.window, "persist_filter_config_checkbox", None) is None
         style_sheet = str(combo.styleSheet() or "")
         assert "combobox-popup: 0" in style_sheet
+        assert "QComboBox:hover" in style_sheet
+        assert "border:1px solid" in style_sheet
+        assert "border:2px solid" in style_sheet
         mel4_idx = combo.findData("MEL4")
         assert mel4_idx >= 0
         assert str(combo.itemText(0)) == "Todos"
@@ -1876,6 +1910,17 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters.get("setor_executor") == ["IEE3"]
         assert self.window._active_column_filters.get("setor_executor") == "IEE3"
         assert str(combo.currentData() or "") == "IEE3"
+
+    def test_advanced_executor_sync_preserves_other_active_filters_in_place(self):
+        active_filters = self.window._active_column_filters
+        active_filters["situacao"] = "ADM"
+        self.window._advanced_filters = {"setor_executor": ["IEE1", "IEE2"]}
+
+        self.window._sync_active_executor_filter_from_advanced_filters()
+
+        assert self.window._active_column_filters is active_filters
+        assert self.window._active_column_filters["situacao"] == "ADM"
+        assert self.window._active_column_filters["setor_executor"] == "IEE1, IEE2"
 
     def test_sync_quick_setor_executor_combo_reuses_existing_options(self, monkeypatch):
         self.window._refresh_quick_setor_executor_options()
@@ -2155,6 +2200,9 @@ class TestGUIFilterLogic:
         self.window.adv_macro_combo.setCurrentIndex(macro_idx)
         self.window._on_macro_filter_changed()
         QApplication.processEvents()
+        timer = getattr(self.window, "_advanced_apply_timer", None)
+        assert timer is not None
+        cast(Any, QTest).qWait(int(timer.interval()) + 80)
 
         assert self.window._advanced_filters.get("macro_filter") == "ssas_para_baixar"
         assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
@@ -2256,9 +2304,23 @@ class TestGUIFilterLogic:
 
         css = str(search_button.styleSheet() or "")
         assert str(search_button.text() or "") == "Busca: 'Teste A'"
-        assert "font-size:10px" not in css
+        assert "font-size:12px" in css
         assert "font-weight:600" in css
         assert search_button.height() == 22
+
+    def test_filters_summary_buttons_compact_font_before_scroll(self):
+        self.window.search_input.setText("Texto muito longo " * 8)
+        self.window._active_column_filters["descricao_ssa"] = "Filtro longo " * 8
+        self.window._advanced_filters = {"setor_executor": ["IEE1", "IEE2", "IEE3"]}
+        self.window._advanced_filters_active = True
+        self.window._update_filters_summary()
+        QApplication.processEvents()
+
+        buttons = self.window.filters_summary_items_widget.findChildren(QPushButton)
+        visible_buttons = [button for button in buttons if button.isVisible()]
+
+        assert len(visible_buttons) >= 2
+        assert all("font-size:11px" in str(button.styleSheet() or "") for button in visible_buttons)
 
     def test_header_reorder_updates_visible_columns_order(self):
         if "solicitante" not in self.window.visible_columns:
@@ -4764,19 +4826,49 @@ class TestGUIFilterLogic:
         assert getattr(self.window, "adv_responsavel_emissor_checks", None) is None
         assert getattr(self.window, "adv_responsavel_emissor_exclude", None) is None
 
-    def test_advanced_exclude_checkbox_is_owned_by_field_layout(self):
+    def test_advanced_exclude_is_menu_only_without_field_checkbox(self):
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
         exclude = getattr(self.window, "adv_status_exclude", None)
 
-        assert exclude is not None
-        assert exclude.text() == "Diferente"
-        assert exclude.isVisible() is True
-
-        parent = exclude.parentWidget()
+        assert exclude is None
+        status_button = getattr(self.window, "adv_status_button", None)
+        assert status_button is not None
+        parent = status_button.parentWidget()
         assert isinstance(parent, QGroupBox)
         assert parent.title() == "Situacao"
-        assert parent.layout() is not None
-        assert parent.layout().indexOf(exclude) >= 0
+        assert not [
+            child
+            for child in parent.findChildren(QCheckBox)
+            if str(child.text() or "") == "Diferente"
+        ]
+        exclude_checks = getattr(self.window, "adv_status_exclude_checks", None)
+        assert exclude_checks
+        assert any(isinstance(check, QCheckBox) for check in exclude_checks)
         assert getattr(self.window, "adv_year_emissao_exclude", None) is None
+
+    def test_advanced_selection_applies_after_configured_debounce(self):
+        self.window._debounce_timer.setInterval(120)
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        status_checks = getattr(self.window, "adv_status_checks", [])
+        target_check = next(check for check in status_checks if check.property("value"))
+        target_value = str(target_check.property("value") or "")
+        target_check.setChecked(True)
+        QApplication.processEvents()
+
+        timer = getattr(self.window, "_advanced_apply_timer", None)
+        assert timer is not None
+        assert timer.interval() == self.window._debounce_timer.interval()
+        assert timer.isActive() is True
+
+        cast(Any, QTest).qWait(int(timer.interval()) + 80)
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("situacao") == [target_value]
+        assert self.window._advanced_filters_active is True
 
     def test_include_only_advanced_menus_do_not_render_exclude_column(self):
         def menu_labels(menu):
@@ -6298,7 +6390,36 @@ class TestGUIFilterLogic:
             pos=QPoint(20, 20),
         )
 
-        assert calls == [("202100186", True)]
+        assert calls == [("202100186", False)]
+
+    def test_derivadas_graph_label_shows_clickable_cursor_on_node(self):
+        label = self.window.details_graph_label
+        label.setFixedSize(200, 120)
+        label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 90.0, 50.0)])
+        label.show()
+        QApplication.processEvents()
+
+        inside_event = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(20, 20),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        label.mouseMoveEvent(inside_event)
+
+        assert label.cursor().shape() == Qt.CursorShape.PointingHandCursor
+
+        outside_event = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(160, 100),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        label.mouseMoveEvent(outside_event)
+
+        assert label.cursor().shape() == Qt.CursorShape.ArrowCursor
 
     def test_derivadas_graph_label_click_uses_logical_pixmap_size(self, monkeypatch):
         class _FakeSize:
@@ -6324,9 +6445,12 @@ class TestGUIFilterLogic:
         label = self.window.details_graph_label
         label.setFixedSize(200, 120)
         label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 45.0, 20.0)])
-        calls: list[str] = []
+        calls: list[tuple[str, bool]] = []
 
-        monkeypatch.setattr(self.window, "_jump_to_ssa", calls.append)
+        def _fake_jump(ssa: str, *, _allow_refilter: bool = True):
+            calls.append((ssa, _allow_refilter))
+
+        monkeypatch.setattr(self.window, "_jump_to_ssa", _fake_jump)
         monkeypatch.setattr(label, "pixmap", lambda: _FakePixmap())
 
         cast(Any, QTest).mouseClick(
@@ -6335,7 +6459,7 @@ class TestGUIFilterLogic:
             pos=QPoint(78, 60),
         )
 
-        assert calls == ["202100186"]
+        assert calls == [("202100186", False)]
 
     def test_derivadas_graph_label_click_uses_centered_display_coordinates(
         self, monkeypatch
@@ -6363,9 +6487,12 @@ class TestGUIFilterLogic:
         label = self.window.details_graph_label
         label.setFixedSize(200, 120)
         label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 45.0, 20.0)])
-        calls: list[str] = []
+        calls: list[tuple[str, bool]] = []
 
-        monkeypatch.setattr(self.window, "_jump_to_ssa", calls.append)
+        def _fake_jump(ssa: str, *, _allow_refilter: bool = True):
+            calls.append((ssa, _allow_refilter))
+
+        monkeypatch.setattr(self.window, "_jump_to_ssa", _fake_jump)
         monkeypatch.setattr(label, "pixmap", lambda: _FakePixmap())
 
         offset_x = int((label.width() - 90.0) / 2.0)
@@ -6377,7 +6504,7 @@ class TestGUIFilterLogic:
             pos=QPoint(offset_x + 27, offset_y + 15),
         )
 
-        assert calls == ["202100186"]
+        assert calls == [("202100186", False)]
 
     def test_derivadas_graph_label_click_opens_context_panel_without_layout_regression(
         self,
@@ -6528,8 +6655,12 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(
             self.window, "_refresh_derivadas_graph_hitboxes", _refresh_hitboxes
         )
-        calls: list[str] = []
-        monkeypatch.setattr(self.window, "_jump_to_ssa", calls.append)
+        calls: list[tuple[str, bool]] = []
+
+        def _fake_jump(ssa: str, *, _allow_refilter: bool = True):
+            calls.append((ssa, _allow_refilter))
+
+        monkeypatch.setattr(self.window, "_jump_to_ssa", _fake_jump)
 
         label._refresh_hitboxes_from_svg()
 
@@ -6540,7 +6671,7 @@ class TestGUIFilterLogic:
         )
 
         assert refresh_calls
-        assert calls == ["202100186"]
+        assert calls == [("202100186", False)]
 
     def test_build_derivadas_graph_html_offsets_text_baseline_for_qt_svg(self):
         html = ssa_gui_details._build_derivadas_graph_html(
@@ -7996,6 +8127,116 @@ class TestGUIFilterLogic:
         assert set(self.window.df_exibido["numero_ssa"].tolist()) == set(
             df["numero_ssa"].tolist()
         )
+
+    def test_table_context_menu_opens_details_for_right_clicked_ssa(self, monkeypatch):
+        opened: list[tuple[str, Any]] = []
+
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                return action
+
+            def addSeparator(self):
+                return None
+
+            def exec(self, _global_pos):
+                for action in self._actions:
+                    if str(getattr(action, "text", "")) == "Abrir detalhes da SSA":
+                        action.triggered.emit()
+                        return action
+                return None
+
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+        monkeypatch.setattr(
+            self.window,
+            "_open_details_dialog_for_ssa",
+            lambda numero_ssa, series=None: opened.append((numero_ssa, series)),
+        )
+
+        item = next(
+            self.window.table_widget.item(0, column)
+            for column in range(self.window.table_widget.columnCount())
+            if self.window.table_widget.item(0, column) is not None
+        )
+        pos = self.window.table_widget.visualItemRect(item).center()
+
+        self.window.show_context_menu(pos)
+        QApplication.processEvents()
+
+        assert opened
+        assert opened[0][0] == str(self.window.df_exibido.iloc[0]["numero_ssa"])
+        assert opened[0][1] is not None
+
+    def test_table_context_menu_ignores_invalid_ssa_for_details_and_derivadas(
+        self, monkeypatch
+    ):
+        action_texts: list[str] = []
+
+        class _FakeSignal:
+            def connect(self, _callback):
+                return None
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                action_texts.append(str(getattr(action, "text", "")))
+                return action
+
+            def addSeparator(self):
+                return None
+
+            def exec(self, _global_pos):
+                return None
+
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+        monkeypatch.setattr(
+            self.window,
+            "_get_series_from_row",
+            lambda _row: pd.Series({"numero_ssa": float("nan"), "derivada_de": None}),
+        )
+
+        item = next(
+            self.window.table_widget.item(0, column)
+            for column in range(self.window.table_widget.columnCount())
+            if self.window.table_widget.item(0, column) is not None
+        )
+        pos = self.window.table_widget.visualItemRect(item).center()
+
+        self.window.show_context_menu(pos)
+        QApplication.processEvents()
+
+        assert "Abrir detalhes da SSA" not in action_texts
+        assert "Mostrar derivadas" not in action_texts
+        assert "Ir para SSA origem" not in action_texts
 
     def test_header_resize_updates_runtime_column_width_cache(self):
         self.window._current_display_columns = ["#", "descricao_ssa"]
@@ -9825,14 +10066,14 @@ class TestGUIFilterLogic:
 
         assert wide_hspace >= narrow_hspace
         assert wide_vspace >= narrow_vspace
-        assert wide_hspace >= 16
-        assert wide_vspace >= 12
+        assert wide_hspace >= 12
+        assert wide_vspace >= 6
         assert wide_gap >= narrow_gap
         assert wide_gap >= narrow_gap + 4
         assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 300
-        assert int(state.grid_widgets["action_box"].maximumWidth()) <= 300
+        assert "action_box" not in state.grid_widgets
 
-    def test_reorganize_advanced_filters_grid_caps_single_column_width(self):
+    def test_reorganize_advanced_filters_grid_caps_narrow_width(self):
         self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
@@ -9844,11 +10085,14 @@ class TestGUIFilterLogic:
         state = self.window._advanced_filter_panel_state
         grid = state.main_grid
 
-        assert state.grid_cols == 1
+        assert 1 <= state.grid_cols <= 2
         assert int(grid.horizontalSpacing()) == 4
         assert int(grid.verticalSpacing()) == 3
-        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 460
-        assert int(state.grid_widgets["action_box"].maximumWidth()) <= 460
+        reprog_button = self.window.adv_reprog_button
+        sem_dados_width = reprog_button.fontMetrics().horizontalAdvance("Sem dados")
+        assert int(reprog_button.maximumWidth()) >= sem_dados_width + 16
+        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 340
+        assert "action_box" not in state.grid_widgets
 
     def test_reprogramacoes_menu_builds_without_responsavel_materialized(self):
         self.window.df_completo = self.base_df.assign(
@@ -11210,8 +11454,11 @@ class TestGUIFilterLogic:
     def test_close_event_stops_main_and_sector_debounce_timers(self):
         self.window._debounce_timer.start()
         self.window._sector_debounce_timer.start()
+        self.window._advanced_apply_timer = QTimer(self.window)
+        self.window._advanced_apply_timer.start(200)
         assert self.window._debounce_timer.isActive() is True
         assert self.window._sector_debounce_timer.isActive() is True
+        assert self.window._advanced_apply_timer.isActive() is True
 
         event = QCloseEvent()
         self.window.closeEvent(event)
@@ -11219,6 +11466,7 @@ class TestGUIFilterLogic:
         assert event.isAccepted() is True
         assert self.window._debounce_timer.isActive() is False
         assert self.window._sector_debounce_timer.isActive() is False
+        assert self.window._advanced_apply_timer.isActive() is False
 
     def test_on_data_loaded_ignores_stale_request(self):
         original_df = self.window.df_completo.copy()

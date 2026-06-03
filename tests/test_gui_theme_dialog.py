@@ -80,7 +80,7 @@ def test_show_theme_selection_dialog_persists_theme_without_window(monkeypatch):
     assert persist_calls == [prefs]
 
 
-def test_theme_selection_combo_delays_popup_clamp(monkeypatch):
+def test_theme_selection_combo_uses_stable_popup_without_delayed_clamp(monkeypatch):
     from PyQt6 import QtCore
     from PyQt6 import QtWidgets
 
@@ -120,5 +120,5 @@ def test_theme_selection_combo_delays_popup_clamp(monkeypatch):
         persist_preferences_async=lambda _value: True,
     )
 
-    assert timer_delays == [80]
-    assert len(clamp_calls) == 1
+    assert timer_delays == []
+    assert clamp_calls == []

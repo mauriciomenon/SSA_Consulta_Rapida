@@ -19,10 +19,11 @@ class _SummaryTheme:
     border: str
     text_color: str
     background: str
+    font_size: int
 
     @property
-    def style_signature(self) -> tuple[str, str, str, str]:
-        return self.border, self.accent, self.background, self.text_color
+    def style_signature(self) -> tuple[str, str, str, str, int]:
+        return self.border, self.accent, self.background, self.text_color, self.font_size
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,7 @@ class FilterSummaryPresenter:
         self._logger = logger
         self._button_pool: list[QPushButton] = []
         self._button_width_cache: dict[tuple, int] = {}
-        self._stylesheet_cache: dict[tuple[str, str, str, str], str] = {}
+        self._stylesheet_cache: dict[tuple[str, str, str, str, int], str] = {}
         self._on_remove: Callable[[str, list[SummaryAction]], None] | None = None
 
     def update(
@@ -169,7 +170,14 @@ class FilterSummaryPresenter:
         container = self._widgets.items_widget
         if layout is None or container is None:
             return
-        theme = self._resolve_button_theme(theme_name)
+        if len(self._button_width_cache) > 256:
+            self._button_width_cache.clear()
+        if len(self._stylesheet_cache) > 32:
+            self._stylesheet_cache.clear()
+        compact = len(entries) >= 3 or sum(
+            len(str(entry.get("text") or "")) for entry in entries
+        ) > 60
+        theme = self._resolve_button_theme(theme_name, compact=compact)
         self._configure_button_container(container)
         content_width = 0
         spacing = self._layout_spacing(layout)
@@ -197,7 +205,7 @@ class FilterSummaryPresenter:
             content_width=content_width,
         )
 
-    def _resolve_button_theme(self, theme_name: str) -> _SummaryTheme:
+    def _resolve_button_theme(self, theme_name: str, *, compact: bool = False) -> _SummaryTheme:
         roles = get_theme_roles(theme_name)
         accent = roles.get("accent") or roles.get("input_border_focus") or "#4a90e2"
         return _SummaryTheme(
@@ -205,6 +213,7 @@ class FilterSummaryPresenter:
             border=roles.get("input_border") or roles.get("panel_border") or accent,
             text_color=roles.get("panel_text") or roles.get("label_color") or "inherit",
             background=roles.get("input_bg") or "transparent",
+            font_size=11 if compact else 12,
         )
 
     def _configure_button_container(self, container: Any) -> None:
@@ -231,7 +240,7 @@ class FilterSummaryPresenter:
         pool: list[Any],
         container: Any,
         layout: Any,
-        style_signature: tuple[str, str, str, str],
+        style_signature: tuple[str, str, str, str, int],
         stylesheet_cache: dict,
         width_cache: dict,
     ) -> int:
@@ -274,10 +283,10 @@ class FilterSummaryPresenter:
         button: QPushButton,
         *,
         text: str,
-        style_signature: tuple[str, str, str, str],
+        style_signature: tuple[str, str, str, str, int],
         stylesheet_cache: dict,
     ) -> None:
-        border, accent, background, text_color = style_signature
+        border, accent, background, text_color, font_size = style_signature
         try:
             button.setVisible(True)
             button.setFixedHeight(22)
@@ -290,6 +299,7 @@ class FilterSummaryPresenter:
                         accent=accent,
                         background=background,
                         text_color=text_color,
+                        font_size=font_size,
                     )
                     stylesheet_cache[style_signature] = stylesheet
                 button.setStyleSheet(stylesheet)
