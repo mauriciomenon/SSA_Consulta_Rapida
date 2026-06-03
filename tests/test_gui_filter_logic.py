@@ -2395,19 +2395,38 @@ class TestGUIFilterLogic:
         state = self.window._advanced_filter_panel_state
         scroll = state.controls_scroll
         viewport_height = scroll.viewport().height()
-        widget_bottoms = [
-            widget.geometry().y() + widget.geometry().height()
+        visible_widgets = [
+            widget
             for widget in state.grid_widgets.values()
-            if widget is not None
+            if widget is not None and widget.isVisible()
         ]
-        widget_tops = [
-            widget.geometry().y()
-            for widget in state.grid_widgets.values()
-            if widget is not None
-        ]
+        widget_bottoms = []
 
-        assert widget_bottoms
-        assert min(widget_tops) <= 2
+        assert visible_widgets
+        for widget in visible_widgets:
+            assert widget.height() >= advanced_layout.LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+            contents_top = int(widget.contentsRect().top())
+            contents_bottom = int(widget.contentsRect().bottom()) + 1
+            min_child_top = contents_top + 2
+            for child in widget.findChildren(
+                QtWidgets.QWidget,
+                options=Qt.FindChildOption.FindDirectChildrenOnly,
+            ):
+                if child.isVisible():
+                    assert int(child.geometry().y()) >= min_child_top
+                    assert int(child.geometry().bottom()) <= contents_bottom
+            widget_bottoms.append(widget.geometry().y() + widget.geometry().height())
+
+        for control in state.metric_controls:
+            if control is not None and control.isVisible():
+                assert control.height() >= int(control.fontMetrics().height()) + 4
+
+        for key in ("sol_box", "prog_box", "exec_resp_box"):
+            widget = state.grid_widgets.get(key)
+            assert widget is not None
+            assert widget.isVisible()
+            assert widget.geometry().y() + widget.geometry().height() <= viewport_height - 4
+
         bottom_gap = viewport_height - max(widget_bottoms)
         assert bottom_gap >= 4
         assert scroll.verticalScrollBar().maximum() == 0
@@ -10180,11 +10199,47 @@ class TestGUIFilterLogic:
         wide_exec = state.grid_widgets["exec_box"].geometry()
         wide_gap = int(wide_exec.x() - (wide_emis.x() + wide_emis.width()))
 
-        assert 8 <= wide_hspace <= narrow_hspace
-        assert 2 <= wide_vspace <= narrow_vspace
-        assert wide_gap <= max(narrow_gap, 8)
-        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 420
+        assert wide_hspace >= narrow_hspace
+        assert wide_vspace >= narrow_vspace
+        assert wide_hspace >= 12
+        assert wide_vspace >= 4
+        assert wide_gap >= narrow_gap
+        assert wide_gap >= narrow_gap + 4
+        assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 300
         assert "action_box" not in state.grid_widgets
+
+    def test_reorganize_advanced_filters_grid_keeps_wide_layout_text_uncropped(self):
+        self._set_filter_panel_tab("filters")
+        self.window.resize(1680, 900)
+        QApplication.processEvents()
+        self.window._reorganize_advanced_filters_grid(1680)
+        QApplication.processEvents()
+
+        state = self.window._advanced_filter_panel_state
+        grid = state.main_grid
+        scroll = state.controls_scroll
+        viewport_height = scroll.viewport().height()
+
+        assert int(grid.verticalSpacing()) >= 4
+        assert scroll.verticalScrollBar().maximum() == 0
+        for widget in state.grid_widgets.values():
+            if widget is None or not widget.isVisible():
+                continue
+            assert widget.height() >= advanced_layout.LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+            contents_top = int(widget.contentsRect().top())
+            min_child_top = contents_top + 2
+            contents_bottom = int(widget.contentsRect().bottom()) + 1
+            for child in widget.findChildren(
+                QtWidgets.QWidget,
+                options=Qt.FindChildOption.FindDirectChildrenOnly,
+            ):
+                if child.isVisible():
+                    assert int(child.geometry().y()) >= min_child_top
+                    assert int(child.geometry().bottom()) <= contents_bottom
+            assert widget.geometry().y() + widget.geometry().height() <= viewport_height - 4
+        for control in state.metric_controls:
+            if control is not None and control.isVisible():
+                assert control.height() >= int(control.fontMetrics().height()) + 4
 
     def test_reorganize_advanced_filters_grid_caps_narrow_width(self):
         self._set_filter_panel_tab("filters")
