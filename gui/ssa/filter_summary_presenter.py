@@ -12,6 +12,11 @@ from gui.ssa.filter_summary_entries import SummaryAction, SummaryEntry, shorten_
 from gui.ssa.filter_summary_style import build_summary_button_stylesheet
 from utils.themes import get_theme_roles
 
+SUMMARY_COMPACT_TEXT_THRESHOLD = 42
+SUMMARY_ESTIMATED_PIXELS_PER_CHAR = 8
+SUMMARY_DEFAULT_FONT_SIZE = 12
+SUMMARY_COMPACT_FONT_SIZE = 11
+
 
 @dataclass(frozen=True)
 class _SummaryTheme:
@@ -174,9 +179,33 @@ class FilterSummaryPresenter:
             self._button_width_cache.clear()
         if len(self._stylesheet_cache) > 32:
             self._stylesheet_cache.clear()
-        compact = len(entries) >= 3 or sum(
-            len(str(entry.get("text") or "")) for entry in entries
-        ) > 60
+        renderable_entries = [
+            entry
+            for entry in entries
+            if str(entry.get("text") or "").strip()
+            and isinstance(entry.get("actions"), list)
+            and bool(entry.get("actions"))
+        ]
+        text_width = sum(
+            len(shorten_summary_label(str(entry.get("text") or "").strip()))
+            for entry in renderable_entries
+        )
+        compact = (
+            len(renderable_entries) >= 2
+            or text_width > SUMMARY_COMPACT_TEXT_THRESHOLD
+        )
+        if not compact:
+            viewport_width = 0
+            try:
+                scroll = self._widgets.scroll
+                if scroll is not None and scroll.viewport() is not None:
+                    viewport_width = int(scroll.viewport().width() or 0)
+            except Exception as exc:
+                self._logger.debug("Falha ao medir viewport dos filtros ativos: %s", exc)
+            compact = (
+                viewport_width > 0
+                and text_width * SUMMARY_ESTIMATED_PIXELS_PER_CHAR > viewport_width
+            )
         theme = self._resolve_button_theme(theme_name, compact=compact)
         self._configure_button_container(container)
         content_width = 0
@@ -213,7 +242,7 @@ class FilterSummaryPresenter:
             border=roles.get("input_border") or roles.get("panel_border") or accent,
             text_color=roles.get("panel_text") or roles.get("label_color") or "inherit",
             background=roles.get("input_bg") or "transparent",
-            font_size=11 if compact else 12,
+            font_size=SUMMARY_COMPACT_FONT_SIZE if compact else SUMMARY_DEFAULT_FONT_SIZE,
         )
 
     def _configure_button_container(self, container: Any) -> None:

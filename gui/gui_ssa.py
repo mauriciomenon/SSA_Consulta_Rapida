@@ -350,6 +350,7 @@ if QT_AVAILABLE:
         ResponsavelMaterializationState,
     )
     from gui.ssa.main_window_filter_bar import (  # noqa: E402
+        _quick_setor_executor_combo_style,
         build_filters_summary_bar,
         build_pagination_filter_bar,
         build_search_bar,
@@ -772,9 +773,10 @@ def _sync_preferences_extra_sector_validation(
     status_label: Any,
     *,
     status_neutral: str,
+    support_text_color: str = "palette(window-text)",
 ) -> bool:
     neutral_box_style = (
-        "color: palette(mid);"
+        f"color: {support_text_color};"
         "border:1px solid palette(mid);"
         "border-radius:4px;"
         "padding:2px 6px;"
@@ -913,6 +915,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def refresh_filter_widgets_after_theme(self, theme_name: str) -> None:
         self._adv_options_dirty = True
         self._refresh_quick_situacao_buttons()
+        quick_executor_combo = getattr(self, "quick_setor_executor_combo", None)
+        style_factory = globals().get("_quick_setor_executor_combo_style")
+        if (
+            QT_AVAILABLE
+            and quick_executor_combo is not None
+            and _is_widget_valid(quick_executor_combo)
+            and callable(style_factory)
+        ):
+            try:
+                quick_executor_combo.setStyleSheet(style_factory(self))
+            except RuntimeError as exc:
+                logger.debug(
+                    "Failed to reapply quick executor combo style after theme refresh: %s",
+                    exc,
+                )
         if getattr(self, "_active_filter_panel_kind", None) == "advanced":
             self._pending_theme_refresh_column_filters = theme_name
             self._schedule_adv_options_refresh()
@@ -3335,6 +3352,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             state["api_extra_sectors_edit"],
             state["api_extra_sectors_status"],
             status_neutral=state["neutral_extra_sector_status"],
+            support_text_color=state["support_text_color"],
         )
         self._sync_preferences_api_secret_controls(state, api_password_edit)
 
@@ -3508,6 +3526,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             state["api_extra_sectors_edit"],
             state["api_extra_sectors_status"],
             status_neutral=state["neutral_extra_sector_status"],
+            support_text_color=state["support_text_color"],
         )
 
     def _execute_preferences_dialog(
@@ -3541,6 +3560,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             state["api_extra_sectors_edit"],
             state["api_extra_sectors_status"],
             status_neutral=state["neutral_extra_sector_status"],
+            support_text_color=state["support_text_color"],
         ):
             return True
         QMessageBox.warning(
@@ -3900,7 +3920,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         cast(Any, grid).setColumnStretch(3, 1)
         cast(Any, grid).setColumnStretch(4, 0)
         cast(Any, grid).setColumnStretch(5, 1)
-        preferences_compact_field_width = 280
         preferences_numeric_field_width = 152
         label_alignment = (
             cast(Any, Qt).AlignmentFlag.AlignRight
@@ -3914,7 +3933,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             theme_combo.setView(QListView(cast(Any, theme_combo)))
         theme_combo.setObjectName("preferencesThemeCombo")
         theme_combo.setMaxVisibleItems(10)
-        theme_combo.setMaximumWidth(preferences_compact_field_width)
+        theme_combo.setMinimumWidth(160)
+        theme_combo.setSizePolicy(
+            cast(Any, QSizePolicy.Policy.Fixed),
+            cast(Any, QSizePolicy.Policy.Fixed),
+        )
         theme_items = []
         if ssa_gui_theme is not None:
             theme_items = list(ssa_gui_theme.get_theme_dialog_items())
@@ -3934,7 +3957,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if QT_AVAILABLE and "QListView" in globals():
             search_mode_combo.setView(QListView(cast(Any, search_mode_combo)))
         search_mode_combo.setObjectName("preferencesSearchModeCombo")
-        search_mode_combo.setMaximumWidth(preferences_compact_field_width)
+        search_mode_combo.setMinimumWidth(140)
+        search_mode_combo.setSizePolicy(
+            cast(Any, QSizePolicy.Policy.Fixed),
+            cast(Any, QSizePolicy.Policy.Fixed),
+        )
         search_mode_combo.setToolTip(
             "Define como a busca superior interpreta termos sem prefixo explicito"
         )
@@ -4016,7 +4043,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if QT_AVAILABLE and "QListView" in globals():
             alignment_combo.setView(QListView(cast(Any, alignment_combo)))
         alignment_combo.setObjectName("preferencesAlignmentCombo")
-        alignment_combo.setMaximumWidth(preferences_compact_field_width)
+        alignment_combo.setMinimumWidth(140)
+        alignment_combo.setSizePolicy(
+            cast(Any, QSizePolicy.Policy.Fixed),
+            cast(Any, QSizePolicy.Policy.Fixed),
+        )
         current_alignment = str(
             gui_settings.get("table_cell_alignment", _DEFAULT_TABLE_CELL_ALIGNMENT)
             or _DEFAULT_TABLE_CELL_ALIGNMENT
@@ -4046,7 +4077,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, columns_label), 2, 4, label_alignment)
         columns_button = QPushButton("Colunas")
         columns_button.setObjectName("preferencesColumnsButton")
-        columns_button.setMaximumWidth(preferences_compact_field_width)
+        columns_button.setMinimumWidth(120)
+        columns_button.setSizePolicy(
+            cast(Any, QSizePolicy.Policy.Fixed),
+            cast(Any, QSizePolicy.Policy.Fixed),
+        )
         columns_button.setToolTip(
             "Abrir configuracao de colunas visiveis e larguras da tabela"
         )
@@ -4115,12 +4150,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             base_col = (offset % 3) * 2
             widths_grid.addWidget(cast(Any, label), row, base_col, label_alignment)
             widths_grid.addWidget(cast(Any, spin), row, base_col + 1)
-        widths_layout.addWidget(
-            cast(Any, widths_container),
-            0,
-            cast(Any, Qt).AlignmentFlag.AlignLeft
-            | cast(Any, Qt).AlignmentFlag.AlignTop,
-        )
+        for col in (1, 3, 5):
+            cast(Any, widths_grid).setColumnStretch(col, 1)
+        widths_layout.addWidget(cast(Any, widths_container))
         table_layout.addWidget(cast(Any, widths_group))
         content_layout.addWidget(cast(Any, table_group))
 
@@ -4183,6 +4215,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_group = QGroupBox("SAM API")
         api_group.setObjectName("preferencesPaiApiGroup")
         api_layout = QGridLayout(cast(Any, api_group))
+        api_layout.setContentsMargins(8, 8, 8, 8)
         api_layout.setSpacing(6)
         for col in (1, 3, 5):
             cast(Any, api_layout).setColumnStretch(col, 1)
@@ -4217,6 +4250,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_security_info = QLabel(api_security_info_text)
         api_security_info.setObjectName("preferencesPaiApiSecurityInfoLabel")
         api_security_info.setWordWrap(True)
+        api_security_info.setStyleSheet(
+            f"color: {support_text_color}; border:1px solid palette(mid);"
+            "border-radius:4px; padding:4px 6px;"
+        )
         api_layout.addWidget(cast(Any, api_security_info), 1, 0, 1, 6)
 
         api_layout.addWidget(cast(Any, QLabel("Intervalo (min)")), 2, 0)
@@ -4343,6 +4380,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "preferencesPaiApiExtraSectorsValidationLabel"
         )
         api_extra_sectors_status.setWordWrap(True)
+        api_extra_sectors_status.setStyleSheet(
+            f"color: {support_text_color}; background: transparent;"
+        )
         api_layout.addWidget(cast(Any, api_extra_sectors_status), extras_row + 1, 1, 1, 5)
 
         content_layout.addWidget(cast(Any, api_group))

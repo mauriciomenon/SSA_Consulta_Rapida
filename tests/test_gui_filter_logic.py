@@ -482,16 +482,21 @@ class TestGUIFilterLogic:
         assert str(title.text() or "") == "Filtros por Selecao"
         assert str(clear_selection_filters_btn.text() or "") == "x"
         assert clear_selection_filters_btn.width() <= 24
+        assert clear_selection_filters_btn.isVisible() is False
         assert getattr(self.window, "_active_filter_panel_kind", None) == "advanced"
 
         self.window._advanced_filters = {"situacao": ["SAD"]}
         self.window._advanced_filters_active = True
+        self.window._sync_selection_filters_clear_button()
+        QApplication.processEvents()
+        assert clear_selection_filters_btn.isVisible() is True
         cast(Any, QTest).mouseClick(
             clear_selection_filters_btn, Qt.MouseButton.LeftButton
         )
         QApplication.processEvents()
         assert self.window._advanced_filters == {}
         assert self.window._advanced_filters_active is False
+        assert clear_selection_filters_btn.isVisible() is False
 
         tab_bar.setCurrentIndex(1)
         QApplication.processEvents()
@@ -692,6 +697,45 @@ class TestGUIFilterLogic:
             for label in captured["labels"]
         )
         assert captured["has_widths_scroll"] is False
+
+    def test_preferences_dialog_uses_full_width_internal_grids(self, monkeypatch):
+        captured: dict[str, Any] = {}
+
+        def _fake_exec(dialog):
+            scroll = dialog.findChild(QScrollArea, "preferencesContentScroll")
+            assert scroll is not None
+            widths_group = dialog.findChild(QGroupBox, "preferencesColumnWidthsGroup")
+            assert widths_group is not None
+            widths_layout = widths_group.layout()
+            assert widths_layout is not None
+            support = dialog.findChild(
+                QLabel, "preferencesPaiApiExtraSectorsValidationLabel"
+            )
+            info = dialog.findChild(QLabel, "preferencesPaiApiSecurityInfoLabel")
+            assert support is not None
+            assert info is not None
+            first_item = widths_layout.itemAt(0)
+            assert first_item is not None
+            captured["widths_alignment"] = int(first_item.alignment())
+            captured["support_style"] = str(support.styleSheet() or "")
+            captured["info_style"] = str(info.styleSheet() or "")
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
+        assert captured["widths_alignment"] == 0
+        assert not re.search(
+            r"(^|;)\s*color:\s*palette\(mid\)\s*(;|$)",
+            captured["support_style"],
+        )
+        assert not re.search(
+            r"(^|;)\s*color:\s*palette\(mid\)\s*(;|$)",
+            captured["info_style"],
+        )
+        assert "color:" in captured["support_style"]
+        assert "color:" in captured["info_style"]
 
     def test_preferences_dialog_applies_runtime_settings(self, monkeypatch):
         gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
@@ -1757,7 +1801,7 @@ class TestGUIFilterLogic:
         assert "combobox-popup: 0" in style_sheet
         assert "QComboBox:hover" in style_sheet
         assert "border:1px solid" in style_sheet
-        assert "border:2px solid" in style_sheet
+        assert not re.search(r"border\s*:\s*2px\s+solid", style_sheet)
         mel4_idx = combo.findData("MEL4")
         assert mel4_idx >= 0
         assert str(combo.itemText(0)) == "Todos"
@@ -2320,7 +2364,47 @@ class TestGUIFilterLogic:
         visible_buttons = [button for button in buttons if button.isVisible()]
 
         assert len(visible_buttons) >= 2
-        assert all("font-size:11px" in str(button.styleSheet() or "") for button in visible_buttons)
+        assert all(
+            re.search(r"font-size\s*:\s*11px", str(button.styleSheet() or ""))
+            for button in visible_buttons
+        )
+
+    def test_advanced_selection_panel_geometry_keeps_last_row_visible(self):
+        context = self._panel_context()
+        tab_bar = context["filter_panel_tab_bar"]
+        tab_bar.setCurrentIndex(1)
+        self.window.resize(1200, 918)
+        QApplication.processEvents()
+        self.window._reorganize_advanced_filters_grid(
+            self.window.adv_filters_group.width()
+        )
+        QApplication.processEvents()
+
+        state = self.window._advanced_filter_panel_state
+        scroll = state.controls_scroll
+        viewport_height = scroll.viewport().height()
+        widget_bottoms = [
+            widget.geometry().y() + widget.geometry().height()
+            for widget in state.grid_widgets.values()
+            if widget is not None
+        ]
+
+        assert widget_bottoms
+        bottom_gap = viewport_height - max(widget_bottoms)
+        assert bottom_gap >= 4
+        assert scroll.verticalScrollBar().maximum() == 0
+
+    def test_quick_setor_executor_style_uses_theme_roles_without_fixed_yellow(self):
+        self.window.apply_theme("mint-light")
+        QApplication.processEvents()
+
+        roles = dict(getattr(self.window, "_current_theme_roles", {}) or {})
+        style = str(self.window.quick_setor_executor_combo.styleSheet() or "")
+
+        assert "#ffcc00" not in style
+        assert "#fabd2f" not in style
+        assert roles["input_border_focus"] in style
+        assert roles["input_bg"] in style
 
     def test_header_reorder_updates_visible_columns_order(self):
         if "solicitante" not in self.window.visible_columns:
@@ -10067,7 +10151,7 @@ class TestGUIFilterLogic:
         assert wide_hspace >= narrow_hspace
         assert wide_vspace >= narrow_vspace
         assert wide_hspace >= 12
-        assert wide_vspace >= 6
+        assert wide_vspace >= 4
         assert wide_gap >= narrow_gap
         assert wide_gap >= narrow_gap + 4
         assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 300
@@ -10087,7 +10171,7 @@ class TestGUIFilterLogic:
 
         assert 1 <= state.grid_cols <= 2
         assert int(grid.horizontalSpacing()) == 4
-        assert int(grid.verticalSpacing()) == 3
+        assert int(grid.verticalSpacing()) == 2
         reprog_button = self.window.adv_reprog_button
         sem_dados_width = reprog_button.fontMetrics().horizontalAdvance("Sem dados")
         assert int(reprog_button.maximumWidth()) >= sem_dados_width + 16

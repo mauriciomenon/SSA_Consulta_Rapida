@@ -276,16 +276,16 @@ def _apply_responsive_grid_spacing(grid: Any, effective_width: int) -> None:
         return
     if effective_width >= 900:
         horizontal_spacing = 12
-        vertical_spacing = 6
+        vertical_spacing = 4
     elif effective_width >= 700:
         horizontal_spacing = 8
-        vertical_spacing = 5
+        vertical_spacing = 4
     elif effective_width >= 560:
         horizontal_spacing = 8
-        vertical_spacing = 4
+        vertical_spacing = 3
     else:
         horizontal_spacing = 4
-        vertical_spacing = 3
+        vertical_spacing = 2
     try:
         grid.setHorizontalSpacing(horizontal_spacing)
         grid.setVerticalSpacing(vertical_spacing)
@@ -301,7 +301,7 @@ def _advanced_grid_spacing_metrics(grid: Any):
     try:
         margins = grid.contentsMargins()
         horizontal_padding = int(margins.left() + margins.right())
-        vertical_padding = int(margins.top() + margins.bottom())
+        vertical_padding = int(margins.top() + margins.bottom()) + 4
     except Exception:
         horizontal_padding = 0
         vertical_padding = 0
@@ -373,7 +373,7 @@ def _compute_grid_cell_min_width(
     p75 = widths[p75_idx]
     avg = sum(widths) // len(widths)
     dynamic_baseline = max(p75, avg) + 22
-    result = max(150, min(280, max(min(base_cell_min, 188), dynamic_baseline)))
+    result = max(150, min(280, max(min(base_cell_min, 176), dynamic_baseline)))
     if state is not None:
         state.cell_min_width = result
         state.cell_min_width_widget_key = widget_key

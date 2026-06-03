@@ -134,8 +134,8 @@ def _quick_setor_executor_combo_style(window: Any) -> str:
     )
     focus_border = pick_css_color(
         roles.get("input_border_focus"),
-        roles.get("accent"),
         roles.get("panel_border"),
+        roles.get("input_border"),
         fallback=panel_border,
     )
     return (
@@ -148,8 +148,7 @@ def _quick_setor_executor_combo_style(window: Any) -> str:
         "combobox-popup: 0;"
         "}"
         "QComboBox:hover,QComboBox:focus {"
-        f"border:2px solid {focus_border};"
-        "padding:0px 2px;"
+        f"border:1px solid {focus_border};"
         "}"
         "QComboBox::drop-down {"
         f"border-left:1px solid {panel_border};"

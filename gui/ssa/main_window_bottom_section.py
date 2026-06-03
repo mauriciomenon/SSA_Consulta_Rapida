@@ -616,6 +616,21 @@ def _connect_filter_panel_tabs(
     adv_group: QWidget,
     clear_selection_filters_btn: QToolButton,
 ) -> None:
+    def _sync_clear_button_visibility() -> None:
+        active = (
+            getattr(window, "_active_filter_panel_kind", None) == "advanced"
+            and bool(getattr(window, "_advanced_filters_active", False))
+        )
+        try:
+            clear_selection_filters_btn.setVisible(active)
+        except RuntimeError as exc:
+            logger.debug(
+                "Falha ao sincronizar visibilidade do botao x de filtros avancados: %s",
+                exc,
+            )
+
+    window._sync_selection_filters_clear_button = _sync_clear_button_visibility
+
     def _activate_filter_panel(index: int) -> None:
         active_index = 1 if int(index) == 1 else 0
         window._active_filter_panel_kind = (
@@ -626,7 +641,7 @@ def _connect_filter_panel_tabs(
             filter_panel_title.setText(
                 "Filtros por Selecao" if active_index == 1 else "Filtros por Texto"
             )
-            clear_selection_filters_btn.setVisible(active_index == 1)
+            _sync_clear_button_visibility()
         except Exception as exc:
             logger.debug("Falha ao trocar painel local de filtros: %s", exc)
         if active_index == 1:

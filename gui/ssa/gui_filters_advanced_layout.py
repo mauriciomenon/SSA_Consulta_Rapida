@@ -13,7 +13,7 @@ LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
 LAYOUT_ADV_PANEL_MAX_HEIGHT = 285
 LAYOUT_ADV_CONTROL_HEIGHT = 20
 LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 32
-LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 38
+LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 36
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,13 +78,13 @@ def build_advanced_grid_layout_plan(
         rows * int(constraints.field_box_max_height)
         + max(0, rows - 1) * max(0, int(metrics.vertical_spacing))
         + int(metrics.vertical_padding)
-        + 2
     )
-    min_content_h = (
-        int(metrics.vertical_padding) + int(constraints.field_box_min_height) + 2
+    min_content_h = int(metrics.vertical_padding) + int(
+        constraints.field_box_min_height
     )
     content_h = max(content_h, min_content_h)
-    scroll_height = max(60, min(int(constraints.max_scroll_height), content_h))
+    min_scroll_height = max(60, min_content_h)
+    scroll_height = max(min_scroll_height, min(int(constraints.max_scroll_height), content_h))
     return AdvancedGridLayoutPlan(
         cols=cols,
         rows=rows,

@@ -125,7 +125,19 @@ def _flatten_field_box(box: QGroupBox) -> None:
     if box is None:
         return
     try:
-        box.setFlat(True)
+        box.setStyleSheet(
+            "QGroupBox {"
+            "border:1px solid palette(mid);"
+            "border-radius:4px;"
+            "margin-top:8px;"
+            "padding-top:0px;"
+            "}"
+            "QGroupBox::title {"
+            "subcontrol-origin: margin;"
+            "left:6px;"
+            "padding:0 3px;"
+            "}"
+        )
     except Exception as exc:
         logger.debug("Falha ao achatar box de filtro avancado: %s", exc)
 
@@ -1366,6 +1378,12 @@ def _clear_advanced_filters(self):
     except Exception as exc:
         logger.warning("Falha ao sincronizar UI apos limpar filtros avancados: %s", exc)
     try:
+        sync_clear_btn = getattr(self, "_sync_selection_filters_clear_button", None)
+        if callable(sync_clear_btn):
+            sync_clear_btn()
+    except Exception as exc:
+        logger.debug("Falha ao sincronizar botao x de filtros avancados: %s", exc)
+    try:
         if (
             getattr(self, "_active_filter_panel_kind", None) == "advanced"
             and bool(getattr(self, "_adv_options_dirty", False))
@@ -1494,6 +1512,12 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
     self._advanced_filters = data
     _sync_quick_executor_from_advanced_filters(self, previous_filters, data)
     self._advanced_filters_active = self._has_active_advanced_filters(data)
+    try:
+        sync_clear_btn = getattr(self, "_sync_selection_filters_clear_button", None)
+        if callable(sync_clear_btn):
+            sync_clear_btn()
+    except Exception as exc:
+        logger.debug("Falha ao sincronizar botao x de filtros avancados: %s", exc)
     if store_only:
         return
     notice = _refresh_after_advanced_filters_apply(self)
