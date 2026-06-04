@@ -1822,6 +1822,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         active_inner_group = context.get(
             "adv_filters_group" if active_panel_kind == "advanced" else "col_filters_group"
         )
+        parent_target = 0
+        try:
+            parent = filters_panel_group.parentWidget() if filters_panel_group is not None else None
+            if parent is not None:
+                parent_target = int(parent.height())
+        except Exception as exc:
+            logger.debug("Falha ao medir altura alocada do painel inferior: %s", exc)
+        if parent_target > 0:
+            target = max(target, parent_target)
+            details_target = target
         if (
             details_group is not None
             and filters_panel_group is not None
@@ -1834,10 +1844,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if shell_layout is not None
                     else (0, 0, 0, 0)
                 )
-                shell_delta = max(0, int(active_inner_group.y()) + int(bottom_margin))
+                mapped_top = 0
+                current_widget = active_inner_group
+                while current_widget is not None and current_widget is not filters_panel_group:
+                    mapped_top += int(current_widget.y())
+                    current_widget = current_widget.parentWidget()
+                shell_delta = max(0, int(mapped_top) + int(bottom_margin))
             except Exception:
                 shell_delta = 0
-            details_target += shell_delta
+            inner_target = max(120, target - shell_delta)
+            for widget in groups:
+                self._set_widget_fixed_height_safe(
+                    widget, inner_target, f"painel inferior {type(widget).__name__}"
+                )
+            details_target = max(target, inner_target + shell_delta)
             self._set_widget_fixed_height_safe(
                 filters_panel_group,
                 details_target,

@@ -812,6 +812,9 @@ def _configure_advanced_panel_scroll(self, outer, grid_container):
     controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     controls_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     try:
+        controls_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         controls_scroll.setFrameShape(QFrame.Shape.NoFrame)
     except Exception as exc:
         logger.debug("Falha ao remover borda do scroll de filtros avancados: %s", exc)
@@ -823,7 +826,7 @@ def _configure_advanced_panel_scroll(self, outer, grid_container):
         logger.debug(
             "Falha ao aplicar limites de altura no painel de filtros avancados: %s", exc
         )
-    outer.addWidget(controls_scroll, 0)
+    outer.addWidget(controls_scroll, 1)
     return controls_scroll
 
 
@@ -998,7 +1001,13 @@ def _make_advanced_filter_panel_grid(self, outer, grid_container, grid_container
     main_grid.setContentsMargins(0, 0, 0, 4)
     main_grid.setHorizontalSpacing(4)
     main_grid.setVerticalSpacing(3)
-    grid_container_layout.addLayout(main_grid)
+    try:
+        grid_container.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar expansao do grid avancado: %s", exc)
+    grid_container_layout.addLayout(main_grid, 1)
     controls_scroll = _configure_advanced_panel_scroll(self, outer, grid_container)
     return main_grid, None, None, None, controls_scroll
 

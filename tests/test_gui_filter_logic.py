@@ -2395,6 +2395,7 @@ class TestGUIFilterLogic:
         state = self.window._advanced_filter_panel_state
         scroll = state.controls_scroll
         viewport_height = scroll.viewport().height()
+        adv_group_height = int(self.window.adv_filters_group.height())
         visible_widgets = [
             widget
             for widget in state.grid_widgets.values()
@@ -2429,7 +2430,12 @@ class TestGUIFilterLogic:
 
         bottom_gap = viewport_height - max(widget_bottoms)
         assert bottom_gap >= 4
+        expected_scroll_min = max(80, adv_group_height - 4)
+        expected_scroll_max = adv_group_height
+        assert expected_scroll_max >= expected_scroll_min
+        assert expected_scroll_min <= scroll.height() <= expected_scroll_max
         assert scroll.verticalScrollBar().maximum() == 0
+        assert "action_box" not in state.grid_widgets
 
     def test_quick_setor_executor_style_uses_theme_roles_without_fixed_yellow(self):
         self.window.apply_theme("mint-light")
@@ -4019,14 +4025,16 @@ class TestGUIFilterLogic:
         assert len(max_heights) == 1
         synced_height = next(iter(min_heights))
         assert synced_height == next(iter(max_heights))
-        assert 250 <= synced_height <= 320
+        assert synced_height >= 250
         assert int(details_group.minimumHeight()) >= synced_height
         assert int(details_group.maximumHeight()) >= synced_height
         assert int(filters_panel_group.minimumHeight()) >= synced_height
         assert int(filters_panel_group.maximumHeight()) >= synced_height
-        assert int(details_group.height()) <= synced_height + 60
-        assert int(filters_panel_group.height()) <= synced_height + 60
         assert abs(int(details_group.height()) - int(filters_panel_group.height())) <= 4
+        parent = filters_panel_group.parentWidget()
+        if parent is not None and int(parent.height()) > 0:
+            parent_delta = int(parent.height()) - int(filters_panel_group.height())
+            assert 0 <= parent_delta <= 4
 
     def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):
         self.window.resize(1280, 880)
@@ -10204,7 +10212,6 @@ class TestGUIFilterLogic:
         assert wide_hspace >= 12
         assert wide_vspace >= 4
         assert wide_gap >= narrow_gap
-        assert wide_gap >= narrow_gap + 4
         assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 300
         assert "action_box" not in state.grid_widgets
 
@@ -10219,9 +10226,15 @@ class TestGUIFilterLogic:
         grid = state.main_grid
         scroll = state.controls_scroll
         viewport_height = scroll.viewport().height()
+        adv_group_height = int(self.window.adv_filters_group.height())
 
         assert int(grid.verticalSpacing()) >= 4
         assert scroll.verticalScrollBar().maximum() == 0
+        expected_scroll_min = max(80, adv_group_height - 4)
+        expected_scroll_max = adv_group_height
+        assert expected_scroll_max >= expected_scroll_min
+        assert expected_scroll_min <= scroll.height() <= expected_scroll_max
+        assert "action_box" not in state.grid_widgets
         for widget in state.grid_widgets.values():
             if widget is None or not widget.isVisible():
                 continue
@@ -10240,6 +10253,66 @@ class TestGUIFilterLogic:
         for control in state.metric_controls:
             if control is not None and control.isVisible():
                 assert control.height() >= int(control.fontMetrics().height()) + 4
+
+    def test_advanced_selection_grid_recomputes_from_passed_width_when_growing(self):
+        self._set_filter_panel_tab("filters")
+        self.window.resize(980, 760)
+        QApplication.processEvents()
+        self.window._reorganize_advanced_filters_grid(760)
+        QApplication.processEvents()
+
+        state = self.window._advanced_filter_panel_state
+        assert state.grid_cols is not None
+        compact_cols = int(state.grid_cols)
+
+        self.window.resize(1680, 900)
+        QApplication.processEvents()
+        self.window._reorganize_advanced_filters_grid(1680)
+        QApplication.processEvents()
+
+        assert int(state.last_effective_width) == 1680
+        assert int(state.grid_cols) >= compact_cols
+        assert int(state.grid_cols) == 4
+
+    def test_advanced_selection_windows_sized_layout_fills_bottom_area(self):
+        self._set_filter_panel_tab("filters")
+        for width, height in ((1200, 900), (1680, 900)):
+            self.window.resize(width, height)
+            QApplication.processEvents()
+            self.window._sync_bottom_panel_heights()
+            self.window._reorganize_advanced_filters_grid(
+                self.window.adv_filters_group.width()
+            )
+            QApplication.processEvents()
+
+            ctx = self._panel_context()
+            details_group = ctx["details_group"]
+            filters_panel_group = ctx["filters_panel_group"]
+            parent = filters_panel_group.parentWidget()
+            state = self.window._advanced_filter_panel_state
+            scroll = state.controls_scroll
+
+            assert abs(int(details_group.height()) - int(filters_panel_group.height())) <= 4
+            if parent is not None and int(parent.height()) > 0:
+                parent_delta = int(parent.height()) - int(filters_panel_group.height())
+                assert 0 <= parent_delta <= 4
+
+            usable_adv_height = max(80, int(self.window.adv_filters_group.height()) - 4)
+            assert int(scroll.height()) >= int(usable_adv_height * 0.90)
+            assert int(scroll.height()) <= int(self.window.adv_filters_group.height())
+            assert scroll.verticalScrollBar().maximum() == 0
+            assert "action_box" not in state.grid_widgets
+            for key in ("emis_box", "exec_box", "status_box", "sol_box", "prog_box", "exec_resp_box"):
+                widget = state.grid_widgets.get(key)
+                assert widget is not None
+                assert widget.isVisible()
+                assert widget.geometry().y() + widget.geometry().height() <= scroll.viewport().height() - 4
+                for child in widget.findChildren(
+                    QtWidgets.QWidget,
+                    options=Qt.FindChildOption.FindDirectChildrenOnly,
+                ):
+                    if child.isVisible():
+                        assert int(child.geometry().bottom()) <= int(widget.contentsRect().bottom()) + 1
 
     def test_reorganize_advanced_filters_grid_caps_narrow_width(self):
         self._set_filter_panel_tab("filters")

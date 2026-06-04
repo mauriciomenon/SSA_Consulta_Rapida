@@ -21,6 +21,8 @@ class AdvancedGridLayoutPlan:
     cols: int
     rows: int
     scroll_height: int
+    vertical_spacing: int
+    vertical_margin: int
     layout_mode: str
 
 
@@ -84,10 +86,26 @@ def build_advanced_grid_layout_plan(
     )
     content_h = max(content_h, min_content_h)
     min_scroll_height = max(60, min_content_h)
-    scroll_height = max(min_scroll_height, min(int(constraints.max_scroll_height), content_h))
+    scroll_height = max(min_scroll_height, int(constraints.max_scroll_height))
+    base_vertical_spacing = max(0, int(metrics.vertical_spacing))
+    vertical_spacing = base_vertical_spacing
+    vertical_margin = 0
+    gaps = max(0, rows - 1)
+    if gaps > 0:
+        slack = max(0, scroll_height - content_h)
+        max_vertical_spacing = 32 if rows <= 4 else base_vertical_spacing
+        extra_per_gap = min(
+            max(0, max_vertical_spacing - base_vertical_spacing),
+            slack // gaps,
+        )
+        vertical_spacing = base_vertical_spacing + extra_per_gap
+        slack -= extra_per_gap * gaps
+        vertical_margin = max(0, slack // 2)
     return AdvancedGridLayoutPlan(
         cols=cols,
         rows=rows,
         scroll_height=scroll_height,
+        vertical_spacing=vertical_spacing,
+        vertical_margin=vertical_margin,
         layout_mode=f"cols_{cols}",
     )

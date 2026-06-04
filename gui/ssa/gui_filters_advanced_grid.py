@@ -22,6 +22,8 @@ from .gui_filters_multiselect_menu import _is_not_deleted
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
+ADVANCED_GRID_BOTTOM_MARGIN_OFFSET = 4
+
 
 def resolve_adv_layout_baseline(window: Any) -> tuple[int, int, int]:
     _ = window
@@ -119,20 +121,36 @@ def enforce_advanced_filters_compact_metrics(window: Any) -> None:
         return
     grid_widgets = state.grid_widgets
     for field_box in grid_widgets.values():
+        field_box_height = LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+        try:
+            field_box_height = min(
+                LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT + 8,
+                max(field_box_height, int(field_box.minimumSizeHint().height())),
+            )
+        except Exception as exc:
+            logger.debug("Falha ao medir altura minima de box avancado: %s", exc)
         _set_fixed_height(
             field_box,
-            LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT,
-            LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT,
+            max(LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT, field_box_height),
+            field_box_height,
             "box de filtro avancado",
         )
     controls = (
         state.metric_controls
     )
     for control in controls:
+        control_height = LAYOUT_ADV_CONTROL_HEIGHT
+        try:
+            control_height = min(
+                LAYOUT_ADV_CONTROL_HEIGHT + 4,
+                max(control_height, int(control.fontMetrics().height()) + 4),
+            )
+        except Exception as exc:
+            logger.debug("Falha ao medir altura minima de controle avancado: %s", exc)
         _set_fixed_height(
             control,
-            LAYOUT_ADV_CONTROL_HEIGHT,
-            LAYOUT_ADV_CONTROL_HEIGHT,
+            control_height,
+            control_height,
             "controle de filtro avancado",
         )
 
@@ -168,10 +186,15 @@ def reorganize_advanced_filters_grid(window: Any, width: int) -> None:
     if plan is None:
         return
     if controls_scroll is not None:
-        controls_scroll.setMinimumHeight(plan.scroll_height)
-        controls_scroll.setMaximumHeight(plan.scroll_height)
-    if not _grid_relayout_needed(window, plan, len(visible)):
-        return
+        try:
+            if (
+                int(controls_scroll.minimumHeight()) != int(plan.scroll_height)
+                or int(controls_scroll.maximumHeight()) != int(plan.scroll_height)
+            ):
+                controls_scroll.setMinimumHeight(plan.scroll_height)
+                controls_scroll.setMaximumHeight(plan.scroll_height)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar altura do scroll avancado: %s", exc)
     _apply_grid_plan(
         window,
         grid=grid,
@@ -232,21 +255,11 @@ def _resolve_grid_viewport_metrics(window: Any, width: int):
     controls_scroll = state.controls_scroll if state is not None else None
     max_scroll_h = LAYOUT_ADV_PANEL_MAX_HEIGHT
     try:
-        if controls_scroll is not None and hasattr(controls_scroll, "viewport"):
-            viewport_w = int(controls_scroll.viewport().width())
-            if viewport_w > 0:
-                effective_width = min(effective_width, viewport_w)
         group = getattr(window, "adv_filters_group", None)
         if controls_scroll is not None and group is not None:
             group_h = int(group.height())
             if group_h > 0:
-                max_scroll_h = max(
-                    80,
-                    min(
-                        LAYOUT_ADV_PANEL_MAX_HEIGHT,
-                        group_h - 4,
-                    ),
-                )
+                max_scroll_h = max(80, group_h - 4)
     except Exception as exc:
         logger.debug(
             "Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc
@@ -321,6 +334,7 @@ def _build_grid_plan(
     max_scroll_h: int,
 ):
     cell_min_width = _compute_grid_cell_min_width(window, visible)
+    field_box_min_height, field_box_max_height = _current_field_box_heights(visible)
     spacing, horizontal_padding, vertical_spacing, vertical_padding = (
         _advanced_grid_spacing_metrics(grid)
     )
@@ -338,11 +352,25 @@ def _build_grid_plan(
             min_cols=LAYOUT_GRID_MIN_COLS,
             max_cols=LAYOUT_GRID_MAX_COLS,
             preferred_cols=LAYOUT_GRID_PREF_COLS,
-            field_box_min_height=LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT,
-            field_box_max_height=LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT,
+            field_box_min_height=field_box_min_height,
+            field_box_max_height=field_box_max_height,
             max_scroll_height=max_scroll_h,
         ),
     )
+
+
+def _current_field_box_heights(visible: list[tuple[str, Any]]) -> tuple[int, int]:
+    min_height = LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT
+    max_height = LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+    for _, widget in visible:
+        if widget is None:
+            continue
+        try:
+            min_height = max(min_height, int(widget.minimumHeight()))
+            max_height = max(max_height, int(widget.maximumHeight()))
+        except Exception as exc:
+            logger.debug("Falha ao ler altura de box avancado: %s", exc)
+    return min_height, max_height
 
 
 def _compute_grid_cell_min_width(
@@ -456,6 +484,17 @@ def _apply_grid_plan(
     state.grid_cols = plan.cols
     state.last_widget_count = len(visible)
     state.layout_mode = plan.layout_mode
+    try:
+        margins = grid.contentsMargins()
+        grid.setContentsMargins(
+            int(margins.left()),
+            int(plan.vertical_margin),
+            int(margins.right()),
+            int(plan.vertical_margin) + ADVANCED_GRID_BOTTOM_MARGIN_OFFSET,
+        )
+        grid.setVerticalSpacing(int(plan.vertical_spacing))
+    except Exception as exc:
+        logger.debug("Falha ao aplicar metricas verticais do grid avancado: %s", exc)
     width_budget = _resolve_grid_cell_width_budget(grid, effective_width, plan.cols)
     for idx, (_, widget) in enumerate(visible):
         row = idx // plan.cols

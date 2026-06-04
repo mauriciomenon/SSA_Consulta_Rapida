@@ -172,16 +172,21 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
     details_shell_layout.setSpacing(1)
     details_shell_layout.addWidget(cast(Any, details_panel), 1)
     bottom_layout.addWidget(cast(Any, details_group), 2)
-    bottom_layout.setAlignment(cast(Any, details_group), Qt.AlignmentFlag.AlignTop)
 
     column_context = _build_column_filters_panel_shell(window)
     col_filters_group = column_context["col_filters_group"]
 
     right_col_widget = QWidget()
+    right_col_widget.setSizePolicy(
+        QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+    )
     right_col = QVBoxLayout(cast(Any, right_col_widget))
     right_col.setContentsMargins(0, 0, 0, 0)
 
     filters_panel_group = QGroupBox("")
+    filters_panel_group.setSizePolicy(
+        QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+    )
     filters_panel_layout = QVBoxLayout(cast(Any, filters_panel_group))
     filters_panel_layout.setContentsMargins(2, 0, 2, 2)
     filters_panel_layout.setSpacing(1)
