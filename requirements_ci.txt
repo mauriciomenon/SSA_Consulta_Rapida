@@ -10,7 +10,7 @@ pyinstaller>=6.20.0
 ruff>=0.15.0
 ty>=0.0.38
 pillow>=12.2.0
-codeflash>=0.20.5
+codeflash>=0.20.6
 
 # Changelog:
 # [2026-05-11] - CI inclui ferramentas de dev e build usadas pelos gates.
