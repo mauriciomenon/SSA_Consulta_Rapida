@@ -3,12 +3,14 @@
 Testes unitários para o módulo armazenamento.database.
 """
 
+import concurrent.futures
 import os
 import logging
 import shutil
 import sqlite3
 import sys
 import tempfile
+import threading
 
 import pandas as pd
 import pytest
@@ -180,6 +182,45 @@ def test_resolved_table_cache_prunes_oldest_entry():
                 (f"/tmp/cache-{max_entries}.sqlite", "ssa_table")
             ]
             == f"table_{max_entries}"
+        )
+    finally:
+        database_module._resolved_table_cache.clear()
+
+
+def test_resolved_table_cache_handles_concurrent_resolve_and_clear(temp_db_path):
+    from armazenamento import database as database_module
+
+    with sqlite3.connect(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (id INTEGER)")
+
+    workers = 8
+    iterations = 80
+    barrier = threading.Barrier(workers)
+
+    def resolve_worker():
+        barrier.wait()
+        with sqlite3.connect(temp_db_path) as conn:
+            for _ in range(iterations):
+                assert resolve_target_table(conn, "ssas") == "ssa_table"
+
+    def cache_writer_worker():
+        barrier.wait()
+        manual_key = (os.path.abspath(temp_db_path), "manual")
+        for _ in range(iterations):
+            database_module._clear_resolved_table_cache(temp_db_path)
+            database_module._store_resolved_table_cache(manual_key, "manual_table")
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [
+                *(executor.submit(resolve_worker) for _ in range(workers - 2)),
+                *(executor.submit(cache_writer_worker) for _ in range(2)),
+            ]
+            for future in futures:
+                future.result(timeout=10)
+
+        assert len(database_module._resolved_table_cache) <= (
+            database_module._RESOLVED_TABLE_CACHE_MAX_ENTRIES
         )
     finally:
         database_module._resolved_table_cache.clear()

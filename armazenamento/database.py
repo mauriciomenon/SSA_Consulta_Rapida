@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import sqlite3
+import threading
 import time
 from contextlib import closing, contextmanager
 from typing import Any, Literal, cast
@@ -43,6 +44,7 @@ MAX_TEXT_LEN = 1000
 # Flag global para controlar modo otimizado (substituiu monkey-patching)
 _use_optimized_mode = False
 _resolved_table_cache: dict[tuple[str, str], str] = {}
+_resolved_table_cache_lock = threading.RLock()
 _RESOLVED_TABLE_CACHE_MAX_ENTRIES = 256
 _VALID_COLUMN_DEFINITIONS = frozenset({"TEXT", "INTEGER", "REAL", "NUMERIC", "BLOB"})
 
@@ -65,21 +67,24 @@ def set_optimized_mode(enabled: bool) -> None:
 
 def _clear_resolved_table_cache(db_path: str | None = None) -> None:
     if db_path is None:
-        _resolved_table_cache.clear()
+        with _resolved_table_cache_lock:
+            _resolved_table_cache.clear()
         return
 
     normalized_path = ":memory:" if db_path == ":memory:" else os.path.abspath(db_path)
     if normalized_path == ":memory:":
         return
-    stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
-    for key in stale_keys:
-        _resolved_table_cache.pop(key, None)
+    with _resolved_table_cache_lock:
+        stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
+        for key in stale_keys:
+            _resolved_table_cache.pop(key, None)
 
 
 def _store_resolved_table_cache(cache_key: tuple[str, str], resolved_table: str) -> None:
-    _resolved_table_cache[cache_key] = resolved_table
-    while len(_resolved_table_cache) > _RESOLVED_TABLE_CACHE_MAX_ENTRIES:
-        _resolved_table_cache.pop(next(iter(_resolved_table_cache)))
+    with _resolved_table_cache_lock:
+        _resolved_table_cache[cache_key] = resolved_table
+        while len(_resolved_table_cache) > _RESOLVED_TABLE_CACHE_MAX_ENTRIES:
+            _resolved_table_cache.pop(next(iter(_resolved_table_cache)))
 
 
 # --- Gerenciamento de Conexao ---
@@ -480,8 +485,11 @@ def _resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
     lookup_name = safe_table_name.casefold()
     conn_db_path = _get_connection_db_path(conn)
     cache_key = None if conn_db_path == ":memory:" else (conn_db_path, lookup_name)
-    if cache_key is not None and cache_key in _resolved_table_cache:
-        return _resolved_table_cache[cache_key]
+    if cache_key is not None:
+        with _resolved_table_cache_lock:
+            cached_table = _resolved_table_cache.get(cache_key)
+        if cached_table is not None:
+            return cached_table
 
     is_ssa_target = lookup_name == CANONICAL_SSA_TABLE.casefold() or lookup_name in {
         alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES

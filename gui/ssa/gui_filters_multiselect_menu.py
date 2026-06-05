@@ -431,7 +431,7 @@ def _compute_multiselect_popup_metrics(
     exclude_col_min = 92
     if has_exclude_column and fm is not None:
         include_col_min = max(include_col_min, fm.horizontalAdvance("Conter") + 14)
-        exclude_col_min = max(exclude_col_min, fm.horizontalAdvance("Nao conter") + 14)
+        exclude_col_min = max(exclude_col_min, fm.horizontalAdvance("Excluir") + 14)
         exclude_col_min += SIMPLE_POPUP_RIGHT_GUTTER_PX
         content_width = max(content_width, include_col_min + exclude_col_min + 140)
         # Keep a small guard for vertical scrollbar in large lists.
@@ -550,7 +550,7 @@ def _append_multiselect_header(
 
     if has_exclude_column:
         label_inc = QLabel("Conter")
-        label_exc = QLabel("Nao conter")
+        label_exc = QLabel("Excluir")
         try:
             label_style_inc = (
                 "font-size: 10px;"
@@ -876,32 +876,32 @@ def _append_multiselect_batch_controls(
     row_idx += 1
 
     batch_mark_include = _make_multiselect_batch_button(
-        "Selecionar incluir em lote",
+        "Selecionar tudo para incluir",
         checkbox_bg=checkbox_bg,
         checkbox_border=checkbox_border,
         checked_bg=checked_bg,
     )
     batch_clear_include = _make_multiselect_batch_button(
-        "Limpar incluir em lote",
+        "Limpar tudo para incluir",
         checkbox_bg=checkbox_bg,
         checkbox_border=checkbox_border,
         checked_bg=checked_bg,
     )
     batch_mark_exclude = _make_multiselect_batch_button(
-        "Selecionar excluir em lote",
+        "Selecionar tudo para excluir",
         checkbox_bg=checkbox_bg,
         checkbox_border=checkbox_border,
         checked_bg=checked_bg,
     )
     batch_clear_exclude = _make_multiselect_batch_button(
-        "Limpar excluir em lote",
+        "Limpar tudo para excluir",
         checkbox_bg=checkbox_bg,
         checkbox_border=checkbox_border,
         checked_bg=checked_bg,
     )
 
-    label_mark = QLabel("Selecionar em lote")
-    label_clear = QLabel("Limpar selecao em lote")
+    label_mark = QLabel("Selecionar tudo")
+    label_clear = QLabel("Limpar tudo")
     try:
         label_mark.setStyleSheet(f"font-size: 11px; color: {popup_text};")
         label_clear.setStyleSheet(f"font-size: 11px; color: {popup_text};")

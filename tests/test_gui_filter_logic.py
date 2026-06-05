@@ -8860,6 +8860,46 @@ class TestGUIFilterLogic:
         assert "Resp 0449" in include_values
         assert "Resp 0448" in exclude_values
 
+    def test_multiselect_menu_selection_labels_use_short_copy(self):
+        button = QPushButton("Responsavel")
+        button.setProperty("filter_name", "Responsavel")
+        menu = QtWidgets.QMenu()
+
+        advanced_menu._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            ["Resp A"],
+            set(),
+            None,
+            True,
+            set(),
+            None,
+        )
+
+        labels = []
+        tooltips = []
+        accessible_names = []
+        for action in menu.actions():
+            widget = cast(Any, action).defaultWidget()
+            if widget is None:
+                continue
+            labels.extend(label.text() for label in widget.findChildren(QLabel))
+            for child_button in widget.findChildren(QPushButton):
+                tooltips.append(child_button.toolTip())
+                accessible_names.append(child_button.accessibleName())
+
+        assert "Excluir" in labels
+        assert "Selecionar tudo" in labels
+        assert "Limpar tudo" in labels
+        assert "Nao conter" not in labels
+        assert "Selecionar em lote" not in labels
+        assert "Limpar selecao em lote" not in labels
+        assert "Selecionar tudo para incluir" in tooltips
+        assert "Limpar tudo para incluir" in tooltips
+        assert "Selecionar tudo para excluir" in accessible_names
+        assert "Limpar tudo para excluir" in accessible_names
+
     def test_multiselect_menu_reuses_cached_widgets_when_model_is_unchanged(self):
         button = QPushButton("Selecionar")
         menu = QtWidgets.QMenu()
