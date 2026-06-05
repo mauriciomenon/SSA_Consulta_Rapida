@@ -8877,6 +8877,22 @@ class TestGUIFilterLogic:
             None,
         )
 
+        first_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        assert first_widget is not None
+        assert not isinstance(first_widget, QScrollArea)
+        first_labels = [
+            label.text() for label in first_widget.findChildren(QLabel)
+        ]
+        assert first_labels == ["Responsavel", "Incluir", "Excluir"]
+        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
+        assert isinstance(scroll_widget, QScrollArea)
+        scroll_labels = [
+            label.text() for label in scroll_widget.findChildren(QLabel)
+        ]
+        assert "Responsavel" not in scroll_labels
+        assert "Incluir" not in scroll_labels
+        assert "Excluir" not in scroll_labels
+
         labels = []
         tooltips = []
         accessible_names = []
@@ -8889,9 +8905,11 @@ class TestGUIFilterLogic:
                 tooltips.append(child_button.toolTip())
                 accessible_names.append(child_button.accessibleName())
 
+        assert "Incluir" in labels
         assert "Excluir" in labels
         assert "Selecionar tudo" in labels
         assert "Limpar tudo" in labels
+        assert "Conter" not in labels
         assert "Nao conter" not in labels
         assert "Selecionar em lote" not in labels
         assert "Limpar selecao em lote" not in labels
