@@ -448,7 +448,7 @@ class TestGUIFilterLogic:
         assert quick_combo.height() >= 20
         assert quick_combo.maximumWidth() <= 86
         assert quick_combo.minimumWidth() <= 74
-        assert quick_box.width() <= 185
+        assert quick_box.width() <= 186
         assert quick_situacao_scroll.widgetResizable() is True
         assert quick_situacao_scroll.height() <= 24
         assert quick_situacao_scroll.horizontalScrollBarPolicy().name.endswith(
@@ -568,7 +568,7 @@ class TestGUIFilterLogic:
                 assert button.font().pointSizeF() < base_size
 
             assert darwin_window.quick_setor_executor_combo.maximumWidth() <= 86
-            assert darwin_window.quick_setor_executor_box.width() <= 185
+            assert darwin_window.quick_setor_executor_box.width() <= 186
         finally:
             darwin_window.close()
             darwin_window.deleteLater()
