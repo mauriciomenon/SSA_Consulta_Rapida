@@ -81,12 +81,12 @@ def _filter_exact_identifier_columns(
         numeric_identifier = int(identifier)
     except (TypeError, ValueError):
         numeric_identifier = None
-    normalized_identifier = str(identifier).casefold()
+    identifier_text = str(identifier)
     for column_name in exact_columns:
         column = df[column_name]
         column_mask = _identifier_column_match_mask(
             column,
-            normalized_identifier=normalized_identifier,
+            identifier_text=identifier_text,
             numeric_identifier=numeric_identifier,
         )
         mask = mask | column_mask
@@ -96,39 +96,40 @@ def _filter_exact_identifier_columns(
 def _identifier_column_match_mask(
     column: pd.Series,
     *,
-    normalized_identifier: str,
+    identifier_text: str,
     numeric_identifier: int | None,
 ) -> pd.Series:
     if numeric_identifier is not None and pd.api.types.is_numeric_dtype(column.dtype):
         return column.eq(numeric_identifier)
 
-    direct_numeric_mask = pd.Series(False, index=column.index)
+    direct_mask = column.eq(identifier_text)
     if numeric_identifier is not None:
-        direct_numeric_mask = column.eq(numeric_identifier)
+        direct_mask = direct_mask | column.eq(numeric_identifier)
 
-    normalized = _normalize_filter_search_series(column).str.strip()
-    column_mask = normalized.eq(normalized_identifier)
     if numeric_identifier is None:
-        return column_mask
+        return direct_mask
 
-    return direct_numeric_mask | column_mask | _float_artifact_identifier_mask(
-        normalized,
-        normalized_identifier,
+    return direct_mask | _float_artifact_identifier_mask(
+        column,
+        identifier_text,
     )
 
 
 def _float_artifact_identifier_mask(
-    normalized: pd.Series,
-    normalized_identifier: str,
+    column: pd.Series,
+    identifier_text: str,
 ) -> pd.Series:
     # Excel/CSV imports can turn numeric SSA identifiers into float-looking strings.
-    decimal_prefix = f"{normalized_identifier}."
-    decimal_tail = normalized.str.slice(len(decimal_prefix))
+    if not identifier_text:
+        return pd.Series(False, index=column.index)
+    decimal_prefix = f"{identifier_text}."
+    text = column.astype("string").str.strip()
+    decimal_tail = text.str.slice(len(decimal_prefix))
     return (
-        normalized.str.startswith(decimal_prefix, na=False)
+        text.str.startswith(decimal_prefix).fillna(False)
         & decimal_tail.ne("")
         & decimal_tail.str.strip("0").eq("")
-    )
+    ).fillna(False).astype(bool)
 
 
 def _normalize_filter_search_series(series: pd.Series) -> pd.Series:

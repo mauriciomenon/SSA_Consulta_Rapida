@@ -207,6 +207,19 @@ class TestGUIFilterLogic:
     def _extract_visible_ssa(self):
         return list(self.window.df_exibido["numero_ssa"])
 
+    def _wait_until_timer_inactive(self, timer: QTimer, timeout_ms: int = 1000) -> None:
+        deadline = time.monotonic() + (timeout_ms / 1000)
+        while timer.isActive() and time.monotonic() < deadline:
+            QApplication.processEvents()
+            cast(Any, QTest).qWait(10)
+        QApplication.processEvents()
+        elapsed = time.monotonic() - (deadline - (timeout_ms / 1000))
+        assert timer.isActive() is False, (
+            "timeout waiting for timer to stop: "
+            f"timer={timer!r} active={timer.isActive()} "
+            f"timeout_ms={timeout_ms} deadline={deadline:.3f} elapsed={elapsed:.3f}"
+        )
+
     def _build_realistic_base_df_50(self) -> pd.DataFrame:
         snapshot_path = os.path.join(
             project_root,
@@ -2258,7 +2271,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         timer = getattr(self.window, "_advanced_apply_timer", None)
         assert timer is not None
-        cast(Any, QTest).qWait(int(timer.interval()) + 80)
+        self._wait_until_timer_inactive(timer)
 
         assert self.window._advanced_filters.get("macro_filter") == "ssas_para_baixar"
         assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
@@ -2405,7 +2418,11 @@ class TestGUIFilterLogic:
 
         assert visible_widgets
         for widget in visible_widgets:
-            assert widget.height() >= advanced_layout.LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+            assert (
+                advanced_layout.LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT
+                <= widget.height()
+                <= advanced_layout.LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT + 8
+            )
             contents_top = int(widget.contentsRect().top())
             contents_bottom = int(widget.contentsRect().bottom()) + 1
             min_child_top = contents_top + 2
@@ -4993,8 +5010,7 @@ class TestGUIFilterLogic:
         assert timer.interval() == self.window._debounce_timer.interval()
         assert timer.isActive() is True
 
-        cast(Any, QTest).qWait(int(timer.interval()) + 80)
-        QApplication.processEvents()
+        self._wait_until_timer_inactive(timer)
 
         assert self.window._advanced_filters.get("situacao") == [target_value]
         assert self.window._advanced_filters_active is True
@@ -10238,7 +10254,11 @@ class TestGUIFilterLogic:
         for widget in state.grid_widgets.values():
             if widget is None or not widget.isVisible():
                 continue
-            assert widget.height() >= advanced_layout.LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+            assert (
+                advanced_layout.LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT
+                <= widget.height()
+                <= advanced_layout.LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT + 8
+            )
             contents_top = int(widget.contentsRect().top())
             min_child_top = contents_top + 2
             contents_bottom = int(widget.contentsRect().bottom()) + 1

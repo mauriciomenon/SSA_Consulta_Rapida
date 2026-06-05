@@ -6,6 +6,7 @@ Testes para as novas funcionalidades de verificação e integridade do banco de 
 
 import os
 import sqlite3
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -47,12 +48,13 @@ class TestDatabaseVerification:  # noqa: D101
         conn.commit()
         conn.close()
 
-        added = ensure_column_exists(
-            db_path,
-            "ssas",
-            "arquivo_origem",
-            "TEXT DEFAULT 'x'",
-        )
+        with caplog.at_level(logging.ERROR, logger="armazenamento.database"):
+            added = ensure_column_exists(
+                db_path,
+                "ssas",
+                "arquivo_origem",
+                "TEXT DEFAULT 'x'",
+            )
 
         assert added is False
         assert "Invalid SQL column definition" in caplog.text
@@ -472,6 +474,40 @@ class TestDatabaseMaintenance:
         report = analyzer.perform_sanity_check()
 
         assert report["total_records"] == 5002
+        assert report["issues"]["duplicate_numbers"] == {"202512345": 2}
+        assert report["summary"]["duplicate_numbers"] == 2
+
+    def test_sanity_check_counts_duplicate_numbers_after_normalization(self, tmp_path):
+        db_path = os.path.join(tmp_path, "maintenance_sanity_normalized_duplicates.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.executemany(
+            "INSERT INTO ssa_table (numero_ssa) VALUES (?)",
+            [("2025-12345",), ("202512345",)],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["issues"]["duplicate_numbers"] == {"202512345": 2}
+        assert report["summary"]["duplicate_numbers"] == 2
+
+    def test_sanity_check_excludes_invalid_numero_from_duplicate_count(self, tmp_path):
+        db_path = os.path.join(tmp_path, "maintenance_sanity_invalid_duplicate.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.executemany(
+            "INSERT INTO ssa_table (numero_ssa) VALUES (?)",
+            [("202512345",), ("ABC202512345XYZ",), ("202512345",)],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
         assert report["issues"]["duplicate_numbers"] == {"202512345": 2}
         assert report["summary"]["duplicate_numbers"] == 2
 

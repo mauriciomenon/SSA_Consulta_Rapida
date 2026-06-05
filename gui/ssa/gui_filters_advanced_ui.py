@@ -22,7 +22,6 @@ from gui.qt_stubs import (
     QLabel,
     QLineEdit,
     QMenu,
-    QPushButton,
     QScrollArea,
     QSignalBlocker,
     QSizePolicy,
@@ -496,30 +495,6 @@ def _make_week_range_box(title: str):
     return week_box, week_start, week_end
 
 
-def _make_advanced_action_box(self):
-    apply_btn = QPushButton("Aplicar")
-    clear_btn = QPushButton("Limpar")
-    try:
-        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        clear_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-    except Exception as exc:
-        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
-    apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
-    clear_btn.clicked.connect(self._clear_advanced_filters)
-    action_box = QGroupBox(" ")
-    _flatten_field_box(action_box)
-    action_layout = QHBoxLayout(action_box)
-    action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(4)
-    action_layout.addWidget(apply_btn)
-    action_layout.addWidget(clear_btn)
-    return action_box, apply_btn, clear_btn
-
-
 def _advanced_apply_interval_ms(self) -> int:
     debounce_timer = getattr(self, "_debounce_timer", None)
     try:
@@ -535,8 +510,26 @@ def _advanced_apply_interval_ms(self) -> int:
 def _run_advanced_apply_timer_timeout(self) -> None:
     try:
         _apply_advanced_filters_from_ui(self)
-    except Exception as exc:
-        logger.warning("Falha ao aplicar filtros avancados por debounce: %s", exc)
+    except Exception:
+        logger.exception("Falha no debounce apply dos filtros avancados")
+        timer = getattr(self, "_advanced_apply_timer", None)
+        try:
+            if timer is not None and _is_not_deleted(timer):
+                timer.stop()
+        except Exception as timer_exc:
+            logger.debug(
+                "Falha ao parar debounce dos filtros avancados apos erro: %s",
+                timer_exc,
+            )
+        status_label = getattr(self, "status_label", None)
+        if status_label is not None and _is_not_deleted(status_label):
+            try:
+                status_label.setText("Status: Falha ao aplicar filtros avancados.")
+            except Exception as status_exc:
+                logger.debug(
+                    "Falha ao atualizar status dos filtros avancados: %s",
+                    status_exc,
+                )
 
 
 def _schedule_advanced_filters_apply(self) -> None:
@@ -841,10 +834,7 @@ def _advanced_filter_metric_controls(
     week_exec_start,
     week_exec_end,
     macro_combo,
-    apply_btn,
-    clear_btn,
 ):
-    _ = apply_btn, clear_btn
     return (
         fields["emis"][1],
         fields["exec"][1],
@@ -1055,8 +1045,6 @@ def _advanced_filter_metric_controls_from_parts(parts: AdvancedFilterPanelParts)
         week_exec_start=controls["week_exec_start"],
         week_exec_end=controls["week_exec_end"],
         macro_combo=controls["macro_combo"],
-        apply_btn=parts.apply_btn,
-        clear_btn=parts.clear_btn,
     )
 
 
@@ -1122,19 +1110,18 @@ def _create_advanced_filter_panel_parts(self) -> AdvancedFilterPanelParts:
     controls = _make_advanced_filter_auxiliary_controls(
         self, fields, responsavel_fields, layout_baseline
     )
-    main_grid, action_box, apply_btn, clear_btn, controls_scroll = (
-        _make_advanced_filter_panel_grid(
-            self, outer, grid_container, grid_container_layout
-        )
+    main_grid, _action_box, _apply_btn, _clear_btn, controls_scroll = (
+        _make_advanced_filter_panel_grid(self, outer, grid_container, grid_container_layout)
     )
     return AdvancedFilterPanelParts(
         group=group,
         fields=fields,
         controls=controls,
         main_grid=main_grid,
-        action_box=action_box,
-        apply_btn=apply_btn,
-        clear_btn=clear_btn,
+        # Advanced filters apply through debounce; action buttons stay absent by design.
+        action_box=None,
+        apply_btn=None,
+        clear_btn=None,
         controls_scroll=controls_scroll,
     )
 

@@ -83,3 +83,53 @@ def test_reserve_unique_path_with_reserved_set_and_touch_reserves_next_candidate
     assert result == str(expected)
     assert expected.exists()
     assert str(expected.resolve()) in reserved_paths
+
+
+def test_reserve_unique_path_with_touch_retries_file_exists_race(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    expected = tmp_path / "entrada__1.xlsx"
+    touched: list[Path] = []
+    original_touch = Path.touch
+
+    def fake_touch(self, *args, **kwargs):
+        touched.append(self)
+        if self == target:
+            raise FileExistsError(str(self))
+        return original_touch(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "touch", fake_touch)
+
+    result = reserve_unique_path(target, touch=True)
+
+    assert result == str(expected)
+    assert touched == [target, expected]
+    assert expected.exists()
+
+
+def test_reserve_unique_path_with_touch_and_reserved_set_retries_file_exists_race(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    target.write_text("old", encoding="utf-8")
+    expected = tmp_path / "entrada__1.xlsx"
+    touched: list[Path] = []
+    reserved_paths: set[str] = set()
+    original_touch = Path.touch
+
+    def fake_touch(self, *args, **kwargs):
+        touched.append(self)
+        if self == target:
+            raise FileExistsError(str(self))
+        return original_touch(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "touch", fake_touch)
+
+    result = reserve_unique_path(target, touch=True, reserved_paths=reserved_paths)
+
+    assert result == str(expected)
+    assert touched == [target, expected]
+    assert expected.exists()

@@ -158,7 +158,10 @@ def reserve_unique_path(
 
     normalized_destination = os.path.realpath(destination)
     if reserved_paths is not None:
-        if normalized_destination not in reserved_paths and not os.path.exists(destination):
+        # touch=True lets the atomic create below expose FileExistsError races.
+        if normalized_destination not in reserved_paths and (
+            touch or not os.path.exists(destination)
+        ):
             if touch:
                 try:
                     Path(destination).touch(exist_ok=False)

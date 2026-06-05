@@ -193,7 +193,6 @@ try:
     from PyQt6 import sip
     from PyQt6.QtCore import (
         PYQT_VERSION_STR,
-        QT_VERSION_STR,
         QEvent,
         Qt,
         QTimer,
@@ -230,8 +229,6 @@ try:
         QWidget,
     )
 
-    from gui.cache import FilterCache  # noqa: E402
-
     # Import mixins for code organization
     from gui.mixins import FilterGUISSAMixin  # noqa: E402
     from gui.widgets import ColumnSelector  # noqa: E402
@@ -242,12 +239,13 @@ try:
 
     # Import workers, cache, widgets, and helpers from separate modules
     from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
+
+    logger.debug("Versao runtime do PyQt6: %s", PYQT_VERSION_STR)
 except ImportError as exc:
     QT_AVAILABLE = False
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
     from gui.ssa.headless_qt_stubs import (  # noqa: E402
         PYQT_VERSION_STR,
-        QT_VERSION_STR,
         QAction,
         QApplication,
         QCheckBox,
@@ -283,11 +281,12 @@ except ImportError as exc:
         ColumnFilterDialog,
         ColumnSelector,
         DataLoaderWorker,
-        FilterCache,
         FilterGUISSAMixin,
         FilterWorker,
         sip,
     )
+
+    logger.debug("Versao fallback headless do PyQt6: %s", PYQT_VERSION_STR)
     QFrame: Any = QWidget
     QWidget = cast(Any, QWidget)
     QApplication = cast(Any, QApplication)

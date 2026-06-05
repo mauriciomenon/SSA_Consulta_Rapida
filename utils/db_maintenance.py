@@ -375,7 +375,10 @@ class DatabaseAnalyzer:
                         issues,
                     )
                     if numero_series is not None:
-                        number_counts.update(str(value) for value in numero_series.dropna())
+                        normalized_numbers = numero_series.map(normalize_strict).dropna()
+                        number_counts.update(
+                            str(value) for value in normalized_numbers
+                        )
                     self._check_missing_fields(normalized_df, issues)
                     self._check_invalid_dates(normalized_df, issues)
                     self._check_empty_records(normalized_df, issues, numero_col)

@@ -362,12 +362,24 @@ def _build_grid_plan(
 def _current_field_box_heights(visible: list[tuple[str, Any]]) -> tuple[int, int]:
     min_height = LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT
     max_height = LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+    # Keep platform font/padding variance out of the layout constraint contract.
+    max_allowed_height = LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT + 8
     for _, widget in visible:
         if widget is None:
             continue
         try:
-            min_height = max(min_height, int(widget.minimumHeight()))
-            max_height = max(max_height, int(widget.maximumHeight()))
+            widget_min = max(
+                LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT,
+                min(int(widget.minimumHeight()), max_allowed_height),
+            )
+            widget_max = max(
+                LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT,
+                min(int(widget.maximumHeight()), max_allowed_height),
+            )
+            if widget_min > widget_max:
+                widget_min = widget_max
+            min_height = max(min_height, widget_min)
+            max_height = max(max_height, widget_max)
         except Exception as exc:
             logger.debug("Falha ao ler altura de box avancado: %s", exc)
     return min_height, max_height
