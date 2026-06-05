@@ -3017,6 +3017,14 @@ class TestGUIFilterLogic:
             == "Sem. Prog."
         )
 
+    def test_advanced_responsavel_selection_filters_use_full_button_labels(self):
+        labels_by_key = {
+            key: label for key, label in advanced_ui._ADVANCED_RESPONSAVEL_FIELD_DEFS
+        }
+
+        assert labels_by_key["prog"] == "Responsavel Programacao"
+        assert labels_by_key["exec_resp"] == "Responsavel Execucao"
+
     def test_widths_and_short_labels_follow_latest_quick_adjustments(self):
         column_names = gui_ssa.GUI_MAIN_PREFERENCES["column_display_names"]
         column_widths = gui_ssa.GUI_MAIN_PREFERENCES["column_widths"]

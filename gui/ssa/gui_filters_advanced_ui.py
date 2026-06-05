@@ -97,8 +97,8 @@ _ADVANCED_MULTISELECT_FIELD_DEFS = (
 )
 _ADVANCED_RESPONSAVEL_FIELD_DEFS = (
     ("sol", "Solicitante"),
-    ("prog", "Resp Prog"),
-    ("exec_resp", "Resp Exec"),
+    ("prog", "Responsavel Programacao"),
+    ("exec_resp", "Responsavel Execucao"),
 )
 
 
