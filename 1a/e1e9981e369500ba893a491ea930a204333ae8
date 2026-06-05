@@ -1,0 +1,58 @@
+tests/test_build_multiplatform_manifest.py
+  s_81005915d677fd::t_d596db0c454fac 82,104,126
+  s_81005915d677fd::t_6d063f62008fc0 81,103
+core/search_filter.py
+  s_81005915d677fd::t_ed1117cd7be69d 132
+  s_81005915d677fd::t_8cb34d3225b2de 84,89,99,105,107,110,112-114,119-120,125
+  s_81005915d677fd::t_ab5833e8cb2639 126-127,129
+  s_81005915d677fd::t_6d063f62008fc0 123-124
+gui/ssa/gui_filters_advanced_ui.py
+  s_81005915d677fd::t_ed1117cd7be69d 514,525
+  s_81005915d677fd::t_8cb34d3225b2de 515-524,526-532,1113-1114,1121-1124
+  s_81005915d677fd::t_6d063f62008fc0 513
+tests/verify_code_integrity.py
+  s_81005915d677fd::t_77e11f359c981b 8,22-29
+utils/path_safety.py
+  s_81005915d677fd::t_ab5833e8cb2639 161
+  s_81005915d677fd::t_8cb34d3225b2de 162-164
+gui/gui_ssa.py
+  s_81005915d677fd::t_77e11f359c981b 242,288
+  s_81005915d677fd::t_ab5833e8cb2639 243,289
+tests/test_path_safety.py
+  s_81005915d677fd::t_6d063f62008fc0 90,108
+  s_81005915d677fd::t_ed1117cd7be69d 110-135
+  s_81005915d677fd::t_8cb34d3225b2de 86-89,91-107,109
+utils/db_maintenance.py
+  s_81005915d677fd::t_8cb34d3225b2de 379,381
+  s_81005915d677fd::t_ab5833e8cb2639 378,380
+tests/test_smoke_cli_cleanup.py
+  s_81005915d677fd::t_77e11f359c981b 38
+gui/ssa/gui_filters_advanced_grid.py
+  s_81005915d677fd::t_6d063f62008fc0 365,379-380
+  s_81005915d677fd::t_8cb34d3225b2de 366,371-378,381-382
+tests/test_gui_filter_logic.py
+  s_81005915d677fd::t_8cb34d3225b2de 210-215,222,2274,5013
+  s_81005915d677fd::t_ed1117cd7be69d 216-221
+  s_81005915d677fd::t_e9f284bec5c840 10257-10261
+  s_81005915d677fd::t_5862249c289402 2421-2425
+tests/test_database_verification.py
+  s_81005915d677fd::t_6d063f62008fc0 497-513
+  s_81005915d677fd::t_4d6947228117a3 9,51-57
+  s_81005915d677fd::t_8cb34d3225b2de 480-496
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1ae1e9981e369500ba893a491ea930a204333ae8",
+  "prompts": {},
+  "sessions": {
+    "s_81005915d677fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e9372-67e7-7e01-900d-8340b638b91e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
