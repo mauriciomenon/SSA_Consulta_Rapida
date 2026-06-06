@@ -23,6 +23,9 @@ SECTOR_EXECUTOR_PRIORITY = (
     "MEL3",
     "MEL4",
 )
+SECTOR_EXECUTOR_PRIORITY_INDEX = {
+    sector: index for index, sector in enumerate(SECTOR_EXECUTOR_PRIORITY)
+}
 
 
 def normalize_nonempty_string_series(series: pd.Series) -> pd.Series:
@@ -74,7 +77,7 @@ def known_division_rank(div: str) -> int:
 def sector_sort_key(
     sector: str,
     sector_to_div: Mapping[str, str] | None = None,
-) -> tuple[int, str, str]:
+) -> tuple[int, int, str, str]:
     value = str(sector or "").strip()
     sector_to_div = sector_to_div or {}
     div = (
@@ -85,6 +88,7 @@ def sector_sort_key(
     )
     div_text = str(div)
     return (
+        SECTOR_EXECUTOR_PRIORITY_INDEX.get(value.upper(), len(SECTOR_EXECUTOR_PRIORITY)),
         known_division_rank(div_text.upper()),
         div_text.casefold(),
         value.casefold(),
@@ -263,9 +267,7 @@ def order_responsavel_values(
         decorated_meta.append(
             (
                 (
-                    known_division_rank(str(div)),
-                    div.casefold(),
-                    sector.casefold(),
+                    *sector_sort_key(sector, sector_to_div),
                     person.casefold(),
                 ),
                 person,

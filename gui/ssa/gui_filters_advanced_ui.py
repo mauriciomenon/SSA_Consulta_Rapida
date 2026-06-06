@@ -617,6 +617,7 @@ def _make_advanced_macro_box(self):
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
             )
             macro_line.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        macro_combo.setCursor(Qt.CursorShape.PointingHandCursor)
     try:
         macro_combo.setMinimumWidth(100)
         macro_combo.setMaximumWidth(240)

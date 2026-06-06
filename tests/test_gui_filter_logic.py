@@ -41,6 +41,7 @@ from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import details_derivadas_model  # noqa: E402
 from gui.ssa import filter_aliases  # noqa: E402
+from gui.ssa import filter_domain_rules  # noqa: E402
 from gui.ssa import gui_filters_advanced_layout as advanced_layout  # noqa: E402
 from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
 from gui.ssa import gui_filters_multiselect_menu as advanced_menu  # noqa: E402
@@ -5064,6 +5065,28 @@ class TestGUIFilterLogic:
         assert "IEE1 - Andre" in decorated[0][1]
         assert "MEL4 - Andre" not in decorated[0][1]
 
+    def test_responsavel_order_uses_sector_priority_before_alpha_name(self):
+        decorated = filter_domain_rules.order_responsavel_values(
+            ["Zulu", "Andre", "Bruno", "Carla", "Denise", "Edu"],
+            {
+                "Zulu": {"MEL1": 1},
+                "Andre": {"IEE1": 1},
+                "Bruno": {"IEE3": 1},
+                "Carla": {"MEL4": 1},
+                "Denise": {"IEE2": 1},
+                "Edu": {"IEE4": 1},
+            },
+        )
+
+        assert [label for _, label in decorated] == [
+            "IEE3 - Bruno",
+            "IEE1 - Andre",
+            "IEE2 - Denise",
+            "IEE4 - Edu",
+            "MEL1 - Zulu",
+            "MEL4 - Carla",
+        ]
+
     def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
         self.window._advanced_filters = {
             "solicitante": ["User1"],
@@ -9093,6 +9116,8 @@ class TestGUIFilterLogic:
         }
         assert int(labels["Incluir"].minimumWidth()) == int(layout.columnMinimumWidth(1))
         assert int(labels["Excluir"].minimumWidth()) == int(layout.columnMinimumWidth(2))
+        assert "border" not in str(labels["Incluir"].styleSheet() or "")
+        assert "border" not in str(labels["Excluir"].styleSheet() or "")
 
     def test_multiselect_derivadas_popup_uses_short_scroll_height(self):
         button = QPushButton("Selecionar")
@@ -10605,6 +10630,10 @@ class TestGUIFilterLogic:
                 assert macro_line.alignment() & Qt.AlignmentFlag.AlignCenter
                 assert macro_line.testAttribute(
                     Qt.WidgetAttribute.WA_TransparentForMouseEvents
+                )
+                assert (
+                    self.window.adv_macro_combo.cursor().shape()
+                    == Qt.CursorShape.PointingHandCursor
                 )
                 macro_height = int(self.window.adv_macro_combo.height())
                 for control in state.metric_controls:

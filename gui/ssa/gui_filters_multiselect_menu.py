@@ -542,7 +542,6 @@ def _append_multiselect_header(
     include_col_min: int = 0,
     exclude_col_min: int = 0,
     popup_text: str,
-    popup_border: str,
 ) -> int:
     if not filter_name:
         return row_idx
@@ -560,15 +559,11 @@ def _append_multiselect_header(
             label_style_inc = (
                 "font-size: 10px;"
                 f" color: {popup_text};"
-                f" border: 1px solid {popup_border};"
-                " border-radius: 2px;"
                 " padding: 1px 0px;"
             )
             label_style_exc = (
                 "font-size: 10px;"
                 f" color: {popup_text};"
-                f" border: 1px solid {popup_border};"
-                " border-radius: 2px;"
                 " padding: 1px 0px;"
             )
             label_inc.setStyleSheet(label_style_inc)
@@ -645,7 +640,6 @@ def _build_multiselect_header_widget(
         include_col_min=model.include_col_min,
         exclude_col_min=model.exclude_col_min,
         popup_text=tokens.popup_text,
-        popup_border=tokens.popup_border,
     )
     try:
         header.setStyleSheet(
