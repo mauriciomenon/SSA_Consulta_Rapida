@@ -101,6 +101,28 @@ class QHBoxLayout(QVBoxLayout):
 class QGridLayout(QVBoxLayout):
     pass
 
+class QSplitter(QWidget):
+    def __init__(self, *a, **k):
+        self.splitterMoved = _Sig()
+
+    def addWidget(self, *a, **k):
+        pass
+
+    def setChildrenCollapsible(self, *a, **k):
+        pass
+
+    def setHandleWidth(self, *a, **k):
+        pass
+
+    def setStretchFactor(self, *a, **k):
+        pass
+
+    def setSizes(self, *a, **k):
+        pass
+
+    def sizes(self):
+        return [1, 1]
+
 class QTabWidget(QWidget):
     def __init__(self, *a, **k):
         self.currentChanged = _Sig()

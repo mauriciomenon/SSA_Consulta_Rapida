@@ -4044,22 +4044,84 @@ class TestGUIFilterLogic:
         assert details_group is not None
         assert filters_panel_group is not None
         assert len(inner_groups) >= 2
-        min_heights = {int(g.minimumHeight()) for g in inner_groups}
-        max_heights = {int(g.maximumHeight()) for g in inner_groups}
-        assert len(min_heights) == 1
-        assert len(max_heights) == 1
-        synced_height = next(iter(min_heights))
-        assert synced_height == next(iter(max_heights))
-        assert synced_height >= 250
-        assert int(details_group.minimumHeight()) >= synced_height
-        assert int(details_group.maximumHeight()) >= synced_height
-        assert int(filters_panel_group.minimumHeight()) >= synced_height
-        assert int(filters_panel_group.maximumHeight()) >= synced_height
+        splitter = self._panel_context()["main_bottom_splitter"]
+        assert isinstance(splitter, QtWidgets.QSplitter)
+        assert splitter.orientation() == Qt.Orientation.Vertical
+        assert splitter.handleWidth() == 8
+        assert "mainTableBottomSplitter" not in str(splitter.styleSheet() or "")
         assert abs(int(details_group.height()) - int(filters_panel_group.height())) <= 4
+        assert int(details_group.height()) <= int(splitter.sizes()[1]) + 4
+        assert int(filters_panel_group.height()) <= int(splitter.sizes()[1]) + 4
         parent = filters_panel_group.parentWidget()
         if parent is not None and int(parent.height()) > 0:
             parent_delta = int(parent.height()) - int(filters_panel_group.height())
             assert 0 <= parent_delta <= 4
+
+    def test_main_bottom_splitter_persists_user_height(self, monkeypatch):
+        self._set_filter_panel_tab("filters")
+        self.window.resize(1520, 980)
+        QApplication.processEvents()
+
+        ctx = self._panel_context()
+        splitter = ctx["main_bottom_splitter"]
+        table = ctx["table_widget"]
+        details_group = ctx["details_group"]
+        filters_panel_group = ctx["filters_panel_group"]
+        initial_table_height = int(table.height())
+
+        splitter.setSizes([720, 210])
+        QApplication.processEvents()
+        self.window._save_main_bottom_splitter_pref()
+        self.window._sync_bottom_panel_heights()
+        QApplication.processEvents()
+
+        saved_height = gui_ssa.GUI_MAIN_PREFERENCES["gui_settings"][
+            "main_bottom_panel_height_px"
+        ]
+        assert 190 <= int(saved_height) <= 260
+        assert int(table.height()) > initial_table_height
+        assert abs(int(details_group.height()) - int(filters_panel_group.height())) <= 4
+
+    def test_bottom_panels_splitter_handle_drag_resizes_table_and_panels(self):
+        self._set_filter_panel_tab("filters")
+        self.window.resize(1210, 920)
+        QApplication.processEvents()
+        self.window._restore_main_bottom_splitter_sizes()
+        self.window._sync_bottom_panel_heights()
+        QApplication.processEvents()
+
+        ctx = self._panel_context()
+        splitter = ctx["main_bottom_splitter"]
+        details_group = ctx["details_group"]
+        filters_panel_group = ctx["filters_panel_group"]
+        handle = cast(QtWidgets.QWidget, splitter.handle(1))
+        start_sizes = list(splitter.sizes())
+        start = handle.rect().center()
+        end = start + QPoint(0, 120)
+
+        qt_test = cast(Any, QTest)
+        qt_test.mousePress(
+            handle,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            start,
+        )
+        qt_test.mouseMove(handle, end, delay=50)
+        qt_test.mouseRelease(
+            handle,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            end,
+            delay=50,
+        )
+        QApplication.processEvents()
+
+        end_sizes = list(splitter.sizes())
+        assert end_sizes[0] > start_sizes[0]
+        assert end_sizes[1] < start_sizes[1]
+        assert abs(int(details_group.height()) - int(filters_panel_group.height())) <= 4
+        assert int(details_group.height()) <= end_sizes[1] + 4
+        assert int(filters_panel_group.height()) <= end_sizes[1] + 4
 
     def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):
         self.window.resize(1280, 880)
@@ -10400,6 +10462,7 @@ class TestGUIFilterLogic:
         for width, height in ((1200, 900), (1680, 900)):
             self.window.resize(width, height)
             QApplication.processEvents()
+            self.window._restore_main_bottom_splitter_sizes()
             self.window._sync_bottom_panel_heights()
             self.window._reorganize_advanced_filters_grid(
                 self.window.adv_filters_group.width()
@@ -10430,6 +10493,11 @@ class TestGUIFilterLogic:
                 assert macro_line is not None
                 assert macro_line.isReadOnly()
                 assert macro_line.alignment() & Qt.AlignmentFlag.AlignCenter
+                macro_height = int(self.window.adv_macro_combo.height())
+                for control in state.metric_controls:
+                    if control is self.window.adv_reprog_mode:
+                        continue
+                    assert int(control.height()) == macro_height
                 assert self.window.adv_reprog_mode.objectName() == "advancedReprogModeCombo"
                 assert int(self.window.adv_reprog_mode.height()) >= 26
             assert "action_box" not in state.grid_widgets

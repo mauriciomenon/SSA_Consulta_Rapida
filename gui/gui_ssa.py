@@ -180,6 +180,11 @@ _TABLE_CELL_ALIGNMENT_LABELS = {
 _DEFAULT_TABLE_CELL_ALIGNMENT = str(DEFAULT_GUI_SETTINGS["table_cell_alignment"])
 _APP_AUTHOR_TEXT = "Mauricio Menon"
 _PAI_API_EXTRA_SECTOR_RE = re.compile(r"^[A-Z0-9]{3,4}$")
+_MAIN_BOTTOM_PANEL_HEIGHT_PREF_KEY = "main_bottom_panel_height_px"
+_MAIN_BOTTOM_PANEL_MIN_HEIGHT = 190
+_MAIN_BOTTOM_PANEL_MAX_FRACTION = 0.45
+_MAIN_TABLE_MIN_HEIGHT = 220
+_QT_WIDGET_MAX_HEIGHT = 16777215
 
 from armazenamento.database import query_db, vacuum_analyze_database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
@@ -221,6 +226,7 @@ try:
         QScrollArea,
         QSizePolicy,
         QSpinBox,
+        QSplitter,
         QStackedWidget,
         QTabBar,
         QTableWidget,
@@ -269,6 +275,7 @@ except ImportError as exc:
         QScrollArea,
         QSizePolicy,
         QSpinBox,
+        QSplitter,
         QStackedWidget,
         QTabBar,
         QTabWidget,
@@ -294,6 +301,7 @@ except ImportError as exc:
     QVBoxLayout = cast(Any, QVBoxLayout)
     QHBoxLayout = cast(Any, QHBoxLayout)
     QGridLayout = cast(Any, QGridLayout)
+    QSplitter = cast(Any, QSplitter)
     QLabel = cast(Any, QLabel)
     QComboBox = cast(Any, QComboBox)
     QPushButton = cast(Any, QPushButton)
@@ -1476,6 +1484,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         main_layout.addWidget(cast(Any, self.main_tabs))
         self._setup_tsm_debug_probes()
         try:
+            QTimer.singleShot(0, self._restore_main_bottom_splitter_sizes)
             QTimer.singleShot(0, self._sync_bottom_panel_heights)
         except Exception as exc:
             logger.debug(
@@ -1609,19 +1618,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "Falha ao conectar persistencia de page size na paginacao: %s", exc
             )
 
-        table_widget = build_main_table_widget(self)
-        tab_layout.addWidget(cast(Any, table_widget), 6)
-
         bottom_context = build_bottom_filter_section(self)
         bottom_layout = bottom_context.pop("_bottom_layout")
         adv_ctx = bottom_context.pop("_adv_ctx")
-        tab_layout.addSpacing(0)
-        tab_layout.addLayout(bottom_layout, 4)
+        table_widget = build_main_table_widget(self)
+        bottom_container = QWidget()
+        bottom_container.setObjectName("mainBottomPanelContainer")
+        bottom_container_layout = QVBoxLayout(cast(Any, bottom_container))
+        bottom_container_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_container_layout.setSpacing(0)
+        bottom_container_layout.addLayout(bottom_layout)
+
+        main_bottom_splitter = QSplitter(cast(Any, Qt).Orientation.Vertical)
+        main_bottom_splitter.setObjectName("mainTableBottomSplitter")
+        main_bottom_splitter.setChildrenCollapsible(False)
+        main_bottom_splitter.setHandleWidth(8)
+        main_bottom_splitter.addWidget(cast(Any, table_widget))
+        main_bottom_splitter.addWidget(cast(Any, bottom_container))
+        main_bottom_splitter.setStretchFactor(0, 1)
+        main_bottom_splitter.setStretchFactor(1, 0)
+        main_bottom_splitter.splitterMoved.connect(
+            lambda _pos, _index: self._save_main_bottom_splitter_pref()
+        )
+        tab_layout.addWidget(cast(Any, main_bottom_splitter), 10)
 
         ctx.update(
             {
                 "search_input": search_input,
                 "quick_search_box": search_box,
+                "main_bottom_splitter": main_bottom_splitter,
+                "main_bottom_container": bottom_container,
                 "search_button": search_button,
                 "clear_filter_button": clear_filter_button,
                 "save_filter_button": save_filter_button,
@@ -1782,7 +1808,81 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         base_height = int(window_height * 0.31)
         font_adjust = max(0, base_font_pt - 10) * 8
         target = base_height + font_adjust
-        return max(250, min(320, target))
+        return max(280, min(310, target))
+
+    def _main_bottom_panel_height_bounds(self, splitter_height: int) -> tuple[int, int]:
+        total = max(0, int(splitter_height))
+        if total <= 0:
+            total = max(0, int(self.height()) - 120)
+        min_bottom = min(_MAIN_BOTTOM_PANEL_MIN_HEIGHT, max(80, total // 2))
+        max_bottom = max(
+            min_bottom,
+            min(
+                int(total * _MAIN_BOTTOM_PANEL_MAX_FRACTION),
+                total - _MAIN_TABLE_MIN_HEIGHT,
+            ),
+        )
+        return min_bottom, max_bottom
+
+    def _preferred_main_bottom_panel_height(self, splitter_height: int) -> int:
+        min_bottom, max_bottom = self._main_bottom_panel_height_bounds(splitter_height)
+        gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+        saved = gui_settings.get(_MAIN_BOTTOM_PANEL_HEIGHT_PREF_KEY)
+        try:
+            saved_height = int(saved)
+        except (TypeError, ValueError):
+            saved_height = 0
+        if saved_height > 0:
+            return max(min_bottom, min(max_bottom, saved_height))
+        default_height = self._compute_bottom_panel_target_height()
+        return max(min_bottom, min(max_bottom, default_height))
+
+    def _restore_main_bottom_splitter_sizes(self) -> None:
+        context = getattr(self, "_filter_panel_context", None)
+        if not isinstance(context, dict):
+            return
+        splitter = context.get("main_bottom_splitter")
+        if splitter is None:
+            return
+        try:
+            total = int(splitter.height())
+        except (TypeError, ValueError):
+            total = 0
+        if total <= 0:
+            try:
+                QTimer.singleShot(0, self._restore_main_bottom_splitter_sizes)
+            except Exception as exc:
+                logger.debug("Falha ao reagendar restore do splitter inferior: %s", exc)
+            return
+        bottom_height = self._preferred_main_bottom_panel_height(total)
+        top_height = max(_MAIN_TABLE_MIN_HEIGHT, total - bottom_height)
+        splitter.setSizes([top_height, bottom_height])
+        self._sync_bottom_panel_heights()
+
+    def _save_main_bottom_splitter_pref(self) -> bool:
+        context = getattr(self, "_filter_panel_context", None)
+        if not isinstance(context, dict):
+            return False
+        splitter = context.get("main_bottom_splitter")
+        if splitter is None:
+            return False
+        try:
+            sizes = list(splitter.sizes())
+            bottom_height = int(sizes[1])
+        except (AttributeError, IndexError, TypeError, ValueError):
+            logger.debug("Altura inferior invalida ao persistir splitter.")
+            return False
+        min_bottom, max_bottom = self._main_bottom_panel_height_bounds(sum(sizes))
+        bottom_height = max(min_bottom, min(max_bottom, bottom_height))
+        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        if gui_settings.get(_MAIN_BOTTOM_PANEL_HEIGHT_PREF_KEY) == bottom_height:
+            self._sync_bottom_panel_heights()
+            return True
+        gui_settings[_MAIN_BOTTOM_PANEL_HEIGHT_PREF_KEY] = bottom_height
+        self._sync_bottom_panel_heights()
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return True
+        return self._persist_gui_preferences()
 
     def _queue_bottom_panel_height_sync(self) -> None:
         try:
@@ -1795,11 +1895,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._sync_bottom_panel_heights()
 
     def _sync_bottom_panel_heights(self) -> None:
-        target = self._compute_bottom_panel_target_height()
         seen = set()
         context = getattr(self, "_filter_panel_context", None)
         if not isinstance(context, dict):
             return
+        target = self._compute_bottom_panel_target_height()
+        bottom_container = context.get("main_bottom_container")
+        try:
+            if bottom_container is not None and int(bottom_container.height()) > 0:
+                target = int(bottom_container.height())
+        except Exception as exc:
+            logger.debug("Falha ao medir container inferior: %s", exc)
         groups = []
         for key in ("col_filters_group", "adv_filters_group"):
             widget = context.get(key)
@@ -1810,10 +1916,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 continue
             seen.add(wid)
             groups.append(widget)
-        for widget in groups:
-            self._set_widget_fixed_height_safe(
-                widget, target, f"painel inferior {type(widget).__name__}"
-            )
         details_group = context.get("details_group")
         details_target = target
         filters_panel_group = context.get("filters_panel_group")
@@ -1829,7 +1931,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao medir altura alocada do painel inferior: %s", exc)
         if parent_target > 0:
-            target = max(target, parent_target)
+            target = parent_target
             details_target = target
         if (
             details_group is not None
@@ -1852,21 +1954,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 shell_delta = 0
             inner_target = max(120, target - shell_delta)
+            inner_min_height = 120 if inner_target >= 120 else inner_target
             for widget in groups:
-                self._set_widget_fixed_height_safe(
-                    widget, inner_target, f"painel inferior {type(widget).__name__}"
+                self._set_widget_min_height_safe(
+                    widget,
+                    inner_min_height,
+                    f"painel inferior {type(widget).__name__}",
                 )
+                try:
+                    widget.setMaximumHeight(_QT_WIDGET_MAX_HEIGHT)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao liberar altura maxima do painel inferior: %s", exc
+                    )
             details_target = max(target, inner_target + shell_delta)
-            self._set_widget_fixed_height_safe(
-                filters_panel_group,
-                details_target,
-                f"painel inferior {type(filters_panel_group).__name__}",
-            )
-            self._set_widget_fixed_height_safe(
-                details_group,
-                details_target,
-                f"painel inferior {type(details_group).__name__}",
-            )
+            details_min_height = 160 if details_target >= 160 else details_target
+            for widget in (filters_panel_group, details_group):
+                self._set_widget_min_height_safe(
+                    widget,
+                    details_min_height,
+                    f"painel inferior {type(widget).__name__}",
+                )
+                try:
+                    widget.setMaximumHeight(_QT_WIDGET_MAX_HEIGHT)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao liberar altura maxima do painel externo: %s", exc
+                    )
         try:
             current_kind = getattr(self, "_active_filter_panel_kind", None)
             if (
