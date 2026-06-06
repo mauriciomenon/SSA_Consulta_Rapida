@@ -87,8 +87,11 @@ def sector_sort_key(
         or ""
     )
     div_text = str(div)
+    priority_rank = SECTOR_EXECUTOR_PRIORITY_INDEX.get(value.upper())
+    if priority_rank is None:
+        priority_rank = len(SECTOR_EXECUTOR_PRIORITY)
     return (
-        SECTOR_EXECUTOR_PRIORITY_INDEX.get(value.upper(), len(SECTOR_EXECUTOR_PRIORITY)),
+        priority_rank,
         known_division_rank(div_text.upper()),
         div_text.casefold(),
         value.casefold(),

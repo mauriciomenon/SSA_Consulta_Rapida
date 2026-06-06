@@ -26,9 +26,11 @@ from utils.robust_logging import get_robust_logger
 logger = get_robust_logger().get_logger(__name__, "gui")
 
 SIMPLE_POPUP_TEXT_CLAMP = True
-SIMPLE_POPUP_LABEL_MAX_PX = 300
-SIMPLE_POPUP_RIGHT_GUTTER_PX = 10
+SIMPLE_POPUP_LABEL_MAX_PX = 220
 SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 18
+SIMPLE_POPUP_SECTOR_MAX_WIDTH_PX = 300
+SIMPLE_POPUP_SIMPLE_MAX_WIDTH_PX = 320
+SIMPLE_POPUP_LONG_MAX_WIDTH_PX = 390
 HIGH_CARDINALITY_MENU_LIMIT = 160
 
 @dataclass(frozen=True)
@@ -345,6 +347,20 @@ def _detect_filter_name_from_button(button) -> str:
         logger.debug("Falha ao ler propriedade filter_name do botao: %s", exc)
     return ""
 
+
+def _detect_popup_kind_from_button(button, *, has_exclude_column: bool) -> str:
+    try:
+        prop_value = (
+            button.property("multiselect_popup_kind") if button is not None else None
+        )
+        popup_kind = str(prop_value or "").strip().casefold()
+        if popup_kind in {"sector", "long", "simple"}:
+            return popup_kind
+    except Exception as exc:
+        logger.debug("Falha ao ler categoria de popup multiselect: %s", exc)
+    return "long" if has_exclude_column else "simple"
+
+
 def _multiselect_value_key_label(value) -> tuple[str, str]:
     if isinstance(value, (list, tuple)):
         key = value[0] if len(value) > 0 else ""
@@ -396,6 +412,7 @@ def _compute_multiselect_popup_metrics(
     total_values: int,
     filter_name: str,
     has_exclude_column: bool,
+    popup_kind: str,
 ):
     try:
         fm = button.fontMetrics() if button is not None else None
@@ -432,7 +449,6 @@ def _compute_multiselect_popup_metrics(
     if has_exclude_column and fm is not None:
         include_col_min = max(include_col_min, fm.horizontalAdvance("Incluir") + 12)
         exclude_col_min = max(exclude_col_min, fm.horizontalAdvance("Excluir") + 12)
-        exclude_col_min += SIMPLE_POPUP_RIGHT_GUTTER_PX
         content_width = max(
             content_width,
             max_label_px + include_col_min + exclude_col_min + 48,
@@ -450,6 +466,12 @@ def _compute_multiselect_popup_metrics(
                 popup_max_width = max(420, min(960, int(screen_w * 0.72)))
     except Exception:
         popup_max_width = 680
+    if popup_kind == "sector":
+        popup_max_width = min(popup_max_width, SIMPLE_POPUP_SECTOR_MAX_WIDTH_PX)
+    elif popup_kind == "long":
+        popup_max_width = min(popup_max_width, SIMPLE_POPUP_LONG_MAX_WIDTH_PX)
+    else:
+        popup_max_width = min(popup_max_width, SIMPLE_POPUP_SIMPLE_MAX_WIDTH_PX)
     popup_width = max(220, min(popup_max_width, content_width))
     return popup_width, include_col_min, exclude_col_min
 
@@ -464,6 +486,10 @@ def _build_multiselect_menu_model(
     exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
     filter_name = _detect_filter_name_from_button(button)
     has_exclude_column = exclude_selected_set is not None
+    popup_kind = _detect_popup_kind_from_button(
+        button,
+        has_exclude_column=has_exclude_column,
+    )
     limited_values, total_values = _collect_limited_multiselect_values(
         values,
         selected_set,
@@ -475,6 +501,7 @@ def _build_multiselect_menu_model(
         total_values,
         filter_name,
         has_exclude_column,
+        popup_kind,
     )
     label_display_by_key = _build_multiselect_label_display_map(
         font_source or button,
@@ -517,7 +544,7 @@ def _configure_multiselect_grid(
     include_col_min: int,
     exclude_col_min: int,
 ) -> None:
-    grid.setContentsMargins(6, 4, 14 + SIMPLE_POPUP_RIGHT_GUTTER_PX, 4)
+    grid.setContentsMargins(6, 4, 6, 4)
     grid.setHorizontalSpacing(6)
     grid.setVerticalSpacing(4)
     try:
@@ -613,48 +640,6 @@ def _append_multiselect_limit_notice(
     header_sep.setFrameShadow(QFrame.Shadow.Sunken)
     grid.addWidget(header_sep, row_idx, 0, 1, col_span)
     return row_idx + 1
-
-
-def _build_multiselect_header_widget(
-    model: MultiselectMenuModel,
-    tokens: MultiselectThemeTokens,
-) -> QWidget | None:
-    if not model.filter_name:
-        return None
-    header = QWidget()
-    layout = QGridLayout(header)
-    layout.setContentsMargins(8, 4, 8, 2)
-    layout.setHorizontalSpacing(6)
-    layout.setVerticalSpacing(2)
-    _configure_multiselect_grid(
-        layout,
-        has_exclude_column=model.has_exclude_column,
-        include_col_min=model.include_col_min,
-        exclude_col_min=model.exclude_col_min,
-    )
-    _append_multiselect_header(
-        layout,
-        0,
-        filter_name=model.filter_name,
-        has_exclude_column=model.has_exclude_column,
-        include_col_min=model.include_col_min,
-        exclude_col_min=model.exclude_col_min,
-        popup_text=tokens.popup_text,
-    )
-    try:
-        header.setStyleSheet(
-            "QWidget {"
-            f" background: {tokens.popup_bg};"
-            f" color: {tokens.popup_text};"
-            "}"
-            "QLabel {"
-            " font-size: 11px;"
-            f" color: {tokens.popup_text};"
-            "}"
-        )
-    except Exception as exc:
-        logger.debug("Falha ao estilizar header fixo do menu multiselect: %s", exc)
-    return header
 
 
 def _build_multiselect_checkbox_styles(
@@ -1083,13 +1068,15 @@ def _make_multiselect_scroll(
         )
     try:
         base_rows = len(model.values)
+        if model.filter_name:
+            base_rows += 1
         if model.total_values > len(model.values):
             base_rows += 1
         if model.has_exclude_column:
             base_rows += 3
-        visible_rows = max(1, min(8, base_rows))
-        target_height = 8 + (visible_rows * 22)
-        scroll.setFixedHeight(max(54, min(196, target_height)))
+        visible_rows = max(1, min(7, base_rows))
+        target_height = 6 + (visible_rows * 20)
+        scroll.setFixedHeight(max(54, min(160, target_height)))
     except Exception as exc:
         logger.debug(
             "Falha ao ajustar altura dinamica do scroll no menu multiselect: %s", exc
@@ -1103,27 +1090,6 @@ def _append_multiselect_scroll_action(menu, scroll) -> None:
         menu.addAction(scroll_act)
     except Exception as exc:
         logger.debug("Falha ao adicionar scroll action no menu multiselect: %s", exc)
-
-
-def _append_multiselect_header_action(menu, header_widget) -> None:
-    if header_widget is None:
-        return
-    try:
-        header_widget.ensurePolished()
-        header_height = max(1, int(header_widget.sizeHint().height() or 0))
-        header_widget.setMinimumHeight(header_height)
-        header_widget.setMaximumHeight(header_height)
-        header_widget.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-    except Exception as exc:
-        logger.debug("Falha ao fixar altura do header do menu multiselect: %s", exc)
-    header_act = QWidgetAction(menu)
-    header_act.setDefaultWidget(header_widget)
-    try:
-        menu.addAction(header_act)
-    except Exception as exc:
-        logger.debug("Falha ao adicionar header fixo do menu multiselect: %s", exc)
 
 
 def _append_multiselect_footer(menu, *, show_footer) -> None:
@@ -1326,7 +1292,6 @@ class MultiselectMenuBuilder:
         )
         _prepare_multiselect_menu(self.menu, model)
         tokens = _resolve_popup_theme_tokens(self.owner, self.button, self.menu)
-        header_widget = _build_multiselect_header_widget(model, tokens)
         container, grid = _build_multiselect_grid(model)
         row_idx, checks, exclude_checks = self._populate_grid(
             grid,
@@ -1335,7 +1300,7 @@ class MultiselectMenuBuilder:
             tokens,
         )
         self._append_batch_controls(grid, row_idx, checks, exclude_checks, tokens)
-        self._append_scroll_and_footer(header_widget, container, model, tokens)
+        self._append_scroll_and_footer(container, model, tokens)
         return self._store_result(checks, exclude_checks)
 
     def _populate_grid(
@@ -1346,6 +1311,15 @@ class MultiselectMenuBuilder:
         tokens: MultiselectThemeTokens,
     ):
         row_idx = 0
+        row_idx = _append_multiselect_header(
+            grid,
+            row_idx,
+            filter_name=model.filter_name,
+            has_exclude_column=model.has_exclude_column,
+            include_col_min=model.include_col_min,
+            exclude_col_min=model.exclude_col_min,
+            popup_text=tokens.popup_text,
+        )
         row_idx = _append_multiselect_limit_notice(
             grid,
             row_idx,
@@ -1398,7 +1372,6 @@ class MultiselectMenuBuilder:
 
     def _append_scroll_and_footer(
         self,
-        header_widget,
         container,
         model: MultiselectMenuModel,
         tokens: MultiselectThemeTokens,
@@ -1412,7 +1385,6 @@ class MultiselectMenuBuilder:
             checked_bg=tokens.checked_bg,
             menu=self.menu,
         )
-        _append_multiselect_header_action(self.menu, header_widget)
         _append_multiselect_scroll_action(self.menu, scroll)
         _append_multiselect_footer(self.menu, show_footer=self.show_footer)
 

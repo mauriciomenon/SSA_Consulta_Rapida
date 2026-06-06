@@ -5067,7 +5067,7 @@ class TestGUIFilterLogic:
 
     def test_responsavel_order_uses_sector_priority_before_alpha_name(self):
         decorated = filter_domain_rules.order_responsavel_values(
-            ["Zulu", "Andre", "Bruno", "Carla", "Denise", "Edu"],
+            ["Zulu", "Andre", "Bruno", "Carla", "Denise", "Edu", "Fabio", "Ana"],
             {
                 "Zulu": {"MEL1": 1},
                 "Andre": {"IEE1": 1},
@@ -5075,6 +5075,8 @@ class TestGUIFilterLogic:
                 "Carla": {"MEL4": 1},
                 "Denise": {"IEE2": 1},
                 "Edu": {"IEE4": 1},
+                "Fabio": {"MEL2": 1},
+                "Ana": {"MEL3": 1},
             },
         )
 
@@ -5084,8 +5086,38 @@ class TestGUIFilterLogic:
             "IEE2 - Denise",
             "IEE4 - Edu",
             "MEL1 - Zulu",
+            "MEL2 - Fabio",
+            "MEL3 - Ana",
             "MEL4 - Carla",
         ]
+
+    def test_macro_combo_line_event_filter_opens_popup(self):
+        class _FakeCombo:
+            def __init__(self):
+                self.popup_count = 0
+
+            def showPopup(self):
+                self.popup_count += 1
+
+        class _FakeEvent:
+            def __init__(self, event_type):
+                self._event_type = event_type
+                self.accepted = False
+
+            def type(self):
+                return self._event_type
+
+            def accept(self):
+                self.accepted = True
+
+        combo = _FakeCombo()
+        event_filter = advanced_ui._MacroComboLineClickFilter(None, combo)
+        click_event = _FakeEvent(QEvent.Type.MouseButtonPress)
+
+        assert event_filter.eventFilter(None, click_event) is True
+        assert combo.popup_count == 1
+        assert click_event.accepted is True
+        assert event_filter.eventFilter(None, _FakeEvent(QEvent.Type.FocusIn)) is False
 
     def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
         self.window._advanced_filters = {
@@ -9033,6 +9065,7 @@ class TestGUIFilterLogic:
     def test_multiselect_menu_selection_labels_use_short_copy(self):
         button = QPushButton("Responsavel")
         button.setProperty("filter_name", "Responsavel")
+        button.setProperty("multiselect_popup_kind", "long")
         menu = QtWidgets.QMenu()
 
         advanced_menu._rebuild_multiselect_menu(
@@ -9047,21 +9080,20 @@ class TestGUIFilterLogic:
             None,
         )
 
-        first_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        scroll_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        assert isinstance(scroll_widget, QScrollArea)
+        first_widget = scroll_widget.widget()
         assert first_widget is not None
-        assert not isinstance(first_widget, QScrollArea)
         first_labels = [
             label.text() for label in first_widget.findChildren(QLabel)
         ]
-        assert first_labels == ["Responsavel", "Incluir", "Excluir"]
-        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
-        assert isinstance(scroll_widget, QScrollArea)
-        scroll_labels = [
-            label.text() for label in scroll_widget.findChildren(QLabel)
-        ]
-        assert "Responsavel" not in scroll_labels
-        assert "Incluir" not in scroll_labels
-        assert "Excluir" not in scroll_labels
+        assert first_labels[:3] == ["Responsavel", "Incluir", "Excluir"]
+        assert "border" not in str(
+            first_widget.findChildren(QLabel)[1].styleSheet() or ""
+        )
+        assert "border" not in str(
+            first_widget.findChildren(QLabel)[2].styleSheet() or ""
+        )
 
         labels = []
         tooltips = []
@@ -9091,6 +9123,7 @@ class TestGUIFilterLogic:
     def test_multiselect_sector_popup_is_compact_and_header_columns_align(self):
         button = QPushButton("Selecionar")
         button.setProperty("filter_name", "Emissor")
+        button.setProperty("multiselect_popup_kind", "sector")
         menu = QtWidgets.QMenu()
         values = ["IEE3", "IEE1", "IEE2", "IEE4", "MEL1", "MEL2", "MEL3", "MEL4"]
 
@@ -9107,7 +9140,9 @@ class TestGUIFilterLogic:
         )
 
         assert 220 <= int(menu.minimumWidth()) <= 300
-        first_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        scroll_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        assert isinstance(scroll_widget, QScrollArea)
+        first_widget = scroll_widget.widget()
         assert first_widget is not None
         layout = first_widget.layout()
         labels = {
@@ -9119,9 +9154,44 @@ class TestGUIFilterLogic:
         assert "border" not in str(labels["Incluir"].styleSheet() or "")
         assert "border" not in str(labels["Excluir"].styleSheet() or "")
 
+    def test_multiselect_responsavel_popup_caps_width_and_height(self):
+        button = QPushButton("Selecionar")
+        button.setProperty("filter_name", "Responsavel Execucao")
+        button.setProperty("multiselect_popup_kind", "long")
+        menu = QtWidgets.QMenu()
+        values = [
+            f"IEE1 - RESPONSAVEL COM NOME MUITO LONGO PARA TESTE {idx:03d}"
+            for idx in range(200)
+        ]
+
+        advanced_menu._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            values,
+            set(),
+            None,
+            True,
+            set(),
+            None,
+        )
+
+        assert int(menu.maximumWidth()) <= 390
+        scroll_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        assert isinstance(scroll_widget, QScrollArea)
+        assert int(scroll_widget.maximumHeight()) <= 160
+        labels = [
+            label
+            for label in scroll_widget.widget().findChildren(QLabel)
+            if "RESPONSAVEL COM NOME" in str(label.toolTip() or "")
+        ]
+        assert labels
+        assert all(str(label.text() or "") != str(label.toolTip() or "") for label in labels)
+
     def test_multiselect_derivadas_popup_uses_short_scroll_height(self):
         button = QPushButton("Selecionar")
         button.setProperty("filter_name", "Derivadas")
+        button.setProperty("multiselect_popup_kind", "simple")
         menu = QtWidgets.QMenu()
 
         advanced_menu._rebuild_multiselect_menu(
@@ -9140,9 +9210,9 @@ class TestGUIFilterLogic:
             None,
         )
 
-        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
+        scroll_widget = cast(Any, menu.actions()[0]).defaultWidget()
         assert isinstance(scroll_widget, QScrollArea)
-        assert int(scroll_widget.maximumHeight()) <= 80
+        assert int(scroll_widget.maximumHeight()) <= 90
 
     def test_multiselect_menu_reuses_cached_widgets_when_model_is_unchanged(self):
         button = QPushButton("Selecionar")
@@ -10628,9 +10698,10 @@ class TestGUIFilterLogic:
                 assert macro_line is not None
                 assert macro_line.isReadOnly()
                 assert macro_line.alignment() & Qt.AlignmentFlag.AlignCenter
-                assert macro_line.testAttribute(
+                assert not macro_line.testAttribute(
                     Qt.WidgetAttribute.WA_TransparentForMouseEvents
                 )
+                assert macro_line.property("ssa_macro_click_filter") is True
                 assert (
                     self.window.adv_macro_combo.cursor().shape()
                     == Qt.CursorShape.PointingHandCursor

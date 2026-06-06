@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 from time import perf_counter
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -81,11 +81,45 @@ from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 from .gui_filters_responsavel_refresh import responsavel_options_refresher
 from .gui_filters_responsavel_state import responsavel_materialization_state
 
+try:
+    from PyQt6.QtCore import QEvent, QObject as _QObject
+except ImportError:
+    from .headless_qt_stubs import QEvent
+
+    class _QObject:
+        def __init__(self, *_args, **_kwargs):
+            return None
+
+QObject = cast(Any, _QObject)
+
 logger = get_robust_logger().get_logger(__name__, "gui")
 _DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
 _MACRO_EXECUTADAS_SETOR_KEY = "ssa_executadas_setor"
 _MACRO_EXECUTADAS_DIVISAO_KEY = "ssa_executadas_divisao"
 _is_widget_valid = _is_not_deleted
+
+
+class _MacroComboLineClickFilter(QObject):
+    def __init__(self, line_edit, combo):
+        super().__init__(line_edit)
+        self._combo = combo
+
+    def eventFilter(self, _watched, event):  # noqa: N802
+        try:
+            event_type = event.type()
+        except AttributeError:
+            return False
+        if event_type != QEvent.Type.MouseButtonPress:
+            return False
+        try:
+            self._combo.showPopup()
+            event.accept()
+        except RuntimeError as exc:
+            logger.debug("Falha ao abrir popup do filtro macro via lineEdit: %s", exc)
+            return False
+        return True
+
+
 _ADVANCED_MULTISELECT_FIELD_DEFS = (
     ("emis", "Emissor", True),
     ("exec", "Executor", True),
@@ -183,6 +217,10 @@ def _make_multiselect_box(
     button.setText(placeholder)
     try:
         button.setProperty("filter_name", title)
+        popup_kind = "long" if with_exclude else "simple"
+        if title in {"Emissor", "Executor"}:
+            popup_kind = "sector"
+        button.setProperty("multiselect_popup_kind", popup_kind)
     except Exception as exc:
         logger.debug(
             "Falha ao associar nome de filtro no botao multiselect '%s': %s", title, exc
@@ -613,10 +651,11 @@ def _make_advanced_macro_box(self):
         if macro_line is not None:
             macro_line.setReadOnly(True)
             macro_line.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            macro_line.setAttribute(
-                Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
-            )
             macro_line.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            macro_line.setCursor(Qt.CursorShape.PointingHandCursor)
+            macro_click_filter = _MacroComboLineClickFilter(macro_line, macro_combo)
+            macro_line.installEventFilter(macro_click_filter)
+            macro_line.setProperty("ssa_macro_click_filter", True)
         macro_combo.setCursor(Qt.CursorShape.PointingHandCursor)
     try:
         macro_combo.setMinimumWidth(100)
