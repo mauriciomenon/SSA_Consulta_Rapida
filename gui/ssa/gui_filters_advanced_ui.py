@@ -613,6 +613,10 @@ def _make_advanced_macro_box(self):
         if macro_line is not None:
             macro_line.setReadOnly(True)
             macro_line.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            macro_line.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+            )
+            macro_line.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     try:
         macro_combo.setMinimumWidth(100)
         macro_combo.setMaximumWidth(240)

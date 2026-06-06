@@ -415,7 +415,7 @@ def _compute_multiselect_popup_metrics(
     # Easy rollback: set SIMPLE_POPUP_TEXT_CLAMP = False.
     if SIMPLE_POPUP_TEXT_CLAMP:
         max_label_px = min(max_label_px, SIMPLE_POPUP_LABEL_MAX_PX)
-    content_width = max_label_px + (136 if has_exclude_column else 80)
+    content_width = max_label_px + (112 if has_exclude_column else 80)
     if filter_name:
         try:
             header_width = (
@@ -425,15 +425,18 @@ def _compute_multiselect_popup_metrics(
             )
         except Exception:
             header_width = len(filter_name) * 8
-        header_extra = 170 if has_exclude_column else 34
+        header_extra = 144 if has_exclude_column else 34
         content_width = max(content_width, header_width + header_extra)
-    include_col_min = 64
-    exclude_col_min = 92
+    include_col_min = 54
+    exclude_col_min = 54
     if has_exclude_column and fm is not None:
-        include_col_min = max(include_col_min, fm.horizontalAdvance("Incluir") + 14)
-        exclude_col_min = max(exclude_col_min, fm.horizontalAdvance("Excluir") + 14)
+        include_col_min = max(include_col_min, fm.horizontalAdvance("Incluir") + 12)
+        exclude_col_min = max(exclude_col_min, fm.horizontalAdvance("Excluir") + 12)
         exclude_col_min += SIMPLE_POPUP_RIGHT_GUTTER_PX
-        content_width = max(content_width, include_col_min + exclude_col_min + 140)
+        content_width = max(
+            content_width,
+            max_label_px + include_col_min + exclude_col_min + 48,
+        )
         # Keep a small guard for vertical scrollbar in large lists.
         # Easy rollback: set SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 0.
         if total_values > 9:
@@ -536,6 +539,8 @@ def _append_multiselect_header(
     *,
     filter_name: str,
     has_exclude_column: bool,
+    include_col_min: int = 0,
+    exclude_col_min: int = 0,
     popup_text: str,
     popup_border: str,
 ) -> int:
@@ -557,19 +562,23 @@ def _append_multiselect_header(
                 f" color: {popup_text};"
                 f" border: 1px solid {popup_border};"
                 " border-radius: 2px;"
-                " padding: 1px 3px;"
+                " padding: 1px 0px;"
             )
             label_style_exc = (
                 "font-size: 10px;"
                 f" color: {popup_text};"
                 f" border: 1px solid {popup_border};"
                 " border-radius: 2px;"
-                " padding: 1px 7px 1px 3px;"
+                " padding: 1px 0px;"
             )
             label_inc.setStyleSheet(label_style_inc)
             label_exc.setStyleSheet(label_style_exc)
             label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            if include_col_min > 0:
+                label_inc.setMinimumWidth(include_col_min)
+            if exclude_col_min > 0:
+                label_exc.setMinimumWidth(exclude_col_min)
         except Exception as exc:
             logger.debug(
                 "Falha ao estilizar header include/exclude do menu multiselect: %s",
@@ -633,6 +642,8 @@ def _build_multiselect_header_widget(
         0,
         filter_name=model.filter_name,
         has_exclude_column=model.has_exclude_column,
+        include_col_min=model.include_col_min,
+        exclude_col_min=model.exclude_col_min,
         popup_text=tokens.popup_text,
         popup_border=tokens.popup_border,
     )
@@ -1078,15 +1089,13 @@ def _make_multiselect_scroll(
         )
     try:
         base_rows = len(model.values)
-        if model.filter_name:
-            base_rows += 2
         if model.total_values > len(model.values):
             base_rows += 1
         if model.has_exclude_column:
-            base_rows += 2
-        visible_rows = max(1, min(9, base_rows))
-        target_height = 12 + (visible_rows * 22)
-        scroll.setFixedHeight(max(58, min(236, target_height)))
+            base_rows += 3
+        visible_rows = max(1, min(8, base_rows))
+        target_height = 8 + (visible_rows * 22)
+        scroll.setFixedHeight(max(54, min(196, target_height)))
     except Exception as exc:
         logger.debug(
             "Falha ao ajustar altura dinamica do scroll no menu multiselect: %s", exc

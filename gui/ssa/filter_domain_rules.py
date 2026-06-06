@@ -14,9 +14,9 @@ MACRO_BAIXAR_FILTER_KEY = "ssas_para_baixar"
 MACRO_BAIXAR_STATUS_EXCLUSIONS = ("SAD", "SCA", "SES", "STE")
 MACRO_BAIXAR_DERIVADA_SELECTION = ("all_ste",)
 SECTOR_EXECUTOR_PRIORITY = (
+    "IEE3",
     "IEE1",
     "IEE2",
-    "IEE3",
     "IEE4",
     "MEL1",
     "MEL2",

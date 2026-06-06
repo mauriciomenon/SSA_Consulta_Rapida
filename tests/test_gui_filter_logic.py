@@ -1797,9 +1797,9 @@ class TestGUIFilterLogic:
 
     def test_setor_executor_order_prioritizes_smin_then_mel_then_alpha(self):
         ordered = SSAMainWindow._order_setor_executor_values(
-            ["AAA", "ZZZ", "MEL3", "IEE4", "ABC", "IEE1", "MEL1"]
+            ["AAA", "ZZZ", "MEL3", "IEE4", "ABC", "IEE1", "MEL1", "IEE3"]
         )
-        assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "AAA", "ABC", "ZZZ"]
+        assert ordered == ["IEE3", "IEE1", "IEE4", "MEL1", "MEL3", "AAA", "ABC", "ZZZ"]
 
     def test_setor_order_is_shared_between_quick_and_advanced_filters(self):
         values = ["MEG2", "IEE4", "MEL3", "ILA2", "IEE1", "MEL1"]
@@ -1809,6 +1809,35 @@ class TestGUIFilterLogic:
 
         assert quick_order == advanced_order
         assert quick_order == ["IEE1", "IEE4", "MEL1", "MEL3", "ILA2", "MEG2"]
+
+    def test_setor_order_uses_full_priority_before_alpha_tail(self):
+        values = [
+            "XYZ",
+            "MEL2",
+            "IEE4",
+            "IEE1",
+            "MEL4",
+            "AAA",
+            "MEL1",
+            "IEE2",
+            "MEL3",
+            "IEE3",
+        ]
+
+        ordered = SSAMainWindow._order_setor_executor_values(values)
+
+        assert ordered == [
+            "IEE3",
+            "IEE1",
+            "IEE2",
+            "IEE4",
+            "MEL1",
+            "MEL2",
+            "MEL3",
+            "MEL4",
+            "AAA",
+            "XYZ",
+        ]
 
     def test_quick_setor_executor_combo_applies_executor_filter_only(self, monkeypatch):
         self.window._register_or_group(
@@ -9036,6 +9065,60 @@ class TestGUIFilterLogic:
         assert "Selecionar tudo para excluir" in accessible_names
         assert "Limpar tudo para excluir" in accessible_names
 
+    def test_multiselect_sector_popup_is_compact_and_header_columns_align(self):
+        button = QPushButton("Selecionar")
+        button.setProperty("filter_name", "Emissor")
+        menu = QtWidgets.QMenu()
+        values = ["IEE3", "IEE1", "IEE2", "IEE4", "MEL1", "MEL2", "MEL3", "MEL4"]
+
+        advanced_menu._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            values,
+            set(),
+            None,
+            True,
+            set(),
+            None,
+        )
+
+        assert 220 <= int(menu.minimumWidth()) <= 300
+        first_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        assert first_widget is not None
+        layout = first_widget.layout()
+        labels = {
+            str(label.text() or ""): label
+            for label in first_widget.findChildren(QLabel)
+        }
+        assert int(labels["Incluir"].minimumWidth()) == int(layout.columnMinimumWidth(1))
+        assert int(labels["Excluir"].minimumWidth()) == int(layout.columnMinimumWidth(2))
+
+    def test_multiselect_derivadas_popup_uses_short_scroll_height(self):
+        button = QPushButton("Selecionar")
+        button.setProperty("filter_name", "Derivadas")
+        menu = QtWidgets.QMenu()
+
+        advanced_menu._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            [
+                ("has", "Possui Derivadas"),
+                ("all_ste", "Derivadas em STE/SES"),
+                ("is", "Sou Derivada"),
+            ],
+            set(),
+            None,
+            False,
+            None,
+            None,
+        )
+
+        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
+        assert isinstance(scroll_widget, QScrollArea)
+        assert int(scroll_widget.maximumHeight()) <= 80
+
     def test_multiselect_menu_reuses_cached_widgets_when_model_is_unchanged(self):
         button = QPushButton("Selecionar")
         menu = QtWidgets.QMenu()
@@ -10520,6 +10603,9 @@ class TestGUIFilterLogic:
                 assert macro_line is not None
                 assert macro_line.isReadOnly()
                 assert macro_line.alignment() & Qt.AlignmentFlag.AlignCenter
+                assert macro_line.testAttribute(
+                    Qt.WidgetAttribute.WA_TransparentForMouseEvents
+                )
                 macro_height = int(self.window.adv_macro_combo.height())
                 for control in state.metric_controls:
                     if control is self.window.adv_reprog_mode:
