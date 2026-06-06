@@ -314,6 +314,15 @@ def _apply_advanced_filter_control_styles(window, style: dict) -> None:
         _apply_style_to_window_widgets(window, adv_buttons, style["tool_btn_css"])
         state = advanced_panel_state(window)
         if state is not None:
+            field_box_css = (
+                style["advanced_field_box_windows_css"]
+                if sys.platform.startswith("win")
+                else style["advanced_field_box_css"]
+            )
+            _apply_style_to_widgets(
+                state.grid_widgets.values(),
+                field_box_css,
+            )
             _apply_style_to_widgets(
                 (state.apply_btn, state.clear_btn),
                 style["action_btn_css"],

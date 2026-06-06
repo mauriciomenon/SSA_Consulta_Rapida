@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import sys
 from time import perf_counter
 from typing import Any
 
@@ -141,6 +142,23 @@ def _flatten_field_box(box: QGroupBox) -> None:
         logger.debug("Falha ao achatar box de filtro avancado: %s", exc)
 
 
+def _apply_windows_field_title(box: QGroupBox, title: str) -> bool:
+    if box is None or not sys.platform.startswith("win"):
+        return False
+    try:
+        box.setTitle("")
+        title_label = QLabel(title, box)
+        title_label.setObjectName("advancedFilterFieldTitleLabel")
+        title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        title_label.move(6, 0)
+        title_label.adjustSize()
+        title_label.show()
+        return True
+    except Exception as exc:
+        logger.debug("Falha ao criar titulo Windows de filtro avancado: %s", exc)
+        return False
+
+
 def _safe_len(value: Any) -> int:
     try:
         return len(value)
@@ -157,8 +175,9 @@ def _make_multiselect_box(
 ):
     box = QGroupBox(title)
     _flatten_field_box(box)
+    windows_title = _apply_windows_field_title(box, title)
     layout = QHBoxLayout(box)
-    layout.setContentsMargins(4, 0, 4, 0)
+    layout.setContentsMargins(4, 16 if windows_title else 0, 4, 0)
     layout.setSpacing(2)
     button = QToolButton()
     button.setText(placeholder)
@@ -407,11 +426,13 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
 def _make_reprogramacoes_controls(self, layout_baseline):
     reprog_box = QGroupBox("Reprogramacoes")
     _flatten_field_box(reprog_box)
+    windows_title = _apply_windows_field_title(reprog_box, "Reprogramacoes")
     reprog_layout = QGridLayout(reprog_box)
-    reprog_layout.setContentsMargins(0, 0, 0, 0)
+    reprog_layout.setContentsMargins(0, 16 if windows_title else 0, 0, 0)
     reprog_layout.setHorizontalSpacing(4)
     reprog_layout.setVerticalSpacing(0)
     reprog_mode = QComboBox()
+    reprog_mode.setObjectName("advancedReprogModeCombo")
     reprog_mode.addItem("= Igual", "eq")
     reprog_mode.addItem("<= Menor ou igual", "lte")
     reprog_mode.addItem(">= Maior ou igual", "gte")
@@ -424,10 +445,13 @@ def _make_reprogramacoes_controls(self, layout_baseline):
     try:
         mode_min = max(82, min(110, reprog_min + 6))
         mode_max = max(mode_min + 12, min(126, reprog_max + 10))
+        reprog_control_height = (
+            26 if sys.platform.startswith("win") else LAYOUT_ADV_CONTROL_HEIGHT
+        )
         reprog_mode.setMinimumWidth(mode_min)
         reprog_mode.setMaximumWidth(mode_max)
-        reprog_mode.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        reprog_mode.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        reprog_mode.setMinimumHeight(reprog_control_height)
+        reprog_mode.setMaximumHeight(reprog_control_height)
         reprog_mode.setSizePolicy(
             QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
         )
@@ -467,8 +491,9 @@ def _make_reprogramacoes_controls(self, layout_baseline):
 def _make_week_range_box(title: str):
     week_box = QGroupBox(title)
     _flatten_field_box(week_box)
+    windows_title = _apply_windows_field_title(week_box, title)
     week_layout = QHBoxLayout(week_box)
-    week_layout.setContentsMargins(0, 0, 0, 0)
+    week_layout.setContentsMargins(0, 16 if windows_title else 0, 0, 0)
     week_layout.setSpacing(2)
     week_start = QLineEdit()
     week_start.setPlaceholderText("Ini")
@@ -576,9 +601,18 @@ def _make_advanced_multiselect_fields(self, layout_baseline) -> dict[str, tuple]
 def _make_advanced_macro_box(self):
     macro_box = QGroupBox("Macro")
     _flatten_field_box(macro_box)
+    windows_title = _apply_windows_field_title(macro_box, "Macro")
     macro_layout = QHBoxLayout(macro_box)
-    macro_layout.setContentsMargins(0, 0, 0, 0)
+    macro_layout.setContentsMargins(0, 16 if windows_title else 0, 0, 0)
     macro_combo = QComboBox()
+    macro_combo.setObjectName("advancedMacroCombo")
+    if sys.platform.startswith("win"):
+        macro_combo.setEditable(True)
+        macro_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        macro_line = macro_combo.lineEdit()
+        if macro_line is not None:
+            macro_line.setReadOnly(True)
+            macro_line.setAlignment(Qt.AlignmentFlag.AlignCenter)
     try:
         macro_combo.setMinimumWidth(100)
         macro_combo.setMaximumWidth(240)

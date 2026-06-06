@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import sys
 from typing import Any
 
+from gui.qt_stubs import QLabel
 from utils.robust_logging import get_robust_logger
 
 from .gui_filters_advanced_layout import (
@@ -120,18 +122,24 @@ def enforce_advanced_filters_compact_metrics(window: Any) -> None:
     if state is None or state.group is None:
         return
     grid_widgets = state.grid_widgets
+    field_box_min = (
+        43 if sys.platform.startswith("win") else LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT
+    )
+    field_box_max = (
+        43 if sys.platform.startswith("win") else LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+    )
     for field_box in grid_widgets.values():
-        field_box_height = LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+        field_box_height = field_box_max
         try:
             field_box_height = min(
-                LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT + 8,
+                field_box_max + 8,
                 max(field_box_height, int(field_box.minimumSizeHint().height())),
             )
         except Exception as exc:
             logger.debug("Falha ao medir altura minima de box avancado: %s", exc)
         _set_fixed_height(
             field_box,
-            max(LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT, field_box_height),
+            max(field_box_min, field_box_height),
             field_box_height,
             "box de filtro avancado",
         )
@@ -141,8 +149,16 @@ def enforce_advanced_filters_compact_metrics(window: Any) -> None:
     for control in controls:
         control_height = LAYOUT_ADV_CONTROL_HEIGHT
         try:
+            if (
+                sys.platform.startswith("win")
+                and str(control.objectName()) == "advancedReprogModeCombo"
+            ):
+                control_height = 26
+        except Exception as exc:
+            logger.debug("Falha ao ler nome de controle avancado: %s", exc)
+        try:
             control_height = min(
-                LAYOUT_ADV_CONTROL_HEIGHT + 4,
+                max(control_height, LAYOUT_ADV_CONTROL_HEIGHT + 4),
                 max(control_height, int(control.fontMetrics().height()) + 4),
             )
         except Exception as exc:
@@ -169,8 +185,8 @@ def reorganize_advanced_filters_grid(window: Any, width: int) -> None:
         return
     if _advanced_grid_recently_applied(window, effective_width, max_scroll_h):
         return
-    enforce_advanced_filters_compact_metrics(window)
     apply_advanced_filters_font_policy(window, effective_width)
+    enforce_advanced_filters_compact_metrics(window)
     _store_advanced_grid_viewport_metrics(window, effective_width, max_scroll_h)
     try:
         plan = _build_grid_plan(
@@ -338,6 +354,8 @@ def _build_grid_plan(
     spacing, horizontal_padding, vertical_spacing, vertical_padding = (
         _advanced_grid_spacing_metrics(grid)
     )
+    max_cols = 3 if sys.platform.startswith("win") else LAYOUT_GRID_MAX_COLS
+    preferred_cols = min(LAYOUT_GRID_PREF_COLS, max_cols)
     return build_advanced_grid_layout_plan(
         visible_count=len(visible),
         metrics=AdvancedGridLayoutMetrics(
@@ -350,8 +368,8 @@ def _build_grid_plan(
         ),
         constraints=AdvancedGridLayoutConstraints(
             min_cols=LAYOUT_GRID_MIN_COLS,
-            max_cols=LAYOUT_GRID_MAX_COLS,
-            preferred_cols=LAYOUT_GRID_PREF_COLS,
+            max_cols=max_cols,
+            preferred_cols=preferred_cols,
             field_box_min_height=field_box_min_height,
             field_box_max_height=field_box_max_height,
             max_scroll_height=max_scroll_h,
@@ -413,7 +431,11 @@ def _compute_grid_cell_min_width(
     p75 = widths[p75_idx]
     avg = sum(widths) // len(widths)
     dynamic_baseline = max(p75, avg) + 22
-    result = max(150, min(280, max(min(base_cell_min, 176), dynamic_baseline)))
+    max_cell_min_width = base_cell_min if sys.platform.startswith("win") else 280
+    result = max(
+        150,
+        min(max_cell_min_width, max(min(base_cell_min, 176), dynamic_baseline)),
+    )
     if state is not None:
         state.cell_min_width = result
         state.cell_min_width_widget_key = widget_key
@@ -477,6 +499,14 @@ def _apply_widget_width_cap(widget: Any, width_budget: int, cols: int) -> None:
         max_width = min(max(200, width_budget), 300)
     try:
         widget.setMaximumWidth(max_width)
+        title_label = widget.findChild(QLabel, "advancedFilterFieldTitleLabel")
+        if title_label is not None:
+            title_label.setGeometry(
+                6,
+                0,
+                max(0, int(max_width) - 12),
+                max(16, int(title_label.sizeHint().height()) + 2),
+            )
     except Exception as exc:
         logger.debug("Falha ao limitar largura de box no grid avancado: %s", exc)
 

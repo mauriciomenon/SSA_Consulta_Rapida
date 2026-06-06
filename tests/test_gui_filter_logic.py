@@ -5233,6 +5233,27 @@ class TestGUIFilterLogic:
         assert document is not None
         assert document.documentMargin() == pytest.approx(2.0)
 
+    def test_apply_theme_styles_advanced_field_boxes_with_theme_roles(self):
+        self._set_filter_panel_tab("filters")
+        self.window.apply_theme("mint-light")
+        QApplication.processEvents()
+
+        roles = dict(getattr(self.window, "_current_theme_roles", {}) or {})
+        state = self.window._advanced_filter_panel_state
+
+        for key in ("prog_box", "exec_resp_box", "week_emis_box", "week_exec_box"):
+            widget = state.grid_widgets[key]
+            style = str(widget.styleSheet() or "")
+            assert roles["panel_text"] in style
+            assert roles["panel_bg"] in style
+            assert roles["panel_border"] in style
+            if sys.platform.startswith("win"):
+                assert widget.title() == ""
+                assert "QLabel#advancedFilterFieldTitleLabel" in style
+                title_label = widget.findChild(QLabel, "advancedFilterFieldTitleLabel")
+                assert title_label is not None
+                assert title_label.text()
+
     def test_apply_theme_rebuilds_cached_details_font_when_base_font_changes(self):
         self.window.apply_theme("gruvbox")
         QApplication.processEvents()
@@ -10323,7 +10344,7 @@ class TestGUIFilterLogic:
             assert (
                 advanced_layout.LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT
                 <= widget.height()
-                <= advanced_layout.LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT + 8
+                <= widget.maximumHeight()
             )
             contents_top = int(widget.contentsRect().top())
             min_child_top = contents_top + 2
@@ -10336,6 +10357,20 @@ class TestGUIFilterLogic:
                     assert int(child.geometry().y()) >= min_child_top
                     assert int(child.geometry().bottom()) <= contents_bottom
             assert widget.geometry().y() + widget.geometry().height() <= viewport_height - 4
+        for key in ("prog_box", "exec_resp_box"):
+            widget = state.grid_widgets[key]
+            direct_child_heights = [
+                int(child.height())
+                for child in widget.findChildren(
+                    QtWidgets.QWidget,
+                    options=Qt.FindChildOption.FindDirectChildrenOnly,
+                )
+                if child.isVisible()
+            ]
+            control_height = max(direct_child_heights, default=0)
+            assert widget.height() <= advanced_layout.LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT + 8
+            assert widget.height() >= int(widget.minimumSizeHint().height())
+            assert widget.height() >= control_height + 10
         for control in state.metric_controls:
             if control is not None and control.isVisible():
                 assert control.height() >= int(control.fontMetrics().height()) + 4
@@ -10387,11 +10422,23 @@ class TestGUIFilterLogic:
             assert int(scroll.height()) >= int(usable_adv_height * 0.90)
             assert int(scroll.height()) <= int(self.window.adv_filters_group.height())
             assert scroll.verticalScrollBar().maximum() == 0
+            assert scroll.horizontalScrollBar().maximum() == 0
+            if sys.platform.startswith("win"):
+                assert int(state.grid_cols) <= 3
+                assert self.window.adv_macro_combo.objectName() == "advancedMacroCombo"
+                macro_line = self.window.adv_macro_combo.lineEdit()
+                assert macro_line is not None
+                assert macro_line.isReadOnly()
+                assert macro_line.alignment() & Qt.AlignmentFlag.AlignCenter
+                assert self.window.adv_reprog_mode.objectName() == "advancedReprogModeCombo"
+                assert int(self.window.adv_reprog_mode.height()) >= 26
             assert "action_box" not in state.grid_widgets
             for key in ("emis_box", "exec_box", "status_box", "sol_box", "prog_box", "exec_resp_box"):
                 widget = state.grid_widgets.get(key)
                 assert widget is not None
                 assert widget.isVisible()
+                if sys.platform.startswith("win"):
+                    assert int(widget.height()) >= 43
                 assert widget.geometry().y() + widget.geometry().height() <= scroll.viewport().height() - 4
                 for child in widget.findChildren(
                     QtWidgets.QWidget,
