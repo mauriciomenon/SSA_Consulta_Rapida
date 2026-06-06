@@ -1365,12 +1365,12 @@ class FilterGUISSAMixin:
     def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
         theme = getattr(self, "_current_theme", "") or "dark"
         roles = get_theme_roles(theme)
-        label_color = roles.get("support_text_color") or roles.get("label_color")
+        label_color = roles.get("panel_text") or roles.get("label_color")
         if label_widget is not None:
             label_widget.setStyleSheet(f"color:{label_color};")
         if input_widget is not None:
-            input_text = roles.get("input_text")
-            input_bg = roles.get("input_bg")
+            input_text = roles.get("input_text") or roles.get("panel_text")
+            input_bg = roles.get("panel_bg") or roles.get("input_bg")
             input_border = roles.get("input_border")
             input_focus = roles.get("input_border_focus") or roles.get("accent")
             input_placeholder = roles.get("input_placeholder")

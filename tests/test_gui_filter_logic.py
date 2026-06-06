@@ -2466,6 +2466,33 @@ class TestGUIFilterLogic:
         assert roles["input_border_focus"] in style
         assert roles["input_bg"] in style
 
+    def test_column_filter_text_input_style_uses_panel_theme_roles(self, monkeypatch):
+        roles = {
+            "panel_text": "#102030",
+            "panel_bg": "#eaf4f1",
+            "label_color": "#667788",
+            "input_text": "#eeeeee",
+            "input_bg": "#202020",
+            "input_border": "#a0b0c0",
+            "input_border_focus": "#009688",
+            "input_placeholder": "#708080",
+        }
+        monkeypatch.setattr(filter_mixin, "get_theme_roles", lambda _theme: roles)
+        label = QLabel("Desc. SSA")
+        field = QLineEdit()
+
+        self.window._current_theme = "test-panel-filter"
+        self.window._apply_filter_widget_theme(label, field)
+
+        label_style = str(label.styleSheet() or "")
+        field_style = str(field.styleSheet() or "")
+        assert "color:#102030" in label_style
+        assert "color:#eeeeee" in field_style
+        assert "background:#eaf4f1" in field_style
+        assert "background:#202020" not in field_style
+        assert "#a0b0c0" in field_style
+        assert "#009688" in field_style
+
     def test_header_reorder_updates_visible_columns_order(self):
         if "solicitante" not in self.window.visible_columns:
             self.window.visible_columns.append("solicitante")
