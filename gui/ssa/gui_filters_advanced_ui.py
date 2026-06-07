@@ -99,10 +99,18 @@ _MACRO_EXECUTADAS_DIVISAO_KEY = "ssa_executadas_divisao"
 _is_widget_valid = _is_not_deleted
 
 
-class _MacroComboLineClickFilter(QObject):
-    def __init__(self, line_edit, combo):
-        super().__init__(line_edit)
+class _MacroComboClickFilter(QObject):
+    def __init__(self, parent, combo):
+        super().__init__(parent)
         self._combo = combo
+
+    def _show_popup(self) -> None:
+        if not _is_widget_valid(self._combo):
+            return
+        try:
+            self._combo.showPopup()
+        except RuntimeError as exc:
+            logger.debug("Falha ao abrir popup do filtro macro via clique: %s", exc)
 
     def eventFilter(self, _watched, event):  # noqa: N802
         try:
@@ -112,10 +120,15 @@ class _MacroComboLineClickFilter(QObject):
         if event_type != QEvent.Type.MouseButtonPress:
             return False
         try:
-            self._combo.showPopup()
+            if event.button() != Qt.MouseButton.LeftButton:
+                return False
+        except AttributeError:
+            return False
+        try:
+            QTimer.singleShot(0, self._show_popup)
             event.accept()
         except RuntimeError as exc:
-            logger.debug("Falha ao abrir popup do filtro macro via lineEdit: %s", exc)
+            logger.debug("Falha ao agendar popup do filtro macro via clique: %s", exc)
             return False
         return True
 
@@ -647,15 +660,18 @@ def _make_advanced_macro_box(self):
     if sys.platform.startswith("win"):
         macro_combo.setEditable(True)
         macro_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        macro_click_filter = _MacroComboClickFilter(macro_combo, macro_combo)
+        macro_combo.installEventFilter(macro_click_filter)
+        macro_combo.setProperty("ssa_macro_click_filter", True)
         macro_line = macro_combo.lineEdit()
         if macro_line is not None:
             macro_line.setReadOnly(True)
             macro_line.setAlignment(Qt.AlignmentFlag.AlignCenter)
             macro_line.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             macro_line.setCursor(Qt.CursorShape.PointingHandCursor)
-            macro_click_filter = _MacroComboLineClickFilter(macro_line, macro_combo)
             macro_line.installEventFilter(macro_click_filter)
             macro_line.setProperty("ssa_macro_click_filter", True)
+        macro_combo._ssa_macro_click_filter = macro_click_filter
         macro_combo.setCursor(Qt.CursorShape.PointingHandCursor)
     try:
         macro_combo.setMinimumWidth(100)
@@ -1904,6 +1920,7 @@ def _refresh_advanced_filter_options(self):
             and cache.get("values") is not None
         ):
             _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+            self._adv_options_dirty = False
             return
 
         logger.debug(
@@ -1913,6 +1930,7 @@ def _refresh_advanced_filter_options(self):
             _safe_len(ui_state.values.status_vals),
         )
         _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+        self._adv_options_dirty = False
         try:
             elapsed_ms = (perf_counter() - start) * 1000.0
             logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)

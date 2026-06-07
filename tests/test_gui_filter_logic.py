@@ -2518,8 +2518,9 @@ class TestGUIFilterLogic:
         field_style = str(field.styleSheet() or "")
         assert "color:#102030" in label_style
         assert "color:#eeeeee" in field_style
-        assert "background:#eaf4f1" in field_style
-        assert "background:#202020" not in field_style
+        assert "QLineEdit#columnFilterInput" in field_style
+        assert "background-color:#eaf4f1" in field_style
+        assert "background-color:#202020" not in field_style
         assert "#a0b0c0" in field_style
         assert "#009688" in field_style
 
@@ -5091,33 +5092,24 @@ class TestGUIFilterLogic:
             "MEL4 - Carla",
         ]
 
-    def test_macro_combo_line_event_filter_opens_popup(self):
-        class _FakeCombo:
-            def __init__(self):
-                self.popup_count = 0
+    def test_macro_combo_real_click_opens_popup(self):
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+        combo = self.window.adv_macro_combo
+        target = combo.lineEdit() or combo
 
-            def showPopup(self):
-                self.popup_count += 1
+        combo.hidePopup()
+        combo.show()
+        QApplication.processEvents()
+        cast(Any, QTest).mouseClick(target, Qt.MouseButton.LeftButton)
 
-        class _FakeEvent:
-            def __init__(self, event_type):
-                self._event_type = event_type
-                self.accepted = False
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline and not combo.view().isVisible():
+            QApplication.processEvents()
+            cast(Any, QTest).qWait(10)
 
-            def type(self):
-                return self._event_type
-
-            def accept(self):
-                self.accepted = True
-
-        combo = _FakeCombo()
-        event_filter = advanced_ui._MacroComboLineClickFilter(None, combo)
-        click_event = _FakeEvent(QEvent.Type.MouseButtonPress)
-
-        assert event_filter.eventFilter(None, click_event) is True
-        assert combo.popup_count == 1
-        assert click_event.accepted is True
-        assert event_filter.eventFilter(None, _FakeEvent(QEvent.Type.FocusIn)) is False
+        assert combo.view().isVisible()
+        combo.hidePopup()
 
     def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
         self.window._advanced_filters = {
@@ -5283,6 +5275,25 @@ class TestGUIFilterLogic:
 
         assert refresh_mock.call_count == 1
         assert self.window._adv_options_dirty is False
+
+    def test_theme_refresh_does_not_schedule_advanced_options_rebuild(self):
+        self.window._active_filter_panel_kind = "advanced"
+        self.window._adv_options_dirty = False
+        self.window._pending_theme_refresh_column_filters = ["pending"]
+
+        with patch.object(
+            self.window,
+            "_schedule_adv_options_refresh",
+            side_effect=AssertionError(
+                "troca de tema nao deve reconstruir opcoes avancadas"
+            ),
+        ):
+            self.window.refresh_filter_widgets_after_theme(
+                getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
+            )
+
+        assert self.window._adv_options_dirty is False
+        assert self.window._pending_theme_refresh_column_filters is None
 
     def test_bind_filters_tab_skips_series_lookup_when_render_key_is_unchanged(self):
         ctx = self._panel_context()
@@ -9080,20 +9091,33 @@ class TestGUIFilterLogic:
             None,
         )
 
-        scroll_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        header_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        assert header_widget is not None
+        assert not isinstance(header_widget, QScrollArea)
+        header_labels = [
+            label.text() for label in header_widget.findChildren(QLabel)
+        ]
+        assert header_labels[:3] == ["Responsavel", "Incluir", "Excluir"]
+        header_labels_by_text = {
+            str(label.text() or ""): label
+            for label in header_widget.findChildren(QLabel)
+        }
+        include_label = header_labels_by_text["Incluir"]
+        exclude_label = header_labels_by_text["Excluir"]
+        assert "font-size: 11px" in str(include_label.styleSheet() or "")
+        assert "border" not in str(include_label.styleSheet() or "")
+        assert "border" not in str(exclude_label.styleSheet() or "")
+
+        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
         assert isinstance(scroll_widget, QScrollArea)
         first_widget = scroll_widget.widget()
         assert first_widget is not None
         first_labels = [
             label.text() for label in first_widget.findChildren(QLabel)
         ]
-        assert first_labels[:3] == ["Responsavel", "Incluir", "Excluir"]
-        assert "border" not in str(
-            first_widget.findChildren(QLabel)[1].styleSheet() or ""
-        )
-        assert "border" not in str(
-            first_widget.findChildren(QLabel)[2].styleSheet() or ""
-        )
+        assert "Responsavel" not in first_labels
+        assert "Incluir" not in first_labels[:2]
+        assert "Excluir" not in first_labels[:2]
 
         labels = []
         tooltips = []
@@ -9140,19 +9164,78 @@ class TestGUIFilterLogic:
         )
 
         assert 220 <= int(menu.minimumWidth()) <= 300
-        scroll_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        header_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        assert header_widget is not None
+        header_layout = header_widget.layout()
+        header_labels = {
+            str(label.text() or ""): label
+            for label in header_widget.findChildren(QLabel)
+        }
+        assert int(header_labels["Incluir"].minimumWidth()) == int(
+            header_layout.columnMinimumWidth(1)
+        )
+        assert int(header_labels["Excluir"].minimumWidth()) == int(
+            header_layout.columnMinimumWidth(2)
+        )
+        assert "border" not in str(header_labels["Incluir"].styleSheet() or "")
+        assert "border" not in str(header_labels["Excluir"].styleSheet() or "")
+
+        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
         assert isinstance(scroll_widget, QScrollArea)
         first_widget = scroll_widget.widget()
         assert first_widget is not None
         layout = first_widget.layout()
-        labels = {
-            str(label.text() or ""): label
-            for label in first_widget.findChildren(QLabel)
+        assert int(header_layout.columnMinimumWidth(1)) == int(
+            layout.columnMinimumWidth(1)
+        )
+        assert int(header_layout.columnMinimumWidth(2)) == int(
+            layout.columnMinimumWidth(2)
+        )
+        _, _, header_right_margin, _ = header_layout.getContentsMargins()
+        _, _, scroll_right_margin, _ = layout.getContentsMargins()
+        scrollbar_width = int(scroll_widget.verticalScrollBar().sizeHint().width())
+        assert int(header_right_margin) == int(
+            scroll_right_margin + scrollbar_width
+        )
+
+    def test_multiselect_batch_select_all_syncs_opposite_column_callback(self):
+        button = QPushButton("Selecionar")
+        button.setProperty("filter_name", "Responsavel Execucao")
+        button.setProperty("multiselect_popup_kind", "long")
+        menu = QtWidgets.QMenu()
+        include_events = []
+        exclude_events = []
+
+        checks, exclude_checks = advanced_menu._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            ["Resp A", "Resp B"],
+            set(),
+            lambda: include_events.append("include"),
+            True,
+            {"Resp A"},
+            lambda: exclude_events.append("exclude"),
+        )
+
+        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
+        content = scroll_widget.widget()
+        buttons = {
+            str(child.accessibleName() or ""): child
+            for child in content.findChildren(QPushButton)
         }
-        assert int(labels["Incluir"].minimumWidth()) == int(layout.columnMinimumWidth(1))
-        assert int(labels["Excluir"].minimumWidth()) == int(layout.columnMinimumWidth(2))
-        assert "border" not in str(labels["Incluir"].styleSheet() or "")
-        assert "border" not in str(labels["Excluir"].styleSheet() or "")
+
+        buttons["Selecionar tudo para incluir"].click()
+        assert include_events == ["include"]
+        assert exclude_events == ["exclude"]
+        assert all(check.isChecked() for check in checks)
+        assert all(not check.isChecked() for check in exclude_checks)
+
+        buttons["Selecionar tudo para excluir"].click()
+        assert include_events == ["include", "include"]
+        assert exclude_events == ["exclude", "exclude"]
+        assert all(not check.isChecked() for check in checks)
+        assert all(check.isChecked() for check in exclude_checks)
 
     def test_multiselect_responsavel_popup_caps_width_and_height(self):
         button = QPushButton("Selecionar")
@@ -9177,7 +9260,7 @@ class TestGUIFilterLogic:
         )
 
         assert int(menu.maximumWidth()) <= 390
-        scroll_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
         assert isinstance(scroll_widget, QScrollArea)
         assert int(scroll_widget.maximumHeight()) <= 160
         labels = [
@@ -9210,7 +9293,7 @@ class TestGUIFilterLogic:
             None,
         )
 
-        scroll_widget = cast(Any, menu.actions()[0]).defaultWidget()
+        scroll_widget = cast(Any, menu.actions()[1]).defaultWidget()
         assert isinstance(scroll_widget, QScrollArea)
         assert int(scroll_widget.maximumHeight()) <= 90
 

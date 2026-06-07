@@ -1365,21 +1365,39 @@ class FilterGUISSAMixin:
     def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
         theme = getattr(self, "_current_theme", "") or "dark"
         roles = get_theme_roles(theme)
-        label_color = roles.get("panel_text") or roles.get("label_color")
+        label_color = (
+            roles.get("panel_text") or roles.get("label_color") or "palette(text)"
+        )
         if label_widget is not None:
             label_widget.setStyleSheet(f"color:{label_color};")
         if input_widget is not None:
-            input_text = roles.get("input_text") or roles.get("panel_text")
-            input_bg = roles.get("panel_bg") or roles.get("input_bg")
-            input_border = roles.get("input_border")
-            input_focus = roles.get("input_border_focus") or roles.get("accent")
-            input_placeholder = roles.get("input_placeholder")
-            style = (
-                f"QLineEdit {{ font-size:11px; color:{input_text}; background:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
-                f"QLineEdit::placeholder {{ color:{input_placeholder}; }}\n"
-                f"QLineEdit:focus {{ border:1px solid {input_focus}; }}\n"
+            input_text = (
+                roles.get("input_text") or roles.get("panel_text") or "palette(text)"
             )
-            input_widget.setStyleSheet(style)
+            input_bg = roles.get("panel_bg") or roles.get("input_bg") or "palette(base)"
+            input_border = (
+                roles.get("input_border") or roles.get("panel_border") or "palette(mid)"
+            )
+            input_focus = (
+                roles.get("input_border_focus") or roles.get("accent") or input_border
+            )
+            input_placeholder = (
+                roles.get("input_placeholder") or roles.get("muted_text") or label_color
+            )
+            try:
+                input_widget.setObjectName("columnFilterInput")
+            except RuntimeError as exc:
+                logger.debug("Filtro de coluna destruido ao nomear input: %s", exc)
+                return
+            style = (
+                f"QLineEdit#columnFilterInput {{ font-size:11px; color:{input_text}; background-color:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
+                f"QLineEdit#columnFilterInput::placeholder {{ color:{input_placeholder}; }}\n"
+                f"QLineEdit#columnFilterInput:focus {{ border:1px solid {input_focus}; }}\n"
+            )
+            try:
+                input_widget.setStyleSheet(style)
+            except RuntimeError as exc:
+                logger.debug("Filtro de coluna destruido ao aplicar estilo: %s", exc)
 
     def _resolve_status_totals(
         self,

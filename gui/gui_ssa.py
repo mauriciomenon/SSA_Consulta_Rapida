@@ -920,7 +920,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             context["_theme_name"] = theme_name
 
     def refresh_filter_widgets_after_theme(self, theme_name: str) -> None:
-        self._adv_options_dirty = True
         self._refresh_quick_situacao_buttons()
         quick_executor_combo = getattr(self, "quick_setor_executor_combo", None)
         style_factory = globals().get("_quick_setor_executor_combo_style")
@@ -937,11 +936,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Failed to reapply quick executor combo style after theme refresh: %s",
                     exc,
                 )
-        if getattr(self, "_active_filter_panel_kind", None) == "advanced":
-            self._pending_theme_refresh_column_filters = theme_name
-            self._schedule_adv_options_refresh()
-            return
         self._refresh_column_filter_widgets()
+        roles = dict(getattr(self, "_current_theme_roles", {}) or {})
+        if QT_AVAILABLE and roles and ssa_gui_theme is not None:
+            try:
+                style_bundle = ssa_gui_theme.build_theme_widget_style_bundle(
+                    self.palette(),
+                    roles,
+                    highlight_bg_default=HIGHLIGHT_BACKGROUND_COLOR,
+                    highlight_weight_default=HIGHLIGHT_FONT_WEIGHT,
+                )
+                ssa_gui_theme._apply_advanced_filter_control_styles(
+                    self,
+                    style_bundle.styles,
+                )
+            except (AttributeError, KeyError, RuntimeError, TypeError) as exc:
+                logger.debug(
+                    "Failed to reapply advanced filter styles after theme refresh: %s",
+                    exc,
+                )
         self._pending_theme_refresh_column_filters = None
 
     def _log_tsm_debug(self, event_name: str, *, widget_role: str, obj) -> None:
@@ -1734,7 +1747,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             QTimer.singleShot(0, self._run_adv_options_refresh)
         except Exception as exc:
             logger.warning("Falha ao agendar refresh de filtros avancados: %s", exc)
-            self._adv_options_scheduled = False
             try:
                 self._run_adv_options_refresh()
             except Exception as fallback_exc:
@@ -1744,6 +1756,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
 
     def _run_adv_options_refresh(self):
+        if not getattr(self, "_adv_options_scheduled", False):
+            return
         self._adv_options_scheduled = False
         if getattr(self, "_active_filter_panel_kind", None) != "advanced":
             return
