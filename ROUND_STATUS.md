@@ -1,5 +1,17 @@
 # ROUND_STATUS
 
+## 2026-06-07 STABILITY_PATCH advanced filter popup/theme learning
+
+- Pushed commit: `d1d1dfa80da08900ffc786e6e98801b690310106` (`STABILITY_PATCH: repair advanced filter popup and theme`) on `dev`.
+- Learning: visual GUI claims require evidence from a real popup/window screenshot, not only unit assertions or verbal inspection.
+- Learning: Kluster on a single file can miss cross-file intent; rerun with the full modified-file context before treating an intent finding as real or false.
+- Learning: `QComboBox` with editable/read-only line edit on Windows needs a real `QTest.mouseClick()` smoke for the displayed field, because a fake event filter test can pass while the user click still fails.
+- Learning: theme refresh must reapply QSS to existing widgets without rebuilding advanced filter options; stale queued refresh callbacks must no-op after a direct refresh clears the scheduled flag.
+- Learning: multiselect popup header must stay outside the scroll area; alignment must be verified against checkbox columns while the body scrolls independently.
+- Learning: local or unrelated files (`pyproject.toml`, `uv.lock`, `.vs/`, `docs_entrada/pai_api/`, `package-lock.json`) must remain out of the slice stage unless explicitly requested.
+- Evidence captured: `ssa_responsavel_execucao_popup_evidence_final2.png`, `ssa_por_texto_theme_evidence_final2.png`, and `ssa_macro_popup_evidence_final2.png` under `%TEMP%`.
+- Final gates before push: py_compile, ruff, ty, focused pytest (`44 passed`), Kluster full-context clean, CodeRabbit rerun only reported `.vs/` files outside scope.
+
 ## 2026-06-05 STABILITY_PATCH selecao Windows
 
 - Kluster MCP auto review initial run: clean for first patch set, chat_id `yf495ma2nq8`.
