@@ -1,0 +1,36 @@
+dev_env/build/build_pyoxidizer_debian_arm64.sh
+  s_5ccf43901d99bd::t_a9a1c585c29afe 23,95-98,100
+release.ps1
+  s_5ccf43901d99bd::t_58da1c19e06150 158-194
+  s_5ccf43901d99bd::t_69412721ebbc78 133,144,151,197-200,204-207,210-211
+tests/test_release_entrypoints.py
+  s_5ccf43901d99bd::t_03496ee48d7093 45-49
+tests/test_dev_env_build_scripts.py
+  s_5ccf43901d99bd::t_6b77e353983131 133-135,208-210,233-244
+dev_env/setup_msvc_path.ps1
+  s_5ccf43901d99bd::t_84d2b967d0c4d8 1-3,5,7-10,12-22,24-32,34,37-38,40-47,49-51,55-59,62-70
+tests/test_release_windows_script.py
+  s_5ccf43901d99bd::t_7996333041a6f7 49-52
+dev_env/build/release_windows.ps1
+  s_5ccf43901d99bd::t_af6834b110ef16 593-605
+dev_env/build/build_pyoxidizer.bat
+  s_5ccf43901d99bd::t_cc1cec35935c86 26,183-187,191,194
+dev_env/build/build_pyoxidizer_debian.sh
+  s_5ccf43901d99bd::t_782ea683cd0fc6 23,95-98,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "78504e7d5d19996f2cd8bf5c28a3666bd081e1b1",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
