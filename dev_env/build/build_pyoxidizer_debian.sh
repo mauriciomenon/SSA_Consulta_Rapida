@@ -92,10 +92,18 @@ if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
   echo "Erro: falha ao gerar build_info.json para PyOxidizer debian_amd64" >&2
   exit 1
 fi
-if ! uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer --version >/dev/null 2>&1; then
-  echo "Erro: PyOxidizer indisponivel via uv tool: ${PYOXIDIZER_UV_PACKAGE}" >&2
-  exit 1
-fi
+PYOXIDIZER_CHECK_RETRIES=3
+for ((attempt = 1; attempt <= PYOXIDIZER_CHECK_RETRIES; attempt++)); do
+  if uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer --version >/dev/null 2>&1; then
+    break
+  fi
+  if [[ "${attempt}" == "${PYOXIDIZER_CHECK_RETRIES}" ]]; then
+    echo "Erro: PyOxidizer indisponivel via uv tool: ${PYOXIDIZER_UV_PACKAGE}" >&2
+    exit 1
+  fi
+  echo "Aviso: PyOxidizer indisponivel; nova tentativa ${attempt}/${PYOXIDIZER_CHECK_RETRIES}" >&2
+  sleep 2
+done
 PYOX_CMD=(
   uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer build
   --release

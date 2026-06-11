@@ -130,6 +130,30 @@ def test_release_debian_script_writes_report_and_validates_payloads() -> None:
     assert "hashlib.sha256" in report_script
 
 
+def test_pyoxidizer_debian_scripts_retry_preflight_without_rtk() -> None:
+    for script in (
+        read_repo_text("dev_env", "build", "build_pyoxidizer_debian.sh"),
+        read_repo_text("dev_env", "build", "build_pyoxidizer_debian_arm64.sh"),
+    ):
+        assert "PYOXIDIZER_CHECK_RETRIES=3" in script
+        assert "attempt <= PYOXIDIZER_CHECK_RETRIES" in script
+        assert "nova tentativa ${attempt}/${PYOXIDIZER_CHECK_RETRIES}" in script
+        assert 'rtk uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}"' not in script
+
+
+def test_release_targets_json_rejects_non_object_root(tmp_path, monkeypatch) -> None:
+    invalid_targets = tmp_path / "release_targets.json"
+    invalid_targets.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(REPORT_MODULE, "TARGETS_FILE", invalid_targets)
+
+    with pytest.raises(REPORT_MODULE.ReleaseReportError) as excinfo:
+        REPORT_MODULE._load_release_targets()
+
+    message = str(excinfo.value)
+    assert str(invalid_targets) in message
+    assert "raiz JSON deve ser objeto" in message
+
+
 def test_release_debian_script_checks_dry_run_before_package_phase() -> None:
     script = _script_text()
     local_release_body = section_between(script, "run_local_release()", "\nmain()")
@@ -501,6 +525,18 @@ def test_release_macos_expected_asset_names_cover_dmg_package() -> None:
     )
 
     assert names == {"SSA_Consulta_Rapida_v4.42_macos_arm64.dmg"}
+
+
+def test_release_report_rejects_unknown_platform_for_expected_assets() -> None:
+    with pytest.raises(REPORT_MODULE.ReleaseReportError) as excinfo:
+        REPORT_MODULE._expected_asset_names(
+            "linux_s390x",
+            ["nuitka"],
+            ["tar"],
+            "4.42",
+        )
+
+    assert "platform desconhecido no report: linux_s390x" in str(excinfo.value)
 
 
 def test_release_macos_report_filters_stale_dmg_assets(tmp_path, monkeypatch) -> None:

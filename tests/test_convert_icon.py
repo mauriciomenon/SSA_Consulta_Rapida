@@ -130,6 +130,24 @@ def test_convert_svg_to_ico_uses_rsvg_when_cairosvg_unavailable(monkeypatch):
     assert save_calls
 
 
+def test_convert_svg_to_ico_raises_when_rsvg_fails(monkeypatch):
+    def _fake_import(module_name):
+        if module_name == "PIL.Image":
+            return SimpleNamespace(open=lambda _data: object())
+        return None
+
+    def _fake_run_command(_command):
+        return SimpleNamespace(returncode=1, stdout=b"", stderr=b"conversion failed")
+
+    monkeypatch.setattr(convert_icon, "cairosvg", None)
+    monkeypatch.setattr(convert_icon, "_import_optional_module", _fake_import)
+    monkeypatch.setattr(convert_icon, "_run_command", _fake_run_command)
+    monkeypatch.setattr(convert_icon, "RSVG_CONVERT", "rsvg-convert")
+
+    with pytest.raises(RuntimeError, match="conversion failed"):
+        convert_icon.convert_svg_to_ico("icon.svg", "icon.ico", sizes=[16])
+
+
 def test_import_optional_module_rejects_unexpected_module() -> None:
     with pytest.raises(ValueError, match="Unsupported optional module"):
         convert_icon._import_optional_module("os")

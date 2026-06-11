@@ -460,7 +460,7 @@ def test_github_workflow_external_actions_are_pinned_by_sha() -> None:
         ".github/workflows/release-windows.yml",
         ".github/workflows/secret_scan.yml",
     ]
-    tag_reference = re.compile(r"uses:\s+[\w.-]+/[\w.-]+@v\d+(?:\.\d+)*\b")
+    uses_reference = re.compile(r"^\s*uses:\s+([^#\s]+)")
 
     findings: list[str] = []
     for relative_path in checked_paths:
@@ -468,7 +468,13 @@ def test_github_workflow_external_actions_are_pinned_by_sha() -> None:
             _read_repo_text(*relative_path.split("/")).splitlines(),
             start=1,
         ):
-            if tag_reference.search(line):
+            match = uses_reference.search(line)
+            if match is None:
+                continue
+            reference = match.group(1)
+            if reference.startswith("./"):
+                continue
+            if not re.search(r"@[0-9a-f]{40}$", reference):
                 findings.append(f"{relative_path}:{line_number}: {line.strip()}")
 
     assert findings == []

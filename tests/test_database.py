@@ -568,7 +568,7 @@ def test_query_db_sql_error_returns_empty_df_when_raise_disabled(temp_db_path):
 
 def test_query_db_does_not_log_parameter_values(temp_db_path, caplog):
     """query_db must not expose bound parameter values in diagnostic logs."""
-    secret_param = "secret-param-value"
+    sensitive_param = "private-bound-param-for-log-test"
     with get_db_connection(temp_db_path) as conn:
         conn.execute(
             """
@@ -577,7 +577,7 @@ def test_query_db_does_not_log_parameter_values(temp_db_path, caplog):
             );
             """
         )
-        conn.execute("INSERT INTO teste_log_params (nome) VALUES (?)", (secret_param,))
+        conn.execute("INSERT INTO teste_log_params (nome) VALUES (?)", (sensitive_param,))
         conn.commit()
 
     caplog.set_level(logging.DEBUG, logger="armazenamento.database")
@@ -586,25 +586,27 @@ def test_query_db_does_not_log_parameter_values(temp_db_path, caplog):
         temp_db_path,
         "teste_log_params",
         "SELECT * FROM teste_log_params WHERE nome = ?",
-        params=(secret_param,),
+        params=(sensitive_param,),
     )
 
     assert len(df_result) == 1
-    assert secret_param not in caplog.text
-    assert "1 parametros" in caplog.text
+    success_messages = [record.getMessage() for record in caplog.records]
+    assert all(sensitive_param not in message for message in success_messages)
+    assert any("1 parametros" in message for message in success_messages)
 
     caplog.clear()
     df_error = query_db(
         temp_db_path,
         "teste_log_params",
         "SELECT coluna_inexistente FROM teste_log_params WHERE nome = ?",
-        params=(secret_param,),
+        params=(sensitive_param,),
         raise_on_error=False,
     )
 
     assert df_error.empty
-    assert secret_param not in caplog.text
-    assert "1 parametros" in caplog.text
+    error_messages = [record.getMessage() for record in caplog.records]
+    assert all(sensitive_param not in message for message in error_messages)
+    assert any("1 parametros" in message for message in error_messages)
 
 
 def test_query_db_unexpected_error_is_not_suppressed(temp_db_path, monkeypatch):
@@ -791,6 +793,15 @@ def test_insert_dataframe_to_db_allows_replace_for_generic_table(temp_db_path):
         conn.commit()
 
     assert insert_dataframe_to_db(initial_df, temp_db_path, table_name) is True
+    initial_result = query_db(temp_db_path, table_name)
+    expected_initial_df = initial_df.copy()
+    expected_initial_df["id"] = expected_initial_df["id"].astype("Int64")
+    expected_initial_df["nome"] = expected_initial_df["nome"].astype("string")
+    pd.testing.assert_frame_equal(
+        initial_result.reset_index(drop=True),
+        expected_initial_df,
+    )
+
     assert (
         insert_dataframe_to_db(
             replacement_df, temp_db_path, table_name, if_exists="replace"

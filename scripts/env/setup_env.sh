@@ -41,7 +41,10 @@ install_pyenv_from_verified_installer() {
         return 1
     fi
 
-    installer_path="$(mktemp "${TMPDIR:-/tmp}/pyenv-installer.XXXXXX")"
+    if ! installer_path="$(mktemp "${TMPDIR:-/tmp}/pyenv-installer.XXXXXX")"; then
+        env_log "Failed to create temporary file for pyenv installer."
+        return 1
+    fi
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL https://pyenv.run -o "$installer_path"
     elif command -v wget >/dev/null 2>&1; then

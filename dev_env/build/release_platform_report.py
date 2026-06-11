@@ -61,7 +61,7 @@ def _load_scorecards() -> dict[str, dict[str, object]]:
     return payload
 
 
-def _read_json(path: pathlib.Path) -> dict[str, Any]:
+def _read_json(path: pathlib.Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -178,6 +178,8 @@ def _validate_asset_name_templates(
 
 def _load_release_targets() -> dict[str, Any]:
     payload = _read_json(TARGETS_FILE)
+    if not isinstance(payload, dict):
+        raise ReleaseReportError(f"{TARGETS_FILE} invalido: raiz JSON deve ser objeto")
     _validate_release_targets_payload(payload)
     return payload
 
@@ -385,7 +387,7 @@ def _expected_asset_names(
     backends: list[str],
     packages: list[str],
     app_version: str,
-) -> set[str] | None:
+) -> set[str]:
     if platform_name == "debian_amd64":
         return _expected_debian_asset_names(
             backends,
@@ -409,7 +411,7 @@ def _expected_asset_names(
             app_version,
             "macos_arm64",
         )
-    return None
+    raise ReleaseReportError(f"platform desconhecido no report: {platform_name}")
 
 
 def cmd_print_app_version(args: argparse.Namespace) -> int:
@@ -496,7 +498,7 @@ def write_report(args: argparse.Namespace) -> int:
         path
         for path in sorted(package_dir.iterdir())
         if path.is_file() and path.name.lower().endswith(asset_suffixes)
-        and (expected_asset_names is None or path.name in expected_asset_names)
+        and path.name in expected_asset_names
     ]
     if asset_paths:
         workers = min(4, len(asset_paths))
