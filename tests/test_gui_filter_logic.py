@@ -208,6 +208,39 @@ class TestGUIFilterLogic:
     def _extract_visible_ssa(self):
         return list(self.window.df_exibido["numero_ssa"])
 
+    def _first_persistent_filter_tag_button(self):
+        for i in range(self.window.filter_tags_layout.count()):
+            tag_item = self.window.filter_tags_layout.itemAt(i)
+            tag_widget = tag_item.widget() if tag_item else None
+            tag_layout = tag_widget.layout() if tag_widget else None
+            if tag_layout is None:
+                continue
+            tag_button_item = tag_layout.itemAt(0)
+            tag_button = tag_button_item.widget() if tag_button_item else None
+            if isinstance(tag_button, QPushButton):
+                return tag_button
+        return None
+
+    def _persistent_filter_tag_button_pairs(self):
+        pairs = []
+        for i in range(self.window.filter_tags_layout.count()):
+            tag_item = self.window.filter_tags_layout.itemAt(i)
+            tag_widget = tag_item.widget() if tag_item else None
+            tag_layout = tag_widget.layout() if tag_widget else None
+            if tag_layout is None:
+                continue
+            tag_button_item = tag_layout.itemAt(0)
+            remove_button_item = tag_layout.itemAt(1)
+            tag_button = tag_button_item.widget() if tag_button_item else None
+            remove_button = (
+                remove_button_item.widget() if remove_button_item else None
+            )
+            if isinstance(tag_button, QPushButton) and isinstance(
+                remove_button, QPushButton
+            ):
+                pairs.append((tag_button, remove_button))
+        return pairs
+
     def _wait_until_timer_inactive(self, timer: QTimer, timeout_ms: int = 1000) -> None:
         deadline = time.monotonic() + (timeout_ms / 1000)
         while timer.isActive() and time.monotonic() < deadline:
@@ -5221,6 +5254,134 @@ class TestGUIFilterLogic:
             tag_button = tag_button_item.widget() if tag_button_item else None
             assert tag_button is not None
             assert tag_button.maximumWidth() <= 180
+
+    def test_persistent_filter_tag_describes_column_state_without_terms(self):
+        self.window.persistent_filters = [
+            {
+                "name": "Filtro coluna",
+                "terms": "",
+                "state": {
+                    "search_text": "",
+                    "active_column_filters": {"setor_executor": "MEL4"},
+                    "advanced_filters": {},
+                    "advanced_filters_active": False,
+                },
+            }
+        ]
+
+        self.window.update_filter_tags()
+        QApplication.processEvents()
+
+        tag_button = self._first_persistent_filter_tag_button()
+        assert tag_button is not None
+        assert tag_button.text().strip()
+        assert "*" in tag_button.text()
+        assert "[estado]" not in tag_button.text()
+        tooltip = str(tag_button.toolTip() or "")
+        assert "Clique para aplicar filtro salvo" in tooltip
+        assert "Coluna setor_executor: MEL4" in tooltip
+
+    def test_persistent_filter_tag_describes_advanced_state_without_terms(self):
+        self.window.persistent_filters = [
+            {
+                "name": "Filtro avancado",
+                "terms": "",
+                "state": {
+                    "search_text": "",
+                    "active_column_filters": {},
+                    "advanced_filters": {
+                        "responsavel_execucao": ["Resp Exec A"],
+                        "situacao": ["STE"],
+                    },
+                    "advanced_filters_active": True,
+                },
+            }
+        ]
+
+        self.window.update_filter_tags()
+        QApplication.processEvents()
+
+        tag_button = self._first_persistent_filter_tag_button()
+        assert tag_button is not None
+        assert "*" in tag_button.text()
+        assert "[estado]" not in tag_button.text()
+        tooltip = str(tag_button.toolTip() or "")
+        assert "Avancado responsavel_execucao: Resp Exec A" in tooltip
+        assert "Avancado situacao: STE" in tooltip
+
+    def test_persistent_filter_tag_visuals_stay_compact_with_state_only_filters(self):
+        self.window.persistent_filters = [
+            {
+                "name": f"Filtro combinado {idx}",
+                "terms": "",
+                "state": {
+                    "search_text": "",
+                    "active_column_filters": {"setor_executor": f"MEL{idx}"},
+                    "advanced_filters": {
+                        "responsavel_execucao": [f"Resp Exec {idx}"]
+                    },
+                    "advanced_filters_active": True,
+                },
+            }
+            for idx in range(1, 5)
+        ]
+
+        self.window.update_filter_tags()
+        QApplication.processEvents()
+
+        pairs = self._persistent_filter_tag_button_pairs()
+        assert len(pairs) == 4
+        for tag_button, remove_button in pairs:
+            assert tag_button.objectName() == "persistentFilterTagButton"
+            assert remove_button.objectName() == "persistentFilterRemoveButton"
+            assert tag_button.objectName() != remove_button.objectName()
+            assert tag_button.text().strip()
+            assert "*" in tag_button.text()
+            assert "[estado]" not in tag_button.text()
+            assert remove_button.text() == "X"
+            assert remove_button.maximumWidth() <= 20
+            tooltip = str(tag_button.toolTip() or "")
+            assert "Clique para aplicar filtro salvo" in tooltip
+            assert "Coluna setor_executor:" in tooltip
+            assert "Avancado responsavel_execucao:" in tooltip
+
+    def test_persistent_filter_tag_uses_fallback_for_invisible_name(self):
+        self.window.persistent_filters = [
+            {
+                "name": "\u200b",
+                "terms": "",
+                "state": {
+                    "search_text": "",
+                    "active_column_filters": {"situacao": "STE"},
+                    "advanced_filters": {},
+                    "advanced_filters_active": False,
+                },
+            }
+        ]
+
+        self.window.update_filter_tags()
+        QApplication.processEvents()
+
+        tag_button = self._first_persistent_filter_tag_button()
+        assert tag_button is not None
+        assert tag_button.text().startswith("Filtro salvo")
+        assert tag_button.text().strip()
+        assert "Coluna situacao: STE" in str(tag_button.toolTip() or "")
+
+    def test_legacy_persistent_filter_tag_keeps_terms_description(self):
+        self.window.persistent_filters = [
+            {"name": "Legado", "terms": "Teste C"}
+        ]
+
+        self.window.update_filter_tags()
+        QApplication.processEvents()
+
+        tag_button = self._first_persistent_filter_tag_button()
+        assert tag_button is not None
+        assert tag_button.text() == "Legado"
+        tooltip = str(tag_button.toolTip() or "")
+        assert "Busca: Teste C" in tooltip
+        assert "[estado]" not in tag_button.text()
 
     def test_persistent_filter_deduplicates_state_with_set_values(self):
         with (
