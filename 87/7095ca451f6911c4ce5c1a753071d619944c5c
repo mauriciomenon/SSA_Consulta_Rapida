@@ -1,0 +1,24 @@
+dev_env/build/release_platform_report.py
+  s_5ccf43901d99bd::t_2d9a3aec29b34c 47,55,57-60,95-106,114,133-136,143-155,164-165
+  s_5ccf43901d99bd::t_894ff7378c4b40 344-366,389-394
+dev_env/build/release_targets.json
+  s_5ccf43901d99bd::t_449ce549e08f4d 9-10,50-54,83-85
+tests/test_release_debian_script.py
+  s_5ccf43901d99bd::t_bbe1f3b759c48d 301,323-332,348-350,441-449,495-530
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "877095ca451f6911c4ce5c1a753071d619944c5c",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
