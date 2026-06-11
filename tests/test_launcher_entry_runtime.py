@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import runpy
 import shutil
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -246,6 +248,7 @@ def test_launcher_runtime_helper_does_not_leak_ssa_environment(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    real_python = sys.executable
     namespace = _run_entry_as_nuitka(
         monkeypatch,
         tmp_path,
@@ -257,6 +260,22 @@ def test_launcher_runtime_helper_does_not_leak_ssa_environment(
     assert "SSA_RUNTIME_ROOT" in runtime_env
     for key in SSA_ENV_KEYS:
         assert key not in os.environ
+    child_result = subprocess.run(  # nosec B603
+        [
+            real_python,
+            "-c",
+            (
+                "import json, os; "
+                f"keys = {SSA_ENV_KEYS!r}; "
+                "print(json.dumps([key for key in keys if key in os.environ]))"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert child_result.returncode == 0
+    assert json.loads(child_result.stdout) == []
 
 
 def test_cli_entry_pyinstaller_runtime_uses_meipass_bundle_root(

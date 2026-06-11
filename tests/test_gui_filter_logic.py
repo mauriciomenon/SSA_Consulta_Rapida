@@ -4977,6 +4977,84 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters["setor_executor"] == "MEL4"
         assert self.window._exclude_ste_sca is True
 
+    def test_persistent_filter_save_snapshot_failure_warns_without_saving(self):
+        with (
+            patch.object(
+                self.window,
+                "_snapshot_filter_state",
+                side_effect=RuntimeError("snapshot failed"),
+            ),
+            patch.object(QMessageBox, "warning") as warning_mock,
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText"
+            ) as name_mock,
+        ):
+            self.window.save_current_filter()
+
+        assert self.window.persistent_filters == []
+        assert not os.path.exists(self._saved_filters_path)
+        assert name_mock.call_count == 0
+        assert warning_mock.call_count == 1
+        assert warning_mock.call_args.args[1] == "Erro"
+        assert "Nao foi possivel ler o filtro atual" in warning_mock.call_args.args[2]
+
+    def test_persistent_filter_apply_copy_failure_warns_and_preserves_undo(self):
+        controller = self.window._get_persistent_filter_ui_controller()
+        saved_filter = {
+            "name": "Filtro quebrado",
+            "terms": "",
+            "state": {
+                "search_text": "",
+                "active_column_filters": {"setor_executor": "MEL4"},
+            },
+        }
+        original_undo = {"search_text": "undo original"}
+        self.window._last_filter_state = original_undo
+
+        with (
+            patch.object(
+                controller,
+                "copy_filter_mapping",
+                side_effect=RuntimeError("copy failed"),
+            ),
+            patch.object(QMessageBox, "warning") as warning_mock,
+        ):
+            self.window.apply_persistent_filter(saved_filter)
+
+        assert self.window._last_filter_state is original_undo
+        assert self.window._active_column_filters.get("setor_executor") != "MEL4"
+        assert warning_mock.call_count == 1
+        assert warning_mock.call_args.args[1] == "Erro"
+        assert "Nao foi possivel aplicar o filtro salvo" in warning_mock.call_args.args[2]
+
+    def test_persistent_filter_apply_restore_failure_warns_and_preserves_undo(self):
+        saved_filter = {
+            "name": "Filtro quebrado",
+            "terms": "",
+            "state": {
+                "search_text": "",
+                "active_column_filters": {"setor_executor": "MEL4"},
+            },
+        }
+        original_undo = {"search_text": "undo original"}
+        self.window._last_filter_state = original_undo
+
+        with (
+            patch.object(
+                self.window,
+                "_restore_last_filter_state",
+                side_effect=RuntimeError("restore failed"),
+            ),
+            patch.object(QMessageBox, "warning") as warning_mock,
+        ):
+            self.window.apply_persistent_filter(saved_filter)
+
+        assert self.window._last_filter_state is original_undo
+        assert self.window._active_column_filters.get("setor_executor") != "MEL4"
+        assert warning_mock.call_count == 1
+        assert warning_mock.call_args.args[1] == "Erro"
+        assert "Nao foi possivel aplicar o filtro salvo" in warning_mock.call_args.args[2]
+
     def test_persistent_filter_save_materializes_pending_responsavel_execucao(self):
         df = self.base_df.assign(
             responsavel_execucao=[

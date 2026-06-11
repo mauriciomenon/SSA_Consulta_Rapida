@@ -67,7 +67,16 @@ class PersistentFilterUiController:
                     "Falha ao sincronizar filtros avancados antes de salvar filtro: %s",
                     exc,
                 )
-        current_state = self.window._snapshot_filter_state()
+        try:
+            current_state = self.window._snapshot_filter_state()
+        except Exception as exc:
+            logger.warning("Falha ao capturar filtro atual para salvar: %s", exc)
+            QMessageBox.warning(
+                qt_parent(self.window),
+                "Erro",
+                "Nao foi possivel ler o filtro atual para salvar.",
+            )
+            return
         current_text = str(current_state.get("search_text", "") or "").strip()
         if not self._has_filter_state(current_state, current_text):
             QMessageBox.information(
@@ -411,10 +420,20 @@ class PersistentFilterUiController:
                 exc,
             )
             undo_state_before_apply = None
-        self.window._restore_last_filter_state(
-            self.copy_filter_mapping(filter_data["state"]),
-            consume_undo=False,
-        )
+        try:
+            restored_state = self.copy_filter_mapping(filter_data["state"])
+            self.window._restore_last_filter_state(
+                restored_state,
+                consume_undo=False,
+            )
+        except Exception as exc:
+            logger.warning("Falha ao aplicar filtro persistente salvo: %s", exc)
+            QMessageBox.warning(
+                qt_parent(self.window),
+                "Erro",
+                "Nao foi possivel aplicar o filtro salvo.",
+            )
+            return
         refresh_quick_situacao = getattr(
             self.window, "_refresh_quick_situacao_buttons", None
         )
