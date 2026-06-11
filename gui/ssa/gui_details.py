@@ -1050,11 +1050,12 @@ def _close_current_derivadas_context(window) -> None:
 
 
 def _handle_derivadas_context_graph_click(window, watched: Any, target: str) -> None:
-    source_ssa = None
-    context_state = getattr(window, "_details_context_state", None)
-    if isinstance(context_state, dict) and watched is context_state.get("graph_label"):
-        source_ssa = str(context_state.get("current_ssa") or "") or None
-    _open_derivadas_context_panel(window, target, source_ssa=source_ssa)
+    _ = watched
+    jump_handler = getattr(window, "_jump_to_ssa", None)
+    if callable(jump_handler):
+        jump_handler(target, _allow_refilter=False)
+        return
+    _jump_to_ssa(window, target, _allow_refilter=False)
 
 
 def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
@@ -1112,7 +1113,7 @@ def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
     graph_label.setTextFormat(Qt.TextFormat.RichText)
     graph_label.setStyleSheet("border:none; background:transparent;")
     graph_label.setFixedHeight(360)
-    graph_label.setToolTip("Clique em uma SSA do grafo para abrir no contexto")
+    graph_label.setToolTip("Clique em uma SSA do grafo para abrir na tabela")
     graph_label.setSizePolicy(
         QSizePolicy.Policy.Expanding,
         QSizePolicy.Policy.Fixed,
