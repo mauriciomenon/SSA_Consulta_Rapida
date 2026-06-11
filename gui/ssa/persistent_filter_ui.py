@@ -118,6 +118,13 @@ class PersistentFilterUiController:
                 "Informe um nome para salvar o filtro.",
             )
             return
+        if self._filter_name_exists(filter_name):
+            QMessageBox.information(
+                qt_parent(self.window),
+                "Aviso",
+                "Ja existe um filtro salvo com este nome.",
+            )
+            return
 
         new_filter = {
             "name": filter_name,
@@ -353,6 +360,16 @@ class PersistentFilterUiController:
         return any(
             not char.isspace() and unicodedata.category(char) != "Cf"
             for char in text
+        )
+
+    def _filter_name_exists(self, filter_name: str) -> bool:
+        normalized_name = filter_name.strip().casefold()
+        if not normalized_name:
+            return False
+        return any(
+            str(filter_data.get("name") or "").strip().casefold() == normalized_name
+            for filter_data in getattr(self.window, "persistent_filters", []) or []
+            if isinstance(filter_data, dict)
         )
 
     @staticmethod

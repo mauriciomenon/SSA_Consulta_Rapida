@@ -155,6 +155,10 @@ def test_persist_gui_preferences_async_restarts_without_blocking_join(monkeypatc
         def is_stopped(self):
             return True
 
+        @property
+        def is_terminated(self):
+            return True
+
         def shutdown(self, *, timeout=None):
             raise AssertionError("restart must not join the stopped writer")
 
@@ -179,6 +183,44 @@ def test_persist_gui_preferences_async_restarts_without_blocking_join(monkeypatc
     )
 
     assert gui_preferences_persistence.persist_gui_preferences_async({"theme": "dark"})
+    assert captured == [{"theme": "dark"}]
+
+
+def test_persist_gui_preferences_async_does_not_overlap_stopping_writer(monkeypatch):
+    from gui.ssa import gui_preferences_persistence
+
+    captured: list[dict] = []
+
+    class _StoppingWriter:
+        @property
+        def is_stopped(self):
+            return True
+
+        @property
+        def is_terminated(self):
+            return False
+
+        def persist_async(self, gui_prefs):
+            captured.append(gui_prefs)
+            return False
+
+    def _new_writer(*_args, **_kwargs):
+        raise AssertionError("must not create a second writer before termination")
+
+    monkeypatch.setattr(
+        gui_preferences_persistence,
+        "_GUI_PREFERENCES_WRITER",
+        _StoppingWriter(),
+    )
+    monkeypatch.setattr(
+        gui_preferences_persistence,
+        "PreferencesWriter",
+        _new_writer,
+    )
+
+    assert not gui_preferences_persistence.persist_gui_preferences_async(
+        {"theme": "dark"}
+    )
     assert captured == [{"theme": "dark"}]
 
 

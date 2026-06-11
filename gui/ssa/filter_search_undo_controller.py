@@ -66,7 +66,8 @@ def _snapshot_search_text(window: Any) -> str:
         if active_display is None:
             return ""
         return str(active_display).strip()
-    except RuntimeError:
+    except RuntimeError as exc:
+        logger.debug("Falha ao capturar texto de busca para snapshot: %s", exc)
         return ""
 
 

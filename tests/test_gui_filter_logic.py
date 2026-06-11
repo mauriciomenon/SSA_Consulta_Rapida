@@ -58,6 +58,20 @@ from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
 
 
+def test_snapshot_search_text_logs_deleted_widget_runtime_error(caplog):
+    from gui.ssa.filter_search_undo_controller import _snapshot_search_text
+
+    class _BrokenWindow:
+        @property
+        def _active_filter_search_display(self):
+            raise RuntimeError("wrapped C/C++ object has been deleted")
+
+    with caplog.at_level("DEBUG"):
+        assert _snapshot_search_text(_BrokenWindow()) == ""
+
+    assert "Falha ao capturar texto de busca para snapshot" in caplog.text
+
+
 class _RetiredWorkerGlobalsSnapshot(TypedDict):
     data_loader_workers: list[Any]
     data_loader_meta: dict[Any, Any]
@@ -5220,6 +5234,31 @@ class TestGUIFilterLogic:
 
         assert self.window.search_input.text() == "Teste C"
         assert self.window.df_exibido["numero_ssa"].tolist() == [3]
+
+    def test_persistent_filter_save_rejects_duplicate_manual_name(self):
+        with (
+            patch.object(QMessageBox, "information") as info_mock,
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                side_effect=[("Minha consulta", True), (" minha consulta ", True)],
+            ) as name_mock,
+        ):
+            self.window.search_input.setText("Teste A")
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+            self.window.save_current_filter()
+
+            self.window.search_input.setText("Teste B")
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+            self.window.save_current_filter()
+
+        assert name_mock.call_count == 2
+        assert len(self.window.persistent_filters) == 1
+        assert self.window.persistent_filters[0]["name"] == "Minha consulta"
+        assert info_mock.call_args_list[-1].args[2] == (
+            "Ja existe um filtro salvo com este nome."
+        )
 
     def test_persistent_filter_restores_search_situacao_and_quick_visual_state(self):
         scenario_df = self.base_df.copy()
