@@ -1,0 +1,27 @@
+launchers/SSA_Consulta_Rapida_3.10_CLI.cmd
+  s_5ccf43901d99bd::t_e045afdcfce7b5 5
+launchers/SSA_Consulta_Rapida_3.10_GUI.cmd
+  s_5ccf43901d99bd::t_0dbdd3beefda3c 5
+launchers/launcher_ssa_consulta_rapida_gui.bat
+  s_5ccf43901d99bd::t_ce48423cd4f7fe 2-14
+launchers/launcher_ssa_consulta_rapida_cli.bat
+  s_5ccf43901d99bd::t_c2d33c2feb6708 2-14
+tests/test_dev_env_build_scripts.py
+  s_5ccf43901d99bd::t_9b07c3e0f1e420 247-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a326fcedc38e839b03fbe4f5b701950989ff4b80",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
