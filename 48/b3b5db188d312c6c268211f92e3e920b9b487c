@@ -1,0 +1,23 @@
+tests/test_shell_ci_contracts.py
+  s_5ccf43901d99bd::t_c44d2f9918d2ae 228-250
+scripts/env/setup_env.sh
+  s_5ccf43901d99bd::t_ec3d701072ff2b 10-12,22-68,70,74-78,87-88,123-124,127-129
+scripts/env/setup_env.ps1
+  s_5ccf43901d99bd::t_15e0689ab61e09 7-9,30,34-37,47-57,59-66,79-80,106-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "48b3b5db188d312c6c268211f92e3e920b9b487c",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
