@@ -298,6 +298,7 @@ def test_release_targets_json_defines_validated_targets() -> None:
         "appimage",
         "tar",
         "zip",
+        "dmg",
     ]
     assert REPORT_MODULE._enabled_target_names(
         REPORT_MODULE._load_release_targets(),
@@ -319,6 +320,16 @@ def test_release_targets_json_defines_validated_targets() -> None:
         "packages",
         "debian_arm64",
     ) == ["deb", "appimage", "tar"]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "backends",
+        "macos_arm64",
+    ) == ["pyinstaller"]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "packages",
+        "macos_arm64",
+    ) == ["dmg"]
     assert REPORT_MODULE._unsupported_pair_reason(
         REPORT_MODULE._load_release_targets(),
         "debian_amd64",
@@ -333,6 +344,9 @@ def test_release_targets_json_defines_validated_targets() -> None:
     )
     assert payload["asset_name_templates"]["debian_arm64"]["deb"] == (
         "ssa-consulta-rapida-{backend}-arm64_{app_version}_arm64.deb"
+    )
+    assert payload["asset_name_templates"]["macos_arm64"]["dmg"] == (
+        "SSA_Consulta_Rapida_v{app_version}_macos_arm64.dmg"
     )
 
 
@@ -424,6 +438,15 @@ def test_release_target_reason_rejects_disabled_target_pair() -> None:
             )
         )
 
+    with pytest.raises(REPORT_MODULE.ReleaseReportError, match="backend invalido"):
+        REPORT_MODULE.print_release_target_reason(
+            argparse.Namespace(
+                platform="macos_arm64",
+                backend="nuitka",
+                package="dmg",
+            )
+        )
+
 
 def test_release_debian_expected_asset_names_cover_supported_package_matrix() -> None:
     names = REPORT_MODULE._expected_debian_asset_names(
@@ -467,6 +490,44 @@ def test_release_debian_arm64_expected_asset_names_cover_supported_package_matri
         "SSA_Consulta_Rapida_v4.42_debian_arm64_nuitka_gui.tar.gz",
         "SSA_Consulta_Rapida_v4.42_debian_arm64_pyoxidizer.tar.gz",
     }
+
+
+def test_release_macos_expected_asset_names_cover_dmg_package() -> None:
+    names = REPORT_MODULE._expected_macos_asset_names(
+        ["pyinstaller"],
+        ["dmg"],
+        "4.42",
+    )
+
+    assert names == {"SSA_Consulta_Rapida_v4.42_macos_arm64.dmg"}
+
+
+def test_release_macos_report_filters_stale_dmg_assets(tmp_path, monkeypatch) -> None:
+    package_dir = tmp_path / "builds" / "packages" / "macos_arm64"
+    package_dir.mkdir(parents=True)
+    current = package_dir / "SSA_Consulta_Rapida_v4.42_macos_arm64.dmg"
+    stale = package_dir / "SSA_Consulta_Rapida_v4.41_macos_arm64.dmg"
+    current.write_bytes(b"current")
+    stale.write_bytes(b"stale")
+
+    monkeypatch.setattr(REPORT_MODULE, "_sha256", lambda _path: "0" * 64)
+    report_file = tmp_path / "report.json"
+
+    result = REPORT_MODULE.write_report(
+        argparse.Namespace(
+            repo_root=tmp_path,
+            report_file=report_file,
+            platform="macos_arm64",
+            backends="pyinstaller",
+            packages="dmg",
+            app_version="4.42",
+            git_commit="abc",
+        )
+    )
+
+    payload = json.loads(report_file.read_text(encoding="utf-8"))
+    assert result == 0
+    assert [asset["name"] for asset in payload["assets"]] == [current.name]
 
 
 def test_release_report_normalizes_csv_arguments() -> None:
