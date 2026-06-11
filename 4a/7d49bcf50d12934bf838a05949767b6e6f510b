@@ -1,0 +1,23 @@
+dev_env/build/release_platform_report.py
+  s_5ccf43901d99bd::t_61c52bc8493b30 115-124,147-159,171
+tests/test_convert_icon.py
+  s_5ccf43901d99bd::t_61c52bc8493b30 68,121,142
+tests/test_database.py
+  s_5ccf43901d99bd::t_61c52bc8493b30 172,177,182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4a7d49bcf50d12934bf838a05949767b6e6f510b",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
