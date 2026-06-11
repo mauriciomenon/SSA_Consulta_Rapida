@@ -367,11 +367,24 @@ class TestGUIFilterLogic:
 
     def test_top_toolbar_exposes_sam_button_and_filtered_status_box(self):
         sam_button = getattr(self.window, "open_sam_button", None)
+        generate_button = getattr(self.window, "load_button", None)
+        load_xls_button = getattr(self.window, "api_button", None)
         filtered_status = getattr(self.window, "filtered_status_label", None)
         rescan_button = getattr(self.window, "rescan_button", None)
 
         assert sam_button is not None
         assert str(sam_button.text() or "") == "Abrir SAM"
+        assert generate_button is not None
+        assert str(generate_button.text() or "") == "Gerar xls"
+        assert load_xls_button is not None
+        assert str(load_xls_button.text() or "") == "Carregar xls"
+        toolbar = getattr(self.window, "_top_toolbar_layout", None)
+        assert toolbar is not None
+        assert [toolbar.itemAt(index).widget() for index in range(3)] == [
+            sam_button,
+            generate_button,
+            load_xls_button,
+        ]
         assert filtered_status is not None
         assert str(filtered_status.text() or "") == "0 de 0 SSAs"
         assert rescan_button is not None
@@ -643,7 +656,23 @@ class TestGUIFilterLogic:
 
         captured: dict[str, Any] = {}
 
+        class _Screen:
+            @staticmethod
+            def availableGeometry() -> QRect:
+                return QRect(0, 0, 1280, 720)
+
+        monkeypatch.setattr(
+            gui_ssa.QApplication,
+            "primaryScreen",
+            staticmethod(lambda: _Screen()),
+        )
+
         def _fake_exec(dialog):
+            captured["dialog_size"] = (dialog.width(), dialog.height())
+            captured["dialog_max_size"] = (
+                dialog.maximumWidth(),
+                dialog.maximumHeight(),
+            )
             labels = [widget.text() for widget in dialog.findChildren(QLabel)]
             checks = {
                 str(widget.objectName() or ""): widget.text()
@@ -698,6 +727,9 @@ class TestGUIFilterLogic:
         self.window._open_preferences_dialog()
 
         assert selector_calls == ["open"]
+        assert captured["dialog_size"] == (860, 520)
+        assert captured["dialog_max_size"][0] >= 860
+        assert captured["dialog_max_size"][1] >= 520
         assert captured["labels"][:7] == [
             "Tema",
             "Modo da busca",
@@ -8459,6 +8491,39 @@ class TestGUIFilterLogic:
 
         assert result is True
         assert opened == ["https://osprd.itaipu/SAM_SMA/"]
+
+    def test_generate_xls_button_opens_sam_reports_page(self, monkeypatch):
+        opened = []
+
+        monkeypatch.setattr(
+            QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        result = self.window._open_sam_reports_xls_page()
+
+        assert result is True
+        assert opened == [
+            "https://apps.itaipu.gov.br/SAM_SMA_Reports/Reports.aspx",
+        ]
+        assert (
+            str(self.window.status_label.text() or "")
+            == "Status: Relatorio XLS aberto no navegador."
+        )
+
+    def test_load_xls_button_uses_external_import_handler(self, monkeypatch):
+        calls = []
+
+        monkeypatch.setattr(
+            self.window,
+            "import_external_excel_files",
+            lambda: calls.append("import"),
+        )
+
+        self.window.api_button.click()
+
+        assert calls == ["import"]
 
     def test_open_url_in_browser_blocks_file_scheme(self, monkeypatch):
         opened: list[str] = []

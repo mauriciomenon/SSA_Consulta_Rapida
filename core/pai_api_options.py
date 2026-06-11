@@ -125,7 +125,7 @@ def _has_scraper_data_scope(scopes: tuple[str, ...]) -> bool:
 def default_pai_api_settings() -> dict[str, Any]:
     default_secret_service = _default_secret_service()
     return {
-        PAI_API_ENABLED_KEY: True,
+        PAI_API_ENABLED_KEY: False,
         PAI_API_SCRAP_ENABLED_KEY: True,
         PAI_API_AUTO_REFRESH_ENABLED_KEY: False,
         PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: (
@@ -200,7 +200,7 @@ def normalize_pai_api_options(raw_settings: Mapping[str, Any] | None) -> PaiApiG
         missing_default=PAI_API_DEFAULT_DATA_SCOPES,
     )
     return PaiApiGuiOptions(
-        enabled=bool(settings.get(PAI_API_ENABLED_KEY, True)),
+        enabled=bool(settings.get(PAI_API_ENABLED_KEY, False)),
         scrap_report_enabled=bool(settings.get(PAI_API_SCRAP_ENABLED_KEY, True)),
         auto_refresh_enabled=bool(
             settings.get(PAI_API_AUTO_REFRESH_ENABLED_KEY, False)

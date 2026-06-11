@@ -1368,9 +1368,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.open_sam_button.clicked.connect(self._open_sam_home)
         toolbar_layout.addWidget(cast(Any, self.open_sam_button))
 
-        self.load_button = QPushButton("Carregar Dados")
-        self.load_button.setToolTip("Carregar dados do banco de dados existente")
-        self.load_button.clicked.connect(self.load_data)
+        # Temporary release shortcut: generate XLS in SAM instead of loading DB here.
+        self.load_button = QPushButton("Gerar xls")
+        self.load_button.setToolTip("Abrir relatorio SAM para gerar XLS no navegador")
+        self.load_button.clicked.connect(self._open_sam_reports_xls_page)
         toolbar_layout.addWidget(cast(Any, self.load_button))
 
         # Botões de ações
@@ -1381,9 +1382,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.rescan_button.clicked.connect(self.rescan_data)
         self.rescan_button.hide()
 
-        self.api_button = QPushButton("API")
-        self.api_button.setToolTip("Atualizar dados via SAM API por setor executor")
-        self.api_button.clicked.connect(self.refresh_data_from_api)
+        # Temporary release shortcut: load XLS/XLSX through the existing importer.
+        self.api_button = QPushButton("Carregar xls")
+        self.api_button.setToolTip("Importar arquivo XLS ou XLSX externo")
+        self.api_button.clicked.connect(lambda: self.import_external_excel_files())
         toolbar_layout.addWidget(cast(Any, self.api_button))
 
         self.update_derivadas_button = None
@@ -3322,6 +3324,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             QMessageBox.warning(self, "Erro", "Falha ao abrir o SAM no navegador.")
         return opened
 
+    def _open_sam_reports_xls_page(self):
+        opened = ssa_system_controller.open_sam_reports(
+            qdesktopservices=QDesktopServices,
+            qurl_cls=QUrl,
+            logger=logger,
+        )
+        if opened and hasattr(self, "status_label"):
+            self.status_label.setText("Status: Relatorio XLS aberto no navegador.")
+        if not opened and not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.warning(
+                self,
+                "Erro",
+                "Falha ao abrir o relatorio XLS do SAM no navegador.",
+            )
+        return opened
+
     def _open_sam_ssa(self, numero_ssa: str):
         safe_numero = self._normalize_ssa_value(numero_ssa)
         opened, safe_numero = ssa_system_controller.open_sam_ssa(
@@ -3697,10 +3715,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if screen is not None and hasattr(screen, "availableGeometry"):
                 available = screen.availableGeometry()
                 safe_width = max(640, int(available.width()) - 24)
-                safe_height = max(520, int(available.height()) - 24)
+                safe_height = max(480, int(available.height()) - 24)
                 dialog.setMaximumWidth(safe_width)
                 dialog.setMaximumHeight(safe_height)
-                dialog.resize(min(1360, safe_width), min(920, safe_height))
+                dialog.resize(min(860, safe_width), min(520, safe_height))
         except Exception as exc:
             logger.debug("Falha ao limitar altura da tela de preferencias: %s", exc)
         try:
@@ -4076,11 +4094,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         cast(Any, grid).setColumnStretch(3, 1)
         cast(Any, grid).setColumnStretch(4, 0)
         cast(Any, grid).setColumnStretch(5, 1)
-        preferences_numeric_field_width = 152
-        interface_first_column_field_width = 180
+        preferences_numeric_field_width = 120
+        interface_first_column_field_width = 150
         label_alignment = (
             cast(Any, Qt).AlignmentFlag.AlignRight
             | cast(Any, Qt).AlignmentFlag.AlignVCenter
+        )
+        ignored_size_policy = getattr(
+            cast(Any, QSizePolicy.Policy),
+            "Ignored",
+            QSizePolicy.Policy.Preferred,
         )
 
         theme_label = QLabel("Tema")
@@ -4114,7 +4137,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if QT_AVAILABLE and "QListView" in globals():
             search_mode_combo.setView(QListView(cast(Any, search_mode_combo)))
         search_mode_combo.setObjectName("preferencesSearchModeCombo")
-        search_mode_combo.setMinimumWidth(140)
+        search_mode_combo.setMinimumWidth(120)
         search_mode_combo.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Fixed),
             cast(Any, QSizePolicy.Policy.Fixed),
@@ -4234,7 +4257,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.addWidget(cast(Any, columns_label), 2, 4, label_alignment)
         columns_button = QPushButton("Colunas")
         columns_button.setObjectName("preferencesColumnsButton")
-        columns_button.setMinimumWidth(120)
+        columns_button.setMinimumWidth(100)
         columns_button.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Fixed),
             cast(Any, QSizePolicy.Policy.Fixed),
@@ -4243,6 +4266,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Abrir configuracao de colunas visiveis e larguras da tabela"
         )
         grid.addWidget(cast(Any, columns_button), 2, 5)
+        for label in (
+            theme_label,
+            search_mode_label,
+            debounce_label,
+            page_size_label,
+            window_width_label,
+            window_height_label,
+            alignment_label,
+            cache_size_label,
+            columns_label,
+        ):
+            label.setWordWrap(True)
+            label.setSizePolicy(
+                cast(Any, ignored_size_policy),
+                cast(Any, QSizePolicy.Policy.Fixed),
+            )
         interface_layout.addLayout(cast(Any, grid))
         content_layout.addWidget(cast(Any, interface_group))
 
@@ -4407,6 +4446,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_security_info = QLabel(api_security_info_text)
         api_security_info.setObjectName("preferencesPaiApiSecurityInfoLabel")
         api_security_info.setWordWrap(True)
+        api_security_info.setSizePolicy(
+            cast(Any, ignored_size_policy),
+            cast(Any, QSizePolicy.Policy.Fixed),
+        )
         api_security_info.setStyleSheet(
             f"color: {support_text_color}; border:1px solid palette(mid);"
             "border-radius:4px; padding:4px 6px;"
@@ -4625,6 +4668,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         footer_label.setObjectName("preferencesFooterLabel")
         footer_label.setStyleSheet(
             f"color: {footer_text_color}; background: transparent; font-weight:600;"
+        )
+        footer_label.setWordWrap(True)
+        footer_label.setSizePolicy(
+            cast(Any, ignored_size_policy),
+            cast(Any, QSizePolicy.Policy.Fixed),
         )
 
         button_flags = cast(Any, QDialogButtonBox.StandardButton.Ok)
@@ -5763,7 +5811,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Sucesso",
                     (
                         f"Banco de dados selecionado: {os.path.basename(db_file)}\n\n"
-                        "Clique em 'Carregar Dados' para carregar os dados."
+                        "Clique em 'Carregar xls' para importar um arquivo externo."
                     ),
                 )
             return result
