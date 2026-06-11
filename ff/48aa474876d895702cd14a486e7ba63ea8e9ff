@@ -1,0 +1,34 @@
+dev_env/build/release_platform_report.py
+  s_5ccf43901d99bd::t_27b4ae3b7aad90 64,181-182,390,414,501
+tests/test_release_debian_script.py
+  s_5ccf43901d99bd::t_7af01bb6b4d9e5 133-156,530-539
+dev_env/build/build_pyoxidizer_debian_arm64.sh
+  s_5ccf43901d99bd::t_27b4ae3b7aad90 95-106
+tests/test_shell_ci_contracts.py
+  s_5ccf43901d99bd::t_7af01bb6b4d9e5 463,471-477
+dev_env/build/build_pyoxidizer_debian.sh
+  s_5ccf43901d99bd::t_27b4ae3b7aad90 95-106
+scripts/env/setup_env.sh
+  s_5ccf43901d99bd::t_27b4ae3b7aad90 44-47
+tests/test_database.py
+  s_5ccf43901d99bd::t_6bbc2aa3095094 571,580,589,594,602,608
+  s_5ccf43901d99bd::t_7af01bb6b4d9e5 593,595,607,609,796-804
+tests/test_convert_icon.py
+  s_5ccf43901d99bd::t_7af01bb6b4d9e5 133-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ff48aa474876d895702cd14a486e7ba63ea8e9ff",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
