@@ -4488,6 +4488,39 @@ class TestGUIFilterLogic:
         assert Counter(self._extract_visible_ssa()) == Counter([1, 4, 5])
         assert self.window.clear_filter_button.isEnabled() is True
 
+    def test_clear_all_filters_repaints_table_when_render_signature_is_stale(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        assert getattr(self.window, "_last_table_render_signature", None) is not None
+
+        situacao_col = self.window._current_display_columns.index("situacao")
+        descricao_col = self.window._current_display_columns.index("descricao_ssa")
+        for row in range(self.window.table_widget.rowCount()):
+            for col in (situacao_col, descricao_col):
+                item = self.window.table_widget.item(row, col)
+                assert item is not None
+                item.setText("")
+
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert self.window.table_widget.rowCount() == len(self.base_df)
+        assert self.window.table_widget.updatesEnabled() is True
+        assert not any(
+            self.window.table_widget.isRowHidden(row)
+            for row in range(self.window.table_widget.rowCount())
+        )
+        assert all(
+            self.window.table_widget.columnWidth(col) > 0
+            for col in range(self.window.table_widget.columnCount())
+        )
+        assert self.window.table_widget.item(0, situacao_col).text().strip()
+        assert self.window.table_widget.item(0, descricao_col).text().strip()
+
     def test_refresh_after_filter_change_updates_clear_button_state(self):
         self.window.clear_filter_button.setEnabled(False)
         self.window._active_column_filters["descricao_ssa"] = "Teste A"

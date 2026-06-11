@@ -1768,6 +1768,7 @@ class FilterGUISSAMixin:
     def _render_filter_reset_baseline(self) -> None:
         """Render the full dataset after a full filter reset through one path."""
         self.df_exibido = self.df_completo
+        self._last_table_render_signature = None
         try:
             self.paginator.current_page = 1
         except Exception as exc:
