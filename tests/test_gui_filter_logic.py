@@ -70,6 +70,7 @@ def test_snapshot_search_text_logs_deleted_widget_runtime_error(caplog):
         assert _snapshot_search_text(_BrokenWindow()) == ""
 
     assert "Falha ao capturar texto de busca para snapshot" in caplog.text
+    assert "wrapped C/C++ object has been deleted" in caplog.text
 
 
 class _RetiredWorkerGlobalsSnapshot(TypedDict):
@@ -5256,6 +5257,7 @@ class TestGUIFilterLogic:
         assert name_mock.call_count == 2
         assert len(self.window.persistent_filters) == 1
         assert self.window.persistent_filters[0]["name"] == "Minha consulta"
+        assert self.window.persistent_filters[0]["terms"] == "Teste A"
         assert info_mock.call_args_list[-1].args[2] == (
             "Ja existe um filtro salvo com este nome."
         )

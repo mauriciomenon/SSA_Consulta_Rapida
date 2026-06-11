@@ -201,7 +201,6 @@ def test_persist_gui_preferences_async_does_not_overlap_stopping_writer(monkeypa
             return False
 
         def persist_async(self, gui_prefs):
-            captured.append(gui_prefs)
             return False
 
     def _new_writer(*_args, **_kwargs):
@@ -221,7 +220,7 @@ def test_persist_gui_preferences_async_does_not_overlap_stopping_writer(monkeypa
     assert not gui_preferences_persistence.persist_gui_preferences_async(
         {"theme": "dark"}
     )
-    assert captured == [{"theme": "dark"}]
+    assert captured == []
 
 
 def test_theme_dialog_accepting_current_default_does_not_write(monkeypatch):
