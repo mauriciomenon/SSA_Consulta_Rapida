@@ -428,6 +428,29 @@ def test_github_actions_do_not_install_python_or_npm_packages_dynamically() -> N
     assert findings == []
 
 
+def test_github_workflow_external_actions_are_pinned_by_sha() -> None:
+    checked_paths = [
+        ".github/workflows/codeql.yml",
+        ".github/workflows/dependency-review.yml",
+        ".github/workflows/minimal-ci.yml",
+        ".github/workflows/opencode.yml",
+        ".github/workflows/release-windows.yml",
+        ".github/workflows/secret_scan.yml",
+    ]
+    tag_reference = re.compile(r"uses:\s+[\w.-]+/[\w.-]+@v\d+(?:\.\d+)*\b")
+
+    findings: list[str] = []
+    for relative_path in checked_paths:
+        for line_number, line in enumerate(
+            _read_repo_text(*relative_path.split("/")).splitlines(),
+            start=1,
+        ):
+            if tag_reference.search(line):
+                findings.append(f"{relative_path}:{line_number}: {line.strip()}")
+
+    assert findings == []
+
+
 def test_code_quality_documents_dynamic_dependency_submission_status() -> None:
     docs = _read_repo_text(".github", "CODE_QUALITY.md")
 
