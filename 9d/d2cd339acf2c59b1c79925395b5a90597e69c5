@@ -1,0 +1,25 @@
+requirements_build.txt
+  s_5ccf43901d99bd::t_4c031e70f87579 5
+requirements_ci.txt
+  s_5ccf43901d99bd::t_4c031e70f87579 10-11,13
+pyproject.toml
+  s_5ccf43901d99bd::t_4c031e70f87579 52-53,55,59,67,79-80,82
+requirements_dev.txt
+  s_5ccf43901d99bd::t_4c031e70f87579 11-12,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "9dd2cd339acf2c59b1c79925395b5a90597e69c5",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
