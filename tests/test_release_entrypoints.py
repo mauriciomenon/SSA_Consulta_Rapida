@@ -125,8 +125,11 @@ def test_root_release_bash_routes_by_os_and_cleans_macos_before_build() -> None:
     all_block = section_between(target_case, "all)", ";;\nesac")
     assert 'if [[ "$(uname -s)" == "Darwin" ]]; then' in all_block
     assert_before(all_block, 'run_macos_release "${ROOT}"', 'run_debian_release "${ROOT}"')
+    assert_before(all_block, 'run_debian_release "${ROOT}"', 'run_debian_arm64_release "${ROOT}"')
+    assert_before(all_block, 'run_debian_arm64_release "${ROOT}"', 'elif [[ "$(uname -s)" == "Linux" ]]')
     assert 'aarch64 | arm64) run_debian_arm64_release "${ROOT}"' in all_block
     assert 'x86_64 | amd64) run_debian_release "${ROOT}"' in all_block
+    assert "Debian amd64/arm64 remoto pulado" in all_block
 
 
 def test_distribution_doc_prefers_simple_entrypoints() -> None:
