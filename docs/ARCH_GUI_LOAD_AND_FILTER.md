@@ -1,7 +1,7 @@
 # ARCH GUI LOAD AND FILTER (legacy pointer)
 
 Documento legado mantido para compatibilidade de referencias antigas.
-Fonte ativa no baseline atual `v4.37`:
+Fonte ativa no baseline atual `v4.42`:
 
 1. `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
 2. `docs/FILTER_TAB_OPTIMIZATIONS.md`

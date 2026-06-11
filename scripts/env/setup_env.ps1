@@ -25,7 +25,7 @@ function Test-PyenvInstalled {
 
 function Install-Pyenv {
     Write-EnvLog "pyenv não encontrado. Instalando pyenv-win..."
-    
+
     if (Test-Path "$env:USERPROFILE\.pyenv") {
         if ($Force) {
             Write-EnvLog "Removendo instalação existente..."
@@ -36,17 +36,17 @@ function Install-Pyenv {
             return $false
         }
     }
-    
+
     try {
         Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/pyenv-win/pyenv-win/master/pyenv-win/install-pyenv-win.ps1" -OutFile "$env:TEMP\install-pyenv-win.ps1"
         & "$env:TEMP\install-pyenv-win.ps1"
-        
+
         # Adicionar ao PATH da sessão atual
         $env:PYENV = "$env:USERPROFILE\.pyenv\pyenv-win"
         $env:PYENV_ROOT = "$env:USERPROFILE\.pyenv\pyenv-win"
         $env:PYENV_HOME = "$env:USERPROFILE\.pyenv\pyenv-win"
         $env:PATH = "$env:PYENV\bin;$env:PYENV\shims;$env:PATH"
-        
+
         Write-EnvLog "pyenv-win instalado! Reinicie o terminal ou recarregue o perfil."
         return $true
     } catch {
@@ -77,7 +77,7 @@ if (Test-Path $pythonVersionFile) {
     $pythonVersion = (Get-Content $pythonVersionFile).Trim()
     Write-EnvLog "Versão Python no .python-version: $pythonVersion"
 } else {
-    $pythonVersion = "3.13.9"
+    $pythonVersion = "3.13.12"
     Write-EnvLog "Criando .python-version com $pythonVersion"
     Set-Content -Path $pythonVersionFile -Value $pythonVersion
 }
@@ -100,7 +100,7 @@ if (-not $SkipPyenv -and (Test-PyenvInstalled)) {
     } else {
         Write-EnvLog "Python $pythonVersion já instalado"
     }
-    
+
     # Configurar versão local
     Set-Location $repoRoot
     pyenv local $pythonVersion

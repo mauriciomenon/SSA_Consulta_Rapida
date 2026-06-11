@@ -1,6 +1,6 @@
 # BUILD SYSTEM - SSA Consulta Rapida v4.0.0
 
-## CURRENT TRUTH (4.37 local / v4.36 published)
+## CURRENT TRUTH (4.42 local / v4.36 published)
 
 - Sync deste guia: `2026-03-11 22:25 -0300`.
 - Este arquivo e historico e nao representa o fluxo atual de release.

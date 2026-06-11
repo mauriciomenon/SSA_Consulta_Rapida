@@ -1,7 +1,7 @@
 # ARCH IMPORT PIPELINE (legacy pointer)
 
 Documento legado mantido para compatibilidade de referencias antigas.
-Fonte ativa no baseline atual `v4.37`:
+Fonte ativa no baseline atual `v4.42`:
 
 1. `docs/ARQUITETURA_IMPORTACAO.md`
 2. `docs/TROUBLESHOOTING_IMPORTACAO.md`

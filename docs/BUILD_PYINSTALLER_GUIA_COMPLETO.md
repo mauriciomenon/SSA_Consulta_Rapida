@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (baseline v4.37)
+## CURRENT TRUTH (baseline v4.42)
 
 - Sync deste guia: `2026-04-15 15:45 -0300`.
 - Caminho operacional principal:
@@ -35,7 +35,7 @@ Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
 > operacional atual deste guia fica no bloco `CURRENT TRUTH`.
 
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.11.0
+**Projeto**: SSA_Consulta_Rapida v4.42
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: MSYS2 UCRT64 / CMD / PowerShell
 
@@ -102,7 +102,7 @@ Evite PyInstaller quando:
 ### Python
 
 ```
-Versao: 3.13.7 (recomendado) ou 3.8-3.12
+Versao: 3.13.12 (recomendado) ou 3.8-3.13
 Gerenciador: pyenv-win (recomendado) ou instalacao manual
 Localizacao: C:\Users\menon\.pyenv\pyenv-win\
 ```
@@ -110,7 +110,7 @@ Localizacao: C:\Users\menon\.pyenv\pyenv-win\
 **Verificacao**:
 ```bash
 python --version
-# Saida esperada: Python 3.13.7
+# Saida esperada: Python 3.13.12
 
 which python
 # Saida esperada: /c/Users/menon/.pyenv/pyenv-win/shims/python
@@ -294,7 +294,7 @@ SSA_Consulta_Rapida/
 
 **core/version.py**:
 ```python
-APP_VERSION = "4.11.0"
+APP_VERSION = "4.42"
 APP_NAME = "SSA Consulta Rapida"
 ```
 
@@ -519,7 +519,7 @@ PyInstaller mostra:
 
 ```
 1 INFO: PyInstaller: 6.16.0
-2 INFO: Python: 3.13.7
+2 INFO: Python: 3.13.12
 3 INFO: Platform: Windows-10-10.0.26100-SP0
 ...
 100 INFO: Analyzing main.py
@@ -563,7 +563,7 @@ cd builds/pyinstaller
 
 # Teste 1: Versao
 ./SSA_Consulta_Rapida.exe --version
-# Esperado: 4.11.0
+# Esperado: 4.42
 
 # Teste 2: Help
 ./SSA_Consulta_Rapida.exe --help
@@ -1133,7 +1133,7 @@ Python 3.8 suporta Windows 7+.
 | Build Time | 2 min | 3 min (10 min primeira vez) |
 | Startup | Rapido | Muito rapido |
 | Complexidade | Baixa | Alta |
-| Python Version | 3.13.7 | 3.10.9 fixo |
+| Python Version | 3.13.12 | 3.10.9 fixo |
 | Debugging | Facil | Dificil |
 | Comunidade | Grande | Media |
 
@@ -1240,12 +1240,12 @@ VSVersionInfo(
         u'040904B0',
         [StringStruct(u'CompanyName', u'SSA'),
         StringStruct(u'FileDescription', u'SSA Consulta Rapida'),
-        StringStruct(u'FileVersion', u'4.11.0'),
+        StringStruct(u'FileVersion', u'4.42'),
         StringStruct(u'InternalName', u'SSA_Consulta_Rapida'),
         StringStruct(u'LegalCopyright', u'Copyright 2025'),
         StringStruct(u'OriginalFilename', u'SSA_Consulta_Rapida.exe'),
         StringStruct(u'ProductName', u'SSA Consulta Rapida'),
-        StringStruct(u'ProductVersion', u'4.11.0')])
+        StringStruct(u'ProductVersion', u'4.42')])
       ]
     ),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])

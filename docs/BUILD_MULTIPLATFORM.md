@@ -2,7 +2,7 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (4.41 local release candidate)
+## CURRENT TRUTH (4.42 local release candidate)
 
 - Sync deste guia: `2026-05-22 09:22 -0300`.
 - Relatorio consolidado deste ciclo:
@@ -60,7 +60,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## Nota de versao
 
-Exemplos de nomes versionados neste documento usam v4.41 como baseline atual.
+Exemplos de nomes versionados neste documento usam v4.42 como baseline atual.
 No fluxo ativo, usar a versao corrente definida em `VERSION` e `config/version.json`.
 
 ## Estrutura de Build
@@ -87,14 +87,14 @@ launchers/
 │       └── build_config.json   # Config PyInstaller Linux ARM64
 ├── dist/                       # Executaveis gerados
 │   ├── windows_amd64/
-│   │   ├── SSA_CLI_v4.41_windows_amd64.exe
-│   │   └── SSA_GUI_v4.41_windows_amd64.exe
+│   │   ├── SSA_CLI_v4.42_windows_amd64.exe
+│   │   └── SSA_GUI_v4.42_windows_amd64.exe
 │   ├── macos_arm64/
-│   │   ├── SSA_CLI_v4.41_macos_arm64
-│   │   └── SSA_GUI_v4.41_macos_arm64.app
+│   │   ├── SSA_CLI_v4.42_macos_arm64
+│   │   └── SSA_GUI_v4.42_macos_arm64.app
 │   └── debian_amd64/
-│       ├── SSA_CLI_v4.41_debian_amd64
-│       └── SSA_GUI_v4.41_debian_amd64
+│       ├── SSA_CLI_v4.42_debian_amd64
+│       └── SSA_GUI_v4.42_debian_amd64
 └── resources/                  # Recursos compartilhados
     ├── app_icon.ico            # Icone Windows
     ├── app_icon.icns           # Icone macOS
@@ -201,9 +201,9 @@ SSA_{CLI|GUI}_v{versao}_{plataforma}_{arquitetura}.{extensao}
 ```
 
 Exemplo:
-- `SSA_CLI_v4.41_windows_amd64.exe`
-- `SSA_GUI_v4.41_macos_arm64.app`
-- `SSA_CLI_v4.41_debian_amd64`
+- `SSA_CLI_v4.42_windows_amd64.exe`
+- `SSA_GUI_v4.42_macos_arm64.app`
+- `SSA_CLI_v4.42_debian_amd64`
 
 ### Empacotamento Debian no baseline atual
 
@@ -222,14 +222,14 @@ Cada build gera um `build_manifest.json` dentro da pasta da plataforma:
 ```json
 {
   "platform": "macos_arm64",
-  "version": "4.41",
+  "version": "4.42",
   "build_date": "2026-05-22T12:00:00.000000",
   "executables": [
     {
-      "name": "SSA_GUI_v4.41_macos_arm64.app",
+      "name": "SSA_GUI_v4.42_macos_arm64.app",
       "kind": "directory",
       "size_mb": 42.1,
-      "path": "macos_arm64/SSA_GUI_v4.41_macos_arm64.app"
+      "path": "macos_arm64/SSA_GUI_v4.42_macos_arm64.app"
     }
   ]
 }

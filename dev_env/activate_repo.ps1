@@ -46,7 +46,7 @@ $requestedVariant = if ($Variant) {
     'stable'
 }
 
-$stableVersion = if ($env:SSA_PYTHON_STABLE_VERSION) { $env:SSA_PYTHON_STABLE_VERSION } else { '3.13.7' }
+$stableVersion = if ($env:SSA_PYTHON_STABLE_VERSION) { $env:SSA_PYTHON_STABLE_VERSION } else { '3.13.12' }
 $ftVersion = if ($env:SSA_PYTHON_FT_VERSION) { $env:SSA_PYTHON_FT_VERSION } else { '3.14-dev' }
 
 switch ($requestedVariant.ToLowerInvariant()) {

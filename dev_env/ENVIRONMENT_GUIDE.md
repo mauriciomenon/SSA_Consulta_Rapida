@@ -16,7 +16,7 @@ Este documento complementa o `README.md` do diretorio `dev_env` e descreve em de
    2. variaveis `SSA_PYTHON_VARIANT` ou `SSA_USE_FREE_THREADED`;
    3. padr?o `stable` (produ??o).
 3. Se `pyenv` e `pyenv-virtualenv` estiverem presentes:
-   - Garante que a vers?o (`3.13.7` ou `3.14-dev`) esteja instalada.
+   - Garante que a versao (`3.13.12` ou `3.14-dev`) esteja instalada.
    - Cria/ativa o virtualenv `ssa_consulta_{variant}_{versao}`.
 4. Se pyenv nao estiver disponivel:
    - Cria `.venv` ou `.venv_ft` por meio de `python -m venv`.
@@ -25,7 +25,7 @@ Este documento complementa o `README.md` do diretorio `dev_env` e descreve em de
 6. Um log `[env] python ...` informa a versao e a origem (`pyenv-virtualenv`, `pyenv`, `venv`).
 
 ## 3. Variantes disponiveis
-- **stable** (padr?o): versao definida em `.python-version` (hoje `3.13.7`).
+- **stable** (padrao): versao definida em `.python-version` (hoje `3.13.12`).
 - **free-threaded**: usa `SSA_PYTHON_FT_VERSION` (default `3.14-dev`) para builds `--disable-gil`.
 
 Para trocar manualmente:
@@ -54,11 +54,10 @@ $env:SSA_PYTHON_VARIANT = 'free-threaded'
 
 ## 6. Restauro manual
 Se o ambiente corromper:
-1. Remova o virtualenv: `pyenv virtualenv-delete ssa_consulta_stable_3.13.7` (ajuste a vers?o).
+1. Remova o virtualenv: `pyenv virtualenv-delete ssa_consulta_stable_3.13.12` (ajuste a versao).
 2. Reentre na pasta ou rode `. ./activate_repo.sh` / `. .\activate_repo.ps1` para recriar.
 3. Se necessario, exclua `.venv` ou `.venv_ft` e repita o passo anterior.
 
 Com isso, o setup permanece previsivel em Windows, WSL Debian e macOS.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

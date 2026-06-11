@@ -35,7 +35,20 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - `display_current_page(...)` continua concentrando responsabilidades demais.
 - O risco agudo dos call sites principais caiu, mas qualquer refatoracao nessa area segue devendo slice proprio e pequeno.
 
-## **RELEASE v4.37 - CURRENT LOCAL BASELINE**
+## **RELEASE v4.42 - CURRENT LOCAL BASELINE**
+
+**Data de Lancamento**: Junho 2026
+**Tipo**: Stabilization baseline and release alignment
+**Status**: Baseline local ativo
+
+### **Principais entregas**
+- Baseline operacional promovido para `4.42`.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json` e `pyproject.toml`.
+- Filtros persistentes preservam imediatamente selecoes avancadas visiveis antes de salvar.
+- Encerramento benigno de `FilterWorker` ja deletado deixa de poluir log como warning.
+- Documentacao operacional e testes de empacotamento alinhados aos nomes versionados `v4.42`.
+
+## **RELEASE v4.37 - HISTORICAL LOCAL BASELINE**
 
 **Data de Lancamento**: Abril 2026
 **Tipo**: Stabilization baseline and release alignment
@@ -674,7 +687,8 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.37**: Baseline estavel local ativo
+- **v4.42**: Baseline estavel local ativo
+- **v4.37**: Baseline local historico
 - **v4.36**: Ultima tag publicada
 - **v4.31**: Suporte de compatibilidade em migracao
 - **Versoes anteriores**: Tratadas como historico
@@ -685,7 +699,7 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de referencia mais recente no baseline atual (`4.37`).
+Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de referencia mais recente no baseline atual (`4.42`).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
 

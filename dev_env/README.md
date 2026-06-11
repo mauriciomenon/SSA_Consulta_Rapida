@@ -3,7 +3,7 @@
 Este diretorio descreve o fluxo unificado de ambiente. A meta eh funcionar igual em PowerShell (Windows 11), bash/zsh (WSL Debian) e macOS, sem abandonar o fallback em `.venv` quando o pyenv nao estiver instalado.
 
 ## Visao geral
-- `.envrc` inicializa tudo: tenta pyenv + pyenv-virtualenv, garante a versao estavel (`3.13.7`, lida de `.python-version` se existir) e ativa o virtualenv `ssa_consulta_stable_<versao>`.
+- `.envrc` inicializa tudo: tenta pyenv + pyenv-virtualenv, garante a versao estavel (`3.13.12`, lida de `.python-version` se existir) e ativa o virtualenv `ssa_consulta_stable_<versao>`.
 - A variante "free-threaded" usa `SSA_PYTHON_VARIANT=free-threaded` (ou `SSA_USE_FREE_THREADED=1`) e provisiona `3.14-dev` por padrao (`SSA_PYTHON_FT_VERSION` pode ajustar).
 - Sem pyenv, o fluxo cria `.venv` (ou `.venv_ft` para a variante livre do GIL) com `python -m venv` e ativa automaticamente.
 - O PATH recebe `scripts/` e `scripts_manutencao/`, alem de exportar `PYTHONUTF8=1` e `PYTHONDONTWRITEBYTECODE=1`.
@@ -22,7 +22,7 @@ Sem direnv, rode `source ./activate_repo.sh` (pode definir `SSA_PYTHON_VARIANT=f
 - `activate_env.ps1` continua disponivel e delega para `activate_repo.ps1`.
 
 ### Variantes suportadas
-- **stable** (padrao): usa `SSA_PYTHON_STABLE_VERSION` (default 3.13.7 ou o valor de `.python-version`).
+- **stable** (padrao): usa `SSA_PYTHON_STABLE_VERSION` (default 3.13.12 ou o valor de `.python-version`).
 - **free-threaded**: liga o build 3.14 `--disable-gil`. Ajuste com `SSA_PYTHON_FT_VERSION` se for usar outro rotulo do pyenv.
 
 ## Notas praticas
@@ -36,4 +36,3 @@ Sem direnv, rode `source ./activate_repo.sh` (pode definir `SSA_PYTHON_VARIANT=f
 
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

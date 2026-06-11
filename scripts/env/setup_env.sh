@@ -74,7 +74,7 @@ if [[ -f "$python_version_file" ]]; then
     python_version=$(cat "$python_version_file" | tr -d '\r' | tr -d '\n')
     env_log "Versão Python no .python-version: $python_version"
 else
-    python_version="3.13.9"
+    python_version="3.13.12"
     env_log "Criando .python-version com $python_version"
     echo "$python_version" > "$python_version_file"
 fi

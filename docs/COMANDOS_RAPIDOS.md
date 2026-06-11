@@ -1,8 +1,8 @@
-# Comandos Rapidos - SSA Consulta Rapida v4.37
+# Comandos Rapidos - SSA Consulta Rapida v4.42
 
 ## Sync desta folha (2026-03-26 07:35 -0300)
 
-1. Este runbook continua valido para baseline `v4.37`.
+1. Este runbook continua valido para baseline `v4.42`.
 2. Fluxo de importacao recomendado:
    - incremental: `--force-rescan`
    - full rescan: `--reset-db`

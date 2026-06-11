@@ -1,4 +1,4 @@
-# Arquitetura de Importacao (Baseline v4.37)
+# Arquitetura de Importacao (Baseline v4.42)
 
 Este documento descreve a arquitetura ativa de importacao no baseline atual.
 

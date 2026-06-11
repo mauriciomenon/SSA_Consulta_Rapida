@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (baseline v4.37)
+## CURRENT TRUTH (baseline v4.42)
 
 - Sync deste guia: `2026-04-15 15:45 -0300`.
 - Fluxo canonico Nuitka (sempre via uv wrappers):
@@ -30,7 +30,7 @@ Quando houver conflito com docs operacionais, prevalece CURRENT TRUTH.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.11.0
+**Projeto**: SSA_Consulta_Rapida v4.42
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (PATH limpo)
 
@@ -73,7 +73,7 @@ Nuitka compila Python em C:
 **Vantagens**:
 - **Performance**: Executavel C nativo (10-30% mais rapido)
 - **Startup**: Instantaneo (sem descompressao)
-- **Compatibilidade**: Usa Python do sistema (3.13.7)
+- **Compatibilidade**: Usa Python do sistema (3.13.12)
 - **Otimizacoes**: Compilador aplica otimizacoes agressivas
 - **Standalone**: Tudo em um diretorio
 
@@ -115,7 +115,7 @@ Evite Nuitka quando:
 ### Python
 
 ```
-Versao: 3.13.7 (recomendado) ou 3.8-3.13
+Versao: 3.13.12 (recomendado) ou 3.8-3.13
 Gerenciador: pyenv-win (recomendado)
 Localizacao: C:\Users\menon\.pyenv\pyenv-win\
 ```
@@ -125,10 +125,10 @@ Localizacao: C:\Users\menon\.pyenv\pyenv-win\
 **Verificacao**:
 ```bash
 python --version
-# Saida esperada: Python 3.13.7
+# Saida esperada: Python 3.13.12
 
 python -c "import sys; print(sys.executable)"
-# Saida: C:\Users\menon\.pyenv\pyenv-win\versions\3.13.7\python.exe
+# Saida: C:\Users\menon\.pyenv\pyenv-win\versions\3.13.12\python.exe
 ```
 
 ### Compilador C (CRITICO)
@@ -503,7 +503,7 @@ cd c:/Users/menon/git/SSA_Consulta_Rapida
 
 # Verificar Python
 python --version
-# Esperado: 3.13.7
+# Esperado: 3.13.12
 
 # Verificar Nuitka
 python -m nuitka --version
@@ -654,7 +654,7 @@ cd builds/nuitka
 
 # Teste 1: Versao
 ./main.exe --version
-# Esperado: 4.11.0
+# Esperado: 4.42
 
 # Teste 2: Help
 ./main.exe --help
@@ -1019,7 +1019,7 @@ Primeira build:
 
 ### 6. Compatibilidade e Excelente
 
-Nuitka usa Python do sistema (3.13.7):
+Nuitka usa Python do sistema (3.13.12):
 - Todas features do Python 3.13
 - Compatibilidade maxima com bibliotecas
 - Sem restricoes de versao
@@ -1220,7 +1220,7 @@ python -m nuitka ^
 | Exe Size | 142 MB | 3.4 MB |
 | Build Time | 15 min | 3 min |
 | Performance | C nativo | Python 3.10 normal |
-| Python Version | 3.13.7 | 3.10.9 fixo |
+| Python Version | 3.13.12 | 3.10.9 fixo |
 | Complexidade | Alta | Muito Alta |
 
 **Recomendacao**:
@@ -1236,7 +1236,7 @@ python -m nuitka ^
 | Total Size | 385 MB | 343 MB | 388 MB |
 | Startup | Rapido | Muito rapido | Instantaneo |
 | Performance | Normal | Normal | 10-30% melhor |
-| Python Ver | 3.13.7 | 3.10.9 | 3.13.7 |
+| Python Ver | 3.13.12 | 3.10.9 | 3.13.12 |
 | Debugging | Facil | Dificil | Dificil |
 | Complexidade | Baixa | Alta | Alta |
 
@@ -1302,7 +1302,7 @@ python -m nuitka ^
 [ ] python313.dll presente
 [ ] Qt6*.dll presentes
 [ ] config/ e data/ copiados
-[ ] Teste: main.exe --version (mostra 4.11.0)
+[ ] Teste: main.exe --version (mostra 4.42)
 [ ] Teste: main.exe --help (mostra ajuda)
 [ ] Teste: main.exe --gui (abre interface)
 [ ] Startup e instantaneo (< 1 segundo)
