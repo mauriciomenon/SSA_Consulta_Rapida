@@ -273,11 +273,12 @@ def test_release_debian_script_exposes_backend_scorecard() -> None:
     scorecard_text = SCORECARD_FILE.read_text(encoding="utf-8")
 
     assert "get_backend_scorecard" in script
-    assert "security_score" in report_script
-    assert "source_protection_score" in report_script
-    assert "easy_user_dirs_score" in report_script
-    assert "package_size_score" in report_script
+    assert "scorecards[backend]" in report_script
     assert "backend_scorecards.json" in report_script
+    assert "security_score" in scorecard_text
+    assert "source_protection_score" in scorecard_text
+    assert "easy_user_dirs_score" in scorecard_text
+    assert "package_size_score" in scorecard_text
     assert '"protected_release": true' in scorecard_text
     assert '"protected_release": false' in scorecard_text
     assert "PACKAGE_ASSET_SUFFIXES" in report_script

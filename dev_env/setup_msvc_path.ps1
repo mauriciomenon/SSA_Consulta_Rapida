@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 function Write-Info {
     param([string]$Message)
-    Write-Host "[msvc] $Message" -ForegroundColor Cyan
+    Write-Output "[msvc] $Message"
 }
 
 function Find-VcVars64 {
