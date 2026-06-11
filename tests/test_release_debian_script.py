@@ -369,8 +369,8 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
 ) -> None:
     package_dir = tmp_path / "builds" / "packages" / "debian_amd64"
     package_dir.mkdir(parents=True)
-    current = package_dir / "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_cli.tar.gz"
-    stale = package_dir / "SSA_Consulta_Rapida_v4.37_debian_amd64_pyoxidizer.tar.gz"
+    current = package_dir / "SSA_Consulta_Rapida_v4.42_debian_amd64_nuitka_cli.tar.gz"
+    stale = package_dir / "SSA_Consulta_Rapida_v4.42_debian_amd64_pyoxidizer.tar.gz"
     current.write_bytes(b"current")
     stale.write_bytes(b"stale")
 
@@ -384,7 +384,7 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
             platform="debian_amd64",
             backends="nuitka",
             packages="tar",
-            app_version="4.37",
+            app_version="4.42",
             git_commit="abc",
         )
     )
@@ -408,7 +408,7 @@ def test_release_debian_report_fails_when_package_dir_is_missing(tmp_path) -> No
                 platform="debian_amd64",
                 backends="nuitka",
                 packages="tar",
-                app_version="4.37",
+                app_version="4.42",
                 git_commit="abc",
             )
         )
@@ -429,20 +429,20 @@ def test_release_debian_expected_asset_names_cover_supported_package_matrix() ->
     names = REPORT_MODULE._expected_debian_asset_names(
         ["pyinstaller", "nuitka", "pyoxidizer"],
         ["deb", "appimage", "tar"],
-        "4.37",
+        "4.42",
     )
 
     assert names == {
-        "ssa-consulta-rapida-pyinstaller-amd64_4.37_amd64.deb",
-        "ssa-consulta-rapida-nuitka-amd64_4.37_amd64.deb",
-        "ssa-consulta-rapida-pyoxidizer-amd64_4.37_amd64.deb",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller.AppImage",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka.AppImage",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyoxidizer.tar.gz",
+        "ssa-consulta-rapida-pyinstaller-amd64_4.42_amd64.deb",
+        "ssa-consulta-rapida-nuitka-amd64_4.42_amd64.deb",
+        "ssa-consulta-rapida-pyoxidizer-amd64_4.42_amd64.deb",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_pyinstaller.AppImage",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_nuitka.AppImage",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_pyinstaller_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_pyinstaller_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_nuitka_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_nuitka_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_pyoxidizer.tar.gz",
     }
 
 
@@ -450,22 +450,22 @@ def test_release_debian_arm64_expected_asset_names_cover_supported_package_matri
     names = REPORT_MODULE._expected_debian_asset_names(
         ["pyinstaller", "nuitka", "pyoxidizer"],
         ["deb", "appimage", "tar"],
-        "4.37",
+        "4.42",
         "debian_arm64",
         "arm64",
     )
 
     assert names == {
-        "ssa-consulta-rapida-pyinstaller-arm64_4.37_arm64.deb",
-        "ssa-consulta-rapida-nuitka-arm64_4.37_arm64.deb",
-        "ssa-consulta-rapida-pyoxidizer-arm64_4.37_arm64.deb",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller.AppImage",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka.AppImage",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyoxidizer.tar.gz",
+        "ssa-consulta-rapida-pyinstaller-arm64_4.42_arm64.deb",
+        "ssa-consulta-rapida-nuitka-arm64_4.42_arm64.deb",
+        "ssa-consulta-rapida-pyoxidizer-arm64_4.42_arm64.deb",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_pyinstaller.AppImage",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_nuitka.AppImage",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_pyinstaller_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_pyinstaller_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_nuitka_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_nuitka_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_pyoxidizer.tar.gz",
     }
 
 

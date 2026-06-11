@@ -49,9 +49,9 @@ def test_launcher_version_info_uses_explicit_version_fallback(tmp_path) -> None:
     version_file = tmp_path / "config" / "version.json"
     version_file.parent.mkdir()
     version_file.write_text("{}", encoding="utf-8")
-    (tmp_path / "VERSION").write_text("4.37", encoding="utf-8")
+    (tmp_path / "VERSION").write_text("4.42", encoding="utf-8")
 
-    assert module.get_current_version() == "4.37"
+    assert module.get_current_version() == "4.42"
 
 
 def test_launcher_version_info_does_not_return_implicit_zero_version(tmp_path) -> None:

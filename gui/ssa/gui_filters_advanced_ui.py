@@ -1163,6 +1163,14 @@ def _register_advanced_filter_panel_state(self, parts: AdvancedFilterPanelParts)
     self.adv_derivada_button = controls["deriv_button"]
     self.adv_derivada_menu = controls["deriv_menu"]
     self.adv_derivada_checks = controls["deriv_checks"]
+    for spec in ADVANCED_RESPONSAVEL_MULTISELECT_SPECS:
+        _, button, menu, exclude = controls["responsavel_fields"][spec.field_key]
+        setattr(self, f"{spec.prefix}_button", button)
+        setattr(self, f"{spec.prefix}_menu", menu)
+        setattr(self, f"{spec.prefix}_checks", [])
+        setattr(self, f"{spec.prefix}_exclude_checks", [])
+        if exclude is not None:
+            setattr(self, f"{spec.prefix}_exclude", exclude)
 
     grid_widgets = _advanced_filter_grid_widgets(
         parts.fields,
@@ -1602,6 +1610,9 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
     self._advanced_filters = data
     _sync_quick_executor_from_advanced_filters(self, previous_filters, data)
     self._advanced_filters_active = self._has_active_advanced_filters(data)
+    refresh_quick_situacao = getattr(self, "_refresh_quick_situacao_buttons", None)
+    if callable(refresh_quick_situacao):
+        refresh_quick_situacao()
     try:
         sync_clear_btn = getattr(self, "_sync_selection_filters_clear_button", None)
         if callable(sync_clear_btn):

@@ -41,18 +41,20 @@ def _scan_regex_pattern(pattern_text: str) -> _RegexScanResult:
     meta_char_count = 0
 
     for index, char in enumerate(pattern_text):
-        if (
-            char == "\\"
-            and index + 1 < len(pattern_text)
-            and pattern_text[index + 1] in _BACKREF_CHARS
-        ):
-            has_backref = True
         if char in _REGEX_META_CHARS:
             meta_char_count += 1
         if escaped:
             escaped = False
             quantifier_chain = 0
             continue
+        if (
+            char == "\\"
+            and index + 1 < len(pattern_text)
+            and pattern_text[index + 1] in _BACKREF_CHARS
+        ):
+            has_backref = True
+        if pattern_text.startswith("(?P=", index):
+            has_backref = True
         if char == "\\":
             escaped = True
             quantifier_chain = 0

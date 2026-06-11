@@ -86,9 +86,15 @@ def test_pai_api_auto_refresh_defaults_are_explicit() -> None:
     options = normalize_pai_api_options(settings)
 
     assert settings[PAI_API_AUTO_REFRESH_ENABLED_KEY] is False
-    assert settings[PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY] == 10
+    assert (
+        settings[PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY]
+        == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
+    )
     assert options.auto_refresh_enabled is False
-    assert options.auto_refresh_interval_minutes == 10
+    assert (
+        options.auto_refresh_interval_minutes
+        == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
+    )
     assert options.data_scopes == ("consulta",)
     assert options.username == ""
     assert options.secret_service == "scrap_report.sam"  # pragma: allowlist secret

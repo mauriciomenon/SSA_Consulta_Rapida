@@ -10,6 +10,7 @@ from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
     PAI_API_DATA_SCOPES_KEY,
     PAI_API_ENABLED_KEY,
+    PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES,
     PAI_API_SECTORS_KEY,
     PAI_API_SETTINGS_KEY,
 )
@@ -161,7 +162,7 @@ def test_auto_refresh_timer_starts_when_enabled(tmp_path: Path) -> None:
 
     assert window.timer is not None
     timer = window.timer
-    assert timer.interval == 10 * 60 * 1000
+    assert timer.interval == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES * 60 * 1000
     assert timer.isActive() is True
 
 

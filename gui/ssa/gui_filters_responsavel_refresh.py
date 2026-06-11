@@ -134,6 +134,11 @@ class ResponsavelRefreshView:
     ) -> None:
         setattr(self.window, binding.checks_attr, include_checks)
         setattr(self.window, binding.exclude_checks_attr, exclude_checks)
+        for context_name in ("_filter_panel_context", "_adv_ctx"):
+            context = getattr(self.window, context_name, None)
+            if isinstance(context, dict):
+                context[binding.checks_attr] = include_checks
+                context[binding.exclude_checks_attr] = exclude_checks
 
     def rebuild_menu(self, payload: ResponsavelPrefixPayload, binding):
         callback = _summary_callback(

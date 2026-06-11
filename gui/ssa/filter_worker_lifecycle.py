@@ -232,6 +232,9 @@ class FilterWorkerLifecycle:
                 worker.quit()
             return bool(hasattr(worker, "isRunning") and worker.isRunning())
         except Exception as exc:
+            if _is_deleted_qt_object_error(exc):
+                self.registry.remove(worker)
+                return False
             self.logger.warning(
                 "Falha ao solicitar encerramento do worker de filtro: %s", exc
             )

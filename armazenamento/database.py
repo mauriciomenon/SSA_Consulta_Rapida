@@ -47,6 +47,23 @@ _resolved_table_cache: dict[tuple[str, str], str] = {}
 _resolved_table_cache_lock = threading.RLock()
 _RESOLVED_TABLE_CACHE_MAX_ENTRIES = 256
 _VALID_COLUMN_DEFINITIONS = frozenset({"TEXT", "INTEGER", "REAL", "NUMERIC", "BLOB"})
+_READ_ONLY_SQL_START_TOKENS = frozenset({"select", "with"})
+_WRITE_SQL_TOKENS = frozenset(
+    {
+        "alter",
+        "attach",
+        "create",
+        "delete",
+        "detach",
+        "drop",
+        "insert",
+        "pragma",
+        "reindex",
+        "replace",
+        "update",
+        "vacuum",
+    }
+)
 
 
 def set_optimized_mode(enabled: bool) -> None:
@@ -356,14 +373,65 @@ def _validate_read_only_query(query: str) -> None:
         raise ValueError("Custom SQL query must not be empty")
 
     single_statement = normalized[:-1].rstrip() if normalized.endswith(";") else normalized
-    if ";" in single_statement:
+    guarded_statement = _strip_sql_literals_and_comments(single_statement)
+    if ";" in guarded_statement:
         raise ValueError("Custom SQL query must be a single statement")
-    if not single_statement:
+    if not guarded_statement.strip():
         raise ValueError("Custom SQL query must not be empty")
 
-    first_token = single_statement.split(None, 1)[0].casefold()
-    if first_token not in {"select", "with"}:
+    first_token = guarded_statement.split(None, 1)[0].casefold()
+    if first_token not in _READ_ONLY_SQL_START_TOKENS:
         raise ValueError("Custom SQL query must be read-only")
+    sql_tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", guarded_statement.lower()))
+    if sql_tokens & _WRITE_SQL_TOKENS:
+        raise ValueError("Custom SQL query must be read-only")
+
+
+def _strip_sql_literals_and_comments(statement: str) -> str:
+    guarded_chars: list[str] = []
+    index = 0
+    length = len(statement)
+    while index < length:
+        char = statement[index]
+        next_char = statement[index + 1] if index + 1 < length else ""
+        if char == "-" and next_char == "-":
+            index += 2
+            while index < length and statement[index] not in "\r\n":
+                index += 1
+            guarded_chars.append(" ")
+            continue
+        if char == "/" and next_char == "*":
+            index += 2
+            while index + 1 < length and not (
+                statement[index] == "*" and statement[index + 1] == "/"
+            ):
+                index += 1
+            index = min(index + 2, length)
+            guarded_chars.append(" ")
+            continue
+        if char in {"'", '"', "`"}:
+            quote = char
+            index += 1
+            while index < length:
+                if statement[index] == quote:
+                    if index + 1 < length and statement[index + 1] == quote:
+                        index += 2
+                        continue
+                    index += 1
+                    break
+                index += 1
+            guarded_chars.append(" ")
+            continue
+        if char == "[":
+            index += 1
+            while index < length and statement[index] != "]":
+                index += 1
+            index = min(index + 1, length)
+            guarded_chars.append(" ")
+            continue
+        guarded_chars.append(char)
+        index += 1
+    return "".join(guarded_chars)
 
 
 def _validate_insert_policy(table_name: str, if_exists: IfExistsPolicy) -> None:

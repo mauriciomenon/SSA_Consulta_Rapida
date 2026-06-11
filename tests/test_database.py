@@ -336,6 +336,70 @@ def test_query_db_rejects_non_read_only_custom_query(temp_db_path):
         )
 
 
+@pytest.mark.parametrize(
+    "custom_query",
+    [
+        "WITH doomed AS (DELETE FROM teste_query_guard RETURNING id) SELECT * FROM doomed",
+        "WITH doomed AS (UPDATE teste_query_guard SET id = 2 RETURNING id) SELECT * FROM doomed",
+        "WITH doomed AS (INSERT INTO teste_query_guard VALUES (2) RETURNING id) SELECT * FROM doomed",
+    ],
+)
+def test_query_db_rejects_cte_write_custom_query(temp_db_path, custom_query):
+    """query_db must reject write tokens hidden behind a CTE start token."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.execute("INSERT INTO teste_query_guard VALUES (1);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="read-only"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            custom_query,
+            raise_on_error=True,
+        )
+
+
+def test_query_db_accepts_read_only_cte_custom_query(temp_db_path):
+    """query_db must continue to accept read-only CTEs."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.execute("INSERT INTO teste_query_guard VALUES (1);")
+        conn.commit()
+
+    result = query_db(
+        temp_db_path,
+        "teste_query_guard",
+        "WITH rows AS (SELECT id FROM teste_query_guard) SELECT id FROM rows",
+        raise_on_error=True,
+    )
+
+    assert result["id"].tolist() == [1]
+
+
+def test_query_db_allows_write_words_inside_literals_and_comments(temp_db_path):
+    """query_db must not reject harmless text while guarding executable SQL."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.execute("INSERT INTO teste_query_guard VALUES (1);")
+        conn.commit()
+
+    result = query_db(
+        temp_db_path,
+        "teste_query_guard",
+        """
+        SELECT id, 'delete; drop' AS marker
+        FROM teste_query_guard
+        /* update teste_query_guard */
+        -- insert into teste_query_guard
+        """,
+        raise_on_error=True,
+    )
+
+    assert result["id"].tolist() == [1]
+    assert result["marker"].tolist() == ["delete; drop"]
+
+
 def test_query_db_rejects_multi_statement_custom_query(temp_db_path):
     """query_db must reject appended statements in custom SQL."""
     with get_db_connection(temp_db_path) as conn:

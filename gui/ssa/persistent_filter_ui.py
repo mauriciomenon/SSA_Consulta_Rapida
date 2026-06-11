@@ -7,6 +7,7 @@ from typing import Any, Callable, cast
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -56,6 +57,15 @@ class PersistentFilterUiController:
         return self.store.index_for(getattr(self.window, "persistent_filters", []) or [])
 
     def save_current(self) -> None:
+        apply_advanced = getattr(self.window, "_apply_advanced_filters_from_ui", None)
+        if callable(apply_advanced):
+            try:
+                apply_advanced(store_only=True)
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao sincronizar filtros avancados antes de salvar filtro: %s",
+                    exc,
+                )
         current_state = self.window._snapshot_filter_state()
         current_text = str(current_state.get("search_text", "") or "").strip()
         if not self._has_filter_state(current_state, current_text):
@@ -66,12 +76,6 @@ class PersistentFilterUiController:
             )
             return
 
-        filter_name = self._fit_filter_name_to_search_width(
-            build_persistent_filter_name(
-                current_state,
-                existing_count=len(self.window.persistent_filters),
-            )
-        )
         current_state_key = persistent_filter_state_key(current_state)
         index = self.index()
         if current_state_key in index.state_keys or (
@@ -79,6 +83,29 @@ class PersistentFilterUiController:
         ):
             QMessageBox.information(
                 qt_parent(self.window), "Aviso", "Este filtro ja esta salvo."
+            )
+            return
+
+        suggested_name = build_persistent_filter_name(
+            current_state,
+            existing_count=len(self.window.persistent_filters),
+        )
+        raw_filter_name, accepted = QInputDialog.getText(
+            qt_parent(self.window),
+            "Salvar filtro",
+            "Nome do filtro:",
+            text=suggested_name,
+        )
+        if not accepted:
+            return
+        filter_name = self._fit_filter_name_to_search_width(
+            str(raw_filter_name or "").strip()
+        )
+        if not filter_name:
+            QMessageBox.information(
+                qt_parent(self.window),
+                "Aviso",
+                "Informe um nome para salvar o filtro.",
             )
             return
 
@@ -252,6 +279,11 @@ class PersistentFilterUiController:
             self.copy_filter_mapping(filter_data["state"]),
             consume_undo=False,
         )
+        refresh_quick_situacao = getattr(
+            self.window, "_refresh_quick_situacao_buttons", None
+        )
+        if callable(refresh_quick_situacao):
+            refresh_quick_situacao()
         # The GUI filter undo contract is a single snapshot, not a stack.
         self.window._last_filter_state = undo_state_before_apply
         self.window._update_undo_button_state()

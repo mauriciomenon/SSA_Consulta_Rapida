@@ -228,14 +228,14 @@ def test_get_version_reads_config_version_without_default(
     config_dir = project_root / "config"
     config_dir.mkdir(parents=True)
     (config_dir / "version.json").write_text(
-        '{"version_short": "4.37"}',
+        '{"version_short": "4.42"}',
         encoding="utf-8",
     )
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "VERSION_FILE", project_root / "VERSION")
 
-    assert create_distribution.get_version() == "4.37"
+    assert create_distribution.get_version() == "4.42"
 
 
 def test_get_version_rejects_missing_release_version(

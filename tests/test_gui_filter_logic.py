@@ -1941,6 +1941,114 @@ class TestGUIFilterLogic:
         assert "font-weight:800" in str(buttons["STE"].styleSheet() or "")
         assert "qlineargradient" not in str(buttons["AMP"].styleSheet() or "")
 
+    def test_advanced_situacao_selection_marks_quick_button(self):
+        self.window._active_column_filters["situacao"] = ""
+        self.window._advanced_filters = {"situacao": ["STE"]}
+        self.window._advanced_filters_active = True
+
+        self.window._refresh_quick_situacao_buttons()
+
+        buttons = getattr(self.window, "quick_situacao_buttons", {})
+        assert buttons["STE"].isChecked() is True
+        assert buttons["APV"].isChecked() is False
+
+    def test_advanced_situacao_exclude_does_not_mark_positive_quick_button(self):
+        self.window._active_column_filters["situacao"] = ""
+        self.window._advanced_filters = {
+            "situacao": ["STE"],
+            "situacao_exclude_values": ["APV"],
+        }
+        self.window._advanced_filters_active = True
+
+        self.window._refresh_quick_situacao_buttons()
+
+        buttons = getattr(self.window, "quick_situacao_buttons", {})
+        assert buttons["STE"].isChecked() is False
+        assert buttons["APV"].isChecked() is False
+
+    def test_advanced_situacao_positive_applies_and_marks_quick_button(self):
+        self._set_filter_panel_tab("filters")
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+        status_checks = getattr(self.window, "adv_status_checks", [])
+        ste_checks = [
+            checkbox
+            for checkbox in status_checks
+            if str(checkbox.property("value") or "") == "STE"
+        ]
+        assert len(ste_checks) == 1
+
+        ste_checks[0].setChecked(True)
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
+        assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
+        buttons = getattr(self.window, "quick_situacao_buttons", {})
+        assert buttons["STE"].isChecked() is True
+        assert str(self.window._active_column_filters.get("situacao") or "") == ""
+
+    def test_advanced_situacao_exclude_applies_without_positive_quick_mark(self):
+        self._set_filter_panel_tab("filters")
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+        status_exclude_checks = getattr(self.window, "adv_status_exclude_checks", [])
+        ste_checks = [
+            checkbox
+            for checkbox in status_exclude_checks
+            if str(checkbox.property("value") or "") == "STE"
+        ]
+        assert len(ste_checks) == 1
+
+        ste_checks[0].setChecked(True)
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
+        assert "STE" not in set(self.window.df_exibido["situacao"].astype(str))
+        buttons = getattr(self.window, "quick_situacao_buttons", {})
+        assert all(not button.isChecked() for button in buttons.values())
+
+    def test_quick_situacao_click_clears_advanced_exclude_and_applies_filter(self):
+        self.window._advanced_filters = {"situacao_exclude_values": ["STE"]}
+        self.window._advanced_filters_active = True
+        self.window._active_column_filters["situacao"] = ""
+        self.window._refresh_quick_situacao_buttons()
+        buttons = getattr(self.window, "quick_situacao_buttons", {})
+
+        cast(Any, QTest).mouseClick(buttons["STE"], Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        assert self.window._active_column_filters.get("situacao") == "STE"
+        assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
+        assert buttons["STE"].isChecked() is True
+
+    def test_search_exclusion_and_quick_situacao_keep_result_and_visual_sync(self):
+        scenario_df = self.base_df.copy()
+        scenario_df.loc[4, "situacao"] = "STE"
+        scenario_df.loc[4, "localizacao_codigo"] = "G097F001"
+        self.window.df_completo = scenario_df.copy()
+        self.window.df_exibido = scenario_df.copy()
+        self.window._df_last_search_filtered = scenario_df.copy()
+        self.window.paginator.set_dataframe(scenario_df.copy())
+
+        self.window.search_input.setText("!G097")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        self.window._refresh_quick_situacao_buttons()
+        buttons = getattr(self.window, "quick_situacao_buttons", {})
+
+        cast(Any, QTest).mouseClick(buttons["STE"], Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == "!G097"
+        assert self.window._active_column_filters.get("situacao") == "STE"
+        assert buttons["STE"].isChecked() is True
+        assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
+        assert not self.window.df_exibido["localizacao_codigo"].astype(str).str.contains(
+            "G097", case=False
+        ).any()
+
     def test_quick_setor_executor_clears_existing_advanced_exclusions(self):
         self.window._advanced_filters = {
             "setor_executor_exclude_values": ["MEL3"],
@@ -4791,7 +4899,13 @@ class TestGUIFilterLogic:
         assert set(self._extract_visible_ssa()) == set(self.base_df["numero_ssa"])
 
     def test_persistent_filters_order(self):
-        with patch("gui.gui_ssa.QMessageBox.information", return_value=None):
+        with (
+            patch("gui.gui_ssa.QMessageBox.information", return_value=None),
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                side_effect=[("Zeta filtro", True), ("Alfa filtro", True)],
+            ),
+        ):
             self.window.persistent_filters = []
             self.window.search_input.setText("Zebra filtro")
             self.window.save_current_filter()
@@ -4802,7 +4916,13 @@ class TestGUIFilterLogic:
         assert names == sorted(names, key=lambda n: n.casefold())
 
     def test_persistent_filter_saves_and_restores_all_filter_state(self):
-        with patch.object(QMessageBox, "information"):
+        with (
+            patch.object(QMessageBox, "information"),
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                return_value=("Executor MEL4", True),
+            ),
+        ):
             self.window.search_input.clear()
             self.window._active_column_filters["setor_executor"] = "MEL4"
             self.window._exclude_ste_sca = True
@@ -4810,6 +4930,7 @@ class TestGUIFilterLogic:
 
         assert len(self.window.persistent_filters) == 1
         saved_filter = self.window.persistent_filters[0]
+        assert saved_filter["name"] == "Executor MEL4"
         assert saved_filter["terms"] == ""
         assert saved_filter["state"]["active_column_filters"]["setor_executor"] == "MEL4"
         assert saved_filter["state"]["exclude_ste_sca"] is True
@@ -4823,8 +4944,122 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters["setor_executor"] == "MEL4"
         assert self.window._exclude_ste_sca is True
 
+    def test_persistent_filter_save_materializes_pending_responsavel_execucao(self):
+        df = self.base_df.assign(
+            responsavel_execucao=[
+                "Resp Exec A",
+                "Resp Exec B",
+                "Resp Exec C",
+                "Resp Exec D",
+                "Resp Exec E",
+            ]
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+        self.window._refresh_advanced_filter_options()
+        self.window._ensure_responsavel_options_materialized(
+            target_prefix="adv_responsavel_execucao"
+        )
+        QApplication.processEvents()
+
+        checks = getattr(self.window, "adv_responsavel_execucao_checks", []) or []
+        target_check = next(check for check in checks if check.property("value"))
+        target_value = str(target_check.property("value") or "")
+        target_check.setChecked(True)
+        QApplication.processEvents()
+
+        assert "responsavel_execucao" not in self.window._advanced_filters
+
+        with (
+            patch.object(QMessageBox, "information") as info_mock,
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                return_value=("Responsavel execucao", True),
+            ),
+        ):
+            self.window.save_current_filter()
+
+        assert len(self.window.persistent_filters) == 1
+        saved_filter = self.window.persistent_filters[0]
+        advanced = saved_filter["state"]["advanced_filters"]
+        assert advanced["responsavel_execucao"] == [target_value]
+        assert saved_filter["state"]["advanced_filters_active"] is True
+        assert not any(
+            call_args.args[2] == "Este filtro ja esta salvo."
+            for call_args in info_mock.call_args_list
+        )
+
+    def test_persistent_filter_distinguishes_pending_responsavel_execucao_values(self):
+        df = self.base_df.assign(
+            responsavel_execucao=[
+                "Resp Exec A",
+                "Resp Exec B",
+                "Resp Exec C",
+                "Resp Exec D",
+                "Resp Exec E",
+            ]
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+        self.window._refresh_advanced_filter_options()
+        self.window._ensure_responsavel_options_materialized(
+            target_prefix="adv_responsavel_execucao"
+        )
+        QApplication.processEvents()
+
+        checks = [
+            check
+            for check in (getattr(self.window, "adv_responsavel_execucao_checks", []) or [])
+            if check.property("value")
+        ]
+        first_check, second_check = checks[:2]
+        first_value = str(first_check.property("value") or "")
+        second_value = str(second_check.property("value") or "")
+
+        with (
+            patch.object(QMessageBox, "information") as info_mock,
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                side_effect=[("Responsavel A", True), ("Responsavel B", True)],
+            ),
+        ):
+            self.window.search_input.setText("responsavel")
+            first_check.setChecked(True)
+            QApplication.processEvents()
+            self.window.save_current_filter()
+
+            first_check.setChecked(False)
+            second_check.setChecked(True)
+            QApplication.processEvents()
+            self.window.save_current_filter()
+
+        assert len(self.window.persistent_filters) == 2
+        saved_values = [
+            item["state"]["advanced_filters"]["responsavel_execucao"][0]
+            for item in self.window.persistent_filters
+        ]
+        assert sorted(saved_values) == sorted([first_value, second_value])
+        assert not any(
+            call_args.args[2] == "Este filtro ja esta salvo."
+            for call_args in info_mock.call_args_list
+        )
+
     def test_persistent_filters_reload_from_saved_file(self):
-        with patch.object(QMessageBox, "information"):
+        with (
+            patch.object(QMessageBox, "information"),
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                return_value=("Executor salvo", True),
+            ),
+        ):
             self.window.search_input.clear()
             self.window._active_column_filters["setor_executor"] = "MEL4"
             self.window.save_current_filter()
@@ -4836,7 +5071,118 @@ class TestGUIFilterLogic:
 
         assert len(self.window.persistent_filters) == 1
         saved = self.window.persistent_filters[0]
+        assert saved["name"] == "Executor salvo"
         assert saved["state"]["active_column_filters"]["setor_executor"] == "MEL4"
+
+    def test_persistent_filter_uses_manual_name_and_applies_saved_terms(self):
+        with (
+            patch.object(QMessageBox, "information"),
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                return_value=("Minha consulta", True),
+            ),
+        ):
+            self.window.search_input.setText("Teste C")
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+            self.window.save_current_filter()
+
+        assert len(self.window.persistent_filters) == 1
+        saved_filter = self.window.persistent_filters[0]
+        assert saved_filter["name"] == "Minha consulta"
+        with open(self._saved_filters_path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+        assert payload["filters"][0]["name"] == "Minha consulta"
+
+        self.window.update_filter_tags()
+        QApplication.processEvents()
+        tag_texts = [
+            str(button.text() or "")
+            for button in self.window.filter_tags_widget.findChildren(QPushButton)
+        ]
+        assert "Minha consulta" in tag_texts
+
+        self.window.search_input.clear()
+        self.window.initiate_filtering()
+        self.window.apply_persistent_filter(saved_filter)
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == "Teste C"
+        assert self.window.df_exibido["numero_ssa"].tolist() == [3]
+
+    def test_persistent_filter_restores_search_situacao_and_quick_visual_state(self):
+        scenario_df = self.base_df.copy()
+        scenario_df.loc[4, "situacao"] = "STE"
+        scenario_df.loc[4, "localizacao_codigo"] = "G097F001"
+        self.window.df_completo = scenario_df.copy()
+        self.window.df_exibido = scenario_df.copy()
+        self.window._df_last_search_filtered = scenario_df.copy()
+        self.window.paginator.set_dataframe(scenario_df.copy())
+
+        with (
+            patch.object(QMessageBox, "information"),
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                return_value=("STE sem G097", True),
+            ),
+        ):
+            self.window.search_input.setText("!G097")
+            self.window._active_column_filters["situacao"] = "STE"
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+            self.window.save_current_filter()
+
+        saved_filter = self.window.persistent_filters[0]
+        assert saved_filter["name"] == "STE sem G097"
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+        self.window.apply_persistent_filter(saved_filter)
+        QApplication.processEvents()
+
+        buttons = getattr(self.window, "quick_situacao_buttons", {})
+        assert self.window.search_input.text() == "!G097"
+        assert self.window._active_column_filters.get("situacao") == "STE"
+        assert buttons["STE"].isChecked() is True
+        assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
+        assert not self.window.df_exibido["localizacao_codigo"].astype(str).str.contains(
+            "G097", case=False
+        ).any()
+
+    def test_persistent_filter_save_cancel_does_not_create_filter(self):
+        with (
+            patch.object(QMessageBox, "information") as info_mock,
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                return_value=("Filtro ignorado", False),
+            ) as name_mock,
+        ):
+            self.window.search_input.setText("Teste A")
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+            self.window.save_current_filter()
+
+        assert name_mock.call_count == 1
+        assert info_mock.call_count == 0
+        assert self.window.persistent_filters == []
+        assert not os.path.exists(self._saved_filters_path)
+
+    def test_persistent_filter_save_empty_name_does_not_create_filter(self):
+        with (
+            patch.object(QMessageBox, "information") as info_mock,
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                return_value=("   ", True),
+            ),
+        ):
+            self.window.search_input.setText("Teste A")
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+            self.window.save_current_filter()
+
+        assert self.window.persistent_filters == []
+        assert info_mock.call_args.args[2] == "Informe um nome para salvar o filtro."
+        assert not os.path.exists(self._saved_filters_path)
 
     def test_persistent_filters_reload_legacy_terms_without_state(self):
         payload = {
@@ -4877,7 +5223,13 @@ class TestGUIFilterLogic:
             assert tag_button.maximumWidth() <= 180
 
     def test_persistent_filter_deduplicates_state_with_set_values(self):
-        with patch.object(QMessageBox, "information") as info_mock:
+        with (
+            patch.object(QMessageBox, "information") as info_mock,
+            patch(
+                "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+                return_value=("Executor MEL4", True),
+            ) as name_mock,
+        ):
             self.window.search_input.clear()
             self.window._active_column_filters["setor_executor"] = "MEL4"
             self.window._hidden_column_filter_lines = {"setor_emissor", "situacao"}
@@ -4887,6 +5239,7 @@ class TestGUIFilterLogic:
             self.window.save_current_filter()
 
         assert len(self.window.persistent_filters) == 1
+        assert name_mock.call_count == 1
         assert info_mock.call_args_list[-1].args[2] == "Este filtro ja esta salvo."
 
     def test_legacy_persistent_filter_applies_terms_not_raw_dict(self):
@@ -12023,6 +12376,25 @@ class TestGUIFilterLogic:
         assert self.window._cleanup_filter_worker(worker) is True
         assert not self.window._filter_worker_registry.contains(worker)
 
+    def test_filter_worker_stop_accepts_already_deleted_qt_worker(self, caplog):
+        class _DeletedWorker:
+            def cancel(self):
+                raise RuntimeError(
+                    "wrapped C/C++ object of type FilterWorker has been deleted"
+                )
+
+        worker = _DeletedWorker()
+        self.window._filter_worker_registry.add(worker)
+
+        with caplog.at_level("WARNING"):
+            still_running = self.window._filter_worker_lifecycle()._request_worker_stop(
+                worker
+            )
+
+        assert still_running is False
+        assert not self.window._filter_worker_registry.contains(worker)
+        assert "Falha ao solicitar encerramento do worker de filtro" not in caplog.text
+
     def test_close_event_cancels_filter_worker_when_running_check_fails(self):
         class _BrokenRunningWorker:
             def __init__(self):
@@ -12331,6 +12703,33 @@ class TestGUIFilterLogic:
         self.window.on_data_loaded(sorted_df, request_id=26)
 
         assert self.window._df_last_search_filtered is self.window.df_completo
+
+    def test_on_data_loaded_reapplies_visible_general_search_after_reload(self):
+        self.window._active_data_load_request_id = 34
+        df = self.base_df.copy()
+        df["localizacao_codigo"] = [
+            "G097F001",
+            "LOC2",
+            "LOC3",
+            "G097F002",
+            "LOC5",
+        ]
+        df.attrs["ssa_preprocessed_for_gui"] = True
+        df.attrs["ssa_non_null_cols"] = [
+            "numero_ssa",
+            "situacao",
+            "localizacao_codigo",
+        ]
+        self.window.search_input.setText("!G097")
+        self.window._active_filter_search_display = "!G097"
+        self.window._active_filter_search_request_id = 33
+
+        self.window.on_data_loaded(df, request_id=34)
+
+        assert "G097F001" not in self.window.df_exibido["localizacao_codigo"].tolist()
+        assert "G097F002" not in self.window.df_exibido["localizacao_codigo"].tolist()
+        assert self.window._active_filter_search_display == "!G097"
+        assert self.window.search_input.text() == "!G097"
 
     def test_on_data_loaded_preserves_preprocessed_worker_order_without_filters(self):
         self.window._active_data_load_request_id = 25

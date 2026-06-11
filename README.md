@@ -1,14 +1,14 @@
-# SSA Consulta Rapida v4.37
+# SSA Consulta Rapida v4.42
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
 ## Current Truth (2026-04-11 23:00 -0300)
 
 - Estado operacional:
-  - metadata local ativa: `4.37`
+  - metadata local ativa: `4.42`
   - ultima tag publicada em `dev`: `v4.36`
   - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
-  - `4.37` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada permanece `v4.36`
+  - `4.42` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada permanece `v4.36`
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
   - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos
   - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
@@ -122,7 +122,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 
-## Baseline v4.37 (2026-04)
+## Baseline v4.42 (2026-04)
 
 ### Destaques
 - Nullable dtypes no readback agora estao estabilizados sem regressao visual:
@@ -139,7 +139,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
 - README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Baseline de documentacao atualizado para 4.37.
+- Baseline de documentacao atualizado para 4.42.
 - Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
@@ -255,7 +255,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.37)
+### Documentacao tecnica atual (v4.42)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:

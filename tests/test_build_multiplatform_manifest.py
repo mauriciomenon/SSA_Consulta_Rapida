@@ -132,7 +132,7 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
         tmp_path,
         "nuitka",
         "debian_amd64",
-        "4.37",
+        "4.42",
     )
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
@@ -204,13 +204,13 @@ def test_write_build_info_main_reports_output_write_errors(
             "--platform",
             "debian_amd64",
             "--app-version",
-            "4.37",
+            "4.42",
         ],
     )
     monkeypatch.setattr(
         write_build_info,
         "build_payload",
-        lambda *_args: {"app_version": "4.37"},
+        lambda *_args: {"app_version": "4.42"},
     )
 
     assert write_build_info.main() == 1
@@ -233,17 +233,17 @@ def test_write_build_info_main_writes_valid_json(monkeypatch, tmp_path) -> None:
             "--platform",
             "debian_amd64",
             "--app-version",
-            "4.37",
+            "4.42",
         ],
     )
     monkeypatch.setattr(
         write_build_info,
         "build_payload",
-        lambda *_args: {"app_version": "4.37"},
+        lambda *_args: {"app_version": "4.42"},
     )
 
     assert write_build_info.main() == 0
-    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.37"}
+    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.42"}
 
 
 def test_pyinstaller_build_info_write_logs_before_raising(monkeypatch) -> None:

@@ -66,6 +66,7 @@ from core.pai_api_options import (
     PAI_API_ENABLED_KEY,
     PAI_API_EXTRA_SECTORS_KEY,
     PAI_API_LIMIT_KEY,
+    PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES,
     PAI_API_NUMBER_OF_YEARS_KEY,
     PAI_API_SECRET_SERVICE_KEY,
     PAI_API_SCRAP_ENABLED_KEY,
@@ -2832,6 +2833,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             or ""
         ).strip()
         if not selected_raw:
+            advanced_filters = getattr(self, "_advanced_filters", {}) or {}
+            if not advanced_filters.get("situacao_exclude_values"):
+                selected_raw = ", ".join(
+                    str(value or "").strip()
+                    for value in advanced_filters.get("situacao", []) or []
+                    if str(value or "").strip()
+                )
+        if not selected_raw:
             return []
         selected_keys = {
             item.upper() for item in self._split_filter_csv_values(selected_raw)
@@ -4407,7 +4416,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_layout.addWidget(cast(Any, QLabel("Intervalo (min)")), 2, 0)
         api_interval_spin = QSpinBox()
         api_interval_spin.setObjectName("preferencesPaiApiIntervalSpin")
-        api_interval_spin.setRange(1, 24 * 60)
+        api_interval_spin.setRange(1, PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES)
         api_interval_spin.setValue(int(api_options.auto_refresh_interval_minutes))
         api_layout.addWidget(cast(Any, api_interval_spin), 2, 1)
 
