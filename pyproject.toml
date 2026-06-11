@@ -49,14 +49,14 @@ dev = [
     "mypy>=2.1.0",
     "pytest-cov>=7.1.0",
     "pre-commit>=4.6.0",
-    "ruff>=0.15.0",
-    "ty>=0.0.38",
+    "ruff>=0.15.15",
+    "ty>=0.0.42",
     "pillow>=12.2.0",
-    "codeflash>=0.20.5",
+    "codeflash>=0.20.6",
 ]
 build = [
     "pyinstaller>=6.20.0",
-    "nuitka>=4.0.8",
+    "nuitka>=4.1.2",
     "pillow>=12.2.0",
     "cairosvg>=2.9.0",
     "pywin32>=311; platform_system == 'Windows'",
@@ -64,7 +64,7 @@ build = [
     "patchelf>=0.17.2.4; platform_system == 'Linux'",
 ]
 web = [
-    "streamlit>=1.57.0",
+    "streamlit>=1.58.0",
 ]
 
 [dependency-groups]
@@ -76,8 +76,8 @@ dev = [
     "mypy>=2.1.0",
     "pytest-cov>=7.1.0",
     "pre-commit>=4.6.0",
-    "ruff>=0.15.0",
-    "ty>=0.0.38",
+    "ruff>=0.15.15",
+    "ty>=0.0.42",
     "pillow>=12.2.0",
-    "codeflash>=0.20.5",
+    "codeflash>=0.20.6",
 ]

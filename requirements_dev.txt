@@ -8,10 +8,10 @@ black>=26.3.1
 mypy>=2.1.0
 pytest-cov>=7.1.0
 pre-commit>=4.6.0
-ruff>=0.15.0
-ty>=0.0.38  # type checking tooling; kept for uv dev flow
+ruff>=0.15.15
+ty>=0.0.42  # type checking tooling; kept for uv dev flow
 pillow>=12.2.0  # icon regression tests
-codeflash>=0.20.5
+codeflash>=0.20.6
 
 # Changelog:
 # [2026-02-16] - Atualizado para versoes com security patches e nota do ty
