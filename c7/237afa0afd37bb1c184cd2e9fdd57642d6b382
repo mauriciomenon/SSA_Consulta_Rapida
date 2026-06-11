@@ -1,0 +1,84 @@
+gui/gui_ssa.py
+  s_5ccf43901d99bd::t_43408a7326728e 2836-2842
+  s_5ccf43901d99bd::t_92662a7f7db3d8 69,4419
+tests/test_build_multiplatform_manifest.py
+  s_5ccf43901d99bd::t_a3c957d579c337 135,207,213,236,242,246
+tests/test_pai_api_controller.py
+  s_5ccf43901d99bd::t_92662a7f7db3d8 13,165
+README.md
+  s_5ccf43901d99bd::t_f124de287706a1 1,8,11,125,142,258
+tests/test_launcher_entry_runtime.py
+  s_5ccf43901d99bd::t_11d637f8ad8247 150,170,210,231,253,274,316
+gui/ssa/gui_filters_responsavel_refresh.py
+  s_5ccf43901d99bd::t_37a19fcd014684 137-141
+pyproject.toml
+  s_5ccf43901d99bd::t_a3c957d579c337 31
+tests/test_release_artifact_guard.py
+  s_5ccf43901d99bd::t_8b86e3a4fb37f0 122
+armazenamento/database.py
+  s_5ccf43901d99bd::t_fd347b2416c7a5 50-66,376-377,379,382-386,390-434
+tests/test_launcher_executable_smoke.py
+  s_5ccf43901d99bd::t_a3c957d579c337 15,20,26,30-32,36,40,77
+core/regex_safety.py
+  s_5ccf43901d99bd::t_e248ebc56b864c 56-57
+  s_5ccf43901d99bd::t_fd347b2416c7a5 50-55
+tests/test_release_debian_script.py
+  s_5ccf43901d99bd::t_11d637f8ad8247 372-373,387,411,432,436-445,453,459-468
+core/pai_api_options.py
+  s_5ccf43901d99bd::t_92662a7f7db3d8 30-31
+tests/test_database.py
+  s_5ccf43901d99bd::t_fd347b2416c7a5 339-379
+  s_5ccf43901d99bd::t_e248ebc56b864c 380-402
+gui/ssa/gui_filters_advanced_ui.py
+  s_5ccf43901d99bd::t_43408a7326728e 1613-1615
+  s_5ccf43901d99bd::t_4049479b9563e8 1166-1173
+gui/ssa/persistent_filter_ui.py
+  s_5ccf43901d99bd::t_0594f2fa3a06b0 60-68
+  s_5ccf43901d99bd::t_b5f4ea2dd6c57e 282-286
+  s_5ccf43901d99bd::t_fa87d554b52e0f 10,89-108
+tests/test_create_distribution.py
+  s_5ccf43901d99bd::t_a3c957d579c337 231,238
+tests/test_pai_api_options.py
+  s_5ccf43901d99bd::t_92662a7f7db3d8 89-92,94-97
+VERSION
+  s_5ccf43901d99bd::t_a3c957d579c337 1
+tests/test_gui_filter_logic.py
+  s_5ccf43901d99bd::t_42edea20953641 4948-4960,4997-5009
+  s_5ccf43901d99bd::t_d3939b376b2bf1 5113-5151
+  s_5ccf43901d99bd::t_0594f2fa3a06b0 4947,4961-4974,4976-4996,5010-5054,12379-12396
+  s_5ccf43901d99bd::t_b5f4ea2dd6c57e 5086-5087,5161-5162,5179-5180
+  s_5ccf43901d99bd::t_7d7db24e5d3449 4902-4908,4919-4925,4933,5056-5062,5074,5077-5085,5088-5112,5152-5160,5163-5178,5181-5186,5226-5232,5242
+  s_5ccf43901d99bd::t_8bc2834cb10dd4 1969-2051
+  s_5ccf43901d99bd::t_10a268efca2c5a 4975
+  s_5ccf43901d99bd::t_c6047d59c8f6b7 1944-1968
+  s_5ccf43901d99bd::t_9a56ef3ff64deb 12707-12733
+config/gui_main_preferences.json.example
+  s_5ccf43901d99bd::t_92662a7f7db3d8 176
+gui/ssa/gui_workers.py
+  s_5ccf43901d99bd::t_85f2bf0292ca9b 1108-1110
+tests/test_app_logic_filter_contract.py
+  s_5ccf43901d99bd::t_fd347b2416c7a5 678
+  s_5ccf43901d99bd::t_e248ebc56b864c 676-677
+gui/ssa/filter_worker_lifecycle.py
+  s_5ccf43901d99bd::t_0594f2fa3a06b0 235-237
+tests/test_dev_env_build_scripts.py
+  s_5ccf43901d99bd::t_a3c957d579c337 52,54
+config/version.json
+  s_5ccf43901d99bd::t_a3c957d579c337 2-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c7237afa0afd37bb1c184cd2e9fdd57642d6b382",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
