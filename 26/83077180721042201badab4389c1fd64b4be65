@@ -1,0 +1,93 @@
+docs/BUILD_3X3_RUNBOOK.md
+  s_5ccf43901d99bd::t_8b86e3a4fb37f0 209-212
+docs/INDEX.md
+  s_5ccf43901d99bd::t_f124de287706a1 1,7,64
+docs/SOLUCOES_AMBIENTE_BUILD.md
+  s_5ccf43901d99bd::t_f124de287706a1 8
+docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md
+  s_5ccf43901d99bd::t_f124de287706a1 3
+  s_5ccf43901d99bd::t_28d5d16a6adb1b 33,488,1050,1103
+  s_5ccf43901d99bd::t_b5d930596897a0 117,128,819,1228
+docs/README.md
+  s_5ccf43901d99bd::t_f124de287706a1 5,11-12
+dev_env/activate_repo.ps1
+  s_5ccf43901d99bd::t_e501eace2eb69d 49
+docs/HISTORICO_VERSOES.md
+  s_5ccf43901d99bd::t_8b86e3a4fb37f0 8
+docs/TESTING_HEADLESS.md
+  s_5ccf43901d99bd::t_b30802dd0172d5 78
+docs/ARCHITECTURE_OVERVIEW.md
+  s_5ccf43901d99bd::t_f124de287706a1 4
+docs/BUILD_NUITKA_GUIA_COMPLETO.md
+  s_5ccf43901d99bd::t_28d5d16a6adb1b 33,657,1305
+  s_5ccf43901d99bd::t_f124de287706a1 3
+  s_5ccf43901d99bd::t_b5d930596897a0 76,118,128,131,506,1022,1223,1239
+scripts/env/activate_powershell.sh
+  s_5ccf43901d99bd::t_e501eace2eb69d 29,52
+docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md
+  s_5ccf43901d99bd::t_28d5d16a6adb1b 38,297,566,1243,1248
+  s_5ccf43901d99bd::t_b5d930596897a0 105,113,522,1136
+  s_5ccf43901d99bd::t_f124de287706a1 3
+docs/TROUBLESHOOTING_IMPORTACAO.md
+  s_5ccf43901d99bd::t_f124de287706a1 1
+scripts/env/README.md
+  s_5ccf43901d99bd::t_e501eace2eb69d 15-16,20,25,63,83,95
+docs/ARCH_IMPORT_PIPELINE.md
+  s_5ccf43901d99bd::t_f124de287706a1 4
+docs/ARQUITETURA_IMPORTACAO.md
+  s_5ccf43901d99bd::t_f124de287706a1 1
+docs/BUILD_EXECUTAVEL_ANALISE_COMPLETA.md
+  s_5ccf43901d99bd::t_f124de287706a1 6
+docs/COMANDOS_RAPIDOS.md
+  s_5ccf43901d99bd::t_f124de287706a1 1,5
+docs/GUIA_DISTRIBUICAO.md
+  s_5ccf43901d99bd::t_771e2b299a6615 9,23,318,336
+docs/TROUBLESHOOTING.md
+  s_5ccf43901d99bd::t_f124de287706a1 1
+dev_env/README.md
+  s_5ccf43901d99bd::t_e501eace2eb69d 6,25
+docs/HISTORICO_RELEASES.md
+  s_5ccf43901d99bd::t_8ca05518f833f7 38-51,690-691,702
+scripts/env/setup_env.ps1
+  s_5ccf43901d99bd::t_153652448a7654 28-49,103
+  s_5ccf43901d99bd::t_e501eace2eb69d 80
+docs/ARCH_DB_UPSERT.md
+  s_5ccf43901d99bd::t_f124de287706a1 1
+scripts/env/setup_env.sh
+  s_5ccf43901d99bd::t_e501eace2eb69d 77
+dev_env/ENVIRONMENT_GUIDE.md
+  s_5ccf43901d99bd::t_e501eace2eb69d 19,28,57
+launchers/README_BUILD_AUTOMATIZADO.md
+  s_5ccf43901d99bd::t_f124de287706a1 10,23
+docs/BUILD_SYSTEM.md
+  s_5ccf43901d99bd::t_f124de287706a1 3
+docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
+  s_5ccf43901d99bd::t_f124de287706a1 1,512
+  s_5ccf43901d99bd::t_153652448a7654 3-6
+docs/BUILD_MULTIPLATFORM.md
+  s_5ccf43901d99bd::t_f124de287706a1 5,63,90-91,93-94,96-97,204-206,225,229,232
+CHANGELOG.md
+  s_5ccf43901d99bd::t_9d5797b71ff53c 5,8-12,38-45
+docs/FILTER_TAB_OPTIMIZATIONS.md
+  s_5ccf43901d99bd::t_f124de287706a1 3
+docs/ARCH_VALIDATION_AND_INTEGRITY.md
+  s_5ccf43901d99bd::t_f124de287706a1 4
+docs/ARCH_GUI_LOAD_AND_FILTER.md
+  s_5ccf43901d99bd::t_f124de287706a1 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2683077180721042201badab4389c1fd64b4be65",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
