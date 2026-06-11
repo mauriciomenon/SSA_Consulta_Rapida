@@ -1,0 +1,21 @@
+tests/test_release_debian_script.py
+  s_5ccf43901d99bd::t_01c2f3ccfdb263 276,278-281
+dev_env/setup_msvc_path.ps1
+  s_5ccf43901d99bd::t_a22127c1a2e9b4 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "bb57a0774597e8cc2114c2972278b5074668ac4e",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
