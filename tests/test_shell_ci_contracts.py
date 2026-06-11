@@ -225,6 +225,29 @@ def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
     assert "Invoke-Expression" not in script
 
 
+def test_setup_env_scripts_require_explicit_verified_remote_pyenv_install() -> None:
+    shell_script = _read_repo_text("scripts", "env", "setup_env.sh")
+    powershell_script = _read_repo_text("scripts", "env", "setup_env.ps1")
+
+    assert "curl https://pyenv.run | bash" not in shell_script
+    assert "wget -O- https://pyenv.run | bash" not in shell_script
+    assert "SSA_ALLOW_REMOTE_PYENV_INSTALL" in shell_script
+    assert "SSA_PYENV_INSTALLER_SHA256" in shell_script
+    assert "SSA_CONFIRM_REMOVE_PYENV" in shell_script
+    assert "sha256sum" in shell_script
+    assert "shasum -a 256" in shell_script
+    assert "IFS= read -r python_version" in shell_script
+    assert "SSA_PYTHON_STABLE_VERSION" in shell_script
+
+    assert "[switch]$AllowRemotePyenvInstall" in powershell_script
+    assert "[string]$PyenvInstallerSha256" in powershell_script
+    assert "SSA_ALLOW_REMOTE_PYENV_INSTALL" in powershell_script
+    assert "SSA_CONFIRM_REMOVE_PYENV" in powershell_script
+    assert "Get-FileHash -Algorithm SHA256" in powershell_script
+    assert "SSA_PYTHON_STABLE_VERSION" in powershell_script
+    assert "& \"$env:TEMP\\install-pyenv-win.ps1\"" not in powershell_script
+
+
 def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
