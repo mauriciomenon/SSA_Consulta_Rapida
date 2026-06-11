@@ -65,7 +65,7 @@ def test_convert_svg_to_ico_uses_sizes_on_single_base_image(monkeypatch):
     monkeypatch.setattr(convert_icon, "cairosvg", _FakeCairosvg)
     monkeypatch.setattr(convert_icon, "_import_optional_module", _fake_import)
 
-    convert_icon.convert_svg_to_ico("icon.svg", "/tmp/icon.ico", sizes=[16, 32, 64])
+    convert_icon.convert_svg_to_ico("icon.svg", "icon.ico", sizes=[16, 32, 64])
 
     assert save_calls, "save nao foi chamado"
     kwargs = save_calls[0]["kwargs"]
@@ -118,7 +118,7 @@ def test_convert_svg_to_ico_uses_rsvg_when_cairosvg_unavailable(monkeypatch):
     monkeypatch.setattr(convert_icon, "_run_command", _fake_run_command)
     monkeypatch.setattr(convert_icon, "RSVG_CONVERT", "rsvg-convert")
 
-    convert_icon.convert_svg_to_ico("icon.svg", "/tmp/icon.ico", sizes=[16])
+    convert_icon.convert_svg_to_ico("icon.svg", "icon.ico", sizes=[16])
 
     assert command_calls, "rsvg-convert nao foi chamado"
     assert command_calls[0][0] == "rsvg-convert"
@@ -139,7 +139,7 @@ def test_convert_svg_to_ico_rejects_empty_sizes(monkeypatch) -> None:
     monkeypatch.setattr(convert_icon, "_require_pillow_image", lambda: object())
 
     with pytest.raises(ValueError, match="sizes must not be empty"):
-        convert_icon.convert_svg_to_ico("icon.svg", "/tmp/icon.ico", sizes=[])
+        convert_icon.convert_svg_to_ico("icon.svg", "icon.ico", sizes=[])
 
 
 def test_convert_svg_to_icns_uses_requested_sizes_and_closes_images(

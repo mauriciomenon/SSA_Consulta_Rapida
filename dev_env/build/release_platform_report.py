@@ -112,6 +112,16 @@ def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
     backend_names = {str(item["name"]) for item in backends}
     package_names = {str(item["name"]) for item in packages}
     platform_names = _platform_names(backends, packages)
+    _validate_unsupported_pairs(payload, backend_names, package_names, platform_names)
+    _validate_asset_name_templates(payload, platform_names)
+
+
+def _validate_unsupported_pairs(
+    payload: dict[str, Any],
+    backend_names: set[str],
+    package_names: set[str],
+    platform_names: set[str],
+) -> None:
     unsupported_pairs = payload.get("unsupported_pairs", [])
     if not isinstance(unsupported_pairs, list):
         raise ReleaseReportError(f"unsupported_pairs invalido em {TARGETS_FILE}")
@@ -134,6 +144,19 @@ def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
             raise ReleaseReportError(
                 f"unsupported_pairs referencia platform desconhecido em {TARGETS_FILE}"
             )
+
+
+def _required_asset_template_keys(platform_packages: list[str]) -> list[str]:
+    required_keys = [package for package in platform_packages if package != "tar"]
+    if "tar" in platform_packages:
+        required_keys.extend(["tar_split", "tar_single"])
+    return required_keys
+
+
+def _validate_asset_name_templates(
+    payload: dict[str, Any],
+    platform_names: set[str],
+) -> None:
     templates = payload.get("asset_name_templates", {})
     if templates and not isinstance(templates, dict):
         raise ReleaseReportError(f"asset_name_templates invalido em {TARGETS_FILE}")
@@ -145,14 +168,7 @@ def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
                 f"asset_name_templates referencia platform desconhecido em {TARGETS_FILE}"
             )
         platform_packages = _enabled_target_names(payload, "packages", platform_name)
-        required_keys = [
-            package
-            for package in platform_packages
-            if package != "tar"
-        ]
-        if "tar" in platform_packages:
-            required_keys.extend(["tar_split", "tar_single"])
-        for key in required_keys:
+        for key in _required_asset_template_keys(platform_packages):
             value = platform_templates.get(key)
             if not isinstance(value, str) or not value:
                 raise ReleaseReportError(

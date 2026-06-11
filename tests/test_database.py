@@ -169,17 +169,17 @@ def test_resolved_table_cache_prunes_oldest_entry():
         max_entries = database_module._RESOLVED_TABLE_CACHE_MAX_ENTRIES
         for index in range(max_entries + 1):
             database_module._store_resolved_table_cache(
-                (f"/tmp/cache-{index}.sqlite", "ssa_table"),
+                (f"cache-{index}.sqlite", "ssa_table"),
                 f"table_{index}",
             )
 
         assert len(database_module._resolved_table_cache) == max_entries
-        assert ("/tmp/cache-0.sqlite", "ssa_table") not in (
+        assert ("cache-0.sqlite", "ssa_table") not in (
             database_module._resolved_table_cache
         )
         assert (
             database_module._resolved_table_cache[
-                (f"/tmp/cache-{max_entries}.sqlite", "ssa_table")
+                (f"cache-{max_entries}.sqlite", "ssa_table")
             ]
             == f"table_{max_entries}"
         )
