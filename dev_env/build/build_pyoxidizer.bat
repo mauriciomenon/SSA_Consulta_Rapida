@@ -23,6 +23,7 @@ if not exist "%REPO_ROOT%\builds\pyoxidizer" mkdir "%REPO_ROOT%\builds\pyoxidize
 set "UV_PYTHON=3.13"
 REM PyOxidizer embeds CPython 3.10 on this target; native runtime libs must match it.
 set "PYOX_RUNTIME_PYTHON=3.10"
+if not defined PYOXIDIZER_UV_PACKAGE set "PYOXIDIZER_UV_PACKAGE=pyoxidizer==0.24.0"
 set "UV_MANAGED_PYTHON=true"
 set "UV_PROJECT_ENVIRONMENT=.venv-win"
 
@@ -179,13 +180,18 @@ if errorlevel 1 (
     exit /b 1
 )
 set "STAGE_DIR_POSIX=%STAGE_DIR:\=/%"
+uv tool run --python 3.13 --from "%PYOXIDIZER_UV_PACKAGE%" pyoxidizer --version >nul 2>&1
+if errorlevel 1 (
+    echo Erro: PyOxidizer indisponivel via uv tool: "%PYOXIDIZER_UV_PACKAGE%"
+    exit /b 1
+)
 
 if "%SILENT%"=="1" (
     echo [build_pyoxidizer] modo silencioso ativo. log: "%LOG_FILE%"
-    uv tool run --python 3.13 --from pyoxidizer pyoxidizer build --release --var SSA_PROJECT_ROOT "%STAGE_DIR_POSIX%" --path "%STAGE_DIR%" > "%LOG_FILE%" 2>&1
+    uv tool run --python 3.13 --from "%PYOXIDIZER_UV_PACKAGE%" pyoxidizer build --release --var SSA_PROJECT_ROOT "%STAGE_DIR_POSIX%" --path "%STAGE_DIR%" > "%LOG_FILE%" 2>&1
 ) else (
     echo Iniciando build PyOxidizer...
-    uv tool run --python 3.13 --from pyoxidizer pyoxidizer build --release --var SSA_PROJECT_ROOT "%STAGE_DIR_POSIX%" --path "%STAGE_DIR%"
+    uv tool run --python 3.13 --from "%PYOXIDIZER_UV_PACKAGE%" pyoxidizer build --release --var SSA_PROJECT_ROOT "%STAGE_DIR_POSIX%" --path "%STAGE_DIR%"
 )
 
 if errorlevel 1 (

@@ -20,6 +20,7 @@ LOG_DIR="${REPO_ROOT}/launchers/logs"
 LOG_FILE="${LOG_DIR}/build_pyoxidizer_debian_arm64.log"
 TARGET_BUILD_DIR="${REPO_ROOT}/builds/pyoxidizer/debian_arm64"
 PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"
+PYOXIDIZER_UV_PACKAGE="${SSA_PYOXIDIZER_UV_PACKAGE:-pyoxidizer==0.24.0}"
 
 mkdir -p "${LOG_DIR}"
 mkdir -p "${REPO_ROOT}/builds/pyoxidizer"
@@ -91,8 +92,12 @@ if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
   echo "Erro: falha ao gerar build_info.json para PyOxidizer debian_arm64" >&2
   exit 1
 fi
+if ! uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer --version >/dev/null 2>&1; then
+  echo "Erro: PyOxidizer indisponivel via uv tool: ${PYOXIDIZER_UV_PACKAGE}" >&2
+  exit 1
+fi
 PYOX_CMD=(
-  uv tool run --python 3.13 --from pyoxidizer pyoxidizer build
+  uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer build
   --release
   --var SSA_PROJECT_ROOT "${REPO_ROOT}"
   --path "${REPO_ROOT}"

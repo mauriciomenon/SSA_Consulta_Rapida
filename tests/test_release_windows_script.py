@@ -46,6 +46,10 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert_before(script, 'Assert-Tool "git"', "$repoRoot = Resolve-RepoRoot")
     assert_before(script, 'Assert-Tool "uv"', "$repoRoot = Resolve-RepoRoot")
     assert '($selectedBackends -contains "pyoxidizer")' in script
+    assert "SSA_PYOXIDIZER_UV_PACKAGE" in script
+    assert "pyoxidizer==0.24.0" in script
+    assert '"pyoxidizer",' in script
+    assert '"--version"' in script
     assert_before(
         script,
         "$selectedBackends = Get-SelectedBackends $Backend",

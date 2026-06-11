@@ -590,6 +590,20 @@ if ((-not $DryRun) -and (-not $SkipInstaller)) {
 }
 if ((-not $DryRun) -and (-not $SkipBuild) -and ($selectedBackends -contains "pyoxidizer")) {
     Assert-Tool "rcedit.exe" "scoop install rcedit"
+    $pyoxidizerPackage = if ($env:SSA_PYOXIDIZER_UV_PACKAGE) { $env:SSA_PYOXIDIZER_UV_PACKAGE } else { "pyoxidizer==0.24.0" }
+    $pyoxidizerCheck = & uv @(
+        "tool",
+        "run",
+        "--python",
+        "3.13",
+        "--from",
+        $pyoxidizerPackage,
+        "pyoxidizer",
+        "--version"
+    ) 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "PyOxidizer indisponivel via uv tool: $pyoxidizerPackage. Saida: $($pyoxidizerCheck -join [Environment]::NewLine)"
+    }
 }
 $version = Get-AppVersion $repoRoot
 $windowsVersion = Get-WindowsVersionText $version

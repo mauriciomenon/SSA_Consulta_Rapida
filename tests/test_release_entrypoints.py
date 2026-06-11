@@ -42,6 +42,11 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert "Backend Windows invalido" in script
     assert "pyoxidizer ou combinacoes" in script
     assert '$value -eq "pyoxidizer"' in script
+    assert "$needsPyoxidizer = $true" in script
+    assert "SSA_PYOXIDIZER_UV_PACKAGE" in script
+    assert "pyoxidizer==0.24.0" in script
+    assert '"pyoxidizer",' in script
+    assert '"--version"' in script
     assert "uv tool run --python 3.13 --from pyoxidizer" not in script
     assert '"--extra"' in script
     assert '"build"' in script

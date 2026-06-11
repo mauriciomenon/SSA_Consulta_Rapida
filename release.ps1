@@ -130,6 +130,7 @@ function Initialize-WindowsBuildExtra {
         pyinstaller = "PyInstaller"
     }
     $modules = @()
+    $needsPyoxidizer = $false
     foreach ($backend in ($BackendCsv -split ",")) {
         $value = $backend.Trim().ToLowerInvariant()
         if ($moduleByBackend.ContainsKey($value)) {
@@ -140,55 +141,75 @@ function Initialize-WindowsBuildExtra {
             continue
         }
         if ($value -eq "pyoxidizer") {
+            $needsPyoxidizer = $true
             continue
         }
         if (-not [string]::IsNullOrWhiteSpace($value)) {
             throw "Backend Windows invalido: $value. Use nuitka, pyinstaller, pyoxidizer ou combinacoes separadas por virgula."
         }
     }
-    if ($modules.Count -eq 0) {
+    if ($modules.Count -eq 0 -and -not $needsPyoxidizer) {
         return
     }
     if (-not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
         throw "uv nao encontrado no PATH. Instale uv ou abra um shell com uv disponivel antes do release."
     }
 
-    $imports = ($modules | ForEach-Object { "import $_" }) -join "; "
-    $uvOutput = @()
-    Push-Location $RepoRoot
-    try {
-        $uvOutput = & uv @(
+    if ($modules.Count -gt 0) {
+        $imports = ($modules | ForEach-Object { "import $_" }) -join "; "
+        $uvOutput = @()
+        Push-Location $RepoRoot
+        try {
+            $uvOutput = & uv @(
+                "run",
+                "--python",
+                "3.13",
+                "--extra",
+                "build",
+                "python",
+                "-c",
+                $imports
+            ) 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $uvDetails = ($uvOutput | Out-String -Width 240).Trim()
+                if ([string]::IsNullOrWhiteSpace($uvDetails)) {
+                    $uvDetails = "uv nao retornou stdout/stderr."
+                }
+                if ($uvDetails.Length -gt 4000) {
+                    $uvDetails = $uvDetails.Substring($uvDetails.Length - 4000)
+                }
+                throw "uv run --extra build falhou. Output: $uvDetails"
+            }
+        } catch {
+            $detail = $_.Exception.Message
+            $uvDetails = ($uvOutput | Out-String -Width 240).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($uvDetails) -and -not $detail.Contains($uvDetails)) {
+                if ($uvDetails.Length -gt 4000) {
+                    $uvDetails = $uvDetails.Substring($uvDetails.Length - 4000)
+                }
+                $detail = "$detail Output: $uvDetails"
+            }
+            throw "Dependencias de build ausentes ou indisponiveis para ${BackendCsv}. Use 'uv sync --extra build' ou verifique a rede/cache do uv. Detalhe: $detail"
+        } finally {
+            Pop-Location
+        }
+    }
+    if ($needsPyoxidizer) {
+        $pyoxidizerPackage = if ($env:SSA_PYOXIDIZER_UV_PACKAGE) { $env:SSA_PYOXIDIZER_UV_PACKAGE } else { "pyoxidizer==0.24.0" }
+        $pyoxidizerOutput = & uv @(
+            "tool",
             "run",
             "--python",
             "3.13",
-            "--extra",
-            "build",
-            "python",
-            "-c",
-            $imports
+            "--from",
+            $pyoxidizerPackage,
+            "pyoxidizer",
+            "--version"
         ) 2>&1
         if ($LASTEXITCODE -ne 0) {
-            $uvDetails = ($uvOutput | Out-String -Width 240).Trim()
-            if ([string]::IsNullOrWhiteSpace($uvDetails)) {
-                $uvDetails = "uv nao retornou stdout/stderr."
-            }
-            if ($uvDetails.Length -gt 4000) {
-                $uvDetails = $uvDetails.Substring($uvDetails.Length - 4000)
-            }
-            throw "uv run --extra build falhou. Output: $uvDetails"
+            $detail = ($pyoxidizerOutput | Out-String -Width 240).Trim()
+            throw "PyOxidizer indisponivel via uv tool: $pyoxidizerPackage. Detalhe: $detail"
         }
-    } catch {
-        $detail = $_.Exception.Message
-        $uvDetails = ($uvOutput | Out-String -Width 240).Trim()
-        if (-not [string]::IsNullOrWhiteSpace($uvDetails) -and -not $detail.Contains($uvDetails)) {
-            if ($uvDetails.Length -gt 4000) {
-                $uvDetails = $uvDetails.Substring($uvDetails.Length - 4000)
-            }
-            $detail = "$detail Output: $uvDetails"
-        }
-        throw "Dependencias de build ausentes ou indisponiveis para ${BackendCsv}. Use 'uv sync --extra build' ou verifique a rede/cache do uv. Detalhe: $detail"
-    } finally {
-        Pop-Location
     }
 }
 

@@ -130,6 +130,9 @@ def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
             encoding="utf-8"
         )
         assert 'PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"' in script
+        assert 'PYOXIDIZER_UV_PACKAGE="${SSA_PYOXIDIZER_UV_PACKAGE:-pyoxidizer==0.24.0}"' in script
+        assert 'uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer --version' in script
+        assert '--from pyoxidizer pyoxidizer build' not in script
         assert '--var SSA_PROJECT_ROOT "${REPO_ROOT}"' in script
         assert '--path "${REPO_ROOT}"' in script
         assert 'BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"' in script
@@ -202,6 +205,9 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert 'set "MSVC_LINK="' in pyoxidizer_script
     assert "if not defined MSVC_LINK" in pyoxidizer_script
     assert "where link.exe" in pyoxidizer_script
+    assert 'set "PYOXIDIZER_UV_PACKAGE=pyoxidizer==0.24.0"' in pyoxidizer_script
+    assert 'uv tool run --python 3.13 --from "%PYOXIDIZER_UV_PACKAGE%" pyoxidizer --version' in pyoxidizer_script
+    assert "--from pyoxidizer pyoxidizer build" not in pyoxidizer_script
     assert 'set "APP_VERSION=%%A"' in pyoxidizer_script
     assert "version_short ausente" in pyoxidizer_script
     assert 'if not defined APP_VERSION set "APP_VERSION=0.0"' not in pyoxidizer_script
@@ -222,6 +228,20 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
     assert "--build-system pyoxidizer" in pyoxidizer_script
     assert "--platform windows_amd64" in pyoxidizer_script
+
+
+def test_setup_msvc_path_is_session_only_diagnostic() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "setup_msvc_path.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "[switch]$ApplyToCurrentSession" in script
+    assert "vswhere.exe" in script
+    assert "vcvars64.bat" in script
+    assert "Import-VcVarsIntoCurrentSession" in script
+    assert "This script does not modify the user PATH" in script
+    assert "[Environment]::SetEnvironmentVariable" not in script
+    assert 'Set-Item -Path "Env:$name"' in script
 
 
 def test_pyoxidizer_debian_runtime_includes_version_json() -> None:
