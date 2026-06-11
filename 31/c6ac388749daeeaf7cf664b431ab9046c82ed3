@@ -1,0 +1,22 @@
+gui/mixins/filter_gui_ssa_mixin.py
+  s_5ccf43901d99bd::t_6e81e50daffdd3 1771
+tests/test_gui_filter_logic.py
+  s_5ccf43901d99bd::t_2e8d59322d5212 4491-4495,4497-4498,4500-4520,4522-4523
+  s_5ccf43901d99bd::t_dd912ee5f6e4f4 4496,4499,4521
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "31c6ac388749daeeaf7cf664b431ab9046c82ed3",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
