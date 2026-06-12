@@ -1,0 +1,19 @@
+.github/workflows/minimal-ci.yml
+  s_eee8f33ce3b537::t_4b04894654353e 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d5122c7788db50c924faaaeac3cb6cfa1e4b45e4",
+  "prompts": {},
+  "sessions": {
+    "s_eee8f33ce3b537": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ebce5-3a53-71e3-a9e1-4e247bdcb68c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
