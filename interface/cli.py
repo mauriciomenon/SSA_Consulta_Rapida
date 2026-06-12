@@ -49,6 +49,7 @@ APP_VERSION_LONG = get_app_version_long()
 # Rastreador de paginação por DataFrame (id -> estado retornado pelo printer)
 CLI_PAGINATION_TRACKER: Dict[int, Dict[str, Any]] = {}
 DEFAULT_FILTER_TERMS_CACHE: Dict[str, Any] = {}
+RAW_ANSI_ESCAPE = "\x1b"
 
 
 class _CLIPaginationTrackerManager:
@@ -120,7 +121,7 @@ class _CLIPaginationTrackerManager:
             return 0
         next_page = state.get("next_page")
         if next_page is None:
-            return int(state.get("total_pages", 0))
+            return 0
         return max(0, int(next_page))
 
     def state_for(self, df: pd.DataFrame) -> Dict[str, Any]:
@@ -162,7 +163,9 @@ def _pagination_state_key_for_df(df: pd.DataFrame) -> int | None:
 def _last_rendered_page_for(df: pd.DataFrame) -> int:
     state = _PAGINATION_TRACKER_MANAGER.state_for(df)
     total_pages = max(0, int(state.get("total_pages", 0)))
-    rendered_pages = max(1, int(state.get("rendered_pages", 1)))
+    rendered_pages = max(0, int(state.get("rendered_pages", 0)))
+    if rendered_pages == 0:
+        return 0
     next_page = state.get("next_page")
     if next_page is None:
         return max(0, total_pages - rendered_pages)
@@ -1297,7 +1300,14 @@ def start_cli_loop(db_path: str, table_name: str):
             prompt_text = (
                 f"[{len(current_df)} SSAs] Buscar termos por virgula ou comando: "
             )
-            user_input = input(prompt_text).strip()
+            raw_user_input = input(prompt_text)
+            if RAW_ANSI_ESCAPE in raw_user_input:
+                print(
+                    "Entrada ignorada: tecla de direcao nao foi processada pelo "
+                    "terminal. Digite o filtro novamente."
+                )
+                continue
+            user_input = raw_user_input.strip()
 
             if not user_input:
                 continue
@@ -1376,7 +1386,6 @@ def start_cli_loop(db_path: str, table_name: str):
                     if (
                         normalized_ssa
                         and ssa_number.isdigit()
-                        and len(ssa_number) == len(normalized_ssa)
                     ):
                         if "numero_ssa" in current_df.columns:
                             numero_series = current_df["numero_ssa"].astype(str)
@@ -1388,7 +1397,6 @@ def start_cli_loop(db_path: str, table_name: str):
                                 _show_ssa_details(matching_rows.iloc[0], display_map)
                                 continue
                             print(f"SSA {ssa_number} não encontrada na tabela atual.")
-                            continue
 
                     # Se não é SSA, aplica filtro acumulativo conforme o contrato atual:
                     # termos separados por virgula, sem reinterpretar operadores como OU/E.

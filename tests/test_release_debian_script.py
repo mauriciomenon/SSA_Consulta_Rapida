@@ -130,6 +130,30 @@ def test_release_debian_script_writes_report_and_validates_payloads() -> None:
     assert "hashlib.sha256" in report_script
 
 
+def test_pyoxidizer_debian_scripts_retry_preflight_without_rtk() -> None:
+    for script in (
+        read_repo_text("dev_env", "build", "build_pyoxidizer_debian.sh"),
+        read_repo_text("dev_env", "build", "build_pyoxidizer_debian_arm64.sh"),
+    ):
+        assert "PYOXIDIZER_CHECK_RETRIES=3" in script
+        assert "attempt <= PYOXIDIZER_CHECK_RETRIES" in script
+        assert "nova tentativa ${attempt}/${PYOXIDIZER_CHECK_RETRIES}" in script
+        assert 'rtk uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}"' not in script
+
+
+def test_release_targets_json_rejects_non_object_root(tmp_path, monkeypatch) -> None:
+    invalid_targets = tmp_path / "release_targets.json"
+    invalid_targets.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(REPORT_MODULE, "TARGETS_FILE", invalid_targets)
+
+    with pytest.raises(REPORT_MODULE.ReleaseReportError) as excinfo:
+        REPORT_MODULE._load_release_targets()
+
+    message = str(excinfo.value)
+    assert str(invalid_targets) in message
+    assert "raiz JSON deve ser objeto" in message
+
+
 def test_release_debian_script_checks_dry_run_before_package_phase() -> None:
     script = _script_text()
     local_release_body = section_between(script, "run_local_release()", "\nmain()")
@@ -273,11 +297,12 @@ def test_release_debian_script_exposes_backend_scorecard() -> None:
     scorecard_text = SCORECARD_FILE.read_text(encoding="utf-8")
 
     assert "get_backend_scorecard" in script
-    assert "security_score" in report_script
-    assert "source_protection_score" in report_script
-    assert "easy_user_dirs_score" in report_script
-    assert "package_size_score" in report_script
+    assert "scorecards[backend]" in report_script
     assert "backend_scorecards.json" in report_script
+    assert "security_score" in scorecard_text
+    assert "source_protection_score" in scorecard_text
+    assert "easy_user_dirs_score" in scorecard_text
+    assert "package_size_score" in scorecard_text
     assert '"protected_release": true' in scorecard_text
     assert '"protected_release": false' in scorecard_text
     assert "PACKAGE_ASSET_SUFFIXES" in report_script
@@ -298,6 +323,7 @@ def test_release_targets_json_defines_validated_targets() -> None:
         "appimage",
         "tar",
         "zip",
+        "dmg",
     ]
     assert REPORT_MODULE._enabled_target_names(
         REPORT_MODULE._load_release_targets(),
@@ -319,6 +345,16 @@ def test_release_targets_json_defines_validated_targets() -> None:
         "packages",
         "debian_arm64",
     ) == ["deb", "appimage", "tar"]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "backends",
+        "macos_arm64",
+    ) == ["pyinstaller"]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "packages",
+        "macos_arm64",
+    ) == ["dmg"]
     assert REPORT_MODULE._unsupported_pair_reason(
         REPORT_MODULE._load_release_targets(),
         "debian_amd64",
@@ -333,6 +369,9 @@ def test_release_targets_json_defines_validated_targets() -> None:
     )
     assert payload["asset_name_templates"]["debian_arm64"]["deb"] == (
         "ssa-consulta-rapida-{backend}-arm64_{app_version}_arm64.deb"
+    )
+    assert payload["asset_name_templates"]["macos_arm64"]["dmg"] == (
+        "SSA_Consulta_Rapida_v{app_version}_macos_arm64.dmg"
     )
 
 
@@ -369,8 +408,8 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
 ) -> None:
     package_dir = tmp_path / "builds" / "packages" / "debian_amd64"
     package_dir.mkdir(parents=True)
-    current = package_dir / "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_cli.tar.gz"
-    stale = package_dir / "SSA_Consulta_Rapida_v4.37_debian_amd64_pyoxidizer.tar.gz"
+    current = package_dir / "SSA_Consulta_Rapida_v4.42_debian_amd64_nuitka_cli.tar.gz"
+    stale = package_dir / "SSA_Consulta_Rapida_v4.42_debian_amd64_pyoxidizer.tar.gz"
     current.write_bytes(b"current")
     stale.write_bytes(b"stale")
 
@@ -384,7 +423,7 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
             platform="debian_amd64",
             backends="nuitka",
             packages="tar",
-            app_version="4.37",
+            app_version="4.42",
             git_commit="abc",
         )
     )
@@ -408,7 +447,7 @@ def test_release_debian_report_fails_when_package_dir_is_missing(tmp_path) -> No
                 platform="debian_amd64",
                 backends="nuitka",
                 packages="tar",
-                app_version="4.37",
+                app_version="4.42",
                 git_commit="abc",
             )
         )
@@ -424,25 +463,34 @@ def test_release_target_reason_rejects_disabled_target_pair() -> None:
             )
         )
 
+    with pytest.raises(REPORT_MODULE.ReleaseReportError, match="backend invalido"):
+        REPORT_MODULE.print_release_target_reason(
+            argparse.Namespace(
+                platform="macos_arm64",
+                backend="nuitka",
+                package="dmg",
+            )
+        )
+
 
 def test_release_debian_expected_asset_names_cover_supported_package_matrix() -> None:
     names = REPORT_MODULE._expected_debian_asset_names(
         ["pyinstaller", "nuitka", "pyoxidizer"],
         ["deb", "appimage", "tar"],
-        "4.37",
+        "4.42",
     )
 
     assert names == {
-        "ssa-consulta-rapida-pyinstaller-amd64_4.37_amd64.deb",
-        "ssa-consulta-rapida-nuitka-amd64_4.37_amd64.deb",
-        "ssa-consulta-rapida-pyoxidizer-amd64_4.37_amd64.deb",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller.AppImage",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka.AppImage",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyoxidizer.tar.gz",
+        "ssa-consulta-rapida-pyinstaller-amd64_4.42_amd64.deb",
+        "ssa-consulta-rapida-nuitka-amd64_4.42_amd64.deb",
+        "ssa-consulta-rapida-pyoxidizer-amd64_4.42_amd64.deb",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_pyinstaller.AppImage",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_nuitka.AppImage",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_pyinstaller_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_pyinstaller_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_nuitka_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_nuitka_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_amd64_pyoxidizer.tar.gz",
     }
 
 
@@ -450,23 +498,73 @@ def test_release_debian_arm64_expected_asset_names_cover_supported_package_matri
     names = REPORT_MODULE._expected_debian_asset_names(
         ["pyinstaller", "nuitka", "pyoxidizer"],
         ["deb", "appimage", "tar"],
-        "4.37",
+        "4.42",
         "debian_arm64",
         "arm64",
     )
 
     assert names == {
-        "ssa-consulta-rapida-pyinstaller-arm64_4.37_arm64.deb",
-        "ssa-consulta-rapida-nuitka-arm64_4.37_arm64.deb",
-        "ssa-consulta-rapida-pyoxidizer-arm64_4.37_arm64.deb",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller.AppImage",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka.AppImage",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyoxidizer.tar.gz",
+        "ssa-consulta-rapida-pyinstaller-arm64_4.42_arm64.deb",
+        "ssa-consulta-rapida-nuitka-arm64_4.42_arm64.deb",
+        "ssa-consulta-rapida-pyoxidizer-arm64_4.42_arm64.deb",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_pyinstaller.AppImage",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_nuitka.AppImage",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_pyinstaller_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_pyinstaller_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_nuitka_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_nuitka_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.42_debian_arm64_pyoxidizer.tar.gz",
     }
+
+
+def test_release_macos_expected_asset_names_cover_dmg_package() -> None:
+    names = REPORT_MODULE._expected_macos_asset_names(
+        ["pyinstaller"],
+        ["dmg"],
+        "4.42",
+    )
+
+    assert names == {"SSA_Consulta_Rapida_v4.42_macos_arm64.dmg"}
+
+
+def test_release_report_rejects_unknown_platform_for_expected_assets() -> None:
+    with pytest.raises(REPORT_MODULE.ReleaseReportError) as excinfo:
+        REPORT_MODULE._expected_asset_names(
+            "linux_s390x",
+            ["nuitka"],
+            ["tar"],
+            "4.42",
+        )
+
+    assert "platform desconhecido no report: linux_s390x" in str(excinfo.value)
+
+
+def test_release_macos_report_filters_stale_dmg_assets(tmp_path, monkeypatch) -> None:
+    package_dir = tmp_path / "builds" / "packages" / "macos_arm64"
+    package_dir.mkdir(parents=True)
+    current = package_dir / "SSA_Consulta_Rapida_v4.42_macos_arm64.dmg"
+    stale = package_dir / "SSA_Consulta_Rapida_v4.41_macos_arm64.dmg"
+    current.write_bytes(b"current")
+    stale.write_bytes(b"stale")
+
+    monkeypatch.setattr(REPORT_MODULE, "_sha256", lambda _path: "0" * 64)
+    report_file = tmp_path / "report.json"
+
+    result = REPORT_MODULE.write_report(
+        argparse.Namespace(
+            repo_root=tmp_path,
+            report_file=report_file,
+            platform="macos_arm64",
+            backends="pyinstaller",
+            packages="dmg",
+            app_version="4.42",
+            git_commit="abc",
+        )
+    )
+
+    payload = json.loads(report_file.read_text(encoding="utf-8"))
+    assert result == 0
+    assert [asset["name"] for asset in payload["assets"]] == [current.name]
 
 
 def test_release_report_normalizes_csv_arguments() -> None:

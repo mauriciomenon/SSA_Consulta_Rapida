@@ -11,11 +11,12 @@ import sys
 from typing import Any
 
 SAM_HOME_URL = "https://osprd.itaipu/SAM_SMA/"
+SAM_REPORTS_URL = "https://apps.itaipu.gov.br/SAM_SMA_Reports/Reports.aspx"
 SAM_SSA_PUBLIC_VIEW_URL = (
     "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx"
     "?SerialNumber={numero_ssa}&language=pt"
 )
-SAM_ALLOWED_URL_HOSTS = frozenset({"osprd.itaipu"})
+SAM_ALLOWED_URL_HOSTS = frozenset({"apps.itaipu.gov.br", "osprd.itaipu"})
 
 
 def build_sam_ssa_url(numero_ssa: str) -> str:

@@ -29,6 +29,7 @@ class ResizeWindowProtocol(Protocol):
     def isVisible(self) -> bool: ...
     def _reorganize_advanced_filters_grid(self, width: int) -> None: ...
     def _sync_bottom_panel_heights(self) -> None: ...
+    def _restore_main_bottom_splitter_sizes(self) -> None: ...
     def _compute_gui_column_widths(self, width_df: Any) -> None: ...
     def _recompute_column_widths_on_resize(
         self, expected_revision: int | None = None
@@ -166,7 +167,13 @@ class MainWindowResizeController:
                 )
         if sync_bottom:
             try:
-                self.window._sync_bottom_panel_heights()
+                restore_splitter = getattr(
+                    self.window, "_restore_main_bottom_splitter_sizes", None
+                )
+                if callable(restore_splitter):
+                    restore_splitter()
+                else:
+                    self.window._sync_bottom_panel_heights()
             except Exception as exc:
                 logger.debug(
                     "Falha ao sincronizar altura dos paineis inferiores durante resize: %s",

@@ -58,6 +58,55 @@ def test_reset_database_table_mode(tmp_path):
         assert cur.fetchone() is not None
 
 
+def test_reset_database_table_mode_clears_existing_canonical_rows(tmp_path):
+    db_path = os.path.join(tmp_path, "x.sqlite")
+    schema = os.path.join(tmp_path, "schema.sql")
+    with open(schema, "w", encoding="utf-8") as f:
+        f.write(
+            """
+            CREATE TABLE IF NOT EXISTS ssa_table (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero_ssa TEXT,
+                situacao TEXT
+            );
+            """
+        )
+    initialize_database(db_path, schema)
+    with get_db_connection(db_path) as conn:
+        conn.execute(
+            "INSERT INTO ssa_table (numero_ssa, situacao) VALUES (?, ?)",
+            ("202401234", "OLD"),
+        )
+        conn.commit()
+
+    assert reset_database(db_path, mode="table", schema_path=schema) is True
+
+    with get_db_connection(db_path) as conn:
+        row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
+    assert row_count == 0
+
+
+def test_reset_database_table_mode_uses_explicit_table_name(tmp_path):
+    db_path = os.path.join(tmp_path, "x.sqlite")
+    schema = _make_schema(tmp_path)
+    initialize_database(db_path, schema)
+    with get_db_connection(db_path) as conn:
+        conn.execute(
+            "INSERT INTO ssas (numero_ssa, situacao) VALUES (?, ?)",
+            (202401234, "OLD"),
+        )
+        conn.commit()
+
+    assert (
+        reset_database(db_path, mode="table", _table_name="ssas", schema_path=schema)
+        is True
+    )
+
+    with get_db_connection(db_path) as conn:
+        row_count = conn.execute("SELECT COUNT(*) FROM ssas").fetchone()[0]
+    assert row_count == 0
+
+
 def test_ensure_indexes(tmp_path):
     db_path = os.path.join(tmp_path, "x.sqlite")
     schema = _make_schema(tmp_path)

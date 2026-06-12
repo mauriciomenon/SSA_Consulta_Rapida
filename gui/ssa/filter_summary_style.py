@@ -9,12 +9,14 @@ def build_summary_button_stylesheet(
     accent: str,
     background: str,
     text_color: str,
+    font_size: int,
 ) -> str:
     return (
         "QPushButton {"
         f"border:1px solid {border};"
         "border-radius:4px;"
         "padding:2px 6px;"
+        f"font-size:{font_size}px;"
         "font-weight:600;"
         f"background:{background};"
         f"color:{text_color};"

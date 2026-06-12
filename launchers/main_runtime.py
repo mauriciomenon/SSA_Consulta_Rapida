@@ -50,7 +50,7 @@ def _get_project_root() -> str:
     if getattr(sys, "oxidized", False):
         return os.path.dirname(sys.executable)
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return os.path.dirname(os.path.abspath(sys.executable))
+        return os.path.abspath(os.fspath(getattr(sys, "_MEIPASS")))
     if "__compiled__" in globals():
         return os.path.dirname(sys.executable)
     try:

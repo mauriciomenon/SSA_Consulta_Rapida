@@ -901,7 +901,7 @@ class FilterGUISSAMixin:
         self._df_last_search_filtered = df_filtrado
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
-        self._refresh_after_filter_change()
+        self._refresh_after_filter_change(commit_pending_search=False)
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
         search_text = ""
         current_search_request_id = getattr(
@@ -1365,21 +1365,39 @@ class FilterGUISSAMixin:
     def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
         theme = getattr(self, "_current_theme", "") or "dark"
         roles = get_theme_roles(theme)
-        label_color = roles.get("support_text_color") or roles.get("label_color")
+        label_color = (
+            roles.get("panel_text") or roles.get("label_color") or "palette(text)"
+        )
         if label_widget is not None:
             label_widget.setStyleSheet(f"color:{label_color};")
         if input_widget is not None:
-            input_text = roles.get("input_text")
-            input_bg = roles.get("input_bg")
-            input_border = roles.get("input_border")
-            input_focus = roles.get("input_border_focus") or roles.get("accent")
-            input_placeholder = roles.get("input_placeholder")
-            style = (
-                f"QLineEdit {{ font-size:11px; color:{input_text}; background:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
-                f"QLineEdit::placeholder {{ color:{input_placeholder}; }}\n"
-                f"QLineEdit:focus {{ border:1px solid {input_focus}; }}\n"
+            input_text = (
+                roles.get("input_text") or roles.get("panel_text") or "palette(text)"
             )
-            input_widget.setStyleSheet(style)
+            input_bg = roles.get("panel_bg") or roles.get("input_bg") or "palette(base)"
+            input_border = (
+                roles.get("input_border") or roles.get("panel_border") or "palette(mid)"
+            )
+            input_focus = (
+                roles.get("input_border_focus") or roles.get("accent") or input_border
+            )
+            input_placeholder = (
+                roles.get("input_placeholder") or roles.get("muted_text") or label_color
+            )
+            try:
+                input_widget.setObjectName("columnFilterInput")
+            except RuntimeError as exc:
+                logger.debug("Filtro de coluna destruido ao nomear input: %s", exc)
+                return
+            style = (
+                f"QLineEdit#columnFilterInput {{ font-size:11px; color:{input_text}; background-color:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
+                f"QLineEdit#columnFilterInput::placeholder {{ color:{input_placeholder}; }}\n"
+                f"QLineEdit#columnFilterInput:focus {{ border:1px solid {input_focus}; }}\n"
+            )
+            try:
+                input_widget.setStyleSheet(style)
+            except RuntimeError as exc:
+                logger.debug("Filtro de coluna destruido ao aplicar estilo: %s", exc)
 
     def _resolve_status_totals(
         self,
@@ -1750,6 +1768,7 @@ class FilterGUISSAMixin:
     def _render_filter_reset_baseline(self) -> None:
         """Render the full dataset after a full filter reset through one path."""
         self.df_exibido = self.df_completo
+        self._last_table_render_signature = None
         try:
             self.paginator.current_page = 1
         except Exception as exc:
@@ -2305,22 +2324,25 @@ class FilterGUISSAMixin:
         self._build_column_filters_panel()
 
     def _filter_refresh_has_general_search(self) -> bool:
-        try:
-            for widget in self._iter_search_inputs():
-                if widget.text().strip():
-                    return True
-        except Exception as exc:
-            logger.debug("Falha ao ler campos de busca no refresh de filtros: %s", exc)
         active_search_display = str(
             getattr(self, "_active_filter_search_display", "") or ""
         ).strip()
-        pending_search_display = str(
-            getattr(self, "_pending_search_display", "") or ""
-        ).strip()
-        return bool(active_search_display or pending_search_display)
+        if not active_search_display:
+            return False
+        try:
+            live_search_texts = [
+                str(widget.text() or "").strip()
+                for widget in self._iter_search_inputs()
+            ]
+        except Exception as exc:
+            logger.debug("Falha ao ler campos de busca no refresh de filtros: %s", exc)
+            return True
+        if not live_search_texts:
+            return True
+        return all(text == active_search_display for text in live_search_texts)
 
     def _filter_refresh_base_dataframe(self, has_general_search: bool) -> pd.DataFrame:
-        if has_general_search or not self._df_last_search_filtered.empty:
+        if has_general_search:
             return self._df_last_search_filtered
         return self.df_completo
 
@@ -2368,7 +2390,6 @@ class FilterGUISSAMixin:
             apply_advanced_filters=getattr(self, "_apply_advanced_filters", None),
             apply_column_filters=self._apply_column_filters,
             measure_timing=measure_timing,
-            logger=logger,
         )
         if cache_update is not None:
             self._filter_refresh_result_cache = cache_update
@@ -2590,11 +2611,22 @@ class FilterGUISSAMixin:
             filtered_rows,
         )
 
-    def _refresh_after_filter_change(self):
+    def _refresh_after_filter_change(self, *, commit_pending_search: bool = True):
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
         timer = FilterRefreshTimer()
         current_details_ssa = getattr(self, "_details_current_ssa", None)
-        has_general_search = self._filter_refresh_has_general_search()
+        active_search_display = str(
+            getattr(self, "_active_filter_search_display", "") or ""
+        ).strip()
+        current_search_text = self._current_general_search_text()
+        if commit_pending_search and current_search_text != active_search_display:
+            self.initiate_filtering()
+            return
+        has_general_search = (
+            self._filter_refresh_has_general_search()
+            if commit_pending_search
+            else bool(active_search_display)
+        )
         base = self._filter_refresh_base_dataframe(has_general_search)
         filtered = base
         (
@@ -2607,14 +2639,6 @@ class FilterGUISSAMixin:
             or has_advanced_filters
             or has_excluded_terminal_status
         )
-        if has_post_search_filters:
-            undo_state = getattr(self, "_last_filter_state", None)
-            applied_search_text = str(
-                getattr(self, "_active_filter_search_display", "") or ""
-            )
-            if isinstance(undo_state, dict) and applied_search_text:
-                undo_state["search_text"] = applied_search_text
-                undo_state["pending_search_display"] = applied_search_text
         filtered = self._apply_filter_refresh_filters_and_update_cache(
             filtered,
             has_post_search_filters=has_post_search_filters,

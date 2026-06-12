@@ -203,6 +203,28 @@ def _build_theme_style_map(
             f" border:1px solid {accent}; background: {accent_soft};"
             "}"
         ),
+        "advanced_field_box_css": (
+            "QGroupBox {"
+            f" color: {panel_text}; border:1px solid {panel_border};"
+            " border-radius:4px; margin-top:8px; padding-top:0px;"
+            "}"
+            "QGroupBox::title {"
+            " subcontrol-origin: margin;"
+            f" background-color: {panel_bg};"
+            " left:6px; padding:0 4px;"
+            "}"
+        ),
+        "advanced_field_box_windows_css": (
+            "QGroupBox {"
+            f" color: {panel_text}; border:1px solid {panel_border};"
+            " border-radius:4px; margin-top:0px; padding-top:0px;"
+            "}"
+            "QLabel#advancedFilterFieldTitleLabel {"
+            f" color: {panel_text};"
+            f" background-color: {panel_bg};"
+            " padding:0 4px;"
+            "}"
+        ),
         "action_btn_css": (
             "QPushButton {"
             f" color: {panel_text}; background: {panel_bg}; border:1px solid {panel_border};"

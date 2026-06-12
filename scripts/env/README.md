@@ -12,17 +12,17 @@ Scripts de bootstrap de ambiente Python com suporte multiplataforma (Windows, ma
 ## Como Funciona
 
 ### 1. Detecção de Versão Python
-- Lê `.python-version` na raiz do repo (atualmente: **3.13.9**)
-- Fallback para `SSA_PYTHON_STABLE_VERSION` (default: 3.13.7)
+- Lê `.python-version` na raiz do repo (atualmente: **3.13.12**)
+- Fallback para `SSA_PYTHON_STABLE_VERSION` (default: 3.13.12)
 - Variante free-threaded usa `SSA_PYTHON_FT_VERSION` (default: 3.14-dev)
 
 ### 2. Estratégia de Ambiente (em ordem de precedência)
-1. **pyenv + virtualenv** (preferido): Cria `ssa_consulta_stable_3_13_9`
+1. **pyenv + virtualenv** (preferido): Cria `ssa_consulta_stable_3_13_12`
 2. **pyenv local** (se virtualenv indisponível): Usa `.python-version` via `pyenv local`
 3. **venv local** (fallback): Cria `.venv` com Python do sistema
 
 ### 3. Variantes de Python
-- **stable** (default): Versão estável de produção (3.13.9)
+- **stable** (default): Versão estável de produção (3.13.12)
 - **free-threaded**: Versão experimental nogil (3.14-dev)
 
 Selecione via:
@@ -60,7 +60,7 @@ ssa_env_apply manual
 
 | Variável | Descrição | Default |
 |----------|-----------|---------|
-| `SSA_PYTHON_STABLE_VERSION` | Versão Python estável | Lê de `.python-version` ou 3.13.7 |
+| `SSA_PYTHON_STABLE_VERSION` | Versão Python estável | Lê de `.python-version` ou 3.13.12 |
 | `SSA_PYTHON_FT_VERSION` | Versão free-threaded | 3.14-dev |
 | `SSA_PYTHON_VARIANT` | Variante a usar | stable |
 | `SSA_USE_FREE_THREADED` | Atalho para free-threaded | 0 |
@@ -80,7 +80,7 @@ pyenv shell --unset
 ### Forçar recriação do ambiente
 ```bash
 # Remover ambiente pyenv
-pyenv uninstall ssa_consulta_stable_3_13_9
+pyenv uninstall ssa_consulta_stable_3_13_12
 
 # Remover venv local
 rm -rf .venv
@@ -92,7 +92,7 @@ direnv reload
 ### Verificar configuração atual
 ```bash
 echo $SSA_ENV_VARIANT          # stable ou free-threaded
-echo $SSA_ENV_PY_VERSION       # 3.13.9 ou 3.14-dev
+echo $SSA_ENV_PY_VERSION       # 3.13.12 ou 3.14-dev
 echo $SSA_ENV_SOURCE           # pyenv-virtualenv, pyenv-local, ou venv
 python --version               # Versão ativa
 ```
@@ -124,4 +124,3 @@ pip install -r launchers/platforms/debian_amd64/requirements.txt
 ```
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

@@ -14,15 +14,18 @@ MACRO_BAIXAR_FILTER_KEY = "ssas_para_baixar"
 MACRO_BAIXAR_STATUS_EXCLUSIONS = ("SAD", "SCA", "SES", "STE")
 MACRO_BAIXAR_DERIVADA_SELECTION = ("all_ste",)
 SECTOR_EXECUTOR_PRIORITY = (
+    "IEE3",
     "IEE1",
     "IEE2",
-    "IEE3",
     "IEE4",
     "MEL1",
     "MEL2",
     "MEL3",
     "MEL4",
 )
+SECTOR_EXECUTOR_PRIORITY_INDEX = {
+    sector: index for index, sector in enumerate(SECTOR_EXECUTOR_PRIORITY)
+}
 
 
 def normalize_nonempty_string_series(series: pd.Series) -> pd.Series:
@@ -74,7 +77,7 @@ def known_division_rank(div: str) -> int:
 def sector_sort_key(
     sector: str,
     sector_to_div: Mapping[str, str] | None = None,
-) -> tuple[int, str, str]:
+) -> tuple[int, int, str, str]:
     value = str(sector or "").strip()
     sector_to_div = sector_to_div or {}
     div = (
@@ -84,7 +87,11 @@ def sector_sort_key(
         or ""
     )
     div_text = str(div)
+    priority_rank = SECTOR_EXECUTOR_PRIORITY_INDEX.get(value.upper())
+    if priority_rank is None:
+        priority_rank = len(SECTOR_EXECUTOR_PRIORITY)
     return (
+        priority_rank,
         known_division_rank(div_text.upper()),
         div_text.casefold(),
         value.casefold(),
@@ -263,9 +270,7 @@ def order_responsavel_values(
         decorated_meta.append(
             (
                 (
-                    known_division_rank(str(div)),
-                    div.casefold(),
-                    sector.casefold(),
+                    *sector_sort_key(sector, sector_to_div),
                     person.casefold(),
                 ),
                 person,

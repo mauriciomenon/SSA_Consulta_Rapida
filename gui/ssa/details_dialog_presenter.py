@@ -124,7 +124,7 @@ class DetailsDialogPresenter:
                     widgets, self._svg_render_deps
                 ),
             )
-        widgets.dialog.exec()
+        self._show_dialog(widgets.dialog)
 
     def _connect_actions(self, *, widgets, export_controller, qt_cls) -> None:
         widgets.details_browser.anchorClicked.connect(
@@ -313,6 +313,7 @@ class DetailsDialogPresenter:
             graph_label=widgets.tree_graph_label,
             graph_panel=widgets.tree_graph_panel,
             dependencies=svg_render_deps,
+            resize_label=False,
         )
         if rendered:
             self._last_graph_render_key = key
@@ -323,6 +324,28 @@ class DetailsDialogPresenter:
     def _refresh_graph_after_resize(self, widgets, svg_render_deps) -> None:
         if self.export_state["svg"]:
             self._render_graph_pixmap(widgets, svg_render_deps)
+
+    def _show_dialog(self, dialog) -> None:
+        qt_cls = self._qt_cls()
+        dialog.setModal(False)
+        dialog.setWindowModality(qt_cls.WindowModality.NonModal)
+        dialog.setAttribute(qt_cls.WidgetAttribute.WA_DeleteOnClose, True)
+        open_dialogs = getattr(self.window, "_open_details_dialogs", None)
+        if not isinstance(open_dialogs, list):
+            open_dialogs = []
+            setattr(self.window, "_open_details_dialogs", open_dialogs)
+        open_dialogs.append(dialog)
+        dialog.destroyed.connect(lambda _obj=None: self._forget_dialog(dialog))
+        dialog.show()
+
+    def _forget_dialog(self, dialog) -> None:
+        open_dialogs = getattr(self.window, "_open_details_dialogs", None)
+        if not isinstance(open_dialogs, list):
+            return
+        try:
+            open_dialogs.remove(dialog)
+        except ValueError:
+            return
 
     def _handle_anchor(self, widgets, url) -> None:
         try:
@@ -368,3 +391,9 @@ class DetailsDialogPresenter:
         from PyQt6.QtGui import QPalette
 
         return QPalette
+
+    @staticmethod
+    def _qt_cls():
+        from PyQt6.QtCore import Qt
+
+        return Qt

@@ -323,9 +323,12 @@ def render_details_html(
     html_lines = [
         (
             f'<html><body style="font-family: {font_family}; '
-            f'font-size: {font_size_pt}pt; color: {text_color};">'
+            f'font-size: {font_size_pt}pt; color: {text_color}; margin: 0;">'
         ),
-        '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">',
+        (
+            '<table width="100%" style="width: 100%; border-collapse: collapse; '
+            'table-layout: fixed;">'
+        ),
         '<colgroup><col style="width: 18%;"/><col style="width: 82%;"/></colgroup>',
     ]
 

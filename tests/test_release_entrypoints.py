@@ -42,6 +42,11 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert "Backend Windows invalido" in script
     assert "pyoxidizer ou combinacoes" in script
     assert '$value -eq "pyoxidizer"' in script
+    assert "$needsPyoxidizer = $true" in script
+    assert "SSA_PYOXIDIZER_UV_PACKAGE" in script
+    assert "pyoxidizer==0.24.0" in script
+    assert '"pyoxidizer",' in script
+    assert '"--version"' in script
     assert "uv tool run --python 3.13 --from pyoxidizer" not in script
     assert '"--extra"' in script
     assert '"build"' in script
@@ -120,8 +125,11 @@ def test_root_release_bash_routes_by_os_and_cleans_macos_before_build() -> None:
     all_block = section_between(target_case, "all)", ";;\nesac")
     assert 'if [[ "$(uname -s)" == "Darwin" ]]; then' in all_block
     assert_before(all_block, 'run_macos_release "${ROOT}"', 'run_debian_release "${ROOT}"')
+    assert_before(all_block, 'run_debian_release "${ROOT}"', 'run_debian_arm64_release "${ROOT}"')
+    assert_before(all_block, 'run_debian_arm64_release "${ROOT}"', 'elif [[ "$(uname -s)" == "Linux" ]]')
     assert 'aarch64 | arm64) run_debian_arm64_release "${ROOT}"' in all_block
     assert 'x86_64 | amd64) run_debian_release "${ROOT}"' in all_block
+    assert "Debian amd64/arm64 remoto pulado" in all_block
 
 
 def test_distribution_doc_prefers_simple_entrypoints() -> None:

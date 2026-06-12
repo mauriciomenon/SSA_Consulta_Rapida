@@ -835,6 +835,73 @@ def test_sync_rejects_missing_sheet_file(temp_db, tmp_path: Path):
         assert False, "sync_derivadas should fail for non-existing sheet_file"
 
 
+def test_sync_validates_sheet_file_path_before_read(temp_db, tmp_path: Path, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+    sheet_file = tmp_path / "blocked_derivadas.csv"
+    sheet_file.write_text("parent_ssa,child_ssa\n202500001,202500002\n", encoding="utf-8")
+
+    def _guard_path(path, *, purpose, expect_directory):
+        assert expect_directory is False
+        if "sheet file" in purpose:
+            raise PathSafetyError("blocked derivadas sheet")
+        return Path(path)
+
+    def _unexpected_read(*_args, **_kwargs):
+        raise AssertionError("sheet reader should not run before path validation")
+
+    monkeypatch.setattr(derivadas_sync, "ensure_path_is_allowed", _guard_path)
+    monkeypatch.setattr(derivadas_sync.pd, "read_csv", _unexpected_read)
+
+    with pytest.raises(PathSafetyError, match="blocked derivadas sheet"):
+        sync_derivadas(
+            temp_db,
+            include_db_source=False,
+            sheet_file=str(sheet_file),
+        )
+
+
+def test_sync_validates_sheet_files_paths_before_read(temp_db, tmp_path: Path, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+    allowed = tmp_path / "allowed_derivadas.csv"
+    blocked = tmp_path / "blocked_derivadas.csv"
+    for sheet_file in (allowed, blocked):
+        sheet_file.write_text(
+            "parent_ssa,child_ssa\n202500001,202500002\n",
+            encoding="utf-8",
+        )
+
+    def _guard_path(path, *, purpose, expect_directory):
+        assert expect_directory is False
+        if "sheet file" in purpose and Path(path).name == blocked.name:
+            raise PathSafetyError("blocked derivadas sheet list")
+        return Path(path)
+
+    def _unexpected_read(*_args, **_kwargs):
+        raise AssertionError("sheet reader should not run after a blocked sheet path")
+
+    monkeypatch.setattr(derivadas_sync, "ensure_path_is_allowed", _guard_path)
+    monkeypatch.setattr(derivadas_sync.pd, "read_csv", _unexpected_read)
+
+    with pytest.raises(PathSafetyError, match="blocked derivadas sheet list"):
+        sync_derivadas(
+            temp_db,
+            include_db_source=False,
+            sheet_files=[str(allowed), str(blocked)],
+        )
+
+
 def test_sync_rejects_corrupt_excel_sheet_file_with_clear_error(
     temp_db, tmp_path: Path
 ):

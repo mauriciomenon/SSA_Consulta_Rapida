@@ -50,6 +50,21 @@ def _load_allowed_roots() -> List[Path]:
 
 
 ALLOWED_ROOTS: List[Path] = _load_allowed_roots()
+_ALLOWED_ROOTS_ENV_VALUE = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")
+
+
+def refresh_allowed_roots() -> List[Path]:
+    global ALLOWED_ROOTS, _ALLOWED_ROOTS_ENV_VALUE
+    ALLOWED_ROOTS = _load_allowed_roots()
+    _ALLOWED_ROOTS_ENV_VALUE = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")
+    return list(ALLOWED_ROOTS)
+
+
+def get_allowed_roots() -> List[Path]:
+    current_env_value = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")
+    if current_env_value != _ALLOWED_ROOTS_ENV_VALUE:
+        return refresh_allowed_roots()
+    return list(ALLOWED_ROOTS)
 
 
 def _is_within(path: Path, base: Path) -> bool:
@@ -98,7 +113,7 @@ def ensure_path_is_allowed(
     else:
         candidate = candidate.resolve()
 
-    allowed = ALLOWED_ROOTS
+    allowed = get_allowed_roots()
     if extra_allowed_roots:
         allowed = _unique(
             [
@@ -141,13 +156,23 @@ def reserve_unique_path(
     base, ext = os.path.splitext(destination)
     attempt_limit = max(int(max_attempts), 1)
 
-    normalized_destination = os.path.abspath(destination)
+    normalized_destination = os.path.realpath(destination)
     if reserved_paths is not None:
-        if normalized_destination not in reserved_paths and not os.path.exists(
-            destination
+        # touch=True lets the atomic create below expose FileExistsError races.
+        if normalized_destination not in reserved_paths and (
+            touch or not os.path.exists(destination)
         ):
-            reserved_paths.add(normalized_destination)
-            return destination
+            if touch:
+                try:
+                    Path(destination).touch(exist_ok=False)
+                except FileExistsError:
+                    pass
+                else:
+                    reserved_paths.add(normalized_destination)
+                    return destination
+            else:
+                reserved_paths.add(normalized_destination)
+                return destination
     elif touch:
         try:
             Path(destination).touch(exist_ok=False)
@@ -160,11 +185,19 @@ def reserve_unique_path(
     attempts = 0
     while attempts < attempt_limit:
         candidate = f"{base}__{idx}{ext}"
-        normalized_candidate = os.path.abspath(candidate)
+        normalized_candidate = os.path.realpath(candidate)
         if reserved_paths is not None:
-            if normalized_candidate not in reserved_paths and not os.path.exists(
-                candidate
+            if (
+                normalized_candidate not in reserved_paths
+                and not os.path.exists(candidate)
             ):
+                if touch:
+                    try:
+                        Path(candidate).touch(exist_ok=False)
+                    except FileExistsError:
+                        idx += 1
+                        attempts += 1
+                        continue
                 reserved_paths.add(normalized_candidate)
                 return candidate
         elif touch:

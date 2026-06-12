@@ -35,7 +35,7 @@ def test_smoke_cleanup_warning_does_not_fail_valid_import(monkeypatch, tmp_path:
         "rmtree",
         lambda path: (_ for _ in ()).throw(PermissionError("locked db")),
     )
-    monkeypatch.setattr(smoke_cli.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(smoke_cli.time, "sleep", lambda _seconds: None)
 
     result = smoke_cli.run_smoke()
 

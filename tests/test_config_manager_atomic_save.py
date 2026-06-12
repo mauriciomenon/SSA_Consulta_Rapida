@@ -240,3 +240,21 @@ def test_ensure_default_settings_generated_fallback_matches_default_contract(
     assert generated["description"] == "Default settings for SSA Consulta Rapida"
     assert generated["import_settings"]["processadas_subdir"] == "processadas"
     assert generated["import_settings"]["upsert_short_circuit_policy"] == "consulta_only"
+
+
+def test_provision_default_config_file_fails_without_example_or_payload(
+    tmp_path, monkeypatch
+):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(config_manager, "CONFIG_DIR", str(tmp_path / "missing_examples"))
+    target_file = cfg_dir / "unknown_config.json"
+
+    with pytest.raises(config_manager.ConfigProvisionError, match="nao ha payload"):
+        config_manager._provision_default_config_file(
+            str(target_file),
+            "unknown_config.json.example",
+            cfg_dir=str(cfg_dir),
+        )
+
+    assert not target_file.exists()

@@ -8,6 +8,7 @@ from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY,
     PAI_API_BASE_URL_KEY,
     PAI_API_DATA_SCOPES_KEY,
+    PAI_API_ENABLED_KEY,
     PAI_API_ENABLED_DATA_SCOPES,
     PAI_API_EXTRA_SECTORS_KEY,
     PAI_API_LIMIT_KEY,
@@ -85,14 +86,27 @@ def test_pai_api_auto_refresh_defaults_are_explicit() -> None:
     settings = default_pai_api_settings()
     options = normalize_pai_api_options(settings)
 
+    assert settings[PAI_API_ENABLED_KEY] is False
+    assert options.enabled is False
     assert settings[PAI_API_AUTO_REFRESH_ENABLED_KEY] is False
-    assert settings[PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY] == 10
+    assert (
+        settings[PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY]
+        == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
+    )
     assert options.auto_refresh_enabled is False
-    assert options.auto_refresh_interval_minutes == 10
+    assert (
+        options.auto_refresh_interval_minutes
+        == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
+    )
     assert options.data_scopes == ("consulta",)
     assert options.username == ""
     assert options.secret_service == "scrap_report.sam"  # pragma: allowlist secret
     assert options.secure_required is True
+
+
+def test_pai_api_explicit_enabled_preference_is_preserved() -> None:
+    assert normalize_pai_api_options({PAI_API_ENABLED_KEY: True}).enabled is True
+    assert normalize_pai_api_options({PAI_API_ENABLED_KEY: False}).enabled is False
 
 
 def test_pai_api_auth_options_trim_username_and_secret_service() -> None:
@@ -159,7 +173,12 @@ def test_pai_api_data_scope_update_accepts_explicit_aprovacao_scopes() -> None:
 
 
 def test_pai_api_options_reject_scope_without_gui_backend() -> None:
-    options = normalize_pai_api_options({PAI_API_DATA_SCOPES_KEY: ["executadas"]})
+    options = normalize_pai_api_options(
+        {
+            PAI_API_ENABLED_KEY: True,
+            PAI_API_DATA_SCOPES_KEY: ["executadas"],
+        }
+    )
 
     assert (
         pai_api_options_error(options)
@@ -170,6 +189,7 @@ def test_pai_api_options_reject_scope_without_gui_backend() -> None:
 def test_pai_api_options_allow_consulta_and_executadas_with_username() -> None:
     options = normalize_pai_api_options(
         {
+            PAI_API_ENABLED_KEY: True,
             PAI_API_DATA_SCOPES_KEY: ["consulta", "executadas"],
             PAI_API_USERNAME_KEY: "sam.user",
         }
@@ -187,6 +207,7 @@ def test_pai_api_options_allow_consulta_and_executadas_with_username() -> None:
 def test_pai_api_options_allow_rest_consulta_when_scrap_report_disabled() -> None:
     options = normalize_pai_api_options(
         {
+            PAI_API_ENABLED_KEY: True,
             PAI_API_SCRAP_ENABLED_KEY: False,
             PAI_API_DATA_SCOPES_KEY: ["consulta"],
         }
@@ -198,6 +219,7 @@ def test_pai_api_options_allow_rest_consulta_when_scrap_report_disabled() -> Non
 def test_pai_api_options_reject_scraper_scope_when_scrap_report_disabled() -> None:
     options = normalize_pai_api_options(
         {
+            PAI_API_ENABLED_KEY: True,
             PAI_API_SCRAP_ENABLED_KEY: False,
             PAI_API_DATA_SCOPES_KEY: ["executadas"],
             PAI_API_USERNAME_KEY: "sam.user",
@@ -213,6 +235,7 @@ def test_pai_api_options_reject_scraper_scope_when_scrap_report_disabled() -> No
 def test_pai_api_options_keep_aprovacao_planned() -> None:
     options = normalize_pai_api_options(
         {
+            PAI_API_ENABLED_KEY: True,
             PAI_API_DATA_SCOPES_KEY: ["aprovacao"],
             PAI_API_USERNAME_KEY: "sam.user",
         }
@@ -247,6 +270,7 @@ def test_pai_api_options_reject_mixed_unavailable_scopes(
 ) -> None:
     options = normalize_pai_api_options(
         {
+            PAI_API_ENABLED_KEY: True,
             PAI_API_DATA_SCOPES_KEY: scopes,
             PAI_API_USERNAME_KEY: "sam.user",
         }
@@ -258,6 +282,7 @@ def test_pai_api_options_reject_mixed_unavailable_scopes(
 def test_pai_api_options_allow_explicit_aprovacao_with_username() -> None:
     options = normalize_pai_api_options(
         {
+            PAI_API_ENABLED_KEY: True,
             PAI_API_DATA_SCOPES_KEY: [
                 "aprovacao_emissao",
                 "aprovacao_cancelamento",

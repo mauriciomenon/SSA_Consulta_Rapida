@@ -3,12 +3,14 @@
 Testes unitários para o módulo armazenamento.database.
 """
 
+import concurrent.futures
 import os
 import logging
 import shutil
 import sqlite3
 import sys
 import tempfile
+import threading
 
 import pandas as pd
 import pytest
@@ -25,6 +27,7 @@ from armazenamento.database import get_db_connection  # noqa: E402
 from armazenamento.database import initialize_database  # noqa: E402
 from armazenamento.database import insert_dataframe_to_db  # noqa: E402
 from armazenamento.database import query_db  # noqa: E402
+from armazenamento.database import resolve_target_table  # noqa: E402
 from armazenamento.database import vacuum_analyze_database  # noqa: E402
 
 # --- Fixtures ---
@@ -158,6 +161,71 @@ def test_initialize_database_connection_clears_only_current_db_cache(
         database_module._resolved_table_cache.clear()
 
 
+def test_resolved_table_cache_prunes_oldest_entry():
+    from armazenamento import database as database_module
+
+    try:
+        database_module._resolved_table_cache.clear()
+        max_entries = database_module._RESOLVED_TABLE_CACHE_MAX_ENTRIES
+        for index in range(max_entries + 1):
+            database_module._store_resolved_table_cache(
+                (f"cache-{index}.sqlite", "ssa_table"),
+                f"table_{index}",
+            )
+
+        assert len(database_module._resolved_table_cache) == max_entries
+        assert ("cache-0.sqlite", "ssa_table") not in (
+            database_module._resolved_table_cache
+        )
+        assert (
+            database_module._resolved_table_cache[
+                (f"cache-{max_entries}.sqlite", "ssa_table")
+            ]
+            == f"table_{max_entries}"
+        )
+    finally:
+        database_module._resolved_table_cache.clear()
+
+
+def test_resolved_table_cache_handles_concurrent_resolve_and_clear(temp_db_path):
+    from armazenamento import database as database_module
+
+    with sqlite3.connect(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (id INTEGER)")
+
+    workers = 8
+    iterations = 80
+    barrier = threading.Barrier(workers)
+
+    def resolve_worker():
+        barrier.wait()
+        with sqlite3.connect(temp_db_path) as conn:
+            for _ in range(iterations):
+                assert resolve_target_table(conn, "ssas") == "ssa_table"
+
+    def cache_writer_worker():
+        barrier.wait()
+        manual_key = (os.path.abspath(temp_db_path), "manual")
+        for _ in range(iterations):
+            database_module._clear_resolved_table_cache(temp_db_path)
+            database_module._store_resolved_table_cache(manual_key, "manual_table")
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [
+                *(executor.submit(resolve_worker) for _ in range(workers - 2)),
+                *(executor.submit(cache_writer_worker) for _ in range(2)),
+            ]
+            for future in futures:
+                future.result(timeout=10)
+
+        assert len(database_module._resolved_table_cache) <= (
+            database_module._RESOLVED_TABLE_CACHE_MAX_ENTRIES
+        )
+    finally:
+        database_module._resolved_table_cache.clear()
+
+
 def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):
     """Testa a inserção bem-sucedida de um DataFrame."""
     table_name = "teste_usuarios"
@@ -251,6 +319,130 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
     assert df_result.empty
     # Verifica se as colunas estão corretas mesmo com resultado vazio
     assert list(df_result.columns) == ["id", "nome", "idade"]
+
+
+def test_query_db_rejects_non_read_only_custom_query(temp_db_path):
+    """query_db must not execute write statements through the custom query path."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="read-only"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            "DELETE FROM teste_query_guard",
+            raise_on_error=True,
+        )
+
+
+@pytest.mark.parametrize(
+    "custom_query",
+    [
+        "WITH doomed AS (DELETE FROM teste_query_guard RETURNING id) SELECT * FROM doomed",
+        "WITH doomed AS (UPDATE teste_query_guard SET id = 2 RETURNING id) SELECT * FROM doomed",
+        "WITH doomed AS (INSERT INTO teste_query_guard VALUES (2) RETURNING id) SELECT * FROM doomed",
+    ],
+)
+def test_query_db_rejects_cte_write_custom_query(temp_db_path, custom_query):
+    """query_db must reject write tokens hidden behind a CTE start token."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.execute("INSERT INTO teste_query_guard VALUES (1);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="read-only"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            custom_query,
+            raise_on_error=True,
+        )
+
+
+def test_query_db_accepts_read_only_cte_custom_query(temp_db_path):
+    """query_db must continue to accept read-only CTEs."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.execute("INSERT INTO teste_query_guard VALUES (1);")
+        conn.commit()
+
+    result = query_db(
+        temp_db_path,
+        "teste_query_guard",
+        "WITH rows AS (SELECT id FROM teste_query_guard) SELECT id FROM rows",
+        raise_on_error=True,
+    )
+
+    assert result["id"].tolist() == [1]
+
+
+def test_query_db_allows_write_words_inside_literals_and_comments(temp_db_path):
+    """query_db must not reject harmless text while guarding executable SQL."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.execute("INSERT INTO teste_query_guard VALUES (1);")
+        conn.commit()
+
+    result = query_db(
+        temp_db_path,
+        "teste_query_guard",
+        """
+        SELECT id, 'delete; drop' AS marker
+        FROM teste_query_guard
+        /* update teste_query_guard */
+        -- insert into teste_query_guard
+        """,
+        raise_on_error=True,
+    )
+
+    assert result["id"].tolist() == [1]
+    assert result["marker"].tolist() == ["delete; drop"]
+
+
+def test_query_db_rejects_multi_statement_custom_query(temp_db_path):
+    """query_db must reject appended statements in custom SQL."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="single statement"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            "SELECT * FROM teste_query_guard; DROP TABLE teste_query_guard",
+            raise_on_error=True,
+        )
+
+
+def test_query_db_rejects_semicolon_only_custom_query(temp_db_path):
+    """query_db must reject semicolon-only SQL with a clean validation error."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="Custom SQL query must not be empty"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            ";",
+            raise_on_error=True,
+        )
+
+
+def test_query_db_rejects_params_without_custom_query(temp_db_path):
+    """params without placeholders must fail before sqlite raises a generic error."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (id INTEGER);")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="params require a custom SQL query"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            params=(1,),
+            raise_on_error=True,
+        )
 
 
 def test_count_table_rows_counts_resolved_table_and_rejects_invalid_identifier(
@@ -374,6 +566,49 @@ def test_query_db_sql_error_returns_empty_df_when_raise_disabled(temp_db_path):
     assert df_result.empty
 
 
+def test_query_db_does_not_log_parameter_values(temp_db_path, caplog):
+    """query_db must not expose bound parameter values in diagnostic logs."""
+    sensitive_param = "private-bound-param-for-log-test"
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS teste_log_params (
+                nome TEXT
+            );
+            """
+        )
+        conn.execute("INSERT INTO teste_log_params (nome) VALUES (?)", (sensitive_param,))
+        conn.commit()
+
+    caplog.set_level(logging.DEBUG, logger="armazenamento.database")
+
+    df_result = query_db(
+        temp_db_path,
+        "teste_log_params",
+        "SELECT * FROM teste_log_params WHERE nome = ?",
+        params=(sensitive_param,),
+    )
+
+    assert len(df_result) == 1
+    success_messages = [record.getMessage() for record in caplog.records]
+    assert all(sensitive_param not in message for message in success_messages)
+    assert any("1 parametros" in message for message in success_messages)
+
+    caplog.clear()
+    df_error = query_db(
+        temp_db_path,
+        "teste_log_params",
+        "SELECT coluna_inexistente FROM teste_log_params WHERE nome = ?",
+        params=(sensitive_param,),
+        raise_on_error=False,
+    )
+
+    assert df_error.empty
+    error_messages = [record.getMessage() for record in caplog.records]
+    assert all(sensitive_param not in message for message in error_messages)
+    assert any("1 parametros" in message for message in error_messages)
+
+
 def test_query_db_unexpected_error_is_not_suppressed(temp_db_path, monkeypatch):
     """Unexpected runtime errors must propagate even when raise_on_error is False."""
     with get_db_connection(temp_db_path) as conn:
@@ -393,6 +628,57 @@ def test_query_db_unexpected_error_is_not_suppressed(temp_db_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="falha inesperada"):
         query_db(temp_db_path, "teste_erro_runtime", raise_on_error=False)
+
+
+def test_resolve_target_table_keeps_unrelated_view_when_canonical_exists(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.execute("CREATE TABLE unrelated_source (id INTEGER)")
+        conn.execute("CREATE VIEW unrelated_view AS SELECT id FROM unrelated_source")
+        conn.commit()
+
+        resolved = resolve_target_table(conn, "unrelated_view")
+
+    assert resolved == "unrelated_view"
+
+
+def test_resolve_target_table_returns_actual_database_identifier_casing(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE SSA_TABLE (numero_ssa TEXT)")
+        conn.commit()
+
+        resolved = resolve_target_table(conn, "ssa_table")
+
+    assert resolved == "SSA_TABLE"
+
+
+def test_resolve_target_table_ignores_indexes_when_matching_identifier(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE indexed_source (id INTEGER)")
+        conn.execute("CREATE INDEX IDX_INDEXED_SOURCE_ID ON indexed_source (id)")
+        conn.commit()
+
+        resolved = resolve_target_table(conn, "idx_indexed_source_id")
+
+    assert resolved == "idx_indexed_source_id"
+
+
+def test_resolve_target_table_cache_is_connection_specific_for_memory_db():
+    conn_a = sqlite3.connect(":memory:")
+    conn_b = sqlite3.connect(":memory:")
+    try:
+        conn_a.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn_a.execute("CREATE VIEW ssas AS SELECT * FROM ssa_table")
+        conn_a.commit()
+
+        conn_b.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        conn_b.commit()
+
+        assert resolve_target_table(conn_a, "ssas") == "ssa_table"
+        assert resolve_target_table(conn_b, "ssas") == "ssas"
+    finally:
+        conn_a.close()
+        conn_b.close()
 
 
 def test_vacuum_analyze_database_runs_sqlite_maintenance(temp_db_path):
@@ -466,6 +752,30 @@ def test_insert_dataframe_to_db_rejects_replace_for_canonical_ssa_table(temp_db_
         insert_dataframe_to_db(df, temp_db_path, "ssas", if_exists="replace")
 
 
+def test_insert_dataframe_to_db_rejects_replace_for_canonical_ssa_table_casing(
+    temp_db_path,
+):
+    df = pd.DataFrame(
+        [
+            {"numero_ssa": "202500001", "descricao_ssa": "SSA 1"},
+        ]
+    )
+
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE SSA_TABLE (
+                numero_ssa TEXT,
+                descricao_ssa TEXT
+            );
+            """
+        )
+        conn.commit()
+
+    with pytest.raises(ValueError, match="if_exists='replace' e proibido"):
+        insert_dataframe_to_db(df, temp_db_path, "ssa_table", if_exists="replace")
+
+
 def test_insert_dataframe_to_db_allows_replace_for_generic_table(temp_db_path):
     table_name = "teste_replace_generico"
     initial_df = pd.DataFrame([{"id": 1, "nome": "Alice"}])
@@ -483,6 +793,15 @@ def test_insert_dataframe_to_db_allows_replace_for_generic_table(temp_db_path):
         conn.commit()
 
     assert insert_dataframe_to_db(initial_df, temp_db_path, table_name) is True
+    initial_result = query_db(temp_db_path, table_name)
+    expected_initial_df = initial_df.copy()
+    expected_initial_df["id"] = expected_initial_df["id"].astype("Int64")
+    expected_initial_df["nome"] = expected_initial_df["nome"].astype("string")
+    pd.testing.assert_frame_equal(
+        initial_result.reset_index(drop=True),
+        expected_initial_df,
+    )
+
     assert (
         insert_dataframe_to_db(
             replacement_df, temp_db_path, table_name, if_exists="replace"

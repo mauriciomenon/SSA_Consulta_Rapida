@@ -225,6 +225,29 @@ def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
     assert "Invoke-Expression" not in script
 
 
+def test_setup_env_scripts_require_explicit_verified_remote_pyenv_install() -> None:
+    shell_script = _read_repo_text("scripts", "env", "setup_env.sh")
+    powershell_script = _read_repo_text("scripts", "env", "setup_env.ps1")
+
+    assert "curl https://pyenv.run | bash" not in shell_script
+    assert "wget -O- https://pyenv.run | bash" not in shell_script
+    assert "SSA_ALLOW_REMOTE_PYENV_INSTALL" in shell_script
+    assert "SSA_PYENV_INSTALLER_SHA256" in shell_script
+    assert "SSA_CONFIRM_REMOVE_PYENV" in shell_script
+    assert "sha256sum" in shell_script
+    assert "shasum -a 256" in shell_script
+    assert "IFS= read -r python_version" in shell_script
+    assert "SSA_PYTHON_STABLE_VERSION" in shell_script
+
+    assert "[switch]$AllowRemotePyenvInstall" in powershell_script
+    assert "[string]$PyenvInstallerSha256" in powershell_script
+    assert "SSA_ALLOW_REMOTE_PYENV_INSTALL" in powershell_script
+    assert "SSA_CONFIRM_REMOVE_PYENV" in powershell_script
+    assert "Get-FileHash -Algorithm SHA256" in powershell_script
+    assert "SSA_PYTHON_STABLE_VERSION" in powershell_script
+    assert "& \"$env:TEMP\\install-pyenv-win.ps1\"" not in powershell_script
+
+
 def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
@@ -428,6 +451,35 @@ def test_github_actions_do_not_install_python_or_npm_packages_dynamically() -> N
     assert findings == []
 
 
+def test_github_workflow_external_actions_are_pinned_by_sha() -> None:
+    checked_paths = [
+        ".github/workflows/codeql.yml",
+        ".github/workflows/dependency-review.yml",
+        ".github/workflows/minimal-ci.yml",
+        ".github/workflows/opencode.yml",
+        ".github/workflows/release-windows.yml",
+        ".github/workflows/secret_scan.yml",
+    ]
+    uses_reference = re.compile(r"^\s*uses:\s+([^#\s]+)")
+
+    findings: list[str] = []
+    for relative_path in checked_paths:
+        for line_number, line in enumerate(
+            _read_repo_text(*relative_path.split("/")).splitlines(),
+            start=1,
+        ):
+            match = uses_reference.search(line)
+            if match is None:
+                continue
+            reference = match.group(1)
+            if reference.startswith("./"):
+                continue
+            if not re.search(r"@[0-9a-f]{40}$", reference):
+                findings.append(f"{relative_path}:{line_number}: {line.strip()}")
+
+    assert findings == []
+
+
 def test_code_quality_documents_dynamic_dependency_submission_status() -> None:
     docs = _read_repo_text(".github", "CODE_QUALITY.md")
 
@@ -526,6 +578,32 @@ def test_opencode_review_script_adds_lfs_note() -> None:
     prompt = module.build_prompt("base", "version https://git-lfs.github.com/spec/v1")
 
     assert "manual review" in prompt
+
+
+def test_opencode_review_script_rejects_unsafe_cli_arguments() -> None:
+    module = _load_opencode_review_module()
+
+    assert module.require_cli_option_value("MODEL", "github-copilot/gpt-4.1") == (
+        "github-copilot/gpt-4.1"
+    )
+    assert module.require_prompt_argument("Review this PR") == "Review this PR"
+
+    with pytest.raises(RuntimeError, match="MODEL"):
+        module.require_cli_option_value("MODEL", "--help")
+    with pytest.raises(RuntimeError, match="AGENT"):
+        module.require_cli_option_value("AGENT", "plan mode")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument(" --model attacker")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("bad\x00prompt")
+    with pytest.raises(RuntimeError, match="MODEL"):
+        module.require_cli_option_value("MODEL", "")
+    with pytest.raises(RuntimeError, match="AGENT"):
+        module.require_cli_option_value("AGENT", "   ")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("   ")
 
 
 def test_codeql_precheck_runs_advanced_when_default_setup_is_unverified() -> None:

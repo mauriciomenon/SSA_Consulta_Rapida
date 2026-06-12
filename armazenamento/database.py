@@ -10,8 +10,9 @@ import logging
 import os
 import re
 import sqlite3
+import threading
 import time
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from typing import Any, Literal, cast
 
 import pandas as pd
@@ -43,7 +44,26 @@ MAX_TEXT_LEN = 1000
 # Flag global para controlar modo otimizado (substituiu monkey-patching)
 _use_optimized_mode = False
 _resolved_table_cache: dict[tuple[str, str], str] = {}
+_resolved_table_cache_lock = threading.RLock()
+_RESOLVED_TABLE_CACHE_MAX_ENTRIES = 256
 _VALID_COLUMN_DEFINITIONS = frozenset({"TEXT", "INTEGER", "REAL", "NUMERIC", "BLOB"})
+_READ_ONLY_SQL_START_TOKENS = frozenset({"select", "with"})
+_WRITE_SQL_TOKENS = frozenset(
+    {
+        "alter",
+        "attach",
+        "create",
+        "delete",
+        "detach",
+        "drop",
+        "insert",
+        "pragma",
+        "reindex",
+        "replace",
+        "update",
+        "vacuum",
+    }
+)
 
 
 def set_optimized_mode(enabled: bool) -> None:
@@ -64,13 +84,24 @@ def set_optimized_mode(enabled: bool) -> None:
 
 def _clear_resolved_table_cache(db_path: str | None = None) -> None:
     if db_path is None:
-        _resolved_table_cache.clear()
+        with _resolved_table_cache_lock:
+            _resolved_table_cache.clear()
         return
 
     normalized_path = ":memory:" if db_path == ":memory:" else os.path.abspath(db_path)
-    stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
-    for key in stale_keys:
-        _resolved_table_cache.pop(key, None)
+    if normalized_path == ":memory:":
+        return
+    with _resolved_table_cache_lock:
+        stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
+        for key in stale_keys:
+            _resolved_table_cache.pop(key, None)
+
+
+def _store_resolved_table_cache(cache_key: tuple[str, str], resolved_table: str) -> None:
+    with _resolved_table_cache_lock:
+        _resolved_table_cache[cache_key] = resolved_table
+        while len(_resolved_table_cache) > _RESOLVED_TABLE_CACHE_MAX_ENTRIES:
+            _resolved_table_cache.pop(next(iter(_resolved_table_cache)))
 
 
 # --- Gerenciamento de Conexao ---
@@ -218,11 +249,17 @@ def query_db(
         with get_db_connection(db_path) as conn:
             effective_query = query
             if not effective_query:
+                if params:
+                    raise ValueError("params require a custom SQL query")
                 resolved_table = _resolve_target_table(conn, table_name)
                 effective_query = f"SELECT * FROM {_quote_identifier(resolved_table)}"  # nosec B608  # skipcq: BAN-B608
+            else:
+                _validate_read_only_query(effective_query)
 
             logger.debug(
-                "Executando consulta: %s com params: %s", effective_query, params
+                "Executando consulta: %s com %s parametros",
+                effective_query,
+                len(params or ()),
             )
             # pd.read_sql_query e otimo para SELECTs
             df = pd.read_sql_query(
@@ -235,9 +272,9 @@ def query_db(
         return df
     except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.exception(
-            "Erro ao executar consulta '%s' com params=%s: %s",
+            "Erro ao executar consulta '%s' com %s parametros: %s",
             query or table_name,
-            params,
+            len(params or ()),
             e,
         )
         if raise_on_error:
@@ -256,9 +293,10 @@ def vacuum_analyze_database(db_path: str, *, timeout: float = 30.0) -> dict[str,
         logger.error(error)
         return {"ok": False, "error": error, "db_path": db_path}
     try:
-        with sqlite3.connect(db_path, timeout=float(timeout)) as conn:
+        with closing(sqlite3.connect(db_path, timeout=float(timeout))) as conn:
             conn.execute("VACUUM")
             conn.execute("ANALYZE")
+            conn.commit()
         _clear_resolved_table_cache(str(db_path))
         return {"ok": True, "db_path": db_path}
     except sqlite3.Error as exc:
@@ -270,7 +308,11 @@ IfExistsPolicy = Literal["fail", "replace", "append"]
 
 
 def _is_ssa_target_alias(name: str) -> bool:
-    return name in {CANONICAL_SSA_TABLE, *LEGACY_SSA_TABLE_ALIASES}
+    lookup_name = str(name or "").strip().casefold()
+    return lookup_name in {
+        CANONICAL_SSA_TABLE.casefold(),
+        *(alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES),
+    }
 
 
 def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
@@ -322,6 +364,74 @@ def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
     FROM {table_name}
     """
     return query_template.format(table_name=quoted_table_name)  # nosec B608
+
+
+def _validate_read_only_query(query: str) -> None:
+    """Reject custom DB queries that are not a single read-only statement."""
+    normalized = str(query or "").strip()
+    if not normalized:
+        raise ValueError("Custom SQL query must not be empty")
+
+    single_statement = normalized[:-1].rstrip() if normalized.endswith(";") else normalized
+    guarded_statement = _strip_sql_literals_and_comments(single_statement)
+    if ";" in guarded_statement:
+        raise ValueError("Custom SQL query must be a single statement")
+    if not guarded_statement.strip():
+        raise ValueError("Custom SQL query must not be empty")
+
+    first_token = guarded_statement.split(None, 1)[0].casefold()
+    if first_token not in _READ_ONLY_SQL_START_TOKENS:
+        raise ValueError("Custom SQL query must be read-only")
+    sql_tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", guarded_statement.lower()))
+    if sql_tokens & _WRITE_SQL_TOKENS:
+        raise ValueError("Custom SQL query must be read-only")
+
+
+def _strip_sql_literals_and_comments(statement: str) -> str:
+    guarded_chars: list[str] = []
+    index = 0
+    length = len(statement)
+    while index < length:
+        char = statement[index]
+        next_char = statement[index + 1] if index + 1 < length else ""
+        if char == "-" and next_char == "-":
+            index += 2
+            while index < length and statement[index] not in "\r\n":
+                index += 1
+            guarded_chars.append(" ")
+            continue
+        if char == "/" and next_char == "*":
+            index += 2
+            while index + 1 < length and not (
+                statement[index] == "*" and statement[index + 1] == "/"
+            ):
+                index += 1
+            index = min(index + 2, length)
+            guarded_chars.append(" ")
+            continue
+        if char in {"'", '"', "`"}:
+            quote = char
+            index += 1
+            while index < length:
+                if statement[index] == quote:
+                    if index + 1 < length and statement[index + 1] == quote:
+                        index += 2
+                        continue
+                    index += 1
+                    break
+                index += 1
+            guarded_chars.append(" ")
+            continue
+        if char == "[":
+            index += 1
+            while index < length and statement[index] != "]":
+                index += 1
+            index = min(index + 1, length)
+            guarded_chars.append(" ")
+            continue
+        guarded_chars.append(char)
+        index += 1
+    return "".join(guarded_chars)
 
 
 def _validate_insert_policy(table_name: str, if_exists: IfExistsPolicy) -> None:
@@ -399,8 +509,9 @@ def _execute_simple_insert(
     )
     insert_time = time.time() - insert_start
 
+    commit_start = time.time()
     conn.commit()
-    commit_time = time.time() - insert_start - insert_time
+    commit_time = time.time() - commit_start
     total_time = time.time() - insert_start
     logger.info(
         "Desempenho insercao %s: insercao=%.2fs, commit=%.2fs, total=%.2fs, throughput=%.1f registros/s",
@@ -440,34 +551,38 @@ def _resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
         raise ValueError(f"Invalid SQL identifier for table: {table_name!r}")
 
     lookup_name = safe_table_name.casefold()
-    cache_key = (_get_connection_db_path(conn), lookup_name)
-    if cache_key in _resolved_table_cache:
-        return _resolved_table_cache[cache_key]
+    conn_db_path = _get_connection_db_path(conn)
+    cache_key = None if conn_db_path == ":memory:" else (conn_db_path, lookup_name)
+    if cache_key is not None:
+        with _resolved_table_cache_lock:
+            cached_table = _resolved_table_cache.get(cache_key)
+        if cached_table is not None:
+            return cached_table
 
-    if lookup_name == CANONICAL_SSA_TABLE.casefold() or lookup_name in {
+    is_ssa_target = lookup_name == CANONICAL_SSA_TABLE.casefold() or lookup_name in {
         alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
-    }:
+    }
+
+    if is_ssa_target:
         canonical_row = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (CANONICAL_SSA_TABLE,),
+            "SELECT name FROM sqlite_master WHERE type='table' AND lower(name)=?",
+            (CANONICAL_SSA_TABLE.casefold(),),
         ).fetchone()
         if canonical_row:
-            _resolved_table_cache[cache_key] = CANONICAL_SSA_TABLE
-            return CANONICAL_SSA_TABLE
+            if cache_key is not None:
+                _store_resolved_table_cache(cache_key, str(canonical_row[0]))
+            return str(canonical_row[0])
 
     row = conn.execute(
-        "SELECT name, type FROM sqlite_master WHERE lower(name)=?",
+        "SELECT name FROM sqlite_master WHERE type IN ('table', 'view') AND lower(name)=?",
         (lookup_name,),
     ).fetchone()
-    if row and row[1] == "view":
-        canonical_row = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (CANONICAL_SSA_TABLE,),
-        ).fetchone()
-        if canonical_row:
-            _resolved_table_cache[cache_key] = CANONICAL_SSA_TABLE
-            return CANONICAL_SSA_TABLE
-    _resolved_table_cache[cache_key] = safe_table_name
+    if row:
+        if cache_key is not None:
+            _store_resolved_table_cache(cache_key, str(row[0]))
+        return str(row[0])
+    if cache_key is not None:
+        _store_resolved_table_cache(cache_key, safe_table_name)
     return safe_table_name
 
 
@@ -650,7 +765,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
 def reset_database(
     db_path: str,
     mode: str = "table",
-    _table_name: str = CANONICAL_SSA_TABLE,  # parametro legado nao usado
+    _table_name: str = CANONICAL_SSA_TABLE,
     schema_path: str | None = None,
 ) -> bool:
     """Reseta o banco de dados.
@@ -670,6 +785,13 @@ def reset_database(
                 schema_path = (
                     DEFAULT_SCHEMA_FILE  # usa padrao e resolucao em initialize_database
                 )
+            if os.path.exists(db_path):
+                with get_db_connection(db_path) as conn:
+                    table_name = _resolve_target_table(conn, _table_name)
+                    conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                        f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}"
+                    )
+                    conn.commit()
             initialize_database(db_path, schema_path)
             _clear_resolved_table_cache(db_path)
             return True

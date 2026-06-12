@@ -227,6 +227,7 @@ case "${TARGET}" in
     fi
     if [[ -n "${SSH_HOST}" || -n "${SSH_REPO}" ]]; then
       run_debian_release "${ROOT}"
+      run_debian_arm64_release "${ROOT}"
     elif [[ "$(uname -s)" == "Linux" ]]; then
       case "$(uname -m)" in
         aarch64 | arm64) run_debian_arm64_release "${ROOT}" ;;
@@ -234,7 +235,7 @@ case "${TARGET}" in
         *) die "arquitetura Linux nao suportada por release.sh: $(uname -m)" ;;
       esac
     elif [[ "${ALLOW_MISSING_REMOTE}" == "1" ]]; then
-      printf '[release] Debian remoto pulado: informe --ssh-host e --ssh-repo para gerar em VM.\n'
+      printf '[release] Debian amd64/arm64 remoto pulado: informe --ssh-host e --ssh-repo para gerar em VM.\n'
     else
       die "Debian remoto indisponivel. Use --ssh-host/--ssh-repo ou --allow-missing-remote."
     fi

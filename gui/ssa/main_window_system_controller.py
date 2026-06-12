@@ -75,6 +75,20 @@ def open_sam_home(
     )
 
 
+def open_sam_reports(
+    *,
+    qdesktopservices: Any,
+    qurl_cls: Any,
+    logger: Any,
+) -> bool:
+    return open_allowed_url(
+        system_integration.SAM_REPORTS_URL,
+        qdesktopservices=qdesktopservices,
+        qurl_cls=qurl_cls,
+        logger=logger,
+    )
+
+
 def open_sam_ssa(
     numero_ssa: str,
     *,

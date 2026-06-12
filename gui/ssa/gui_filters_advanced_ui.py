@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
+import sys
 from time import perf_counter
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -22,10 +23,10 @@ from gui.qt_stubs import (
     QLabel,
     QLineEdit,
     QMenu,
-    QPushButton,
     QScrollArea,
     QSignalBlocker,
     QSizePolicy,
+    QTimer,
     Qt,
     QTextEdit,
     QToolButton,
@@ -80,11 +81,58 @@ from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 from .gui_filters_responsavel_refresh import responsavel_options_refresher
 from .gui_filters_responsavel_state import responsavel_materialization_state
 
+try:
+    from PyQt6.QtCore import QEvent, QObject as _QObject
+except ImportError:
+    from .headless_qt_stubs import QEvent
+
+    class _QObject:
+        def __init__(self, *_args, **_kwargs):
+            return None
+
+QObject = cast(Any, _QObject)
+
 logger = get_robust_logger().get_logger(__name__, "gui")
 _DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
 _MACRO_EXECUTADAS_SETOR_KEY = "ssa_executadas_setor"
 _MACRO_EXECUTADAS_DIVISAO_KEY = "ssa_executadas_divisao"
 _is_widget_valid = _is_not_deleted
+
+
+class _MacroComboClickFilter(QObject):
+    def __init__(self, parent, combo):
+        super().__init__(parent)
+        self._combo = combo
+
+    def _show_popup(self) -> None:
+        if not _is_widget_valid(self._combo):
+            return
+        try:
+            self._combo.showPopup()
+        except RuntimeError as exc:
+            logger.debug("Falha ao abrir popup do filtro macro via clique: %s", exc)
+
+    def eventFilter(self, _watched, event):  # noqa: N802
+        try:
+            event_type = event.type()
+        except AttributeError:
+            return False
+        if event_type != QEvent.Type.MouseButtonPress:
+            return False
+        try:
+            if event.button() != Qt.MouseButton.LeftButton:
+                return False
+        except AttributeError:
+            return False
+        try:
+            QTimer.singleShot(0, self._show_popup)
+            event.accept()
+        except RuntimeError as exc:
+            logger.debug("Falha ao agendar popup do filtro macro via clique: %s", exc)
+            return False
+        return True
+
+
 _ADVANCED_MULTISELECT_FIELD_DEFS = (
     ("emis", "Emissor", True),
     ("exec", "Executor", True),
@@ -97,8 +145,8 @@ _ADVANCED_MULTISELECT_FIELD_DEFS = (
 )
 _ADVANCED_RESPONSAVEL_FIELD_DEFS = (
     ("sol", "Solicitante"),
-    ("prog", "Resp Prog"),
-    ("exec_resp", "Resp Exec"),
+    ("prog", "Responsavel Programacao"),
+    ("exec_resp", "Responsavel Execucao"),
 )
 
 
@@ -124,9 +172,38 @@ def _flatten_field_box(box: QGroupBox) -> None:
     if box is None:
         return
     try:
-        box.setFlat(True)
+        box.setStyleSheet(
+            "QGroupBox {"
+            "border:1px solid palette(mid);"
+            "border-radius:4px;"
+            "margin-top:8px;"
+            "padding-top:0px;"
+            "}"
+            "QGroupBox::title {"
+            "subcontrol-origin: margin;"
+            "left:6px;"
+            "padding:0 3px;"
+            "}"
+        )
     except Exception as exc:
         logger.debug("Falha ao achatar box de filtro avancado: %s", exc)
+
+
+def _apply_windows_field_title(box: QGroupBox, title: str) -> bool:
+    if box is None or not sys.platform.startswith("win"):
+        return False
+    try:
+        box.setTitle("")
+        title_label = QLabel(title, box)
+        title_label.setObjectName("advancedFilterFieldTitleLabel")
+        title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        title_label.move(6, 0)
+        title_label.adjustSize()
+        title_label.show()
+        return True
+    except Exception as exc:
+        logger.debug("Falha ao criar titulo Windows de filtro avancado: %s", exc)
+        return False
 
 
 def _safe_len(value: Any) -> int:
@@ -145,13 +222,18 @@ def _make_multiselect_box(
 ):
     box = QGroupBox(title)
     _flatten_field_box(box)
+    windows_title = _apply_windows_field_title(box, title)
     layout = QHBoxLayout(box)
-    layout.setContentsMargins(4, 0, 4, 0)
+    layout.setContentsMargins(4, 16 if windows_title else 0, 4, 0)
     layout.setSpacing(2)
     button = QToolButton()
     button.setText(placeholder)
     try:
         button.setProperty("filter_name", title)
+        popup_kind = "long" if with_exclude else "simple"
+        if title in {"Emissor", "Executor"}:
+            popup_kind = "sector"
+        button.setProperty("multiselect_popup_kind", popup_kind)
     except Exception as exc:
         logger.debug(
             "Falha ao associar nome de filtro no botao multiselect '%s': %s", title, exc
@@ -185,16 +267,7 @@ def _make_multiselect_box(
             "Falha ao definir size policy do groupbox multiselect '%s': %s", title, exc
         )
     exclude = None
-    if with_exclude:
-        exclude = QCheckBox("Diferente")
-        try:
-            exclude.setVisible(False)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ocultar checkbox de exclusao no multiselect '%s': %s",
-                title,
-                exc,
-            )
+    _ = with_exclude
     layout.addWidget(button, 1)
     return box, button, menu, exclude
 
@@ -404,24 +477,32 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
 def _make_reprogramacoes_controls(self, layout_baseline):
     reprog_box = QGroupBox("Reprogramacoes")
     _flatten_field_box(reprog_box)
+    windows_title = _apply_windows_field_title(reprog_box, "Reprogramacoes")
     reprog_layout = QGridLayout(reprog_box)
-    reprog_layout.setContentsMargins(0, 0, 0, 0)
+    reprog_layout.setContentsMargins(0, 16 if windows_title else 0, 0, 0)
     reprog_layout.setHorizontalSpacing(4)
     reprog_layout.setVerticalSpacing(0)
     reprog_mode = QComboBox()
+    reprog_mode.setObjectName("advancedReprogModeCombo")
     reprog_mode.addItem("= Igual", "eq")
     reprog_mode.addItem("<= Menor ou igual", "lte")
     reprog_mode.addItem(">= Maior ou igual", "gte")
+    reprog_mode.currentIndexChanged.connect(
+        lambda *_: _schedule_advanced_filters_apply(self)
+    )
     _, reprog_base_min, reprog_base_max = layout_baseline
     reprog_min = max(70, min(108, reprog_base_min - 8))
     reprog_max = max(reprog_min + 40, min(196, reprog_base_max + 46))
     try:
         mode_min = max(82, min(110, reprog_min + 6))
         mode_max = max(mode_min + 12, min(126, reprog_max + 10))
+        reprog_control_height = (
+            26 if sys.platform.startswith("win") else LAYOUT_ADV_CONTROL_HEIGHT
+        )
         reprog_mode.setMinimumWidth(mode_min)
         reprog_mode.setMaximumWidth(mode_max)
-        reprog_mode.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        reprog_mode.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        reprog_mode.setMinimumHeight(reprog_control_height)
+        reprog_mode.setMaximumHeight(reprog_control_height)
         reprog_mode.setSizePolicy(
             QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
         )
@@ -438,7 +519,7 @@ def _make_reprogramacoes_controls(self, layout_baseline):
     )
     try:
         btn_min = max(54, min(68, reprog_min - 24))
-        btn_max = max(btn_min + 8, min(82, reprog_max - 34))
+        btn_max = max(btn_min + 8, min(104, reprog_max - 18))
         reprog_button.setMinimumWidth(btn_min)
         reprog_button.setMaximumWidth(btn_max)
         reprog_button.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
@@ -461,8 +542,9 @@ def _make_reprogramacoes_controls(self, layout_baseline):
 def _make_week_range_box(title: str):
     week_box = QGroupBox(title)
     _flatten_field_box(week_box)
+    windows_title = _apply_windows_field_title(week_box, title)
     week_layout = QHBoxLayout(week_box)
-    week_layout.setContentsMargins(0, 0, 0, 0)
+    week_layout.setContentsMargins(0, 16 if windows_title else 0, 0, 0)
     week_layout.setSpacing(2)
     week_start = QLineEdit()
     week_start.setPlaceholderText("Ini")
@@ -489,28 +571,64 @@ def _make_week_range_box(title: str):
     return week_box, week_start, week_end
 
 
-def _make_advanced_action_box(self):
-    apply_btn = QPushButton("Aplicar")
-    clear_btn = QPushButton("Limpar")
+def _advanced_apply_interval_ms(self) -> int:
+    debounce_timer = getattr(self, "_debounce_timer", None)
     try:
-        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        clear_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        if debounce_timer is not None and _is_not_deleted(debounce_timer):
+            interval = int(debounce_timer.interval())
+            if interval > 0:
+                return interval
     except Exception as exc:
-        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
-    apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
-    clear_btn.clicked.connect(self._clear_advanced_filters)
-    action_box = QGroupBox(" ")
-    _flatten_field_box(action_box)
-    action_layout = QHBoxLayout(action_box)
-    action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(4)
-    action_layout.addWidget(apply_btn)
-    action_layout.addWidget(clear_btn)
-    return action_box, apply_btn, clear_btn
+        logger.debug("Falha ao ler debounce principal dos filtros avancados: %s", exc)
+    return 250
+
+
+def _run_advanced_apply_timer_timeout(self) -> None:
+    try:
+        _apply_advanced_filters_from_ui(self)
+    except Exception:
+        logger.exception("Falha no debounce apply dos filtros avancados")
+        timer = getattr(self, "_advanced_apply_timer", None)
+        try:
+            if timer is not None and _is_not_deleted(timer):
+                timer.stop()
+        except Exception as timer_exc:
+            logger.debug(
+                "Falha ao parar debounce dos filtros avancados apos erro: %s",
+                timer_exc,
+            )
+        status_label = getattr(self, "status_label", None)
+        if status_label is not None and _is_not_deleted(status_label):
+            try:
+                status_label.setText("Status: Falha ao aplicar filtros avancados.")
+            except Exception as status_exc:
+                logger.debug(
+                    "Falha ao atualizar status dos filtros avancados: %s",
+                    status_exc,
+                )
+
+
+def _schedule_advanced_filters_apply(self) -> None:
+    timer = getattr(self, "_advanced_apply_timer", None)
+    if timer is None:
+        try:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda: _run_advanced_apply_timer_timeout(self))
+            self._advanced_apply_timer = timer
+        except Exception as exc:
+            logger.warning("Falha ao criar debounce dos filtros avancados: %s", exc)
+            _run_advanced_apply_timer_timeout(self)
+            return
+    try:
+        if _is_not_deleted(timer):
+            timer.stop()
+            timer.setInterval(_advanced_apply_interval_ms(self))
+            timer.start()
+            return
+    except Exception as exc:
+        logger.warning("Falha ao reiniciar debounce dos filtros avancados: %s", exc)
+    _run_advanced_apply_timer_timeout(self)
 
 
 def _reset_advanced_menu_hooks(self) -> None:
@@ -534,9 +652,27 @@ def _make_advanced_multiselect_fields(self, layout_baseline) -> dict[str, tuple]
 def _make_advanced_macro_box(self):
     macro_box = QGroupBox("Macro")
     _flatten_field_box(macro_box)
+    windows_title = _apply_windows_field_title(macro_box, "Macro")
     macro_layout = QHBoxLayout(macro_box)
-    macro_layout.setContentsMargins(0, 0, 0, 0)
+    macro_layout.setContentsMargins(0, 16 if windows_title else 0, 0, 0)
     macro_combo = QComboBox()
+    macro_combo.setObjectName("advancedMacroCombo")
+    if sys.platform.startswith("win"):
+        macro_combo.setEditable(True)
+        macro_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        macro_click_filter = _MacroComboClickFilter(macro_combo, macro_combo)
+        macro_combo.installEventFilter(macro_click_filter)
+        macro_combo.setProperty("ssa_macro_click_filter", True)
+        macro_line = macro_combo.lineEdit()
+        if macro_line is not None:
+            macro_line.setReadOnly(True)
+            macro_line.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            macro_line.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            macro_line.setCursor(Qt.CursorShape.PointingHandCursor)
+            macro_line.installEventFilter(macro_click_filter)
+            macro_line.setProperty("ssa_macro_click_filter", True)
+        macro_combo._ssa_macro_click_filter = macro_click_filter
+        macro_combo.setCursor(Qt.CursorShape.PointingHandCursor)
     try:
         macro_combo.setMinimumWidth(100)
         macro_combo.setMaximumWidth(240)
@@ -732,13 +868,16 @@ def _build_advanced_derivada_field(self, deriv_button, deriv_menu):
         deriv_menu,
         deriv_values,
         deriv_selected,
-        lambda *_: _update_multiselect_button(
-            self,
-            deriv_button,
-            getattr(self, "adv_derivada_checks", None),
-            "Selecionar",
-        ),
-        True,
+            lambda *_: (
+                _update_multiselect_button(
+                    self,
+                    deriv_button,
+                    getattr(self, "adv_derivada_checks", None),
+                    "Selecionar",
+                ),
+                _schedule_advanced_filters_apply(self),
+            ),
+        False,
         None,
         None,
     )
@@ -747,7 +886,7 @@ def _build_advanced_derivada_field(self, deriv_button, deriv_menu):
         lambda: _refresh_derivadas_menu(
             self,
             getattr(self, "_advanced_filters", None) or {},
-            lambda: self._apply_advanced_filters_from_ui(),
+            lambda: _schedule_advanced_filters_apply(self),
             selected_override=_collect_derivadas_selected_from_checks(self),
         ),
     )
@@ -760,6 +899,9 @@ def _configure_advanced_panel_scroll(self, outer, grid_container):
     controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     controls_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     try:
+        controls_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         controls_scroll.setFrameShape(QFrame.Shape.NoFrame)
     except Exception as exc:
         logger.debug("Falha ao remover borda do scroll de filtros avancados: %s", exc)
@@ -771,7 +913,7 @@ def _configure_advanced_panel_scroll(self, outer, grid_container):
         logger.debug(
             "Falha ao aplicar limites de altura no painel de filtros avancados: %s", exc
         )
-    outer.addWidget(controls_scroll, 0)
+    outer.addWidget(controls_scroll, 1)
     return controls_scroll
 
 
@@ -786,8 +928,6 @@ def _advanced_filter_metric_controls(
     week_exec_start,
     week_exec_end,
     macro_combo,
-    apply_btn,
-    clear_btn,
 ):
     return (
         fields["emis"][1],
@@ -808,8 +948,6 @@ def _advanced_filter_metric_controls(
         responsavel_fields["sol"][1],
         responsavel_fields["prog"][1],
         responsavel_fields["exec_resp"][1],
-        apply_btn,
-        clear_btn,
     )
 
 
@@ -906,6 +1044,18 @@ def _make_advanced_filter_auxiliary_controls(self, fields, responsavel_fields, b
     week_exec_box, week_exec_start, week_exec_end = _make_week_range_box(
         "Execucao (AnoSemana)"
     )
+    for week_field in (
+        week_emissao_start,
+        week_emissao_end,
+        week_exec_start,
+        week_exec_end,
+    ):
+        try:
+            week_field.textChanged.connect(
+                lambda *_: _schedule_advanced_filters_apply(self)
+            )
+        except Exception as exc:
+            logger.debug("Falha ao conectar debounce de semana avancada: %s", exc)
     macro_box, macro_combo = _make_advanced_macro_box(self)
     return {
         "reprog_box": reprog_box,
@@ -932,16 +1082,22 @@ def _make_advanced_filter_auxiliary_controls(self, fields, responsavel_fields, b
 
 def _make_advanced_filter_panel_grid(self, outer, grid_container, grid_container_layout):
     main_grid = QGridLayout()
-    main_grid.setContentsMargins(0, 0, 0, 0)
+    main_grid.setContentsMargins(0, 0, 0, 4)
     main_grid.setHorizontalSpacing(4)
     main_grid.setVerticalSpacing(3)
-    action_box, apply_btn, clear_btn = _make_advanced_action_box(self)
-    grid_container_layout.addLayout(main_grid)
+    try:
+        grid_container.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar expansao do grid avancado: %s", exc)
+    grid_container_layout.addLayout(main_grid, 1)
     controls_scroll = _configure_advanced_panel_scroll(self, outer, grid_container)
-    return main_grid, action_box, apply_btn, clear_btn, controls_scroll
+    return main_grid, None, None, None, controls_scroll
 
 
 def _advanced_filter_grid_widgets(fields: dict, controls: dict, action_box) -> dict:
+    _ = action_box
     emis_box, _, _, _ = fields["emis"]
     exec_box, _, _, _ = fields["exec"]
     status_box, _, _, _ = fields["status"]
@@ -968,7 +1124,6 @@ def _advanced_filter_grid_widgets(fields: dict, controls: dict, action_box) -> d
         "sol_box": sol_box,
         "prog_box": prog_box,
         "exec_resp_box": exec_resp_box,
-        "action_box": action_box,
     }
 
 
@@ -984,8 +1139,6 @@ def _advanced_filter_metric_controls_from_parts(parts: AdvancedFilterPanelParts)
         week_exec_start=controls["week_exec_start"],
         week_exec_end=controls["week_exec_end"],
         macro_combo=controls["macro_combo"],
-        apply_btn=parts.apply_btn,
-        clear_btn=parts.clear_btn,
     )
 
 
@@ -1010,6 +1163,14 @@ def _register_advanced_filter_panel_state(self, parts: AdvancedFilterPanelParts)
     self.adv_derivada_button = controls["deriv_button"]
     self.adv_derivada_menu = controls["deriv_menu"]
     self.adv_derivada_checks = controls["deriv_checks"]
+    for spec in ADVANCED_RESPONSAVEL_MULTISELECT_SPECS:
+        _, button, menu, exclude = controls["responsavel_fields"][spec.field_key]
+        setattr(self, f"{spec.prefix}_button", button)
+        setattr(self, f"{spec.prefix}_menu", menu)
+        setattr(self, f"{spec.prefix}_checks", [])
+        setattr(self, f"{spec.prefix}_exclude_checks", [])
+        if exclude is not None:
+            setattr(self, f"{spec.prefix}_exclude", exclude)
 
     grid_widgets = _advanced_filter_grid_widgets(
         parts.fields,
@@ -1051,19 +1212,18 @@ def _create_advanced_filter_panel_parts(self) -> AdvancedFilterPanelParts:
     controls = _make_advanced_filter_auxiliary_controls(
         self, fields, responsavel_fields, layout_baseline
     )
-    main_grid, action_box, apply_btn, clear_btn, controls_scroll = (
-        _make_advanced_filter_panel_grid(
-            self, outer, grid_container, grid_container_layout
-        )
+    main_grid, _action_box, _apply_btn, _clear_btn, controls_scroll = (
+        _make_advanced_filter_panel_grid(self, outer, grid_container, grid_container_layout)
     )
     return AdvancedFilterPanelParts(
         group=group,
         fields=fields,
         controls=controls,
         main_grid=main_grid,
-        action_box=action_box,
-        apply_btn=apply_btn,
-        clear_btn=clear_btn,
+        # Advanced filters apply through debounce; action buttons stay absent by design.
+        action_box=None,
+        apply_btn=None,
+        clear_btn=None,
         controls_scroll=controls_scroll,
     )
 
@@ -1168,7 +1328,7 @@ def _on_macro_filter_changed(self):
     preset = advanced_macro_filter_preset(choice)
     if preset is not None:
         _apply_advanced_macro_filter_preset(self, preset)
-        _apply_advanced_filters_from_ui(self)
+        _schedule_advanced_filters_apply(self)
 
 
 def _reorganize_advanced_filters_grid(self, width: int):
@@ -1220,6 +1380,7 @@ def _on_adv_sector_exclude_changed(self, *_):
         return
     _update_sector_filter_buttons(self, context="exclude")
     self._schedule_sector_options_refresh()
+    _schedule_advanced_filters_apply(self)
 
 
 def _schedule_sector_options_refresh(self):
@@ -1314,6 +1475,12 @@ def _clear_advanced_filters(self):
         self._sync_advanced_filter_ui()
     except Exception as exc:
         logger.warning("Falha ao sincronizar UI apos limpar filtros avancados: %s", exc)
+    try:
+        sync_clear_btn = getattr(self, "_sync_selection_filters_clear_button", None)
+        if callable(sync_clear_btn):
+            sync_clear_btn()
+    except Exception as exc:
+        logger.debug("Falha ao sincronizar botao x de filtros avancados: %s", exc)
     try:
         if (
             getattr(self, "_active_filter_panel_kind", None) == "advanced"
@@ -1425,6 +1592,12 @@ def _show_advanced_filter_notice(self, notice: str | None) -> None:
 
 
 def _apply_advanced_filters_from_ui(self, store_only: bool = False):
+    timer = getattr(self, "_advanced_apply_timer", None)
+    try:
+        if timer is not None and _is_not_deleted(timer):
+            timer.stop()
+    except Exception as exc:
+        logger.debug("Falha ao parar debounce pendente dos filtros avancados: %s", exc)
     previous_filters = dict(getattr(self, "_advanced_filters", None) or {})
     if not store_only:
         try:
@@ -1437,6 +1610,15 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
     self._advanced_filters = data
     _sync_quick_executor_from_advanced_filters(self, previous_filters, data)
     self._advanced_filters_active = self._has_active_advanced_filters(data)
+    refresh_quick_situacao = getattr(self, "_refresh_quick_situacao_buttons", None)
+    if callable(refresh_quick_situacao):
+        refresh_quick_situacao()
+    try:
+        sync_clear_btn = getattr(self, "_sync_selection_filters_clear_button", None)
+        if callable(sync_clear_btn):
+            sync_clear_btn()
+    except Exception as exc:
+        logger.debug("Falha ao sincronizar botao x de filtros avancados: %s", exc)
     if store_only:
         return
     notice = _refresh_after_advanced_filters_apply(self)
@@ -1524,7 +1706,12 @@ def _refresh_include_exclude_multiselect(
             exclude_checks=getattr(self, exclude_checks_attr, None),
         )
 
-    callback = on_change if callable(on_change) else update_summary
+    def callback(*args):
+        update_summary(*args)
+        if callable(on_change):
+            on_change(*args)
+        _schedule_advanced_filters_apply(self)
+
     include_checks, exclude_checks = self._rebuild_multiselect_menu(
         button,
         menu,
@@ -1537,7 +1724,7 @@ def _refresh_include_exclude_multiselect(
     )
     setattr(self, checks_attr, include_checks)
     setattr(self, exclude_checks_attr, exclude_checks)
-    callback()
+    update_summary()
     return True
 
 
@@ -1589,11 +1776,15 @@ def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
             getattr(self, "adv_reprog_menu", None),
             values,
             selected,
-            lambda *_: _update_multiselect_button(self,
-                getattr(self, "adv_reprog_button", None),
-                getattr(self, "adv_reprog_checks", None),
+            lambda *_: (
+                _update_multiselect_button(
+                    self,
+                    getattr(self, "adv_reprog_button", None),
+                    getattr(self, "adv_reprog_checks", None),
+                ),
+                apply_cb() if callable(apply_cb) else None,
             ),
-            True,
+            False,
             None,
             None,
         )
@@ -1662,13 +1853,16 @@ def _refresh_derivadas_menu(self, filters, apply_cb, selected_override=None):
             getattr(self, "adv_derivada_menu", None),
             deriv_values,
             selected,
-            lambda *_: _update_multiselect_button(
-                self,
-                getattr(self, "adv_derivada_button", None),
-                getattr(self, "adv_derivada_checks", None),
-                "Selecionar",
+            lambda *_: (
+                _update_multiselect_button(
+                    self,
+                    getattr(self, "adv_derivada_button", None),
+                    getattr(self, "adv_derivada_checks", None),
+                    "Selecionar",
+                ),
+                apply_cb() if callable(apply_cb) else None,
             ),
-            True,
+            False,
             None,
             None,
         )
@@ -1725,7 +1919,7 @@ def _refresh_advanced_filter_options(self):
         filters = self._advanced_filters or {}
 
         def apply_cb():
-            return self._apply_advanced_filters_from_ui()
+            return _schedule_advanced_filters_apply(self)
 
         ui_state = _read_advanced_filter_ui_state(self, df, filters)
         cache = getattr(self, "_adv_values_cache", {})
@@ -1737,6 +1931,7 @@ def _refresh_advanced_filter_options(self):
             and cache.get("values") is not None
         ):
             _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+            self._adv_options_dirty = False
             return
 
         logger.debug(
@@ -1746,6 +1941,7 @@ def _refresh_advanced_filter_options(self):
             _safe_len(ui_state.values.status_vals),
         )
         _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+        self._adv_options_dirty = False
         try:
             elapsed_ms = (perf_counter() - start) * 1000.0
             logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)

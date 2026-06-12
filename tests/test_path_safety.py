@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import pytest
 
-from utils.path_safety import PathSafetyError, ensure_path_is_allowed
+from utils.path_safety import PathSafetyError, ensure_path_is_allowed, reserve_unique_path
 
 
 @pytest.mark.parametrize("value", ["", "   ", b"", b"   "])
@@ -36,3 +36,100 @@ def test_ensure_path_is_allowed_accepts_explicit_extra_root(tmp_path: Path) -> N
     )
 
     assert result == external_file.resolve()
+
+
+def test_ensure_path_is_allowed_uses_extra_roots_set_after_import(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    external_root = tmp_path / "runtime"
+    external_root.mkdir()
+    external_file = external_root / "ssas.db"
+    external_file.write_text("ok", encoding="utf-8")
+    monkeypatch.setenv("SSA_EXTRA_ALLOWED_PATHS", str(external_root))
+
+    result = ensure_path_is_allowed(
+        external_file,
+        purpose="runtime_db",
+        must_exist=True,
+        expect_directory=False,
+    )
+
+    assert result == external_file.resolve()
+
+
+def test_reserve_unique_path_with_reserved_set_and_touch_reserves_on_disk(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    reserved_paths: set[str] = set()
+
+    result = reserve_unique_path(target, reserved_paths=reserved_paths, touch=True)
+
+    assert result == str(target)
+    assert target.exists()
+    assert str(target.resolve()) in reserved_paths
+
+
+def test_reserve_unique_path_with_reserved_set_and_touch_reserves_next_candidate(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    target.write_text("old", encoding="utf-8")
+    reserved_paths = {str(target.resolve())}
+    expected = tmp_path / "entrada__1.xlsx"
+
+    result = reserve_unique_path(target, reserved_paths=reserved_paths, touch=True)
+
+    assert result == str(expected)
+    assert expected.exists()
+    assert str(expected.resolve()) in reserved_paths
+
+
+def test_reserve_unique_path_with_touch_retries_file_exists_race(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    expected = tmp_path / "entrada__1.xlsx"
+    touched: list[Path] = []
+    original_touch = Path.touch
+
+    def fake_touch(self, *args, **kwargs):
+        touched.append(self)
+        if self == target:
+            raise FileExistsError(str(self))
+        return original_touch(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "touch", fake_touch)
+
+    result = reserve_unique_path(target, touch=True)
+
+    assert result == str(expected)
+    assert touched == [target, expected]
+    assert expected.exists()
+
+
+def test_reserve_unique_path_with_touch_and_reserved_set_retries_file_exists_race(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    target.write_text("old", encoding="utf-8")
+    expected = tmp_path / "entrada__1.xlsx"
+    touched: list[Path] = []
+    reserved_paths: set[str] = set()
+    original_touch = Path.touch
+
+    def fake_touch(self, *args, **kwargs):
+        touched.append(self)
+        if self == target:
+            raise FileExistsError(str(self))
+        return original_touch(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "touch", fake_touch)
+
+    result = reserve_unique_path(target, touch=True, reserved_paths=reserved_paths)
+
+    assert result == str(expected)
+    assert touched == [target, expected]
+    assert expected.exists()

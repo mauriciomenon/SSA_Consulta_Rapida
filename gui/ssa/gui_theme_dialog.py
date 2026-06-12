@@ -127,31 +127,11 @@ def _resolve_theme_selection_state(window, gui_prefs: dict) -> tuple[str, bool]:
 
 
 def _build_screen_bound_theme_combo(dialog, theme_items, current_theme):
-    from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import QComboBox, QListView
 
-    class _ScreenBoundComboBox(QComboBox):
-        def __init__(self_nonlocal, *args, **kwargs) -> None:
-            super().__init__(*args, **kwargs)
-            self_nonlocal.setView(QListView(self_nonlocal))
-
-        def showPopup(self_nonlocal) -> None:  # noqa: N802
-            def _clamp_popup() -> None:
-                try:
-                    view = self_nonlocal.view()
-                    if view is None:
-                        return
-                    popup = view.window()
-                    if popup is None:
-                        return
-                    clamp_theme_popup_to_screen(self_nonlocal, popup)
-                except Exception as exc:
-                    logger.debug("Falha ao limitar popup do seletor de tema: %s", exc)
-
-            super().showPopup()
-            QTimer.singleShot(80, _clamp_popup)
-
-    theme_combo = _ScreenBoundComboBox(dialog)
+    theme_combo = QComboBox(dialog)
+    theme_combo.setView(QListView(theme_combo))
+    theme_combo.setMaxVisibleItems(12)
     theme_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
     selected_index = 0
     for idx, (label, key) in enumerate(theme_items):

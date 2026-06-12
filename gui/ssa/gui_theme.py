@@ -314,6 +314,15 @@ def _apply_advanced_filter_control_styles(window, style: dict) -> None:
         _apply_style_to_window_widgets(window, adv_buttons, style["tool_btn_css"])
         state = advanced_panel_state(window)
         if state is not None:
+            field_box_css = (
+                style["advanced_field_box_windows_css"]
+                if sys.platform.startswith("win")
+                else style["advanced_field_box_css"]
+            )
+            _apply_style_to_widgets(
+                state.grid_widgets.values(),
+                field_box_css,
+            )
             _apply_style_to_widgets(
                 (state.apply_btn, state.clear_btn),
                 style["action_btn_css"],
@@ -354,15 +363,12 @@ def _apply_details_and_group_styles(
                 logger.debug(
                     "Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc
                 )
-        if normalized in light_themes:
-            _set_stylesheet_if_changed(window.details_text, "")
-        else:
-            _set_stylesheet_if_changed(
-                window.details_text,
-                "QTextEdit {"
-                f" color: {panel_text}; background: {panel_bg}; border: none; padding:4px;"
-                " }",
-            )
+        _set_stylesheet_if_changed(
+            window.details_text,
+            "QTextEdit {"
+            f" color: {panel_text}; background: {panel_bg}; border: none; padding:2px;"
+            " }",
+        )
 
     for group_name in ("details_group", "col_filters_group", "adv_filters_group"):
         _apply_group_style(window, group_name, normalized, light_themes, group_css)
@@ -613,6 +619,12 @@ def _finish_theme_application(
         window.update_details_from_selection()
     except Exception as exc:
         logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
+    try:
+        update_filter_tags = getattr(window, "update_filter_tags", None)
+        if callable(update_filter_tags):
+            update_filter_tags()
+    except Exception as exc:
+        logger.debug("Falha ao atualizar filtros salvos apos apply_theme: %s", exc)
 
 
 def apply_theme(

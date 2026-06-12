@@ -82,7 +82,10 @@ def build_details_dialog_widgets(window, target: str, *, svg_render_deps):
     tree_graph_panel_layout.setContentsMargins(0, 0, 0, 0)
     tree_graph_panel_layout.setSpacing(0)
     tree_graph_panel_layout.addWidget(
-        tree_graph_browser, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter
+        tree_graph_browser,
+        0,
+        0,
+        alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
     )
     export_button = QToolButton(tree_graph_panel)
     export_button.setText("Exportar")

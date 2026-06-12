@@ -118,6 +118,12 @@ def test_open_allowed_url_requires_https_and_allowed_host():
         qurl_cls=_Url,
         logger=_Logger,
     )
+    assert system_integration.open_allowed_url(
+        "https://apps.itaipu.gov.br/SAM_SMA_Reports/Reports.aspx",
+        qdesktopservices=_Desktop,
+        qurl_cls=_Url,
+        logger=_Logger,
+    )
     assert not system_integration.open_allowed_url(
         "https://example.com/SAM_SMA/",
         qdesktopservices=_Desktop,
@@ -130,4 +136,7 @@ def test_open_allowed_url_requires_https_and_allowed_host():
         qurl_cls=_Url,
         logger=_Logger,
     )
-    assert opened == ["https://osprd.itaipu/SAM_SMA/"]
+    assert opened == [
+        "https://osprd.itaipu/SAM_SMA/",
+        "https://apps.itaipu.gov.br/SAM_SMA_Reports/Reports.aspx",
+    ]

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import runpy
 import shutil
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -147,7 +149,7 @@ def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
     parent_db = _write_parent_data_db(tmp_path)
 
     namespace = _run_entry_as_nuitka(
-        monkeypatch, tmp_path, "cli_entry.py", "SSA_CLI_v4.37_windows_amd64.exe"
+        monkeypatch, tmp_path, "cli_entry.py", "SSA_CLI_v4.42_windows_amd64.exe"
     )
 
     runtime_env = cast(dict[str, str], namespace["_runtime_env"])
@@ -167,7 +169,7 @@ def test_cli_entry_nuitka_runtime_overwrites_stale_ssa_environment(
 ) -> None:
     exe_dir = tmp_path / "entry.dist"
     exe_dir.mkdir()
-    executable = exe_dir / "SSA_CLI_v4.37_windows_amd64.exe"
+    executable = exe_dir / "SSA_CLI_v4.42_windows_amd64.exe"
     executable.write_text("", encoding="utf-8")
     stale_root = tmp_path / "stale"
     stale_root.mkdir()
@@ -207,7 +209,7 @@ def test_cli_entry_nuitka_runtime_uses_executable_layout_without_compiled_global
         monkeypatch,
         tmp_path,
         "cli_entry.py",
-        "SSA_CLI_v4.37_windows_amd64.exe",
+        "SSA_CLI_v4.42_windows_amd64.exe",
         compiled_global=False,
     )
 
@@ -228,7 +230,7 @@ def test_gui_entry_nuitka_runtime_does_not_use_build_repo_db(
     parent_db = _write_parent_data_db(tmp_path)
 
     namespace = _run_entry_as_nuitka(
-        monkeypatch, tmp_path, "gui_entry.py", "SSA_GUI_v4.37_windows_amd64.exe"
+        monkeypatch, tmp_path, "gui_entry.py", "SSA_GUI_v4.42_windows_amd64.exe"
     )
 
     runtime_env = cast(dict[str, str], namespace["_runtime_env"])
@@ -246,17 +248,34 @@ def test_launcher_runtime_helper_does_not_leak_ssa_environment(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    real_python = sys.executable
     namespace = _run_entry_as_nuitka(
         monkeypatch,
         tmp_path,
         "cli_entry.py",
-        "SSA_CLI_v4.37_windows_amd64.exe",
+        "SSA_CLI_v4.42_windows_amd64.exe",
     )
     runtime_env = cast(dict[str, str], namespace["_runtime_env"])
 
     assert "SSA_RUNTIME_ROOT" in runtime_env
     for key in SSA_ENV_KEYS:
         assert key not in os.environ
+    child_result = subprocess.run(  # nosec B603
+        [
+            real_python,
+            "-c",
+            (
+                "import json, os; "
+                f"keys = {SSA_ENV_KEYS!r}; "
+                "print(json.dumps([key for key in keys if key in os.environ]))"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert child_result.returncode == 0
+    assert json.loads(child_result.stdout) == []
 
 
 def test_cli_entry_pyinstaller_runtime_uses_meipass_bundle_root(
@@ -271,7 +290,7 @@ def test_cli_entry_pyinstaller_runtime_uses_meipass_bundle_root(
     bundled_data.mkdir()
     (bundled_config / "build_info.json").write_text("{}", encoding="utf-8")
     (bundled_data / "ssas.db").write_text("bundle-db", encoding="utf-8")
-    executable = exe_dir / "SSA_CLI_v4.37_windows_amd64.exe"
+    executable = exe_dir / "SSA_CLI_v4.42_windows_amd64.exe"
     exe_dir.mkdir()
     executable.write_text("", encoding="utf-8")
 
@@ -313,7 +332,7 @@ def test_gui_entry_pyinstaller_runtime_uses_meipass_bundle_root(
     (bundled_config / "build_info.json").write_text("{}", encoding="utf-8")
     (bundled_data / "ssas.db").write_text("bundle-db", encoding="utf-8")
     (bundled_resources / "icon.txt").write_text("icon", encoding="utf-8")
-    executable = exe_dir / "SSA_GUI_v4.37_windows_amd64.exe"
+    executable = exe_dir / "SSA_GUI_v4.42_windows_amd64.exe"
     exe_dir.mkdir()
     executable.write_text("", encoding="utf-8")
 

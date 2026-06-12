@@ -7,10 +7,10 @@ mypy>=2.1.0
 pytest-cov>=7.1.0
 pre-commit>=4.6.0
 pyinstaller>=6.20.0
-ruff>=0.15.0
-ty>=0.0.38
+ruff>=0.15.15
+ty>=0.0.42
 pillow>=12.2.0
-codeflash>=0.20.5
+codeflash>=0.20.6
 
 # Changelog:
 # [2026-05-11] - CI inclui ferramentas de dev e build usadas pelos gates.

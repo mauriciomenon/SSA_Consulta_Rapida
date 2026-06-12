@@ -5,7 +5,7 @@
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
 - PR #58 e PR #59: merged; base minima sincronizada `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
-- Proximo passo operacional: rebuildar artefatos v4.37 no Windows AMD64 e Debian AMD64 a partir do HEAD sincronizado.
+- Proximo passo operacional: rebuildar artefatos v4.42 no Windows AMD64 e Debian AMD64 a partir do HEAD sincronizado.
 
 ## HISTORICAL SNAPSHOT 2025-11-14
 

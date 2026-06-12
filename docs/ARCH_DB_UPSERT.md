@@ -1,4 +1,4 @@
-# ARCH DB UPSERT (v4.37)
+# ARCH DB UPSERT (v4.42)
 
 Este arquivo e a referencia curta do contrato de update por `numero_ssa`.
 Nao e apenas ponte legado.

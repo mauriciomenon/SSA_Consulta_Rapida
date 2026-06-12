@@ -13,6 +13,10 @@ from gui.workers import pai_api_worker
 from gui.workers.pai_api_worker import PaiApiRefreshWorker, PaiApiWorkerConfig
 
 
+def _enabled_options(settings: dict[str, Any]) -> Any:
+    return normalize_pai_api_options({"enabled": True, **settings})
+
+
 def test_pai_api_worker_refreshes_each_executor_sector(
     monkeypatch,
     tmp_path: Path,
@@ -75,7 +79,7 @@ def test_pai_api_worker_refreshes_each_executor_sector(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3", "MEL4", "MEL3"],
                     "sam_username": "sam.user",
@@ -160,7 +164,7 @@ def test_pai_api_worker_refreshes_executadas_without_ca_validation(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "data_scopes": ["executadas"],
@@ -229,7 +233,7 @@ def test_pai_api_worker_uses_custom_rest_base_url_for_ca_and_preview(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "base_url": "https://sam.internal/rest/SSA_API",
@@ -284,7 +288,7 @@ def test_pai_api_worker_keeps_scraper_scope_when_rest_ca_fails(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "data_scopes": ["consulta", "executadas"],
@@ -312,7 +316,7 @@ def test_pai_api_worker_rejects_executadas_without_username(tmp_path: Path) -> N
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "data_scopes": ["executadas"],
@@ -358,7 +362,7 @@ def test_pai_api_worker_refreshes_both_aprovacao_scopes(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "data_scopes": [
@@ -459,9 +463,7 @@ def test_pai_api_worker_continues_after_sector_failure(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
-                {"executor_sectors": ["IEE3", "MEL4"]}
-            ),
+            options=_enabled_options({"executor_sectors": ["IEE3", "MEL4"]}),
         )
     )
 
@@ -532,7 +534,7 @@ def test_pai_api_worker_waits_for_import_confirmation(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
             confirm_before_import=True,
         )
     )
@@ -597,7 +599,7 @@ def test_pai_api_worker_cancel_confirmation_keeps_db_unchanged(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
             confirm_before_import=True,
         )
     )
@@ -661,7 +663,7 @@ def test_pai_api_worker_confirmation_timeout_emits_error(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
             confirm_before_import=True,
         )
     )
@@ -713,7 +715,7 @@ def test_pai_api_worker_does_not_import_when_all_sectors_fail(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
         )
     )
     worker.finished_error.connect(errors.append)
@@ -756,7 +758,7 @@ def test_pai_api_worker_reports_ca_failure_before_fetch_or_import(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
         )
     )
     worker.finished_error.connect(errors.append)
@@ -786,7 +788,7 @@ def test_pai_api_worker_records_unhandled_failure_in_summary(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
         )
     )
     worker.finished_error.connect(errors.append)
@@ -809,7 +811,7 @@ def test_pai_api_worker_records_preview_future_timeout(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
         )
     )
     errors: list[str] = []

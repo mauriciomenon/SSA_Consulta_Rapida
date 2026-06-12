@@ -221,7 +221,14 @@ def _normalize_sheet_file_path(value: Any) -> str:
     normalized = str(value).strip()
     if not normalized:
         return ""
-    return os.path.abspath(os.path.expanduser(normalized))
+    expanded = os.path.abspath(os.path.expanduser(normalized))
+    return str(
+        ensure_path_is_allowed(
+            expanded,
+            purpose="sync derivadas sheet file",
+            expect_directory=False,
+        )
+    )
 
 
 def _sheet_stats_has_parse_evidence(stats: dict[str, Any] | None) -> bool:
@@ -974,8 +981,8 @@ def _build_summary_rows(
 
 def _fetch_all_ssa(conn: sqlite3.Connection, table_name: str) -> set[str]:
     safe_table = _validate_table_name(table_name)
-    rows = conn.execute(
-        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'  # nosec B608  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    rows = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'  # nosec B608
     ).fetchall()
     out: set[str] = set()
     for row in rows:
@@ -2062,7 +2069,7 @@ def run_derivadas_maintenance(
     db_path: str,
     table_name: str = "ssa_table",
     *,
-    min_interval_seconds: int = 3600,
+    min_interval_seconds: int = 14400,
     auto_heal: bool = True,
     full_rebuild: bool = False,
     actor: str | None = None,

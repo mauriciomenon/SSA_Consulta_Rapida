@@ -1,13 +1,16 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH 2026-06-11 11h
 
 - Branch fonte: `dev`.
 - Branch destino: `main`.
 - Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
 - PR #58 e PR #59: merged; `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados antes de qualquer rebuild.
-- Artefatos v4.37 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
+- Artefatos v4.42 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
+  - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
+  - Debian AMD64/ARM64: `pyinstaller`, `nuitka`, `pyoxidizer` + `deb`, `appimage`, `tar`; `pyoxidizer/appimage` nao e suportado.
+  - macOS ARM64: `pyinstaller` + `dmg`.
 - Interface operacional primaria:
   - Windows: `release.ps1`.
   - Debian/macOS: `release.sh`.
@@ -15,12 +18,17 @@
   - Local Windows + WSL: `dev_env/build/release_local.ps1`.
   - Windows AMD64: `dev_env/build/release_windows.ps1`.
   - Debian AMD64: `dev_env/build/release_debian.sh`.
+  - Debian ARM64: `dev_env/build/release_debian_arm64.sh`.
+  - macOS ARM64: `release.sh` -> `launchers/build_multiplatform.py`.
 - Dry-run previamente validado para os orquestradores; depois do merge PR #58, o proximo ciclo deve rodar dry-run novamente antes de build real.
 - Protecao de codigo:
   - Nuitka e o backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
+  - PyOxidizer usa `pyoxidizer==0.24.0` por padrao via `uv tool run`, com override explicito por `SSA_PYOXIDIZER_UV_PACKAGE`.
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.37.
+- `setup_env.sh` e `setup_env.ps1` nao executam instalador remoto de pyenv sem opt-in e SHA256 explicitos.
+- `dev_env/setup_msvc_path.ps1` e diagnostico/sessao; nao altera PATH permanente do usuario por padrao.
+- Proximo passo operacional: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.42.
 
 ## Comandos Simples De Release
 
@@ -55,6 +63,18 @@ VM/host Debian remoto:
 
 ```bash
 ./release.sh --target debian --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --yes
+```
+
+macOS local + Debian AMD64/ARM64 remoto:
+
+```bash
+./release.sh --target all --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --yes
+```
+
+Dry-run macOS sem remoto Debian:
+
+```bash
+./release.sh --target all --dry-run --allow-missing-remote
 ```
 
 ## HISTORICAL SNAPSHOT (4.37 local automation)
@@ -131,8 +151,8 @@ Este guia descreve como gerar pacotes para distribuicao em Windows, macOS e Debi
 usando o fluxo canonico atual.
 
 Nota Debian:
-- no baseline atual, Debian usa pacote ZIP canonico.
-- `.deb` e AppImage ficam como etapa manual de release por arquitetura.
+- no baseline atual, Debian usa `.deb` como pacote padrao no wrapper de release.
+- AppImage e tar continuam disponiveis por arquitetura quando suportados pela matriz.
 - scripts disponiveis para AMD64 e ARM64 ficam em `dev_env/build/package_debian_*`.
 
 ## Build Canonico
@@ -211,8 +231,9 @@ uv run --python 3.13 scripts/create_distribution.py --build-system pyoxidizer --
 ```
 
 Importante:
-- `nuitka` e `pyoxidizer` estao mantidos como trilha experimental neste ciclo.
-- Para release operacional, usar PyInstaller como padrao.
+- Para Windows/Debian protegido, usar Nuitka como padrao.
+- Para macOS ARM64, usar PyInstaller + DMG.
+- `pyoxidizer` permanece opcional e deve passar protecao de fonte antes de qualquer publicacao.
 
 ### 4) Criar .deb e AppImage Debian manualmente
 
@@ -315,7 +336,7 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 - `reports`
 - `exportacao`
 
-Politica operacional (v4.37+):
+Politica operacional (v4.42+):
 - build canonico nao embeda `data/` por padrao.
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
   - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
@@ -333,7 +354,7 @@ Politica operacional (v4.37+):
 Texto sugerido:
 
 ```text
-SSA Consulta Rapida v4.37
+SSA Consulta Rapida v4.42
 
 INSTALACAO
 1. Baixe o arquivo ZIP.

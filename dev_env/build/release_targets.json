@@ -6,7 +6,8 @@
       "order": 1,
       "windows_amd64": true,
       "debian_amd64": true,
-      "debian_arm64": true
+      "debian_arm64": true,
+      "macos_arm64": true
     },
     {
       "name": "nuitka",
@@ -46,6 +47,11 @@
       "name": "zip",
       "order": 4,
       "windows_amd64": true
+    },
+    {
+      "name": "dmg",
+      "order": 5,
+      "macos_arm64": true
     }
   ],
   "unsupported_pairs": [
@@ -74,6 +80,9 @@
       "appimage": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.AppImage",
       "tar_split": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}_{app}.tar.gz",
       "tar_single": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.tar.gz"
+    },
+    "macos_arm64": {
+      "dmg": "SSA_Consulta_Rapida_v{app_version}_macos_arm64.dmg"
     }
   }
 }

@@ -2,7 +2,7 @@
 setlocal
 rem Launcher CLI: inicia a aplicacao no modo CLI sem exigir ativacao manual
 
-set "ROOT=%~dp0"
+for %%I in ("%~dp0..") do set "ROOT=%%~fI"
 pushd "%ROOT%"
 
 rem Preferir Python da venv local, se existir
@@ -15,4 +15,3 @@ if not defined PYEXE set "PYEXE=py"
 set ERR=%ERRORLEVEL%
 popd
 exit /b %ERR%
-

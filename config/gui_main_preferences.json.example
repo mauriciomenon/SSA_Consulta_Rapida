@@ -170,10 +170,10 @@
     "cache_auto_clear": false,
     "theme_default": null,
     "pai_api": {
-      "enabled": true,
+      "enabled": false,
       "scrap_report_enabled": true,
       "auto_refresh_enabled": false,
-      "auto_refresh_interval_minutes": 10,
+      "auto_refresh_interval_minutes": 30000,
       "executor_sectors": [
         "IEE3",
         "MEL4",

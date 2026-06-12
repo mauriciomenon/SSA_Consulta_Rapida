@@ -201,6 +201,63 @@ def test_start_cli_loop_accumulates_literal_terms_without_rewriting(
     ]
 
 
+def test_start_cli_loop_ignores_raw_ansi_arrow_input(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base_df = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
+    parse_calls: list[list[str]] = []
+    render_calls: list[tuple[pd.DataFrame, list[str]]] = []
+
+    monkeypatch.setattr(
+        cli,
+        "_get_initial_state",
+        lambda *_args, **_kwargs: (base_df, []),
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
+    )
+    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
+    monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
+    monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
+
+    def _fake_parse_search_terms(terms, default_mode="contains"):
+        values = list(terms)
+        parse_calls.append(values)
+        return [(default_mode, term) for term in values]
+
+    def _fake_render_single_page(
+        df, _display_map, _settings, _print_cache, terms, **_kwargs
+    ):
+        render_calls.append((df, list(terms)))
+        return None
+
+    inputs = iter(["\x1b[A!scc", "!ses", "q"])
+
+    def _fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "parse_search_terms", _fake_parse_search_terms)
+    monkeypatch.setattr(cli, "filter_dataframe", lambda df, _parsed_terms: df)
+    monkeypatch.setattr(cli, "_render_single_page", _fake_render_single_page)
+    monkeypatch.setattr(builtins, "input", _fake_input)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.start_cli_loop("dummy.db", "ssa_table")
+
+    assert excinfo.value.code == 0
+    assert parse_calls == [["!ses"]]
+    assert render_calls == [(base_df, ["!ses"])]
+    assert "Entrada ignorada" in capsys.readouterr().out
+
+
 def test_start_cli_loop_back_rerenders_previous_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -387,6 +444,135 @@ def test_start_cli_loop_opens_detail_for_exact_ssa_number(
 
     assert excinfo.value.code == 0
     assert details_calls == ["202500001"]
+
+
+def test_start_cli_loop_opens_detail_for_short_resolved_ssa(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_df = pd.DataFrame(
+        {
+            "numero_ssa": ["202605373"],
+            "descricao_ssa": ["SSA curta resolvida"],
+        }
+    )
+    details_calls: list[str] = []
+    normalize_calls: list[str] = []
+
+    monkeypatch.setattr(
+        cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, [])
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
+    )
+    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
+    monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
+    monkeypatch.setattr(cli, "_render_single_page", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
+
+    def _fake_normalize(raw: str) -> str:
+        normalize_calls.append(raw)
+        return "202605373"
+
+    monkeypatch.setattr(cli, "normalize_numero_ssa_strict", _fake_normalize)
+    monkeypatch.setattr(
+        cli,
+        "filter_dataframe",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nao deveria filtrar")
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "parse_search_terms",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nao deveria parsear")
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_show_ssa_details",
+        lambda row, _display_map: details_calls.append(str(row["numero_ssa"])),
+    )
+
+    inputs = iter(["5373", "q"])
+
+    def _fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(builtins, "input", _fake_input)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.start_cli_loop("dummy.db", "ssa_table")
+
+    assert excinfo.value.code == 0
+    assert details_calls == ["202605373"]
+    assert normalize_calls == ["5373"]
+
+
+def test_start_cli_loop_filters_numeric_input_when_no_ssa_detail_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_df = pd.DataFrame(
+        {
+            "numero_ssa": ["202605373"],
+            "descricao_ssa": ["2025 aparece no texto"],
+        }
+    )
+    parsed_calls: list[list[str]] = []
+
+    monkeypatch.setattr(
+        cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, [])
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
+    )
+    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
+    monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
+    monkeypatch.setattr(cli, "_render_single_page", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "normalize_numero_ssa_strict", lambda _raw: "202599999")
+    monkeypatch.setattr(
+        cli,
+        "parse_search_terms",
+        lambda terms, default_mode="contains": parsed_calls.append(list(terms)) or [],
+    )
+    monkeypatch.setattr(cli, "filter_dataframe", lambda df, _parsed: df)
+    monkeypatch.setattr(
+        cli,
+        "_show_ssa_details",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nao deveria abrir detalhe")
+        ),
+    )
+
+    inputs = iter(["2025", "q"])
+
+    def _fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(builtins, "input", _fake_input)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.start_cli_loop("dummy.db", "ssa_table")
+
+    assert excinfo.value.code == 0
+    assert parsed_calls == [["2025"]]
 
 
 def test_handle_export_rejects_unsafe_filename(

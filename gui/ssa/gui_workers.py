@@ -1105,6 +1105,9 @@ def _reset_post_load_filter_state(window) -> None:
         logger.debug("Falha ao limpar cache de filtros apos recarga de dados: %s", exc)
     window._adv_options_dirty = True
     window._adv_values_cache = None
+    window._pending_search_display = None
+    window._active_filter_search_display = ""
+    window._active_filter_search_request_id = None
     responsavel_state = responsavel_materialization_state(window)
     responsavel_state.built_prefixes.clear()
     window._mark_responsavel_dirty()

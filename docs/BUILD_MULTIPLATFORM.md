@@ -2,20 +2,26 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (4.41 local release candidate)
+## CURRENT TRUTH (4.42 local release candidate)
 
-- Sync deste guia: `2026-05-22 09:22 -0300`.
+- Sync deste guia: `2026-06-11 11:00 -0300`.
 - Relatorio consolidado deste ciclo:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional 3x3:
   - `docs/BUILD_3X3_RUNBOOK.md`
 - Fluxo operacional padrao:
-  1. build por backend com scripts em `dev_env/build/`
-  2. distribuicao com `scripts/create_distribution.py`
+  1. entrada publica por `release.ps1` no Windows e `release.sh` no Debian/macOS
+  2. build por backend com scripts em `dev_env/build/`
+  3. distribuicao/report com scripts em `dev_env/build/` e `scripts/create_distribution.py`
+- Fonte da matriz de release: `dev_env/build/release_targets.json`.
+- Matriz ativa:
+  - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
+  - Debian AMD64/ARM64: `pyinstaller`, `nuitka`, `pyoxidizer` + `deb`, `appimage`, `tar`; `pyoxidizer/appimage` nao e suportado.
+  - macOS ARM64: `pyinstaller` + `dmg`.
 - Backends ativos no ciclo:
-  - `pyinstaller` (default de release)
-  - `nuitka` (opcional)
-  - `pyoxidizer` (opcional)
+  - `nuitka` (default protegido para Windows/Debian)
+  - `pyinstaller` (default para macOS ARM64/DMG)
+  - `pyoxidizer` (opcional; default `pyoxidizer==0.24.0` via `SSA_PYOXIDIZER_UV_PACKAGE`)
 - Comandos canonicos (sempre via uv):
   - Windows:
     - `dev_env/build/build_pyinstaller.bat --silent`
@@ -29,6 +35,8 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
     - `bash dev_env/build/build_pyinstaller_debian_arm64.sh --silent`
     - `bash dev_env/build/build_nuitka_debian_arm64.sh --silent`
     - `bash dev_env/build/build_pyoxidizer_debian_arm64.sh --silent`
+- `release.sh --target all --ssh-host ... --ssh-repo ...` executa macOS local quando em Darwin e chama Debian AMD64 + Debian ARM64 no remoto configurado.
+- `release.sh --target all --dry-run --allow-missing-remote` permite validar macOS local sem host Debian.
 
 ## Local de saida e staging
 
@@ -60,7 +68,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## Nota de versao
 
-Exemplos de nomes versionados neste documento usam v4.41 como baseline atual.
+Exemplos de nomes versionados neste documento usam v4.42 como baseline atual.
 No fluxo ativo, usar a versao corrente definida em `VERSION` e `config/version.json`.
 
 ## Estrutura de Build
@@ -87,14 +95,14 @@ launchers/
 │       └── build_config.json   # Config PyInstaller Linux ARM64
 ├── dist/                       # Executaveis gerados
 │   ├── windows_amd64/
-│   │   ├── SSA_CLI_v4.41_windows_amd64.exe
-│   │   └── SSA_GUI_v4.41_windows_amd64.exe
+│   │   ├── SSA_CLI_v4.42_windows_amd64.exe
+│   │   └── SSA_GUI_v4.42_windows_amd64.exe
 │   ├── macos_arm64/
-│   │   ├── SSA_CLI_v4.41_macos_arm64
-│   │   └── SSA_GUI_v4.41_macos_arm64.app
+│   │   ├── SSA_CLI_v4.42_macos_arm64
+│   │   └── SSA_GUI_v4.42_macos_arm64.app
 │   └── debian_amd64/
-│       ├── SSA_CLI_v4.41_debian_amd64
-│       └── SSA_GUI_v4.41_debian_amd64
+│       ├── SSA_CLI_v4.42_debian_amd64
+│       └── SSA_GUI_v4.42_debian_amd64
 └── resources/                  # Recursos compartilhados
     ├── app_icon.ico            # Icone Windows
     ├── app_icon.icns           # Icone macOS
@@ -201,14 +209,14 @@ SSA_{CLI|GUI}_v{versao}_{plataforma}_{arquitetura}.{extensao}
 ```
 
 Exemplo:
-- `SSA_CLI_v4.41_windows_amd64.exe`
-- `SSA_GUI_v4.41_macos_arm64.app`
-- `SSA_CLI_v4.41_debian_amd64`
+- `SSA_CLI_v4.42_windows_amd64.exe`
+- `SSA_GUI_v4.42_macos_arm64.app`
+- `SSA_CLI_v4.42_debian_amd64`
 
 ### Empacotamento Debian no baseline atual
 
-- Saida operacional oficial para Debian continua sendo ZIP pelo pipeline canonico.
-- `.deb` e AppImage existem como etapa manual de release por arquitetura, fora do `build_multiplatform.py`.
+- Saida operacional oficial para Debian no wrapper de release e `.deb` por padrao.
+- AppImage e tar existem como alternativas por arquitetura, fora do `build_multiplatform.py`.
 - Scripts disponiveis:
   - `dev_env/build/package_debian_amd64_deb.sh`
   - `dev_env/build/package_debian_amd64_appimage.sh`
@@ -222,14 +230,14 @@ Cada build gera um `build_manifest.json` dentro da pasta da plataforma:
 ```json
 {
   "platform": "macos_arm64",
-  "version": "4.41",
+  "version": "4.42",
   "build_date": "2026-05-22T12:00:00.000000",
   "executables": [
     {
-      "name": "SSA_GUI_v4.41_macos_arm64.app",
+      "name": "SSA_GUI_v4.42_macos_arm64.app",
       "kind": "directory",
       "size_mb": 42.1,
-      "path": "macos_arm64/SSA_GUI_v4.41_macos_arm64.app"
+      "path": "macos_arm64/SSA_GUI_v4.42_macos_arm64.app"
     }
   ]
 }

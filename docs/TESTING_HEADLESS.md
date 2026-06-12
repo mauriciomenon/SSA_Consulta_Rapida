@@ -75,7 +75,7 @@ coverage html && open htmlcov/index.html
 ## 9. Execucao no Terminal.app
 ```
 cd /caminho/para/SSA_Consulta_Rapida
-pyenv local 3.13.7   # se usar pyenv
+pyenv local 3.13.12  # se usar pyenv
 pip install -r requirements.txt
 ./scripts/run_tests.sh full
 ```

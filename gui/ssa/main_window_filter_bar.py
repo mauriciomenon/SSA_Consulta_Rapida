@@ -53,7 +53,9 @@ def _apply_toolbar_compact_font(window: Any, widget: Any) -> None:
 
 
 def _quick_situacao_button_style(window: Any, *, selected: bool) -> str:
-    roles = get_theme_roles(str(getattr(window, "_current_theme", "gruvbox") or "gruvbox"))
+    roles = dict(getattr(window, "_current_theme_roles", {}) or {})
+    if not roles:
+        roles = get_theme_roles(str(getattr(window, "_current_theme", "gruvbox") or "gruvbox"))
     panel_bg = pick_css_color(
         roles.get("panel_bg"),
         roles.get("summary_frame_bg"),
@@ -107,6 +109,55 @@ def _quick_situacao_button_style(window: Any, *, selected: bool) -> str:
         "}"
         "QPushButton:hover {"
         f"border:1px solid {accent};"
+        "}"
+    )
+
+
+def _quick_setor_executor_combo_style(window: Any) -> str:
+    roles = dict(getattr(window, "_current_theme_roles", {}) or {})
+    if not roles:
+        roles = get_theme_roles(str(getattr(window, "_current_theme", "gruvbox") or "gruvbox"))
+    panel_bg = pick_css_color(
+        roles.get("input_bg"),
+        roles.get("panel_bg"),
+        fallback="#2b2f3c",
+    )
+    panel_text = pick_css_color(
+        roles.get("input_text"),
+        roles.get("panel_text"),
+        fallback="#e6e7ee",
+    )
+    panel_border = pick_css_color(
+        roles.get("input_border"),
+        roles.get("panel_border"),
+        fallback="#666b84",
+    )
+    focus_border = pick_css_color(
+        roles.get("input_border_focus"),
+        roles.get("panel_border"),
+        roles.get("input_border"),
+        fallback=panel_border,
+    )
+    return (
+        "QComboBox {"
+        f"color:{panel_text};"
+        f"background:{panel_bg};"
+        f"border:1px solid {panel_border};"
+        "border-radius:3px;"
+        "padding:0px 3px;"
+        "combobox-popup: 0;"
+        "}"
+        "QComboBox:hover,QComboBox:focus {"
+        f"border:1px solid {focus_border};"
+        "}"
+        "QComboBox::drop-down {"
+        f"border-left:1px solid {panel_border};"
+        "width:14px;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        f"color:{panel_text};"
+        f"background:{panel_bg};"
+        f"selection-background-color:{focus_border};"
         "}"
     )
 
@@ -678,7 +729,7 @@ def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
             adjust_policy = getattr(QComboBox.SizeAdjustPolicy, "AdjustToContents", None)
         if adjust_policy is not None:
             combo.setSizeAdjustPolicy(cast(Any, adjust_policy))
-        combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        combo.setStyleSheet(_quick_setor_executor_combo_style(window))
         combo_view = combo.view()
         if combo_view is not None:
             scroll_policy = getattr(
