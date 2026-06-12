@@ -619,6 +619,12 @@ def _finish_theme_application(
         window.update_details_from_selection()
     except Exception as exc:
         logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
+    try:
+        update_filter_tags = getattr(window, "update_filter_tags", None)
+        if callable(update_filter_tags):
+            update_filter_tags()
+    except Exception as exc:
+        logger.debug("Falha ao atualizar filtros salvos apos apply_theme: %s", exc)
 
 
 def apply_theme(

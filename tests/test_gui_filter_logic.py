@@ -54,6 +54,7 @@ from gui.ssa.filter_profile_logic import (  # noqa: E402
 from gui.widgets.column_filter_dialog import ColumnFilterDialog  # noqa: E402
 from gui.widgets.column_manager_dialog import ColumnManagerDialog  # noqa: E402
 from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
+from utils.themes import get_theme_roles  # noqa: E402
 
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
 
@@ -5305,6 +5306,36 @@ class TestGUIFilterLogic:
 
         assert self.window.search_input.text() == "Teste C"
         assert self.window.df_exibido["numero_ssa"].tolist() == [3]
+
+    def test_persistent_filter_tags_refresh_theme_colors_after_theme_change(self):
+        self.window.persistent_filters = [
+            {"name": "!scc", "terms": "!scc", "state": {}},
+            {"name": "br...", "terms": "braba", "state": {}},
+        ]
+
+        self.window.apply_theme("dracula")
+        QApplication.processEvents()
+        dark_pairs = self._persistent_filter_tag_button_pairs()
+        assert dark_pairs
+        dark_style = dark_pairs[0][0].styleSheet()
+        dark_remove_style = dark_pairs[0][1].styleSheet()
+        dark_roles = get_theme_roles("dracula")
+        assert f"color: {dark_roles['input_text']}" in dark_style
+        assert f"border: 1px solid {dark_roles['tag_border']}" in dark_style
+        assert f"border: 1px solid {dark_roles['tag_border']}" in dark_remove_style
+
+        self.window.apply_theme("paper")
+        QApplication.processEvents()
+        light_pairs = self._persistent_filter_tag_button_pairs()
+        assert light_pairs
+        light_style = light_pairs[0][0].styleSheet()
+        light_remove_style = light_pairs[0][1].styleSheet()
+        light_roles = get_theme_roles("paper")
+        assert f"color: {light_roles['input_text']}" in light_style
+        assert f"border: 1px solid {light_roles['tag_border']}" in light_style
+        assert f"border: 1px solid {light_roles['tag_border']}" in light_remove_style
+        assert dark_roles["input_text"] not in light_style
+        assert dark_roles["tag_border"] not in light_style
 
     def test_persistent_filter_save_rejects_duplicate_manual_name(self):
         with (

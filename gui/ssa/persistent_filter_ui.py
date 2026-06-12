@@ -224,7 +224,9 @@ class PersistentFilterUiController:
                 child.widget().deleteLater()
 
     def _tag_css(self) -> str:
-        roles = get_theme_roles(getattr(self.window, "_current_theme", "dark"))
+        roles = dict(getattr(self.window, "_current_theme_roles", {}) or {})
+        if not roles:
+            roles = get_theme_roles(getattr(self.window, "_current_theme", "dark"))
         palette_text = self.window.palette().windowText().color().name()
         fg = (
             roles.get("input_text")
