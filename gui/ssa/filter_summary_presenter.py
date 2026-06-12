@@ -203,8 +203,7 @@ class FilterSummaryPresenter:
             except Exception as exc:
                 self._logger.debug("Falha ao medir viewport dos filtros ativos: %s", exc)
             compact = (
-                viewport_width > 0
-                and text_width * SUMMARY_ESTIMATED_PIXELS_PER_CHAR > viewport_width
+                0 < viewport_width < text_width * SUMMARY_ESTIMATED_PIXELS_PER_CHAR
             )
         theme = self._resolve_button_theme(theme_name, compact=compact)
         self._configure_button_container(container)

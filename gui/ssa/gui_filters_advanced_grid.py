@@ -394,8 +394,7 @@ def _current_field_box_heights(visible: list[tuple[str, Any]]) -> tuple[int, int
                 LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT,
                 min(int(widget.maximumHeight()), max_allowed_height),
             )
-            if widget_min > widget_max:
-                widget_min = widget_max
+            widget_min = min(widget_min, widget_max)
             min_height = max(min_height, widget_min)
             max_height = max(max_height, widget_max)
         except Exception as exc:

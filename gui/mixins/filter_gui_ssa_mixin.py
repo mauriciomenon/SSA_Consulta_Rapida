@@ -2390,7 +2390,6 @@ class FilterGUISSAMixin:
             apply_advanced_filters=getattr(self, "_apply_advanced_filters", None),
             apply_column_filters=self._apply_column_filters,
             measure_timing=measure_timing,
-            logger=logger,
         )
         if cache_update is not None:
             self._filter_refresh_result_cache = cache_update

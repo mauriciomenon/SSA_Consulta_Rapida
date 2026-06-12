@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 import pandas as pd
 
@@ -29,7 +28,6 @@ def apply_filter_refresh_pipeline(
     apply_advanced_filters: Callable[[pd.DataFrame], pd.DataFrame] | None,
     apply_column_filters: Callable[[pd.DataFrame], pd.DataFrame],
     measure_timing: Callable[[str, Callable[[], pd.DataFrame]], pd.DataFrame],
-    logger: Any,
 ) -> tuple[pd.DataFrame, FilterRefreshLastResult | None]:
     cached_result = _get_cached_refresh_result(
         cached,
@@ -45,14 +43,11 @@ def apply_filter_refresh_pipeline(
             apply_advanced_filters=apply_advanced_filters,
             apply_column_filters=apply_column_filters,
             measure_timing=measure_timing,
-            logger=logger,
         )
     filtered = _apply_terminal_status_stage(
         filtered,
-        has_post_search_filters=has_post_search_filters,
         has_excluded_terminal_status=has_excluded_terminal_status,
         measure_timing=measure_timing,
-        logger=logger,
     )
     if (
         has_post_search_filters or has_excluded_terminal_status
@@ -92,7 +87,6 @@ def _apply_post_search_stages(
     apply_advanced_filters: Callable[[pd.DataFrame], pd.DataFrame] | None,
     apply_column_filters: Callable[[pd.DataFrame], pd.DataFrame],
     measure_timing: Callable[[str, Callable[[], pd.DataFrame]], pd.DataFrame],
-    logger: Any,
 ) -> pd.DataFrame:
     if callable(apply_advanced_filters):
         filtered = measure_timing("advanced", lambda: apply_advanced_filters(filtered))
@@ -103,10 +97,8 @@ def _apply_post_search_stages(
 def _apply_terminal_status_stage(
     filtered: pd.DataFrame,
     *,
-    has_post_search_filters: bool,
     has_excluded_terminal_status: bool,
     measure_timing: Callable[[str, Callable[[], pd.DataFrame]], pd.DataFrame],
-    logger: Any,
 ) -> pd.DataFrame:
     if (
         has_excluded_terminal_status

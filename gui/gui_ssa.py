@@ -1215,7 +1215,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Carrega mapeamentos de exibicao com merge defensivo para evitar labels tecnicos.
         # Fonte canonica: defaults + column_display_names + display_mappings.
         self.display_map = load_display_mappings()
-        self.internal_to_display = {k: v for k, v in self.display_map.items()}
+        self.internal_to_display = dict(self.display_map)
 
         # Colunas padrção para exibiçção (das configurações JSON)
         self.default_columns = GUI_MAIN_PREFERENCES.get(
@@ -1385,7 +1385,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Temporary release shortcut: load XLS/XLSX through the existing importer.
         self.api_button = QPushButton("Carregar xls")
         self.api_button.setToolTip("Importar arquivo XLS ou XLSX externo")
-        self.api_button.clicked.connect(lambda: self.import_external_excel_files())
+        self.api_button.clicked.connect(self.import_external_excel_files)
         toolbar_layout.addWidget(cast(Any, self.api_button))
 
         self.update_derivadas_button = None
