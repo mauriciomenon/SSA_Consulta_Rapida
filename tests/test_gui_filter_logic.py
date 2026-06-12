@@ -190,6 +190,8 @@ class TestGUIFilterLogic:
         try:
             self._load_patch.stop()
             self._saved_filters_path_patch.stop()
+            for dialog in list(getattr(self.window, "_open_details_dialogs", [])):
+                dialog.close()
             self.window.close()
         finally:
             self._saved_filters_tmpdir.cleanup()
@@ -2763,6 +2765,9 @@ class TestGUIFilterLogic:
 
         html = ssa_gui_details._format_details_html(self.window, series)
 
+        assert 'margin: 0' in html
+        assert '<table width="100%"' in html
+        assert "width: 100%" in html
         assert "table-layout: fixed" in html
         assert "<colgroup>" in html
         assert "width: 18%;" in html
@@ -7124,15 +7129,7 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
         QApplication.processEvents()
 
-        dialog_result = {"found": False}
-        dialog_poll = {"active": True, "attempts": 0}
-        safety_timer = QTimer(self.window)
-        safety_timer.setSingleShot(True)
-
         def _inspect_dialog():
-            if not dialog_poll["active"]:
-                return
-            dialog_poll["attempts"] += 1
             for widget in QApplication.topLevelWidgets():
                 if not isinstance(widget, QtWidgets.QDialog):
                     continue
@@ -7154,28 +7151,17 @@ class TestGUIFilterLogic:
                         "has_sobrinha": "202600103" in joined,
                     }
                 )
-                dialog_poll["active"] = False
-                safety_timer.stop()
                 widget.accept()
-                return
-            if dialog_poll["attempts"] < 60:
-                QTimer.singleShot(50, _inspect_dialog)
+                return True
+            return False
 
-        def _close_dialogs():
-            if not dialog_poll["active"]:
-                return
-            dialog_poll["active"] = False
-            for widget in QApplication.topLevelWidgets():
-                if (
-                    isinstance(widget, QtWidgets.QDialog)
-                    and "Detalhes da SSA" in str(widget.windowTitle())
-                ):
-                    widget.accept()
-
-        QTimer.singleShot(50, _inspect_dialog)
-        safety_timer.timeout.connect(_close_dialogs)
-        safety_timer.start(3000)
+        dialog_result = {"found": False}
         ssa_gui_details._open_details_dialog_for_ssa(self.window, "202600101")
+        deadline = time.monotonic() + 3.0
+        while not dialog_result["found"] and time.monotonic() < deadline:
+            QApplication.processEvents()
+            cast(Any, QTest).qWait(50)
+            _inspect_dialog()
 
         assert dialog_result == {
             "found": True,
@@ -7443,16 +7429,15 @@ class TestGUIFilterLogic:
         assert "202100135" in html
         assert "202100186" in html
 
-    def test_derivadas_graph_label_click_jumps_to_ssa(self, monkeypatch):
+    def test_derivadas_graph_label_click_opens_details_dialog(self, monkeypatch):
         label = self.window.details_graph_label
         label.setFixedSize(200, 120)
         label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 90.0, 50.0)])
-        calls: list[tuple[str, bool]] = []
+        opened: list[str] = []
+        jump_calls: list[str] = []
 
-        def _fake_jump(ssa: str, *, _allow_refilter: bool = True):
-            calls.append((ssa, _allow_refilter))
-
-        monkeypatch.setattr(self.window, "_jump_to_ssa", _fake_jump)
+        monkeypatch.setattr(self.window, "_open_details_dialog_for_ssa", opened.append)
+        monkeypatch.setattr(self.window, "_jump_to_ssa", jump_calls.append)
 
         cast(Any, QTest).mouseClick(
             label,
@@ -7460,7 +7445,8 @@ class TestGUIFilterLogic:
             pos=QPoint(20, 20),
         )
 
-        assert calls == [("202100186", False)]
+        assert opened == ["202100186"]
+        assert jump_calls == []
 
     def test_derivadas_graph_label_shows_clickable_cursor_on_node(self):
         label = self.window.details_graph_label
@@ -7515,12 +7501,9 @@ class TestGUIFilterLogic:
         label = self.window.details_graph_label
         label.setFixedSize(200, 120)
         label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 45.0, 20.0)])
-        calls: list[tuple[str, bool]] = []
+        opened: list[str] = []
 
-        def _fake_jump(ssa: str, *, _allow_refilter: bool = True):
-            calls.append((ssa, _allow_refilter))
-
-        monkeypatch.setattr(self.window, "_jump_to_ssa", _fake_jump)
+        monkeypatch.setattr(self.window, "_open_details_dialog_for_ssa", opened.append)
         monkeypatch.setattr(label, "pixmap", lambda: _FakePixmap())
 
         cast(Any, QTest).mouseClick(
@@ -7529,7 +7512,7 @@ class TestGUIFilterLogic:
             pos=QPoint(78, 60),
         )
 
-        assert calls == [("202100186", False)]
+        assert opened == ["202100186"]
 
     def test_derivadas_graph_label_click_uses_centered_display_coordinates(
         self, monkeypatch
@@ -7557,12 +7540,9 @@ class TestGUIFilterLogic:
         label = self.window.details_graph_label
         label.setFixedSize(200, 120)
         label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 45.0, 20.0)])
-        calls: list[tuple[str, bool]] = []
+        opened: list[str] = []
 
-        def _fake_jump(ssa: str, *, _allow_refilter: bool = True):
-            calls.append((ssa, _allow_refilter))
-
-        monkeypatch.setattr(self.window, "_jump_to_ssa", _fake_jump)
+        monkeypatch.setattr(self.window, "_open_details_dialog_for_ssa", opened.append)
         monkeypatch.setattr(label, "pixmap", lambda: _FakePixmap())
 
         offset_x = int((label.width() - 90.0) / 2.0)
@@ -7574,10 +7554,10 @@ class TestGUIFilterLogic:
             pos=QPoint(offset_x + 27, offset_y + 15),
         )
 
-        assert calls == [("202100186", False)]
+        assert opened == ["202100186"]
 
-    def test_derivadas_graph_label_click_jumps_without_context_layout_regression(
-        self,
+    def test_derivadas_graph_label_click_opens_details_without_table_state_change(
+        self, monkeypatch
     ):
         df = pd.DataFrame(
             {
@@ -7634,6 +7614,17 @@ class TestGUIFilterLogic:
 
         assert child_ssa == "202100154"
         assert self.window.table_widget.currentRow() == 0
+        before_search = str(self.window.search_input.text() or "")
+        before_filters = dict(self.window._active_column_filters)
+        opened: list[str] = []
+        jump_calls: list[str] = []
+        monkeypatch.setattr(self.window, "_open_details_dialog_for_ssa", opened.append)
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_open_details_dialog_for_ssa",
+            lambda _window, numero_ssa, series=None: opened.append(numero_ssa),
+        )
+        monkeypatch.setattr(self.window, "_jump_to_ssa", jump_calls.append)
 
         cast(Any, QTest).mouseClick(
             label,
@@ -7658,8 +7649,13 @@ class TestGUIFilterLogic:
             ctx["details_tab_bar"].tabRect(1).getRect(),
         )
 
-        assert self.window.table_widget.currentRow() == 1
-        assert getattr(self.window, "_details_current_ssa", "") == "202100154"
+        assert opened == ["202100154"]
+        assert jump_calls == []
+        assert self.window.table_widget.currentRow() == 0
+        assert getattr(self.window, "_details_current_ssa", "") == "202100046"
+        assert str(self.window.search_input.text() or "") == before_search
+        assert self.window._active_column_filters == before_filters
+        assert getattr(self.window, "_pending_jump_to_ssa", None) is None
         assert ctx["details_tab_bar"].count() == 2
         assert ctx["details_stack"].currentIndex() == 1
         live_context_state = getattr(self.window, "_details_context_state", None)
@@ -7708,12 +7704,9 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(
             self.window, "_refresh_derivadas_graph_hitboxes", _refresh_hitboxes
         )
-        calls: list[tuple[str, bool]] = []
+        opened: list[str] = []
 
-        def _fake_jump(ssa: str, *, _allow_refilter: bool = True):
-            calls.append((ssa, _allow_refilter))
-
-        monkeypatch.setattr(self.window, "_jump_to_ssa", _fake_jump)
+        monkeypatch.setattr(self.window, "_open_details_dialog_for_ssa", opened.append)
 
         label._refresh_hitboxes_from_svg()
 
@@ -7724,7 +7717,7 @@ class TestGUIFilterLogic:
         )
 
         assert refresh_calls
-        assert calls == [("202100186", False)]
+        assert opened == ["202100186"]
 
     def test_build_derivadas_graph_html_offsets_text_baseline_for_qt_svg(self):
         html = ssa_gui_details._build_derivadas_graph_html(
@@ -7752,9 +7745,11 @@ class TestGUIFilterLogic:
         label = self.window.details_graph_label
         label.setFixedSize(200, 120)
         label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 90.0, 50.0)])
-        calls: list[str] = []
+        opened: list[str] = []
+        jump_calls: list[str] = []
 
-        monkeypatch.setattr(self.window, "_jump_to_ssa", calls.append)
+        monkeypatch.setattr(self.window, "_open_details_dialog_for_ssa", opened.append)
+        monkeypatch.setattr(self.window, "_jump_to_ssa", jump_calls.append)
 
         cast(Any, QTest).mouseClick(
             label,
@@ -7762,7 +7757,8 @@ class TestGUIFilterLogic:
             pos=QPoint(20, 20),
         )
 
-        assert calls == []
+        assert opened == []
+        assert jump_calls == []
 
     def test_build_derivadas_graph_html_sanitizes_font_family(self):
         html = ssa_gui_details._build_derivadas_graph_html(
@@ -7946,7 +7942,7 @@ class TestGUIFilterLogic:
         self.window.df_exibido = self.base_df.copy()
         captured = {}
 
-        def _fake_exec(dialog):
+        def _fake_show(dialog):
             captured["tab_count"] = len(dialog.findChildren(QtWidgets.QTabWidget))
             splitters = dialog.findChildren(QtWidgets.QSplitter)
             captured["splitter_sizes"] = [splitter.sizes() for splitter in splitters]
@@ -7965,9 +7961,17 @@ class TestGUIFilterLogic:
                 browser.toPlainText()
                 for browser in dialog.findChildren(QtWidgets.QTextBrowser)
             ]
-            return 0
+            dialog.close()
 
-        monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
+        monkeypatch.setattr(QtWidgets.QDialog, "show", _fake_show, raising=False)
+        monkeypatch.setattr(
+            QtWidgets.QDialog,
+            "exec",
+            lambda _dialog: (_ for _ in ()).throw(
+                AssertionError("details dialog must be non-modal")
+            ),
+            raising=False,
+        )
         self.window._open_details_dialog_for_ssa("1")
         assert captured["tab_count"] == 0
         assert any(
@@ -7997,18 +8001,80 @@ class TestGUIFilterLogic:
             lambda _widget: QRect(0, 0, 900, 700),
         )
 
-        def _fake_exec(dialog):
+        def _fake_show(dialog):
             captured["max_size"] = dialog.maximumSize()
             captured["size"] = dialog.size()
-            return 0
+            dialog.close()
 
-        monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
+        monkeypatch.setattr(QtWidgets.QDialog, "show", _fake_show, raising=False)
         self.window._open_details_dialog_for_ssa("1")
 
         assert captured["max_size"].width() <= 876
         assert captured["max_size"].height() <= 676
         assert captured["size"].width() <= 876
         assert captured["size"].height() <= 676
+
+    def test_open_details_dialog_width_does_not_expand_to_size_hint(
+        self, monkeypatch
+    ):
+        self.window.df_exibido = self.base_df.copy()
+        captured = {}
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_dialog_screen_geometry",
+            lambda _widget: QRect(0, 0, 1600, 1200),
+        )
+        monkeypatch.setattr(
+            QtWidgets.QDialog,
+            "sizeHint",
+            lambda _dialog: QSize(1500, 700),
+            raising=False,
+        )
+
+        def _fake_show(dialog):
+            captured["size"] = dialog.size()
+            dialog.close()
+
+        monkeypatch.setattr(QtWidgets.QDialog, "show", _fake_show, raising=False)
+        self.window._open_details_dialog_for_ssa("1")
+
+        assert captured["size"].width() == ssa_gui_details.DERIVADAS_DIALOG_MIN_WIDTH
+
+    def test_open_details_dialog_is_modeless_and_keeps_multiple_windows(
+        self, monkeypatch
+    ):
+        self.window.df_exibido = self.base_df.copy()
+        shown = []
+
+        monkeypatch.setattr(
+            QtWidgets.QDialog,
+            "exec",
+            lambda _dialog: (_ for _ in ()).throw(
+                AssertionError("details dialog must not call exec")
+            ),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            QtWidgets.QDialog,
+            "show",
+            lambda dialog: shown.append(dialog),
+            raising=False,
+        )
+
+        self.window._open_details_dialog_for_ssa("1")
+        self.window._open_details_dialog_for_ssa("2")
+
+        assert len(shown) == 2
+        assert self.window.isEnabled() is True
+        assert all(dialog.isModal() is False for dialog in shown)
+        assert all(
+            dialog.windowModality() == Qt.WindowModality.NonModal for dialog in shown
+        )
+        assert shown[0] is not shown[1]
+        assert getattr(self.window, "_open_details_dialogs", [])[-2:] == shown
+        for dialog in shown:
+            dialog.close()
 
     def test_open_details_dialog_uses_main_window_height(self, monkeypatch):
         self.window.df_exibido = self.base_df.copy()
@@ -8021,15 +8087,15 @@ class TestGUIFilterLogic:
             lambda _widget: QRect(0, 0, 1600, 1200),
         )
 
-        def _fake_exec(dialog):
+        def _fake_show(dialog):
             captured["size"] = dialog.size()
             captured["minimum_size"] = dialog.minimumSize()
             captured["maximum_size"] = dialog.maximumSize()
             splitters = dialog.findChildren(QtWidgets.QSplitter)
             captured["splitter_sizes"] = [splitter.sizes() for splitter in splitters]
-            return 0
+            dialog.close()
 
-        monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
+        monkeypatch.setattr(QtWidgets.QDialog, "show", _fake_show, raising=False)
         self.window._open_details_dialog_for_ssa("1")
 
         expected_min_height = max(
@@ -8051,7 +8117,9 @@ class TestGUIFilterLogic:
         self.window.df_exibido = self.base_df.copy()
         self.window.df_para_tabela = self.base_df.head(1).copy()
 
-        monkeypatch.setattr(QtWidgets.QDialog, "exec", lambda _dialog: 0, raising=False)
+        monkeypatch.setattr(
+            QtWidgets.QDialog, "show", lambda dialog: dialog.close(), raising=False
+        )
 
         with patch(
             "gui.ssa.gui_details._get_window_ssa_series_index",
@@ -8067,7 +8135,9 @@ class TestGUIFilterLogic:
         series = self.window.df_exibido.iloc[0]
         seen = {"first_target_ok": False}
 
-        monkeypatch.setattr(QtWidgets.QDialog, "exec", lambda _dialog: 0, raising=False)
+        monkeypatch.setattr(
+            QtWidgets.QDialog, "show", lambda dialog: dialog.close(), raising=False
+        )
 
         original_get_series = ssa_gui_details._get_series_for_ssa
 
@@ -10622,7 +10692,7 @@ class TestGUIFilterLogic:
         ctx = self._panel_context()
         assert ctx["details_stack"].currentIndex() == 1
 
-    def test_derivadas_context_graph_click_jumps_without_opening_nested_context(
+    def test_derivadas_context_graph_click_opens_details_without_nested_context(
         self,
     ):
         df = pd.DataFrame(
@@ -10650,6 +10720,7 @@ class TestGUIFilterLogic:
         graph_label.set_ssa_hitboxes([("202100155", 10.0, 10.0, 90.0, 50.0)])
 
         with (
+            patch("gui.ssa.gui_details._open_details_dialog_for_ssa") as details_mock,
             patch.object(
                 self.window,
                 "_jump_to_ssa",
@@ -10664,7 +10735,8 @@ class TestGUIFilterLogic:
             )
             QApplication.processEvents()
 
-        jump_mock.assert_called_once_with("202100155", _allow_refilter=False)
+        details_mock.assert_called_once_with(self.window, "202100155")
+        jump_mock.assert_not_called()
         open_mock.assert_not_called()
         live_context_state = getattr(self.window, "_details_context_state", None)
         assert isinstance(live_context_state, dict)
@@ -10686,7 +10758,7 @@ class TestGUIFilterLogic:
         with patch(
             "gui.ssa.gui_details._get_df_ssa_series_index",
             side_effect=AssertionError("full index should not be built on open"),
-        ), patch("PyQt6.QtWidgets.QDialog.exec", return_value=0):
+        ), patch("PyQt6.QtWidgets.QDialog.show", lambda dialog: dialog.close()):
             ssa_gui_details._open_details_dialog_for_ssa(
                 self.window,
                 "202218980",

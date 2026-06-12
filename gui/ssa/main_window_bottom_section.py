@@ -133,9 +133,9 @@ class DerivadasGraphLabel(QLabel):
             return
         ssa = self._ssa_at_event(ev)
         if ssa:
-            jump = getattr(self._window, "_jump_to_ssa", None)
-            if callable(jump):
-                jump(ssa, _allow_refilter=False)
+            open_details = getattr(self._window, "_open_details_dialog_for_ssa", None)
+            if callable(open_details):
+                open_details(ssa)
             return
         super().mousePressEvent(ev)
 
@@ -310,9 +310,7 @@ def _build_details_panel(window: Any) -> tuple[QWidget, dict[str, Any]]:
         details_graph_label.setTextFormat(Qt.TextFormat.RichText)
         details_graph_label.setStyleSheet("border:none; background:transparent;")
         details_graph_label.setMinimumHeight(120)
-        details_graph_label.setToolTip(
-            "Clique em uma SSA do grafo para navegar no painel principal"
-        )
+        details_graph_label.setToolTip("Clique abre detalhes")
         details_graph_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )

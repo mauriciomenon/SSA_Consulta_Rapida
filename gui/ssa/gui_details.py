@@ -1051,11 +1051,7 @@ def _close_current_derivadas_context(window) -> None:
 
 def _handle_derivadas_context_graph_click(window, watched: Any, target: str) -> None:
     _ = watched
-    jump_handler = getattr(window, "_jump_to_ssa", None)
-    if callable(jump_handler):
-        jump_handler(target, _allow_refilter=False)
-        return
-    _jump_to_ssa(window, target, _allow_refilter=False)
+    _open_details_dialog_for_ssa(window, target)
 
 
 def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
@@ -1113,7 +1109,7 @@ def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
     graph_label.setTextFormat(Qt.TextFormat.RichText)
     graph_label.setStyleSheet("border:none; background:transparent;")
     graph_label.setFixedHeight(360)
-    graph_label.setToolTip("Clique em uma SSA do grafo para abrir na tabela")
+    graph_label.setToolTip("Clique abre detalhes")
     graph_label.setSizePolicy(
         QSizePolicy.Policy.Expanding,
         QSizePolicy.Policy.Fixed,
@@ -2304,14 +2300,11 @@ def _apply_details_dialog_geometry(window, dialog, details_tab_splitter) -> None
             max(int(window_height * 0.72), DERIVADAS_DIALOG_MIN_HEIGHT),
             safe_height,
         )
-    dialog.setMinimumSize(
-        min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width),
-        min(DERIVADAS_DIALOG_MIN_HEIGHT, safe_height),
-    )
-    dialog.setMaximumSize(safe_width, safe_height)
     current_size = dialog.sizeHint()
-    target_width = min(max(current_size.width(), DERIVADAS_DIALOG_MIN_WIDTH), safe_width)
+    target_width = min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width)
     target_height = desired_height
+    dialog.setMinimumSize(target_width, target_height)
+    dialog.setMaximumSize(target_width, target_height)
     if target_width != current_size.width() or target_height != current_size.height():
         dialog.resize(target_width, target_height)
     bottom_height = min(

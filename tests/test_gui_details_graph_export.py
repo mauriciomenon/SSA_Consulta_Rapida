@@ -265,6 +265,31 @@ def test_render_graph_svg_pixmap_uses_logical_label_size() -> None:
     assert _FakeRenderer.render_calls == 1
 
 
+def test_render_graph_svg_pixmap_can_skip_label_resize_for_dialog() -> None:
+    label = _FakeGraphLabel()
+    deps = SvgRenderDependencies(
+        byte_array_cls=_FakeByteArray,
+        painter_cls=_FakePainter,
+        pixmap_cls=_FakeSvgPixmap,
+        rectf_cls=_FakeRectF,
+        renderer_cls=_FakeRenderer,
+        qt_module=_FakeQtModule,
+    )
+
+    ok = render_graph_svg_pixmap(
+        graph_svg="<svg><text>dialog</text></svg>",
+        graph_label=label,
+        graph_panel=_FakeGraphPanel(),
+        dependencies=deps,
+        resize_label=False,
+    )
+
+    assert ok is True
+    assert label.pixmap is not None
+    assert label.minimum_size is None
+    assert label.resized is None
+
+
 def test_render_graph_svg_pixmap_ends_painter_when_render_fails() -> None:
     label = _FakeGraphLabel()
     _FailingRenderer.instances = 0
