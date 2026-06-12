@@ -19,6 +19,15 @@ jobs:
       pull-requests: read
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        pytest-group:
+          - gui-filter
+          - gui-other
+          - data-import
+          - cli-release
+          - core
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
@@ -145,7 +154,72 @@ jobs:
       - name: Pytest suite
         if: steps.changed-scope.outputs.run_python == 'true'
         env:
+          PYTEST_GROUP: ${{ matrix.pytest-group }}
           QT_QPA_PLATFORM: offscreen
         run: |
           set -euo pipefail
-          uv run --python 3.13 pytest -q tests
+          uv run --python 3.13 python - <<'PY'
+          import os
+          from pathlib import Path
+
+          group = os.environ["PYTEST_GROUP"]
+          test_files = sorted(
+              file_path
+              for file_path in Path("tests").iterdir()
+              if file_path.is_file()
+              and (file_path.name.startswith("test_") or file_path.name.endswith("_test.py"))
+          )
+
+          def bucket(file_name: str) -> str:
+              if file_name == "test_gui_filter_logic.py":
+                  return "gui-filter"
+              if file_name.startswith("test_gui_") or file_name in {
+                  "test_filter_gui_signal_connect.py",
+                  "test_main_gui_fallback.py",
+                  "test_mixin_integration.py",
+                  "test_rescan_progress_dialog.py",
+              }:
+                  return "gui-other"
+              if file_name.startswith(
+                  (
+                      "test_app_logic_full_rescan_lock",
+                      "test_database",
+                      "test_db",
+                      "test_derivadas",
+                      "test_import",
+                      "test_no_duplicate",
+                      "test_pai",
+                      "test_real",
+                      "test_rescan_worker",
+                      "test_upsert",
+                  )
+              ):
+                  return "data-import"
+              if file_name.startswith(
+                  (
+                      "test_build",
+                      "test_cli",
+                      "test_debian",
+                      "test_dev_env",
+                      "test_launcher",
+                      "test_preflight",
+                      "test_protected_files",
+                      "test_quality",
+                      "test_release",
+                      "test_setup_project_structure",
+                      "test_shell",
+                      "test_terminal",
+                  )
+              ):
+                  return "cli-release"
+              return "core"
+
+          targets = [str(file_path) for file_path in test_files if bucket(file_path.name) == group]
+          if not targets:
+              raise SystemExit(f"No pytest targets selected for {group}")
+          Path(".pytest_targets").write_text("\n".join(targets) + "\n", encoding="utf-8")
+          print(f"Selected {len(targets)} pytest files for {group}:")
+          print("\n".join(targets))
+          PY
+          mapfile -t targets < .pytest_targets
+          uv run --python 3.13 pytest -q --durations=20 --durations-min=1 "${targets[@]}"
