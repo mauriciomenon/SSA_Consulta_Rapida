@@ -645,7 +645,7 @@ class TestGUIFilterLogic:
         details_graph_label = main_ctx["details_graph_label"]
 
         assert "Clique em uma SSA" in str(details_tree_text.toolTip() or "")
-        assert "grafo" in str(details_graph_label.toolTip() or "").casefold()
+        assert str(details_graph_label.toolTip() or "") == "Clique abre detalhes"
 
     def test_preferences_dialog_exposes_runtime_controls_and_column_entry(self, monkeypatch):
         selector = getattr(self.window, "column_selector", None)

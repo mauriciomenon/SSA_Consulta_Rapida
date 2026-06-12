@@ -336,6 +336,7 @@ def test_set_auto_refresh_enabled_persists_even_without_timer(tmp_path: Path) ->
 def test_set_boolean_option_rolls_back_when_persist_fails(tmp_path: Path) -> None:
     window = _Window()
     preferences = _preferences(auto_enabled=False)
+    preferences["gui_settings"][PAI_API_SETTINGS_KEY].pop(PAI_API_ENABLED_KEY, None)
     window.preferences = preferences
     window.context = _context(tmp_path)
     window.persist_result = False
@@ -476,6 +477,7 @@ def _preferences(*, auto_enabled: bool) -> dict[str, Any]:
     return {
         "gui_settings": {
             PAI_API_SETTINGS_KEY: {
+                PAI_API_ENABLED_KEY: True,
                 PAI_API_AUTO_REFRESH_ENABLED_KEY: auto_enabled,
                 PAI_API_SECTORS_KEY: ["IEE3"],
             }
