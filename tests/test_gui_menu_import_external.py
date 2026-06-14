@@ -166,7 +166,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "SAM API" in window._menu_bar.menus["Opcoes"].submenus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 2
     assert len(window._menu_bar.menus["Importacao"].actions) == 2
-    assert len(window._menu_bar.menus["Database"].actions) == 2
+    assert len(window._menu_bar.menus["Database"].actions) == 3
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert len(window._menu_bar.menus["Ajuda"].actions) == 2
     assert "Avancado" in window._menu_bar.menus["Importacao"].submenus
@@ -203,6 +203,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     ]
     assert database_labels == [
         "Atualizar derivadas",
+        "Recarregar dados",
         "Compactar DB",
     ]
     importacao_advanced_labels = [

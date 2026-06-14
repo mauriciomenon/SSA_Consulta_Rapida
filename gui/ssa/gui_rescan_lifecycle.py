@@ -109,6 +109,7 @@ def connect_rescan_worker_lifecycle(
             allow_reload=was_active_worker,
             reload_on_success=reload_on_success,
             is_explicit_import=is_explicit_import,
+            explicit_import_has_files=bool(getattr(worker, "explicit_files", ())),
             normalized_kind=normalized_kind,
             set_status_label_text=set_status_label_text,
         )
@@ -259,14 +260,19 @@ def _finish_successful_rescan(
     allow_reload: bool,
     reload_on_success: bool,
     is_explicit_import: bool,
+    explicit_import_has_files: bool,
     normalized_kind: str,
     set_status_label_text,
 ) -> None:
+    successful_import_outcome = outcome == RescanOutcome.UPDATED or (
+        is_explicit_import
+        and explicit_import_has_files
+        and outcome == RescanOutcome.NO_CHANGES
+    )
     should_reload_data = (
         allow_reload
         and reload_on_success
-        and
-        outcome == RescanOutcome.UPDATED
+        and successful_import_outcome
         and normalized_kind != "consolidate"
         and hasattr(window, "load_data")
     )

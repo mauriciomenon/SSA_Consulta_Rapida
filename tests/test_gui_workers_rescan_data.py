@@ -437,6 +437,51 @@ def test_rescan_data_explicit_success_without_updates_does_not_reload(tmp_path):
     )
 
 
+def test_rescan_data_explicit_selected_file_reloads_even_when_outcome_is_no_changes(
+    tmp_path,
+):
+    class _WorkerWithExplicitFiles(_BaseWorker):
+        def __init__(
+            self,
+            _main_py_path: str,
+            _project_root: str,
+            explicit_files: tuple[str, ...] | None = None,
+        ):
+            super().__init__(_main_py_path, _project_root)
+            self.explicit_files = explicit_files
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerWithExplicitFiles,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+        reload_on_success=True,
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.last_outcome = "no_changes"
+    worker.finished_success.emit()
+
+    assert window.load_calls == 1
+    assert window.status_label.text == "Status: Carregando dados..."
+
+
 def test_rescan_data_explicit_success_with_updates_reloads_automatically(tmp_path):
     project_root = _build_main_py(tmp_path)
     window = _Window()
