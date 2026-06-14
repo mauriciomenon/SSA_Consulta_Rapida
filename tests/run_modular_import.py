@@ -18,6 +18,33 @@ if project_root not in sys.path:
 from core.app_logic import run_importer_logic
 
 
+def _xlsx_files(docs_dir: Path) -> list[Path]:
+    return sorted(
+        (path for path in docs_dir.iterdir() if path.suffix.casefold() == ".xlsx"),
+        key=lambda path: path.name.casefold(),
+    )
+
+
+def _write_smoke_xlsx(docs_dir: Path) -> Path:
+    import pandas as pd
+
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    target = docs_dir / "smoke_import.xlsx"
+    pd.DataFrame(
+        [
+            {
+                "Numero SSA": "202600002",
+                "Descricao": "Smoke modular import SSA",
+                "Emitida Em": "2026-06-14 10:00:00",
+                "Executor": "IEE3",
+                "Emissor": "IEE3",
+                "Situacao": "APL",
+            }
+        ]
+    ).to_excel(target, index=False)
+    return target
+
+
 def progress_callback(event_type: str, data: dict[str, Any]) -> None:
     """Simple progress callback for testing."""
     if event_type == "start":
@@ -47,6 +74,10 @@ def _run_modular_import(
     print(f"Docs: {docs_dir}")
     print(f"Data: {data_dir / db_name}")
     print()
+    xlsx_files = _xlsx_files(docs_dir)
+    if not xlsx_files:
+        print("[ERRO] Nenhum arquivo .xlsx para importar no diretorio informado.")
+        return 1
     try:
         result = run_importer_logic(
             docs_dir=str(docs_dir),
@@ -69,9 +100,9 @@ def _run_modular_import(
     if result:
         print("[SUCESSO] Importacao modular concluida")
     else:
-        print("[INFO] Nenhum arquivo novo para processar")
+        print("[ERRO] Importacao modular terminou sem atualizar dados")
     print("=" * 80)
-    return 0
+    return 0 if result else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -92,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     with tempfile.TemporaryDirectory(prefix="ssa_modular_import_") as tmpdir:
         root = Path(tmpdir)
+        _write_smoke_xlsx(root / "docs_entrada")
         return _run_modular_import(
             docs_dir=root / "docs_entrada",
             data_dir=root / "data",

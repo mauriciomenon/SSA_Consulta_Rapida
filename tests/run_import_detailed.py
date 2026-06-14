@@ -29,6 +29,33 @@ problemas = []
 MAX_PROBLEMAS = 1000
 
 
+def _xlsx_files(docs_dir: Path) -> list[Path]:
+    return sorted(
+        (path for path in docs_dir.iterdir() if path.suffix.casefold() == ".xlsx"),
+        key=lambda path: path.name.casefold(),
+    )
+
+
+def _write_smoke_xlsx(docs_dir: Path) -> Path:
+    import pandas as pd
+
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    target = docs_dir / "smoke_import.xlsx"
+    pd.DataFrame(
+        [
+            {
+                "Numero SSA": "202600001",
+                "Descricao": "Smoke import SSA",
+                "Emitida Em": "2026-06-14 10:00:00",
+                "Executor": "IEE3",
+                "Emissor": "IEE3",
+                "Situacao": "APL",
+            }
+        ]
+    ).to_excel(target, index=False)
+    return target
+
+
 def registrar_problema(arquivo, linha, coluna, valor, tipo_erro, descricao):
     """Registra um problema encontrado durante importacao."""
     if len(problemas) >= MAX_PROBLEMAS:
@@ -84,12 +111,12 @@ def test_import_cli(docs_dir: Path, db_path: Path, *, reset_db: bool = False):
         # Lista arquivos a importar
         docs_dir.mkdir(parents=True, exist_ok=True)
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        arquivos = [f.name for f in docs_dir.iterdir() if f.suffix.casefold() == ".xlsx"]
+        arquivos = [f.name for f in _xlsx_files(docs_dir)]
         print(f"\n[INFO] Encontrados {len(arquivos)} arquivos .xlsx")
 
         if not arquivos:
-            print("[INFO] Nenhum arquivo para importar no diretorio informado.")
-            return True
+            print("[ERRO] Nenhum arquivo .xlsx para importar no diretorio informado.")
+            return False
 
         # Mostra primeiros 10
         print("\n[INFO] Primeiros 10 arquivos:")
@@ -123,6 +150,7 @@ def test_import_cli(docs_dir: Path, db_path: Path, *, reset_db: bool = False):
 
         if not success:
             print("\n[INFO] Importacao concluida sem atualizacao de dados")
+            return False
         else:
             print("\n[SUCESSO] Importacao concluida")
         return True
@@ -312,6 +340,7 @@ def main(argv: list[str] | None = None):
         temp_root = Path(temp_context.name)
         docs_dir = temp_root / "docs_entrada"
         db_path = temp_root / "data" / "ssas.db"
+        _write_smoke_xlsx(docs_dir)
 
     print("\n" + "=" * 80)
     print("TESTE COMPLETO DE IMPORTACAO COM RELATORIO DETALHADO")
@@ -334,6 +363,9 @@ def main(argv: list[str] | None = None):
         # 2. Analise do banco
         if results["import_cli"] and db_path.exists():
             results["analyze_db"] = analyze_database(db_path)
+        elif results["import_cli"]:
+            print("\n[ERRO] Importacao reportou sucesso, mas o DB nao foi criado")
+            results["analyze_db"] = False
         else:
             results["analyze_db"] = True
 
