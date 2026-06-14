@@ -1,0 +1,23 @@
+tests/run_modular_import.py
+  s_5ccf43901d99bd::t_aa42d7b3e8188c 21-47,77-80,103,105,126
+tests/test_import_smoke_scripts_safety.py
+  s_5ccf43901d99bd::t_aa42d7b3e8188c 32-88
+tests/run_import_detailed.py
+  s_5ccf43901d99bd::t_aa42d7b3e8188c 32-58,114,118-119,153,343,366-368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b59c6159517e8f4f8aff40900a95cf443bd61393",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
