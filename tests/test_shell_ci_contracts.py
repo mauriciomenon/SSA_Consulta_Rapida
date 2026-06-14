@@ -176,8 +176,14 @@ def test_minimal_ci_isolates_gui_other_pytest_files() -> None:
 
     assert 'if [ "${PYTEST_GROUP}" = "gui-other" ]; then' in workflow
     assert 'for target in "${targets[@]}"; do' in workflow
-    assert 'pytest -q --durations=20 --durations-min=1 "${target}"' in workflow
-    assert 'pytest -q --durations=20 --durations-min=1 "${targets[@]}"' in workflow
+    assert (
+        'pytest -q --timeout=45 --timeout-method=thread '
+        '--durations=20 --durations-min=1 "${target}"'
+    ) in workflow
+    assert (
+        'pytest -q --timeout=45 --timeout-method=thread '
+        '--durations=20 --durations-min=1 "${targets[@]}"'
+    ) in workflow
 
 
 def test_dependabot_ignores_platform_requirement_snapshots() -> None:
