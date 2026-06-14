@@ -87,3 +87,38 @@ def test_detailed_import_smoke_fails_when_success_does_not_create_db(
 
     assert detailed.main([]) == 1
     assert not Path("data/ssas.db").exists()
+
+
+def test_modular_import_smoke_fails_when_success_does_not_create_db(
+    tmp_path, monkeypatch
+):
+    modular = importlib.import_module("tests.run_modular_import")
+
+    def fake_run_importer_logic(**_kwargs):
+        return True
+
+    monkeypatch.setattr(modular, "run_importer_logic", fake_run_importer_logic)
+    monkeypatch.chdir(tmp_path)
+
+    assert modular.main([]) == 1
+    assert not Path("data/ssas.db").exists()
+
+
+def test_detailed_import_smoke_marks_analysis_failed_when_import_fails(
+    tmp_path, monkeypatch, capsys
+):
+    detailed = importlib.import_module("tests.run_import_detailed")
+
+    def fake_run_importer_logic(**_kwargs):
+        return False
+
+    monkeypatch.setattr(
+        "core.app_logic.run_importer_logic",
+        fake_run_importer_logic,
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert detailed.main([]) == 1
+    output = capsys.readouterr().out
+    assert "[FALHOU] import_cli" in output
+    assert "[FALHOU] analyze_db" in output

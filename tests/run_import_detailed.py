@@ -367,7 +367,8 @@ def main(argv: list[str] | None = None):
             print("\n[ERRO] Importacao reportou sucesso, mas o DB nao foi criado")
             results["analyze_db"] = False
         else:
-            results["analyze_db"] = True
+            print("\n[ERRO] Analise do banco ignorada porque a importacao falhou")
+            results["analyze_db"] = False
 
         # 3. Gera relatorio
         generate_report()

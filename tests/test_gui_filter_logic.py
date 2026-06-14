@@ -4450,7 +4450,7 @@ class TestGUIFilterLogic:
             on_remove=lambda _text, _actions: None,
         )
         QApplication.processEvents()
-        assert len(presenter._button_pool) <= 64
+        assert len(presenter._button_pool) <= SUMMARY_BUTTON_POOL_LIMIT
 
         presenter.update(
             theme_name="dark",

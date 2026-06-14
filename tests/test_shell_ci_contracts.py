@@ -181,7 +181,15 @@ def test_minimal_ci_isolates_gui_other_pytest_files() -> None:
         '--durations=20 --durations-min=1 "${target}"'
     ) in workflow
     assert (
+        'uv run --python 3.13 pytest -q --timeout=45 --timeout-method=thread '
+        '--durations=20 --durations-min=1 "${target}"'
+    ) in workflow
+    assert (
         'pytest -q --timeout=45 --timeout-method=thread '
+        '--durations=20 --durations-min=1 "${targets[@]}"'
+    ) in workflow
+    assert (
+        'uv run --python 3.13 pytest -q --timeout=45 --timeout-method=thread '
         '--durations=20 --durations-min=1 "${targets[@]}"'
     ) in workflow
 

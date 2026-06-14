@@ -98,6 +98,11 @@ def _run_modular_import(
 
     print("\n" + "=" * 80)
     if result:
+        db_path = data_dir / db_name
+        if not db_path.exists():
+            print(f"[ERRO] Importacao reportou sucesso, mas o DB nao foi criado: {db_path}")
+            print("=" * 80)
+            return 1
         print("[SUCESSO] Importacao modular concluida")
     else:
         print("[ERRO] Importacao modular terminou sem atualizar dados")
