@@ -498,6 +498,25 @@ def test_run_pai_scrap_report_export_rejects_stale_artifacts(
         )
 
 
+def test_run_pai_scrap_report_export_reports_missing_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    with pytest.raises(FileNotFoundError, match="Manifest SAM API nao criado"):
+        run_pai_scrap_report_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+            ),
+            runner=lambda _command, **_kwargs: _Completed(),
+        )
+
+
 def test_run_pai_scrap_report_export_rejects_stale_manifest_mtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

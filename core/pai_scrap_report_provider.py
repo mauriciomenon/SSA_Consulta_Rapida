@@ -550,9 +550,14 @@ def _ensure_fresh_artifact(
     command_started_at: float,
     label: str,
 ) -> None:
+    try:
+        artifact_mtime = artifact_path.stat().st_mtime
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"{label} nao criado nesta execucao: {artifact_path}"
+        ) from exc
     if (
-        artifact_path.stat().st_mtime
-        < command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
+        artifact_mtime < command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
     ):
         raise FileNotFoundError(f"{label} nao criado nesta execucao: {artifact_path}")
 
