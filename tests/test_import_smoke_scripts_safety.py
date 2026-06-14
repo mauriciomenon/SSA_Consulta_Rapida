@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -51,7 +52,7 @@ def test_detailed_import_smoke_rejects_empty_explicit_input(tmp_path):
 
 def test_modular_import_smoke_default_creates_real_xlsx(tmp_path, monkeypatch):
     modular = importlib.import_module("tests.run_modular_import")
-    calls: list[dict[str, str]] = []
+    calls: list[dict[str, Any]] = []
 
     def fake_run_importer_logic(**kwargs):
         calls.append(dict(kwargs))
