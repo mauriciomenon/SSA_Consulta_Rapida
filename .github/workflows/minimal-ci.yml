@@ -222,4 +222,11 @@ jobs:
           print("\n".join(targets))
           PY
           mapfile -t targets < .pytest_targets
-          uv run --python 3.13 pytest -q --durations=20 --durations-min=1 "${targets[@]}"
+          if [ "${PYTEST_GROUP}" = "gui-other" ]; then
+            for target in "${targets[@]}"; do
+              echo "Running isolated GUI pytest target: ${target}"
+              uv run --python 3.13 pytest -q --durations=20 --durations-min=1 "${target}"
+            done
+          else
+            uv run --python 3.13 pytest -q --durations=20 --durations-min=1 "${targets[@]}"
+          fi

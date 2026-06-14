@@ -171,6 +171,15 @@ def test_minimal_ci_runs_for_any_workflow_change() -> None:
     assert "|^scripts/|^dev_env/build/" in workflow
 
 
+def test_minimal_ci_isolates_gui_other_pytest_files() -> None:
+    workflow = _read_repo_text(".github", "workflows", "minimal-ci.yml")
+
+    assert 'if [ "${PYTEST_GROUP}" = "gui-other" ]; then' in workflow
+    assert 'for target in "${targets[@]}"; do' in workflow
+    assert 'pytest -q --durations=20 --durations-min=1 "${target}"' in workflow
+    assert 'pytest -q --durations=20 --durations-min=1 "${targets[@]}"' in workflow
+
+
 def test_dependabot_ignores_platform_requirement_snapshots() -> None:
     config = _read_repo_text(".github", "dependabot.yml")
     template = _read_repo_text(".github", "dependabot-template.yml")
