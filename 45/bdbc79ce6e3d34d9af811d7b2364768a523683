@@ -1,0 +1,25 @@
+gui/ssa/gui_rescan_lifecycle.py
+  s_5ccf43901d99bd::t_218456d5f95209 112,263,267-271,275
+tests/test_gui_workers_rescan_data.py
+  s_5ccf43901d99bd::t_37b73aef012627 440-484
+gui/ssa/app_menus.py
+  s_5ccf43901d99bd::t_cbd8155aeb9a23 108
+tests/test_gui_menu_import_external.py
+  s_5ccf43901d99bd::t_d18fad8f9df829 169,206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "45bdbc79ce6e3d34d9af811d7b2364768a523683",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
