@@ -1,0 +1,21 @@
+tests/test_terminal_integration.py
+  s_5ccf43901d99bd::t_f2cef611c7707c 61,65-66,70-73,79,243-244
+  s_5ccf43901d99bd::t_065e395501ef75 74-78
+  s_5ccf43901d99bd::t_8a1011c68592f0 306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8cb06871809b2d3cd32190d24513ede23396c3ab",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
