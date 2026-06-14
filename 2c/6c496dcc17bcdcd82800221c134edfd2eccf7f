@@ -1,0 +1,26 @@
+tests/run_modular_import.py
+  s_5ccf43901d99bd::t_c4eb384fc7cb08 3,5-7,10-12,15-16,21,35-43,45-68,74-100,103-104
+tests/test_import_smoke_scripts_safety.py
+  s_5ccf43901d99bd::t_cd34e31e164830 1-5,7,9-12,16,22-24
+  s_5ccf43901d99bd::t_f980ed65d55db3 6,8,13-15,17-21,25-31
+tests/run_quick_import.py
+  s_5ccf43901d99bd::t_c4eb384fc7cb08 3,5-7,10-11,18-19,21-22,24-27,29-36,38-39,41-48,51-59,61-66,69-79,81-86,88-89
+tests/run_import_detailed.py
+  s_5ccf43901d99bd::t_a94bd19465cf4f 15,17,20,48-72,75,79-81,85-87,90-92,107,111-117,124-127,130,132,135,144,150,293,295-315,320-321,324-325,327-332,334-360,363-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2c6c496dcc17bcdcd82800221c134edfd2eccf7f",
+  "prompts": {},
+  "sessions": {
+    "s_5ccf43901d99bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb37b-2004-7061-aa47-a8717e8622ca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
