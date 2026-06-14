@@ -16,6 +16,9 @@ SUMMARY_COMPACT_TEXT_THRESHOLD = 42
 SUMMARY_ESTIMATED_PIXELS_PER_CHAR = 8
 SUMMARY_DEFAULT_FONT_SIZE = 12
 SUMMARY_COMPACT_FONT_SIZE = 11
+# Hidden buttons are owned by the summary layout until trimmed. Keeping 64 preserves
+# reuse for large user filter bursts while bounding idle Qt widgets after a spike.
+SUMMARY_BUTTON_POOL_LIMIT = 64
 
 
 @dataclass(frozen=True)
@@ -226,6 +229,10 @@ class FilterSummaryPresenter:
             visible_button_count += 1
             content_width += button_width + spacing
         self._hide_extra_buttons(self._button_pool[visible_button_count:])
+        self._trim_hidden_button_pool(
+            layout=layout,
+            visible_button_count=visible_button_count,
+        )
         self._sync_container_size(
             container=container,
             layout=layout,
@@ -368,6 +375,33 @@ class FilterSummaryPresenter:
             except RuntimeError as exc:
                 self._logger.debug(
                     "Falha ao ocultar botao excedente do resumo de filtros: %s", exc
+                )
+
+    def _trim_hidden_button_pool(self, *, layout: Any, visible_button_count: int) -> None:
+        """Release hidden summary buttons retained beyond the bounded reuse pool."""
+        keep_count = max(visible_button_count, SUMMARY_BUTTON_POOL_LIMIT)
+        if len(self._button_pool) <= keep_count:
+            return
+        stale_buttons = self._button_pool[keep_count:]
+        self._button_pool = self._button_pool[:keep_count]
+        for button in stale_buttons:
+            try:
+                layout.removeWidget(button)
+            except RuntimeError as exc:
+                self._logger.debug(
+                    "Falha ao remover botao oculto excedente do layout de filtros: %s",
+                    exc,
+                )
+            except TypeError:
+                self._logger.debug(
+                    "Botao oculto excedente do layout de filtros ja estava descartado."
+                )
+            try:
+                button.deleteLater()
+            except RuntimeError as exc:
+                self._logger.debug(
+                    "Falha ao descartar botao oculto excedente do resumo de filtros: %s",
+                    exc,
                 )
 
     def _sync_container_size(

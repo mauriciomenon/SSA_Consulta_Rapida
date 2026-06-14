@@ -51,6 +51,7 @@ from gui.ssa.filter_profile_logic import (  # noqa: E402
     NormalizedFilterProfile,
     NormalizedOrGroup,
 )
+from gui.ssa.filter_summary_presenter import SUMMARY_BUTTON_POOL_LIMIT  # noqa: E402
 from gui.widgets.column_filter_dialog import ColumnFilterDialog  # noqa: E402
 from gui.widgets.column_manager_dialog import ColumnManagerDialog  # noqa: E402
 from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
@@ -4418,6 +4419,126 @@ class TestGUIFilterLogic:
         assert scroll.horizontalScrollBar().maximum() > 0
         assert {button.y() for button in buttons} == {0}
 
+    def test_filter_summary_button_pool_discards_hidden_excess_after_spike(self):
+        presenter = self.window._get_filter_summary_presenter()
+        assert presenter is not None
+
+        def _entries(total: int) -> list[dict[str, Any]]:
+            return [
+                {
+                    "text": f"Filtro {index}",
+                    "actions": [{"kind": "search", "value": str(index)}],
+                }
+                for index in range(total)
+            ]
+
+        presenter.update(
+            theme_name="dark",
+            summary_text="Filtros ativos",
+            active_state=True,
+            entries=_entries(80),
+            on_remove=lambda _text, _actions: None,
+        )
+        QApplication.processEvents()
+        assert len(presenter._button_pool) == 80
+
+        presenter.update(
+            theme_name="dark",
+            summary_text="Filtros ativos",
+            active_state=True,
+            entries=_entries(1),
+            on_remove=lambda _text, _actions: None,
+        )
+        QApplication.processEvents()
+        assert len(presenter._button_pool) <= SUMMARY_BUTTON_POOL_LIMIT
+
+        presenter.update(
+            theme_name="dark",
+            summary_text="Filtros ativos",
+            active_state=True,
+            entries=_entries(2),
+            on_remove=lambda _text, _actions: None,
+        )
+        QApplication.processEvents()
+        visible_buttons = [
+            button
+            for button in presenter._button_pool
+            if isinstance(button, QPushButton) and button.isVisible()
+        ]
+        assert [button.text() for button in visible_buttons[:2]] == [
+            "Filtro 0",
+            "Filtro 1",
+        ]
+
+    def test_filter_summary_button_pool_keeps_exact_limit(self):
+        presenter = self.window._get_filter_summary_presenter()
+        assert presenter is not None
+        buttons = [QPushButton() for _ in range(SUMMARY_BUTTON_POOL_LIMIT)]
+        presenter._button_pool = buttons
+
+        presenter._trim_hidden_button_pool(
+            layout=self.window.filters_summary_items_layout,
+            visible_button_count=0,
+        )
+
+        assert presenter._button_pool == buttons
+
+    def test_filter_summary_button_pool_trims_one_above_limit(self):
+        presenter = self.window._get_filter_summary_presenter()
+        assert presenter is not None
+
+        class _TrackingButton(QPushButton):
+            def __init__(self):
+                super().__init__()
+                self.delete_later_called = False
+
+            def deleteLater(self):
+                self.delete_later_called = True
+                return super().deleteLater()
+
+        stale_button = _TrackingButton()
+        presenter._button_pool = [
+            QPushButton() for _ in range(SUMMARY_BUTTON_POOL_LIMIT)
+        ] + [stale_button]
+
+        presenter._trim_hidden_button_pool(
+            layout=self.window.filters_summary_items_layout,
+            visible_button_count=0,
+        )
+
+        assert len(presenter._button_pool) == SUMMARY_BUTTON_POOL_LIMIT
+        assert stale_button.delete_later_called is True
+
+    def test_filter_summary_button_pool_still_deletes_when_layout_remove_fails(self):
+        presenter = self.window._get_filter_summary_presenter()
+        assert presenter is not None
+
+        class _FailingLayout:
+            def removeWidget(self, _button):
+                raise RuntimeError("wrapped C/C++ object has been deleted")
+
+        class _TrackingButton(QPushButton):
+            def __init__(self):
+                super().__init__()
+                self.delete_later_called = False
+
+            def deleteLater(self):
+                self.delete_later_called = True
+                return super().deleteLater()
+
+        stale_button = _TrackingButton()
+        presenter._button_pool = [
+            QPushButton() for _ in range(SUMMARY_BUTTON_POOL_LIMIT)
+        ] + [stale_button]
+
+        presenter._trim_hidden_button_pool(
+            layout=_FailingLayout(),
+            visible_button_count=0,
+        )
+
+        assert len(presenter._button_pool) == SUMMARY_BUTTON_POOL_LIMIT
+        assert stale_button.delete_later_called is True
+
     def test_clear_filter_button_reflects_active_filters(self):
         self.window.search_input.setText("")
         self.window.initiate_filtering()
@@ -8597,17 +8718,17 @@ class TestGUIFilterLogic:
         )
 
     def test_load_xls_button_uses_external_import_handler(self, monkeypatch):
-        calls = []
+        dialog_calls = []
 
         monkeypatch.setattr(
-            self.window,
-            "import_external_excel_files",
-            lambda: calls.append("import"),
+            gui_ssa.QFileDialog,
+            "getOpenFileNames",
+            lambda *args, **kwargs: dialog_calls.append((args, kwargs)) or ([], ""),
         )
 
         self.window.api_button.click()
 
-        assert calls == ["import"]
+        assert len(dialog_calls) == 1
 
     def test_open_url_in_browser_blocks_file_scheme(self, monkeypatch):
         opened: list[str] = []

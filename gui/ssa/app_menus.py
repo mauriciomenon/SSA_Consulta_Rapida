@@ -105,6 +105,7 @@ def _add_database_menu(
         "Atualizar derivadas",
         window.update_derivadas_from_sources,
     )
+    _add_action(db_menu, action_cls, window, "Recarregar dados", window.load_data)
     _add_action(db_menu, action_cls, window, "Compactar DB", window.run_vacuum_analyze)
     advanced_menu = db_menu.addMenu("Avancado")
     _add_action(

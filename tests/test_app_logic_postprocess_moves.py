@@ -91,6 +91,27 @@ def test_apply_postprocess_file_moves_rejects_destination_escape(
     assert not (tmp_path / "escaped").exists()
 
 
+def test_apply_postprocess_file_moves_rejects_nosurvivor_destination_escape(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source = docs_dir / "escape-zero.xlsx"
+    source.write_text("keep", encoding="utf-8")
+
+    moved = _apply_postprocess_file_moves(
+        successful_files_with_records=[(str(source), 0)],
+        docs_dir=str(docs_dir),
+        processadas_subdir="processadas",
+        nosurvivor_subdir="../../escaped",
+        route_zero_survivor_to_nosurvivor=True,
+    )
+
+    assert moved[str(source)] == str(source)
+    assert source.exists()
+    assert not (tmp_path / "escaped").exists()
+
+
 def test_apply_postprocess_file_moves_does_not_overwrite_collision(
     tmp_path: Path,
 ) -> None:

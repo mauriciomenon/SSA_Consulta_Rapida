@@ -426,13 +426,18 @@ def run_pai_scrap_report_export(
         raise FileNotFoundError(
             f"Manifest SAM API nao criado nesta execucao: {manifest_path}"
         )
+    _ensure_fresh_artifact(
+        manifest_path,
+        command_started_at=command_started_at,
+        label="Manifest SAM API",
+    )
     manifest = _load_manifest(manifest_path)
     xlsx_path = _resolve_xlsx_from_manifest(manifest, manifest_path, fallback_xlsx_path)
-    if (
-        xlsx_path.stat().st_mtime
-        < command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
-    ):
-        raise FileNotFoundError(f"XLSX SAM API nao criado nesta execucao: {xlsx_path}")
+    _ensure_fresh_artifact(
+        xlsx_path,
+        command_started_at=command_started_at,
+        label="XLSX SAM API",
+    )
     return PaiScrapReportExport(
         command=command,
         scrap_report_root=execution.scrap_report_root or execution.cwd,
@@ -474,6 +479,7 @@ def run_pai_scrap_report_ca_export(
         "--timeout-seconds",
         str(request.api_timeout_seconds),
     )
+    command_started_at = time.time()
     completed = _run_scrap_report_command(
         command,
         execution,
@@ -487,6 +493,16 @@ def run_pai_scrap_report_ca_export(
         raise FileNotFoundError(
             f"Manifest de CA SAM API nao criado nesta execucao: {manifest_path}"
         )
+    _ensure_fresh_artifact(
+        ca_file,
+        command_started_at=command_started_at,
+        label="CA SAM API",
+    )
+    _ensure_fresh_artifact(
+        manifest_path,
+        command_started_at=command_started_at,
+        label="Manifest de CA SAM API",
+    )
     _load_manifest(manifest_path)
     return PaiScrapReportCertificate(
         command=command,
@@ -526,6 +542,24 @@ def _run_scrap_report_command(
             stdout=stdout,
         )
     return PaiScrapReportCompleted(stdout=stdout, stderr=stderr)
+
+
+def _ensure_fresh_artifact(
+    artifact_path: Path,
+    *,
+    command_started_at: float,
+    label: str,
+) -> None:
+    try:
+        artifact_mtime = artifact_path.stat().st_mtime
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"{label} nao criado nesta execucao: {artifact_path}"
+        ) from exc
+    if (
+        artifact_mtime < command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
+    ):
+        raise FileNotFoundError(f"{label} nao criado nesta execucao: {artifact_path}")
 
 
 def _command_failure_detail(*, stderr: str, stdout: str) -> str:

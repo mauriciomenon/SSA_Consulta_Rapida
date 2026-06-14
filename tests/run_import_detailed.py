@@ -12,10 +12,12 @@ Captura:
 """
 
 import os
-import subprocess
+import argparse
 import sys
+import tempfile
 import traceback
 from datetime import datetime
+from pathlib import Path
 
 # Adiciona o diretorio raiz ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -25,6 +27,33 @@ if project_root not in sys.path:
 # Lista para armazenar problemas encontrados
 problemas = []
 MAX_PROBLEMAS = 1000
+
+
+def _xlsx_files(docs_dir: Path) -> list[Path]:
+    return sorted(
+        (path for path in docs_dir.iterdir() if path.suffix.casefold() == ".xlsx"),
+        key=lambda path: path.name.casefold(),
+    )
+
+
+def _write_smoke_xlsx(docs_dir: Path) -> Path:
+    import pandas as pd
+
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    target = docs_dir / "smoke_import.xlsx"
+    pd.DataFrame(
+        [
+            {
+                "Numero SSA": "202600001",
+                "Descricao": "Smoke import SSA",
+                "Emitida Em": "2026-06-14 10:00:00",
+                "Executor": "IEE3",
+                "Emissor": "IEE3",
+                "Situacao": "APL",
+            }
+        ]
+    ).to_excel(target, index=False)
+    return target
 
 
 def registrar_problema(arquivo, linha, coluna, valor, tipo_erro, descricao):
@@ -43,26 +72,51 @@ def registrar_problema(arquivo, linha, coluna, valor, tipo_erro, descricao):
     )
 
 
-def test_import_cli():
+def _progress_callback(event_type, data):
+    if event_type == "start":
+        print(f"[INFO] Total de arquivos: {data.get('total', 0)}")
+    elif event_type == "file_start":
+        print(f"[INFO] Processando: {data.get('filename', '')}")
+    elif event_type == "file_success":
+        print(f"[OK] {data.get('filename', '')}: {data.get('records', 0)} registros")
+    elif event_type == "file_error":
+        message = str(data.get("error", "Unknown"))
+        print(f"[ERRO] {data.get('filename', '')}: {message}")
+        registrar_problema(
+            arquivo=str(data.get("filename", "")),
+            linha="(ver log)",
+            coluna="(ver log)",
+            valor="(ver log)",
+            tipo_erro="Importacao",
+            descricao=message,
+        )
+    elif event_type == "finish":
+        print(
+            f"[INFO] Concluido: {data.get('processed', 0)}/{data.get('total', 0)}"
+        )
+
+
+def test_import_cli(docs_dir: Path, db_path: Path, *, reset_db: bool = False):
     """Testa importacao via CLI com relatorio detalhado."""
     print("=" * 80)
-    print("TESTE DE IMPORTACAO DETALHADO - CLI")
+    print("TESTE DE IMPORTACAO DETALHADO")
     print("=" * 80)
 
     try:
-        # Limpa banco existente
-        db_path = "data/ssas.db"
-        if os.path.exists(db_path):
-            print(f"\n[INFO] Removendo banco existente: {db_path}")
-            os.remove(db_path)
+        if reset_db and db_path.exists():
+            print(f"\n[INFO] Removendo banco informado: {db_path}")
+            db_path.unlink()
             print("  [OK] Banco removido")
 
         # Lista arquivos a importar
-        docs_dir = "docs_entrada"
-        arquivos = [f for f in os.listdir(docs_dir) if f.endswith(".xlsx")]
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        arquivos = [f.name for f in _xlsx_files(docs_dir)]
         print(f"\n[INFO] Encontrados {len(arquivos)} arquivos .xlsx")
 
-        assert len(arquivos) > 0, "Nenhum arquivo para importar"
+        if not arquivos:
+            print("[ERRO] Nenhum arquivo .xlsx para importar no diretorio informado.")
+            return False
 
         # Mostra primeiros 10
         print("\n[INFO] Primeiros 10 arquivos:")
@@ -72,61 +126,41 @@ def test_import_cli():
         if len(arquivos) > 10:
             print(f"  ... e mais {len(arquivos) - 10} arquivos")
 
-        # Importa via CLI
         print(f"\n[INFO] Iniciando importacao de {len(arquivos)} arquivos...")
         print("[INFO] Isso pode demorar varios minutos - NAO INTERROMPER")
         print("[INFO] Monitorando processo...")
 
         import time
+        from core.app_logic import run_importer_logic
 
         start_time = time.time()
 
-        # Executa main.py --rescan com captura de saida
-        process = subprocess.run(
-            [sys.executable, "main.py", "--rescan"],
-            capture_output=True,
-            text=True,
-            timeout=1800,
-            check=False,
+        success = run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(db_path.parent),
+            db_name=db_path.name,
+            table_name="ssa_table",
+            force_import=False,
+            progress_callback=_progress_callback,
         )
-
-        print("\n[SAIDA DO PROCESSO]")
-        print("-" * 80)
-
-        linha_count = 0
-        for line in (process.stdout or "").splitlines():
-            print(line)
-            linha_count += 1
-            if ("ERROR" in line or "Validacao" in line) and "linha(s)" in line.lower():
-                registrar_problema(
-                    arquivo="(extrair do log)",
-                    linha="(ver log)",
-                    coluna="(ver log)",
-                    valor="(ver log)",
-                    tipo_erro="Validacao",
-                    descricao=line,
-                )
-        if process.stderr:
-            print("\n[STDERR]")
-            print(process.stderr)
 
         elapsed = time.time() - start_time
         print("-" * 80)
         print(f"[INFO] Processo terminou em {elapsed:.1f}s")
-        print(f"[INFO] Codigo de retorno: {process.returncode}")
-        print(f"[INFO] Linhas de output: {linha_count}")
 
-        if process.returncode != 0:
-            raise RuntimeError(f"Importacao falhou com codigo {process.returncode}")
-        print("\n[SUCESSO] Importacao via CLI concluida")
+        if not success:
+            print("\n[INFO] Importacao concluida sem atualizacao de dados")
+            return False
+        else:
+            print("\n[SUCESSO] Importacao concluida")
         return True
     except Exception as e:
-        print(f"\n[ERRO] Falha no teste de importacao via CLI: {e}")
+        print(f"\n[ERRO] Falha no teste de importacao: {e}")
         traceback.print_exc()
-        raise AssertionError(f"Falha no teste de importacao via CLI: {e}") from e
+        raise AssertionError(f"Falha no teste de importacao: {e}") from e
 
 
-def analyze_database():
+def analyze_database(db_path: Path):
     """Analisa banco de dados apos importacao."""
     print("\n" + "=" * 80)
     print("ANALISE DO BANCO DE DADOS")
@@ -135,14 +169,13 @@ def analyze_database():
     try:
         from armazenamento.database import query_db
 
-        db_path = "data/ssas.db"
-        if not os.path.exists(db_path):
+        if not db_path.exists():
             print("\n[ERRO] Banco de dados nao foi criado")
             return False
 
         # Carrega dados
         print("\n[INFO] Carregando dados do banco...")
-        df = query_db(db_path, "ssas")
+        df = query_db(str(db_path), "ssas")
 
         if df is None or df.empty:
             print("  [ERRO] Banco vazio")
@@ -285,49 +318,84 @@ def generate_report():
         print(f"\n  ... e mais {len(problemas) - 5} problemas (ver relatorio completo)")
 
 
-def main():
+def main(argv: list[str] | None = None):
     """Executa teste completo de importacao."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--docs-dir", help="Diretorio de entrada. Omitido usa temp.")
+    parser.add_argument("--db-path", help="Banco de teste. Omitido usa temp.")
+    parser.add_argument(
+        "--reset-db",
+        action="store_true",
+        help="Remove o DB informado antes de importar. Nunca e automatico.",
+    )
+    args = parser.parse_args(argv)
+    temp_context = None
+    if args.docs_dir or args.db_path:
+        if not (args.docs_dir and args.db_path):
+            parser.error("--docs-dir e --db-path devem ser informados juntos")
+        docs_dir = Path(args.docs_dir).expanduser()
+        db_path = Path(args.db_path).expanduser()
+    else:
+        temp_context = tempfile.TemporaryDirectory(prefix="ssa_import_detailed_")
+        temp_root = Path(temp_context.name)
+        docs_dir = temp_root / "docs_entrada"
+        db_path = temp_root / "data" / "ssas.db"
+        _write_smoke_xlsx(docs_dir)
+
     print("\n" + "=" * 80)
     print("TESTE COMPLETO DE IMPORTACAO COM RELATORIO DETALHADO")
     print("=" * 80)
     print(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Docs: {docs_dir}")
+    print(f"DB: {db_path}")
     print("=" * 80)
 
-    results = {}
+    try:
+        results = {}
 
-    # 1. Teste importacao CLI
-    results["import_cli"] = test_import_cli()
+        # 1. Teste importacao
+        results["import_cli"] = test_import_cli(
+            docs_dir,
+            db_path,
+            reset_db=bool(args.reset_db),
+        )
 
-    # 2. Analise do banco
-    if results["import_cli"]:
-        results["analyze_db"] = analyze_database()
-    else:
-        results["analyze_db"] = False
+        # 2. Analise do banco
+        if results["import_cli"] and db_path.exists():
+            results["analyze_db"] = analyze_database(db_path)
+        elif results["import_cli"]:
+            print("\n[ERRO] Importacao reportou sucesso, mas o DB nao foi criado")
+            results["analyze_db"] = False
+        else:
+            print("\n[ERRO] Analise do banco ignorada porque a importacao falhou")
+            results["analyze_db"] = False
 
-    # 3. Gera relatorio
-    generate_report()
+        # 3. Gera relatorio
+        generate_report()
 
-    # Resumo
-    print("\n" + "=" * 80)
-    print("RESUMO")
-    print("=" * 80)
+        # Resumo
+        print("\n" + "=" * 80)
+        print("RESUMO")
+        print("=" * 80)
 
-    for test, result in results.items():
-        status = "[PASSOU]" if result else "[FALHOU]"
-        print(f"  {status} {test}")
+        for test, result in results.items():
+            status = "[PASSOU]" if result else "[FALHOU]"
+            print(f"  {status} {test}")
 
-    print(f"\n  Total de problemas registrados: {len(problemas)}")
+        print(f"\n  Total de problemas registrados: {len(problemas)}")
 
-    if all(results.values()) and len(problemas) == 0:
-        print("\n[SUCESSO] Importacao completa sem problemas!")
-        return 0
-    elif all(results.values()):
-        print("\n[SUCESSO] Importacao completa mas com problemas registrados")
-        print("           Ver relatorio para detalhes")
-        return 0
-    else:
+        if all(results.values()) and len(problemas) == 0:
+            print("\n[SUCESSO] Importacao completa sem problemas!")
+            return 0
+        if all(results.values()):
+            print("\n[SUCESSO] Importacao completa mas com problemas registrados")
+            print("           Ver relatorio para detalhes")
+            return 0
         print("\n[FALHA] Importacao falhou")
         return 1
+    finally:
+        if temp_context is not None:
+            temp_context.cleanup()
 
 
 if __name__ == "__main__":

@@ -498,6 +498,59 @@ def test_run_pai_scrap_report_export_rejects_stale_artifacts(
         )
 
 
+def test_run_pai_scrap_report_export_reports_missing_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    with pytest.raises(FileNotFoundError, match="Manifest SAM API nao criado"):
+        run_pai_scrap_report_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+            ),
+            runner=lambda _command, **_kwargs: _Completed(),
+        )
+
+
+def test_run_pai_scrap_report_export_rejects_stale_manifest_mtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    xlsx_path = output_dir / "pai_sam_api.xlsx"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+    monkeypatch.setattr("core.pai_scrap_report_provider.time.time", lambda: 100.0)
+
+    def runner(_command: list[str], **_kwargs: Any) -> _Completed:
+        output_dir.mkdir(exist_ok=True)
+        xlsx_path.write_bytes(b"xlsx")
+        manifest_path = output_dir / "pai_sam_api_manifest.json"
+        manifest_path.write_text(
+            '{"status":"ok","exports":{"data_xlsx":"pai_sam_api.xlsx"}}',
+            encoding="utf-8",
+        )
+        import os
+
+        os.utime(manifest_path, (90.0, 90.0))
+        return _Completed()
+
+    with pytest.raises(FileNotFoundError, match="Manifest SAM API nao criado"):
+        run_pai_scrap_report_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+            ),
+            runner=runner,
+        )
+
+
 def test_run_pai_scrap_report_export_ignores_malformed_manifest_items(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -613,6 +666,39 @@ def test_run_pai_scrap_report_ca_export_rejects_stale_artifacts(
                 scrap_report_root=scrap_root,
             ),
             runner=lambda _command, **_kwargs: _Completed(),
+        )
+
+
+def test_run_pai_scrap_report_ca_export_rejects_stale_ca_mtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+    monkeypatch.setattr("core.pai_scrap_report_provider.time.time", lambda: 100.0)
+
+    def runner(_command: list[str], **_kwargs: Any) -> _Completed:
+        output_dir.mkdir(exist_ok=True)
+        ca_path = output_dir / "itaipu_root_ca.pem"
+        ca_path.write_text("CERT", encoding="utf-8")
+        (output_dir / "sam_api_cert.json").write_text(
+            '{"status":"ok"}',
+            encoding="utf-8",
+        )
+        import os
+
+        os.utime(ca_path, (90.0, 90.0))
+        return _Completed()
+
+    with pytest.raises(FileNotFoundError, match="CA SAM API nao criado"):
+        run_pai_scrap_report_ca_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+            ),
+            runner=runner,
         )
 
 
