@@ -8718,17 +8718,17 @@ class TestGUIFilterLogic:
         )
 
     def test_load_xls_button_uses_external_import_handler(self, monkeypatch):
-        calls = []
+        dialog_calls = []
 
         monkeypatch.setattr(
-            self.window,
-            "import_external_excel_files",
-            lambda: calls.append("import"),
+            gui_ssa.QFileDialog,
+            "getOpenFileNames",
+            lambda *args, **kwargs: dialog_calls.append((args, kwargs)) or ([], ""),
         )
 
         self.window.api_button.click()
 
-        assert calls == ["import"]
+        assert len(dialog_calls) == 1
 
     def test_open_url_in_browser_blocks_file_scheme(self, monkeypatch):
         opened: list[str] = []
