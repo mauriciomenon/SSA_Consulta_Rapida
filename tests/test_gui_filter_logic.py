@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from collections import Counter, OrderedDict
+from types import SimpleNamespace
 from typing import Any, Literal, TypedDict, cast
 from unittest.mock import patch
 
@@ -78,9 +79,6 @@ def test_snapshot_search_text_logs_deleted_widget_runtime_error(caplog):
 def test_refresh_derivadas_theme_continues_after_context_and_dead_dialog(
     monkeypatch, caplog
 ):
-    class _Window:
-        pass
-
     class _DeadDialog:
         def __getattribute__(self, name):
             if name == "_ssa_details_dialog_presenter":
@@ -94,20 +92,17 @@ def test_refresh_derivadas_theme_continues_after_context_and_dead_dialog(
         def refresh_after_theme(self):
             self.refreshed = True
 
-    class _Dialog:
-        pass
-
-    window = _Window()
-    window._details_current_series_for_derivadas = pd.Series({"numero_ssa": "1"})
-    window._details_current_derivadas_font_family = "monospace"
-    window._details_context_state = {
-        "current_ssa": "1",
-        "entries": [{"ssa": "1", "series": pd.Series({"numero_ssa": "1"})}],
-    }
     live_presenter = _Presenter()
-    live_dialog = _Dialog()
-    live_dialog._ssa_details_dialog_presenter = live_presenter
-    window._open_details_dialogs = [_DeadDialog(), live_dialog]
+    live_dialog = SimpleNamespace(_ssa_details_dialog_presenter=live_presenter)
+    window = SimpleNamespace(
+        _details_current_series_for_derivadas=pd.Series({"numero_ssa": "1"}),
+        _details_current_derivadas_font_family="monospace",
+        _details_context_state={
+            "current_ssa": "1",
+            "entries": [{"ssa": "1", "series": pd.Series({"numero_ssa": "1"})}],
+        },
+        _open_details_dialogs=[_DeadDialog(), live_dialog],
+    )
 
     monkeypatch.setattr(
         ssa_gui_details,
