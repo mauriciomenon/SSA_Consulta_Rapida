@@ -68,6 +68,7 @@ def test_command_stdout_logs_metadata_command_failure(monkeypatch):
 
 def test_build_info_payload_includes_toolchain_versions(monkeypatch):
     builder = MultiPlatformBuilder()
+    called_cmds: set[tuple[str, ...]] = set()
 
     outputs: dict[tuple[str, ...], str] = {
         ("git", "rev-parse", "HEAD"): "test-commit-id",
@@ -80,6 +81,7 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
 
     def fake_run(cmd, cwd, require_success):  # noqa: ANN001
         _ = require_success
+        called_cmds.add(tuple(str(item) for item in cmd))
         return outputs.get(tuple(str(item) for item in cmd), "")
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
@@ -88,10 +90,12 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
     assert payload["rustc_version"] == "rustc 1.90.0"
+    assert set(outputs).issubset(called_cmds)
 
 
 def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     builder = MultiPlatformBuilder()
+    called_cmds: set[tuple[str, ...]] = set()
     outputs: dict[tuple[str, ...], str] = {
         ("git", "rev-parse", "HEAD"): "test-commit-id",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
@@ -102,6 +106,7 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
 
     def fake_run(cmd, cwd, require_success):  # noqa: ANN001
         _ = require_success
+        called_cmds.add(tuple(str(item) for item in cmd))
         return outputs.get(tuple(str(item) for item in cmd), "")
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
@@ -110,6 +115,8 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     payload = builder._build_info_payload("pyinstaller", "windows_amd64")
 
     assert payload["c_compiler_version"] == "MSVC 14.44.35207"
+    assert ("cc", "--version") in called_cmds
+    assert ("cc", "--version") not in outputs
 
 
 def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_path):
