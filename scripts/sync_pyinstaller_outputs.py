@@ -31,6 +31,60 @@ MultiPlatformBuilder = importlib.import_module(
 PLATFORMS = tuple(sorted(MultiPlatformBuilder.PLATFORMS))
 
 
+def _remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+        return
+    path.unlink()
+
+
+def _file_is_current(source_path: Path, target_path: Path) -> bool:
+    if not target_path.is_file():
+        return False
+
+    source_stat = source_path.stat()
+    target_stat = target_path.stat()
+    return (
+        source_stat.st_size == target_stat.st_size
+        and source_stat.st_mtime_ns == target_stat.st_mtime_ns
+    )
+
+
+def _sync_tree_incremental(source_dir: Path, target_dir: Path) -> None:
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for source_path in source_dir.rglob("*"):
+        target_path = target_dir / source_path.relative_to(source_dir)
+        if source_path.is_symlink() and source_path.is_dir():
+            if target_path.exists() and not target_path.is_dir():
+                _remove_path(target_path)
+            _sync_tree_incremental(source_path.resolve(strict=True), target_path)
+            continue
+
+        if source_path.is_dir():
+            if target_path.exists() and not target_path.is_dir():
+                _remove_path(target_path)
+            target_path.mkdir(parents=True, exist_ok=True)
+            continue
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        if target_path.exists() and target_path.is_dir():
+            shutil.rmtree(target_path)
+        if not _file_is_current(source_path, target_path):
+            shutil.copy2(source_path, target_path)
+
+    for target_path in sorted(
+        target_dir.rglob("*"),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    ):
+        if not target_path.exists():
+            continue
+        source_path = source_dir / target_path.relative_to(target_dir)
+        if not source_path.exists():
+            _remove_path(target_path)
+
+
 def _sync_platform(repo_root: Path, platform: str, verbose: bool) -> bool:
     source_dir = repo_root / "launchers" / "dist" / platform
     target_dir = repo_root / "builds" / "pyinstaller" / platform
@@ -41,9 +95,7 @@ def _sync_platform(repo_root: Path, platform: str, verbose: bool) -> bool:
         return False
 
     target_dir.parent.mkdir(parents=True, exist_ok=True)
-    if target_dir.exists():
-        shutil.rmtree(target_dir)
-    shutil.copytree(source_dir, target_dir)
+    _sync_tree_incremental(source_dir, target_dir)
 
     if verbose:
         print(f"OK synced: {source_dir} -> {target_dir}")
