@@ -328,6 +328,15 @@ class DetailsDialogPresenter:
                 refresh_hitboxes()
         else:
             self._last_graph_render_key = None
+            clear_svg_markup = getattr(
+                widgets.tree_graph_label, "clear_graph_svg_markup", None
+            )
+            if callable(clear_svg_markup):
+                clear_svg_markup()
+            set_hitboxes = getattr(widgets.tree_graph_label, "set_ssa_hitboxes", None)
+            if callable(set_hitboxes):
+                set_hitboxes([])
+            widgets.tree_graph_label.clear()
         return rendered
 
     def _refresh_graph_after_resize(self, widgets, svg_render_deps) -> None:

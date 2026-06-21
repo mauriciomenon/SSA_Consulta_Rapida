@@ -3,7 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
+import gui.ssa.details_dialog_presenter as presenter_module
 from gui.ssa.details_dialog_presenter import (
     DetailsDialogCallbacks,
     DetailsDialogPresenter,
@@ -66,3 +68,61 @@ def test_forget_dialog_clears_presenter_references() -> None:
     assert presenter._widgets is None
     assert presenter._render_cache == {}
     assert presenter._last_graph_render_key is None
+
+
+class _GraphLabel:
+    def __init__(self) -> None:
+        self.cleared = False
+        self.svg_markup = "<svg>old</svg>"
+        self.hitboxes = [("1", 0.0, 0.0, 1.0, 1.0)]
+
+    def clear(self) -> None:
+        self.cleared = True
+
+    def clear_graph_svg_markup(self) -> None:
+        self.svg_markup = ""
+
+    def set_ssa_hitboxes(self, hitboxes) -> None:
+        self.hitboxes = list(hitboxes)
+
+    def pixmap(self):
+        return None
+
+
+class _Panel:
+    def width(self) -> int:
+        return 400
+
+    def height(self) -> int:
+        return 300
+
+
+def test_render_graph_pixmap_failure_clears_stale_label_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger = _Logger()
+    presenter = DetailsDialogPresenter(
+        window=SimpleNamespace(),
+        target="1",
+        series=pd.Series({"numero_ssa": "1"}),
+        callbacks=_callbacks(logger),
+    )
+    presenter.export_state["svg"] = "<svg>new</svg>"
+    presenter._last_graph_render_key = ("<svg>old</svg>", 400, 300)
+    graph_label = _GraphLabel()
+    widgets = SimpleNamespace(
+        tree_graph_label=graph_label,
+        tree_graph_panel=_Panel(),
+    )
+    monkeypatch.setattr(
+        presenter_module,
+        "render_graph_svg_pixmap",
+        lambda **_kwargs: False,
+    )
+
+    assert presenter._render_graph_pixmap(widgets, svg_render_deps=object()) is False
+
+    assert presenter._last_graph_render_key is None
+    assert graph_label.cleared is True
+    assert graph_label.svg_markup == ""
+    assert graph_label.hitboxes == []
