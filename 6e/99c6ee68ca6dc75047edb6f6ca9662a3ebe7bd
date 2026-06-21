@@ -1,0 +1,28 @@
+launchers/build_multiplatform.py
+  s_f4b4983ce9a832::t_b3595c072c4a56 951
+tests/test_build_multiplatform_manifest.py
+  s_f4b4983ce9a832::t_e6048fcef415f9 906-935
+  s_f4b4983ce9a832::t_5446a71a64c87b 117
+  s_f4b4983ce9a832::t_e261f442ab9498 73
+  s_f4b4983ce9a832::t_11480a26f4448e 96
+tests/test_build_complete.py
+  s_f4b4983ce9a832::t_ad07a809f4478d 30,72-89,93-103
+launchers/build_complete.py
+  s_f4b4983ce9a832::t_b3595c072c4a56 64-66,78-79,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6e99c6ee68ca6dc75047edb6f6ca9662a3ebe7bd",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
