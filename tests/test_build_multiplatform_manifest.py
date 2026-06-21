@@ -80,7 +80,7 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
     }
 
     def fake_run(cmd, cwd, require_success):  # noqa: ANN001
-        _ = require_success
+        _ = cwd, require_success
         called_cmds.add(tuple(str(item) for item in cmd))
         return outputs.get(tuple(str(item) for item in cmd), "")
 
@@ -105,7 +105,7 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     }
 
     def fake_run(cmd, cwd, require_success):  # noqa: ANN001
-        _ = require_success
+        _ = cwd, require_success
         called_cmds.add(tuple(str(item) for item in cmd))
         return outputs.get(tuple(str(item) for item in cmd), "")
 
@@ -130,7 +130,7 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
     }
 
     def fake_run(args, cwd, require_success):  # noqa: ANN001, FBT001
-        _ = require_success
+        _ = cwd, require_success
         return outputs.get(tuple(args), "")
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
