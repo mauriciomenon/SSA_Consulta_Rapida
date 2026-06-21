@@ -1,0 +1,21 @@
+gui/ssa/details_dialog_presenter.py
+  s_f4b4983ce9a832::t_32e844164bddd8 396-397
+tests/test_details_dialog_presenter.py
+  s_f4b4983ce9a832::t_c622c3b81e8d39 19,24-26,133-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "08881de825c280b9ad71fcf1ab81f93d3084e6c1",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
