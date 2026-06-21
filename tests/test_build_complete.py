@@ -90,11 +90,56 @@ def test_build_complete_auto_git_requires_explicit_flag(monkeypatch):
     assert calls == [["--apps", "cli", "gui", "--auto-cleanup", "--auto-git"]]
 
 
+def test_build_complete_trims_auto_git_message(monkeypatch):
+    calls = []
+
+    def fake_execute_builder_script(args):
+        calls.append(list(args))
+        return 0
+
+    monkeypatch.setattr(
+        build_complete,
+        "_execute_builder_script",
+        fake_execute_builder_script,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["build_complete.py", "--auto-git", "--git-message", "  build release  "],
+    )
+
+    assert build_complete.main() == 0
+    assert calls == [
+        [
+            "--apps",
+            "cli",
+            "gui",
+            "--auto-cleanup",
+            "--auto-git",
+            "--git-message",
+            "build release",
+        ]
+    ]
+
+
 def test_build_complete_rejects_git_message_without_auto_git(monkeypatch):
     monkeypatch.setattr(
         sys,
         "argv",
         ["build_complete.py", "--git-message", "build release"],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        build_complete.main()
+
+    assert exc.value.code == 2
+
+
+def test_build_complete_rejects_empty_git_message(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["build_complete.py", "--auto-git", "--git-message", "   "],
     )
 
     with pytest.raises(SystemExit) as exc:

@@ -75,8 +75,12 @@ def main():
     )
 
     args = parser.parse_args()
-    if args.git_message and not args.auto_git:
+    git_message = args.git_message.strip() if args.git_message is not None else None
+    if args.git_message is not None and not args.auto_git:
         parser.error("--git-message requer --auto-git")
+    if args.git_message is not None and not git_message:
+        parser.error("--git-message nao pode ser vazio")
+    args.git_message = git_message
 
     try:
         script_args = []
