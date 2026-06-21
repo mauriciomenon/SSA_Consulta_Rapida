@@ -370,17 +370,26 @@ def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
         if _should_skip_bundle_path(item, bundle_root=source_dir):
             continue
         destination = target_dir / item.name
-        if item.is_file():
-            shutil.copy2(item, destination)
-        elif item.is_dir():
-            shutil.copytree(
+        try:
+            if item.is_file():
+                shutil.copy2(item, destination)
+            elif item.is_dir():
+                shutil.copytree(
+                    item,
+                    destination,
+                    dirs_exist_ok=True,
+                    ignore=lambda src, names: _build_bundle_ignore(
+                        source_dir, src, names
+                    ),
+                )
+        except OSError as exc:
+            logger.error(
+                "Falha ao copiar item do build para pacote: %s -> %s: %s",
                 item,
                 destination,
-                dirs_exist_ok=True,
-                ignore=lambda src, names: _build_bundle_ignore(
-                    source_dir, src, names
-                ),
+                exc,
             )
+            raise
 
 
 def _should_skip_bundle_entry(name: str, is_file: bool) -> bool:

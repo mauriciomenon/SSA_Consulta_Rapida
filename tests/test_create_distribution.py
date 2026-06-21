@@ -211,6 +211,38 @@ def test_main_returns_zero_when_zip_succeeds_and_installer_is_skipped(
     )
 
 
+def test_copy_build_tree_sanitized_logs_copy_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog,
+) -> None:
+    source_dir = tmp_path / "source"
+    target_dir = tmp_path / "target"
+    source_dir.mkdir()
+    target_dir.mkdir()
+    source_file = source_dir / "artifact.txt"
+    source_file.write_text("artifact", encoding="utf-8")
+    target_file = target_dir / "artifact.txt"
+
+    def fail_copy(src, dst):
+        assert Path(src) == source_file
+        assert Path(dst) == target_file
+        raise PermissionError("locked")
+
+    monkeypatch.setattr(create_distribution.shutil, "copy2", fail_copy)
+
+    with pytest.raises(PermissionError, match="locked"):
+        create_distribution._copy_build_tree_sanitized(source_dir, target_dir)
+
+    log_messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        "Falha ao copiar item do build para pacote" in message
+        and str(source_file) in message
+        and str(target_file) in message
+        for message in log_messages
+    )
+
+
 def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> None:
     create_distribution.create_readme_usuario(
         tmp_path,
