@@ -44,7 +44,7 @@ def test_create_zip_package_returns_none_when_exe_missing(
     tmp_path: Path, monkeypatch, caplog
 ) -> None:
     project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake"
+    build_dir = project_root / "builds" / "fake" / "windows_amd64"
     dist_output = project_root / "dist_packages"
     build_dir.mkdir(parents=True)
     dist_output.mkdir(parents=True)
@@ -58,8 +58,8 @@ def test_create_zip_package_returns_none_when_exe_missing(
         {
             "fake": {
                 "name": "Fake",
-                "exe_path": "builds/fake/missing.exe",
-                "base_dir": "builds/fake",
+                "exe_path": "builds/fake/windows_amd64/missing.exe",
+                "base_dir": "builds/fake/windows_amd64",
                 "internal_dir": None,
             }
         },
@@ -186,9 +186,12 @@ def test_main_returns_nonzero_when_installer_only_is_missing_inno(
 def test_main_returns_zero_when_zip_succeeds_and_installer_is_skipped(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    caplog,
 ) -> None:
     dist_output = _configure_fake_distribution(tmp_path, monkeypatch)
-    zip_path = dist_output / "fake.zip"
+    package_dir = dist_output.parent / "builds" / "packages" / "windows_amd64"
+    package_dir.mkdir(parents=True)
+    zip_path = package_dir / "fake.zip"
     zip_path.write_text("zip", encoding="utf-8")
     monkeypatch.setattr(create_distribution, "create_zip_package", lambda *_, **__: zip_path)
 
@@ -201,6 +204,8 @@ def test_main_returns_zero_when_zip_succeeds_and_installer_is_skipped(
         )
         == 0
     )
+    assert f"ZIPs salvos em: {package_dir}" in caplog.text
+    assert f"Pacotes salvos em: {dist_output}" not in caplog.text
 
 
 def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> None:
@@ -311,6 +316,7 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
     result = create_distribution.create_zip_package("pyinstaller", "1.0.0")
 
     assert result is not None
+    assert result.parent == project_root / "builds" / "packages" / "windows_amd64"
     with zipfile.ZipFile(result, "r") as zf:
         names = zf.namelist()
         assert any(name.endswith("SSA_GUI_v1_windows_amd64.exe") for name in names)
@@ -318,6 +324,45 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
             name.endswith("docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md")
             for name in names
         )
+
+
+def test_create_zip_package_returns_none_when_platform_is_not_in_build_path(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    project_root = tmp_path / "project"
+    build_dir = project_root / "builds" / "pyinstaller" / "unexpected"
+    build_dir.mkdir(parents=True)
+    (build_dir / "SSA_Consulta_Rapida.exe").write_text("exe", encoding="utf-8")
+    docs_dir = project_root / "docs"
+    docs_dir.mkdir(parents=True)
+    (project_root / "README.md").write_text("readme", encoding="utf-8")
+    (docs_dir / "ANTIVIRUS_EXCLUSOES.md").write_text("av", encoding="utf-8")
+    (docs_dir / "GUIA_MIGRACAO_NOVA_INSTALACAO.md").write_text(
+        "guide",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/unexpected/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller/unexpected",
+                "internal_dir": "_internal",
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package("pyinstaller", "1.0.0")
+
+    assert result is None
+    assert "Nao foi possivel inferir plataforma do build" in caplog.text
+    assert not (project_root / "builds" / "packages" / "windows_amd64").exists()
 
 
 def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinstaller(
@@ -381,7 +426,7 @@ def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
     monkeypatch,
 ) -> None:
     project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake"
+    build_dir = project_root / "builds" / "fake" / "windows_amd64"
     build_dir.mkdir(parents=True)
     dist_output = project_root / "dist_packages"
     dist_output.mkdir(parents=True)
@@ -392,6 +437,10 @@ def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
     config_dir = build_dir / "config"
     config_dir.mkdir(parents=True)
     (config_dir / "keep.txt").write_text("ok", encoding="utf-8")
+    (config_dir / "__init__.py").write_text("", encoding="utf-8")
+    (config_dir / "settings.json.bak-20260621").write_text("backup", encoding="utf-8")
+    (config_dir / "settings.backup").write_text("backup", encoding="utf-8")
+    (config_dir / "prefs.backup_20260621").write_text("backup", encoding="utf-8")
     (config_dir / "local.db").write_text("db", encoding="utf-8")
     (config_dir / "entrada.xlsx").write_text("xlsx", encoding="utf-8")
     (config_dir / "entrada.xls").write_text("xls", encoding="utf-8")
@@ -404,8 +453,8 @@ def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
         {
             "fake": {
                 "name": "Fake",
-                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake",
+                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake/windows_amd64",
                 "internal_dir": None,
             }
         },
@@ -417,9 +466,22 @@ def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
     with zipfile.ZipFile(result, "r") as zf:
         names = zf.namelist()
         assert any(name.endswith("config/keep.txt") for name in names)
+        assert not any(name.endswith("config/__init__.py") for name in names)
+        assert not any(".bak" in name for name in names)
+        assert not any(".backup" in name for name in names)
         assert not any(name.endswith("config/local.db") for name in names)
         assert not any(name.endswith("config/entrada.xlsx") for name in names)
         assert not any(name.endswith("config/entrada.xls") for name in names)
+
+
+def test_inno_excludes_match_backup_fragments() -> None:
+    excludes = create_distribution._build_inno_excludes_str().split(",")
+
+    assert "*.bak" in excludes
+    assert "*.bak*" in excludes
+    assert "*.backup" in excludes
+    assert "*.backup*" in excludes
+    assert "*.backup_*" in excludes
 
 
 def test_create_zip_package_keeps_sample_db_out_by_default(
@@ -427,7 +489,7 @@ def test_create_zip_package_keeps_sample_db_out_by_default(
     monkeypatch,
 ) -> None:
     project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake"
+    build_dir = project_root / "builds" / "fake" / "windows_amd64"
     build_dir.mkdir(parents=True)
     dist_output = project_root / "dist_packages"
     dist_output.mkdir(parents=True)
@@ -447,8 +509,8 @@ def test_create_zip_package_keeps_sample_db_out_by_default(
         {
             "fake": {
                 "name": "Fake",
-                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake",
+                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake/windows_amd64",
                 "internal_dir": None,
             }
         },
@@ -467,7 +529,7 @@ def test_create_zip_package_includes_fixed_sample_db_only_when_option_enabled(
     monkeypatch,
 ) -> None:
     project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake"
+    build_dir = project_root / "builds" / "fake" / "windows_amd64"
     build_dir.mkdir(parents=True)
     dist_output = project_root / "dist_packages"
     dist_output.mkdir(parents=True)
@@ -488,8 +550,8 @@ def test_create_zip_package_includes_fixed_sample_db_only_when_option_enabled(
         {
             "fake": {
                 "name": "Fake",
-                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake",
+                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake/windows_amd64",
                 "internal_dir": None,
             }
         },
@@ -515,7 +577,7 @@ def test_create_zip_package_returns_none_when_sample_db_assets_are_missing(
     caplog,
 ) -> None:
     project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake"
+    build_dir = project_root / "builds" / "fake" / "windows_amd64"
     build_dir.mkdir(parents=True)
     dist_output = project_root / "dist_packages"
     dist_output.mkdir(parents=True)
@@ -529,8 +591,8 @@ def test_create_zip_package_returns_none_when_sample_db_assets_are_missing(
         {
             "fake": {
                 "name": "Fake",
-                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake",
+                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake/windows_amd64",
                 "internal_dir": None,
             }
         },
@@ -551,7 +613,7 @@ def test_create_zip_package_includes_only_selected_local_db_when_option_enabled(
     monkeypatch,
 ) -> None:
     project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake"
+    build_dir = project_root / "builds" / "fake" / "windows_amd64"
     build_dir.mkdir(parents=True)
     dist_output = project_root / "dist_packages"
     dist_output.mkdir(parents=True)
@@ -571,8 +633,8 @@ def test_create_zip_package_includes_only_selected_local_db_when_option_enabled(
         {
             "fake": {
                 "name": "Fake",
-                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake",
+                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake/windows_amd64",
                 "internal_dir": None,
             }
         },
@@ -597,7 +659,7 @@ def test_create_zip_package_returns_none_when_selected_local_db_is_missing(
     caplog,
 ) -> None:
     project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake"
+    build_dir = project_root / "builds" / "fake" / "windows_amd64"
     build_dir.mkdir(parents=True)
     dist_output = project_root / "dist_packages"
     dist_output.mkdir(parents=True)
@@ -611,8 +673,8 @@ def test_create_zip_package_returns_none_when_selected_local_db_is_missing(
         {
             "fake": {
                 "name": "Fake",
-                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake",
+                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake/windows_amd64",
                 "internal_dir": None,
             }
         },

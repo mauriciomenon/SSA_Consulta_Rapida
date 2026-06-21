@@ -34,6 +34,12 @@ PYINSTALLER_CANONICAL_DIRS = (
     "launchers/dist/macos_arm64",
     "launchers/dist/debian_amd64",
 )
+PACKAGE_PLATFORMS = (
+    "windows_amd64",
+    "macos_arm64",
+    "debian_amd64",
+    "debian_arm64",
+)
 EXCLUDED_BUNDLE_ITEMS = {
     "data",
     "docs_entrada",
@@ -48,6 +54,10 @@ SENSITIVE_LOCAL_EXTENSIONS: set[str] = {
     ".xls",
     ".xlsx",
 }
+SENSITIVE_LOCAL_NAME_FRAGMENTS = (
+    ".bak",
+    ".backup",
+)
 SAMPLE_DB_ASSET_DIR = Path("dist_assets") / "sample_db"
 SAMPLE_DB_ASSET_NAME = "ssas_example.db"
 SAMPLE_DB_ASSET_README_NAME = "LEIA-ME.txt"
@@ -357,7 +367,7 @@ def _resolve_build_directory_failure_reason(build_system: str) -> str:
 def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
     """Copia build para distribuicao, removendo dados locais sensiveis."""
     for item in source_dir.iterdir():
-        if _should_skip_bundle_entry(item.name, item.is_file()):
+        if _should_skip_bundle_path(item):
             continue
         destination = target_dir / item.name
         if item.is_file():
@@ -376,8 +386,19 @@ def _should_skip_bundle_entry(name: str, is_file: bool) -> bool:
         return True
     if name in EXCLUDED_BUNDLE_ITEMS:
         return True
+    lowered_name = name.lower()
+    if any(fragment in lowered_name for fragment in SENSITIVE_LOCAL_NAME_FRAGMENTS):
+        return True
     if is_file and Path(name).suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS:
         return True
+    return False
+
+
+def _should_skip_bundle_path(candidate: Path) -> bool:
+    if _should_skip_bundle_entry(candidate.name, candidate.is_file()):
+        return True
+    if candidate.is_file() and candidate.name == "__init__.py":
+        return candidate.parent.name == "config"
     return False
 
 
@@ -386,9 +407,25 @@ def _build_bundle_ignore(_src: str, names: list[str]) -> set[str]:
     src_path = Path(_src)
     for name in names:
         candidate = src_path / name
-        if _should_skip_bundle_entry(name, candidate.is_file()):
+        if _should_skip_bundle_path(candidate):
             ignored.add(name)
     return ignored
+
+
+def _infer_platform_from_path(build_dir: Path) -> Optional[str]:
+    parts = build_dir.resolve(strict=False).parts
+    for platform in PACKAGE_PLATFORMS:
+        if platform in parts:
+            return platform
+    return None
+
+
+def _package_output_dir(build_dir: Path) -> Optional[Path]:
+    platform = _infer_platform_from_path(build_dir)
+    if platform is None:
+        logger.error("Nao foi possivel inferir plataforma do build: %s", build_dir)
+        return None
+    return PROJECT_ROOT / "builds" / "packages" / platform
 
 
 def _resolve_sample_db_assets() -> Optional[tuple[Path, Path]]:
@@ -860,9 +897,14 @@ def create_zip_package(
         )
         return None
 
+    package_output_dir = _package_output_dir(build_dir)
+    if package_output_dir is None:
+        return None
+    package_output_dir.mkdir(parents=True, exist_ok=True)
+
     # Criar diretorio temporario para montagem
     timestamp = format_current_timestamp("%Y%m%d_%H%M%S")
-    temp_dir = DIST_OUTPUT / f"temp_{build_system}_{timestamp}"
+    temp_dir = package_output_dir / f"temp_{build_system}_{timestamp}"
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     package_name = f"SSA_Consulta_Rapida_v{version}_{build_system}"
@@ -886,7 +928,7 @@ def create_zip_package(
 
         # Criar ZIP
         zip_name = f"{package_name}.zip"
-        zip_path = DIST_OUTPUT / zip_name
+        zip_path = package_output_dir / zip_name
 
         logger.info(f"  Criando arquivo ZIP: {zip_name}")
 
@@ -915,6 +957,17 @@ def _normalize_windows_path(raw_value: str) -> str:
 def _build_inno_excludes_str() -> str:
     """Monta lista de excludes usada pelo template Inno."""
     inno_excludes = ["*.log", "*.tmp", "__pycache__"]
+    inno_excludes.extend(
+        [
+            "*.bak",
+            "*.bak*",
+            "*.backup",
+            "*.backup*",
+            "*.backup_*",
+            "config\\__init__.py",
+            "*\\config\\__init__.py",
+        ]
+    )
     for item in sorted(EXCLUDED_BUNDLE_ITEMS):
         inno_excludes.append(f"{item}\\*")
     return ",".join(inno_excludes)
@@ -1291,8 +1344,9 @@ def main() -> int:
     if not args.build_system and not args.all:
         parser.error("Especifique --build-system ou --all")
 
-    # Criar diretorio de saida
-    DIST_OUTPUT.mkdir(exist_ok=True)
+    # Criar diretorio de instalador apenas quando ele for usado.
+    if not args.skip_installer:
+        DIST_OUTPUT.mkdir(exist_ok=True)
 
     # Obter versao
     version = get_version()
@@ -1342,10 +1396,12 @@ def main() -> int:
     logger.info(f"{'=' * 60}\n")
 
     exit_code = 0
+    zip_output_dirs: set[Path] = set()
     for bs, result in results.items():
         logger.info(f"{BUILD_SYSTEMS[bs]['name']}:")
         if result["zip"]:
             logger.info(f"  ZIP: {result['zip'].name}")
+            zip_output_dirs.add(result["zip"].parent)
         elif not args.installer_only:
             logger.info("  ZIP: Nao criado")
             exit_code = 1
@@ -1364,7 +1420,11 @@ def main() -> int:
             exit_code = 1
         logger.info("")
 
-    logger.info(f"Pacotes salvos em: {DIST_OUTPUT}")
+    if zip_output_dirs:
+        for output_dir in sorted(zip_output_dirs):
+            logger.info(f"ZIPs salvos em: {output_dir}")
+    if not args.skip_installer:
+        logger.info(f"Instaladores/scripts em: {DIST_OUTPUT}")
     if exit_code:
         logger.error("Distribuicao falhou: artefato esperado nao foi criado.")
     return exit_code
