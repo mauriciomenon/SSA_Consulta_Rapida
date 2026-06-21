@@ -1,0 +1,21 @@
+AGENTS.md
+  s_f4b4983ce9a832::t_70963ea3bff4c6 194-195,209
+  s_f4b4983ce9a832::t_b8381fd3f8a395 308,310,312-321,323,325-327,329,331-335,337,339-341,343,345-348
+  s_f4b4983ce9a832::t_a1e067aa4640bd 221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "25417748a7c2f3e35fd3d77a160fb0bf86903d22",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
