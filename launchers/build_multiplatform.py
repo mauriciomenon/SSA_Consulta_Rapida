@@ -948,13 +948,10 @@ VSVersionInfo(
                 target_path.unlink()
             return True
 
-        # 1. Limpeza de diretorios de build/distribuicao
+        # 1. Limpeza de diretorios temporarios de build
         build_cleanup_dirs = [
             self.base_dir / "build",
-            self.base_dir / "builds",
-            self.base_dir / "dist_packages",
             self.launchers_dir / "dist_simple",
-            self.base_dir / "dist",
         ]
 
         for candidate in build_cleanup_dirs:
