@@ -636,7 +636,7 @@ def _finish_theme_application(
 
         gui_details.refresh_derivadas_views_after_theme(window)
     except Exception as exc:
-        logger.debug("Falha ao atualizar grafos de derivadas apos apply_theme: %s", exc)
+        logger.warning("Failed to refresh derivadas graphs after apply_theme: %s", exc)
     try:
         update_filter_tags = getattr(window, "update_filter_tags", None)
         if callable(update_filter_tags):

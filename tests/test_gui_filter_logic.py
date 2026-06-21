@@ -6395,6 +6395,22 @@ class TestGUIFilterLogic:
         assert self.window._pending_details_series is series
         assert refresh_seen == [series]
 
+    def test_apply_theme_logs_derivadas_refresh_failure(self, monkeypatch, caplog):
+        def _raise_refresh(_window):
+            raise RuntimeError("refresh failed")
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "refresh_derivadas_views_after_theme",
+            _raise_refresh,
+        )
+
+        with caplog.at_level("WARNING"):
+            self.window.apply_theme("dracula")
+
+        assert "Failed to refresh derivadas graphs after apply_theme" in caplog.text
+        assert "refresh failed" in caplog.text
+
     def test_apply_theme_styles_advanced_field_boxes_with_theme_roles(self):
         self._set_filter_panel_tab("filters")
         self.window.apply_theme("mint-light")
