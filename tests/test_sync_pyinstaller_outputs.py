@@ -106,3 +106,28 @@ def test_sync_platform_copies_symlinked_directory_contents(tmp_path: Path) -> No
     copied_file = target_dir / "linked_dir" / "inside.txt"
     assert copied_file.read_text(encoding="utf-8") == "linked content"
     assert copied_file.is_file()
+
+
+def test_sync_platform_skips_directory_symlink_outside_repo_root(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "sync_pyinstaller_outputs_external_symlink",
+        root / "scripts" / "sync_pyinstaller_outputs.py",
+    )
+    source_dir = tmp_path / "launchers" / "dist" / "windows_amd64"
+    target_dir = tmp_path / "builds" / "pyinstaller" / "windows_amd64"
+    external_dir = tmp_path_factory.mktemp("external-pyinstaller-link")
+    source_dir.mkdir(parents=True)
+    (external_dir / "outside.txt").write_text("do not copy", encoding="utf-8")
+
+    symlink_path = source_dir / "linked_dir"
+    try:
+        symlink_path.symlink_to(external_dir, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
+
+    assert module._sync_platform(tmp_path, "windows_amd64", verbose=False) is True
+
+    assert not (target_dir / "linked_dir" / "outside.txt").exists()

@@ -50,15 +50,24 @@ def _file_is_current(source_path: Path, target_path: Path) -> bool:
     )
 
 
-def _sync_tree_incremental(source_dir: Path, target_dir: Path) -> None:
+def _sync_tree_incremental(
+    source_dir: Path, target_dir: Path, *, allowed_root: Path
+) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     for source_path in source_dir.rglob("*"):
         target_path = target_dir / source_path.relative_to(source_dir)
         if source_path.is_symlink() and source_path.is_dir():
+            resolved_source = source_path.resolve(strict=True)
+            try:
+                resolved_source.relative_to(allowed_root)
+            except ValueError:
+                continue
             if target_path.exists() and not target_path.is_dir():
                 _remove_path(target_path)
-            _sync_tree_incremental(source_path.resolve(strict=True), target_path)
+            _sync_tree_incremental(
+                resolved_source, target_path, allowed_root=allowed_root
+            )
             continue
 
         if source_path.is_dir():
@@ -95,7 +104,7 @@ def _sync_platform(repo_root: Path, platform: str, verbose: bool) -> bool:
         return False
 
     target_dir.parent.mkdir(parents=True, exist_ok=True)
-    _sync_tree_incremental(source_dir, target_dir)
+    _sync_tree_incremental(source_dir, target_dir, allowed_root=repo_root.resolve())
 
     if verbose:
         print(f"OK synced: {source_dir} -> {target_dir}")
