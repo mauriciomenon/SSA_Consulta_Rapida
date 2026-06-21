@@ -131,3 +131,46 @@ def test_sync_platform_skips_directory_symlink_outside_repo_root(
     assert module._sync_platform(tmp_path, "windows_amd64", verbose=False) is True
 
     assert not (target_dir / "linked_dir" / "outside.txt").exists()
+
+
+def test_sync_platform_removes_stale_broken_target_symlink(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "sync_pyinstaller_outputs_broken_target",
+        root / "scripts" / "sync_pyinstaller_outputs.py",
+    )
+    source_dir = tmp_path / "launchers" / "dist" / "windows_amd64"
+    target_dir = tmp_path / "builds" / "pyinstaller" / "windows_amd64"
+    source_dir.mkdir(parents=True)
+    target_dir.mkdir(parents=True)
+    broken_link = target_dir / "stale_link"
+    try:
+        broken_link.symlink_to(tmp_path / "missing")
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
+
+    assert module._sync_platform(tmp_path, "windows_amd64", verbose=False) is True
+
+    assert not broken_link.is_symlink()
+    assert not broken_link.exists()
+
+
+def test_sync_platform_replaces_target_directory_with_source_file(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "sync_pyinstaller_outputs_type_mismatch",
+        root / "scripts" / "sync_pyinstaller_outputs.py",
+    )
+    source_dir = tmp_path / "launchers" / "dist" / "windows_amd64"
+    target_dir = tmp_path / "builds" / "pyinstaller" / "windows_amd64"
+    source_dir.mkdir(parents=True)
+    target_dir.mkdir(parents=True)
+    (source_dir / "artifact").write_text("file", encoding="utf-8")
+    target_artifact = target_dir / "artifact"
+    target_artifact.mkdir()
+    (target_artifact / "old.txt").write_text("old", encoding="utf-8")
+
+    assert module._sync_platform(tmp_path, "windows_amd64", verbose=False) is True
+
+    assert target_artifact.is_file()
+    assert target_artifact.read_text(encoding="utf-8") == "file"

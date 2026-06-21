@@ -38,12 +38,19 @@ def _remove_path(path: Path) -> None:
     path.unlink()
 
 
+def _exists_or_symlink(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
 def _file_is_current(source_path: Path, target_path: Path) -> bool:
     if not target_path.is_file():
         return False
 
-    source_stat = source_path.stat()
-    target_stat = target_path.stat()
+    try:
+        source_stat = source_path.stat()
+        target_stat = target_path.stat()
+    except OSError:
+        return False
     return (
         source_stat.st_size == target_stat.st_size
         and source_stat.st_mtime_ns == target_stat.st_mtime_ns
@@ -63,7 +70,7 @@ def _sync_tree_incremental(
                 resolved_source.relative_to(allowed_root)
             except ValueError:
                 continue
-            if target_path.exists() and not target_path.is_dir():
+            if _exists_or_symlink(target_path) and not target_path.is_dir():
                 _remove_path(target_path)
             _sync_tree_incremental(
                 resolved_source, target_path, allowed_root=allowed_root
@@ -71,14 +78,16 @@ def _sync_tree_incremental(
             continue
 
         if source_path.is_dir():
-            if target_path.exists() and not target_path.is_dir():
+            if _exists_or_symlink(target_path) and not target_path.is_dir():
                 _remove_path(target_path)
             target_path.mkdir(parents=True, exist_ok=True)
             continue
 
+        if source_path.is_symlink() and not source_path.exists():
+            continue
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        if target_path.exists() and target_path.is_dir():
-            shutil.rmtree(target_path)
+        if _exists_or_symlink(target_path) and not target_path.is_file():
+            _remove_path(target_path)
         if not _file_is_current(source_path, target_path):
             shutil.copy2(source_path, target_path)
 
@@ -87,10 +96,10 @@ def _sync_tree_incremental(
         key=lambda path: len(path.parts),
         reverse=True,
     ):
-        if not target_path.exists():
+        if not _exists_or_symlink(target_path):
             continue
         source_path = source_dir / target_path.relative_to(target_dir)
-        if not source_path.exists():
+        if not _exists_or_symlink(source_path):
             _remove_path(target_path)
 
 
