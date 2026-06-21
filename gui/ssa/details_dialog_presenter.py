@@ -393,7 +393,8 @@ class DetailsDialogPresenter:
     def _handle_anchor(self, widgets, url) -> None:
         try:
             href = url.toString()
-        except Exception:
+        except Exception as exc:
+            self.callbacks.logger.warning("Failed to parse details dialog anchor: %s", exc)
             return
         if not href:
             return

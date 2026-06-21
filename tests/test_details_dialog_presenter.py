@@ -16,9 +16,13 @@ from gui.ssa.details_dialog_presenter import (
 class _Logger:
     def __init__(self) -> None:
         self.debug_messages: list[str] = []
+        self.warning_messages: list[str] = []
 
     def debug(self, message: str, *args) -> None:
         self.debug_messages.append(message % args if args else message)
+
+    def warning(self, message: str, *args) -> None:
+        self.warning_messages.append(message % args if args else message)
 
 
 def _callbacks(logger: _Logger) -> DetailsDialogCallbacks:
@@ -126,3 +130,24 @@ def test_render_graph_pixmap_failure_clears_stale_label_state(
     assert graph_label.cleared is True
     assert graph_label.svg_markup == ""
     assert graph_label.hitboxes == []
+
+
+class _BrokenUrl:
+    def toString(self):
+        raise RuntimeError("bad url")
+
+
+def test_handle_anchor_logs_invalid_url() -> None:
+    logger = _Logger()
+    presenter = DetailsDialogPresenter(
+        window=SimpleNamespace(),
+        target="1",
+        series=pd.Series({"numero_ssa": "1"}),
+        callbacks=_callbacks(logger),
+    )
+
+    presenter._handle_anchor(SimpleNamespace(), _BrokenUrl())
+
+    assert logger.warning_messages == [
+        "Failed to parse details dialog anchor: bad url"
+    ]
