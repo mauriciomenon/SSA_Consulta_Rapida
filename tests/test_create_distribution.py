@@ -204,8 +204,11 @@ def test_main_returns_zero_when_zip_succeeds_and_installer_is_skipped(
         )
         == 0
     )
-    assert f"ZIPs salvos em: {package_dir}" in caplog.text
-    assert f"Pacotes salvos em: {dist_output}" not in caplog.text
+    log_messages = [record.getMessage() for record in caplog.records]
+    assert any(message == f"ZIPs salvos em: {package_dir}" for message in log_messages)
+    assert all(
+        message != f"Pacotes salvos em: {dist_output}" for message in log_messages
+    )
 
 
 def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> None:
