@@ -1,0 +1,21 @@
+scripts/sync_pyinstaller_outputs.py
+  s_f4b4983ce9a832::t_dcdcaabed82eb2 117-122
+tests/test_sync_pyinstaller_outputs.py
+  s_f4b4983ce9a832::t_4177a814d5331b 182-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ab310790c903b1d58da395a57636416bb0e1b840",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
