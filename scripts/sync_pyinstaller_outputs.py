@@ -43,6 +43,14 @@ def _exists_or_symlink(path: Path) -> bool:
 
 
 def _file_is_current(source_path: Path, target_path: Path) -> bool:
+    if source_path.is_symlink() or target_path.is_symlink():
+        if not (source_path.is_symlink() and target_path.is_symlink()):
+            return False
+        try:
+            return source_path.readlink() == target_path.readlink()
+        except OSError:
+            return False
+
     if not target_path.is_file():
         return False
 
@@ -86,6 +94,12 @@ def _sync_tree_incremental(
         if source_path.is_symlink() and not source_path.exists():
             continue
         target_path.parent.mkdir(parents=True, exist_ok=True)
+        if source_path.is_symlink():
+            if not _file_is_current(source_path, target_path):
+                if _exists_or_symlink(target_path):
+                    _remove_path(target_path)
+                target_path.symlink_to(source_path.readlink())
+            continue
         if _exists_or_symlink(target_path) and not target_path.is_file():
             _remove_path(target_path)
         if not _file_is_current(source_path, target_path):
