@@ -362,12 +362,24 @@ class DetailsDialogPresenter:
 
     def _forget_dialog(self, dialog) -> None:
         open_dialogs = getattr(self.window, "_open_details_dialogs", None)
-        if not isinstance(open_dialogs, list):
-            return
+        if isinstance(open_dialogs, list):
+            try:
+                open_dialogs.remove(dialog)
+            except ValueError:
+                self.callbacks.logger.debug("Details dialog was already forgotten")
         try:
-            open_dialogs.remove(dialog)
-        except ValueError:
-            return
+            if getattr(dialog, "_ssa_details_dialog_presenter", None) is self:
+                delattr(dialog, "_ssa_details_dialog_presenter")
+        except (AttributeError, RuntimeError):
+            self.callbacks.logger.debug("Details dialog back-reference was unavailable")
+        try:
+            widgets_dialog = getattr(self._widgets, "dialog", None)
+        except RuntimeError:
+            widgets_dialog = dialog
+        if widgets_dialog is dialog:
+            self._widgets = None
+            self._last_graph_render_key = None
+            self._render_cache.clear()
 
     def _handle_anchor(self, widgets, url) -> None:
         try:
