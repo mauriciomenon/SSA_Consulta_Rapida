@@ -75,6 +75,58 @@ def test_snapshot_search_text_logs_deleted_widget_runtime_error(caplog):
     assert "wrapped C/C++ object has been deleted" in caplog.text
 
 
+def test_refresh_derivadas_theme_continues_after_context_and_dead_dialog(
+    monkeypatch, caplog
+):
+    class _Window:
+        pass
+
+    class _DeadDialog:
+        def __getattribute__(self, name):
+            if name == "_ssa_details_dialog_presenter":
+                raise RuntimeError("wrapped C/C++ object has been deleted")
+            return super().__getattribute__(name)
+
+    class _Presenter:
+        def __init__(self):
+            self.refreshed = False
+
+        def refresh_after_theme(self):
+            self.refreshed = True
+
+    class _Dialog:
+        pass
+
+    window = _Window()
+    window._details_current_series_for_derivadas = pd.Series({"numero_ssa": "1"})
+    window._details_current_derivadas_font_family = "monospace"
+    window._details_context_state = {
+        "current_ssa": "1",
+        "entries": [{"ssa": "1", "series": pd.Series({"numero_ssa": "1"})}],
+    }
+    live_presenter = _Presenter()
+    live_dialog = _Dialog()
+    live_dialog._ssa_details_dialog_presenter = live_presenter
+    window._open_details_dialogs = [_DeadDialog(), live_dialog]
+
+    monkeypatch.setattr(
+        ssa_gui_details,
+        "_update_main_details_derivadas_panel",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        ssa_gui_details,
+        "_render_derivadas_context_entry",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    with caplog.at_level("WARNING"):
+        ssa_gui_details.refresh_derivadas_views_after_theme(window)
+
+    assert live_presenter.refreshed is True
+    assert "Failed to refresh derivadas context entry after theme" in caplog.text
+
+
 class _RetiredWorkerGlobalsSnapshot(TypedDict):
     data_loader_workers: list[Any]
     data_loader_meta: dict[Any, Any]

@@ -1444,20 +1444,26 @@ def refresh_derivadas_views_after_theme(window) -> None:
         if current_ssa:
             entry_index = _get_derivadas_context_entry_index(context_state, current_ssa)
             if entry_index >= 0:
-                _render_derivadas_context_entry(window, context_state, entry_index)
+                try:
+                    _render_derivadas_context_entry(window, context_state, entry_index)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to refresh derivadas context entry after theme: %s",
+                        exc,
+                    )
     open_dialogs = getattr(window, "_open_details_dialogs", None)
     if not isinstance(open_dialogs, list):
         return
     for dialog in list(open_dialogs):
-        presenter = getattr(dialog, "_ssa_details_dialog_presenter", None)
-        refresher = getattr(presenter, "refresh_after_theme", None)
-        if callable(refresher):
-            try:
+        try:
+            presenter = getattr(dialog, "_ssa_details_dialog_presenter", None)
+            refresher = getattr(presenter, "refresh_after_theme", None)
+            if callable(refresher):
                 refresher()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao atualizar dialogo de derivadas apos tema: %s", exc
-                )
+        except RuntimeError as exc:
+            logger.debug("Derivadas details dialog is no longer accessible: %s", exc)
+        except Exception as exc:
+            logger.warning("Failed to refresh derivadas details dialog after theme: %s", exc)
 
 
 def _get_derivadas_for_ssa(window, numero_ssa):
