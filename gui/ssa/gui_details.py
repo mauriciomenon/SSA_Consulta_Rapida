@@ -1436,6 +1436,30 @@ def refresh_main_details_derivadas_panel(window) -> None:
     )
 
 
+def refresh_derivadas_views_after_theme(window) -> None:
+    refresh_main_details_derivadas_panel(window)
+    context_state = getattr(window, "_details_context_state", None)
+    if isinstance(context_state, dict):
+        current_ssa = str(context_state.get("current_ssa") or "")
+        if current_ssa:
+            entry_index = _get_derivadas_context_entry_index(context_state, current_ssa)
+            if entry_index >= 0:
+                _render_derivadas_context_entry(window, context_state, entry_index)
+    open_dialogs = getattr(window, "_open_details_dialogs", None)
+    if not isinstance(open_dialogs, list):
+        return
+    for dialog in list(open_dialogs):
+        presenter = getattr(dialog, "_ssa_details_dialog_presenter", None)
+        refresher = getattr(presenter, "refresh_after_theme", None)
+        if callable(refresher):
+            try:
+                refresher()
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao atualizar dialogo de derivadas apos tema: %s", exc
+                )
+
+
 def _get_derivadas_for_ssa(window, numero_ssa):
     if window.df_completo is None or window.df_completo.empty:
         return []

@@ -68,6 +68,7 @@ class DetailsDialogPresenter:
         self._svg_render_deps = None
         self._render_cache: dict[str, DetailsDialogRenderPayload] = {}
         self._last_graph_render_key: tuple[str, int, int] | None = None
+        self._widgets: Any | None = None
 
     def open(self) -> None:
         try:
@@ -89,6 +90,8 @@ class DetailsDialogPresenter:
         widgets = build_details_dialog_widgets(
             self.window, self.target, svg_render_deps=self._svg_render_deps
         )
+        self._widgets = widgets
+        setattr(widgets.dialog, "_ssa_details_dialog_presenter", self)
         self._style = self.callbacks.resolve_style(self.window, QPalette)
         export_controller = DetailsGraphExportController(
             dialog=widgets.dialog,
@@ -317,6 +320,12 @@ class DetailsDialogPresenter:
         )
         if rendered:
             self._last_graph_render_key = key
+            set_svg_markup = getattr(widgets.tree_graph_label, "set_graph_svg_markup", None)
+            if callable(set_svg_markup):
+                set_svg_markup(graph_svg)
+            refresh_hitboxes = getattr(widgets.tree_graph_label, "_refresh_hitboxes_from_svg", None)
+            if callable(refresh_hitboxes):
+                refresh_hitboxes()
         else:
             self._last_graph_render_key = None
         return rendered
@@ -324,6 +333,19 @@ class DetailsDialogPresenter:
     def _refresh_graph_after_resize(self, widgets, svg_render_deps) -> None:
         if self.export_state["svg"]:
             self._render_graph_pixmap(widgets, svg_render_deps)
+
+    def refresh_after_theme(self) -> None:
+        if self._widgets is None:
+            return
+        self._style = self.callbacks.resolve_style(self.window, self._palette_cls())
+        self._render_cache.clear()
+        self._last_graph_render_key = None
+        self._render_target(
+            widgets=self._widgets,
+            style=self._style,
+            svg_render_deps=self._svg_render_deps,
+            ssa_target=self.current_target["ssa"],
+        )
 
     def _show_dialog(self, dialog) -> None:
         qt_cls = self._qt_cls()
