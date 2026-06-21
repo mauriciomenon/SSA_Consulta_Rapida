@@ -429,6 +429,8 @@ class DetailsDialogPresenter:
                 ssa_target=self.target,
                 resolved_series=self.series,
             )
+            return
+        self.callbacks.logger.warning("Unknown details dialog anchor action: %s", action)
 
     @staticmethod
     def _palette_cls():

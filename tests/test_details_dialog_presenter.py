@@ -151,3 +151,32 @@ def test_handle_anchor_logs_invalid_url() -> None:
     assert logger.warning_messages == [
         "Failed to parse details dialog anchor: bad url"
     ]
+
+
+class _Url:
+    def __init__(self, href: str) -> None:
+        self.href = href
+
+    def toString(self) -> str:
+        return self.href
+
+
+def test_handle_anchor_logs_unknown_action(monkeypatch: pytest.MonkeyPatch) -> None:
+    logger = _Logger()
+    presenter = DetailsDialogPresenter(
+        window=SimpleNamespace(),
+        target="1",
+        series=pd.Series({"numero_ssa": "1"}),
+        callbacks=_callbacks(logger),
+    )
+    monkeypatch.setattr(
+        presenter_module,
+        "resolve_details_anchor",
+        lambda _href: ("unexpected", "2"),
+    )
+
+    presenter._handle_anchor(SimpleNamespace(), _Url("ssa:2"))
+
+    assert logger.warning_messages == [
+        "Unknown details dialog anchor action: unexpected"
+    ]
