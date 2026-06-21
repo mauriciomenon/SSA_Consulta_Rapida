@@ -444,6 +444,9 @@ def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
     (config_dir / "local.db").write_text("db", encoding="utf-8")
     (config_dir / "entrada.xlsx").write_text("xlsx", encoding="utf-8")
     (config_dir / "entrada.xls").write_text("xls", encoding="utf-8")
+    nested_config_dir = config_dir / "vendor" / "lib" / "config"
+    nested_config_dir.mkdir(parents=True)
+    (nested_config_dir / "__init__.py").write_text("# package", encoding="utf-8")
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
@@ -466,7 +469,12 @@ def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
     with zipfile.ZipFile(result, "r") as zf:
         names = zf.namelist()
         assert any(name.endswith("config/keep.txt") for name in names)
-        assert not any(name.endswith("config/__init__.py") for name in names)
+        assert not any(
+            name.endswith("SSA_Consulta_Rapida/config/__init__.py") for name in names
+        )
+        assert any(
+            name.endswith("vendor/lib/config/__init__.py") for name in names
+        )
         assert not any(".bak" in name for name in names)
         assert not any(".backup" in name for name in names)
         assert not any(name.endswith("config/local.db") for name in names)

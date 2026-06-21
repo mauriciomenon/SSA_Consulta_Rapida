@@ -367,7 +367,7 @@ def _resolve_build_directory_failure_reason(build_system: str) -> str:
 def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
     """Copia build para distribuicao, removendo dados locais sensiveis."""
     for item in source_dir.iterdir():
-        if _should_skip_bundle_path(item):
+        if _should_skip_bundle_path(item, bundle_root=source_dir):
             continue
         destination = target_dir / item.name
         if item.is_file():
@@ -377,7 +377,9 @@ def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
                 item,
                 destination,
                 dirs_exist_ok=True,
-                ignore=_build_bundle_ignore,
+                ignore=lambda src, names: _build_bundle_ignore(
+                    source_dir, src, names
+                ),
             )
 
 
@@ -394,20 +396,22 @@ def _should_skip_bundle_entry(name: str, is_file: bool) -> bool:
     return False
 
 
-def _should_skip_bundle_path(candidate: Path) -> bool:
+def _should_skip_bundle_path(candidate: Path, *, bundle_root: Path | None = None) -> bool:
     if _should_skip_bundle_entry(candidate.name, candidate.is_file()):
         return True
     if candidate.is_file() and candidate.name == "__init__.py":
-        return candidate.parent.name == "config"
+        if bundle_root is None:
+            return candidate.parent.name == "config"
+        return candidate.parent.name == "config" and candidate.parent.parent == bundle_root
     return False
 
 
-def _build_bundle_ignore(_src: str, names: list[str]) -> set[str]:
+def _build_bundle_ignore(bundle_root: Path, _src: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
     src_path = Path(_src)
     for name in names:
         candidate = src_path / name
-        if _should_skip_bundle_path(candidate):
+        if _should_skip_bundle_path(candidate, bundle_root=bundle_root):
             ignored.add(name)
     return ignored
 
@@ -788,7 +792,9 @@ def _copy_runtime_bundle(
                     internal_src,
                     package_dir / internal_dir_name,
                     dirs_exist_ok=True,
-                    ignore=_build_bundle_ignore,
+                    ignore=lambda src, names: _build_bundle_ignore(
+                        internal_src, src, names
+                    ),
                 )
 
     config_src = build_dir / "config"
@@ -797,7 +803,9 @@ def _copy_runtime_bundle(
             config_src,
             package_dir / "config",
             dirs_exist_ok=True,
-            ignore=_build_bundle_ignore,
+            ignore=lambda src, names: _build_bundle_ignore(
+                config_src.parent, src, names
+            ),
         )
     else:
         config_src = PROJECT_ROOT / "config"
@@ -806,7 +814,9 @@ def _copy_runtime_bundle(
                 config_src,
                 package_dir / "config",
                 dirs_exist_ok=True,
-                ignore=_build_bundle_ignore,
+                ignore=lambda src, names: _build_bundle_ignore(
+                    config_src.parent, src, names
+                ),
             )
 
     return True
