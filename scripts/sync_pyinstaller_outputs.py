@@ -114,7 +114,12 @@ def _sync_tree_incremental(
             continue
         source_path = source_dir / target_path.relative_to(target_dir)
         if not _exists_or_symlink(source_path):
-            _remove_path(target_path)
+            try:
+                _remove_path(target_path)
+            except OSError as exc:
+                raise RuntimeError(
+                    f"Falha ao remover artefato obsoleto: {target_path}"
+                ) from exc
 
 
 def _sync_platform(repo_root: Path, platform: str, verbose: bool) -> bool:

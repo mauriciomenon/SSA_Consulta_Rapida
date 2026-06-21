@@ -179,6 +179,32 @@ def test_sync_platform_removes_stale_broken_target_symlink(tmp_path: Path) -> No
     assert not broken_link.exists()
 
 
+def test_sync_platform_reports_stale_removal_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "sync_pyinstaller_outputs_remove_failure",
+        root / "scripts" / "sync_pyinstaller_outputs.py",
+    )
+    source_dir = tmp_path / "launchers" / "dist" / "windows_amd64"
+    target_dir = tmp_path / "builds" / "pyinstaller" / "windows_amd64"
+    source_dir.mkdir(parents=True)
+    target_dir.mkdir(parents=True)
+    stale_file = target_dir / "stale.txt"
+    stale_file.write_text("stale", encoding="utf-8")
+
+    def fail_remove(path: Path) -> None:
+        if path == stale_file:
+            raise PermissionError("locked")
+        path.unlink()
+
+    monkeypatch.setattr(module, "_remove_path", fail_remove)
+
+    with pytest.raises(RuntimeError, match="Falha ao remover artefato obsoleto"):
+        module._sync_platform(tmp_path, "windows_amd64", verbose=False)
+
+
 def test_sync_platform_replaces_target_directory_with_source_file(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     module = _load_module(
