@@ -76,7 +76,7 @@ def _sync_directory_symlink(source_path: Path, target_path: Path, allowed_root: 
     _sync_tree_incremental(resolved_source, target_path, allowed_root=allowed_root)
 
 
-def _sync_directory(source_path: Path, target_path: Path) -> None:
+def _sync_directory(target_path: Path) -> None:
     if _exists_or_symlink(target_path) and not target_path.is_dir():
         _remove_path(target_path)
     target_path.mkdir(parents=True, exist_ok=True)
@@ -131,7 +131,7 @@ def _sync_tree_incremental(
             continue
 
         if source_path.is_dir():
-            _sync_directory(source_path, target_path)
+            _sync_directory(target_path)
             continue
 
         if source_path.is_symlink():

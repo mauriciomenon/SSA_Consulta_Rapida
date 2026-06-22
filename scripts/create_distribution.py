@@ -1468,6 +1468,7 @@ def _log_distribution_report(
 
 
 def main() -> int:
+    """Create requested distribution artifacts and return a process exit code."""
     args = _parse_distribution_args()
     if not args.skip_installer:
         DIST_OUTPUT.mkdir(exist_ok=True)
