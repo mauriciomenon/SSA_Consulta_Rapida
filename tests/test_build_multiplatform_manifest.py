@@ -81,8 +81,11 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
 
     def fake_run(cmd, cwd, require_success):  # noqa: ANN001
         _ = cwd, require_success
-        called_cmds.add(tuple(str(item) for item in cmd))
-        return outputs.get(tuple(str(item) for item in cmd), "")
+        command = tuple(str(item) for item in cmd)
+        called_cmds.add(command)
+        if command not in outputs:
+            raise AssertionError(f"Unexpected command: {command}")
+        return outputs[command]
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
 
@@ -106,8 +109,18 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
 
     def fake_run(cmd, cwd, require_success):  # noqa: ANN001
         _ = cwd, require_success
-        called_cmds.add(tuple(str(item) for item in cmd))
-        return outputs.get(tuple(str(item) for item in cmd), "")
+        command = tuple(str(item) for item in cmd)
+        called_cmds.add(command)
+        if command in {
+            ("cc", "--version"),
+            ("gcc", "--version"),
+            ("clang", "--version"),
+            ("cl",),
+        }:
+            return ""
+        if command not in outputs:
+            raise AssertionError(f"Unexpected command: {command}")
+        return outputs[command]
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
     monkeypatch.setenv("VCToolsVersion", "14.44.35207")
