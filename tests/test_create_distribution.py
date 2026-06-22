@@ -71,6 +71,51 @@ def test_create_zip_package_returns_none_when_exe_missing(
     assert "Executavel primario ausente no diretorio" in caplog.text
 
 
+def test_create_zip_package_logs_temp_cleanup_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog,
+) -> None:
+    project_root = tmp_path / "project"
+    build_dir = project_root / "builds" / "fake" / "windows_amd64"
+    build_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake/windows_amd64",
+                "internal_dir": None,
+            }
+        },
+    )
+    monkeypatch.setattr(
+        create_distribution, "_prepare_package_staging", lambda *_, **__: False
+    )
+
+    def fail_rmtree(path):
+        assert Path(path).name.startswith("temp_fake_")
+        raise PermissionError("locked")
+
+    monkeypatch.setattr(create_distribution.shutil, "rmtree", fail_rmtree)
+
+    with pytest.raises(PermissionError, match="locked"):
+        create_distribution.create_zip_package("fake", "1.0.0")
+
+    assert any(
+        "Falha ao remover diretorio temporario do pacote" in record.getMessage()
+        for record in caplog.records
+    )
+
+
 def test_main_returns_nonzero_when_expected_zip_is_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

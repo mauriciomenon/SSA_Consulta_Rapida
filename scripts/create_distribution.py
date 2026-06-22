@@ -942,7 +942,15 @@ def create_zip_package(
             include_local_db,
         ):
             if temp_dir.exists():
-                shutil.rmtree(temp_dir)
+                try:
+                    shutil.rmtree(temp_dir)
+                except OSError as exc:
+                    logger.error(
+                        "Falha ao remover diretorio temporario do pacote: %s: %s",
+                        temp_dir,
+                        exc,
+                    )
+                    raise
             return None
 
         # Criar ZIP
@@ -954,7 +962,15 @@ def create_zip_package(
         _create_package_zip(package_dir, package_name, zip_path)
 
         # Limpar diretorio temporario
-        shutil.rmtree(temp_dir)
+        try:
+            shutil.rmtree(temp_dir)
+        except OSError as exc:
+            logger.error(
+                "Falha ao remover diretorio temporario do pacote: %s: %s",
+                temp_dir,
+                exc,
+            )
+            raise
 
         file_size = zip_path.stat().st_size / (1024 * 1024)  # MB
         logger.info(f"  ZIP criado: {zip_path.name} ({file_size:.1f} MB)")
