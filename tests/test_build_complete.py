@@ -79,7 +79,7 @@ def test_build_complete_rejects_auto_git_with_cleanup_only(monkeypatch):
     assert calls == []
 
 
-def test_build_complete_fails_when_builder_return_is_none(monkeypatch):
+def test_build_complete_fails_when_builder_return_is_none(monkeypatch, caplog):
     calls = []
 
     def fake_execute_builder_script(args):
@@ -95,6 +95,10 @@ def test_build_complete_fails_when_builder_return_is_none(monkeypatch):
 
     assert build_complete.main() == 1
     assert calls == [["--apps", "cli", "gui", "--auto-cleanup"]]
+    assert any(
+        record.getMessage() == "ERR Build wrapper recebeu exit code ausente"
+        for record in caplog.records
+    )
 
 
 def test_build_complete_auto_git_requires_explicit_flag(monkeypatch):
