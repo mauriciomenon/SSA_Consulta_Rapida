@@ -1,0 +1,34 @@
+.github/workflows/dependency-review.yml
+  s_f4b4983ce9a832::t_6466f80d9599f5 81
+  s_f4b4983ce9a832::t_9c8e50cb0a6570 37,41,45,62-63
+requirements.txt
+  s_f4b4983ce9a832::t_475dd0af213444 13
+tests/test_sync_pyinstaller_outputs.py
+  s_f4b4983ce9a832::t_40c8b408631af1 135-163
+launchers/platforms/windows_amd64/requirements.txt
+  s_f4b4983ce9a832::t_475dd0af213444 7
+scripts/sync_pyinstaller_outputs.py
+  s_f4b4983ce9a832::t_0da002b1e6dec6 85-92,98,144
+launchers/platforms/macos_arm64/requirements.txt
+  s_f4b4983ce9a832::t_475dd0af213444 7
+launchers/platforms/debian_amd64/requirements.txt
+  s_f4b4983ce9a832::t_475dd0af213444 7
+launchers/platforms/debian_arm64/requirements.txt
+  s_f4b4983ce9a832::t_475dd0af213444 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ae36e281fa92432b292cf754368e9249a1b9f35b",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
