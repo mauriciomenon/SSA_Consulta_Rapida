@@ -1,0 +1,21 @@
+scripts/create_distribution.py
+  s_f4b4983ce9a832::t_fee555a2c5e8a8 1471
+scripts/sync_pyinstaller_outputs.py
+  s_f4b4983ce9a832::t_b8efdaef93e9a7 79,134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "427c1e859fbc3be9d275db9c91c784a2628e166d",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
