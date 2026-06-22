@@ -80,6 +80,8 @@ def main():
         parser.error("--git-message requer --auto-git")
     if args.git_message is not None and not git_message:
         parser.error("--git-message nao pode ser vazio")
+    if args.cleanup_only and args.auto_git:
+        parser.error("--auto-git nao pode ser usado com --cleanup-only")
     args.git_message = git_message
 
     try:
