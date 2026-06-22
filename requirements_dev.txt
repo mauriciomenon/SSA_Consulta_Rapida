@@ -9,7 +9,7 @@ mypy>=2.1.0
 pytest-cov>=7.1.0
 pre-commit>=4.6.0
 ruff>=0.15.15
-ty>=0.0.42  # type checking tooling; kept for uv dev flow
+ty>=0.0.51  # type checking tooling; kept for uv dev flow
 pillow>=12.2.0  # icon regression tests
 codeflash>=0.20.6
 
