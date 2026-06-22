@@ -82,14 +82,20 @@ def _sync_directory(target_path: Path) -> None:
     target_path.mkdir(parents=True, exist_ok=True)
 
 
-def _sync_symlink(source_path: Path, target_path: Path) -> None:
-    if not source_path.exists():
+def _sync_symlink(source_path: Path, target_path: Path, allowed_root: Path) -> None:
+    try:
+        link_target = source_path.readlink()
+        resolved_target = (source_path.parent / link_target).resolve(strict=True)
+        resolved_target.relative_to(allowed_root)
+    except (OSError, ValueError):
+        if _exists_or_symlink(target_path):
+            _remove_path(target_path)
         return
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if not _file_is_current(source_path, target_path):
         if _exists_or_symlink(target_path):
             _remove_path(target_path)
-        target_path.symlink_to(source_path.readlink())
+        target_path.symlink_to(link_target)
 
 
 def _sync_regular_file(source_path: Path, target_path: Path) -> None:
@@ -135,7 +141,7 @@ def _sync_tree_incremental(
             continue
 
         if source_path.is_symlink():
-            _sync_symlink(source_path, target_path)
+            _sync_symlink(source_path, target_path, allowed_root)
             continue
 
         _sync_regular_file(source_path, target_path)

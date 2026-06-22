@@ -34,14 +34,15 @@ jobs:
         id: detect
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_API_URL: ${{ github.api_url }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          API_URL="https://api.github.com/repos/${REPO}"
+          API_URL="${GITHUB_API_URL}/repos/${REPO}"
           HTTP_CODE="$(curl -sS --connect-timeout 5 --max-time 10 -o repo.json -w "%{http_code}" \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            "${API_URL}" || true)"
+            "${API_URL}")"
 
           RUN_DEPENDENCY_REVIEW="false"
           REASON="dependency_review_unavailable"
@@ -58,7 +59,8 @@ jobs:
             if [ -z "${HTTP_CODE}" ]; then
               HTTP_CODE="000"
             fi
-            REASON="repo_security_state_unverified_http_${HTTP_CODE}"
+            echo "Dependency Review support probe failed: HTTP ${HTTP_CODE}" >&2
+            exit 1
           fi
 
           echo "run_dependency_review=${RUN_DEPENDENCY_REVIEW}" >> "${GITHUB_OUTPUT}"
@@ -76,7 +78,7 @@ jobs:
         # Commonly enabled options, see https://github.com/actions/dependency-review-action#configuration-options for all available options.
         with:
           comment-summary-in-pr: always
-        #   fail-on-severity: moderate
+          fail-on-severity: moderate
         #   deny-licenses: GPL-1.0-or-later, LGPL-2.0-or-later
         #   retry-on-snapshot-warnings: true
 
