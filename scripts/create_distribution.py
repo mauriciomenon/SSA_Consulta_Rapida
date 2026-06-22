@@ -34,6 +34,12 @@ PYINSTALLER_CANONICAL_DIRS = (
     "launchers/dist/macos_arm64",
     "launchers/dist/debian_amd64",
 )
+PACKAGE_PLATFORMS = (
+    "windows_amd64",
+    "macos_arm64",
+    "debian_amd64",
+    "debian_arm64",
+)
 EXCLUDED_BUNDLE_ITEMS = {
     "data",
     "docs_entrada",
@@ -48,6 +54,10 @@ SENSITIVE_LOCAL_EXTENSIONS: set[str] = {
     ".xls",
     ".xlsx",
 }
+SENSITIVE_LOCAL_NAME_FRAGMENTS = (
+    ".bak",
+    ".backup",
+)
 SAMPLE_DB_ASSET_DIR = Path("dist_assets") / "sample_db"
 SAMPLE_DB_ASSET_NAME = "ssas_example.db"
 SAMPLE_DB_ASSET_README_NAME = "LEIA-ME.txt"
@@ -357,18 +367,29 @@ def _resolve_build_directory_failure_reason(build_system: str) -> str:
 def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
     """Copia build para distribuicao, removendo dados locais sensiveis."""
     for item in source_dir.iterdir():
-        if _should_skip_bundle_entry(item.name, item.is_file()):
+        if _should_skip_bundle_path(item, bundle_root=source_dir):
             continue
         destination = target_dir / item.name
-        if item.is_file():
-            shutil.copy2(item, destination)
-        elif item.is_dir():
-            shutil.copytree(
+        try:
+            if item.is_file():
+                shutil.copy2(item, destination)
+            elif item.is_dir():
+                shutil.copytree(
+                    item,
+                    destination,
+                    dirs_exist_ok=True,
+                    ignore=lambda src, names: _build_bundle_ignore(
+                        source_dir, src, names
+                    ),
+                )
+        except OSError as exc:
+            logger.error(
+                "Falha ao copiar item do build para pacote: %s -> %s: %s",
                 item,
                 destination,
-                dirs_exist_ok=True,
-                ignore=_build_bundle_ignore,
+                exc,
             )
+            raise
 
 
 def _should_skip_bundle_entry(name: str, is_file: bool) -> bool:
@@ -376,19 +397,48 @@ def _should_skip_bundle_entry(name: str, is_file: bool) -> bool:
         return True
     if name in EXCLUDED_BUNDLE_ITEMS:
         return True
+    lowered_name = name.lower()
+    if any(fragment in lowered_name for fragment in SENSITIVE_LOCAL_NAME_FRAGMENTS):
+        return True
     if is_file and Path(name).suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS:
         return True
     return False
 
 
-def _build_bundle_ignore(_src: str, names: list[str]) -> set[str]:
+def _should_skip_bundle_path(candidate: Path, *, bundle_root: Path | None = None) -> bool:
+    if _should_skip_bundle_entry(candidate.name, candidate.is_file()):
+        return True
+    if candidate.is_file() and candidate.name == "__init__.py":
+        if bundle_root is None:
+            return candidate.parent.name == "config"
+        return candidate.parent.name == "config" and candidate.parent.parent == bundle_root
+    return False
+
+
+def _build_bundle_ignore(bundle_root: Path, _src: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
     src_path = Path(_src)
     for name in names:
         candidate = src_path / name
-        if _should_skip_bundle_entry(name, candidate.is_file()):
+        if _should_skip_bundle_path(candidate, bundle_root=bundle_root):
             ignored.add(name)
     return ignored
+
+
+def _infer_platform_from_path(build_dir: Path) -> Optional[str]:
+    parts = build_dir.resolve(strict=False).parts
+    for platform in PACKAGE_PLATFORMS:
+        if platform in parts:
+            return platform
+    return None
+
+
+def _package_output_dir(build_dir: Path) -> Optional[Path]:
+    platform = _infer_platform_from_path(build_dir)
+    if platform is None:
+        logger.error("Nao foi possivel inferir plataforma do build: %s", build_dir)
+        return None
+    return PROJECT_ROOT / "builds" / "packages" / platform
 
 
 def _resolve_sample_db_assets() -> Optional[tuple[Path, Path]]:
@@ -570,7 +620,7 @@ def get_version() -> str:
 
 def create_user_structure(target_dir: Path):
     """Cria estrutura de diretorios para usuario final."""
-    logger.info(f"Criando estrutura de diretorios em {target_dir}")
+    logger.info("Criando estrutura de diretorios em %s", target_dir)
 
     for dir_name in USER_DIRS:
         dir_path = target_dir / dir_name
@@ -581,7 +631,7 @@ def create_user_structure(target_dir: Path):
         if not gitkeep.exists():
             gitkeep.touch()
 
-    logger.info(f"Criados {len(USER_DIRS)} diretorios")
+    logger.info("Criados %s diretorios", len(USER_DIRS))
 
 
 def copy_documentation(target_dir: Path):
@@ -600,7 +650,7 @@ def copy_documentation(target_dir: Path):
                 dest = docs_dir / src.name
 
             shutil.copy2(src, dest)
-            logger.info(f"  Copiado: {src.name}")
+            logger.info("  Copiado: %s", src.name)
 
 
 def create_readme_usuario(
@@ -751,7 +801,9 @@ def _copy_runtime_bundle(
                     internal_src,
                     package_dir / internal_dir_name,
                     dirs_exist_ok=True,
-                    ignore=_build_bundle_ignore,
+                    ignore=lambda src, names: _build_bundle_ignore(
+                        internal_src, src, names
+                    ),
                 )
 
     config_src = build_dir / "config"
@@ -760,7 +812,9 @@ def _copy_runtime_bundle(
             config_src,
             package_dir / "config",
             dirs_exist_ok=True,
-            ignore=_build_bundle_ignore,
+            ignore=lambda src, names: _build_bundle_ignore(
+                config_src.parent, src, names
+            ),
         )
     else:
         config_src = PROJECT_ROOT / "config"
@@ -769,7 +823,9 @@ def _copy_runtime_bundle(
                 config_src,
                 package_dir / "config",
                 dirs_exist_ok=True,
-                ignore=_build_bundle_ignore,
+                ignore=lambda src, names: _build_bundle_ignore(
+                    config_src.parent, src, names
+                ),
             )
 
     return True
@@ -849,7 +905,7 @@ def create_zip_package(
     build_info: dict[str, object] = dict(BUILD_SYSTEMS[build_system])
     build_name_value = build_info.get("name")
     build_name = build_name_value if isinstance(build_name_value, str) else build_system
-    logger.info(f"Criando pacote ZIP para {build_name}")
+    logger.info("Criando pacote ZIP para %s", build_name)
 
     build_dir = _resolve_build_directory(build_system)
     if build_dir is None:
@@ -860,9 +916,14 @@ def create_zip_package(
         )
         return None
 
+    package_output_dir = _package_output_dir(build_dir)
+    if package_output_dir is None:
+        return None
+    package_output_dir.mkdir(parents=True, exist_ok=True)
+
     # Criar diretorio temporario para montagem
     timestamp = format_current_timestamp("%Y%m%d_%H%M%S")
-    temp_dir = DIST_OUTPUT / f"temp_{build_system}_{timestamp}"
+    temp_dir = package_output_dir / f"temp_{build_system}_{timestamp}"
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     package_name = f"SSA_Consulta_Rapida_v{version}_{build_system}"
@@ -881,27 +942,43 @@ def create_zip_package(
             include_local_db,
         ):
             if temp_dir.exists():
-                shutil.rmtree(temp_dir)
+                try:
+                    shutil.rmtree(temp_dir)
+                except OSError as exc:
+                    logger.error(
+                        "Falha ao remover diretorio temporario do pacote: %s: %s",
+                        temp_dir,
+                        exc,
+                    )
+                    raise
             return None
 
         # Criar ZIP
         zip_name = f"{package_name}.zip"
-        zip_path = DIST_OUTPUT / zip_name
+        zip_path = package_output_dir / zip_name
 
-        logger.info(f"  Criando arquivo ZIP: {zip_name}")
+        logger.info("  Criando arquivo ZIP: %s", zip_name)
 
         _create_package_zip(package_dir, package_name, zip_path)
 
         # Limpar diretorio temporario
-        shutil.rmtree(temp_dir)
+        try:
+            shutil.rmtree(temp_dir)
+        except OSError as exc:
+            logger.error(
+                "Falha ao remover diretorio temporario do pacote: %s: %s",
+                temp_dir,
+                exc,
+            )
+            raise
 
         file_size = zip_path.stat().st_size / (1024 * 1024)  # MB
-        logger.info(f"  ZIP criado: {zip_path.name} ({file_size:.1f} MB)")
+        logger.info("  ZIP criado: %s (%.1f MB)", zip_path.name, file_size)
 
         return zip_path
 
     except Exception as e:
-        logger.error(f"Erro ao criar ZIP: {e}")
+        logger.error("Erro ao criar ZIP: %s", e)
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
         return None
@@ -915,6 +992,17 @@ def _normalize_windows_path(raw_value: str) -> str:
 def _build_inno_excludes_str() -> str:
     """Monta lista de excludes usada pelo template Inno."""
     inno_excludes = ["*.log", "*.tmp", "__pycache__"]
+    inno_excludes.extend(
+        [
+            "*.bak",
+            "*.bak*",
+            "*.backup",
+            "*.backup*",
+            "*.backup_*",
+            "config\\__init__.py",
+            "*\\config\\__init__.py",
+        ]
+    )
     for item in sorted(EXCLUDED_BUNDLE_ITEMS):
         inno_excludes.append(f"{item}\\*")
     return ",".join(inno_excludes)
@@ -1074,7 +1162,7 @@ def create_inno_setup_script(
     include_local_db: Optional[str] = None,
 ) -> Optional[Path]:
     """Cria script Inno Setup para instalador Windows."""
-    logger.info(f"Criando script Inno Setup para {BUILD_SYSTEMS[build_system]['name']}")
+    logger.info("Criando script Inno Setup para %s", BUILD_SYSTEMS[build_system]["name"])
     resolved = _resolve_inno_source(build_system)
     if resolved is None:
         logger.error(
@@ -1137,7 +1225,7 @@ def create_inno_setup_script(
     with open(iss_path, "w", encoding="utf-8") as f:
         f.write(iss_content)
 
-    logger.info(f"  Script ISS criado: {iss_path.name}")
+    logger.info("  Script ISS criado: %s", iss_path.name)
     return iss_path
 
 
@@ -1221,14 +1309,14 @@ def _run_iscc_compile(iscc_path: str, iss_path: Path) -> str:
             logger.info("  Instalador compilado com sucesso!")
             return "success"
         else:
-            logger.error(f"Erro ao compilar instalador: {result.stderr}")
+            logger.error("Erro ao compilar instalador: %s", result.stderr)
             return "failed"
 
     except subprocess.TimeoutExpired:
         logger.error("Timeout ao compilar instalador")
         return "failed"
     except Exception as e:
-        logger.error(f"Erro ao executar Inno Setup: {e}")
+        logger.error("Erro ao executar Inno Setup: %s", e)
         return "failed"
 
 
@@ -1247,7 +1335,7 @@ def compile_installer(iss_path: Path) -> str:
     return _run_iscc_compile(iscc_path, iss_path)
 
 
-def main() -> int:
+def _parse_distribution_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Criar pacotes de distribuicao do SSA Consulta Rapida"
     )
@@ -1286,34 +1374,27 @@ def main() -> int:
     )
 
     args = parser.parse_args()
-
-    # Validar argumentos
     if not args.build_system and not args.all:
         parser.error("Especifique --build-system ou --all")
+    return args
 
-    # Criar diretorio de saida
-    DIST_OUTPUT.mkdir(exist_ok=True)
 
-    # Obter versao
-    version = get_version()
-    logger.info(f"Versao: {version}")
-
-    # Determinar build systems para processar
+def _selected_build_systems(args: argparse.Namespace) -> list[str]:
     if args.all:
-        build_systems = list(BUILD_SYSTEMS.keys())
-    else:
-        build_systems = [args.build_system]
+        return list(BUILD_SYSTEMS.keys())
+    return [args.build_system]
 
-    # Processar cada build system
-    results = {}
+
+def _create_distribution_outputs(
+    build_systems: list[str], version: str, args: argparse.Namespace
+) -> dict[str, dict[str, Optional[Path] | str]]:
+    results: dict[str, dict[str, Optional[Path] | str]] = {}
     for bs in build_systems:
-        logger.info(f"\n{'=' * 60}")
-        logger.info(f"Processando: {BUILD_SYSTEMS[bs]['name']}")
-        logger.info(f"{'=' * 60}\n")
+        logger.info("\n%s", "=" * 60)
+        logger.info("Processando: %s", BUILD_SYSTEMS[bs]["name"])
+        logger.info("%s\n", "=" * 60)
 
         results[bs] = {"zip": None, "installer": None}
-
-        # Criar ZIP
         if not args.installer_only:
             zip_path = create_zip_package(
                 bs,
@@ -1323,7 +1404,6 @@ def main() -> int:
             )
             results[bs]["zip"] = zip_path
 
-        # Criar instalador
         if not args.skip_installer:
             iss_path = create_inno_setup_script(
                 bs,
@@ -1335,39 +1415,68 @@ def main() -> int:
                 results[bs]["installer"] = compile_installer(iss_path)
             else:
                 results[bs]["installer"] = "script_failed"
+    return results
 
-    # Relatorio final
-    logger.info(f"\n{'=' * 60}")
+
+def _update_installer_exit_code(installer_status, args: argparse.Namespace) -> int:
+    if installer_status == "success":
+        logger.info("  Instalador: Criado com sucesso")
+        return 0
+    if installer_status == "missing":
+        logger.info("  Instalador: Nao criado (Inno Setup nao disponivel)")
+        return int(args.installer_only)
+    if installer_status == "failed":
+        logger.info("  Instalador: Falha na compilacao")
+        return 1
+    if installer_status == "script_failed":
+        logger.info("  Instalador: Falha na geracao do script")
+        return 1
+    return 0
+
+
+def _log_distribution_report(
+    results: dict[str, dict[str, Optional[Path] | str]], args: argparse.Namespace
+) -> int:
+    logger.info("\n%s", "=" * 60)
     logger.info("RELATORIO FINAL")
-    logger.info(f"{'=' * 60}\n")
+    logger.info("%s\n", "=" * 60)
 
     exit_code = 0
+    zip_output_dirs: set[Path] = set()
     for bs, result in results.items():
-        logger.info(f"{BUILD_SYSTEMS[bs]['name']}:")
+        logger.info("%s:", BUILD_SYSTEMS[bs]["name"])
         if result["zip"]:
-            logger.info(f"  ZIP: {result['zip'].name}")
+            zip_path = result["zip"]
+            if not isinstance(zip_path, Path):
+                raise TypeError(f"Resultado de ZIP invalido para {bs}: {zip_path!r}")
+            logger.info("  ZIP: %s", zip_path.name)
+            zip_output_dirs.add(zip_path.parent)
         elif not args.installer_only:
             logger.info("  ZIP: Nao criado")
             exit_code = 1
-        installer_status = result["installer"]
-        if installer_status == "success":
-            logger.info("  Instalador: Criado com sucesso")
-        elif installer_status == "missing":
-            logger.info("  Instalador: Nao criado (Inno Setup nao disponivel)")
-            if args.installer_only:
-                exit_code = 1
-        elif installer_status == "failed":
-            logger.info("  Instalador: Falha na compilacao")
-            exit_code = 1
-        elif installer_status == "script_failed":
-            logger.info("  Instalador: Falha na geracao do script")
-            exit_code = 1
+        exit_code = max(exit_code, _update_installer_exit_code(result["installer"], args))
         logger.info("")
 
-    logger.info(f"Pacotes salvos em: {DIST_OUTPUT}")
+    if zip_output_dirs:
+        for output_dir in sorted(zip_output_dirs):
+            logger.info("ZIPs salvos em: %s", output_dir)
+    if not args.skip_installer:
+        logger.info("Instaladores/scripts em: %s", DIST_OUTPUT)
     if exit_code:
         logger.error("Distribuicao falhou: artefato esperado nao foi criado.")
     return exit_code
+
+
+def main() -> int:
+    """Create requested distribution artifacts and return a process exit code."""
+    args = _parse_distribution_args()
+    if not args.skip_installer:
+        DIST_OUTPUT.mkdir(exist_ok=True)
+
+    version = get_version()
+    logger.info("Versao: %s", version)
+    results = _create_distribution_outputs(_selected_build_systems(args), version, args)
+    return _log_distribution_report(results, args)
 
 
 if __name__ == "__main__":

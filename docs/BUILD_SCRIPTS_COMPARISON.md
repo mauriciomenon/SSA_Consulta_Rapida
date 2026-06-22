@@ -35,7 +35,7 @@ Arquivos comparados:
 
 ### Integracao com git e CI
 - build_simple.py: sem integracao git automatizada.
-- build_multiplatform.py: pode commitar/pushar artefatos e metadados (`--auto-git`), alem de oferecer limpeza online de arquivos rastreados indevidamente.
+- build_multiplatform.py: oferece `--auto-git` apenas como acao explicita e fora do fluxo padrao; em release, preferir revisao manual dos metadados permitidos antes de commit/push.
 
 ### Limpeza de artefatos
 - build_simple.py: `dist_simple` temporario e removido automaticamente (atexit).
@@ -73,7 +73,7 @@ uv run --python 3.13 launchers/build_multiplatform.py
 
 Passos para CI / release recomendados:
 1. Usar `build_multiplatform.py` em runner correspondente (Windows runner para windows_amd64, macOS runner para macos_arm64, etc.).
-2. Habilitar `--auto-cleanup` e `--auto-git` se quiser que manifests e docs sejam committados automaticamente (cautela: script evita commitar executaveis).
+2. Habilitar `--auto-cleanup` quando fizer sentido e revisar manualmente manifests/docs antes de qualquer commit/push; nao usar git automatico como fluxo padrao de release.
 3. Anexar `build_manifest.json` e executaveis ao GitHub Release (ex.: `gh release upload`).
 
 ## Recomendacoes de consolidacao (opcional)
@@ -89,4 +89,3 @@ Passos para CI / release recomendados:
 Arquivo gerado automaticamente pelo agente em: `docs/BUILD_SCRIPTS_COMPARISON.md`
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

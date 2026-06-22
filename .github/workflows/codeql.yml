@@ -59,6 +59,9 @@ jobs:
               SAFE_STATE="$(printf '%s' "${STATE}" | tr -c 'A-Za-z0-9_-' '_')"
               REASON="advanced_allowed_default_setup_unknown_state_${SAFE_STATE}"
             fi
+          elif [ "${HTTP_CODE}" = "403" ] && grep -q "Code scanning is not enabled" default_setup.json 2>/dev/null; then
+            RUN_ADVANCED="false"
+            REASON="code_scanning_unavailable_http_403"
           else
             if [ -z "${HTTP_CODE}" ]; then
               HTTP_CODE="000"
@@ -122,5 +125,5 @@ jobs:
           CODEQL_SKIP_REASON: ${{ needs.precheck-default-setup.outputs.reason }}
         run: |
           set -euo pipefail
-          echo "CodeQL advanced workflow skipped because default setup is active."
+          echo "CodeQL advanced workflow skipped."
           echo "Reason: ${CODEQL_SKIP_REASON}"

@@ -615,10 +615,36 @@ def _finish_theme_application(
         _refresh_filter_widgets_for_theme(window, normalized)
     _schedule_theme_persistence(window, normalized, gui_prefs, project_root)
     apply_macos_contrast(window, normalized)
+    previous_derivadas_series = getattr(
+        window, "_details_current_series_for_derivadas", None
+    )
+    previous_derivadas_font_family = getattr(
+        window, "_details_current_derivadas_font_family", None
+    )
     try:
         window.update_details_from_selection()
     except Exception as exc:
         logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
+    if previous_derivadas_series is not None:
+        if getattr(window, "_details_current_series_for_derivadas", None) is None:
+            setattr(
+                window,
+                "_details_current_series_for_derivadas",
+                previous_derivadas_series,
+            )
+            setattr(
+                window,
+                "_details_current_derivadas_font_family",
+                previous_derivadas_font_family,
+            )
+        if getattr(window, "_pending_details_series", None) is None:
+            setattr(window, "_pending_details_series", previous_derivadas_series)
+    try:
+        from gui.ssa import gui_details
+
+        gui_details.refresh_derivadas_views_after_theme(window)
+    except Exception as exc:
+        logger.warning("Failed to refresh derivadas graphs after apply_theme: %s", exc)
     try:
         update_filter_tags = getattr(window, "update_filter_tags", None)
         if callable(update_filter_tags):

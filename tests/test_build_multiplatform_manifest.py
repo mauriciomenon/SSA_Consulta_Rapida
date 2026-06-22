@@ -68,9 +68,10 @@ def test_command_stdout_logs_metadata_command_failure(monkeypatch):
 
 def test_build_info_payload_includes_toolchain_versions(monkeypatch):
     builder = MultiPlatformBuilder()
+    called_cmds: set[tuple[str, ...]] = set()
 
     outputs: dict[tuple[str, ...], str] = {
-        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "rev-parse", "HEAD"): "test-commit-id",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
@@ -79,8 +80,12 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
     }
 
     def fake_run(cmd, cwd, require_success):  # noqa: ANN001
-        _ = require_success
-        return outputs.get(tuple(str(item) for item in cmd), "")
+        _ = cwd, require_success
+        command = tuple(str(item) for item in cmd)
+        called_cmds.add(command)
+        if command not in outputs:
+            raise AssertionError(f"Unexpected command: {command}")
+        return outputs[command]
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
 
@@ -88,12 +93,14 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
     assert payload["rustc_version"] == "rustc 1.90.0"
+    assert set(outputs).issubset(called_cmds)
 
 
 def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     builder = MultiPlatformBuilder()
+    called_cmds: set[tuple[str, ...]] = set()
     outputs: dict[tuple[str, ...], str] = {
-        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "rev-parse", "HEAD"): "test-commit-id",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
@@ -101,8 +108,19 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     }
 
     def fake_run(cmd, cwd, require_success):  # noqa: ANN001
-        _ = require_success
-        return outputs.get(tuple(str(item) for item in cmd), "")
+        _ = cwd, require_success
+        command = tuple(str(item) for item in cmd)
+        called_cmds.add(command)
+        if command in {
+            ("cc", "--version"),
+            ("gcc", "--version"),
+            ("clang", "--version"),
+            ("cl",),
+        }:
+            return ""
+        if command not in outputs:
+            raise AssertionError(f"Unexpected command: {command}")
+        return outputs[command]
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
     monkeypatch.setenv("VCToolsVersion", "14.44.35207")
@@ -110,11 +128,13 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     payload = builder._build_info_payload("pyinstaller", "windows_amd64")
 
     assert payload["c_compiler_version"] == "MSVC 14.44.35207"
+    assert ("cc", "--version") in called_cmds
+    assert ("cc", "--version") not in outputs
 
 
 def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_path):
     outputs = {
-        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "rev-parse", "HEAD"): "test-commit-id",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
@@ -123,7 +143,7 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
     }
 
     def fake_run(args, cwd, require_success):  # noqa: ANN001, FBT001
-        _ = require_success
+        _ = cwd, require_success
         return outputs.get(tuple(args), "")
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
@@ -901,6 +921,46 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
     assert "launchers/dist_simple/gui/SSA_GUI.exe" in removed
     assert "build/artifact.pyc" in removed
     assert "builds/old.pyo" in removed
+
+
+def test_auto_cleanup_preserves_final_distribution_outputs(tmp_path):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.launchers_dir = tmp_path / "launchers"
+    builder.dist_dir = builder.launchers_dir / "dist"
+
+    build_dir = tmp_path / "build"
+    builds_dir = tmp_path / "builds"
+    packages_dir = builds_dir / "packages" / "windows_amd64"
+    dist_packages_dir = tmp_path / "dist_packages"
+    dist_dir = tmp_path / "dist"
+    dist_simple_dir = builder.launchers_dir / "dist_simple"
+    source_dir = tmp_path / "src"
+
+    for path in (
+        build_dir,
+        packages_dir,
+        dist_packages_dir,
+        dist_dir,
+        dist_simple_dir,
+        source_dir,
+    ):
+        path.mkdir(parents=True)
+    (packages_dir / "app.zip").write_text("zip", encoding="utf-8")
+    (dist_packages_dir / "installer.exe").write_text("exe", encoding="utf-8")
+    (dist_dir / "legacy.txt").write_text("legacy", encoding="utf-8")
+    (build_dir / "temp.txt").write_text("temp", encoding="utf-8")
+    (dist_simple_dir / "temp.exe").write_text("temp", encoding="utf-8")
+    (source_dir / "main.py").write_text("print('keep')", encoding="utf-8")
+
+    builder.cleanup_build_artifacts()
+
+    assert not build_dir.exists()
+    assert not dist_simple_dir.exists()
+    assert (packages_dir / "app.zip").exists()
+    assert (dist_packages_dir / "installer.exe").exists()
+    assert (dist_dir / "legacy.txt").exists()
+    assert (source_dir / "main.py").exists()
 
 
 def test_build_multiplatform_script_runs_without_explicit_pythonpath():

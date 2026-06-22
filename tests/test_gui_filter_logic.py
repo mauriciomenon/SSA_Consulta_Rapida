@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from collections import Counter, OrderedDict
+from types import SimpleNamespace
 from typing import Any, Literal, TypedDict, cast
 from unittest.mock import patch
 
@@ -73,6 +74,52 @@ def test_snapshot_search_text_logs_deleted_widget_runtime_error(caplog):
 
     assert "Falha ao capturar texto de busca para snapshot" in caplog.text
     assert "wrapped C/C++ object has been deleted" in caplog.text
+
+
+def test_refresh_derivadas_theme_continues_after_context_and_dead_dialog(
+    monkeypatch, caplog
+):
+    class _DeadDialog:
+        def __getattribute__(self, name):
+            if name == "_ssa_details_dialog_presenter":
+                raise RuntimeError("wrapped C/C++ object has been deleted")
+            return super().__getattribute__(name)
+
+    class _Presenter:
+        def __init__(self):
+            self.refreshed = False
+
+        def refresh_after_theme(self):
+            self.refreshed = True
+
+    live_presenter = _Presenter()
+    live_dialog = SimpleNamespace(_ssa_details_dialog_presenter=live_presenter)
+    window = SimpleNamespace(
+        _details_current_series_for_derivadas=pd.Series({"numero_ssa": "1"}),
+        _details_current_derivadas_font_family="monospace",
+        _details_context_state={
+            "current_ssa": "1",
+            "entries": [{"ssa": "1", "series": pd.Series({"numero_ssa": "1"})}],
+        },
+        _open_details_dialogs=[_DeadDialog(), live_dialog],
+    )
+
+    monkeypatch.setattr(
+        ssa_gui_details,
+        "_update_main_details_derivadas_panel",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        ssa_gui_details,
+        "_render_derivadas_context_entry",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    with caplog.at_level("WARNING"):
+        ssa_gui_details.refresh_derivadas_views_after_theme(window)
+
+    assert live_presenter.refreshed is True
+    assert "Failed to refresh derivadas context entry after theme" in caplog.text
 
 
 class _RetiredWorkerGlobalsSnapshot(TypedDict):
@@ -6272,6 +6319,98 @@ class TestGUIFilterLogic:
         assert document is not None
         assert document.documentMargin() == pytest.approx(2.0)
 
+    def test_apply_theme_refreshes_derivadas_graph_box_colors(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202100046", "202100154"],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "202100046"],
+                "descricao_ssa": ["Pai", "Filha"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        self.window.table_widget.selectRow(0)
+        self.window.details_tab_bar.setCurrentIndex(1)
+
+        self.window.apply_theme("mint-light")
+        QApplication.processEvents()
+        light_svg = str(self.window.details_graph_label._graph_svg_markup or "")
+
+        self.window.apply_theme("dracula")
+        QApplication.processEvents()
+        dark_svg = str(self.window.details_graph_label._graph_svg_markup or "")
+
+        light_fill = str(get_theme_roles("mint-light").get("input_bg") or "")
+        dark_fill = str(get_theme_roles("dracula").get("input_bg") or "")
+        assert light_fill
+        assert dark_fill
+        assert light_fill in light_svg
+        assert dark_fill in dark_svg
+        assert light_svg != dark_svg
+
+    def test_apply_theme_preserves_derivadas_graph_when_selection_refresh_clears(
+        self, monkeypatch
+    ):
+        series = pd.Series(
+            {
+                "numero_ssa": "202100046",
+                "situacao": "APV",
+                "derivada_de": "",
+                "descricao_ssa": "Pai",
+            }
+        )
+        self.window._details_current_series_for_derivadas = series
+        self.window._details_current_derivadas_font_family = "monospace"
+        refresh_seen: list[pd.Series | None] = []
+
+        def _clear_transient_selection_state():
+            self.window._details_current_series_for_derivadas = None
+            self.window._details_current_derivadas_font_family = None
+            self.window._pending_details_series = None
+
+        def _capture_refresh(window):
+            refresh_seen.append(
+                getattr(window, "_details_current_series_for_derivadas", None)
+            )
+
+        monkeypatch.setattr(
+            self.window,
+            "update_details_from_selection",
+            _clear_transient_selection_state,
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "refresh_derivadas_views_after_theme",
+            _capture_refresh,
+        )
+
+        self.window.apply_theme("dracula")
+
+        assert self.window._details_current_series_for_derivadas is series
+        assert self.window._details_current_derivadas_font_family == "monospace"
+        assert self.window._pending_details_series is series
+        assert refresh_seen == [series]
+
+    def test_apply_theme_logs_derivadas_refresh_failure(self, monkeypatch, caplog):
+        def _raise_refresh(_window):
+            raise RuntimeError("refresh failed")
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "refresh_derivadas_views_after_theme",
+            _raise_refresh,
+        )
+
+        with caplog.at_level("WARNING"):
+            self.window.apply_theme("dracula")
+
+        assert "Failed to refresh derivadas graphs after apply_theme" in caplog.text
+        assert "refresh failed" in caplog.text
+
     def test_apply_theme_styles_advanced_field_boxes_with_theme_roles(self):
         self._set_filter_panel_tab("filters")
         self.window.apply_theme("mint-light")
@@ -7912,6 +8051,102 @@ class TestGUIFilterLogic:
         assert opened == []
         assert jump_calls == []
 
+    def test_details_dialog_graph_label_click_opens_details_dialog(
+        self, monkeypatch
+    ):
+        from gui.ssa.main_window_bottom_section import DerivadasGraphLabel
+
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202100046", "202100154"],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "202100046"],
+                "descricao_ssa": ["Pai", "Filha"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        shown: list[QDialog] = []
+
+        def record_dialog_show(dialog: QDialog) -> None:
+            shown.append(dialog)
+
+        monkeypatch.setattr(
+            QtWidgets.QDialog,
+            "show",
+            record_dialog_show,
+            raising=False,
+        )
+
+        self.window._open_details_dialog_for_ssa("202100046")
+        QApplication.processEvents()
+
+        assert shown
+        label = shown[0].findChild(DerivadasGraphLabel)
+        assert label is not None
+        label.setFixedSize(200, 120)
+        label.set_ssa_hitboxes([("202100154", 10.0, 10.0, 90.0, 50.0)])
+        opened: list[str] = []
+        monkeypatch.setattr(self.window, "_open_details_dialog_for_ssa", opened.append)
+
+        cast(Any, QTest).mouseClick(
+            label,
+            Qt.MouseButton.LeftButton,
+            pos=QPoint(20, 20),
+        )
+
+        assert opened == ["202100154"]
+        shown[0].close()
+
+    def test_apply_theme_refreshes_open_details_dialog_graph_colors(
+        self, monkeypatch
+    ):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202100046", "202100154"],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "202100046"],
+                "descricao_ssa": ["Pai", "Filha"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        shown: list[QDialog] = []
+
+        def record_dialog_show(dialog: QDialog) -> None:
+            shown.append(dialog)
+
+        monkeypatch.setattr(
+            QtWidgets.QDialog,
+            "show",
+            record_dialog_show,
+            raising=False,
+        )
+
+        self.window.apply_theme("mint-light")
+        self.window._open_details_dialog_for_ssa("202100046")
+        QApplication.processEvents()
+
+        assert shown
+        presenter = getattr(shown[0], "_ssa_details_dialog_presenter", None)
+        assert presenter is not None
+        light_svg = str(presenter.export_state["svg"] or "")
+
+        self.window.apply_theme("dracula")
+        QApplication.processEvents()
+        dark_svg = str(presenter.export_state["svg"] or "")
+
+        light_fill = str(get_theme_roles("mint-light").get("input_bg") or "")
+        dark_fill = str(get_theme_roles("dracula").get("input_bg") or "")
+        assert light_fill
+        assert dark_fill
+        assert light_fill in light_svg
+        assert dark_fill in dark_svg
+        assert light_svg != dark_svg
+        shown[0].close()
+
     def test_build_derivadas_graph_html_sanitizes_font_family(self):
         html = ssa_gui_details._build_derivadas_graph_html(
             self.window,
@@ -8207,10 +8442,14 @@ class TestGUIFilterLogic:
             ),
             raising=False,
         )
+
+        def record_dialog_show(dialog: QDialog) -> None:
+            shown.append(dialog)
+
         monkeypatch.setattr(
             QtWidgets.QDialog,
             "show",
-            lambda dialog: shown.append(dialog),
+            record_dialog_show,
             raising=False,
         )
 

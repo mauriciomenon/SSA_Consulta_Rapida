@@ -3126,6 +3126,7 @@ version = "4.42.0"
 source = { editable = "." }
 dependencies = [
     { name = "defusedxml" },
+    { name = "idna" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "openpyxl" },
@@ -3148,6 +3149,7 @@ build = [
 dev = [
     { name = "black" },
     { name = "codeflash" },
+    { name = "filelock" },
     { name = "flake8" },
     { name = "isort" },
     { name = "mypy" },
@@ -3157,6 +3159,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "virtualenv" },
 ]
 web = [
     { name = "streamlit" },
@@ -3166,6 +3169,7 @@ web = [
 dev = [
     { name = "black" },
     { name = "codeflash" },
+    { name = "filelock" },
     { name = "flake8" },
     { name = "isort" },
     { name = "mypy" },
@@ -3175,6 +3179,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "virtualenv" },
 ]
 
 [package.metadata]
@@ -3184,7 +3189,9 @@ requires-dist = [
     { name = "codeflash", marker = "extra == 'dev'", specifier = ">=0.20.6" },
     { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "dmgbuild", marker = "sys_platform == 'darwin' and extra == 'build'", specifier = ">=1.6.7" },
+    { name = "filelock", marker = "extra == 'dev'", specifier = ">=3.20.3" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=7.3.0" },
+    { name = "idna", specifier = ">=3.15" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.13.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.1.0" },
     { name = "nuitka", marker = "extra == 'build'", specifier = ">=4.1.2" },
@@ -3205,6 +3212,7 @@ requires-dist = [
     { name = "streamlit", marker = "extra == 'web'", specifier = ">=1.58.0" },
     { name = "tabulate", specifier = ">=0.10.0" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.42" },
+    { name = "virtualenv", marker = "extra == 'dev'", specifier = ">=20.36.1" },
 ]
 provides-extras = ["dev", "build", "web"]
 
@@ -3212,6 +3220,7 @@ provides-extras = ["dev", "build", "web"]
 dev = [
     { name = "black", specifier = ">=26.3.1" },
     { name = "codeflash", specifier = ">=0.20.6" },
+    { name = "filelock", specifier = ">=3.20.3" },
     { name = "flake8", specifier = ">=7.3.0" },
     { name = "isort", specifier = ">=5.13.2" },
     { name = "mypy", specifier = ">=2.1.0" },
@@ -3221,6 +3230,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.15.15" },
     { name = "ty", specifier = ">=0.0.42" },
+    { name = "virtualenv", specifier = ">=20.36.1" },
 ]
 
 [[package]]

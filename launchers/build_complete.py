@@ -61,7 +61,9 @@ def main():
     )
 
     parser.add_argument(
-        "--no-git", action="store_true", help="Pular operacoes git automaticas"
+        "--auto-git",
+        action="store_true",
+        help="Executar commit e push automaticos apos build bem-sucedido",
     )
 
     parser.add_argument(
@@ -73,6 +75,14 @@ def main():
     )
 
     args = parser.parse_args()
+    git_message = args.git_message.strip() if args.git_message is not None else None
+    if args.git_message is not None and not args.auto_git:
+        parser.error("--git-message requer --auto-git")
+    if args.git_message is not None and not git_message:
+        parser.error("--git-message nao pode ser vazio")
+    if args.cleanup_only and args.auto_git:
+        parser.error("--auto-git nao pode ser usado com --cleanup-only")
+    args.git_message = git_message
 
     try:
         script_args = []
@@ -91,7 +101,7 @@ def main():
         if not args.no_cleanup:
             script_args.append("--auto-cleanup")
 
-        if not args.no_git:
+        if args.auto_git:
             script_args.append("--auto-git")
             if args.git_message:
                 script_args.extend(["--git-message", args.git_message])
