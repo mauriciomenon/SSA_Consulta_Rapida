@@ -62,7 +62,7 @@ build = [
     "nuitka>=4.1.2",
     "pillow>=12.2.0",
     "cairosvg>=2.9.0",
-    "pywin32>=311; platform_system == 'Windows'",
+    "pywin32>=312; platform_system == 'Windows'",
     "dmgbuild>=1.6.7; platform_system == 'Darwin'",
     "patchelf>=0.17.2.4; platform_system == 'Linux'",
 ]
