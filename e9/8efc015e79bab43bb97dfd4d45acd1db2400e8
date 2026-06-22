@@ -1,0 +1,31 @@
+gui/ssa/gui_theme.py
+  s_f4b4983ce9a832::t_2888c257229c7a 630-639,641
+tests/test_gui_filter_logic.py
+  s_f4b4983ce9a832::t_2888c257229c7a 8071-8074,8078,8117-8120,8124
+  s_f4b4983ce9a832::t_96d80b543b4c79 8445-8448,8452
+scripts/sync_pyinstaller_outputs.py
+  s_f4b4983ce9a832::t_2888c257229c7a 68-121,130,134,138,141-143
+pyproject.toml
+  s_f4b4983ce9a832::t_2888c257229c7a 41,57-58,86-87
+tests/test_details_dialog_presenter.py
+  s_f4b4983ce9a832::t_2888c257229c7a 92-93,98-99,102-103,139-140
+scripts/create_distribution.py
+  s_f4b4983ce9a832::t_2888c257229c7a 1338,1379,1382,1384-1386,1388-1391,1393-1395,1418-1440,1442,1447,1449,1452-1453,1457,1462,1464,1470-1478
+  s_f4b4983ce9a832::t_a8157d55b47e60 1450-1451
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e98efc015e79bab43bb97dfd4d45acd1db2400e8",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
