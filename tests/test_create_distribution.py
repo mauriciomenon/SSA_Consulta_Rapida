@@ -564,6 +564,7 @@ def test_create_zip_package_keeps_sample_db_out_by_default(
     assert result is not None
     with zipfile.ZipFile(result, "r") as zf:
         names = zf.namelist()
+        assert any(name.endswith("SSA_Consulta_Rapida.exe") for name in names)
         assert not any("BancoExemplo/" in name for name in names)
 
 
