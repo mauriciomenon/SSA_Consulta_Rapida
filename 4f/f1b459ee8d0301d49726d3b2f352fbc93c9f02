@@ -1,0 +1,21 @@
+launchers/build_complete.py
+  s_f4b4983ce9a832::t_dae42d6dcc4d50 83-84
+tests/test_build_complete.py
+  s_f4b4983ce9a832::t_504e86da1b794c 57-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4ff1b459ee8d0301d49726d3b2f352fbc93c9f02",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
