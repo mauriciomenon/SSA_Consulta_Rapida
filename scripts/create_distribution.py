@@ -620,7 +620,7 @@ def get_version() -> str:
 
 def create_user_structure(target_dir: Path):
     """Cria estrutura de diretorios para usuario final."""
-    logger.info(f"Criando estrutura de diretorios em {target_dir}")
+    logger.info("Criando estrutura de diretorios em %s", target_dir)
 
     for dir_name in USER_DIRS:
         dir_path = target_dir / dir_name
@@ -631,7 +631,7 @@ def create_user_structure(target_dir: Path):
         if not gitkeep.exists():
             gitkeep.touch()
 
-    logger.info(f"Criados {len(USER_DIRS)} diretorios")
+    logger.info("Criados %s diretorios", len(USER_DIRS))
 
 
 def copy_documentation(target_dir: Path):
@@ -650,7 +650,7 @@ def copy_documentation(target_dir: Path):
                 dest = docs_dir / src.name
 
             shutil.copy2(src, dest)
-            logger.info(f"  Copiado: {src.name}")
+            logger.info("  Copiado: %s", src.name)
 
 
 def create_readme_usuario(
@@ -905,7 +905,7 @@ def create_zip_package(
     build_info: dict[str, object] = dict(BUILD_SYSTEMS[build_system])
     build_name_value = build_info.get("name")
     build_name = build_name_value if isinstance(build_name_value, str) else build_system
-    logger.info(f"Criando pacote ZIP para {build_name}")
+    logger.info("Criando pacote ZIP para %s", build_name)
 
     build_dir = _resolve_build_directory(build_system)
     if build_dir is None:
@@ -957,7 +957,7 @@ def create_zip_package(
         zip_name = f"{package_name}.zip"
         zip_path = package_output_dir / zip_name
 
-        logger.info(f"  Criando arquivo ZIP: {zip_name}")
+        logger.info("  Criando arquivo ZIP: %s", zip_name)
 
         _create_package_zip(package_dir, package_name, zip_path)
 
@@ -973,12 +973,12 @@ def create_zip_package(
             raise
 
         file_size = zip_path.stat().st_size / (1024 * 1024)  # MB
-        logger.info(f"  ZIP criado: {zip_path.name} ({file_size:.1f} MB)")
+        logger.info("  ZIP criado: %s (%.1f MB)", zip_path.name, file_size)
 
         return zip_path
 
     except Exception as e:
-        logger.error(f"Erro ao criar ZIP: {e}")
+        logger.error("Erro ao criar ZIP: %s", e)
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
         return None
@@ -1162,7 +1162,7 @@ def create_inno_setup_script(
     include_local_db: Optional[str] = None,
 ) -> Optional[Path]:
     """Cria script Inno Setup para instalador Windows."""
-    logger.info(f"Criando script Inno Setup para {BUILD_SYSTEMS[build_system]['name']}")
+    logger.info("Criando script Inno Setup para %s", BUILD_SYSTEMS[build_system]["name"])
     resolved = _resolve_inno_source(build_system)
     if resolved is None:
         logger.error(
@@ -1225,7 +1225,7 @@ def create_inno_setup_script(
     with open(iss_path, "w", encoding="utf-8") as f:
         f.write(iss_content)
 
-    logger.info(f"  Script ISS criado: {iss_path.name}")
+    logger.info("  Script ISS criado: %s", iss_path.name)
     return iss_path
 
 
@@ -1309,14 +1309,14 @@ def _run_iscc_compile(iscc_path: str, iss_path: Path) -> str:
             logger.info("  Instalador compilado com sucesso!")
             return "success"
         else:
-            logger.error(f"Erro ao compilar instalador: {result.stderr}")
+            logger.error("Erro ao compilar instalador: %s", result.stderr)
             return "failed"
 
     except subprocess.TimeoutExpired:
         logger.error("Timeout ao compilar instalador")
         return "failed"
     except Exception as e:
-        logger.error(f"Erro ao executar Inno Setup: {e}")
+        logger.error("Erro ao executar Inno Setup: %s", e)
         return "failed"
 
 
