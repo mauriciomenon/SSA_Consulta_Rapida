@@ -1,0 +1,19 @@
+tests/test_build_multiplatform_manifest.py
+  s_f4b4983ce9a832::t_cfd2ce7109c1d2 938-947,954,963
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1c5d4ad989ef12ad90b60c5f09b161323f58fdcc",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
