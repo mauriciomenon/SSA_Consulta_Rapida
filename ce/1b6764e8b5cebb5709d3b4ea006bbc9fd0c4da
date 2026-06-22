@@ -1,0 +1,22 @@
+.github/workflows/dependency-review.yml
+  s_f4b4983ce9a832::t_c11740ca6f67fe 49
+  s_f4b4983ce9a832::t_62a541d724c21e 27-48,50-66,68-69,82-94
+.github/workflows/codeql.yml
+  s_f4b4983ce9a832::t_62a541d724c21e 62-64,128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ce1b6764e8b5cebb5709d3b4ea006bbc9fd0c4da",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4983ce9a832": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee837-5290-7870-8b8d-19e535e7f0f5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
