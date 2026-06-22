@@ -935,14 +935,23 @@ def test_auto_cleanup_preserves_final_distribution_outputs(tmp_path):
     dist_packages_dir = tmp_path / "dist_packages"
     dist_dir = tmp_path / "dist"
     dist_simple_dir = builder.launchers_dir / "dist_simple"
+    source_dir = tmp_path / "src"
 
-    for path in (build_dir, packages_dir, dist_packages_dir, dist_dir, dist_simple_dir):
+    for path in (
+        build_dir,
+        packages_dir,
+        dist_packages_dir,
+        dist_dir,
+        dist_simple_dir,
+        source_dir,
+    ):
         path.mkdir(parents=True)
     (packages_dir / "app.zip").write_text("zip", encoding="utf-8")
     (dist_packages_dir / "installer.exe").write_text("exe", encoding="utf-8")
     (dist_dir / "legacy.txt").write_text("legacy", encoding="utf-8")
     (build_dir / "temp.txt").write_text("temp", encoding="utf-8")
     (dist_simple_dir / "temp.exe").write_text("temp", encoding="utf-8")
+    (source_dir / "main.py").write_text("print('keep')", encoding="utf-8")
 
     builder.cleanup_build_artifacts()
 
@@ -951,6 +960,7 @@ def test_auto_cleanup_preserves_final_distribution_outputs(tmp_path):
     assert (packages_dir / "app.zip").exists()
     assert (dist_packages_dir / "installer.exe").exists()
     assert (dist_dir / "legacy.txt").exists()
+    assert (source_dir / "main.py").exists()
 
 
 def test_build_multiplatform_script_runs_without_explicit_pythonpath():
