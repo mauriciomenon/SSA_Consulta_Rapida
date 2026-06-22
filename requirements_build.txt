@@ -7,7 +7,7 @@ pillow>=12.2.0
 cairosvg>=2.9.0
 
 # Especificos por plataforma
-pywin32>=311 ; platform_system=="Windows"
+pywin32>=312 ; platform_system=="Windows"
 
 # Changelog:
 # [2025-12-10] - Atualizado para versoes com security patches
