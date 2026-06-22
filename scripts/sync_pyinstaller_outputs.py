@@ -65,46 +65,42 @@ def _file_is_current(source_path: Path, target_path: Path) -> bool:
     )
 
 
-def _sync_tree_incremental(
-    source_dir: Path, target_dir: Path, *, allowed_root: Path
-) -> None:
-    target_dir.mkdir(parents=True, exist_ok=True)
+def _sync_directory_symlink(source_path: Path, target_path: Path, allowed_root: Path) -> None:
+    resolved_source = source_path.resolve(strict=True)
+    try:
+        resolved_source.relative_to(allowed_root)
+    except ValueError:
+        return
+    if _exists_or_symlink(target_path) and not target_path.is_dir():
+        _remove_path(target_path)
+    _sync_tree_incremental(resolved_source, target_path, allowed_root=allowed_root)
 
-    for source_path in source_dir.rglob("*"):
-        target_path = target_dir / source_path.relative_to(source_dir)
-        if source_path.is_symlink() and source_path.is_dir():
-            resolved_source = source_path.resolve(strict=True)
-            try:
-                resolved_source.relative_to(allowed_root)
-            except ValueError:
-                continue
-            if _exists_or_symlink(target_path) and not target_path.is_dir():
-                _remove_path(target_path)
-            _sync_tree_incremental(
-                resolved_source, target_path, allowed_root=allowed_root
-            )
-            continue
 
-        if source_path.is_dir():
-            if _exists_or_symlink(target_path) and not target_path.is_dir():
-                _remove_path(target_path)
-            target_path.mkdir(parents=True, exist_ok=True)
-            continue
+def _sync_directory(source_path: Path, target_path: Path) -> None:
+    if _exists_or_symlink(target_path) and not target_path.is_dir():
+        _remove_path(target_path)
+    target_path.mkdir(parents=True, exist_ok=True)
 
-        if source_path.is_symlink() and not source_path.exists():
-            continue
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        if source_path.is_symlink():
-            if not _file_is_current(source_path, target_path):
-                if _exists_or_symlink(target_path):
-                    _remove_path(target_path)
-                target_path.symlink_to(source_path.readlink())
-            continue
-        if _exists_or_symlink(target_path) and not target_path.is_file():
+
+def _sync_symlink(source_path: Path, target_path: Path) -> None:
+    if not source_path.exists():
+        return
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    if not _file_is_current(source_path, target_path):
+        if _exists_or_symlink(target_path):
             _remove_path(target_path)
-        if not _file_is_current(source_path, target_path):
-            shutil.copy2(source_path, target_path)
+        target_path.symlink_to(source_path.readlink())
 
+
+def _sync_regular_file(source_path: Path, target_path: Path) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    if _exists_or_symlink(target_path) and not target_path.is_file():
+        _remove_path(target_path)
+    if not _file_is_current(source_path, target_path):
+        shutil.copy2(source_path, target_path)
+
+
+def _remove_stale_entries(source_dir: Path, target_dir: Path) -> None:
     for target_path in sorted(
         target_dir.rglob("*"),
         key=lambda path: len(path.parts),
@@ -113,13 +109,38 @@ def _sync_tree_incremental(
         if not _exists_or_symlink(target_path):
             continue
         source_path = source_dir / target_path.relative_to(target_dir)
-        if not _exists_or_symlink(source_path):
-            try:
-                _remove_path(target_path)
-            except OSError as exc:
-                raise RuntimeError(
-                    f"Falha ao remover artefato obsoleto: {target_path}"
-                ) from exc
+        if _exists_or_symlink(source_path):
+            continue
+        try:
+            _remove_path(target_path)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Falha ao remover artefato obsoleto: {target_path}"
+            ) from exc
+
+
+def _sync_tree_incremental(
+    source_dir: Path, target_dir: Path, *, allowed_root: Path
+) -> None:
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for source_path in source_dir.rglob("*"):
+        target_path = target_dir / source_path.relative_to(source_dir)
+        if source_path.is_symlink() and source_path.is_dir():
+            _sync_directory_symlink(source_path, target_path, allowed_root)
+            continue
+
+        if source_path.is_dir():
+            _sync_directory(source_path, target_path)
+            continue
+
+        if source_path.is_symlink():
+            _sync_symlink(source_path, target_path)
+            continue
+
+        _sync_regular_file(source_path, target_path)
+
+    _remove_stale_entries(source_dir, target_dir)
 
 
 def _sync_platform(repo_root: Path, platform: str, verbose: bool) -> bool:

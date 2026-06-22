@@ -89,15 +89,18 @@ class _GraphLabel:
     def set_ssa_hitboxes(self, hitboxes) -> None:
         self.hitboxes = list(hitboxes)
 
-    def pixmap(self):
+    @staticmethod
+    def pixmap():
         return None
 
 
 class _Panel:
-    def width(self) -> int:
+    @staticmethod
+    def width() -> int:
         return 400
 
-    def height(self) -> int:
+    @staticmethod
+    def height() -> int:
         return 300
 
 
@@ -133,7 +136,8 @@ def test_render_graph_pixmap_failure_clears_stale_label_state(
 
 
 class _BrokenUrl:
-    def toString(self):
+    @staticmethod
+    def toString():
         raise RuntimeError("bad url")
 
 

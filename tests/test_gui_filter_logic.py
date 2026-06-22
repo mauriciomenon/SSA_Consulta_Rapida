@@ -8068,10 +8068,14 @@ class TestGUIFilterLogic:
         self.window.df_exibido = df.copy()
         self.window._df_last_search_filtered = df.copy()
         shown: list[QDialog] = []
+
+        def record_dialog_show(dialog: QDialog) -> None:
+            shown.append(dialog)
+
         monkeypatch.setattr(
             QtWidgets.QDialog,
             "show",
-            lambda dialog: shown.append(dialog),
+            record_dialog_show,
             raising=False,
         )
 
@@ -8110,10 +8114,14 @@ class TestGUIFilterLogic:
         self.window.df_exibido = df.copy()
         self.window._df_last_search_filtered = df.copy()
         shown: list[QDialog] = []
+
+        def record_dialog_show(dialog: QDialog) -> None:
+            shown.append(dialog)
+
         monkeypatch.setattr(
             QtWidgets.QDialog,
             "show",
-            lambda dialog: shown.append(dialog),
+            record_dialog_show,
             raising=False,
         )
 
@@ -8434,10 +8442,14 @@ class TestGUIFilterLogic:
             ),
             raising=False,
         )
+
+        def record_dialog_show(dialog: QDialog) -> None:
+            shown.append(dialog)
+
         monkeypatch.setattr(
             QtWidgets.QDialog,
             "show",
-            lambda dialog: shown.append(dialog),
+            record_dialog_show,
             raising=False,
         )
 

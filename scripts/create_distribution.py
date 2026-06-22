@@ -1335,7 +1335,7 @@ def compile_installer(iss_path: Path) -> str:
     return _run_iscc_compile(iscc_path, iss_path)
 
 
-def main() -> int:
+def _parse_distribution_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Criar pacotes de distribuicao do SSA Consulta Rapida"
     )
@@ -1374,35 +1374,27 @@ def main() -> int:
     )
 
     args = parser.parse_args()
-
-    # Validar argumentos
     if not args.build_system and not args.all:
         parser.error("Especifique --build-system ou --all")
+    return args
 
-    # Criar diretorio de instalador apenas quando ele for usado.
-    if not args.skip_installer:
-        DIST_OUTPUT.mkdir(exist_ok=True)
 
-    # Obter versao
-    version = get_version()
-    logger.info(f"Versao: {version}")
-
-    # Determinar build systems para processar
+def _selected_build_systems(args: argparse.Namespace) -> list[str]:
     if args.all:
-        build_systems = list(BUILD_SYSTEMS.keys())
-    else:
-        build_systems = [args.build_system]
+        return list(BUILD_SYSTEMS.keys())
+    return [args.build_system]
 
-    # Processar cada build system
-    results = {}
+
+def _create_distribution_outputs(
+    build_systems: list[str], version: str, args: argparse.Namespace
+) -> dict[str, dict[str, Optional[Path] | str]]:
+    results: dict[str, dict[str, Optional[Path] | str]] = {}
     for bs in build_systems:
-        logger.info(f"\n{'=' * 60}")
-        logger.info(f"Processando: {BUILD_SYSTEMS[bs]['name']}")
-        logger.info(f"{'=' * 60}\n")
+        logger.info("\n%s", "=" * 60)
+        logger.info("Processando: %s", BUILD_SYSTEMS[bs]["name"])
+        logger.info("%s\n", "=" * 60)
 
         results[bs] = {"zip": None, "installer": None}
-
-        # Criar ZIP
         if not args.installer_only:
             zip_path = create_zip_package(
                 bs,
@@ -1412,7 +1404,6 @@ def main() -> int:
             )
             results[bs]["zip"] = zip_path
 
-        # Criar instalador
         if not args.skip_installer:
             iss_path = create_inno_setup_script(
                 bs,
@@ -1424,45 +1415,67 @@ def main() -> int:
                 results[bs]["installer"] = compile_installer(iss_path)
             else:
                 results[bs]["installer"] = "script_failed"
+    return results
 
-    # Relatorio final
-    logger.info(f"\n{'=' * 60}")
+
+def _update_installer_exit_code(installer_status, args: argparse.Namespace) -> int:
+    if installer_status == "success":
+        logger.info("  Instalador: Criado com sucesso")
+        return 0
+    if installer_status == "missing":
+        logger.info("  Instalador: Nao criado (Inno Setup nao disponivel)")
+        return int(args.installer_only)
+    if installer_status == "failed":
+        logger.info("  Instalador: Falha na compilacao")
+        return 1
+    if installer_status == "script_failed":
+        logger.info("  Instalador: Falha na geracao do script")
+        return 1
+    return 0
+
+
+def _log_distribution_report(
+    results: dict[str, dict[str, Optional[Path] | str]], args: argparse.Namespace
+) -> int:
+    logger.info("\n%s", "=" * 60)
     logger.info("RELATORIO FINAL")
-    logger.info(f"{'=' * 60}\n")
+    logger.info("%s\n", "=" * 60)
 
     exit_code = 0
     zip_output_dirs: set[Path] = set()
     for bs, result in results.items():
-        logger.info(f"{BUILD_SYSTEMS[bs]['name']}:")
+        logger.info("%s:", BUILD_SYSTEMS[bs]["name"])
         if result["zip"]:
-            logger.info(f"  ZIP: {result['zip'].name}")
-            zip_output_dirs.add(result["zip"].parent)
+            zip_path = result["zip"]
+            if not isinstance(zip_path, Path):
+                raise TypeError(f"Resultado de ZIP invalido para {bs}: {zip_path!r}")
+            logger.info("  ZIP: %s", zip_path.name)
+            zip_output_dirs.add(zip_path.parent)
         elif not args.installer_only:
             logger.info("  ZIP: Nao criado")
             exit_code = 1
-        installer_status = result["installer"]
-        if installer_status == "success":
-            logger.info("  Instalador: Criado com sucesso")
-        elif installer_status == "missing":
-            logger.info("  Instalador: Nao criado (Inno Setup nao disponivel)")
-            if args.installer_only:
-                exit_code = 1
-        elif installer_status == "failed":
-            logger.info("  Instalador: Falha na compilacao")
-            exit_code = 1
-        elif installer_status == "script_failed":
-            logger.info("  Instalador: Falha na geracao do script")
-            exit_code = 1
+        exit_code = max(exit_code, _update_installer_exit_code(result["installer"], args))
         logger.info("")
 
     if zip_output_dirs:
         for output_dir in sorted(zip_output_dirs):
-            logger.info(f"ZIPs salvos em: {output_dir}")
+            logger.info("ZIPs salvos em: %s", output_dir)
     if not args.skip_installer:
-        logger.info(f"Instaladores/scripts em: {DIST_OUTPUT}")
+        logger.info("Instaladores/scripts em: %s", DIST_OUTPUT)
     if exit_code:
         logger.error("Distribuicao falhou: artefato esperado nao foi criado.")
     return exit_code
+
+
+def main() -> int:
+    args = _parse_distribution_args()
+    if not args.skip_installer:
+        DIST_OUTPUT.mkdir(exist_ok=True)
+
+    version = get_version()
+    logger.info("Versao: %s", version)
+    results = _create_distribution_outputs(_selected_build_systems(args), version, args)
+    return _log_distribution_report(results, args)
 
 
 if __name__ == "__main__":

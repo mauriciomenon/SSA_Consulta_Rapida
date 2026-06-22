@@ -627,10 +627,18 @@ def _finish_theme_application(
         logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
     if previous_derivadas_series is not None:
         if getattr(window, "_details_current_series_for_derivadas", None) is None:
-            window._details_current_series_for_derivadas = previous_derivadas_series
-            window._details_current_derivadas_font_family = previous_derivadas_font_family
+            setattr(
+                window,
+                "_details_current_series_for_derivadas",
+                previous_derivadas_series,
+            )
+            setattr(
+                window,
+                "_details_current_derivadas_font_family",
+                previous_derivadas_font_family,
+            )
         if getattr(window, "_pending_details_series", None) is None:
-            window._pending_details_series = previous_derivadas_series
+            setattr(window, "_pending_details_series", previous_derivadas_series)
     try:
         from gui.ssa import gui_details
 
