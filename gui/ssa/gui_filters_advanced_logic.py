@@ -70,11 +70,13 @@ def _normalize_derivada_relation_series(raw_series: pd.Series) -> pd.Series:
         normalized_uniques = [
             normalize_numero_ssa_relation(value) or "" for value in uniques
         ]
-        resolved = [""] * len(series_obj)
-        for index, code in enumerate(codes):
-            if code >= 0:
-                resolved[index] = normalized_uniques[code]
-        return pd.Series(resolved, index=series_obj.index, dtype="object")
+        lookup = pd.Series(
+            normalized_uniques,
+            index=pd.RangeIndex(len(normalized_uniques)),
+            dtype="object",
+        )
+        resolved = pd.Series(codes, index=series_obj.index).map(lookup)
+        return resolved.fillna("").astype("object")
     except Exception:
         return raw_series.map(lambda value: normalize_numero_ssa_relation(value) or "")
 

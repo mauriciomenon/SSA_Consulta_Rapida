@@ -325,6 +325,19 @@ def test_derivadas_tree_keeps_first_parent_for_duplicate_child(caplog):
     assert "Duplicate derivada child 202600101" in caplog.text
 
 
+def test_normalize_derivada_relation_series_preserves_index_and_invalid_tokens():
+    series = pd.Series(
+        ["202600101", None, pd.NA, "nan", "202600101.0", "101"],
+        index=[10, 20, 30, 40, 50, 60],
+        dtype="object",
+    )
+
+    normalized = adv_logic._normalize_derivada_relation_series(series)
+
+    assert normalized.index.tolist() == [10, 20, 30, 40, 50, 60]
+    assert normalized.tolist() == ["202600101", "", "", "", "", "101"]
+
+
 def test_apply_advanced_filters_emissao_week_keys_filter_cadastro_week_column():
     window = _DummyWindow(
         {"semana_emissao_inicio": 202501, "semana_emissao_fim": 202502}
