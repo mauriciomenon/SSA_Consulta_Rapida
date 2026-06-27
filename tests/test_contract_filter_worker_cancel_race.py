@@ -6,6 +6,8 @@ and worker cache sync in test_scenario_filter_worker_cache_qt.py.
 
 from __future__ import annotations
 
+import time
+from threading import Event
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -56,10 +58,11 @@ def test_worker_cancel_after_cache_hit_does_not_emit():
 def test_worker_cancel_after_cache_miss_discards_before_emit():
     df = pd.DataFrame({"texto": ["alfa"], "situacao": ["APV"]})
     cache = FilterCache(max_size=4)
+    df_hash = FilterWorker._build_df_hash(df)
     worker = FilterWorker(
         df,
         [],
-        df_hash=FilterWorker._build_df_hash(df),
+        df_hash=df_hash,
         cache=cache,
     )
     emit_spy = MagicMock()
@@ -70,11 +73,55 @@ def test_worker_cancel_after_cache_miss_discards_before_emit():
 
     assert emit_spy.call_count == 0
     assert cache.get(
-        worker.df_hash,
+        df_hash,
         [],
         worker.default_mode,
         cache_context=worker.cache_context,
     ) is None
+
+
+def test_worker_cancel_mid_general_search_thread_discards_emit_and_cache(monkeypatch):
+    """Cancel while the QThread is inside the heavy search must discard the result."""
+    df = pd.DataFrame({"texto": ["alfa", "beta"], "situacao": ["APV", "STE"]})
+    cache = FilterCache(max_size=4)
+    df_hash = FilterWorker._build_df_hash(df)
+    worker = FilterWorker(df, [["alfa"]], df_hash=df_hash, cache=cache)
+    entered_search = Event()
+    cancel_seen = Event()
+    release_search = Event()
+    emitted: list[pd.DataFrame] = []
+    errors: list[str] = []
+    worker.filter_finished.connect(lambda frame: emitted.append(frame.copy()))
+    worker.error_occurred.connect(errors.append)
+
+    def _blocked_search(_df, _chunks, *_, should_cancel=None, **_kwargs):
+        assert callable(should_cancel)
+        entered_search.set()
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if should_cancel():
+                cancel_seen.set()
+                break
+            time.sleep(0.01)
+        release_search.wait(timeout=2.0)
+        return _df.iloc[[0]].copy()
+
+    monkeypatch.setattr(
+        "gui.workers.filter_worker.apply_general_search_terms",
+        _blocked_search,
+    )
+
+    worker.start()
+    assert entered_search.wait(timeout=2.0)
+    worker.cancel()
+    assert cancel_seen.wait(timeout=2.0)
+    release_search.set()
+    assert worker.wait(5000)
+    QApplication.processEvents()
+
+    assert emitted == []
+    assert errors == []
+    assert cache.get(df_hash, [["alfa"]], worker.default_mode, cache_context="") is None
 
 
 def test_worker_empty_search_performs_deep_copy_on_miss():
