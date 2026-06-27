@@ -212,3 +212,37 @@ def test_sort_filter_refresh_result_skips_when_sorted_attr_set(monkeypatch):
 
     assert sort_calls["numero_ssa"] == 0
     assert result is sorted_df
+
+
+def test_sort_filter_refresh_result_sorts_when_sorted_attr_missing(monkeypatch):
+    """J1: without ssa_sorted_for_display, refresh path sorts by numero_ssa."""
+    from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin
+
+    class _Window(FilterGUISSAMixin):
+        pass
+
+    window = _Window()
+    unsorted = build_base_filter_df().iloc[[0, 4, 3]].copy()
+    window._df_last_search_filtered = unsorted.copy()
+
+    sort_calls = {"numero_ssa": 0}
+    original_sort_values = pd.DataFrame.sort_values
+
+    def _count_numero_sort(frame, by=None, *args, **kwargs):
+        if by == "numero_ssa":
+            sort_calls["numero_ssa"] += 1
+        return original_sort_values(frame, by=by, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "sort_values", _count_numero_sort)
+
+    result = window._sort_filter_refresh_result(
+        unsorted,
+        has_general_search=True,
+        has_column_filters=False,
+        has_advanced_filters=False,
+        has_excluded_terminal_status=False,
+        measure_timing=lambda _name, callback: callback(),
+    )
+
+    assert sort_calls["numero_ssa"] == 1
+    assert result["numero_ssa"].tolist() == [5, 4, 1]

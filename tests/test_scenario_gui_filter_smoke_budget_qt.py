@@ -5,10 +5,23 @@ from __future__ import annotations
 import os
 import resource
 
+import pandas as pd
 import pytest
 from PyQt6.QtWidgets import QApplication
 
+from tests._helpers.contract_data_builders import build_base_filter_df
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
+
+
+def _build_large_filter_df(*, rows: int) -> pd.DataFrame:
+    template = build_base_filter_df(rows=5)
+    chunks = [template] * (rows // 5)
+    remainder = rows % 5
+    if remainder:
+        chunks.append(template.iloc[:remainder].copy())
+    large_df = pd.concat(chunks, ignore_index=True)
+    large_df["numero_ssa"] = list(range(1, rows + 1))
+    return large_df
 
 
 def _rss_mb() -> float:
@@ -68,3 +81,43 @@ class TestScenarioGUIFilterSmokeBudget(GUIFilterScenarioHarness):
             assert stage in timings
             assert isinstance(timings[stage], float)
             assert timings[stage] >= 0.0
+
+    def test_filter_refresh_smoke_large_df_rss_ceiling(self, monkeypatch):
+        large_df = _build_large_filter_df(rows=50_000)
+        self.window.df_completo = large_df.copy()
+        self.window.df_exibido = large_df.copy()
+        self.window._df_last_search_filtered = large_df.copy()
+        self.window.paginator.set_dataframe(large_df.copy())
+
+        rss_before = _rss_mb()
+        cycles = int(os.environ.get("SSA_GUI_SMOKE_LARGE_CYCLES", "3"))
+        captured_timings: list[dict] = []
+        original_log = self.window._log_filter_refresh_timings
+
+        def _capture_log(**kwargs):
+            timings = kwargs.get("timings")
+            if isinstance(timings, dict):
+                captured_timings.append(dict(timings))
+            return original_log(**kwargs)
+
+        monkeypatch.setattr(self.window, "_log_filter_refresh_timings", _capture_log)
+
+        for idx in range(cycles):
+            self.window._active_column_filters["situacao"] = "APV" if idx % 2 == 0 else ""
+            self.window._exclude_ste_sca = idx % 2 == 1
+            self.window._refresh_after_filter_change()
+            QApplication.processEvents()
+
+        rss_after = _rss_mb()
+        delta = rss_after - rss_before
+        limit_mb = float(os.environ.get("SSA_GUI_SMOKE_LARGE_RSS_LIMIT_MB", "512"))
+
+        assert delta < limit_mb, (
+            f"Large-df RSS delta {delta:.1f}MB exceeded budget {limit_mb:.1f}MB "
+            f"(before={rss_before:.1f} after={rss_after:.1f})"
+        )
+        assert captured_timings
+        last_timings = captured_timings[-1]
+        for stage in ("advanced", "column", "exclude", "sort", "paginate", "render"):
+            assert stage in last_timings
+            assert last_timings[stage] >= 0.0

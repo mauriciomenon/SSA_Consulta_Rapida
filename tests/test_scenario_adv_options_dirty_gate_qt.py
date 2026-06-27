@@ -6,7 +6,10 @@ from unittest.mock import patch
 
 from PyQt6.QtWidgets import QApplication
 
-from gui.ssa.gui_filters_advanced_refresh import get_cached_advanced_filter_option_values
+from gui.ssa.gui_filters_advanced_refresh import (
+    build_advanced_values_cache_key,
+    get_cached_advanced_filter_option_values,
+)
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 
@@ -83,3 +86,38 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
 
         exec_vals = list(self.window._adv_values_cache.get("exec_vals") or [])
         assert "ZZZ9" in exec_vals
+
+    def test_dirty_gate_runs_before_cached_read(self):
+        self.load_advanced_contract_df()
+        self.window._adv_options_dirty = False
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        stale_exec = ["STALE_ONLY"]
+        df_key = build_advanced_values_cache_key(
+            self.window.df_completo,
+            getattr(self.window, "_data_load_token", None),
+        )
+        self.window._adv_values_cache["df_key"] = df_key
+        self.window._adv_values_cache["exec_vals"] = stale_exec
+        self.window.df_completo.loc[0, "setor_executor"] = "GATE_FRESH"
+        self.window._adv_options_dirty = True
+
+        call_order: list[tuple[str, bool | None]] = []
+
+        def _spy_get_cached(*args, **kwargs):
+            call_order.append(("get_cached", kwargs.get("force_refresh")))
+            return get_cached_advanced_filter_option_values(*args, **kwargs)
+
+        with patch(
+            "gui.ssa.gui_filters_advanced_ui.get_cached_advanced_filter_option_values",
+            side_effect=_spy_get_cached,
+        ):
+            self.window._refresh_advanced_filter_options()
+            QApplication.processEvents()
+
+        assert call_order == [("get_cached", True)]
+        exec_vals = list(self.window._adv_values_cache.get("exec_vals") or [])
+        assert "GATE_FRESH" in exec_vals
+        assert "STALE_ONLY" not in exec_vals
+        assert self.window._adv_options_dirty is False

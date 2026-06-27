@@ -131,3 +131,26 @@ def test_visual_map_keys_cover_state_reader_collect_output():
         expected_widget_keys.add(f"{spec.base_key}_exclude_values")
 
     assert expected_widget_keys - visual_keys == set()
+
+
+def test_collect_advanced_options_use_full_df_not_search_subset():
+    """H4: option collection reflects df_completo scope, not active search subset."""
+    from gui.ssa.gui_filters_advanced_refresh import collect_advanced_filter_option_values
+
+    df_full = build_advanced_filter_contract_df()
+    df_full = df_full.copy()
+    df_full.loc[3, "setor_executor"] = "ONLY_IN_COMPLETO"
+    df_subset = df_full.iloc[[0]].copy()
+
+    def sort_sectors(values):
+        return values
+
+    subset_values = collect_advanced_filter_option_values(
+        df_subset, sort_sectors=sort_sectors
+    )
+    full_values = collect_advanced_filter_option_values(
+        df_full, sort_sectors=sort_sectors
+    )
+
+    assert "ONLY_IN_COMPLETO" not in subset_values.exec_vals
+    assert "ONLY_IN_COMPLETO" in full_values.exec_vals

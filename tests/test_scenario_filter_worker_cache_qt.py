@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import time
+
 import pandas as pd
+from PyQt6.QtWidgets import QApplication
 
 from gui.workers.filter_worker import FilterWorker
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
@@ -54,3 +57,32 @@ class TestScenarioFilterWorkerCache(GUIFilterScenarioHarness):
         self.window.df_completo = replacement
         token = self.window._build_filter_worker_df_token(replacement)
         assert token == self.window._build_filter_worker_df_token(self.window.df_completo)
+
+    def test_sync_search_then_inplace_edit_returns_fresh_rows(self):
+        FilterWorker.clear_shared_cache()
+        self.window._sync_filtering = False
+
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            QApplication.processEvents()
+            if getattr(self.window, "filter_thread", None) is None:
+                break
+            time.sleep(0.01)
+
+        first_count = len(self.window.df_exibido)
+        assert first_count >= 1
+
+        self.window.df_completo.loc[4, "descricao_ssa"] = "Teste A secundario"
+        self.window.initiate_filtering()
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            QApplication.processEvents()
+            if getattr(self.window, "filter_thread", None) is None:
+                break
+            time.sleep(0.01)
+
+        descriptions = self.window.df_exibido["descricao_ssa"].astype(str).tolist()
+        assert "Teste A secundario" in descriptions
+        assert len(descriptions) > first_count
