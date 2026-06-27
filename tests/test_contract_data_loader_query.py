@@ -36,6 +36,7 @@ def test_build_select_query_without_limit_uses_select_star():
     assert normalized.startswith("SELECT * FROM")
     assert " LIMIT " not in normalized
     assert " ORDER BY " in normalized
+    assert "NUMERO_SSA" in normalized
     assert already_sorted is True
 
 
@@ -77,6 +78,7 @@ def test_data_loader_worker_e2e_sqlite_loads_full_table_without_limit(tmp_path):
     assert payload.preprocessed_for_gui is True
     expected_ids = {f"2026{idx:05d}" for idx in range(row_count)}
     assert set(payload.complete["numero_ssa"].astype(str)) == expected_ids
+    assert payload.complete["numero_ssa"].astype(str).nunique() == row_count
 
     query, _already_sorted = build_select_query(
         target_table="ssa_table",

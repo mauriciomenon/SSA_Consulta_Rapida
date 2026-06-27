@@ -1,4 +1,7 @@
-"""Qt scenario tests for filter refresh mixin behavior."""
+"""Qt scenario tests for filter refresh mixin behavior.
+
+GUI wiring complements pipeline contracts in test_contract_filter_refresh_semantics.py.
+"""
 
 from __future__ import annotations
 
@@ -9,11 +12,13 @@ import pandas as pd
 from PyQt6.QtWidgets import QApplication
 
 from gui.ssa import gui_filters_advanced_logic as adv_logic
+from tests._helpers.contract_data_builders import make_numero_ssa_sort_counter
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 
 class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
     def test_terminal_only_refresh_skips_post_search_callbacks(self, monkeypatch):
+        """Terminal-only _refresh_after_filter_change skips advanced/column stages."""
         advanced_calls = {"count": 0}
         column_calls = {"count": 0}
 
@@ -48,15 +53,8 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         self.window.search_input.setText("Teste")
         self.window._active_column_filters["situacao"] = "APV"
         filtered_search = self.base_df.iloc[[0, 4, 3]].copy()
-        sort_calls = {"numero_ssa": 0}
-        original_sort_values = pd.DataFrame.sort_values
-
-        def _count_numero_sort(frame, by=None, *args, **kwargs):
-            if by == "numero_ssa":
-                sort_calls["numero_ssa"] += 1
-            return original_sort_values(frame, by=by, *args, **kwargs)
-
-        monkeypatch.setattr(pd.DataFrame, "sort_values", _count_numero_sort)
+        sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
+        monkeypatch.setattr(pd.DataFrame, "sort_values", count_numero_sort)
 
         self.window.on_filter_finished(filtered_search, request_id=51)
         QApplication.processEvents()
@@ -77,21 +75,15 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         assert "STE" not in self.window.df_exibido["situacao"].tolist()
         assert "SCA" not in self.window.df_exibido["situacao"].tolist()
 
-    def test_filter_refresh_flags_failure_allows_search_sort(self, monkeypatch):
+    def test_filter_refresh_flags_failure_sorts_and_updates_status(self, monkeypatch):
+        """Flags failure keeps search sort and still updates filtered status label."""
         self.window._active_filter_request_id = 9
         self.window._active_filter_search_request_id = 9
         self.window._active_filter_search_display = "Teste"
         self.window.search_input.setText("Teste")
         unsorted = self.base_df.iloc[[0, 4, 3]].copy()
-        sort_calls = {"numero_ssa": 0}
-        original_sort_values = pd.DataFrame.sort_values
-
-        def _count_numero_sort(frame, by=None, *args, **kwargs):
-            if by == "numero_ssa":
-                sort_calls["numero_ssa"] += 1
-            return original_sort_values(frame, by=by, *args, **kwargs)
-
-        monkeypatch.setattr(pd.DataFrame, "sort_values", _count_numero_sort)
+        sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
+        monkeypatch.setattr(pd.DataFrame, "sort_values", count_numero_sort)
         monkeypatch.setattr(
             self.window,
             "_filter_refresh_flags",
@@ -106,6 +98,10 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
 
         assert sort_calls["numero_ssa"] == 1
         assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [5, 4, 1]
+        status_text = self.window.filtered_status_label.text()
+        assert status_text
+        assert "de" in status_text
+        assert "SSA" in status_text
 
     def test_mask_any_failure_surfaces_adv_notice_not_silent_empty(
         self, monkeypatch, caplog
@@ -135,31 +131,8 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         assert len(self.window.df_exibido) == rows_before
         assert self.window.filtered_status_label.text()
 
-    def test_filter_refresh_flags_failure_updates_status_label(self, monkeypatch):
-        self.window._active_filter_request_id = 9
-        self.window._active_filter_search_request_id = 9
-        self.window._active_filter_search_display = "Teste"
-        self.window.search_input.setText("Teste")
-        unsorted = self.base_df.iloc[[0, 4, 3]].copy()
-
-        monkeypatch.setattr(
-            self.window,
-            "_filter_refresh_flags",
-            MagicMock(side_effect=RuntimeError("flags failure")),
-        )
-        monkeypatch.setattr(
-            self.window, "_refresh_after_filter_change", lambda **_kwargs: None
-        )
-
-        self.window.on_filter_finished(unsorted, request_id=9)
-        QApplication.processEvents()
-
-        status_text = self.window.filtered_status_label.text()
-        assert status_text
-        assert "de" in status_text
-        assert "SSA" in status_text
-
     def test_stale_filter_request_ignored_without_mutating_display(self):
+        """Stale on_filter_finished payload must not change the visible dataframe."""
         self.window._active_filter_request_id = 10
         before_len = len(self.window.df_exibido)
         before_first = self.window.df_exibido.iloc[0]["numero_ssa"]

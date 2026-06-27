@@ -22,3 +22,7 @@ class TestScenarioAdvancedReprogramacoes(GUIFilterScenarioHarness):
         assert len(self.window.df_exibido) == 2
         assert len(self.window.df_exibido) < total_rows
         assert set(self.window.df_exibido["num_reprogramacoes"].tolist()) == {2}
+        assert set(self.window.df_exibido["numero_ssa"].astype(int).tolist()) == {
+            202600003,
+            202600004,
+        }

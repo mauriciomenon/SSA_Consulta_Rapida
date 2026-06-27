@@ -1,8 +1,40 @@
-"""Shared dataframe builders for filter contract tests."""
+"""Shared dataframe builders and contract test spies for filter tests."""
 
 from __future__ import annotations
 
+from typing import Callable
+
 import pandas as pd
+
+
+def pipeline_measure_timing(_name: str, callback: Callable[[], object]) -> object:
+    """Identity timing hook for apply_filter_refresh_pipeline contract tests."""
+    return callback()
+
+
+def make_numero_ssa_sort_counter() -> tuple[dict[str, int], Callable[..., pd.DataFrame]]:
+    """Return sort call counter and patched DataFrame.sort_values wrapper."""
+    sort_calls = {"numero_ssa": 0}
+    original_sort_values = pd.DataFrame.sort_values
+
+    def counter(frame, by=None, *args, **kwargs):
+        if by == "numero_ssa":
+            sort_calls["numero_ssa"] += 1
+        return original_sort_values(frame, by=by, *args, **kwargs)
+
+    return sort_calls, counter
+
+
+def make_series_tolist_spy() -> tuple[dict[str, int], Callable[..., list]]:
+    """Return tolist call counter and patched Series.tolist wrapper."""
+    tolist_calls = {"count": 0}
+    original_tolist = pd.Series.tolist
+
+    def spy(self, *args, **kwargs):
+        tolist_calls["count"] += 1
+        return original_tolist(self, *args, **kwargs)
+
+    return tolist_calls, spy
 
 
 def build_base_filter_df(*, rows: int = 5) -> pd.DataFrame:
@@ -77,3 +109,15 @@ def build_large_derivadas_chain(*, total_nodes: int) -> pd.DataFrame:
     for idx in range(2, total_nodes):
         rows.append((f"2026{idx:05d}", "202600000", "APG"))
     return pd.DataFrame(rows, columns=["numero_ssa", "derivada_de", "situacao"])
+
+
+def build_large_filter_df(*, rows: int) -> pd.DataFrame:
+    """Repeat base filter rows to reach the requested row count."""
+    template = build_base_filter_df(rows=5)
+    chunks = [template] * (rows // 5)
+    remainder = rows % 5
+    if remainder:
+        chunks.append(template.iloc[:remainder].copy())
+    large_df = pd.concat(chunks, ignore_index=True)
+    large_df["numero_ssa"] = list(range(1, rows + 1))
+    return large_df

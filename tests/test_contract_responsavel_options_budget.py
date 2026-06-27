@@ -54,3 +54,18 @@ def test_responsavel_signature_calls_hash_pandas_object_once():
     assert hash_calls["count"] == 1
     assert isinstance(signature, tuple)
     assert signature[3] == ("IEE3",)
+
+
+def test_responsavel_signature_changes_when_executor_include_changes():
+    df = build_advanced_filter_contract_df()
+    first = generate_responsavel_sector_filter_cache_signature(
+        df,
+        data_load_token=None,
+        executor_include=["IEE3"],
+    )
+    second = generate_responsavel_sector_filter_cache_signature(
+        df,
+        data_load_token=None,
+        executor_include=["MEL4"],
+    )
+    assert first != second

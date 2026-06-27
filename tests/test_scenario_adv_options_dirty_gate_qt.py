@@ -50,6 +50,8 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
         assert wrapped.call_count >= 1
         assert wrapped.call_args.kwargs.get("force_refresh") is False
         assert first_exec_vals
+        second_exec_vals = self.get_adv_exec_vals()
+        assert second_exec_vals == first_exec_vals
 
     def test_inplace_mutation_requires_dirty_for_fresh_options(self):
         self.load_advanced_contract_df()

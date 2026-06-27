@@ -35,3 +35,8 @@ class TestScenarioFilterUndoRestore(GUIFilterScenarioHarness):
 
         assert self.window._active_column_filters.get("situacao") == "APV"
         assert len(self.window.df_exibido) == apv_count
+        assert set(self.window.df_exibido["situacao"].tolist()) == {"APV"}
+        assert all(
+            str(value).strip() == "APV"
+            for value in self.window.df_exibido["situacao"].tolist()
+        )

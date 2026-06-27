@@ -88,3 +88,27 @@ def test_cache_separates_same_shape_different_dataframes():
 
     assert first_values.exec_vals == ["IEE1"]
     assert second_values.exec_vals == ["ZZZ9"]
+    assert second_values is not first_values
+
+
+def test_data_load_token_change_invalidates_cached_values():
+    cache: dict = {}
+    df = build_advanced_filter_contract_df()
+
+    first_token = object()
+    second_token = object()
+    first = get_cached_advanced_filter_option_values(
+        cache,
+        df,
+        data_load_token=first_token,
+        sort_sectors=lambda values: sorted(values),
+    )
+    second = get_cached_advanced_filter_option_values(
+        cache,
+        df,
+        data_load_token=second_token,
+        sort_sectors=lambda values: sorted(values),
+    )
+
+    assert first.exec_vals == second.exec_vals
+    assert second is not first

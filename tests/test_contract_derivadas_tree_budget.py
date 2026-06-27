@@ -43,6 +43,7 @@ def test_family_payload_truncates_large_family():
 
     assert payload["family_truncated"] is True
     assert len(payload["family_descendants"]) <= DERIVADAS_GRAPH_MAX_DESCENDANTS
+    assert len(payload["family_descendants"]) == DERIVADAS_GRAPH_MAX_DESCENDANTS
 
 
 def test_normalize_tree_data_marks_partial_when_truncated():

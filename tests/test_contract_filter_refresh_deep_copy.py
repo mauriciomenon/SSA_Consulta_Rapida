@@ -8,10 +8,7 @@ from gui.ssa.filter_refresh_pipeline import (
     FilterRefreshLastResult,
     apply_filter_refresh_pipeline,
 )
-
-
-def _measure(_name, callback):
-    return callback()
+from tests._helpers.contract_data_builders import pipeline_measure_timing
 
 
 def test_cached_refresh_result_is_deep_copied_on_read():
@@ -26,7 +23,7 @@ def test_cached_refresh_result_is_deep_copied_on_read():
         cached=None,
         apply_advanced_filters=None,
         apply_column_filters=lambda frame: frame[frame["situacao"].eq("APV")],
-        measure_timing=_measure,
+        measure_timing=pipeline_measure_timing,
     )
     assert isinstance(cache_update, FilterRefreshLastResult)
 
@@ -38,11 +35,12 @@ def test_cached_refresh_result_is_deep_copied_on_read():
         cached=cache_update,
         apply_advanced_filters=None,
         apply_column_filters=lambda frame: frame.iloc[0:0],
-        measure_timing=_measure,
+        measure_timing=pipeline_measure_timing,
     )
 
     cached_filtered.loc[cached_filtered.index[0], "situacao"] = "MUTATED"
     assert cache_update.dataframe["situacao"].tolist() == ["APV"]
+    assert cached_filtered["situacao"].tolist() == ["MUTATED"]
 
 
 def test_cached_refresh_store_uses_deep_copy():
@@ -57,7 +55,7 @@ def test_cached_refresh_store_uses_deep_copy():
         cached=None,
         apply_advanced_filters=None,
         apply_column_filters=lambda frame: frame[frame["situacao"].eq("APV")],
-        measure_timing=_measure,
+        measure_timing=pipeline_measure_timing,
     )
 
     filtered.loc[filtered.index[0], "situacao"] = "MUTATED"

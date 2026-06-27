@@ -27,6 +27,7 @@ def _make_window(**overrides):
 
 
 def test_select_source_does_not_reuse_last_search_when_exclude_ste_active():
+    """Exclude-terminal gate forces search source back to df_completo."""
     window = _make_window(_exclude_ste_sca=True)
     source = select_general_filter_source_candidate(window, "alpha beta")
     assert source is window.df_completo
@@ -44,3 +45,15 @@ def test_select_source_reuses_last_search_on_conservative_term_refinement():
     source = select_general_filter_source_candidate(window, "alpha beta")
     assert source is window._df_last_search_filtered
     assert len(source) == 2
+
+
+def test_select_source_does_not_reuse_last_search_when_advanced_active():
+    window = _make_window(_advanced_filters_active=True)
+    source = select_general_filter_source_candidate(window, "alpha beta")
+    assert source is window.df_completo
+
+
+def test_select_source_does_not_reuse_last_search_when_search_display_empty():
+    window = _make_window(_active_filter_search_display="")
+    source = select_general_filter_source_candidate(window, "alpha")
+    assert source is window.df_completo

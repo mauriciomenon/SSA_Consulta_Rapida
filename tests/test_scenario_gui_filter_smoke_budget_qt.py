@@ -5,23 +5,11 @@ from __future__ import annotations
 import os
 import resource
 
-import pandas as pd
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-from tests._helpers.contract_data_builders import build_base_filter_df
+from tests._helpers.contract_data_builders import build_large_filter_df
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
-
-
-def _build_large_filter_df(*, rows: int) -> pd.DataFrame:
-    template = build_base_filter_df(rows=5)
-    chunks = [template] * (rows // 5)
-    remainder = rows % 5
-    if remainder:
-        chunks.append(template.iloc[:remainder].copy())
-    large_df = pd.concat(chunks, ignore_index=True)
-    large_df["numero_ssa"] = list(range(1, rows + 1))
-    return large_df
 
 
 def _rss_mb() -> float:
@@ -83,7 +71,7 @@ class TestScenarioGUIFilterSmokeBudget(GUIFilterScenarioHarness):
             assert timings[stage] >= 0.0
 
     def test_filter_refresh_smoke_large_df_rss_ceiling(self, monkeypatch):
-        large_df = _build_large_filter_df(rows=50_000)
+        large_df = build_large_filter_df(rows=50_000)
         self.window.df_completo = large_df.copy()
         self.window.df_exibido = large_df.copy()
         self.window._df_last_search_filtered = large_df.copy()
@@ -123,7 +111,7 @@ class TestScenarioGUIFilterSmokeBudget(GUIFilterScenarioHarness):
             assert last_timings[stage] >= 0.0
 
     def test_filter_refresh_smoke_large_df_stage_ms_within_budget(self, monkeypatch):
-        large_df = _build_large_filter_df(rows=50_000)
+        large_df = build_large_filter_df(rows=50_000)
         self.window.df_completo = large_df.copy()
         self.window.df_exibido = large_df.copy()
         self.window._df_last_search_filtered = large_df.copy()

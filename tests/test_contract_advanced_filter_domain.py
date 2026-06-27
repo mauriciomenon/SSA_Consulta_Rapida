@@ -43,7 +43,8 @@ def _state_reader_collect_keys() -> set[str]:
     return set(reader.collect())
 
 
-def test_execution_year_filters_map_to_semana_executada_visually():
+def test_execution_year_visual_map_targets_semana_executada():
+    """Execution-year filter keys map to semana_executada in the visual column map."""
     assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["ano_execucao"] == ("semana_executada",)
     assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["ano_execucao_values"] == (
         "semana_executada",
@@ -74,6 +75,7 @@ def test_ano_execucao_values_filter_uses_semana_executada_column():
     )
 
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500003"]
+    assert "202500002" not in filtered["numero_ssa"].tolist()
 
 
 def test_semana_execucao_range_filter_uses_semana_executada():
@@ -93,6 +95,22 @@ def test_semana_execucao_range_filter_uses_semana_executada():
         202600003,
         202600004,
     }
+    assert 202600001 not in filtered["numero_ssa"].astype(int).tolist()
+
+
+def test_semana_execucao_fim_caps_range_on_semana_executada():
+    window = _DummyWindow({"semana_execucao_fim": 202502})
+    df = build_advanced_filter_contract_df()
+
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+
+    assert set(filtered["numero_ssa"].astype(int).tolist()) == {202600001, 202600002}
 
 
 def test_df_completo_options_include_execucao_years_from_semana_executada():
@@ -169,6 +187,7 @@ def test_reprogramacoes_filter_values_reduce_rows():
     filtered = df[result_mask]
     assert len(filtered) == 2
     assert filtered["num_reprogramacoes"].tolist() == [2, 2]
+    assert set(filtered["numero_ssa"].astype(int).tolist()) == {202600003, 202600004}
 
 
 def test_reprogramacoes_summary_entries_reference_widget_keys():

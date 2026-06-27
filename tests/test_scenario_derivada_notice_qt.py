@@ -26,6 +26,7 @@ class TestScenarioDerivadaNotice(GUIFilterScenarioHarness):
         assert "Aviso: nenhuma derivada encontrada para o filtro." in notice_text
         assert "SSA" in count_text
         assert "Aviso" not in count_text
+        assert len(self.window.df_exibido) == len(self.window.df_completo)
 
     def test_derivada_all_ste_empty_notice_shows_without_mask_failure(self):
         df = self.base_df.copy()

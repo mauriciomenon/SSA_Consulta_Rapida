@@ -27,3 +27,8 @@ def test_filter_cache_get_put_isolates_mutation():
     assert cached_second is not None
     assert cached_second["a"].tolist() == [1, 2]
     assert cached_second["b"].tolist() == ["x", "y"]
+
+
+def test_filter_cache_miss_returns_none():
+    cache = FilterCache(max_size=2)
+    assert cache.get("missing", [["x"]], "contains") is None

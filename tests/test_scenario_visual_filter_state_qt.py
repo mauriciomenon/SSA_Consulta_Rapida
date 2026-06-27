@@ -9,6 +9,12 @@ from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 class TestScenarioVisualFilterState(GUIFilterScenarioHarness):
     def test_ano_execucao_filter_marks_semana_executada_header(self):
+        """Default advanced DF keeps all rows when filtering ano_execucao 2025.
+
+        build_advanced_filter_contract_df sets semana_executada to 202501-202504.
+        Year 2025 therefore matches every row while marking semana_executada [f].
+        Row reduction with mixed years is covered by test_ano_execucao_filter_reduces_visible_rows.
+        """
         self.load_advanced_contract_df()
         if "semana_executada" not in self.window.visible_columns:
             self.window.visible_columns.append("semana_executada")
@@ -77,6 +83,7 @@ class TestScenarioVisualFilterState(GUIFilterScenarioHarness):
         assert not programada_header.startswith("[f] ")
 
     def test_ano_execucao_filter_reduces_visible_rows(self):
+        """Mixed semana_executada years make ano_execucao 2025 return a strict subset."""
         df = self.load_advanced_contract_df()
         df.loc[0, "semana_executada"] = 202501
         df.loc[1, "semana_executada"] = 202602

@@ -148,8 +148,45 @@ class GUIFilterScenarioHarness:
             cast(Any, QTest).qWait(10)
         QApplication.processEvents()
 
+    def wait_until_filter_idle(self, timeout_ms: int = 5000) -> None:
+        deadline = time.monotonic() + (timeout_ms / 1000)
+        while time.monotonic() < deadline:
+            QApplication.processEvents()
+            if getattr(self.window, "filter_thread", None) is None:
+                return
+            cast(Any, QTest).qWait(10)
+        QApplication.processEvents()
+
     def extract_visible_ssa(self) -> list:
         return list(self.window.df_exibido["numero_ssa"])
+
+    def extract_visible_descriptions(self) -> list[str]:
+        return [
+            str(value)
+            for value in self.window.df_exibido["descricao_ssa"].astype(str).tolist()
+        ]
+
+    def snapshot_display_state(self) -> dict[str, object]:
+        return {
+            "count": len(self.window.df_exibido),
+            "ssa": self.extract_visible_ssa(),
+            "descriptions": self.extract_visible_descriptions(),
+            "search_display": str(
+                getattr(self.window, "_active_filter_search_display", "") or ""
+            ),
+        }
+
+    def assert_display_matches(self, expected: dict[str, object]) -> None:
+        assert len(self.window.df_exibido) == expected["count"]
+        assert self.extract_visible_ssa() == expected["ssa"]
+        assert self.extract_visible_descriptions() == expected["descriptions"]
+        assert (
+            str(getattr(self.window, "_active_filter_search_display", "") or "")
+            == expected["search_display"]
+        )
+
+    def get_adv_exec_vals(self) -> list[str]:
+        return list(self.window._adv_values_cache.get("exec_vals") or [])
 
     def set_filter_panel_tab(self, panel: str) -> dict[str, Any]:
         target_index = 1 if panel in {"filters", "advanced"} else 0

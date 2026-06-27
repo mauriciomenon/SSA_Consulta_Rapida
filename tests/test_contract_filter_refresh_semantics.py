@@ -1,22 +1,26 @@
-"""Contract tests for filter refresh semantics and has_post_search_filters."""
+"""Contract tests for filter refresh semantics and has_post_search_filters.
+
+Pipeline-level contracts; GUI wiring for the same gates lives in
+test_scenario_filter_refresh_mixin_qt.py.
+"""
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 from collections import OrderedDict
+from unittest.mock import MagicMock
 
 import pandas as pd
 
 from gui.ssa.filter_refresh_pipeline import apply_filter_refresh_pipeline
-from tests._helpers.contract_data_builders import build_base_filter_df
-
-
-def _measure(_name, callback):
-    return callback()
+from tests._helpers.contract_data_builders import (
+    build_base_filter_df,
+    make_numero_ssa_sort_counter,
+    pipeline_measure_timing,
+)
 
 
 def test_terminal_only_skips_post_search_callbacks():
+    """Terminal-only refresh excludes STE/SCA without post-search callbacks."""
     df = build_base_filter_df()
 
     def _unexpected(_frame):
@@ -30,7 +34,7 @@ def test_terminal_only_skips_post_search_callbacks():
         cached=None,
         apply_advanced_filters=_unexpected,
         apply_column_filters=_unexpected,
-        measure_timing=_measure,
+        measure_timing=pipeline_measure_timing,
     )
 
     assert "STE" not in filtered["situacao"].tolist()
@@ -58,7 +62,7 @@ def test_refresh_path_excludes_terminal_from_has_post_search_filters():
         cached=None,
         apply_advanced_filters=_track_post_search,
         apply_column_filters=_track_post_search,
-        measure_timing=_measure,
+        measure_timing=pipeline_measure_timing,
     )
 
     assert post_search_calls["count"] == 0
@@ -117,19 +121,13 @@ def test_on_filter_finished_sorts_when_filter_refresh_flags_fail(monkeypatch):
     setattr(window, "clear_filter_button", MagicMock())
 
     unsorted = window.df_completo.iloc[[0, 4, 3]].copy()
-    sort_calls = {"numero_ssa": 0}
-    original_sort_values = pd.DataFrame.sort_values
-
-    def _count_numero_sort(frame, by=None, *args, **kwargs):
-        if by == "numero_ssa":
-            sort_calls["numero_ssa"] += 1
-        return original_sort_values(frame, by=by, *args, **kwargs)
+    sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
 
     monkeypatch.setattr(
         "gui.mixins.filter_gui_ssa_mixin._is_search_widget_valid",
         lambda _widget: True,
     )
-    monkeypatch.setattr(pd.DataFrame, "sort_values", _count_numero_sort)
+    monkeypatch.setattr(pd.DataFrame, "sort_values", count_numero_sort)
     monkeypatch.setattr(
         window,
         "_filter_refresh_flags",
@@ -151,6 +149,7 @@ def test_on_filter_finished_sorts_when_filter_refresh_flags_fail(monkeypatch):
 
 
 def test_refresh_path_applies_post_search_when_column_filter_active():
+    """Active column filters run advanced and column stages in refresh path."""
     df = build_base_filter_df()
     advanced_calls = {"count": 0}
     column_calls = {"count": 0}
@@ -171,7 +170,7 @@ def test_refresh_path_applies_post_search_when_column_filter_active():
         cached=None,
         apply_advanced_filters=_track_advanced,
         apply_column_filters=_track_column,
-        measure_timing=_measure,
+        measure_timing=pipeline_measure_timing,
     )
 
     assert advanced_calls["count"] == 1
@@ -191,15 +190,8 @@ def test_sort_filter_refresh_result_skips_when_sorted_attr_set(monkeypatch):
     sorted_df.attrs["ssa_sorted_for_display"] = True
     window._df_last_search_filtered = sorted_df
 
-    sort_calls = {"numero_ssa": 0}
-    original_sort_values = pd.DataFrame.sort_values
-
-    def _count_numero_sort(frame, by=None, *args, **kwargs):
-        if by == "numero_ssa":
-            sort_calls["numero_ssa"] += 1
-        return original_sort_values(frame, by=by, *args, **kwargs)
-
-    monkeypatch.setattr(pd.DataFrame, "sort_values", _count_numero_sort)
+    sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
+    monkeypatch.setattr(pd.DataFrame, "sort_values", count_numero_sort)
 
     result = window._sort_filter_refresh_result(
         sorted_df,
@@ -225,15 +217,8 @@ def test_sort_filter_refresh_result_sorts_when_sorted_attr_missing(monkeypatch):
     unsorted = build_base_filter_df().iloc[[0, 4, 3]].copy()
     window._df_last_search_filtered = unsorted.copy()
 
-    sort_calls = {"numero_ssa": 0}
-    original_sort_values = pd.DataFrame.sort_values
-
-    def _count_numero_sort(frame, by=None, *args, **kwargs):
-        if by == "numero_ssa":
-            sort_calls["numero_ssa"] += 1
-        return original_sort_values(frame, by=by, *args, **kwargs)
-
-    monkeypatch.setattr(pd.DataFrame, "sort_values", _count_numero_sort)
+    sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
+    monkeypatch.setattr(pd.DataFrame, "sort_values", count_numero_sort)
 
     result = window._sort_filter_refresh_result(
         unsorted,
