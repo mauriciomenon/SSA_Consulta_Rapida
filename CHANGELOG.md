@@ -2,11 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased] - 2026-06-11
+## [Unreleased] - 2026-06-27
 
 ### Changed
-- Local top on `dev` after baseline `4.42`:
-  - Runtime metadata, packaging test expectations and active documentation now point to `4.42`.
+- Local top on `dev` after baseline `4.43`:
+  - Runtime metadata, packaging test expectations and active documentation now point to `4.43`.
   - Persistent saved filters materialize visible advanced filter selections before deduplication.
   - Deleted Qt `FilterWorker` shutdown is treated as benign cleanup instead of a warning.
   - Previous local-top notes after `4.37` remain historical context below.
@@ -34,6 +34,14 @@ All notable changes to this project are documented in this file.
   - `ruff`
   - `ty`
   - focused `pytest` on GUI detail navigation, popup graph, and import-trigger contracts
+
+## [v4.43] - 2026-06-27
+
+### Changed
+- Promoted local active baseline to `4.43`.
+- Synchronized runtime metadata in `VERSION`, `config/version.json`, `pyproject.toml` and `uv.lock`.
+- Aligned active docs and packaging-related tests to versioned names `v4.43`.
+- Reserved local tag `v4.43` before functional GUI/filter/cache stabilization slices.
 
 ## [v4.42] - 2026-06-11
 

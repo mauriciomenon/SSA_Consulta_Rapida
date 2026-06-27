@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
 
-## CURRENT TRUTH (4.42 local / v4.36 published)
+## CURRENT TRUTH (4.43 local / v4.36 published)
 
 - Sync deste guia: `2026-03-11 22:25 -0300`.
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
@@ -30,7 +30,7 @@ Nao usar como runbook primario de release em v4.33.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.42
+**Projeto**: SSA_Consulta_Rapida v4.43
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (NAO MSYS2)
 
@@ -485,7 +485,7 @@ def make_msi(exe):
     return exe.to_wix_msi_builder(
         "SSA_Consulta_Rapida",
         "SSA Consulta Rapida",
-        "4.42",
+        "4.43",
         "SSA"
     )
 
@@ -1047,7 +1047,7 @@ def make_msi(exe):
     return exe.to_wix_msi_builder(
         "SSA_Consulta_Rapida",
         "SSA Consulta Rapida",
-        "4.42",  # Versao aqui
+        "4.43",  # Versao aqui
         "SSA"
     )
 ```
@@ -1100,7 +1100,7 @@ Estrutura permite updates so do exe:
 
 ```
 builds/pyoxidizer/
-|-- SSA_Consulta_Rapida.exe      # 3.4 MB (update v4.42)
+|-- SSA_Consulta_Rapida.exe      # 3.4 MB (update v4.43)
 |-- lib/                          # 340 MB (nao muda)
 ```
 

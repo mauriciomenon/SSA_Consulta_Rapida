@@ -3,7 +3,7 @@
 ## HISTORICAL SNAPSHOT
 
 Este laudo reflete uma analise pontual de 2025.
-Para fluxo ativo de build no baseline atual `v4.42`, usar:
+Para fluxo ativo de build no baseline atual `v4.43`, usar:
 - `docs/BUILD_SYSTEM.md`
 - `docs/BUILD_MULTIPLATFORM.md`
 

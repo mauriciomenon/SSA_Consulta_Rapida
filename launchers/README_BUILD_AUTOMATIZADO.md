@@ -7,7 +7,7 @@
 - PR #58 e PR #59: merged.
 - PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #59.
 - `main`, `dev`, `origin/main` e `origin/dev` apontam para o mesmo HEAD.
-- Artefatos v4.42 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
+- Artefatos v4.43 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
 - Orquestradores ativos:
   - Windows AMD64: `dev_env/build/release_windows.ps1`.
@@ -20,7 +20,7 @@
   - Nuitka continua backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e atualizar release v4.42 somente com pacotes novos.
+- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e atualizar release v4.43 somente com pacotes novos.
 
 ## 1. Objetivos
 | Objetivo | Beneficio |

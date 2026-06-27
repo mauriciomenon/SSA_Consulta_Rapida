@@ -6,7 +6,7 @@
 - Branch destino: `main`.
 - Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
 - PR #58 e PR #59: merged; `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados antes de qualquer rebuild.
-- Artefatos v4.42 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
+- Artefatos v4.43 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
   - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
   - Debian AMD64/ARM64: `pyinstaller`, `nuitka`, `pyoxidizer` + `deb`, `appimage`, `tar`; `pyoxidizer/appimage` nao e suportado.
@@ -28,7 +28,7 @@
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
 - `setup_env.sh` e `setup_env.ps1` nao executam instalador remoto de pyenv sem opt-in e SHA256 explicitos.
 - `dev_env/setup_msvc_path.ps1` e diagnostico/sessao; nao altera PATH permanente do usuario por padrao.
-- Proximo passo operacional: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.42.
+- Proximo passo operacional: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.43.
 
 ## Comandos Simples De Release
 
@@ -336,7 +336,7 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 - `reports`
 - `exportacao`
 
-Politica operacional (v4.42+):
+Politica operacional (v4.43+):
 - build canonico nao embeda `data/` por padrao.
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
   - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
@@ -354,7 +354,7 @@ Politica operacional (v4.42+):
 Texto sugerido:
 
 ```text
-SSA Consulta Rapida v4.42
+SSA Consulta Rapida v4.43
 
 INSTALACAO
 1. Baixe o arquivo ZIP.

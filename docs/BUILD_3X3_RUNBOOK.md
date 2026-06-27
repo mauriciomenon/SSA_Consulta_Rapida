@@ -206,10 +206,10 @@ if (-not $CLI_BIN) {
 
 ```powershell
 $EXES = @(
-  ".\launchers\dist\windows_amd64\SSA_CLI_v4.42_windows_amd64\SSA_CLI_v4.42_windows_amd64.exe",
-  ".\launchers\dist\windows_amd64\SSA_GUI_v4.42_windows_amd64\SSA_GUI_v4.42_windows_amd64.exe",
-  ".\builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v4.42_windows_amd64.exe",
-  ".\builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v4.42_windows_amd64.exe",
+  ".\launchers\dist\windows_amd64\SSA_CLI_v4.43_windows_amd64\SSA_CLI_v4.43_windows_amd64.exe",
+  ".\launchers\dist\windows_amd64\SSA_GUI_v4.43_windows_amd64\SSA_GUI_v4.43_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v4.43_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v4.43_windows_amd64.exe",
   ".\builds\pyoxidizer\windows_amd64\SSA_Consulta_Rapida.exe"
 )
 $ROWS = @()

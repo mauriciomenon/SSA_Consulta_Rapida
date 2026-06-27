@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (baseline v4.42)
+## CURRENT TRUTH (baseline v4.43)
 
 - Sync deste guia: `2026-04-15 15:45 -0300`.
 - Fluxo canonico Nuitka (sempre via uv wrappers):
@@ -30,7 +30,7 @@ Quando houver conflito com docs operacionais, prevalece CURRENT TRUTH.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.42
+**Projeto**: SSA_Consulta_Rapida v4.43
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (PATH limpo)
 
@@ -654,7 +654,7 @@ cd builds/nuitka
 
 # Teste 1: Versao
 ./main.exe --version
-# Esperado: 4.42
+# Esperado: 4.43
 
 # Teste 2: Help
 ./main.exe --help
@@ -1302,7 +1302,7 @@ python -m nuitka ^
 [ ] python313.dll presente
 [ ] Qt6*.dll presentes
 [ ] config/ e data/ copiados
-[ ] Teste: main.exe --version (mostra 4.42)
+[ ] Teste: main.exe --version (mostra 4.43)
 [ ] Teste: main.exe --help (mostra ajuda)
 [ ] Teste: main.exe --gui (abre interface)
 [ ] Startup e instantaneo (< 1 segundo)

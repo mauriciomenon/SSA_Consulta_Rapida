@@ -1,14 +1,17 @@
-# SSA Consulta Rapida v4.42
+# SSA Consulta Rapida v4.43
 
-Release/tag publicada mais recente na branch `dev`: `v4.36`.
+Tag local da baseline atual: `v4.43`.
+Release/tag publicada mais recente no remoto `dev`: `v4.36`.
 
-## Current Truth (2026-04-11 23:00 -0300)
+## Current Truth (2026-06-27 15:56 -0300)
 
 - Estado operacional:
-  - metadata local ativa: `4.42`
-  - ultima tag publicada em `dev`: `v4.36`
+  - metadata local ativa: `4.43`
+  - tag local da baseline atual: `v4.43`
+  - ultima tag publicada no remoto `dev`: `v4.36`
   - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
-  - `4.42` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada permanece `v4.36`
+  - `4.43` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada remota permanece `v4.36`
+  - `v4.43` foi reservado para fechar a baseline local antes dos slices funcionais de filtros/cache/GUI
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
   - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos
   - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
@@ -122,7 +125,14 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 
-## Baseline v4.42 (2026-04)
+## Baseline v4.43 (2026-06)
+
+### Destaques
+- Metadata local, docs ativos e expectativas de empacotamento foram promovidos para `4.43`.
+- A tag local `v4.43` marca a baseline imediatamente anterior aos slices funcionais de filtros/cache/GUI.
+- A ultima tag publicada remota continua sendo `v4.36` ate existir ciclo de release remoto explicitamente aprovado.
+
+## Baseline v4.42 (2026-04, historical)
 
 ### Destaques
 - Nullable dtypes no readback agora estao estabilizados sem regressao visual:
@@ -255,7 +265,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.42)
+### Documentacao tecnica atual (v4.43)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:

@@ -2,15 +2,23 @@
 
 ## Baseline ativo
 
-- Versao de referencia: `4.42`.
+- Versao de referencia: `4.43`.
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
-- Current truth operacional 2026-05-04 01h14:
-  - `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados; base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`
-  - PR #58 e PR #59 merged
-  - artefatos v4.42 anteriores a este HEAD seguem stale
-  - proximo passo: rebuild Windows AMD64 e Debian AMD64 antes de atualizar release v4.42
-- Current truth sincronizado com commits anteriores desta frente:
+- Current truth operacional 2026-06-27 15h56:
+  - metadata local ativa: `4.43`
+  - tag local da baseline atual: `v4.43`
+  - ultima tag publicada remota: `v4.36`
+  - proximo passo funcional: iniciar os slices de filtros/cache/GUI sem misturar com DOC_SYNC
+
+## Historical snapshot
+
+- Snapshot operacional anterior 2026-05-04 01h14:
+  - `main`, `dev`, `origin/main` e `origin/dev` deveriam estar sincronizados; base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`
+  - PR #58 e PR #59 estavam merged
+  - artefatos v4.43 anteriores a este HEAD seguiam stale
+  - proximo passo era rebuild Windows AMD64 e Debian AMD64 antes de atualizar release v4.43
+- Snapshot sincronizado com commits anteriores desta frente:
   - `tests/test_gui_filter_logic.py` deixou de depender de globais compartilhados entre testes para aposentadoria/limpeza de workers
   - o harness agora tira snapshot e restaura o estado global de lifecycle em `setup_method`/`teardown_method`
   - a pendencia correspondente saiu do backlog ativo como item de correcao

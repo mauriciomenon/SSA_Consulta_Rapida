@@ -1,4 +1,4 @@
-# Troubleshooting (Baseline v4.42)
+# Troubleshooting (Baseline v4.43)
 
 Guia ativo de diagnostico rapido para operacao diaria.
 

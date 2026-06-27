@@ -1,6 +1,6 @@
 # Filter Tab Optimizations - January 2026
 
-Current release baseline reference: `v4.42`.
+Current release baseline reference: `v4.43`.
 Runtime command standard for validations: `uv run --python 3.13 ...` (fallback 3.12 -> 3.11 -> 3.10).
 
 ## v4.22 - Dynamic 4-Column Layout Algorithm (Current)

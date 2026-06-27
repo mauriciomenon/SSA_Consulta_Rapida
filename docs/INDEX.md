@@ -1,10 +1,10 @@
-# INDEX de Documentacao (Baseline v4.42 local / v4.36 published)
+# INDEX de Documentacao (Baseline v4.43 local / v4.36 published)
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
 ## Sync status (2026-04-15 21:50 -0300)
 
-1. Baseline ativo confirmado: `4.42`.
+1. Baseline ativo confirmado: `4.43`.
 2. Branch operacional: `dev`.
 3. Release/tag publicada relevante: `v4.36`.
 4. Estado atual do branch:
@@ -61,7 +61,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 
 ## Regras de leitura
 
-1. Baseline ativo de versao: `4.42`.
+1. Baseline ativo de versao: `4.43`.
 2. Em conflito de informacao, prevalece:
    - `AGENTS.md` (raiz)
    - `docs/POLICY_BASELINE_V1_1_FROZEN.md`

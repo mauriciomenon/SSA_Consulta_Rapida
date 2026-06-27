@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (baseline v4.42)
+## CURRENT TRUTH (baseline v4.43)
 
 - Sync deste guia: `2026-04-15 15:45 -0300`.
 - Caminho operacional principal:
@@ -35,7 +35,7 @@ Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
 > operacional atual deste guia fica no bloco `CURRENT TRUTH`.
 
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.42
+**Projeto**: SSA_Consulta_Rapida v4.43
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: MSYS2 UCRT64 / CMD / PowerShell
 
@@ -294,7 +294,7 @@ SSA_Consulta_Rapida/
 
 **core/version.py**:
 ```python
-APP_VERSION = "4.42"
+APP_VERSION = "4.43"
 APP_NAME = "SSA Consulta Rapida"
 ```
 
@@ -563,7 +563,7 @@ cd builds/pyinstaller
 
 # Teste 1: Versao
 ./SSA_Consulta_Rapida.exe --version
-# Esperado: 4.42
+# Esperado: 4.43
 
 # Teste 2: Help
 ./SSA_Consulta_Rapida.exe --help
@@ -1224,8 +1224,8 @@ Python 3.8 suporta Windows 7+.
 ```
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(4, 11, 0, 0),
-    prodvers=(4, 11, 0, 0),
+    filevers=(4, 43, 0, 0),
+    prodvers=(4, 43, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -1240,12 +1240,12 @@ VSVersionInfo(
         u'040904B0',
         [StringStruct(u'CompanyName', u'SSA'),
         StringStruct(u'FileDescription', u'SSA Consulta Rapida'),
-        StringStruct(u'FileVersion', u'4.42'),
+        StringStruct(u'FileVersion', u'4.43'),
         StringStruct(u'InternalName', u'SSA_Consulta_Rapida'),
         StringStruct(u'LegalCopyright', u'Copyright 2025'),
         StringStruct(u'OriginalFilename', u'SSA_Consulta_Rapida.exe'),
         StringStruct(u'ProductName', u'SSA Consulta Rapida'),
-        StringStruct(u'ProductVersion', u'4.42')])
+        StringStruct(u'ProductVersion', u'4.43')])
       ]
     ),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])

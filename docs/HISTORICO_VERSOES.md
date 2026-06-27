@@ -5,7 +5,7 @@ Este documento consolida informacoes de todas as versoes e releases do SSA Consu
 ## HISTORICAL SNAPSHOT
 
 Este arquivo e um snapshot legado de planejamento antigo (serie v3.x).
-Fonte ativa de release atual: `docs/HISTORICO_RELEASES.md` (baseline `v4.42`).
+Fonte ativa de release atual: `docs/HISTORICO_RELEASES.md` (baseline `v4.43`).
 Nao usar este arquivo como referencia unica para estado atual.
 
 ## **ULTIMA VERSAO DA SERIE v3.x E ROADMAP LEGADO**
