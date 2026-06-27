@@ -1560,6 +1560,15 @@ def _refresh_after_advanced_filters_apply(self) -> str | None:
         logger.warning(
             "Falha ao atualizar resultado apos aplicar filtros avancados: %s", exc
         )
+        update_status = getattr(self, "update_filter_status_display", None)
+        displayed_df = getattr(self, "df_exibido", None)
+        complete_df = getattr(self, "df_completo", None)
+        if callable(update_status):
+            update_status(
+                filtered_total=len(displayed_df) if displayed_df is not None else None,
+                original_total=len(complete_df) if complete_df is not None else None,
+                search_text=None,
+            )
     finally:
         setattr(self, "_adv_notice_callback", None)
     return notice_box["value"]

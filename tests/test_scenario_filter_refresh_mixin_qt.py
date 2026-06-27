@@ -156,16 +156,15 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
     def test_mask_any_failure_surfaces_adv_notice_not_silent_empty(
         self, monkeypatch, caplog
     ):
-        """H6: mask.any() failure keeps df_exibido rows but count label shows 0 de 0.
+        """H6: mask.any() failure keeps df_exibido rows and count label in sync.
 
-        Current contract (known bug, not a production fix): when advanced filter
-        mask.any() raises, df_exibido retains the pre-failure row count (4 rows
-        for build_advanced_filter_contract_df) while filtered_status_label
-        reports "0 de 0 SSAs". status_label must stay non-empty and must not
-        host the derivada aviso text.
+        When advanced filter mask.any() raises, df_exibido retains the pre-failure
+        rows and filtered_status_label must keep reporting the displayed count.
+        status_label must stay non-empty and must not host the derivada aviso text.
         """
         self.load_advanced_contract_df()
         rows_before = len(self.window.df_exibido)
+        complete_rows = len(self.window.df_completo)
 
         def _broken_mask_any(_mask, _context):
             raise RuntimeError(
@@ -189,7 +188,7 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         assert len(self.window.df_exibido) == rows_before
         count_text = str(self.window.filtered_status_label.text() or "")
         notice_text = str(self.window.status_label.text() or "")
-        assert count_text == "0 de 0 SSAs"
+        assert count_text == f"{rows_before} de {complete_rows} SSAs"
         assert notice_text.strip() != ""
         assert "Aviso" not in notice_text
 
