@@ -51,6 +51,7 @@ except ImportError:
 from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_MARKER_ATTR
 from core.search_filter_constants import FILTER_SEARCH_SIGNATURE_CACHE_ATTR
 from core.app_logic import filter_dataframe, parse_search_terms
+from core.dataframe_fingerprint import build_dataframe_filter_hash
 from core.search_filter import apply_general_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 
@@ -600,20 +601,34 @@ class FilterGUISSAMixin:
         shape = tuple(getattr(source, "shape", (0, 0)))
         revision = getattr(self, "_data_revision", None)
         data_uuid = getattr(self, "_data_uuid", None)
+        content_hash = build_dataframe_filter_hash(source)
         cached = getattr(self, "_filter_worker_df_token_cache", None)
-        if isinstance(cached, tuple) and len(cached) == 4:
-            cached_source_id, cached_shape, cached_revision, cached_token = cached
+        if isinstance(cached, tuple) and len(cached) == 5:
+            (
+                cached_source_id,
+                cached_shape,
+                cached_revision,
+                cached_content_hash,
+                cached_token,
+            ) = cached
             if (
                 cached_source_id == id(source)
                 and cached_shape == shape
                 and cached_revision == (revision, data_uuid)
+                and cached_content_hash == content_hash
             ):
                 return str(cached_token)
         columns = tuple(str(column) for column in getattr(source, "columns", ()))
         token = repr(
-            ("gui-filter-source", id(source), shape, columns, revision, data_uuid)
+            ("gui-filter-source", content_hash, shape, columns, revision, data_uuid)
         )
-        self._filter_worker_df_token_cache = (id(source), shape, (revision, data_uuid), token)
+        self._filter_worker_df_token_cache = (
+            id(source),
+            shape,
+            (revision, data_uuid),
+            content_hash,
+            token,
+        )
         return token
 
     def _reset_repeated_clear_click_tracking(self) -> None:

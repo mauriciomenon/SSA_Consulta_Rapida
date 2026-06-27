@@ -17,6 +17,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from gui.cache.filter_cache import FilterCache  # noqa: E402
+from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin  # noqa: E402
 from gui.workers.filter_worker import FilterWorker  # noqa: E402
 
 
@@ -59,6 +60,21 @@ class TestFilterWorker:
         hash2 = FilterWorker._build_df_hash(df2)
 
         assert hash1 != hash2
+
+    def test_gui_filter_worker_token_tracks_in_place_dataframe_mutation(self):
+        class _Window(FilterGUISSAMixin):
+            pass
+
+        window = _Window()
+        setattr(window, "_data_revision", None)
+        setattr(window, "_data_uuid", None)
+        df = pd.DataFrame({"texto": ["alfa", "beta"], "situacao": ["APV", "STE"]})
+
+        first = window._build_filter_worker_df_token(df)
+        df.loc[1, "texto"] = "gamma"
+        second = window._build_filter_worker_df_token(df)
+
+        assert second != first
 
     def test_cache_does_not_reuse_result_for_different_df_same_shape(self):
         df1 = pd.DataFrame({"texto": ["alfa", "omega"]})
