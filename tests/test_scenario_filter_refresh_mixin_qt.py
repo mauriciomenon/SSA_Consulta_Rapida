@@ -158,3 +158,13 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         assert status_text
         assert "de" in status_text
         assert "SSA" in status_text
+
+    def test_stale_filter_request_ignored_without_mutating_display(self):
+        self.window._active_filter_request_id = 10
+        before_len = len(self.window.df_exibido)
+        before_first = self.window.df_exibido.iloc[0]["numero_ssa"]
+        stale_result = self.base_df.iloc[[4]].copy()
+        self.window.on_filter_finished(stale_result, request_id=9)
+        QApplication.processEvents()
+        assert len(self.window.df_exibido) == before_len
+        assert self.window.df_exibido.iloc[0]["numero_ssa"] == before_first

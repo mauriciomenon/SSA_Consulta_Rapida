@@ -154,3 +154,37 @@ def test_collect_advanced_options_use_full_df_not_search_subset():
 
     assert "ONLY_IN_COMPLETO" not in subset_values.exec_vals
     assert "ONLY_IN_COMPLETO" in full_values.exec_vals
+
+
+def test_reprogramacoes_filter_values_reduce_rows():
+    from gui.ssa.gui_filters_advanced_logic import _apply_reprogramacoes_filter
+
+    df = build_advanced_filter_contract_df()
+    mask = pd.Series(True, index=df.index)
+    filters = {
+        "num_reprogramacoes_mode": "eq",
+        "num_reprogramacoes_values": [2],
+    }
+    result_mask = _apply_reprogramacoes_filter(df, filters, mask)
+    filtered = df[result_mask]
+    assert len(filtered) == 2
+    assert filtered["num_reprogramacoes"].tolist() == [2, 2]
+
+
+def test_reprogramacoes_summary_entries_reference_widget_keys():
+    from gui.ssa.filter_summary_advanced import build_advanced_summary_entries
+
+    entries = build_advanced_summary_entries(
+        {
+            "num_reprogramacoes_mode": "eq",
+            "num_reprogramacoes_values": [1, 2],
+        }
+    )
+    assert entries
+    removal_keys = {
+        action["keys"][0]
+        for entry in entries.values()
+        for action in entry.get("actions", [])
+        if action.get("kind") == "advanced_keys"
+    }
+    assert "num_reprogramacoes_values" in removal_keys
