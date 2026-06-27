@@ -97,3 +97,25 @@ def test_build_derivadas_tree_itertuples_budget_at_10k():
         )
 
     assert itertuples_calls["count"] == 1
+
+
+def test_derivadas_tree_duplicate_child_keeps_first_parent():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202600010", "202600010", "202600001", "202600002"],
+            "derivada_de": ["202600001", "202600002", "202600001", ""],
+        }
+    )
+    state = AdvancedFilterState(_DummyWindow())
+
+    _mae_filhas, filha_mae = _build_derivadas_tree_core(
+        df,
+        "numero_ssa",
+        "derivada_de",
+        state,
+        cache_token=99,
+        normalize_ssa_series=_normalize_ssa_series,
+    )
+
+    assert filha_mae["202600010"] == "202600001"
+    assert "202600002" not in filha_mae.values()

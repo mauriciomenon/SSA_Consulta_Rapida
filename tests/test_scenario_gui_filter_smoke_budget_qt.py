@@ -121,3 +121,55 @@ class TestScenarioGUIFilterSmokeBudget(GUIFilterScenarioHarness):
         for stage in ("advanced", "column", "exclude", "sort", "paginate", "render"):
             assert stage in last_timings
             assert last_timings[stage] >= 0.0
+
+    def test_filter_refresh_smoke_large_df_stage_ms_within_budget(self, monkeypatch):
+        large_df = _build_large_filter_df(rows=50_000)
+        self.window.df_completo = large_df.copy()
+        self.window.df_exibido = large_df.copy()
+        self.window._df_last_search_filtered = large_df.copy()
+        self.window.paginator.set_dataframe(large_df.copy())
+
+        captured_timings: list[dict] = []
+        original_log = self.window._log_filter_refresh_timings
+
+        def _capture_log(**kwargs):
+            timings = kwargs.get("timings")
+            if isinstance(timings, dict):
+                captured_timings.append(dict(timings))
+            return original_log(**kwargs)
+
+        monkeypatch.setattr(self.window, "_log_filter_refresh_timings", _capture_log)
+
+        self.window._active_column_filters["situacao"] = "APV"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        stage_limit_ms = float(
+            os.environ.get("SSA_GUI_SMOKE_LARGE_STAGE_MS_LIMIT", "60000")
+        )
+        total_limit_ms = float(
+            os.environ.get("SSA_GUI_SMOKE_LARGE_TOTAL_MS_LIMIT", "120000")
+        )
+
+        assert captured_timings
+        last_timings = captured_timings[-1]
+        monitored_stages = (
+            "advanced",
+            "column",
+            "exclude",
+            "sort",
+            "paginate",
+            "render",
+            "status",
+        )
+        for stage in monitored_stages:
+            assert stage in last_timings
+            assert last_timings[stage] < stage_limit_ms, (
+                f"Stage {stage} took {last_timings[stage]:.1f}ms "
+                f"(limit {stage_limit_ms:.1f}ms)"
+            )
+
+        total_ms = sum(last_timings[stage] for stage in monitored_stages)
+        assert total_ms < total_limit_ms, (
+            f"Total refresh ms {total_ms:.1f} exceeded budget {total_limit_ms:.1f}"
+        )
