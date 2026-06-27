@@ -13501,6 +13501,36 @@ class TestGUIFilterLogic:
 
         assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [3, 2, 1]
 
+    def test_on_filter_finished_defers_general_sort_when_post_filters_are_active(
+        self, monkeypatch
+    ):
+        self.window._active_filter_request_id = 41
+        self.window._active_filter_search_request_id = 41
+        self.window._active_filter_search_display = "Teste"
+        self.window.search_input.setText("Teste")
+        self.window._active_column_filters["situacao"] = "APV"
+        filtered_search = self.base_df.iloc[[0, 4, 3]].copy()
+        sort_calls = {"numero_ssa": 0}
+        original_sort_values = pd.DataFrame.sort_values
+
+        def _count_numero_sort(frame, by=None, *args, **kwargs):
+            if by == "numero_ssa":
+                sort_calls["numero_ssa"] += 1
+            return original_sort_values(frame, by=by, *args, **kwargs)
+
+        monkeypatch.setattr(pd.DataFrame, "sort_values", _count_numero_sort)
+
+        self.window.on_filter_finished(filtered_search, request_id=41)
+        QApplication.processEvents()
+
+        assert sort_calls["numero_ssa"] == 1
+        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [
+            1,
+            5,
+            4,
+        ]
+        assert self.window.df_exibido["numero_ssa"].tolist() == [5, 1]
+
     def test_initiate_filtering_fallback_multi_chunk_keeps_equal_rows_distinct(
         self, monkeypatch
     ):

@@ -902,8 +902,29 @@ class FilterGUISSAMixin:
                 "table_widget indisponivel no inicio de on_filter_finished; ignorando resultado."
             )
             return
+        has_post_search_filters = False
         try:
-            if not df_filtrado.empty and "numero_ssa" in df_filtrado.columns:
+            (
+                has_column_filters,
+                has_advanced_filters,
+                has_excluded_terminal_status,
+            ) = self._filter_refresh_flags()
+            has_post_search_filters = (
+                has_column_filters
+                or has_advanced_filters
+                or has_excluded_terminal_status
+            )
+        except Exception as exc:
+            logger.debug(
+                "Falha ao avaliar pos-filtros antes do sort de busca geral: %s",
+                exc,
+            )
+        try:
+            if (
+                not has_post_search_filters
+                and not df_filtrado.empty
+                and "numero_ssa" in df_filtrado.columns
+            ):
                 df_filtrado = df_filtrado.sort_values(
                     "numero_ssa", ascending=False
                 )
