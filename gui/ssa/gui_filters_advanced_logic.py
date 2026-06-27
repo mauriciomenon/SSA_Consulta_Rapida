@@ -101,10 +101,9 @@ def _mask_any(mask, context: str) -> bool:
     try:
         return bool(mask.any())
     except Exception as exc:
-        logger.debug(
-            "Failed to evaluate advanced filter mask.any() %s: %s", context, exc
-        )
-        return False
+        raise RuntimeError(
+            f"Failed to evaluate advanced filter mask.any() {context}"
+        ) from exc
 
 
 class _IncludeExcludeSeriesCache:

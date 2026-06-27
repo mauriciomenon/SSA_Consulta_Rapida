@@ -1,6 +1,7 @@
 import warnings
 
 import pandas as pd
+import pytest
 
 from gui.ssa import gui_filters_advanced_logic as adv_logic
 from gui.ssa import gui_filters_advanced_state_reader as adv_state_reader
@@ -15,6 +16,7 @@ from gui.ssa.filter_domain_rules import (
 from gui.ssa.gui_filters_advanced_logic import (
     _apply_advanced_filters,
     _compute_years_from_data_cadastro,
+    _mask_any,
 )
 from gui.ssa.gui_filters_responsavel_state import (
     ResponsavelMaterializationState,
@@ -257,6 +259,17 @@ def test_apply_advanced_filters_applies_solicitante_filter_key():
         notice_callback=None,
     )
     assert filtered["solicitante"].tolist() == ["Alice"]
+
+
+def test_mask_any_raises_context_instead_of_returning_false():
+    class BrokenMask:
+        def any(self):
+            raise ValueError("mask backend failed")
+
+    with pytest.raises(RuntimeError, match="after reprogramacoes") as excinfo:
+        _mask_any(BrokenMask(), "after reprogramacoes")
+
+    assert isinstance(excinfo.value.__cause__, ValueError)
 
 
 def test_apply_advanced_filters_accepts_legacy_solicitante_key_alias():
