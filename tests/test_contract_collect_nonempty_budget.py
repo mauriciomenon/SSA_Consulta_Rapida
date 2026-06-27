@@ -8,6 +8,7 @@ import pandas as pd
 
 from gui.ssa.filter_domain_rules import collect_nonempty_column_values
 from tests._helpers.contract_data_builders import (
+    EXPECTED_BASE_EXECUTORS,
     build_base_filter_df,
     make_series_tolist_spy,
 )
@@ -20,7 +21,7 @@ def test_collect_nonempty_calls_tolist_once_per_column():
     with patch.object(pd.Series, "tolist", spy_tolist):
         values = collect_nonempty_column_values(df, "setor_executor")
 
-    assert values == ["IEE3", "OURO", "MEL4", "XYZ", "IEE2"]
+    assert values == EXPECTED_BASE_EXECUTORS
     assert tolist_calls["count"] == 1
 
 
@@ -55,6 +56,8 @@ def test_collect_nonempty_unique_budget_at_10k_rows():
 
     assert len(values) == 10_000
     assert len(set(values)) == 10_000
+    assert values[0] == "SEC0000"
+    assert values[-1] == "SEC9999"
     assert tolist_calls["count"] == 1
 
 

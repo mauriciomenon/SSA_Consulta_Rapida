@@ -1,4 +1,9 @@
-"""Contract tests for advanced filter domain rules and visual column mapping."""
+"""Contract tests for advanced filter domain rules and visual column mapping.
+
+Domain contracts; Qt reprogramacoes scenario in
+test_scenario_advanced_reprogramacoes_qt.py and visual headers in
+test_scenario_visual_filter_state_qt.py.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +17,10 @@ from gui.ssa.gui_filters_advanced_ui import (
     ADVANCED_STANDARD_MULTISELECT_SPECS,
     ADVANCED_YEAR_MULTISELECT_SPECS,
 )
-from tests._helpers.contract_data_builders import build_advanced_filter_contract_df
+from tests._helpers.contract_data_builders import (
+    ADV_REPROG_EQ2_SSAS,
+    build_advanced_filter_contract_df,
+)
 
 
 class _DummyWindow:
@@ -187,7 +195,7 @@ def test_reprogramacoes_filter_values_reduce_rows():
     filtered = df[result_mask]
     assert len(filtered) == 2
     assert filtered["num_reprogramacoes"].tolist() == [2, 2]
-    assert set(filtered["numero_ssa"].astype(int).tolist()) == {202600003, 202600004}
+    assert set(filtered["numero_ssa"].astype(int).tolist()) == ADV_REPROG_EQ2_SSAS
 
 
 def test_reprogramacoes_summary_entries_reference_widget_keys():
@@ -199,7 +207,8 @@ def test_reprogramacoes_summary_entries_reference_widget_keys():
             "num_reprogramacoes_values": [1, 2],
         }
     )
-    assert entries
+    assert "No. Reprog: 1, 2" in entries
+    assert entries["No. Reprog: 1, 2"]["text"] == "No. Reprog: 1, 2"
     removal_keys = {
         action["keys"][0]
         for entry in entries.values()

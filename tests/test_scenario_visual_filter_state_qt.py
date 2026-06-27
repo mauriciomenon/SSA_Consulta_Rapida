@@ -1,4 +1,8 @@
-"""Qt scenario tests for visual filter state and column headers."""
+"""Qt scenario tests for visual filter state and column headers.
+
+GUI wiring for advanced filter domain contracts in
+test_contract_advanced_filter_domain.py.
+"""
 
 from __future__ import annotations
 
@@ -89,10 +93,7 @@ class TestScenarioVisualFilterState(GUIFilterScenarioHarness):
         df.loc[1, "semana_executada"] = 202602
         df.loc[2, "semana_executada"] = 202703
         df.loc[3, "semana_executada"] = 202804
-        self.window.df_completo = df.copy()
-        self.window.df_exibido = df.copy()
-        self.window._df_last_search_filtered = df.copy()
-        self.window.paginator.set_dataframe(df.copy())
+        self.bind_window_dataframes(df)
         self.set_filter_panel_tab("advanced")
 
         self.toggle_advanced_multiselect_value(

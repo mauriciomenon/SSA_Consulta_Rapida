@@ -1,9 +1,14 @@
-"""Qt scenario tests for reprogramacoes advanced filter."""
+"""Qt scenario tests for reprogramacoes advanced filter.
+
+GUI wiring for reprogramacoes domain contract in
+test_contract_advanced_filter_domain.py.
+"""
 
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QApplication
 
+from tests._helpers.contract_data_builders import ADV_REPROG_EQ2_SSAS
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 
@@ -22,7 +27,4 @@ class TestScenarioAdvancedReprogramacoes(GUIFilterScenarioHarness):
         assert len(self.window.df_exibido) == 2
         assert len(self.window.df_exibido) < total_rows
         assert set(self.window.df_exibido["num_reprogramacoes"].tolist()) == {2}
-        assert set(self.window.df_exibido["numero_ssa"].astype(int).tolist()) == {
-            202600003,
-            202600004,
-        }
+        assert set(self.window.df_exibido["numero_ssa"].astype(int).tolist()) == ADV_REPROG_EQ2_SSAS

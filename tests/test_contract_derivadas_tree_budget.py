@@ -73,8 +73,44 @@ def test_normalize_tree_data_marks_partial_when_truncated():
     assert len(descendants) == len(payload["family_descendants"])
 
 
+def test_normalize_tree_data_not_partial_without_truncation_flag():
+    payload = {
+        "parents": ["202600000"],
+        "children": [],
+        "family_roots": ["202600000"],
+        "family_descendants": [
+            {"ssa": "202600002", "parent": "202600000"},
+            {"ssa": "202600003", "parent": "202600000"},
+        ],
+        "family_truncated": False,
+    }
+
+    tree_data = normalize_tree_data(
+        target="202600001",
+        snapshot=None,
+        fallback_children=[],
+        direct_parent="202600000",
+        local_payload=payload,
+        related=[],
+        target_status="APG",
+    )
+
+    assert tree_data["descendants_partial"] is False
+
+
 def test_family_node_limit_constant_is_within_query_cap():
     assert DERIVADAS_GRAPH_MAX_DESCENDANTS <= DERIVADAS_FAMILY_NODE_LIMIT
+
+    df = build_large_derivadas_chain(total_nodes=DERIVADAS_FAMILY_NODE_LIMIT + 50)
+    edges = list(
+        zip(df["derivada_de"].tolist(), df["numero_ssa"].tolist(), strict=False)
+    )
+    edges = [(parent, child) for parent, child in edges if parent]
+
+    payload = build_family_payload_from_edges("202600001", edges)
+
+    assert payload["family_truncated"] is True
+    assert len(payload["family_descendants"]) == DERIVADAS_FAMILY_NODE_LIMIT
 
 
 def test_build_derivadas_tree_itertuples_budget_at_10k():

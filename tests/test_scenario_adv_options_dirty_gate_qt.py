@@ -1,4 +1,8 @@
-"""Qt scenario tests for advanced options dirty gate and force_refresh."""
+"""Qt scenario tests for advanced options dirty gate and force_refresh.
+
+GUI wiring for cache invalidation contracts in
+test_contract_cache_content_invalidation.py.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ from gui.ssa.gui_filters_advanced_refresh import (
     build_advanced_values_cache_key,
     get_cached_advanced_filter_option_values,
 )
+from tests._helpers.contract_data_builders import EXPECTED_ADV_EXEC_VALS
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 
@@ -49,7 +54,7 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
 
         assert wrapped.call_count >= 1
         assert wrapped.call_args.kwargs.get("force_refresh") is False
-        assert first_exec_vals
+        assert first_exec_vals == EXPECTED_ADV_EXEC_VALS
         second_exec_vals = self.get_adv_exec_vals()
         assert second_exec_vals == first_exec_vals
 

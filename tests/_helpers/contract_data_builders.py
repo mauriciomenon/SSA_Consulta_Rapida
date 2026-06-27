@@ -1,10 +1,38 @@
-"""Shared dataframe builders and contract test spies for filter tests."""
+"""Shared dataframe builders, contract constants, and filter test spies.
+
+Constants mirror build_base_filter_df() and build_advanced_filter_contract_df()
+so contract and Qt scenario tests stay aligned when fixture rows change.
+"""
 
 from __future__ import annotations
 
-from typing import Callable
+from contextlib import contextmanager
+from typing import Callable, Iterator
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
+
+# build_base_filter_df(): situacao APV at rows 0 and 4 (numero_ssa 1 and 5).
+BASE_APV_SSAS: frozenset[int] = frozenset({1, 5})
+BASE_APV_COUNT: int = len(BASE_APV_SSAS)
+
+# Common iloc subset for search-sort contract tests (rows 0, 4, 3).
+BASE_SEARCH_SUBSET_ILOC: tuple[int, ...] = (0, 4, 3)
+BASE_SEARCH_SORTED_SSAS_DESC: list[int] = [5, 4, 1]
+BASE_SEARCH_APV_SSAS_DESC: list[int] = [5, 1]
+
+# build_base_filter_df(rows=5) setor_executor column (insertion order).
+EXPECTED_BASE_EXECUTORS: list[str] = ["IEE3", "OURO", "MEL4", "XYZ", "IEE2"]
+
+# build_advanced_filter_contract_df() unique sorted setor_executor values.
+EXPECTED_ADV_EXEC_VALS: list[str] = ["IEE3", "MEL4"]
+EXPECTED_ADV_EXEC_VALS_WITH_ZZZ9: list[str] = ["IEE3", "MEL4", "ZZZ9"]
+
+# build_advanced_filter_contract_df() reprogramacoes eq=2 subset.
+ADV_REPROG_EQ2_SSAS: frozenset[int] = frozenset({202600003, 202600004})
+
+# build_advanced_filter_contract_df() responsavel_execucao sector rank order.
+EXPECTED_RESP_EXEC_ORDER: list[str] = ["Exec B", "Exec C", "Exec A"]
 
 
 def pipeline_measure_timing(_name: str, callback: Callable[[], object]) -> object:
@@ -35,6 +63,29 @@ def make_series_tolist_spy() -> tuple[dict[str, int], Callable[..., list]]:
         return original_tolist(self, *args, **kwargs)
 
     return tolist_calls, spy
+
+
+@contextmanager
+def patch_adv_options_cache_spies() -> Iterator[tuple[MagicMock, MagicMock]]:
+    """Dual spy template for advanced-options cache budget tests.
+
+    Yields (get_cached_spy, collect_spy). Cache hit: collect call_count == 0.
+    Cache miss / force_refresh: collect call_count == 1.
+    """
+    from gui.ssa.gui_filters_advanced_refresh import (
+        collect_advanced_filter_option_values,
+        get_cached_advanced_filter_option_values,
+    )
+
+    collect_spy = MagicMock(wraps=collect_advanced_filter_option_values)
+    with patch(
+        "gui.ssa.gui_filters_advanced_refresh.collect_advanced_filter_option_values",
+        collect_spy,
+    ), patch(
+        "gui.ssa.gui_filters_advanced_ui.get_cached_advanced_filter_option_values",
+        wraps=get_cached_advanced_filter_option_values,
+    ) as get_cached_spy:
+        yield get_cached_spy, collect_spy
 
 
 def build_base_filter_df(*, rows: int = 5) -> pd.DataFrame:

@@ -1,4 +1,7 @@
-"""Qt scenario tests for filter undo restore."""
+"""Qt scenario tests for filter undo restore.
+
+GUI wiring for search source contracts in test_contract_search_undo_source.py.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +13,7 @@ from gui.ssa.filter_search_undo_controller import (
     restore_filter_search_state,
     snapshot_filter_state,
 )
+from tests._helpers.contract_data_builders import BASE_APV_COUNT, BASE_APV_SSAS
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 
@@ -19,7 +23,8 @@ class TestScenarioFilterUndoRestore(GUIFilterScenarioHarness):
         self.window._refresh_after_filter_change()
         QApplication.processEvents()
         apv_count = len(self.window.df_exibido)
-        assert apv_count >= 1
+        assert apv_count == BASE_APV_COUNT
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == BASE_APV_SSAS
 
         saved = snapshot_filter_state(self.window)
 

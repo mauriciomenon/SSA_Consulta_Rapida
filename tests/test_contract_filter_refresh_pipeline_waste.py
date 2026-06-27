@@ -51,6 +51,7 @@ def test_pipeline_cache_hit_skips_heavy_post_search_stages():
     first_pass_stages = list(stage_calls)
     assert "advanced" in first_pass_stages
     assert "column" in first_pass_stages
+    assert "exclude" not in first_pass_stages
 
     stage_calls.clear()
     advanced_spy.reset_mock()

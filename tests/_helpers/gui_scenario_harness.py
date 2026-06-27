@@ -131,12 +131,17 @@ class GUIFilterScenarioHarness:
             else:
                 os.environ.pop("SSA_SYNC_FILTER", None)
 
+    def bind_window_dataframes(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Wire df_completo, df_exibido, search cache, and paginator to the same frame."""
+        bound = df.copy()
+        self.window.df_completo = bound
+        self.window.df_exibido = bound.copy()
+        self.window._df_last_search_filtered = bound.copy()
+        self.window.paginator.set_dataframe(bound.copy())
+        return bound
+
     def load_advanced_contract_df(self) -> pd.DataFrame:
-        df = build_advanced_filter_contract_df()
-        self.window.df_completo = df.copy()
-        self.window.df_exibido = df.copy()
-        self.window._df_last_search_filtered = df.copy()
-        self.window.paginator.set_dataframe(df.copy())
+        df = self.bind_window_dataframes(build_advanced_filter_contract_df())
         self.window._refresh_advanced_filter_options()
         QApplication.processEvents()
         return df
@@ -156,6 +161,27 @@ class GUIFilterScenarioHarness:
                 return
             cast(Any, QTest).qWait(10)
         QApplication.processEvents()
+
+    def wait_until_event(self, event, timeout_ms: int = 5000) -> None:
+        """Poll Qt events until threading.Event is set (no time.sleep)."""
+        deadline = time.monotonic() + (timeout_ms / 1000)
+        while time.monotonic() < deadline:
+            QApplication.processEvents()
+            if event.is_set():
+                return
+            cast(Any, QTest).qWait(10)
+        raise AssertionError("event not set before timeout")
+
+    def enable_async_filtering(self) -> None:
+        """Force async FilterWorker path despite PYTEST_CURRENT_TEST defaults."""
+        self.window._sync_filtering = False
+
+    def assert_count_status(self, filtered: int, total: int) -> None:
+        from gui.ssa.filter_status_manager import FilterStatusManager
+
+        expected = FilterStatusManager.build_count_content(filtered, total)
+        actual = str(self.window.filtered_status_label.text() or "")
+        assert actual == expected, f"expected {expected!r}, got {actual!r}"
 
     def extract_visible_ssa(self) -> list:
         return list(self.window.df_exibido["numero_ssa"])

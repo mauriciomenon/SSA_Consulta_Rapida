@@ -12,7 +12,12 @@ import pandas as pd
 from PyQt6.QtWidgets import QApplication
 
 from gui.ssa import gui_filters_advanced_logic as adv_logic
-from tests._helpers.contract_data_builders import make_numero_ssa_sort_counter
+from tests._helpers.contract_data_builders import (
+    BASE_SEARCH_APV_SSAS_DESC,
+    BASE_SEARCH_SORTED_SSAS_DESC,
+    BASE_SEARCH_SUBSET_ILOC,
+    make_numero_ssa_sort_counter,
+)
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 
@@ -52,7 +57,7 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         self.window._active_filter_search_display = "Teste"
         self.window.search_input.setText("Teste")
         self.window._active_column_filters["situacao"] = "APV"
-        filtered_search = self.base_df.iloc[[0, 4, 3]].copy()
+        filtered_search = self.base_df.iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
         sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
         monkeypatch.setattr(pd.DataFrame, "sort_values", count_numero_sort)
 
@@ -61,7 +66,51 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
 
         assert sort_calls["numero_ssa"] == 1
         assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [1, 5, 4]
-        assert self.window.df_exibido["numero_ssa"].tolist() == [5, 1]
+        assert self.window.df_exibido["numero_ssa"].tolist() == BASE_SEARCH_APV_SSAS_DESC
+
+    def test_gui_search_only_sorts_display_descending(self):
+        """H5/J1: search-only path sorts df_exibido by numero_ssa desc via on_filter_finished."""
+        self.window._active_filter_request_id = 60
+        self.window._active_filter_search_request_id = 60
+        self.window._active_filter_search_display = "Teste"
+        self.window.search_input.setText("Teste")
+        self.window._active_column_filters = {
+            key: "" for key in self.window._active_column_filters
+        }
+        self.window._advanced_filters_active = False
+        self.window._exclude_ste_sca = False
+
+        unsorted = self.base_df.iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
+        self.window.on_filter_finished(unsorted, request_id=60)
+        QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].tolist() == BASE_SEARCH_SORTED_SSAS_DESC
+        assert bool(
+            getattr(self.window._df_last_search_filtered, "attrs", {}).get(
+                "ssa_sorted_for_display"
+            )
+        )
+
+    def test_gui_post_filter_column_keeps_refresh_sort_order(self, monkeypatch):
+        """H5/J1: post-search column filter applies APV subset in refresh sort order."""
+        self.window._active_filter_request_id = 61
+        self.window._active_filter_search_request_id = 61
+        self.window._active_filter_search_display = "Teste"
+        self.window.search_input.setText("Teste")
+        self.window._active_column_filters["situacao"] = "APV"
+        self.window._advanced_filters_active = False
+        self.window._exclude_ste_sca = False
+
+        filtered_search = self.base_df.iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
+        sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
+        monkeypatch.setattr(pd.DataFrame, "sort_values", count_numero_sort)
+
+        self.window.on_filter_finished(filtered_search, request_id=61)
+        QApplication.processEvents()
+
+        assert sort_calls["numero_ssa"] == 1
+        assert self.window.df_exibido["numero_ssa"].tolist() == BASE_SEARCH_APV_SSAS_DESC
+        assert self.window.df_exibido["situacao"].tolist() == ["APV", "APV"]
 
     def test_exclude_terminal_blocks_preprocessed_sort_reuse(self):
         preprocessed = self.base_df.copy()
@@ -81,7 +130,7 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         self.window._active_filter_search_request_id = 9
         self.window._active_filter_search_display = "Teste"
         self.window.search_input.setText("Teste")
-        unsorted = self.base_df.iloc[[0, 4, 3]].copy()
+        unsorted = self.base_df.iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
         sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
         monkeypatch.setattr(pd.DataFrame, "sort_values", count_numero_sort)
         monkeypatch.setattr(
@@ -97,15 +146,24 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         QApplication.processEvents()
 
         assert sort_calls["numero_ssa"] == 1
-        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [5, 4, 1]
-        status_text = self.window.filtered_status_label.text()
-        assert status_text
-        assert "de" in status_text
-        assert "SSA" in status_text
+        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == BASE_SEARCH_SORTED_SSAS_DESC
+        total = len(self.window.df_completo)
+        filtered = len(self.window.df_exibido)
+        self.assert_count_status(filtered, total)
+        notice_text = str(self.window.status_label.text() or "")
+        assert "Busca para 'Teste'" in notice_text
 
     def test_mask_any_failure_surfaces_adv_notice_not_silent_empty(
         self, monkeypatch, caplog
     ):
+        """H6: mask.any() failure keeps df_exibido rows but count label shows 0 de 0.
+
+        Current contract (known bug, not a production fix): when advanced filter
+        mask.any() raises, df_exibido retains the pre-failure row count (4 rows
+        for build_advanced_filter_contract_df) while filtered_status_label
+        reports "0 de 0 SSAs". status_label must stay non-empty and must not
+        host the derivada aviso text.
+        """
         self.load_advanced_contract_df()
         rows_before = len(self.window.df_exibido)
 
@@ -129,7 +187,11 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
             for record in caplog.records
         )
         assert len(self.window.df_exibido) == rows_before
-        assert self.window.filtered_status_label.text()
+        count_text = str(self.window.filtered_status_label.text() or "")
+        notice_text = str(self.window.status_label.text() or "")
+        assert count_text == "0 de 0 SSAs"
+        assert notice_text.strip() != ""
+        assert "Aviso" not in notice_text
 
     def test_stale_filter_request_ignored_without_mutating_display(self):
         """Stale on_filter_finished payload must not change the visible dataframe."""

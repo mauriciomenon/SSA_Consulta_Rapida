@@ -11,7 +11,7 @@ from gui.ssa.filter_search_undo_controller import safe_store_last_filter_state
 
 
 def test_safe_store_last_filter_state_marks_cache_context_dirty():
-    """Undo snapshot marks _filter_cache_context_dirty after store_last_filter_state."""
+    """Undo snapshot invokes store and marks _filter_cache_context_dirty."""
     window = SimpleNamespace(
         df_completo=pd.DataFrame({"numero_ssa": [1]}),
         _filter_cache_context_dirty=False,
@@ -27,15 +27,23 @@ def test_safe_store_last_filter_state_marks_cache_context_dirty():
         _dedicated_or_text="",
         _active_filter_search_display="",
     )
+    store_calls: list[object] = []
+
+    def _capture_store(captured_window, **_kwargs):
+        store_calls.append(captured_window)
+
     with patch(
         "gui.ssa.filter_search_undo_controller.store_last_filter_state",
-        lambda *_args, **_kwargs: None,
+        _capture_store,
     ):
         safe_store_last_filter_state(window, reason="contract-test")
+    assert len(store_calls) == 1
+    assert store_calls[0] is window
     assert window._filter_cache_context_dirty is True
 
 
-def test_safe_store_last_filter_state_invokes_store_before_dirty_flag():
+def test_safe_store_last_filter_state_forwards_search_text_override():
+    """Dirty flag is set before store; this test covers override forwarding only."""
     window = SimpleNamespace(
         df_completo=pd.DataFrame({"numero_ssa": [1]}),
         _filter_cache_context_dirty=False,
@@ -82,4 +90,33 @@ def test_safe_store_last_filter_state_invokes_store_before_dirty_flag():
     assert len(store_calls) == 1
     assert store_calls[0][0] is window
     assert store_calls[0][1]["search_text_override"] == "alpha"
+    assert window._filter_cache_context_dirty is True
+
+
+def test_safe_store_last_filter_state_keeps_dirty_when_store_raises():
+    window = SimpleNamespace(
+        df_completo=pd.DataFrame({"numero_ssa": [1]}),
+        _filter_cache_context_dirty=False,
+        _active_column_filters={},
+        _column_or_groups=[],
+        _pending_search_display=None,
+        _exclude_ste_sca=False,
+        _advanced_filters={},
+        _advanced_filters_active=False,
+        current_filter_profile=None,
+        _profile_base_filters={},
+        _hidden_column_filter_lines=set(),
+        _dedicated_or_text="",
+        _active_filter_search_display="",
+    )
+
+    def _fail_store(*_args, **_kwargs):
+        raise RuntimeError("store failed")
+
+    with patch(
+        "gui.ssa.filter_search_undo_controller.store_last_filter_state",
+        _fail_store,
+    ):
+        safe_store_last_filter_state(window, reason="store-failure")
+
     assert window._filter_cache_context_dirty is True

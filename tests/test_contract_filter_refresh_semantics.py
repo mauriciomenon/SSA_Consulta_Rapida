@@ -13,6 +13,8 @@ import pandas as pd
 
 from gui.ssa.filter_refresh_pipeline import apply_filter_refresh_pipeline
 from tests._helpers.contract_data_builders import (
+    BASE_SEARCH_SORTED_SSAS_DESC,
+    BASE_SEARCH_SUBSET_ILOC,
     build_base_filter_df,
     make_numero_ssa_sort_counter,
     pipeline_measure_timing,
@@ -120,7 +122,7 @@ def test_on_filter_finished_sorts_when_filter_refresh_flags_fail(monkeypatch):
     setattr(window, "filtered_status_label", status_label)
     setattr(window, "clear_filter_button", MagicMock())
 
-    unsorted = window.df_completo.iloc[[0, 4, 3]].copy()
+    unsorted = window.df_completo.iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
     sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
 
     monkeypatch.setattr(
@@ -145,7 +147,7 @@ def test_on_filter_finished_sorts_when_filter_refresh_flags_fail(monkeypatch):
     window.on_filter_finished(unsorted, request_id=7)
 
     assert sort_calls["numero_ssa"] == 1
-    assert window._df_last_search_filtered["numero_ssa"].tolist() == [5, 4, 1]
+    assert window._df_last_search_filtered["numero_ssa"].tolist() == BASE_SEARCH_SORTED_SSAS_DESC
 
 
 def test_refresh_path_applies_post_search_when_column_filter_active():
@@ -186,7 +188,7 @@ def test_sort_filter_refresh_result_skips_when_sorted_attr_set(monkeypatch):
         pass
 
     window = _Window()
-    sorted_df = build_base_filter_df().iloc[[0, 4, 3]].copy()
+    sorted_df = build_base_filter_df().iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
     sorted_df.attrs["ssa_sorted_for_display"] = True
     window._df_last_search_filtered = sorted_df
 
@@ -214,7 +216,7 @@ def test_sort_filter_refresh_result_sorts_when_sorted_attr_missing(monkeypatch):
         pass
 
     window = _Window()
-    unsorted = build_base_filter_df().iloc[[0, 4, 3]].copy()
+    unsorted = build_base_filter_df().iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
     window._df_last_search_filtered = unsorted.copy()
 
     sort_calls, count_numero_sort = make_numero_ssa_sort_counter()
@@ -230,4 +232,4 @@ def test_sort_filter_refresh_result_sorts_when_sorted_attr_missing(monkeypatch):
     )
 
     assert sort_calls["numero_ssa"] == 1
-    assert result["numero_ssa"].tolist() == [5, 4, 1]
+    assert result["numero_ssa"].tolist() == BASE_SEARCH_SORTED_SSAS_DESC

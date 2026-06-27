@@ -1,4 +1,8 @@
-"""Qt scenario tests for wasted heavy loads in advanced filter options."""
+"""Qt scenario tests for wasted heavy loads in advanced filter options.
+
+GUI wiring for cache invalidation contracts in
+test_contract_cache_content_invalidation.py.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ from gui.ssa.gui_filters_advanced_refresh import (
     collect_advanced_filter_option_values,
     get_cached_advanced_filter_option_values,
 )
+from tests._helpers.contract_data_builders import patch_adv_options_cache_spies
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 
@@ -20,14 +25,12 @@ class TestScenarioAdvOptionsLoadWaste(GUIFilterScenarioHarness):
         self.window._refresh_advanced_filter_options()
         QApplication.processEvents()
 
-        collect_spy = MagicMock(wraps=collect_advanced_filter_option_values)
-        with patch(
-            "gui.ssa.gui_filters_advanced_refresh.collect_advanced_filter_option_values",
-            collect_spy,
-        ):
+        with patch_adv_options_cache_spies() as (get_cached_spy, collect_spy):
             self.window._refresh_advanced_filter_options()
             QApplication.processEvents()
 
+        assert get_cached_spy.call_count == 1
+        assert get_cached_spy.call_args.kwargs.get("force_refresh") is False
         assert collect_spy.call_count == 0
         collect_spy.assert_not_called()
 
@@ -41,14 +44,12 @@ class TestScenarioAdvOptionsLoadWaste(GUIFilterScenarioHarness):
         self.window.df_completo.loc[0, "setor_executor"] = "RACE_FRESH"
         self.window._adv_options_dirty = True
 
-        collect_spy = MagicMock(wraps=collect_advanced_filter_option_values)
-        with patch(
-            "gui.ssa.gui_filters_advanced_refresh.collect_advanced_filter_option_values",
-            collect_spy,
-        ):
+        with patch_adv_options_cache_spies() as (get_cached_spy, collect_spy):
             self.window._refresh_advanced_filter_options()
             QApplication.processEvents()
 
+        assert get_cached_spy.call_count == 1
+        assert get_cached_spy.call_args.kwargs.get("force_refresh") is True
         assert collect_spy.call_count == 1
         exec_vals = list(self.window._adv_values_cache.get("exec_vals") or [])
         assert "RACE_FRESH" in exec_vals

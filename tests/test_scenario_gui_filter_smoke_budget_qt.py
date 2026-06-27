@@ -1,4 +1,8 @@
-"""Qt smoke budget test for GUI filter refresh path."""
+"""Qt smoke budget tests for GUI filter refresh path.
+
+Performance-marked tests (RSS/timing budgets) run only with ``-m performance``.
+TestScenarioGUIFilterSmokeFunctional covers row-count smoke without perf markers.
+"""
 
 from __future__ import annotations
 
@@ -8,8 +12,22 @@ import resource
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-from tests._helpers.contract_data_builders import build_large_filter_df
+from tests._helpers.contract_data_builders import (
+    BASE_APV_COUNT,
+    BASE_APV_SSAS,
+    build_large_filter_df,
+)
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
+
+
+class TestScenarioGUIFilterSmokeFunctional(GUIFilterScenarioHarness):
+    def test_filter_situacao_apv_row_count(self):
+        self.window._active_column_filters["situacao"] = "APV"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        assert len(self.window.df_exibido) == BASE_APV_COUNT
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == BASE_APV_SSAS
 
 
 def _rss_mb() -> float:

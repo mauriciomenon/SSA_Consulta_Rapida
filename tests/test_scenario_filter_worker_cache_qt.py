@@ -1,10 +1,18 @@
-"""Qt scenario tests for filter worker cache synchronization."""
+"""Qt scenario tests for filter worker cache synchronization.
+
+GUI wiring for worker cancel/race contracts in
+test_contract_filter_worker_cancel_race.py.
+"""
 
 from __future__ import annotations
 
+from threading import Event
+
 import pandas as pd
+from PyQt6.QtWidgets import QApplication
 
 from gui.workers.filter_worker import FilterWorker
+from tests._helpers.contract_data_builders import BASE_APV_SSAS
 from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 
@@ -64,12 +72,59 @@ class TestScenarioFilterWorkerCache(GUIFilterScenarioHarness):
         self.wait_until_filter_idle()
 
         first_count = len(self.window.df_exibido)
-        assert first_count >= 1
+        assert first_count == 1
+        assert self.window.df_exibido.iloc[0]["descricao_ssa"] == "Teste A"
 
         self.window.df_completo.loc[4, "descricao_ssa"] = "Teste A secundario"
         self.window.initiate_filtering()
         self.wait_until_filter_idle()
 
         descriptions = self.window.df_exibido["descricao_ssa"].astype(str).tolist()
-        assert "Teste A secundario" in descriptions
-        assert len(descriptions) > first_count
+        assert set(descriptions) == {"Teste A", "Teste A secundario"}
+        assert len(descriptions) == 2
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == BASE_APV_SSAS
+
+    def test_async_inplace_mutation_superseded_by_fresh_token(self, monkeypatch):
+        """H3: in-flight worker with stale token must not win over fresh search."""
+        FilterWorker.clear_shared_cache()
+        self.enable_async_filtering()
+
+        release_slow = Event()
+        slow_started = Event()
+        original_run = FilterWorker.run
+        worker_run_count = {"count": 0}
+
+        def gated_run(worker_self):
+            worker_run_count["count"] += 1
+            if worker_run_count["count"] == 1:
+                slow_started.set()
+                release_slow.wait(timeout=5)
+            return original_run(worker_self)
+
+        monkeypatch.setattr(FilterWorker, "run", gated_run)
+
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        first_request = self.window._active_filter_request_id
+        self.wait_until_event(slow_started)
+
+        self.window.df_completo.loc[4, "descricao_ssa"] = "Teste A secundario"
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        second_request = self.window._active_filter_request_id
+        assert second_request > first_request
+
+        self.wait_until_filter_idle()
+        descriptions = set(self.extract_visible_descriptions())
+        assert descriptions == {"Teste A", "Teste A secundario"}
+
+        release_slow.set()
+        self.wait_until_filter_idle()
+
+        assert self.window._active_filter_request_id == second_request
+        assert set(self.extract_visible_descriptions()) == {
+            "Teste A",
+            "Teste A secundario",
+        }

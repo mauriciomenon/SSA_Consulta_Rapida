@@ -32,10 +32,7 @@ class TestScenarioDerivadaNotice(GUIFilterScenarioHarness):
         df = self.base_df.copy()
         df.loc[0, "derivada_de"] = "999900001"
         df.loc[0, "situacao"] = "APV"
-        self.window.df_completo = df.copy()
-        self.window.df_exibido = df.copy()
-        self.window._df_last_search_filtered = df.copy()
-        self.window.paginator.set_dataframe(df.copy())
+        self.bind_window_dataframes(df)
 
         with patch(
             "gui.ssa.gui_filters_advanced_ui._read_advanced_filters_from_ui",
