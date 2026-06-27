@@ -497,11 +497,17 @@ def _responsavel_refresh_specs():
 
 
 def _summary_callback(window, button, checks_attr: str, exclude_checks_attr: str):
-    return lambda *_: window._update_multiselect_button(
-        button,
-        getattr(window, checks_attr, []),
-        exclude_checks=getattr(window, exclude_checks_attr, []),
-    )
+    def callback(*_):
+        window._update_multiselect_button(
+            button,
+            getattr(window, checks_attr, []),
+            exclude_checks=getattr(window, exclude_checks_attr, []),
+        )
+        apply_filters = getattr(window, "_apply_advanced_filters_from_ui", None)
+        if callable(apply_filters):
+            apply_filters()
+
+    return callback
 
 
 def _set_enabled(widget, enabled: bool) -> None:

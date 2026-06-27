@@ -235,6 +235,119 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         return ctx
 
+    def _load_responsavel_filter_contract_df(self) -> pd.DataFrame:
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [202600001, 202600002, 202600003, 202600004],
+                "situacao": ["APV", "STE", "APV", "SCA"],
+                "derivada_de": ["", "", "", ""],
+                "localizacao_codigo": ["LOC1", "LOC2", "LOC3", "LOC4"],
+                "descricao_localizacao": ["Desc"] * 4,
+                "equipamento": ["EQ1"] * 4,
+                "semana_cadastro": [202501, 202601, 202501, 202701],
+                "semana_programada": [202503] * 4,
+                "semana_executada": [202501, 202502, 202503, 202504],
+                "data_cadastro": [
+                    "2025-01-01",
+                    "2026-01-01",
+                    "2025-05-01",
+                    "2027-01-01",
+                ],
+                "descricao_ssa": ["Teste A", "Teste B", "Teste C", "Teste D"],
+                "setor_executor": ["IEE3", "IEE3", "MEL4", "MEL4"],
+                "setor_emissor": ["ABC", "XYZ", "ABC", "MEL4"],
+                "descricao_execucao": ["Exec A", "Exec B", "Exec C", "Exec D"],
+                "solicitante": ["Sol A", "Sol B", "Sol A", "Sol C"],
+                "responsavel_programacao": ["Prog A", "Prog B", "Prog A", "Prog C"],
+                "responsavel_execucao": ["Exec A", "Exec B", "Exec A", "Exec C"],
+                "num_reprogramacoes": [0, 1, 2, 2],
+                "grau_prioridade_emissao": [1, 2, 1, 3],
+                "grau_prioridade_planejamento": [2, 2, 3, 1],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self._set_filter_panel_tab("filters")
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+        return df
+
+    def _toggle_responsavel_filter_value(
+        self,
+        *,
+        prefix: str,
+        value: str,
+        exclude: bool = False,
+    ):
+        self.window._ensure_responsavel_options_materialized(target_prefix=prefix)
+        QApplication.processEvents()
+        checks_attr = f"{prefix}_exclude_checks" if exclude else f"{prefix}_checks"
+        checks = getattr(self.window, checks_attr, []) or []
+        target = next(
+            check
+            for check in checks
+            if str(check.property("value") or "") == value
+        )
+        target.setChecked(True)
+        QApplication.processEvents()
+        return target
+
+    def _toggle_advanced_multiselect_value(
+        self,
+        *,
+        prefix: str,
+        value: str,
+        exclude: bool = False,
+    ):
+        checks_attr = f"{prefix}_exclude_checks" if exclude else f"{prefix}_checks"
+        checks = getattr(self.window, checks_attr, []) or []
+        target = next(
+            check
+            for check in checks
+            if str(check.property("value") or "") == value
+        )
+        target.setChecked(True)
+        QApplication.processEvents()
+        self._wait_until_timer_inactive(self.window._advanced_apply_timer)
+        return target
+
+    def _assert_filter_result_contract(
+        self,
+        *,
+        filter_key: str,
+        expected_ssas: set[int],
+        expected_visual_column: str | None = "",
+    ):
+        assert set(self.window.df_exibido["numero_ssa"].astype(int).tolist()) == (
+            expected_ssas
+        )
+        assert self.window._advanced_filters_active is True
+        if expected_visual_column is not None:
+            visual_column = expected_visual_column or filter_key
+            assert visual_column in self.window._get_visual_filter_columns()
+        status_text = str(self.window.filtered_status_label.text() or "")
+        assert f"{len(expected_ssas)} de {len(self.window.df_completo)} SSAs" in (
+            status_text
+        )
+
+    def _assert_multiselect_button_reflects_value(
+        self,
+        *,
+        prefix: str,
+        value: str,
+        exclude: bool = False,
+    ):
+        button = getattr(self.window, f"{prefix}_button")
+        tooltip = str(button.toolTip() or "")
+        assert value in tooltip
+        if exclude:
+            assert "Diferente:" in tooltip
+        else:
+            assert "Incluir:" in tooltip
+        assert button.isEnabled() is True
+
     def teardown_method(self):
         try:
             self._load_patch.stop()
@@ -5337,7 +5450,8 @@ class TestGUIFilterLogic:
         target_check.setChecked(True)
         QApplication.processEvents()
 
-        assert "responsavel_execucao" not in self.window._advanced_filters
+        assert self.window._advanced_filters["responsavel_execucao"] == [target_value]
+        assert self.window._advanced_filters_active is True
 
         with (
             patch.object(QMessageBox, "information") as info_mock,
@@ -6046,6 +6160,352 @@ class TestGUIFilterLogic:
         assert getattr(self.window, "adv_responsavel_emissor_menu", None) is None
         assert getattr(self.window, "adv_responsavel_emissor_checks", None) is None
         assert getattr(self.window, "adv_responsavel_emissor_exclude", None) is None
+
+    @pytest.mark.parametrize(
+        ("filter_key", "prefix", "value"),
+        [
+            ("solicitante", "adv_responsavel_solicitante", "Sol A"),
+            (
+                "responsavel_programacao",
+                "adv_responsavel_programacao",
+                "Prog A",
+            ),
+            ("responsavel_execucao", "adv_responsavel_execucao", "Exec A"),
+        ],
+    )
+    def test_responsavel_multiselect_toggle_applies_filter_immediately(
+        self,
+        filter_key: str,
+        prefix: str,
+        value: str,
+    ):
+        self._load_responsavel_filter_contract_df()
+
+        self._toggle_responsavel_filter_value(prefix=prefix, value=value)
+
+        assert self.window._advanced_filters[filter_key] == [value]
+        self._assert_filter_result_contract(
+            filter_key=filter_key,
+            expected_ssas={202600001, 202600003},
+        )
+        self._assert_multiselect_button_reflects_value(prefix=prefix, value=value)
+
+    @pytest.mark.parametrize(
+        ("filter_key", "prefix", "value", "expected_ssas"),
+        [
+            (
+                "solicitante_exclude_values",
+                "adv_responsavel_solicitante",
+                "Sol B",
+                {202600001, 202600003, 202600004},
+            ),
+            (
+                "responsavel_programacao_exclude_values",
+                "adv_responsavel_programacao",
+                "Prog B",
+                {202600001, 202600003, 202600004},
+            ),
+            (
+                "responsavel_execucao_exclude_values",
+                "adv_responsavel_execucao",
+                "Exec B",
+                {202600001, 202600003, 202600004},
+            ),
+        ],
+    )
+    def test_responsavel_multiselect_exclude_toggle_applies_filter_immediately(
+        self,
+        filter_key: str,
+        prefix: str,
+        value: str,
+        expected_ssas: set[int],
+    ):
+        self._load_responsavel_filter_contract_df()
+
+        self._toggle_responsavel_filter_value(
+            prefix=prefix,
+            value=value,
+            exclude=True,
+        )
+
+        assert self.window._advanced_filters[filter_key] == [value]
+        self._assert_filter_result_contract(
+            filter_key=filter_key,
+            expected_ssas=expected_ssas,
+            expected_visual_column=filter_key.replace("_exclude_values", ""),
+        )
+        self._assert_multiselect_button_reflects_value(
+            prefix=prefix,
+            value=value,
+            exclude=True,
+        )
+
+    def test_standard_advanced_status_toggle_still_applies_filter_via_debounce(self):
+        self._load_responsavel_filter_contract_df()
+        checks = getattr(self.window, "adv_status_checks", []) or []
+        target = next(
+            check
+            for check in checks
+            if str(check.property("value") or "") == "APV"
+        )
+
+        target.setChecked(True)
+        QApplication.processEvents()
+        self._wait_until_timer_inactive(self.window._advanced_apply_timer)
+
+        assert self.window._advanced_filters["situacao"] == ["APV"]
+        self._assert_filter_result_contract(
+            filter_key="situacao",
+            expected_ssas={202600001, 202600003},
+        )
+        self._assert_multiselect_button_reflects_value(
+            prefix="adv_status",
+            value="APV",
+        )
+
+    @pytest.mark.parametrize(
+        ("filter_key", "prefix", "value", "expected_ssas", "expected_visual_column"),
+        [
+            (
+                "setor_executor",
+                "adv_executor",
+                "IEE3",
+                {202600001, 202600002},
+                "setor_executor",
+            ),
+            (
+                "setor_emissor",
+                "adv_emissor",
+                "ABC",
+                {202600001, 202600003},
+                "setor_emissor",
+            ),
+            ("situacao", "adv_status", "APV", {202600001, 202600003}, "situacao"),
+            (
+                "prioridade_emissao_values",
+                "adv_prioridade_emissao",
+                "1",
+                {202600001, 202600003},
+                "grau_prioridade_emissao",
+            ),
+            (
+                "prioridade_planejamento_values",
+                "adv_prioridade_planejamento",
+                "2",
+                {202600001, 202600002},
+                "grau_prioridade_planejamento",
+            ),
+        ],
+    )
+    def test_standard_advanced_multiselect_include_toggle_applies_filter(
+        self,
+        filter_key: str,
+        prefix: str,
+        value: str,
+        expected_ssas: set[int],
+        expected_visual_column: str,
+    ):
+        self._load_responsavel_filter_contract_df()
+
+        self._toggle_advanced_multiselect_value(prefix=prefix, value=value)
+
+        assert self.window._advanced_filters[filter_key] == [value]
+        self._assert_filter_result_contract(
+            filter_key=filter_key,
+            expected_ssas=expected_ssas,
+            expected_visual_column=expected_visual_column,
+        )
+        self._assert_multiselect_button_reflects_value(prefix=prefix, value=value)
+
+    @pytest.mark.parametrize(
+        ("filter_key", "prefix", "value", "expected_ssas", "expected_visual_column"),
+        [
+            (
+                "setor_executor_exclude_values",
+                "adv_executor",
+                "MEL4",
+                {202600001, 202600002},
+                "setor_executor",
+            ),
+            (
+                "setor_emissor_exclude_values",
+                "adv_emissor",
+                "XYZ",
+                {202600001, 202600003, 202600004},
+                "setor_emissor",
+            ),
+            (
+                "situacao_exclude_values",
+                "adv_status",
+                "SCA",
+                {202600001, 202600002, 202600003},
+                "situacao",
+            ),
+            (
+                "prioridade_emissao_exclude_values",
+                "adv_prioridade_emissao",
+                "3",
+                {202600001, 202600002, 202600003},
+                "grau_prioridade_emissao",
+            ),
+            (
+                "prioridade_planejamento_exclude_values",
+                "adv_prioridade_planejamento",
+                "1",
+                {202600001, 202600002, 202600003},
+                "grau_prioridade_planejamento",
+            ),
+        ],
+    )
+    def test_standard_advanced_multiselect_exclude_toggle_applies_filter(
+        self,
+        filter_key: str,
+        prefix: str,
+        value: str,
+        expected_ssas: set[int],
+        expected_visual_column: str,
+    ):
+        self._load_responsavel_filter_contract_df()
+
+        self._toggle_advanced_multiselect_value(
+            prefix=prefix,
+            value=value,
+            exclude=True,
+        )
+
+        assert self.window._advanced_filters[filter_key] == [value]
+        self._assert_filter_result_contract(
+            filter_key=filter_key,
+            expected_ssas=expected_ssas,
+            expected_visual_column=expected_visual_column,
+        )
+        self._assert_multiselect_button_reflects_value(
+            prefix=prefix,
+            value=value,
+            exclude=True,
+        )
+
+    def test_reprogramacoes_multiselect_toggle_applies_filter(self):
+        self._load_responsavel_filter_contract_df()
+
+        self._toggle_advanced_multiselect_value(prefix="adv_reprog", value="2")
+
+        assert self.window._advanced_filters["num_reprogramacoes_values"] == ["2"]
+        assert self.window._advanced_filters["num_reprogramacoes_mode"] == "eq"
+        self._assert_filter_result_contract(
+            filter_key="num_reprogramacoes_values",
+            expected_ssas={202600003, 202600004},
+            expected_visual_column=None,
+        )
+        self._assert_multiselect_button_reflects_value(
+            prefix="adv_reprog",
+            value="2",
+        )
+
+    def test_advanced_multiselect_clear_syncs_buttons_status_summary_and_header(self):
+        self._load_responsavel_filter_contract_df()
+        if "responsavel_execucao" not in self.window.visible_columns:
+            self.window.visible_columns.append("responsavel_execucao")
+        self._toggle_responsavel_filter_value(
+            prefix="adv_responsavel_execucao",
+            value="Exec A",
+        )
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters["responsavel_execucao"] == ["Exec A"]
+        self._assert_filter_result_contract(
+            filter_key="responsavel_execucao",
+            expected_ssas={202600001, 202600003},
+        )
+        self._assert_multiselect_button_reflects_value(
+            prefix="adv_responsavel_execucao",
+            value="Exec A",
+        )
+        header_index = self.window._current_display_columns.index(
+            "responsavel_execucao"
+        )
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert header_text.startswith("[f] ")
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+            if not button.isHidden()
+        ]
+        assert any("Exec A" in text for text in summary_buttons)
+
+        self.window._clear_advanced_filters()
+        QApplication.processEvents()
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        assert set(self.window.df_exibido["numero_ssa"].astype(int).tolist()) == {
+            202600001,
+            202600002,
+            202600003,
+            202600004,
+        }
+        assert "Selecionar" in str(
+            self.window.adv_responsavel_execucao_button.toolTip() or ""
+        )
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+            if not button.isHidden()
+        ]
+        assert not any("Exec A" in text for text in summary_buttons)
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert not header_text.startswith("[f] ")
+
+    def test_quick_executor_and_advanced_executor_remain_bidirectionally_synced(self):
+        self._load_responsavel_filter_contract_df()
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+        mel4_idx = combo.findData("MEL4")
+        assert mel4_idx >= 0
+
+        combo.setCurrentIndex(mel4_idx)
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters.get("setor_executor") == "MEL4"
+        assert self.window._advanced_filters.get("setor_executor") == ["MEL4"]
+        self._assert_filter_result_contract(
+            filter_key="setor_executor",
+            expected_ssas={202600003, 202600004},
+        )
+        self._assert_multiselect_button_reflects_value(
+            prefix="adv_executor",
+            value="MEL4",
+        )
+
+        self._toggle_advanced_multiselect_value(
+            prefix="adv_executor",
+            value="IEE3",
+        )
+
+        assert self.window._advanced_filters.get("setor_executor") == [
+            "IEE3",
+            "MEL4",
+        ]
+        assert self.window._active_column_filters.get("setor_executor") == (
+            "IEE3, MEL4"
+        )
+        self._assert_filter_result_contract(
+            filter_key="setor_executor",
+            expected_ssas={202600001, 202600002, 202600003, 202600004},
+        )
+        assert str(combo.currentText() or "") == "Todos"
 
     def test_advanced_exclude_is_menu_only_without_field_checkbox(self):
         self.window._refresh_advanced_filter_options()
