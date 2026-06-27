@@ -7,6 +7,7 @@ from gui.ssa import gui_filters_advanced_logic as adv_logic
 from gui.ssa import gui_filters_advanced_state_reader as adv_state_reader
 from gui.ssa import gui_filters_advanced_ui as adv_ui
 from gui.ssa.filter_domain_rules import (
+    ADVANCED_FILTER_VISUAL_COLUMN_MAP,
     build_responsavel_sector_counts_by_column,
     build_responsavel_sector_counts,
     generate_responsavel_sector_filter_cache_signature,
@@ -381,6 +382,22 @@ def test_apply_advanced_filters_applies_ano_execucao_from_semana_executada():
         notice_callback=None,
     )
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500003"]
+
+
+def test_advanced_execution_filters_map_to_semana_executada_visually():
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["ano_execucao"] == ("semana_executada",)
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["ano_execucao_values"] == (
+        "semana_executada",
+    )
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["ano_execucao_exclude_values"] == (
+        "semana_executada",
+    )
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["semana_execucao_inicio"] == (
+        "semana_executada",
+    )
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["semana_execucao_fim"] == (
+        "semana_executada",
+    )
 
 
 def test_apply_advanced_filters_supports_legacy_ano_emissao_key():

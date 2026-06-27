@@ -2369,7 +2369,7 @@ class FilterGUISSAMixin:
         measure_timing,
     ) -> pd.DataFrame:
         cache_key = None
-        if has_post_search_filters:
+        if has_post_search_filters or has_excluded_terminal_status:
             cache_context = self._build_filter_cache_context()
             cache_key = (
                 getattr(self, "_data_revision", None),
@@ -2637,7 +2637,6 @@ class FilterGUISSAMixin:
         has_post_search_filters = (
             has_column_filters
             or has_advanced_filters
-            or has_excluded_terminal_status
         )
         filtered = self._apply_filter_refresh_filters_and_update_cache(
             filtered,
