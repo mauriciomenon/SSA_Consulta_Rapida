@@ -50,7 +50,7 @@ Antes de agir, ler:
 - AGENTS.md (na raiz do projeto)
 - README.md
 - docs/README.md
-- .github/instructions/kluster-code-verify.instructions.md
+- .github/instructions/scanner-code-review.instructions.md
 
 ## Fonte de Verdade
 
@@ -154,15 +154,15 @@ Se aparecer necessidade fora do escopo: parar e pedir aprovacao.
 - Se aparecer mudanca em .gitignore* fora do pedido: parar e perguntar
 - Estabilizar import/startup e pontos de concorrencia (race/deadlock/cancel/locks/IO) com mudancas minimas verificaveis
 
-## Regras Kluster (Obrigatorio)
+## Regras de Review e Scanner (Obrigatorio)
 
-- Se editar arquivo, rodar Kluster apos a mudanca
-- Kluster nao substitui testes classicos
-- Se Kluster falhar, declarar bloqueio com escopo exato
+- Se editar arquivo, rodar verificacao local relevante apos a mudanca
+- Scanners e review externo nao substituem testes classicos
+- Se scanner obrigatorio ou review externo solicitado falhar, declarar bloqueio com escopo exato
 - Nunca tratar falha de ferramenta como review limpa
-- Apos qualquer kluster_code_review_auto, informar o usuario sobre issues encontradas antes de corrigir
-- Executar agent_todo_list do Kluster antes de prosseguir
-- Gerar kluster summary ao final de qualquer conversa que useu Kluster
+- Informar o usuario sobre issues encontradas antes de corrigir
+- Executar itens acionaveis retornados por ferramenta de review antes de prosseguir
+- Resumir ferramentas usadas, issues encontradas, fixes aplicados e riscos restantes ao final
 
 ## Formato de Resposta
 
