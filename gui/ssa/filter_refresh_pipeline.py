@@ -36,7 +36,7 @@ def apply_filter_refresh_pipeline(
         has_excluded_terminal_status=has_excluded_terminal_status,
     )
     if cached_result is not None:
-        return cached_result.dataframe, cached_result
+        return _copy_refresh_frame(cached_result.dataframe), cached_result
     if has_post_search_filters:
         filtered = _apply_post_search_stages(
             filtered,
@@ -56,7 +56,7 @@ def apply_filter_refresh_pipeline(
             cache_key,
             has_post_search_filters,
             has_excluded_terminal_status,
-            filtered,
+            _copy_refresh_frame(filtered),
         )
     return filtered, None
 
@@ -110,3 +110,9 @@ def _apply_terminal_status_stage(
             lambda: exclude_terminal_status_rows(filtered),
         )
     return filtered
+
+
+def _copy_refresh_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    copied = frame.copy(deep=True)
+    copied.attrs = dict(getattr(frame, "attrs", {}))
+    return copied

@@ -259,7 +259,10 @@ def restore_filter_search_state(window: Any, state: dict) -> str:
     window._set_search_text_across_tabs(restored_search_text)
     window._pending_search_display = state.get("pending_search_display")
     if not restored_search_text.strip():
-        window._df_last_search_filtered = window.df_completo
+        window._df_last_search_filtered = window.df_completo.copy(deep=True)
+        window._df_last_search_filtered.attrs = dict(
+            getattr(window.df_completo, "attrs", {})
+        )
     return restored_search_text
 
 

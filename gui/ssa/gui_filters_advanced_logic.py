@@ -616,14 +616,29 @@ def _build_derivadas_tree_core(
         return mae_filhas, filha_mae
 
     try:
-        filha_mae = dict(zip(pairs["numero"], pairs["derivada"]))
+        for numero, derivada in pairs[["numero", "derivada"]].itertuples(
+            index=False,
+            name=None,
+        ):
+            numero_key = str(numero)
+            derivada_key = str(derivada)
+            previous = filha_mae.get(numero_key)
+            if previous is not None and previous != derivada_key:
+                logger.warning(
+                    "Duplicate derivada child %s has conflicting parents %s and %s; "
+                    "keeping first parent",
+                    numero_key,
+                    previous,
+                    derivada_key,
+                )
+                continue
+            filha_mae.setdefault(numero_key, derivada_key)
     except Exception:
         filha_mae = {}
 
     try:
-        grouped = pairs.groupby("derivada")["numero"].unique()
-        for mae, filhas in grouped.items():
-            mae_filhas_set[mae] = set(filhas)
+        for numero, derivada in filha_mae.items():
+            mae_filhas_set.setdefault(derivada, set()).add(numero)
     except Exception:
         mae_filhas_set = {}
 

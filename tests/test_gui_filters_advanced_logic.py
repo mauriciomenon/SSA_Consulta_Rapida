@@ -8,6 +8,7 @@ from gui.ssa import gui_filters_advanced_ui as adv_ui
 from gui.ssa.filter_domain_rules import (
     build_responsavel_sector_counts_by_column,
     build_responsavel_sector_counts,
+    generate_responsavel_sector_filter_cache_signature,
     order_responsavel_values,
     subset_by_sector_filters,
 )
@@ -153,6 +154,30 @@ def test_subset_by_sector_filters_applies_include_and_exclude_once():
     assert filtered["numero_ssa"].tolist() == ["4"]
 
 
+def test_responsavel_sector_signature_tracks_in_place_sector_mutation():
+    df = pd.DataFrame(
+        {
+            "solicitante": ["Ana", "Bia"],
+            "setor_executor": ["IEE1", "MEL4"],
+            "setor_emissor": ["", ""],
+        }
+    )
+
+    before = generate_responsavel_sector_filter_cache_signature(
+        df,
+        data_load_token=None,
+        executor_include=["IEE1"],
+    )
+    df.loc[0, "setor_executor"] = "IEE2"
+    after = generate_responsavel_sector_filter_cache_signature(
+        df,
+        data_load_token=None,
+        executor_include=["IEE1"],
+    )
+
+    assert after != before
+
+
 def test_resolve_year_selection_sets_keeps_legacy_exclude_out_of_include():
     include, exclude = adv_state_reader.resolve_year_selection_sets(
         {"ano_execucao": 2025, "ano_execucao_exclude": True},
@@ -258,7 +283,32 @@ def test_has_active_advanced_filters_detects_reprogramacoes_filter():
         "num_reprogramacoes_mode": "eq",
         "num_reprogramacoes_values": ["2"],
     }
+
     assert adv_ui._has_active_advanced_filters(None, data) is True
+
+
+def test_derivadas_tree_keeps_first_parent_for_duplicate_child(caplog):
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202600101", "202600101"],
+            "derivada_de": ["202600001", "202600002"],
+        }
+    )
+    state = adv_logic.AdvancedFilterState(_DummyWindow({}))
+
+    mae_filhas, filha_mae = adv_logic._build_derivadas_tree_core(
+        df,
+        "numero_ssa",
+        "derivada_de",
+        state,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+    )
+
+    assert filha_mae["202600101"] == "202600001"
+    assert mae_filhas["202600001"] == ["202600101"]
+    assert "202600002" not in mae_filhas
+    assert "Duplicate derivada child 202600101" in caplog.text
 
 
 def test_apply_advanced_filters_emissao_week_keys_filter_cadastro_week_column():

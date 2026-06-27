@@ -579,6 +579,7 @@ def _get_details_frame_fingerprint(window, df) -> str:
         data_revision,
         tuple(getattr(df, "shape", (0, 0))),
         tuple(str(column) for column in getattr(df, "columns", [])),
+        build_dataframe_filter_hash(df),
     )
     cache = getattr(window, "_details_frame_fingerprint_cache", None)
     if not isinstance(cache, dict):

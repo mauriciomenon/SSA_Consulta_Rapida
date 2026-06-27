@@ -6,7 +6,6 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
 
 import pandas as pd
 
@@ -254,14 +253,12 @@ class ResponsavelRefreshCache:
         return ("frame_token", self.frame_token(source_df), len(source_df))
 
     def frame_token(self, source_df: pd.DataFrame) -> str:
-        frame_id = id(source_df)
-        token = self.frame_tokens.get(frame_id)
-        if token is None:
-            token = uuid4().hex
-            self.frame_tokens[frame_id] = token
-            self.frame_tokens.move_to_end(frame_id)
-            _trim_ordered_cache(self.frame_tokens)
-        return token
+        return repr(
+            generate_responsavel_sector_filter_cache_signature(
+                source_df,
+                data_load_token=None,
+            )
+        )
 
     def option_values(
         self,

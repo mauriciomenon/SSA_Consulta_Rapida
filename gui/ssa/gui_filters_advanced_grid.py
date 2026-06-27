@@ -183,7 +183,12 @@ def reorganize_advanced_filters_grid(window: Any, width: int) -> None:
     update_advanced_filters_action_buttons(window, effective_width)
     if effective_width < LAYOUT_MIN_VALID_WIDTH:
         return
-    if _advanced_grid_recently_applied(window, effective_width, max_scroll_h):
+    if _advanced_grid_recently_applied(
+        window,
+        effective_width,
+        max_scroll_h,
+        len(visible),
+    ):
         return
     apply_advanced_filters_font_policy(window, effective_width)
     enforce_advanced_filters_compact_metrics(window)
@@ -442,7 +447,7 @@ def _compute_grid_cell_min_width(
 
 
 def _advanced_grid_recently_applied(
-    window: Any, effective_width: int, max_scroll_h: int
+    window: Any, effective_width: int, max_scroll_h: int, visible_count: int
 ) -> bool:
     state = advanced_panel_state(window)
     if state is None:
@@ -450,11 +455,13 @@ def _advanced_grid_recently_applied(
     previous_effective_width = state.last_effective_width
     previous_max_scroll_h = state.last_max_scroll_h
     current_cols = state.grid_cols
+    previous_widget_count = state.last_widget_count
     return (
         previous_effective_width is not None
         and abs(int(effective_width) - int(previous_effective_width)) < 8
         and previous_max_scroll_h is not None
         and abs(int(max_scroll_h) - int(previous_max_scroll_h)) < 8
+        and previous_widget_count == int(visible_count)
         and current_cols is not None
     )
 

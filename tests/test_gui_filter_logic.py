@@ -2958,30 +2958,19 @@ class TestGUIFilterLogic:
 
         assert captured["font_family"] == self.window.details_group.font().family()
 
-    def test_details_frame_fingerprint_cache_distinguishes_dataframes(
-        self, monkeypatch
-    ):
+    def test_details_frame_fingerprint_cache_tracks_in_place_dataframe_changes(self):
         self.window._data_uuid = "uuid-1"
         self.window._data_revision = 1
-        first_df = pd.DataFrame({"numero_ssa": ["1"]})
-        second_df = pd.DataFrame({"numero_ssa": ["2"]})
-
-        def _fail_full_hash(_df):
-            raise AssertionError("runtime dataframe fingerprint must not scan content")
-
-        monkeypatch.setattr(
-            ssa_gui_details,
-            "build_dataframe_filter_hash",
-            _fail_full_hash,
-        )
+        df = pd.DataFrame({"numero_ssa": ["1"]})
 
         first_fingerprint = ssa_gui_details._get_details_frame_fingerprint(
             self.window,
-            first_df,
+            df,
         )
+        df.loc[0, "numero_ssa"] = "2"
         second_fingerprint = ssa_gui_details._get_details_frame_fingerprint(
             self.window,
-            second_df,
+            df,
         )
 
         assert first_fingerprint

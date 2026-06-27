@@ -32,8 +32,8 @@ class AdvancedFilterUIState:
 
 def build_advanced_values_cache_key(
     df: pd.DataFrame, data_load_token: Any
-) -> tuple[int, tuple[str, ...], Any]:
-    return (len(df), tuple(str(column) for column in df.columns), data_load_token)
+) -> tuple[int, int, tuple[str, ...], Any]:
+    return (id(df), len(df), tuple(str(column) for column in df.columns), data_load_token)
 
 
 def _unique_sorted(df: pd.DataFrame, column: str) -> list[str]:

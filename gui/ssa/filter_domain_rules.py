@@ -26,6 +26,14 @@ SECTOR_EXECUTOR_PRIORITY = (
 SECTOR_EXECUTOR_PRIORITY_INDEX = {
     sector: index for index, sector in enumerate(SECTOR_EXECUTOR_PRIORITY)
 }
+RESPONSAVEL_SECTOR_SIGNATURE_COLUMNS = (
+    "setor_executor",
+    "setor_emissor",
+    "solicitante",
+    "responsavel_solicitante",
+    "responsavel_programacao",
+    "responsavel_execucao",
+)
 
 
 def normalize_nonempty_string_series(series: pd.Series) -> pd.Series:
@@ -343,20 +351,19 @@ def generate_responsavel_sector_filter_cache_signature(
 
 
 def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
-    # Fallback for callers without a data version token; structure-level only.
     try:
-        first_index = df.index[0] if len(df.index) else None
-        last_index = df.index[-1] if len(df.index) else None
-        return hash(
-            (
-                len(df),
-                first_index,
-                last_index,
-                tuple(str(column) for column in df.columns),
-            )
+        columns = [
+            column
+            for column in RESPONSAVEL_SECTOR_SIGNATURE_COLUMNS
+            if column in df.columns
+        ]
+        frame = df.loc[:, columns] if columns else df
+        data_hash = int(
+            pd.util.hash_pandas_object(frame, index=True).sum()
         )
+        return hash((data_hash, len(df), tuple(str(column) for column in df.columns)))
     except Exception:
-        return hash(len(df))
+        return hash((len(df), tuple(str(column) for column in df.columns)))
 
 
 def filter_responsavel_frame_by_sector_selection(
