@@ -123,10 +123,11 @@ def get_cached_advanced_filter_option_values(
     *,
     data_load_token: Any,
     sort_sectors: Callable[[list[str]], list[str]],
+    force_refresh: bool = False,
 ) -> AdvancedFilterOptionValues:
     df_key = build_advanced_values_cache_key(df, data_load_token)
     cached_values = cache.get("values")
-    if cache.get("df_key") == df_key and isinstance(
+    if not force_refresh and cache.get("df_key") == df_key and isinstance(
         cached_values, AdvancedFilterOptionValues
     ):
         return cached_values

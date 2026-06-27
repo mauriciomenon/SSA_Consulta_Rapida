@@ -1965,6 +1965,7 @@ def _read_advanced_filter_ui_state(
         df,
         data_load_token=getattr(self, "_data_load_token", None),
         sort_sectors=lambda values: _sort_sectors(self, values),
+        force_refresh=bool(getattr(self, "_adv_options_dirty", False)),
     )
     self._adv_values_cache = cache
     return AdvancedFilterUIState(filters=filters, values=values)
