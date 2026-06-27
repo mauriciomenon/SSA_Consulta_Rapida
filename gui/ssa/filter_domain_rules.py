@@ -422,6 +422,7 @@ ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "ano_execucao": ("data_programada",),
     "ano_execucao_values": ("data_programada",),
     "ano_execucao_exclude_values": ("data_programada",),
+    "num_reprogramacoes_values": ("num_reprogramacoes",),
     "semana_emissao_inicio": ("semana_cadastro",),
     "semana_emissao_fim": ("semana_cadastro",),
     "semana_execucao_inicio": ("semana_programada",),

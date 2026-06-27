@@ -47,6 +47,11 @@ from gui.ssa import gui_filters_advanced_layout as advanced_layout  # noqa: E402
 from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
 from gui.ssa import gui_filters_multiselect_menu as advanced_menu  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
+from gui.ssa.gui_filters_advanced_specs import (  # noqa: E402
+    ADVANCED_RESPONSAVEL_MULTISELECT_SPECS,
+    ADVANCED_STANDARD_MULTISELECT_SPECS,
+    ADVANCED_YEAR_MULTISELECT_SPECS,
+)
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
 from gui.ssa.filter_profile_logic import (  # noqa: E402
     NormalizedFilterProfile,
@@ -6387,20 +6392,54 @@ class TestGUIFilterLogic:
 
     def test_reprogramacoes_multiselect_toggle_applies_filter(self):
         self._load_responsavel_filter_contract_df()
+        if "num_reprogramacoes" not in self.window.visible_columns:
+            self.window.visible_columns.append("num_reprogramacoes")
 
         self._toggle_advanced_multiselect_value(prefix="adv_reprog", value="2")
+        self.window.display_current_page(1)
+        QApplication.processEvents()
 
         assert self.window._advanced_filters["num_reprogramacoes_values"] == ["2"]
         assert self.window._advanced_filters["num_reprogramacoes_mode"] == "eq"
         self._assert_filter_result_contract(
             filter_key="num_reprogramacoes_values",
             expected_ssas={202600003, 202600004},
-            expected_visual_column=None,
+            expected_visual_column="num_reprogramacoes",
         )
         self._assert_multiselect_button_reflects_value(
             prefix="adv_reprog",
             value="2",
         )
+        header_index = self.window._current_display_columns.index("num_reprogramacoes")
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert header_text.startswith("[f] ")
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+            if not button.isHidden()
+        ]
+        assert any("Reprog" in text and "2" in text for text in summary_buttons)
+
+    def test_advanced_filter_visual_map_covers_widget_multiselect_keys(self):
+        expected_keys = {"num_reprogramacoes_values"}
+        for spec in (
+            ADVANCED_STANDARD_MULTISELECT_SPECS
+            + ADVANCED_RESPONSAVEL_MULTISELECT_SPECS
+        ):
+            expected_keys.add(spec.include_key)
+            if spec.exclude_key is not None:
+                expected_keys.add(spec.exclude_key)
+        for spec in ADVANCED_YEAR_MULTISELECT_SPECS:
+            expected_keys.add(f"{spec.base_key}_values")
+            expected_keys.add(f"{spec.base_key}_exclude_values")
+
+        visual_keys = set(filter_domain_rules.ADVANCED_FILTER_VISUAL_COLUMN_MAP)
+
+        assert expected_keys - visual_keys == set()
 
     def test_advanced_multiselect_clear_syncs_buttons_status_summary_and_header(self):
         self._load_responsavel_filter_contract_df()
