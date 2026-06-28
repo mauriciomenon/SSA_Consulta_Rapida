@@ -120,3 +120,34 @@ class TestScenarioAdvOptionsLoadWaste(GUIFilterScenarioHarness):
             QApplication.processEvents()
 
         refresh_mock.assert_not_called()
+
+    def test_clean_cache_hit_refreshes_stale_responsavel_options(self):
+        """M3: stale responsavel must refresh even on clean adv cache hit."""
+        self.load_advanced_contract_df()
+        target_prefix = "adv_responsavel_solicitante"
+        self.window._ensure_responsavel_options_materialized(
+            target_prefix=target_prefix
+        )
+        QApplication.processEvents()
+
+        responsavel_state = self.window.responsavel_materialization_state
+        assert not responsavel_state.stale_built_prefixes()
+
+        self.window._adv_options_dirty = False
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        responsavel_state.mark_dirty(prefixes={target_prefix})
+        assert target_prefix in responsavel_state.stale_built_prefixes()
+
+        with patch.object(
+            self.window,
+            "_refresh_responsavel_options",
+            wraps=self.window._refresh_responsavel_options,
+        ) as refresh_mock:
+            self.window._refresh_advanced_filter_options()
+            QApplication.processEvents()
+
+        refresh_mock.assert_called_once()
+        target_prefixes = refresh_mock.call_args.kwargs.get("target_prefixes") or set()
+        assert target_prefix in target_prefixes

@@ -61,6 +61,35 @@ def test_collect_nonempty_unique_budget_at_10k_rows():
     assert tolist_calls["count"] == 1
 
 
+def test_unique_sorted_matches_collect_nonempty_set_casefold_baseline():
+    """M2: pd.unique path must match collect_nonempty + set + casefold sort."""
+    from gui.ssa.gui_filters_advanced_refresh import _unique_sorted
+
+    df = pd.DataFrame(
+        {
+            "situacao": ["APV", "STE", "APV", "", "  ", None, "STE", "Zeta", "alpha"],
+            "setor_executor": [
+                "IEE3",
+                "IEE3",
+                "SMIN",
+                "SMIN",
+                "",
+                "X",
+                "Y",
+                "Y",
+                None,
+            ],
+        }
+    )
+
+    def baseline(column: str) -> list[str]:
+        raw = collect_nonempty_column_values(df, column)
+        return sorted(set(raw), key=lambda value: value.casefold())
+
+    for column in ("situacao", "setor_executor"):
+        assert _unique_sorted(df, column) == baseline(column)
+
+
 def test_collect_nonempty_returns_empty_for_empty_dataframe():
     df = pd.DataFrame({"setor_executor": pd.Series([], dtype=str)})
     tolist_calls, spy_tolist = make_series_tolist_spy()
