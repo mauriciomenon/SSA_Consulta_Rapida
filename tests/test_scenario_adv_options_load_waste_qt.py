@@ -29,8 +29,8 @@ class TestScenarioAdvOptionsLoadWaste(GUIFilterScenarioHarness):
             self.window._refresh_advanced_filter_options()
             QApplication.processEvents()
 
-        assert get_cached_spy.call_count == 1
-        assert get_cached_spy.call_args.kwargs.get("force_refresh") is False
+        assert get_cached_spy.call_count == 0
+        get_cached_spy.assert_not_called()
         assert collect_spy.call_count == 0
         collect_spy.assert_not_called()
 

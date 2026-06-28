@@ -58,6 +58,7 @@ from .gui_filters_advanced_panel_state import (
     advanced_panel_state as _advanced_panel_state,
 )
 from .gui_filters_advanced_refresh import (
+    AdvancedFilterOptionValues,
     AdvancedFilterUIState,
     build_advanced_values_cache_key,
     get_cached_advanced_filter_option_values,
@@ -1930,19 +1931,23 @@ def _refresh_advanced_filter_options(self):
         def apply_cb():
             return _schedule_advanced_filters_apply(self)
 
-        ui_state = _read_advanced_filter_ui_state(self, df, filters)
         cache = getattr(self, "_adv_values_cache", {})
         df_key = build_advanced_values_cache_key(df, getattr(self, "_data_load_token", None))
+        dirty = bool(getattr(self, "_adv_options_dirty", False))
+        cached_values = cache.get("values") if isinstance(cache, dict) else None
 
         if (
-            cache.get("df_key") == df_key
-            and not getattr(self, "_adv_options_dirty", False)
-            and cache.get("values") is not None
+            isinstance(cache, dict)
+            and cache.get("df_key") == df_key
+            and not dirty
+            and isinstance(cached_values, AdvancedFilterOptionValues)
         ):
+            ui_state = AdvancedFilterUIState(filters=filters, values=cached_values)
             _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
             self._adv_options_dirty = False
             return
 
+        ui_state = _read_advanced_filter_ui_state(self, df, filters)
         logger.debug(
             "_refresh_advanced_filter_options: cache pronto - exec=%s, emis=%s, status=%s",
             _safe_len(ui_state.values.exec_vals),

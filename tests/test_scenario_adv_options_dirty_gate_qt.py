@@ -52,8 +52,8 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
             self.window._refresh_advanced_filter_options()
             QApplication.processEvents()
 
-        assert wrapped.call_count >= 1
-        assert wrapped.call_args.kwargs.get("force_refresh") is False
+        assert wrapped.call_count == 0
+        wrapped.assert_not_called()
         assert first_exec_vals == EXPECTED_ADV_EXEC_VALS
         second_exec_vals = self.get_adv_exec_vals()
         assert second_exec_vals == first_exec_vals
