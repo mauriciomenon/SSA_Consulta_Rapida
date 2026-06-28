@@ -21,7 +21,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from PyQt6.QtCore import QTimer  # noqa: E402
+from PyQt6.QtCore import Qt, QTimer  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
@@ -214,13 +214,45 @@ class GUIFilterScenarioHarness:
     def get_adv_exec_vals(self) -> list[str]:
         return list(self.window._adv_values_cache.get("exec_vals") or [])
 
+    def filter_panel_context(self) -> dict[str, Any]:
+        """Shared filter panel widget map (see gui_ssa._filter_panel_context)."""
+        return self.window._filter_panel_context
+
     def set_filter_panel_tab(self, panel: str) -> dict[str, Any]:
         target_index = 1 if panel in {"filters", "advanced"} else 0
-        ctx = self.window._filter_panel_context
+        ctx = self.filter_panel_context()
         tab_bar = ctx["filter_panel_tab_bar"]
         tab_bar.setCurrentIndex(target_index)
         QApplication.processEvents()
         return ctx
+
+    def mouse_click(self, widget) -> None:
+        """Left-click via QTest.mouseClick; no time.sleep (processEvents only)."""
+        cast(Any, QTest).mouseClick(widget, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+    def refresh_table_page(self, page: int = 1) -> None:
+        """Render paginator page and flush pending Qt events."""
+        self.window.display_current_page(page)
+        QApplication.processEvents()
+
+    def extract_table_column_texts(self, column_name: str) -> list[str]:
+        """Visible table cell texts for column_name, one entry per row."""
+        columns = list(self.window._current_display_columns)
+        column_index = columns.index(column_name)
+        row_count = self.window.table_widget.rowCount()
+        values: list[str] = []
+        for row in range(row_count):
+            item = self.window.table_widget.item(row, column_index)
+            if item is not None:
+                values.append(str(item.text() or ""))
+        return values
+
+    def setup_derivada_advanced_panel(self) -> None:
+        """Open filters tab and refresh adv_derivada checkbox options."""
+        self.set_filter_panel_tab("filters")
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
 
     def toggle_advanced_multiselect_value(
         self,
