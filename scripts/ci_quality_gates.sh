@@ -19,7 +19,11 @@ if ! command -v "$PY" >/dev/null 2>&1; then
 fi
 
 if [ -n "$GATES_ARGS" ]; then
-  read -r -a GATES_ARGS_ARRAY <<< "$GATES_ARGS"
+  while IFS= read -r arg; do
+    GATES_ARGS_ARRAY+=("$arg")
+  done < <(
+    "$PY" -c 'import os, shlex; print(*shlex.split(os.environ["GATES_ARGS"]), sep="\n")'
+  )
 fi
 
 set +e

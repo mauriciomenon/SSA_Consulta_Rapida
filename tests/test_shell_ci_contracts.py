@@ -91,8 +91,61 @@ def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     script = _read_repo_text("scripts", "ci_quality_gates.sh")
 
     assert "run_quality_gates.py $GATES_ARGS" not in script
-    assert "read -r -a GATES_ARGS_ARRAY" in script
+    assert "read -r -a GATES_ARGS_ARRAY" not in script
+    assert "shlex.split" in script
+    assert "eval" not in script
     assert '"${GATES_ARGS_ARRAY[@]}"' in script
+
+
+def test_ci_quality_gates_parses_gate_args_with_quotes(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None, "bash must be available for shell contract tests"
+
+    capture = tmp_path / "argv.txt"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_python = fake_bin / "python"
+    fake_python.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "if [[ \"${1:-}\" == \"-c\" ]]; then\n"
+        "  exec \"$REAL_PYTHON\" \"$@\"\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == \"scripts/run_quality_gates.py\" ]]; then\n"
+        "  printf '%s\\n' \"${@:2}\" > \"$QUALITY_GATES_CAPTURE\"\n"
+        "  printf '{\"overall_status\":\"ok\"}\\n'\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == \"-m\" && \"${2:-}\" == \"pytest\" ]]; then\n"
+        "  exit 0\n"
+        "fi\n"
+        "printf 'unexpected python invocation: %s\\n' \"$*\" >&2\n"
+        "exit 99\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    result = subprocess.run(
+        [bash, str(PROJECT_ROOT / "scripts" / "ci_quality_gates.sh")],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=_test_env(
+            PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+            GATES_ARGS='--skip "check docs" --label "cache manager"',
+            REAL_PYTHON=sys.executable,
+            QUALITY_GATES_CAPTURE=str(capture),
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert capture.read_text(encoding="utf-8").splitlines() == [
+        "--skip",
+        "check docs",
+        "--label",
+        "cache manager",
+    ]
 
 
 def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
