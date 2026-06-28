@@ -1554,8 +1554,9 @@ _ADVANCED_FILTER_FAILURE_SUFFIX = (
 
 
 def _is_advanced_filter_mask_runtime_error(exc: BaseException) -> bool:
-    message = str(exc or "")
-    return message.startswith("Failed to evaluate advanced filter mask.any()")
+    from gui.ssa.gui_filters_advanced_logic import AdvancedFilterMaskError
+
+    return isinstance(exc, AdvancedFilterMaskError)
 
 
 def _sync_status_after_advanced_filter_failure(self) -> None:

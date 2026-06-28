@@ -167,7 +167,7 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         complete_rows = len(self.window.df_completo)
 
         def _broken_mask_any(_mask, _context):
-            raise RuntimeError(
+            raise adv_logic.AdvancedFilterMaskError(
                 "Failed to evaluate advanced filter mask.any() after reprogramacoes"
             )
 
@@ -205,7 +205,7 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         self.window._advanced_filters_active = True
 
         def _broken_mask_any(_mask, _context):
-            raise RuntimeError(
+            raise adv_logic.AdvancedFilterMaskError(
                 "Failed to evaluate advanced filter mask.any() after reprogramacoes"
             )
 

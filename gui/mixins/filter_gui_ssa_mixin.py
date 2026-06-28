@@ -124,6 +124,7 @@ from gui.ssa.filter_summary_removal import (
     SummaryRemovalPlan,
     build_summary_removal_plan,
 )
+from gui.ssa.gui_filters_advanced_logic import AdvancedFilterMaskError
 from gui.ssa import filter_search_undo_controller as search_undo_controller
 from gui.ssa.filter_state_utils import copy_filter_mapping as _copy_filter_mapping
 from utils.robust_logging import get_robust_logger
@@ -2681,20 +2682,17 @@ class FilterGUISSAMixin:
                 has_excluded_terminal_status=has_excluded_terminal_status,
                 measure_timing=timer.measure,
             )
-        except RuntimeError as exc:
+        except AdvancedFilterMaskError as exc:
             from gui.ssa.gui_filters_advanced_ui import (
-                _is_advanced_filter_mask_runtime_error,
                 _sync_status_after_advanced_filter_failure,
             )
 
-            if _is_advanced_filter_mask_runtime_error(exc):
-                logger.warning(
-                    "Falha ao aplicar filtros avancados no refresh pos-busca: %s",
-                    exc,
-                )
-                _sync_status_after_advanced_filter_failure(self)
-                return
-            raise
+            logger.warning(
+                "Falha ao aplicar filtros avancados no refresh pos-busca: %s",
+                exc,
+            )
+            _sync_status_after_advanced_filter_failure(self)
+            return
         filtered = self._sort_filter_refresh_result(
             filtered,
             has_general_search=has_general_search,

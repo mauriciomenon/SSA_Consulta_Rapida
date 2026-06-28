@@ -99,11 +99,15 @@ def _maybe_reset_adv_caches(state: AdvancedFilterState, cache_token: int) -> Non
     setattr(window, "_adv_cache_token", cache_token)
 
 
+class AdvancedFilterMaskError(RuntimeError):
+    """Raised when advanced filter mask.any() evaluation fails."""
+
+
 def _mask_any(mask, context: str) -> bool:
     try:
         return bool(mask.any())
     except Exception as exc:
-        raise RuntimeError(
+        raise AdvancedFilterMaskError(
             f"Failed to evaluate advanced filter mask.any() {context}"
         ) from exc
 
