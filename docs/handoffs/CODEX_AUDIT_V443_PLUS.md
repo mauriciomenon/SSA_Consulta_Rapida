@@ -994,3 +994,60 @@ uv run --python 3.13 pytest tests/test_scenario_filter_refresh_mixin_qt.py tests
 ```
 
 *Gerado: 2026-06-27/28. Atualizado pos-fix closure. Sem push.*
+
+## Closure operacional (2026-06-28, agente df272a44 follow-up)
+
+| Campo | Valor |
+|-------|-------|
+| HEAD | `73ca96cbd63fb4ebd4eb5262fdf7d882d43bc2fe` |
+| Branch | `dev` |
+| Ahead origin/dev | 34 commits |
+| Working tree | clean |
+| Push | **nao executado** (sem pedido explicito) |
+
+### Quality gates (superficie filter)
+
+| Gate | Resultado | Notas |
+|------|-----------|-------|
+| py_compile | OK | 8 arquivos (runtime + tests focados) |
+| ruff check | OK | All checks passed |
+| ty check (runtime) | OK | mixin, advanced_ui, filter_cache |
+| ty check (tests) | 3 diagnostics | `test_contract_filter_refresh_semantics.py`: stub `pipeline_measure_timing` retorna `object` vs `DataFrame` esperado; pre-existente, nao bloqueia runtime |
+| pytest focado | **36 passed**, 4 deselected (`-m "not performance"`) | bundle: contract/scenario/cache + smoke headless + smoke budget |
+
+Comando pytest bundle:
+```
+uv run --python 3.13 pytest tests/test_contract_filter_refresh_semantics.py tests/test_scenario_filter_refresh_mixin_qt.py tests/test_scenario_adv_options_dirty_gate_qt.py tests/test_filter_cache_locking.py tests/test_filter_cache_context.py tests/smoke_test_gui.py::test_gui_instantiation tests/smoke_test_gui.py::test_mixin_methods_callable tests/test_scenario_gui_filter_smoke_budget_qt.py -m "not performance" -q
+```
+
+### Reviews externos
+
+| Ferramenta | Status | Detalhe |
+|------------|--------|---------|
+| semgrep `--config=auto` | **0 findings** | 5 arquivos, 1198 rules |
+| bandit | **0 findings** | runtime: mixin, advanced_ui, filter_cache |
+| clawpatch | **BLOQUEADO** | `review --since origin/dev` e `--since 9e36576` retornam `"no features touched by diff"`; doctor OK (provider grok); diff git confirma +175/-34 nos 3 runtime files vs origin/dev |
+| coderabbit | **NAO RODADO** | sem PR aberto nesta sessao |
+
+### Smoke GUI
+
+| Teste | Resultado |
+|-------|-----------|
+| `smoke_test_gui::test_gui_instantiation` | pass |
+| `smoke_test_gui::test_mixin_methods_callable` | pass |
+| `test_scenario_gui_filter_smoke_budget_qt` | 5 passed |
+
+**Smoke visual manual ainda pendente (P0):** abrir GUI real, aplicar filtro avancado, simular falha de mascara (`AdvancedFilterMaskError`), confirmar suffix H6 no status bar e contador alinhado ao grid.
+
+### GPG
+
+- 34 commits em `origin/dev..HEAD`: **todos unsigned** (`%G? = N`)
+- 0 assinados (`G`), 0 good-but-untrusted (`U`)
+- Re-assinar apenas se politica exigir e GPG/TTY disponivel; nao re-assinado nesta sessao
+
+### Proxima acao recomendada
+
+1. **Push** (quando usuario autorizar): `git push origin dev` — 34 commits locais
+2. **Smoke visual manual** pos-H6 (status suffix com falha simulada)
+3. **Clawpatch:** investigar mapa de features ou abrir PR para review via CI/coderabbit
+4. **GPG opcional:** re-assinar cadeia se politica do remoto exigir
