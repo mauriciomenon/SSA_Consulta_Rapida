@@ -97,3 +97,26 @@ class TestScenarioAdvOptionsLoadWaste(GUIFilterScenarioHarness):
             )
         assert collect_spy.call_count == 1
         assert "INVISIBLE_UNTIL_DIRTY" in third.exec_vals
+
+    def test_clean_cache_skips_responsavel_rescan_when_not_stale(self):
+        self.load_advanced_contract_df()
+        target_prefix = "adv_responsavel_solicitante"
+        self.window._ensure_responsavel_options_materialized(target_prefix=target_prefix)
+        QApplication.processEvents()
+
+        responsavel_state = self.window.responsavel_materialization_state
+        assert not responsavel_state.stale_built_prefixes()
+
+        self.window._adv_options_dirty = False
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        with patch.object(
+            self.window,
+            "_refresh_responsavel_options",
+            wraps=self.window._refresh_responsavel_options,
+        ) as refresh_mock:
+            self.window._refresh_advanced_filter_options()
+            QApplication.processEvents()
+
+        refresh_mock.assert_not_called()

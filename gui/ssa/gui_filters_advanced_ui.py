@@ -1966,7 +1966,9 @@ def _refresh_advanced_filter_options(self):
             and isinstance(cached_values, AdvancedFilterOptionValues)
         ):
             ui_state = AdvancedFilterUIState(filters=filters, values=cached_values)
-            _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+            _apply_advanced_filter_ui_state(
+                self, ui_state, apply_cb, mark_responsavel_stale=False
+            )
             self._adv_options_dirty = False
             return
 
@@ -2008,7 +2010,9 @@ def _read_advanced_filter_ui_state(
     return AdvancedFilterUIState(filters=filters, values=values)
 
 
-def _apply_advanced_filter_ui_state(self, ui_state, apply_cb) -> None:
+def _apply_advanced_filter_ui_state(
+    self, ui_state, apply_cb, *, mark_responsavel_stale: bool = True
+) -> None:
     values = ui_state.values
     filters = ui_state.filters
     self._refresh_sector_menus(
@@ -2033,10 +2037,14 @@ def _apply_advanced_filter_ui_state(self, ui_state, apply_cb) -> None:
     self._refresh_reprogramacoes_menu(values.reprog_vals, filters, apply_cb)
     _refresh_derivadas_menu(self, filters, apply_cb)
 
-    self._mark_responsavel_dirty()
-    built_prefixes = responsavel_materialization_state(self).built_prefixes
-    if built_prefixes:
-        self._refresh_responsavel_options(target_prefixes=built_prefixes)
+    responsavel_state = responsavel_materialization_state(self)
+    if mark_responsavel_stale:
+        built_prefixes = responsavel_state.built_prefixes
+        if built_prefixes:
+            responsavel_state.mark_dirty(prefixes=built_prefixes)
+    stale_prefixes = responsavel_state.stale_built_prefixes()
+    if stale_prefixes:
+        self._refresh_responsavel_options(target_prefixes=stale_prefixes)
     else:
         self._sync_responsavel_button_summaries()
     self._sync_checks_to_tab_context()
