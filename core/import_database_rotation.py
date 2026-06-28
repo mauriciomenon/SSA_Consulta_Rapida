@@ -61,6 +61,19 @@ def promote_full_rescan_candidate(
     try:
         replace_sqlite_file_with_retry(candidate_db_path, primary_db_path)
     except OSError as exc:
+        if backup_path and os.path.exists(backup_path):
+            try:
+                replace_sqlite_file_with_retry(backup_path, primary_db_path)
+                logger.error(
+                    "Promocao do DB candidato falhou; backup restaurado em: %s",
+                    os.path.basename(primary_db_path),
+                )
+            except OSError as restore_exc:
+                raise DatabaseError(
+                    "Falha ao promover DB candidato e ao restaurar backup "
+                    "para o caminho principal: "
+                    f"promocao={exc}; restauracao={restore_exc}"
+                ) from restore_exc
         raise DatabaseError(
             "Falha ao promover DB candidato para o caminho principal: "
             f"{exc}"
