@@ -247,6 +247,35 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         assert count_text == f"{rows_before} de {complete_rows} SSAs"
         assert "Falha ao aplicar filtro avancado" in notice_text
 
+    def test_mask_failure_reverts_search_baseline_for_subsequent_refresh(
+        self, monkeypatch
+    ):
+        """H6: failed refresh must not leave baseline ahead of df_exibido."""
+        self.window._active_filter_request_id = 71
+        self.window._active_filter_search_request_id = 71
+        self.window._active_filter_search_display = "Teste"
+        self.window.search_input.setText("Teste")
+        self.load_advanced_contract_df()
+        baseline_before = self.window._df_last_search_filtered
+        df_exibido_before = self.window.df_exibido.copy()
+        self.window._advanced_filters = {"derivada_all_ste": True}
+        self.window._advanced_filters_active = True
+
+        def _broken_mask_any(_mask, _context):
+            raise adv_logic.AdvancedFilterMaskError(
+                "Failed to evaluate advanced filter mask.any() after reprogramacoes"
+            )
+
+        monkeypatch.setattr(adv_logic, "_mask_any", _broken_mask_any)
+        filtered_search = self.base_df.iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
+        self.window.on_filter_finished(filtered_search, request_id=71)
+        QApplication.processEvents()
+
+        assert self.window._df_last_search_filtered is baseline_before
+        assert self.window.df_exibido.equals(df_exibido_before)
+        assert not self.window._df_last_search_filtered.equals(filtered_search)
+        assert self.window._filter_refresh_base_dataframe(True) is baseline_before
+
     def test_stale_filter_request_ignored_without_mutating_display(self):
         """Stale on_filter_finished payload must not change the visible dataframe."""
         self.window._active_filter_request_id = 10

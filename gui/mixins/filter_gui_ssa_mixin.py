@@ -935,7 +935,8 @@ class FilterGUISSAMixin:
             logger.warning(
                 "Falha ao ordenar numero_ssa no fim do filtro geral: %s", exc
             )
-        # Atualiza baseline do resultado da busca global
+        previous_search_baseline = self._df_last_search_filtered
+        # Atualiza baseline do resultado da busca global para o refresh pos-busca
         self._df_last_search_filtered = df_filtrado
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
@@ -943,6 +944,7 @@ class FilterGUISSAMixin:
             commit_pending_search=False
         )
         if not refresh_completed:
+            self._df_last_search_filtered = previous_search_baseline
             self._sync_clear_filter_button_state()
             self._apply_search_display()
             self._apply_filter_result_width_safety("filter_finished", deferred=True)
