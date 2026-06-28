@@ -183,6 +183,7 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
 
         assert any(
             "Falha ao atualizar resultado apos aplicar filtros avancados" in record.message
+            or "Falha ao aplicar filtros avancados no refresh pos-busca" in record.message
             for record in caplog.records
         )
         assert len(self.window.df_exibido) == rows_before
@@ -191,6 +192,32 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         assert count_text == f"{rows_before} de {complete_rows} SSAs"
         assert notice_text.strip() != ""
         assert "Aviso" not in notice_text
+        assert "Falha ao aplicar filtro avancado" in notice_text
+
+    def test_mask_any_failure_via_refresh_after_filter_change_keeps_status(
+        self, monkeypatch
+    ):
+        """H6: mixin refresh path must resync count and surface failure notice."""
+        self.load_advanced_contract_df()
+        rows_before = len(self.window.df_exibido)
+        complete_rows = len(self.window.df_completo)
+        self.window._advanced_filters = {"derivada_all_ste": True}
+        self.window._advanced_filters_active = True
+
+        def _broken_mask_any(_mask, _context):
+            raise RuntimeError(
+                "Failed to evaluate advanced filter mask.any() after reprogramacoes"
+            )
+
+        monkeypatch.setattr(adv_logic, "_mask_any", _broken_mask_any)
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        assert len(self.window.df_exibido) == rows_before
+        count_text = str(self.window.filtered_status_label.text() or "")
+        notice_text = str(self.window.status_label.text() or "")
+        assert count_text == f"{rows_before} de {complete_rows} SSAs"
+        assert "Falha ao aplicar filtro avancado" in notice_text
 
     def test_stale_filter_request_ignored_without_mutating_display(self):
         """Stale on_filter_finished payload must not change the visible dataframe."""

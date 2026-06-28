@@ -248,10 +248,53 @@ class GUIFilterScenarioHarness:
                 values.append(str(item.text() or ""))
         return values
 
+    def extract_slice_column_texts(self, column_name: str) -> list[str]:
+        """Paginator slice values for column_name as str list."""
+        slice_df = self.window.paginator.get_current_slice()
+        return [str(value) for value in slice_df[column_name].tolist()]
+
+    def assert_table_matches_paginator_slice(self, column_name: str) -> list[str]:
+        """Assert table column texts match paginator slice; return table texts."""
+        table_texts = self.extract_table_column_texts(column_name)
+        slice_texts = self.extract_slice_column_texts(column_name)
+        assert table_texts == slice_texts, (
+            f"table {column_name}={table_texts!r} != slice {slice_texts!r}"
+        )
+        return table_texts
+
+    def go_to_paginator_page(self, page: int) -> None:
+        """Render paginator page (display_current_page, no button clicks)."""
+        self.refresh_table_page(page)
+        assert self.window.paginator.current_page == page
+
     def setup_derivada_advanced_panel(self) -> None:
         """Open filters tab and refresh adv_derivada checkbox options."""
         self.set_filter_panel_tab("filters")
         self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+    def click_adv_checkbox(self, *, prefix: str, value: str):
+        """Real mouseClick on advanced multiselect checkbox (not setChecked)."""
+        checks = getattr(self.window, f"{prefix}_checks", []) or []
+        target = next(
+            check for check in checks if str(check.property("value") or "") == value
+        )
+        assert target.isEnabled(), f"checkbox {value!r} disabled"
+        self.mouse_click(target)
+        assert target.isChecked() is True
+        self.wait_until_timer_inactive(self.window._advanced_apply_timer)
+        return target
+
+    def get_column_filter_row(self, column: str) -> tuple:
+        """Return (input, apply_btn, clear_btn) for internal column key."""
+        pool = getattr(self.window, "_column_filter_row_pool", {}) or {}
+        row = pool[column]
+        return row["input"], row["apply"], row["clear"]
+
+    def setup_column_filters_panel(self) -> None:
+        """Rebuild column filter rows on the main tab (col_filters_list_layout)."""
+        self.set_filter_panel_tab("main")
+        self.window._build_column_filters_panel()
         QApplication.processEvents()
 
     def toggle_advanced_multiselect_value(
@@ -266,7 +309,8 @@ class GUIFilterScenarioHarness:
         target = next(
             check for check in checks if str(check.property("value") or "") == value
         )
-        target.setChecked(True)
-        QApplication.processEvents()
+        assert target.isEnabled(), f"checkbox {value!r} disabled"
+        self.mouse_click(target)
+        assert target.isChecked() is True
         self.wait_until_timer_inactive(self.window._advanced_apply_timer)
         return target

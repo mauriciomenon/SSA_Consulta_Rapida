@@ -34,6 +34,16 @@ ADV_REPROG_EQ2_SSAS: frozenset[int] = frozenset({202600003, 202600004})
 # build_advanced_filter_contract_df() responsavel_execucao sector rank order.
 EXPECTED_RESP_EXEC_ORDER: list[str] = ["Exec B", "Exec C", "Exec A"]
 
+# build_derivada_positive_contract_df(): child -> origin link.
+DERIVADA_POSITIVE_ORIGIN_SSA: int = 202600001
+DERIVADA_POSITIVE_CHILD_SSA: int = 202600010
+DERIVADA_POSITIVE_VISIBLE_SSAS: frozenset[int] = frozenset({DERIVADA_POSITIVE_ORIGIN_SSA})
+
+# build_advanced_filter_contract_df() sorted numero_ssa DESC (page_size=2 slices).
+ADV_SSA_DESC_SORTED: list[int] = [202600004, 202600003, 202600002, 202600001]
+ADV_SSA_PAGE1_TEXTS: list[str] = ["202600004", "202600003"]
+ADV_SSA_PAGE2_TEXTS: list[str] = ["202600002", "202600001"]
+
 
 def pipeline_measure_timing(_name: str, callback: Callable[[], object]) -> object:
     """Identity timing hook for apply_filter_refresh_pipeline contract tests."""
@@ -144,6 +154,18 @@ def build_advanced_filter_contract_df() -> pd.DataFrame:
             "grau_prioridade_planejamento": [2, 2, 3, 1],
         }
     )
+
+
+def build_derivada_positive_contract_df() -> pd.DataFrame:
+    """Advanced contract df with one derivada link (child -> origin SSA).
+
+    derivada_has filter keeps rows whose numero_ssa appears in derivada_de origins.
+    See DERIVADA_POSITIVE_* constants for expected SSAs.
+    """
+    df = build_advanced_filter_contract_df()
+    df.loc[1, "derivada_de"] = str(DERIVADA_POSITIVE_ORIGIN_SSA)
+    df.loc[1, "numero_ssa"] = DERIVADA_POSITIVE_CHILD_SSA
+    return df
 
 
 def build_derivadas_family_df(*, child_count: int = 3) -> pd.DataFrame:
