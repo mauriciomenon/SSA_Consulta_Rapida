@@ -30,8 +30,7 @@ def _resolve_cache_limit_bytes(env_name: str, default_mb: float) -> int | None:
         logger.warning("Invalid %s non-finite value: %r", env_name, raw)
         return int(default_mb * 1024 * 1024)
     if max_mb <= 0:
-        logger.warning("Invalid %s non-positive value: %r", env_name, raw)
-        return int(default_mb * 1024 * 1024)
+        return None
     return int(max_mb * 1024 * 1024)
 
 

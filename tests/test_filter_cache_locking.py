@@ -95,6 +95,21 @@ def test_filter_cache_uses_default_limit_for_invalid_env(monkeypatch):
     assert stats["max_entry_mb"] == 64.0
 
 
+def test_filter_cache_unlimited_when_env_zero(monkeypatch):
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "0")
+    monkeypatch.setenv("SSA_CACHE_MAX_TOTAL_MB", "0")
+    cache = FilterCache(max_size=2)
+    large_df = pd.DataFrame({"descricao_ssa": ["x" * 4096, "y" * 4096]})
+
+    cache.put("df_large", [["x"]], "contains", large_df)
+
+    stats = cache.get_stats()
+    assert stats["size"] == 1
+    assert stats["max_entry_mb"] is None
+    assert stats["max_total_mb"] is None
+    assert stats["skipped_large_entries"] == 0
+
+
 def test_filter_cache_skips_entries_with_unknown_size(monkeypatch):
     cache = FilterCache(max_size=2)
     monkeypatch.setattr(cache, "_estimate_result_bytes", lambda _result: None)
