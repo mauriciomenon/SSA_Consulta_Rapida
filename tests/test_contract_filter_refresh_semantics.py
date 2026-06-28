@@ -107,8 +107,8 @@ def test_on_filter_finished_includes_terminal_in_has_post_search_filters():
     assert has_excluded_terminal_status is True
 
 
-def test_on_filter_finished_sorts_when_filter_refresh_flags_fail(monkeypatch):
-    """f8239fdf: flags failure keeps has_post_search_filters False and allows sort."""
+def test_on_filter_finished_skips_sort_when_filter_refresh_flags_fail(monkeypatch):
+    """Flags failure fail-closes sort defer and skips pre-search numero_ssa sort."""
     from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin
 
     class _Window(FilterGUISSAMixin):
@@ -154,8 +154,8 @@ def test_on_filter_finished_sorts_when_filter_refresh_flags_fail(monkeypatch):
 
     window.on_filter_finished(unsorted, request_id=7)
 
-    assert sort_calls["numero_ssa"] == 1
-    assert window._df_last_search_filtered["numero_ssa"].tolist() == BASE_SEARCH_SORTED_SSAS_DESC
+    assert sort_calls["numero_ssa"] == 0
+    assert window._df_last_search_filtered["numero_ssa"].tolist() == unsorted["numero_ssa"].tolist()
 
 
 def test_refresh_path_applies_post_search_when_column_filter_active():

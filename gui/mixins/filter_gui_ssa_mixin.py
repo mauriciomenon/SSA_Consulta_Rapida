@@ -903,7 +903,7 @@ class FilterGUISSAMixin:
                 "table_widget indisponivel no inicio de on_filter_finished; ignorando resultado."
             )
             return
-        has_post_search_filters = False
+        has_post_search_filters = True
         try:
             (
                 has_column_filters,
@@ -917,7 +917,7 @@ class FilterGUISSAMixin:
                 for_sort_defer=True,
             )
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 "Falha ao avaliar pos-filtros antes do sort de busca geral: %s",
                 exc,
             )

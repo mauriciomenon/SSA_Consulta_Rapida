@@ -124,8 +124,8 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         assert "STE" not in self.window.df_exibido["situacao"].tolist()
         assert "SCA" not in self.window.df_exibido["situacao"].tolist()
 
-    def test_filter_refresh_flags_failure_sorts_and_updates_status(self, monkeypatch):
-        """Flags failure keeps search sort and still updates filtered status label."""
+    def test_filter_refresh_flags_failure_skips_pre_search_sort(self, monkeypatch):
+        """Flags failure fail-closes sort defer and skips pre-search numero_ssa sort."""
         self.window._active_filter_request_id = 9
         self.window._active_filter_search_request_id = 9
         self.window._active_filter_search_display = "Teste"
@@ -145,13 +145,11 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         self.window.on_filter_finished(unsorted, request_id=9)
         QApplication.processEvents()
 
-        assert sort_calls["numero_ssa"] == 1
-        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == BASE_SEARCH_SORTED_SSAS_DESC
-        total = len(self.window.df_completo)
-        filtered = len(self.window.df_exibido)
-        self.assert_count_status(filtered, total)
-        notice_text = str(self.window.status_label.text() or "")
-        assert "Busca para 'Teste'" in notice_text
+        assert sort_calls["numero_ssa"] == 0
+        assert (
+            self.window._df_last_search_filtered["numero_ssa"].tolist()
+            == unsorted["numero_ssa"].tolist()
+        )
 
     def test_mask_any_failure_surfaces_adv_notice_not_silent_empty(
         self, monkeypatch, caplog
