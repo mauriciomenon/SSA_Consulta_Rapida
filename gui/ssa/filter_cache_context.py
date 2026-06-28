@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 
 
 @dataclass(frozen=True)
@@ -145,6 +145,11 @@ def _stable_advanced_payload(value: dict) -> str:
 def _json_safe_filter_value(value):
     if value is None or isinstance(value, str | int | float | bool):
         return value
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            field.name: _json_safe_filter_value(getattr(value, field.name))
+            for field in fields(value)
+        }
     if isinstance(value, Mapping):
         return {
             str(key): _json_safe_filter_value(raw_value)
