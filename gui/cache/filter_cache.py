@@ -239,7 +239,7 @@ class FilterCache:
                 or row_count * max(len(result.columns), 1) <= 10_000
                 or shallow_bytes <= 8 * 1024 * 1024
             ):
-                return shallow_bytes
+                return int(result.memory_usage(index=True, deep=True).sum())
             sample_size = min(64, row_count)
             sampled_text_bytes = 0
             for column_name in result.columns:

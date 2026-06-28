@@ -72,6 +72,18 @@ def test_filter_cache_skips_large_entries_when_limit_is_set(monkeypatch):
     assert stats["max_entry_mb"] is not None
 
 
+def test_filter_cache_counts_deep_text_bytes_for_small_frames(monkeypatch):
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "0.001")
+    cache = FilterCache(max_size=2)
+    text_heavy_df = pd.DataFrame({"descricao_ssa": ["x" * 4096]})
+
+    cache.put("df_text", [["x"]], "contains", text_heavy_df)
+
+    stats = cache.get_stats()
+    assert stats["size"] == 0
+    assert stats["skipped_large_entries"] == 1
+
+
 def test_filter_cache_keeps_small_entries_when_limit_allows(monkeypatch):
     monkeypatch.setenv("SSA_CACHE_MAX_MB", "64")
     cache = FilterCache(max_size=2)
