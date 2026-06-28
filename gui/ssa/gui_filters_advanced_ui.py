@@ -1574,6 +1574,8 @@ def _sync_status_after_advanced_filter_failure(self) -> None:
 
 
 def _refresh_after_advanced_filters_apply(self) -> str | None:
+    from gui.ssa.gui_filters_advanced_logic import AdvancedFilterMaskError
+
     notice_box = {"value": None}
 
     def _capture_notice(value):
@@ -1582,11 +1584,15 @@ def _refresh_after_advanced_filters_apply(self) -> str | None:
     setattr(self, "_adv_notice_callback", _capture_notice)
     try:
         self._refresh_after_filter_change()
+    except AdvancedFilterMaskError as exc:
+        logger.warning(
+            "Falha ao aplicar filtros avancados apos apply avancado: %s", exc
+        )
+        _sync_status_after_advanced_filter_failure(self)
     except Exception as exc:
         logger.warning(
             "Falha ao atualizar resultado apos aplicar filtros avancados: %s", exc
         )
-        _sync_status_after_advanced_filter_failure(self)
     finally:
         setattr(self, "_adv_notice_callback", None)
     return notice_box["value"]
