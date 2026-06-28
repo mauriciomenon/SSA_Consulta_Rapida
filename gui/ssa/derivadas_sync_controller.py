@@ -43,8 +43,9 @@ class DerivadasSyncState:
         self.table_name = ""
 
     def mark_finished(self) -> None:
+        thread = self.thread
         self.running = False
-        self.thread = None
+        self.thread = thread if _thread_alive(thread) else None
         self.pending_result = None
         self.phase_status = ""
         self.table_name = ""
@@ -188,7 +189,7 @@ def _begin_derivadas_sync(
     sync_state_callback: Callable[[], None] | None,
 ) -> dict[str, Any] | None:
     with sync_lock:
-        if state.running:
+        if state.running or _thread_alive(state.thread):
             _set_status_label(
                 ui, state, "Status: Atualizacao de derivadas ja em andamento."
             )
@@ -250,9 +251,12 @@ def _start_async_derivadas_sync(
             )
         except Exception as exc:
             result = {"ok": False, "error": str(exc)}
+        current_thread = threading.current_thread()
         with sync_lock:
             if state.running:
                 state.pending_result = result
+            elif state.thread is current_thread or not _thread_alive(state.thread):
+                state.thread = None
         _sync_state(sync_state_callback)
 
     def _poll_delivery() -> None:
@@ -410,6 +414,13 @@ def _ensure_derivadas_sync_lock(state: DerivadasSyncState) -> threading.Lock:
         sync_lock = threading.Lock()
         state.lock = sync_lock
     return sync_lock
+
+
+def _thread_alive(thread: threading.Thread | None) -> bool:
+    if thread is None:
+        return False
+    is_alive = getattr(thread, "is_alive", None)
+    return bool(callable(is_alive) and is_alive())
 
 
 def _set_derivadas_sync_started(state: DerivadasSyncState) -> None:
