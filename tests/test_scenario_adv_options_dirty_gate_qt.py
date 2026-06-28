@@ -128,3 +128,27 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
         assert "GATE_FRESH" in exec_vals
         assert "STALE_ONLY" not in exec_vals
         assert self.window._adv_options_dirty is False
+
+    def test_dirty_refresh_rebuilds_executor_menu_checks(self):
+        """Dirty gate must rebuild adv_executor_checks from refreshed option values."""
+        self.load_advanced_contract_df()
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+        before_values = {
+            str(check.property("value") or "")
+            for check in (getattr(self.window, "adv_executor_checks", []) or [])
+        }
+        assert before_values
+
+        self.window.df_completo.loc[0, "setor_executor"] = "ZZZ9"
+        self.window._adv_options_dirty = True
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        after_values = {
+            str(check.property("value") or "")
+            for check in (getattr(self.window, "adv_executor_checks", []) or [])
+        }
+        assert "ZZZ9" in after_values
+        assert after_values != before_values
+        assert self.window._adv_options_dirty is False
