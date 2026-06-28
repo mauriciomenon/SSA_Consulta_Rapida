@@ -2674,12 +2674,27 @@ class FilterGUISSAMixin:
             has_column_filters
             or has_advanced_filters
         )
-        filtered = self._apply_filter_refresh_filters_and_update_cache(
-            filtered,
-            has_post_search_filters=has_post_search_filters,
-            has_excluded_terminal_status=has_excluded_terminal_status,
-            measure_timing=timer.measure,
-        )
+        try:
+            filtered = self._apply_filter_refresh_filters_and_update_cache(
+                filtered,
+                has_post_search_filters=has_post_search_filters,
+                has_excluded_terminal_status=has_excluded_terminal_status,
+                measure_timing=timer.measure,
+            )
+        except RuntimeError as exc:
+            from gui.ssa.gui_filters_advanced_ui import (
+                _is_advanced_filter_mask_runtime_error,
+                _sync_status_after_advanced_filter_failure,
+            )
+
+            if _is_advanced_filter_mask_runtime_error(exc):
+                logger.warning(
+                    "Falha ao aplicar filtros avancados no refresh pos-busca: %s",
+                    exc,
+                )
+                _sync_status_after_advanced_filter_failure(self)
+                return
+            raise
         filtered = self._sort_filter_refresh_result(
             filtered,
             has_general_search=has_general_search,
