@@ -9,7 +9,7 @@ from typing import Any, Callable
 import pandas as pd
 from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
 
-from .filter_domain_rules import collect_nonempty_column_values
+from .filter_domain_rules import normalize_nonempty_string_series
 
 
 @dataclass(frozen=True)
@@ -37,10 +37,14 @@ def build_advanced_values_cache_key(
 
 
 def _unique_sorted(df: pd.DataFrame, column: str) -> list[str]:
-    if column not in df.columns:
+    if not isinstance(df, pd.DataFrame) or df.empty or column not in df.columns:
         return []
-    vals = collect_nonempty_column_values(df, column)
-    return sorted(set(vals), key=lambda value: value.casefold())
+    series = normalize_nonempty_string_series(df[column])
+    normalized = series[series != ""]
+    if normalized.empty:
+        return []
+    unique_vals = pd.unique(normalized)
+    return sorted((str(value) for value in unique_vals), key=lambda value: value.casefold())
 
 
 def _sort_sector_values(
