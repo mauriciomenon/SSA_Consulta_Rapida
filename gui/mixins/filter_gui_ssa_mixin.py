@@ -939,7 +939,15 @@ class FilterGUISSAMixin:
         self._df_last_search_filtered = df_filtrado
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
-        self._refresh_after_filter_change(commit_pending_search=False)
+        refresh_completed = self._refresh_after_filter_change(
+            commit_pending_search=False
+        )
+        if not refresh_completed:
+            self._sync_clear_filter_button_state()
+            self._apply_search_display()
+            self._apply_filter_result_width_safety("filter_finished", deferred=True)
+            self._consume_pending_jump_to_ssa(effective_request_id)
+            return
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
         search_text = ""
         current_search_request_id = getattr(
@@ -2615,19 +2623,22 @@ class FilterGUISSAMixin:
             )
             update_details_if_current()
 
-    def _finish_filter_refresh_ui(self, measure_timing) -> None:
+    def _finish_filter_refresh_ui(
+        self, measure_timing, *, skip_status_update: bool = False
+    ) -> None:
         measure_timing("status_indicator", self._update_col_filter_indicator)
         try:
             measure_timing("summary", self._update_filters_summary)
         except Exception as exc:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
         self._sync_clear_filter_button_state()
-        try:
-            measure_timing("status", self._set_filtered_count_status)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar status de total filtrado no refresh: %s", exc
-            )
+        if not skip_status_update:
+            try:
+                measure_timing("status", self._set_filtered_count_status)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao atualizar status de total filtrado no refresh: %s", exc
+                )
         try:
             sync_combo = getattr(
                 self, "_sync_quick_setor_executor_combo_from_filters", None
@@ -2672,8 +2683,15 @@ class FilterGUISSAMixin:
             filtered_rows,
         )
 
-    def _refresh_after_filter_change(self, *, commit_pending_search: bool = True):
-        """Reaplica filtros de coluna, atualiza tabela e indicadores."""
+    def _refresh_after_filter_change(
+        self, *, commit_pending_search: bool = True
+    ) -> bool:
+        """Reaplica filtros de coluna, atualiza tabela e indicadores.
+
+        Returns:
+            False when advanced filter mask evaluation fails and the visible
+            dataframe was preserved; True when refresh completed normally.
+        """
         timer = FilterRefreshTimer()
         current_details_ssa = getattr(self, "_details_current_ssa", None)
         active_search_display = str(
@@ -2682,7 +2700,7 @@ class FilterGUISSAMixin:
         current_search_text = self._current_general_search_text()
         if commit_pending_search and current_search_text != active_search_display:
             self.initiate_filtering()
-            return
+            return True
         has_general_search = (
             self._filter_refresh_has_general_search()
             if commit_pending_search
@@ -2718,7 +2736,10 @@ class FilterGUISSAMixin:
                 exc,
             )
             _sync_status_after_advanced_filter_failure(self)
-            return
+            self._finish_filter_refresh_ui(
+                timer.measure, skip_status_update=True
+            )
+            return False
         filtered = self._sort_filter_refresh_result(
             filtered,
             has_general_search=has_general_search,
@@ -2740,6 +2761,7 @@ class FilterGUISSAMixin:
             base=base,
             filtered=filtered,
         )
+        return True
 
     def _build_filter_cache_context(self) -> str:
         """Gera contexto deterministico do estado efetivo de filtros para o cache."""

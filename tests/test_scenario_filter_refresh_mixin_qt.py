@@ -217,6 +217,36 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
         assert count_text == f"{rows_before} de {complete_rows} SSAs"
         assert "Falha ao aplicar filtro avancado" in notice_text
 
+    def test_mask_any_failure_via_on_filter_finished_keeps_status(
+        self, monkeypatch
+    ):
+        """H6: on_filter_finished must preserve df_exibido and H6 status suffix."""
+        self.window._active_filter_request_id = 70
+        self.window._active_filter_search_request_id = 70
+        self.window._active_filter_search_display = "Teste"
+        self.window.search_input.setText("Teste")
+        self.load_advanced_contract_df()
+        rows_before = len(self.window.df_exibido)
+        complete_rows = len(self.window.df_completo)
+        self.window._advanced_filters = {"derivada_all_ste": True}
+        self.window._advanced_filters_active = True
+
+        def _broken_mask_any(_mask, _context):
+            raise adv_logic.AdvancedFilterMaskError(
+                "Failed to evaluate advanced filter mask.any() after reprogramacoes"
+            )
+
+        monkeypatch.setattr(adv_logic, "_mask_any", _broken_mask_any)
+        filtered_search = self.base_df.iloc[list(BASE_SEARCH_SUBSET_ILOC)].copy()
+        self.window.on_filter_finished(filtered_search, request_id=70)
+        QApplication.processEvents()
+
+        assert len(self.window.df_exibido) == rows_before
+        count_text = str(self.window.filtered_status_label.text() or "")
+        notice_text = str(self.window.status_label.text() or "")
+        assert count_text == f"{rows_before} de {complete_rows} SSAs"
+        assert "Falha ao aplicar filtro avancado" in notice_text
+
     def test_stale_filter_request_ignored_without_mutating_display(self):
         """Stale on_filter_finished payload must not change the visible dataframe."""
         self.window._active_filter_request_id = 10
