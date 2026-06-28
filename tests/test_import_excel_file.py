@@ -53,6 +53,40 @@ def test_import_excel_file_fails_empty_dataframe_without_dry_run(
     assert result == 4
 
 
+def test_import_excel_file_reset_db_skips_database_changes_when_dataframe_empty(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source_file = tmp_path / "empty.xlsx"
+    db_path = tmp_path / "ssas.db"
+    source_file.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(
+        import_excel_file,
+        "import_excel_robust",
+        lambda *_args, **_kwargs: (pd.DataFrame(), {"total_rows_in": 0}),
+    )
+    monkeypatch.setattr(
+        import_excel_file.database,
+        "reset_database",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("reset_database should not run for empty dataframe")
+        ),
+    )
+    monkeypatch.setattr(
+        import_excel_file.database,
+        "initialize_database",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("initialize_database should not run for empty dataframe")
+        ),
+    )
+
+    result = import_excel_file.main(
+        ["--file", str(source_file), "--db", str(db_path), "--reset-db"]
+    )
+
+    assert result == 4
+
+
 def test_import_excel_file_rejects_invalid_table_before_extract(
     monkeypatch,
     tmp_path: Path,

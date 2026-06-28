@@ -103,14 +103,14 @@ def main(argv: list[str]) -> int:
         logger.info("Dry-run: nenhuma inserção realizada.")
         return 0
 
+    if df.empty:
+        logger.error("DataFrame resultante vazio; nada a inserir.")
+        return 4
+
     if args.reset_db:
         logger.info("Recriando schema do banco: %s", args.db)
         database.reset_database(args.db, mode="file")
         database.initialize_database(args.db, str(SCHEMA_PATH))
-
-    if df.empty:
-        logger.error("DataFrame resultante vazio; nada a inserir.")
-        return 4
 
     logger.info(
         "Inserindo %s linhas normalizadas (smart=%s)", len(df), args.smart_upsert
