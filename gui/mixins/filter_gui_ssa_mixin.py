@@ -910,10 +910,11 @@ class FilterGUISSAMixin:
                 has_advanced_filters,
                 has_excluded_terminal_status,
             ) = self._filter_refresh_flags()
-            has_post_search_filters = (
-                has_column_filters
-                or has_advanced_filters
-                or has_excluded_terminal_status
+            has_post_search_filters = self._compute_has_post_search_filters(
+                has_column_filters=has_column_filters,
+                has_advanced_filters=has_advanced_filters,
+                has_excluded_terminal_status=has_excluded_terminal_status,
+                for_sort_defer=True,
             )
         except Exception as exc:
             logger.debug(
@@ -2397,6 +2398,29 @@ class FilterGUISSAMixin:
             bool(getattr(self, "_exclude_ste_sca", False)),
         )
 
+    def _compute_has_post_search_filters(
+        self,
+        *,
+        has_column_filters: bool,
+        has_advanced_filters: bool,
+        has_excluded_terminal_status: bool,
+        for_sort_defer: bool,
+    ) -> bool:
+        """Return whether post-search filter stages should affect the current gate.
+
+        Contract:
+        - for_sort_defer=True (on_filter_finished pre-sort gate): includes terminal
+          exclusion because refresh applies STE/SCA without column/advanced stages;
+          pre-sort must defer when terminal-only is active.
+        - for_sort_defer=False (refresh pipeline gate): excludes terminal exclusion;
+          terminal is handled separately via has_excluded_terminal_status in the
+          pipeline cache path (see _apply_filter_refresh_filters_and_update_cache).
+        """
+        base = has_column_filters or has_advanced_filters
+        if for_sort_defer:
+            return base or has_excluded_terminal_status
+        return base
+
     def _apply_filter_refresh_filters_and_update_cache(
         self,
         filtered: pd.DataFrame,
@@ -2671,9 +2695,11 @@ class FilterGUISSAMixin:
             has_advanced_filters,
             has_excluded_terminal_status,
         ) = self._filter_refresh_flags()
-        has_post_search_filters = (
-            has_column_filters
-            or has_advanced_filters
+        has_post_search_filters = self._compute_has_post_search_filters(
+            has_column_filters=has_column_filters,
+            has_advanced_filters=has_advanced_filters,
+            has_excluded_terminal_status=has_excluded_terminal_status,
+            for_sort_defer=False,
         )
         try:
             filtered = self._apply_filter_refresh_filters_and_update_cache(

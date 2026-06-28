@@ -89,9 +89,17 @@ def test_on_filter_finished_includes_terminal_in_has_post_search_filters():
         has_excluded_terminal_status,
     ) = window._filter_refresh_flags()
 
-    refresh_has_post_search = has_column_filters or has_advanced_filters
-    on_finished_has_post_search = (
-        has_column_filters or has_advanced_filters or has_excluded_terminal_status
+    refresh_has_post_search = window._compute_has_post_search_filters(
+        has_column_filters=has_column_filters,
+        has_advanced_filters=has_advanced_filters,
+        has_excluded_terminal_status=has_excluded_terminal_status,
+        for_sort_defer=False,
+    )
+    on_finished_has_post_search = window._compute_has_post_search_filters(
+        has_column_filters=has_column_filters,
+        has_advanced_filters=has_advanced_filters,
+        has_excluded_terminal_status=has_excluded_terminal_status,
+        for_sort_defer=True,
     )
 
     assert refresh_has_post_search is False
