@@ -45,7 +45,9 @@ ADV_SSA_PAGE1_TEXTS: list[str] = ["202600004", "202600003"]
 ADV_SSA_PAGE2_TEXTS: list[str] = ["202600002", "202600001"]
 
 
-def pipeline_measure_timing(_name: str, callback: Callable[[], object]) -> object:
+def pipeline_measure_timing(
+    _name: str, callback: Callable[[], pd.DataFrame]
+) -> pd.DataFrame:
     """Identity timing hook for apply_filter_refresh_pipeline contract tests."""
     return callback()
 

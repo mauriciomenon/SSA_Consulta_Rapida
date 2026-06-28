@@ -121,6 +121,7 @@ def test_on_filter_finished_skips_sort_when_filter_refresh_flags_fail(monkeypatc
     setattr(window, "table_widget", MagicMock())
     setattr(window, "df_completo", build_base_filter_df())
     setattr(window, "df_exibido", window.df_completo.copy())
+    setattr(window, "_df_last_search_filtered", window.df_completo.copy())
     setattr(window, "paginator", MagicMock())
     search_input = MagicMock()
     search_input.text.return_value = "Teste"
@@ -143,7 +144,7 @@ def test_on_filter_finished_skips_sort_when_filter_refresh_flags_fail(monkeypatc
         "_filter_refresh_flags",
         MagicMock(side_effect=RuntimeError("flags failure")),
     )
-    monkeypatch.setattr(window, "_refresh_after_filter_change", lambda **_kwargs: None)
+    monkeypatch.setattr(window, "_refresh_after_filter_change", lambda **_kwargs: True)
     monkeypatch.setattr(window, "_update_filter_status_display", lambda **_kwargs: None)
     monkeypatch.setattr(window, "_sync_clear_filter_button_state", lambda: None)
     monkeypatch.setattr(window, "_apply_search_display", lambda: None)

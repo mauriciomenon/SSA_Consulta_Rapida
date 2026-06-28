@@ -139,7 +139,7 @@ class TestScenarioFilterRefreshMixin(GUIFilterScenarioHarness):
             MagicMock(side_effect=RuntimeError("flags failure")),
         )
         monkeypatch.setattr(
-            self.window, "_refresh_after_filter_change", lambda **_kwargs: None
+            self.window, "_refresh_after_filter_change", lambda **_kwargs: True
         )
 
         self.window.on_filter_finished(unsorted, request_id=9)
