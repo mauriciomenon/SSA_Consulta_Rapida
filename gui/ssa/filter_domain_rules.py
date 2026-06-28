@@ -51,8 +51,8 @@ def exclude_terminal_status_rows(df: pd.DataFrame) -> pd.DataFrame:
 def collect_nonempty_column_values(df: pd.DataFrame, column: str) -> list[str]:
     if not isinstance(df, pd.DataFrame) or df.empty or column not in df.columns:
         return []
-    series = normalize_nonempty_string_series(df[column].dropna())
-    return series[series != ""].astype(str).tolist()
+    series = normalize_nonempty_string_series(df[column])
+    return series[series != ""].tolist()
 
 
 def dedupe_nonempty_strings(values: Iterable[Any] | None) -> list[str]:
