@@ -6,6 +6,9 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - Local top on `dev` after baseline `4.43`:
+  - Advanced filter option refresh now skips the cache helper entirely on clean cache hits, while dirty refresh still recomputes values.
+  - Filter worker cancel/race coverage now includes a real `QThread` cancel while `apply_general_search_terms()` is running.
+  - Advanced filter mask failures now keep the displayed dataframe and `filtered_status_label` count in sync instead of showing `0 de 0 SSAs`.
   - Runtime metadata, packaging test expectations and active documentation now point to `4.43`.
   - Persistent saved filters materialize visible advanced filter selections before deduplication.
   - Deleted Qt `FilterWorker` shutdown is treated as benign cleanup instead of a warning.
@@ -24,7 +27,18 @@ All notable changes to this project are documented in this file.
   - importacao explicita por arquivo
 - GUI agora recarrega os dados automaticamente apos alteracao valida do banco em importacao ou reescaneamento.
 
+### Deferred
+- Deep-copy reduction in filter caches remains deferred because current contracts require mutation isolation for cached and returned dataframes.
+- Derivadas tree vectorization remains deferred: the tested vectorized attempt was slower than the existing `itertuples()` path on the local 50k-row benchmark.
+- `has_post_search_filters` naming/semantics remains deferred because current tests intentionally distinguish terminal-only refresh from general-search sort deferral.
+
 ### Validation
+- Filtros/cache/GUI validation on the local `v4.43+` cycle:
+  - `tests/test_scenario_filter_refresh_mixin_qt.py`: `8 passed`
+  - `tests/test_contract_filter_worker_cancel_race.py`: `6 passed`
+  - advanced options cache/dirty suite: `41 passed`
+  - performance smoke: `4 passed, 1 deselected`
+  - combined non-performance slice smoke: `17 passed, 4 deselected`
 - Runtime visual checks executed with programmatic PyQt rendering:
   - popup details
   - derivadas/relacionadas graph
