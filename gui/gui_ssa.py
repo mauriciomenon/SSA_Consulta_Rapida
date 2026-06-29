@@ -17,7 +17,7 @@ Para executar: python gui_ssa.py
 # flake8: noqa
 
 import copy
-from functools import partial
+from functools import lru_cache, partial
 import getpass
 import json
 import logging
@@ -204,7 +204,7 @@ try:
         QTimer,
         QUrl,
     )
-    from PyQt6.QtGui import QAction, QDesktopServices, QFont
+    from PyQt6.QtGui import QAction, QDesktopServices, QFont, QFontDatabase
     from PyQt6.QtWidgets import (
         QApplication,
         QCheckBox,
@@ -487,6 +487,53 @@ MONO_FONT_FAMILY = (
     # Last-resort fallbacks
     "'Courier New', Courier"
 )
+
+_UI_FONT_FAMILIES_BY_PLATFORM = {
+    "darwin": ("Helvetica Neue", "Helvetica", "Arial"),
+    "win32": ("Segoe UI", "Arial", "Tahoma"),
+    "linux": ("Noto Sans", "DejaVu Sans", "Liberation Sans"),
+}
+_UI_FONT_FALLBACK_FAMILIES = ("Arial", "Helvetica", "Sans")
+
+
+@lru_cache(maxsize=1)
+def _preferred_ui_font_family() -> str | None:
+    available = set(QFontDatabase.families())
+    candidates = (
+        _UI_FONT_FAMILIES_BY_PLATFORM.get(sys.platform, ())
+        + _UI_FONT_FALLBACK_FAMILIES
+    )
+    for family in candidates:
+        if family in available:
+            return family
+    return None
+
+
+def _apply_preferred_application_font() -> str | None:
+    instance_getter = getattr(QApplication, "instance", None)
+    app = instance_getter() if callable(instance_getter) else None
+    if app is None:
+        return None
+    app_font = getattr(app, "font", None)
+    if not callable(app_font):
+        return None
+    font = QFont(app_font())
+    family_getter = getattr(font, "family", None)
+    configured_family = (
+        str(family_getter() or "").strip() if callable(family_getter) else ""
+    )
+    if configured_family.casefold() != "sans serif":
+        return configured_family or None
+    preferred_family = _preferred_ui_font_family()
+    if not preferred_family:
+        return None
+    set_family = getattr(font, "setFamily", None)
+    if callable(set_family):
+        set_family(preferred_family)
+        app_set_font = getattr(app, "setFont", None)
+        if callable(app_set_font):
+            app_set_font(font)
+    return preferred_family
 
 _TSM_DEBUG_EVENT_NAMES = {
     QEvent.Type.FocusIn: "focus_in",
@@ -1141,6 +1188,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def __init__(self):
         if not QT_AVAILABLE:
             raise RuntimeError("GUI unavailable: PyQt6 import failed")
+        _apply_preferred_application_font()
         super().__init__()
         try:
             # Evita acumulo de janelas/widgets fechados (impacta performance ao reaplicar tema global).
@@ -1179,26 +1227,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         try:
             base_font = QFont(self.font())
-            font_info = self.fontInfo()
             family_getter = getattr(base_font, "family", None)
             configured_family = (
                 str(family_getter() or "").strip() if callable(family_getter) else ""
             )
-            font_info_family_getter = getattr(font_info, "family", None)
-            resolved_family = (
-                str(font_info_family_getter() or "").strip()
-                if callable(font_info_family_getter)
-                else ""
-            )
-            if (
-                configured_family.casefold() == "sans serif"
-                and resolved_family
-                and resolved_family != configured_family
-            ):
+            if configured_family.casefold() == "sans serif":
+                resolved_family = _preferred_ui_font_family()
+            else:
+                font_info = self.fontInfo()
+                font_info_family_getter = getattr(font_info, "family", None)
+                resolved_family = (
+                    str(font_info_family_getter() or "").strip()
+                    if callable(font_info_family_getter)
+                    else ""
+                )
+            if resolved_family and resolved_family != configured_family:
                 set_family = getattr(base_font, "setFamily", None)
                 if callable(set_family):
                     set_family(resolved_family)
-                self.setFont(base_font)
+                    self.setFont(base_font)
             if base_font.pointSizeF() <= 0:
                 base_font.setPointSizeF(11.0)
             self._info_font = base_font

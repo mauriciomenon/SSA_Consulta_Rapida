@@ -805,6 +805,40 @@ class TestGUIFilterLogic:
             darwin_window.deleteLater()
             QApplication.processEvents()
 
+    def test_preferred_ui_font_family_uses_platform_order(self, monkeypatch):
+        monkeypatch.setattr(
+            gui_ssa.QFontDatabase,
+            "families",
+            lambda: ["Arial", "Helvetica", "Segoe UI", "DejaVu Sans"],
+        )
+
+        gui_ssa._preferred_ui_font_family.cache_clear()
+        monkeypatch.setattr(gui_ssa.sys, "platform", "darwin")
+        assert gui_ssa._preferred_ui_font_family() == "Helvetica"
+
+        gui_ssa._preferred_ui_font_family.cache_clear()
+        monkeypatch.setattr(gui_ssa.sys, "platform", "win32")
+        assert gui_ssa._preferred_ui_font_family() == "Segoe UI"
+
+        gui_ssa._preferred_ui_font_family.cache_clear()
+        monkeypatch.setattr(gui_ssa.sys, "platform", "linux")
+        assert gui_ssa._preferred_ui_font_family() == "DejaVu Sans"
+        gui_ssa._preferred_ui_font_family.cache_clear()
+
+    def test_preferred_application_font_replaces_sans_serif_alias(self, monkeypatch):
+        app = cast(Any, QApplication.instance() or QApplication([]))
+        original_font = QFont(app.font())
+        alias_font = QFont(original_font)
+        alias_font.setFamily("Sans Serif")
+        app.setFont(alias_font)
+        monkeypatch.setattr(gui_ssa, "_preferred_ui_font_family", lambda: "Helvetica")
+
+        try:
+            assert gui_ssa._apply_preferred_application_font() == "Helvetica"
+            assert app.font().family() == "Helvetica"
+        finally:
+            app.setFont(original_font)
+
     def test_derivadas_panel_exposes_navigation_tooltips(self):
         main_ctx = self._panel_context()
         details_tree_text = main_ctx["details_tree_text"]
