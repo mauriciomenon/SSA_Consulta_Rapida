@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import shutil
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 from utils.robust_logging import get_robust_logger
@@ -12,11 +13,15 @@ logger = get_robust_logger().get_logger(__name__, "maintenance")
 def limpar_banco():
     """Limpa completamente o banco de dados"""
     db_path = Path("data/ssas.db")
-    backup_path = Path("data/ssas_backup_antes_limpeza_final.db")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = Path("data") / f"ssas_backup_antes_limpeza_final_{timestamp}.db"
 
     try:
         # Fazer backup se banco existir
         if db_path.exists():
+            if backup_path.exists():
+                logger.error("ERR Backup ja existe e nao sera sobrescrito: %s", backup_path)
+                return False
             shutil.copy2(db_path, backup_path)
             logger.info("OK Backup criado: %s", backup_path)
 
