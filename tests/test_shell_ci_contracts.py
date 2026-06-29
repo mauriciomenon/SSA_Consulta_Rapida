@@ -281,7 +281,8 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert "origin/${{ github.base_ref }}" not in workflow
     assert "BASE_REF: ${{ github.base_ref }}" not in workflow
     assert "BASE_SHA: ${{ github.event.pull_request.base.sha }}" in workflow
-    assert 'bash scripts/security/scan_secrets.sh pr-diff "$BASE_SHA"' in workflow
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" pr-diff "$BASE_SHA"' in workflow
+    assert 'git archive "$BASE_SHA" scripts/security/scan_secrets.sh' in workflow
     assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
     assert 'git fetch origin "$BASE_REF" || true' not in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' not in workflow
@@ -328,9 +329,10 @@ def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> Non
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
     assert "branches: [main, dev]" in workflow
-    assert "continue-on-error: true" not in workflow
-    assert "bash scripts/security/scan_secrets.sh workspace" in workflow
-    assert "bash scripts/security/scan_secrets.sh history" in workflow
+    assert "timeout-minutes: 30" in workflow
+    assert workflow.count("continue-on-error: true") == 1
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" workspace' in workflow
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" history' in workflow
 
 
 def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
@@ -477,10 +479,11 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert workflow.count("github.event.issue.pull_request") == 3
     assert "anomalyco/opencode/github@" not in workflow
     assert 'default: "true"' in local_action
-    assert "GITHUB_TOKEN: ${{ github.token }}" in local_action
+    assert "REVIEW_GITHUB_TOKEN: ${{ github.token }}" in local_action
     assert "opencode github run" not in local_action
     assert "python scripts/ci/opencode_pr_review.py" in local_action
-    assert "GH_TOKEN: ${{ github.token }}" in local_action
+    assert "\n        GITHUB_TOKEN: ${{ github.token }}" not in local_action
+    assert "\n        GH_TOKEN: ${{ github.token }}" not in local_action
     assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
     assert "actions/cache@v4" not in local_action
     assert "npm install" not in local_action
@@ -678,6 +681,34 @@ def test_opencode_review_script_rejects_unsafe_cli_arguments() -> None:
         module.require_cli_option_value("AGENT", "   ")
     with pytest.raises(RuntimeError, match="PROMPT"):
         module.require_prompt_argument("")
+
+
+def test_opencode_review_script_rejects_fork_pr(monkeypatch) -> None:
+    module = _load_opencode_review_module()
+
+    def fake_run_capture(command, *, timeout=None, env=None):
+        assert command[:3] == ["gh", "pr", "view"]
+        return '{"headRepository":{"nameWithOwner":"attacker/fork"}}'
+
+    monkeypatch.setattr(module, "run_capture", fake_run_capture)
+
+    with pytest.raises(RuntimeError, match="untrusted PR diff"):
+        module.ensure_trusted_pr_source(123, "mauriciomenon/SSA_Consulta_Rapida")
+
+
+def test_opencode_review_script_sanitizes_opencode_environment(monkeypatch) -> None:
+    module = _load_opencode_review_module()
+    monkeypatch.setenv("GITHUB_TOKEN", "ghs_secret")
+    monkeypatch.setenv("GH_TOKEN", "ghs_secret")
+    monkeypatch.setenv("REVIEW_GITHUB_TOKEN", "ghs_secret")
+    monkeypatch.setenv("OPENCODE_API_KEY", "provider_secret")
+
+    env = module.opencode_env()
+
+    assert "GITHUB_TOKEN" not in env
+    assert "GH_TOKEN" not in env
+    assert "REVIEW_GITHUB_TOKEN" not in env
+    assert env["OPENCODE_API_KEY"] == "provider_secret"
     with pytest.raises(RuntimeError, match="PROMPT"):
         module.require_prompt_argument("   ")
 

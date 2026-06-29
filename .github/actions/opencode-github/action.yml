@@ -66,8 +66,7 @@ runs:
         SHARE: ${{ inputs.share }}
         PROMPT: ${{ inputs.prompt }}
         USE_GITHUB_TOKEN: ${{ inputs.use_github_token }}
-        GITHUB_TOKEN: ${{ github.token }}
-        GH_TOKEN: ${{ github.token }}
+        REVIEW_GITHUB_TOKEN: ${{ github.token }}
         MENTIONS: ${{ inputs.mentions }}
         VARIANT: ${{ inputs.variant }}
         OIDC_BASE_URL: ${{ inputs.oidc_base_url }}

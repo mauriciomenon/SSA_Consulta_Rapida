@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 DIFF_LIMIT_BYTES = 200_000
+GH_COMMAND_TIMEOUT = 120
 DEFAULT_PROMPT = (
     "Review this pull request for concrete bugs, security risks, CI/CD regressions, "
     "path/quoting problems, and release/build reproducibility issues. Comment only "
@@ -51,7 +52,13 @@ def truncate_diff(path: Path, output_path: Path | None = None, limit: int = DIFF
     return text, True
 
 
-def run_checked(command: list[str], *, stdout_path: Path | None = None, timeout: int | None = None) -> None:
+def run_checked(
+    command: list[str],
+    *,
+    stdout_path: Path | None = None,
+    timeout: int | None = None,
+    env: dict[str, str] | None = None,
+) -> None:
     if stdout_path is None:
         # command is an argv list; shell is never enabled.
         subprocess.run(  # nosec B603
@@ -59,6 +66,7 @@ def run_checked(command: list[str], *, stdout_path: Path | None = None, timeout:
             check=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
         return
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +79,7 @@ def run_checked(command: list[str], *, stdout_path: Path | None = None, timeout:
             stdout=output_file,
             stderr=subprocess.PIPE,
             timeout=timeout,
+            env=env,
         )
     if result.returncode != 0:
         print(f"Command failed with exit code {result.returncode}: {command[0]}")
@@ -110,8 +119,73 @@ def require_prompt_argument(prompt: str) -> str:
     return text
 
 
+def github_cli_env() -> dict[str, str]:
+    token = os.environ.get("REVIEW_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    env = os.environ.copy()
+    if token:
+        env["GITHUB_TOKEN"] = token
+        env["GH_TOKEN"] = token
+    return env
+
+
+def opencode_env() -> dict[str, str]:
+    env = os.environ.copy()
+    for name in ("GITHUB_TOKEN", "GH_TOKEN", "REVIEW_GITHUB_TOKEN", "USE_GITHUB_TOKEN"):
+        env.pop(name, None)
+    return env
+
+
+def run_capture(
+    command: list[str],
+    *,
+    timeout: int | None = None,
+    env: dict[str, str] | None = None,
+) -> str:
+    result = subprocess.run(  # nosec B603
+        command,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=timeout,
+        env=env,
+    )
+    return result.stdout
+
+
+def ensure_trusted_pr_source(pr_number: int, repository: str) -> None:
+    if not repository:
+        raise RuntimeError("GITHUB_REPOSITORY is required for PR trust checks")
+    output = run_capture(
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--json",
+            "headRepository",
+        ],
+        env=github_cli_env(),
+        timeout=GH_COMMAND_TIMEOUT,
+    )
+    data = json.loads(output)
+    head_repository = data.get("headRepository")
+    if not isinstance(head_repository, dict):
+        raise RuntimeError("Could not determine PR head repository")
+    name_with_owner = str(head_repository.get("nameWithOwner") or "")
+    if name_with_owner != repository:
+        raise RuntimeError(
+            "Refusing to process untrusted PR diff with opencode secrets in scope"
+        )
+
+
 def fetch_pr_diff(pr_number: int, diff_file: Path) -> None:
-    run_checked(["gh", "pr", "diff", str(pr_number), "--patch"], stdout_path=diff_file)
+    run_checked(
+        ["gh", "pr", "diff", str(pr_number), "--patch"],
+        stdout_path=diff_file,
+        env=github_cli_env(),
+        timeout=GH_COMMAND_TIMEOUT,
+    )
 
 
 def run_opencode_review(model: str, agent: str, review_diff_file: Path, prompt: str, review_file: Path) -> None:
@@ -134,6 +208,7 @@ def run_opencode_review(model: str, agent: str, review_diff_file: Path, prompt: 
         ],
         stdout_path=review_file,
         timeout=1200,
+        env=opencode_env(),
     )
 
 
@@ -156,7 +231,11 @@ def write_comment_body(body_file: Path, *, model: str, workflow: str, job: str, 
 
 
 def post_pr_comment(pr_number: int, body_file: Path) -> None:
-    run_checked(["gh", "pr", "comment", str(pr_number), "--body-file", str(body_file)])
+    run_checked(
+        ["gh", "pr", "comment", str(pr_number), "--body-file", str(body_file)],
+        env=github_cli_env(),
+        timeout=GH_COMMAND_TIMEOUT,
+    )
 
 
 def required_env(name: str) -> str:
@@ -177,6 +256,7 @@ def main() -> int:
 
     event = json.loads(event_path.read_text(encoding="utf-8"))
     pr_number = extract_pr_number(event)
+    ensure_trusted_pr_source(pr_number, os.environ.get("GITHUB_REPOSITORY", ""))
 
     diff_file = runner_temp / f"opencode-pr-{pr_number}.diff"
     review_diff_file = runner_temp / f"opencode-pr-{pr_number}-review.diff"
