@@ -12,6 +12,32 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 SAFE_EXPORT_BASENAME_RE = re.compile(r"^[A-Za-z0-9_. -]+$")
+SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@")
+SPREADSHEET_CONTROL_PREFIXES = ("\t", "\r", "\n")
+
+
+def sanitize_spreadsheet_cell(value):
+    if not isinstance(value, str):
+        return value
+    if value.startswith(SPREADSHEET_CONTROL_PREFIXES):
+        return "'" + value
+    stripped = value.lstrip(" \t\r\n")
+    if stripped.startswith(SPREADSHEET_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
+def sanitize_spreadsheet_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    sanitized = df.copy()
+    sanitized.columns = [
+        sanitize_spreadsheet_cell(str(column)) for column in sanitized.columns
+    ]
+    for column in sanitized.columns:
+        if pd.api.types.is_object_dtype(sanitized[column]) or pd.api.types.is_string_dtype(
+            sanitized[column]
+        ):
+            sanitized[column] = sanitized[column].map(sanitize_spreadsheet_cell)
+    return sanitized
 
 def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, display_map: Dict[str, str]):
     """
@@ -51,11 +77,12 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
 
     # Renomeia colunas para nomes de exibição
     df_to_export = df.rename(columns=display_map)
+    spreadsheet_df = sanitize_spreadsheet_dataframe(df_to_export)
 
     # --- Exportacao ---
     formats_and_paths = {
-        'CSV': (f"{safe_base_filename}.csv", lambda path: df_to_export.to_csv(path, index=False, encoding='utf-8-sig')),
-        'XLSX': (f"{safe_base_filename}.xlsx", lambda path: df_to_export.to_excel(path, index=False, engine='openpyxl')),
+        'CSV': (f"{safe_base_filename}.csv", lambda path: spreadsheet_df.to_csv(path, index=False, encoding='utf-8-sig')),
+        'XLSX': (f"{safe_base_filename}.xlsx", lambda path: spreadsheet_df.to_excel(path, index=False, engine='openpyxl')),
         'JSON': (f"{safe_base_filename}.json", lambda path: df_to_export.to_json(path, orient='records', indent=4, force_ascii=False, date_format='iso'))
     }
 

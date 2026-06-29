@@ -12,12 +12,14 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from openpyxl import load_workbook
 
 # Adiciona a raiz do projeto ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 from exportacao.exporter import export_dataframe
+from exportacao.exporter import sanitize_spreadsheet_cell
 
 # --- Fixtures ---
 
@@ -104,6 +106,39 @@ def test_export_dataframe_rejects_path_traversal_filename(
     assert "Nome de exportacao invalido" in captured.out
     assert not os.listdir(temp_output_dir)
     assert not os.path.exists(os.path.join(os.path.dirname(temp_output_dir), "escape.csv"))
+
+
+def test_export_dataframe_neutralizes_spreadsheet_formulas(temp_output_dir, display_map):
+    dataframe = pd.DataFrame(
+        {
+            "numero_ssa": [2025001],
+            "setor_executor": ["=cmd|' /C calc'!A0"],
+            "situacao": [" safe"],
+            "descricao_ssa": ["  @SUM(A1:A2)"],
+        }
+    )
+
+    export_dataframe(dataframe, "formula_safe", temp_output_dir, display_map)
+
+    csv_text = open(
+        os.path.join(temp_output_dir, "formula_safe.csv"),
+        encoding="utf-8-sig",
+    ).read()
+    assert "'=cmd|' /C calc'!A0" in csv_text
+    assert "'  @SUM(A1:A2)" in csv_text
+
+    workbook = load_workbook(os.path.join(temp_output_dir, "formula_safe.xlsx"))
+    worksheet = workbook.active
+    assert worksheet["B2"].value == "'=cmd|' /C calc'!A0"
+    assert worksheet["D2"].value == "'  @SUM(A1:A2)"
+    assert worksheet["C2"].value == " safe"
+
+
+def test_sanitize_spreadsheet_cell_only_changes_formula_like_strings():
+    assert sanitize_spreadsheet_cell("=A1") == "'=A1"
+    assert sanitize_spreadsheet_cell("\t=A1") == "'\t=A1"
+    assert sanitize_spreadsheet_cell(" text") == " text"
+    assert sanitize_spreadsheet_cell(123) == 123
 
 
 @patch("exportacao.exporter.os.makedirs")
