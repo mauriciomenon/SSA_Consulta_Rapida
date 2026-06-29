@@ -10,6 +10,17 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def _fallback_dataframe_hash_payload(dataframe: pd.DataFrame | None) -> bytes:
+    if dataframe is None:
+        return b"none"
+    try:
+        return dataframe.to_csv(index=False).encode("utf-8", errors="replace")
+    except (AttributeError, KeyError, OverflowError, TypeError, ValueError) as exc:
+        logger.debug("Fallback DataFrame serialization failed: %s", exc)
+        fallback = repr((getattr(dataframe, "shape", "unknown"), id(dataframe)))
+        return fallback.encode("utf-8", errors="replace")
+
+
 def sample_dataframe_for_fingerprint(dataframe: pd.DataFrame) -> pd.DataFrame:
     row_count = len(dataframe)
     if row_count <= 24:
@@ -51,9 +62,8 @@ def build_dataframe_filter_hash(dataframe: pd.DataFrame | None) -> str:
         if dataframe is None:
             return hashlib.blake2b(b"none", digest_size=8).hexdigest()
 
-        sample_df = sample_dataframe_for_fingerprint(dataframe)
-        sample_hashes = pd.util.hash_pandas_object(
-            sample_df,
+        data_hashes = pd.util.hash_pandas_object(
+            dataframe,
             index=False,
         ).to_numpy(dtype="uint64", copy=False)
         hasher = hashlib.blake2b(digest_size=8)
@@ -72,15 +82,14 @@ def build_dataframe_filter_hash(dataframe: pd.DataFrame | None) -> str:
         if revision is not None:
             hasher.update(b"\x00revision:")
             hasher.update(str(revision).encode("utf-8", errors="replace"))
-        hasher.update(sample_hashes.tobytes())
+        hasher.update(data_hashes.tobytes())
         return hasher.hexdigest()
     except (AttributeError, KeyError, OverflowError, TypeError, ValueError) as exc:
         logger.debug(
             "Fallback to shape-only DataFrame hash due to fingerprint error: %s",
             exc,
         )
-        fallback = str(getattr(dataframe, "shape", "unknown"))
         return hashlib.blake2b(
-            fallback.encode("utf-8"),
+            _fallback_dataframe_hash_payload(dataframe),
             digest_size=8,
         ).hexdigest()
