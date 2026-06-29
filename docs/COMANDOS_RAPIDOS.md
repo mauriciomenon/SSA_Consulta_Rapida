@@ -7,6 +7,7 @@
    - incremental: `--force-rescan`
    - full rescan: `--reset-db`
 3. Operacoes de DB auxiliares continuam disponiveis via menu GUI `Database`.
+4. DeepSec e uma ferramenta local de revisao; execute dentro de `.deepsec/` e nao versione a pasta gerada.
 
 ## Runtime padrao
 

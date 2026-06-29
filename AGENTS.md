@@ -355,6 +355,7 @@ Antes de publicar qualquer binario, instalador, DMG, DEB, ZIP ou asset de releas
 - `brew`: `gitleaks`, `trufflehog`, `trivy`, `grype`, `sonar-scanner`, `kube-bench`, `kics`, `talisman`, `cppcheck`, `flawfinder`, `cbmc`, `shellcheck`, `bashate`, `golangci-lint`, `gosec`, `govulncheck`, `staticcheck`, `snyk-cli`,`vulture`, `lacework-cli`, 
 - `cargo`: `cargo-audit`, `cargo-deny`
 - `pnpm -g`: `eslint`, `@biomejs/biome`, `oxlint`, `jscpd`, `@socketsecurity/cli`
+- repo-local: DeepSec can live under `.deepsec/`; keep that directory ignored and rerun it with `pnpm deepsec scan`, `pnpm deepsec process`, and `pnpm deepsec export --format md-dir --out ./findings` from inside `.deepsec/`.
 
 ### Binarios E Mapeamentos
 
