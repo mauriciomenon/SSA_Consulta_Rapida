@@ -29,6 +29,19 @@ class TestScenarioGUIFilterSmokeFunctional(GUIFilterScenarioHarness):
         assert len(self.window.df_exibido) == BASE_APV_COUNT
         assert set(self.window.df_exibido["numero_ssa"].tolist()) == BASE_APV_SSAS
 
+    def test_filter_refresh_updates_paginator_without_page_changed_signal(self):
+        seen_pages = []
+        self.window.paginator.page_changed.connect(seen_pages.append)
+
+        self.window._active_column_filters["situacao"] = "APV"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        assert seen_pages == []
+        assert self.window.paginator.current_page == 1
+        assert len(self.window.df_exibido) == BASE_APV_COUNT
+        assert self.window.table_widget.rowCount() == BASE_APV_COUNT
+
 
 def _rss_mb() -> float:
     usage = resource.getrusage(resource.RUSAGE_SELF)

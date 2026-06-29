@@ -2753,7 +2753,10 @@ class FilterGUISSAMixin:
         self.df_exibido = filtered
         self._bump_filter_refresh_revision()
         timer.measure(
-            "paginate", lambda: self.paginator.set_dataframe(self.df_exibido)
+            "paginate",
+            lambda: self.paginator.set_dataframe(
+                self.df_exibido, emit_page_changed=False
+            ),
         )
         self._render_filter_refresh_page(current_details_ssa, timer.measure)
         self._finish_filter_refresh_ui(timer.measure)
