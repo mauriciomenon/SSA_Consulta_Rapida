@@ -10,22 +10,24 @@ Documento de handoff para Codex. Referencia permanente de diagnostico: relatorio
 |-------|-------|
 | Repositorio | `/Users/menon/git/SSA_Consulta_Rapida` |
 | Branch | `dev` |
-| HEAD | `b3e0b740fd4c5103908a5eb9707c1e83ce1c34aa` |
-| HEAD data | 2026-06-27 (pos-fix filter hardening closure) |
-| HEAD titulo | STABILITY_PATCH: cover dirty gate executor menu rebuild |
+| Runtime HEAD auditado | `cf85ec83ca6157265d57bef267748b108e9ecf41` |
+| Runtime HEAD data | 2026-06-29 10:37:39 -0300 |
+| Runtime HEAD titulo | STABILITY_PATCH: use concrete GUI font fallback |
 | Baseline funcional | `9e36576b11ae2ba64d8a988f7fbe7cf885f64722` — DOC_SYNC: promote local baseline to 4.43 |
 | Baseline data | 2026-06-27 16:12:39 -0300 |
 | Tag local | `v4.43` -> commit `9e36576` (anotacao: "v4.43 local baseline") |
-| Ahead vs `origin/dev` | **33 commits** |
+| Ahead vs `origin/dev` | **62 commits** (inclui este DOC_SYNC) |
 | Merge-base `origin/dev` | `ae36e281fa92432b292cf754368e9249a1b9f35b` |
 | Workspace | **limpo** (`git status`: nothing to commit, working tree clean) |
 | Report anterior (referencia) | HEAD `f8239fdfe2e8e97b56bd73c705acbc22281f82ee` (2026-06-27 17:28:30 -0300) |
-| Commits pos-baseline | **21** (tabela abaixo; exclui `9e36576`) |
+| Commits pos-baseline | **57** (`9e36576..HEAD`; tabela abaixo preserva snapshot inicial de auditoria) |
 | Push | **nao executado** nesta auditoria (regra AGENTS.md) |
 
 ---
 
-## 2. Tabela cronologica — 21 commits pos-9e36576
+## 2. Tabela cronologica — snapshot inicial pos-9e36576
+
+> Snapshot historico de auditoria. O estado corrente pos-2026-06-29 esta consolidado nas secoes 5, 7 e 10; a tabela nao foi expandida para todos os 57 commits para evitar duplicar o `git log`.
 
 Legenda autor sessao:
 - **Codex** — commits runtime/plano Codex Slices 0-3 e rodadas pos-testes (`b2a51b81`, `0d8fdb4b`, `5ca3b193`, `aa11f35b`)
@@ -216,8 +218,9 @@ Legenda autor sessao:
 ## 5. Matriz plano A-K vs report antigo (HEAD f8239fdf)
 
 Referencia report #1: HEAD `f8239fdf`, ahead 11, ~40% plano Codex entregue.
+Estado corrente DOC_SYNC: runtime HEAD auditado `cf85ec83ca6157265d57bef267748b108e9ecf41`, ahead 62 incluindo este DOC_SYNC, push ainda nao executado nesta auditoria.
 
-| Item | Report f8239fdf | HEAD 9b2005d5 (agora) | Delta |
+| Item | Report f8239fdf | Runtime cf85ec83 (agora) | Delta |
 |------|-----------------|----------------------|-------|
 | **Slice 0** DOC_SYNC 4.43 | Entregue | Entregue | — |
 | **Slice 1** cache/dirty | Parcial | **Entregue** | `0d8fdb4b` fecha ordem gate + testes Qt |
@@ -232,18 +235,18 @@ Referencia report #1: HEAD `f8239fdf`, ahead 11, ~40% plano Codex entregue.
 | **H2** terminal vs post-search | Resolvido | Resolvido | — |
 | **H3** worker cache token | Parcial | Parcial | hash conteudo entregue; custo hash_pandas sem baseline formal |
 | **H4** opcoes de universo global | Pendente | Pendente | — |
-| **H5** sort antes pos-filtros | Parcial | Parcial | defer adicionado; `_sort_filter_refresh_result` ainda re-sort |
+| **H5** sort antes pos-filtros | Parcial | Parcial | contrato `for_sort_defer` e sort reuse existem; manter sem refactor amplo |
 | **H6** contador vs df_exibido | Parcial | **Entregue** | fix producao + refresh mixin + on_filter_finished (`faeb8f19`, `37ad59d0`) |
 | **H7** materializacao menus | Pendente | **Parcial** | `5ca3b193` micro-opt; tolist/multi-pass abertos |
-| **J1** sort unico por ciclo | Parcial | Parcial | — |
+| **J1** sort unico por ciclo | Parcial | Parcial | `ssa_sorted_for_display` reduz re-sort; sem prova formal de max 1 sort/ciclo |
 | **J2** deep copies | Pendente | Pendente | — |
 | **J3** contratos cache | Resolvido | Resolvido | testes ampliados |
 | **J4** opcoes pos-busca | Pendente | Pendente | — |
 | **J5** derivadas performance | Parcial | Parcial | defer arvore documentado |
 | **J6** terminal-only refresh | Resolvido | Resolvido | — |
-| **has_post_search_filters** | Parcial (semantica dupla) | **Pendente** | defer consciente CHANGELOG; helper unico ausente |
-| **paginate** hotspot | Pendente | **Parcial** | testes ordem grid/paginator; runtime ~313ms/50k nao otimizado |
-| **Push/checks remotos** | Pendente | Pendente | 26 commits locais |
+| **has_post_search_filters** | Parcial (semantica dupla) | **Parcial estabilizado** | `_compute_has_post_search_filters(..., for_sort_defer)` documenta divergencia; trocar por novo helper seria refactor sem ganho claro |
+| **paginate** hotspot | Pendente | **Entregue** | `977e67cdc2129e1296bdf39a40a8705db6fda66c` reduz duplicate render; 50k: paginate avg ~0.035ms, render avg ~4.144ms |
+| **Push/checks remotos** | Pendente | Pendente | 62 commits locais |
 | **Regressao contract/scenario** | Ausente | **Entregue** | 34 arquivos test_contract_* + test_scenario_* |
 
 ---
@@ -284,8 +287,8 @@ Commits novos desde `f8239fdf` (15 commits):
 
 - Deep copies J2 deferidos (CHANGELOG explicito)
 - Arvore derivadas J5 deferida por benchmark 50k
-- Semantica dupla `has_post_search_filters` mantida de proposito
-- Hotspot paginate >> filtros (evidencia 50k Codex: paginate ~313ms vs advanced ~0.03ms)
+- Semantica dupla `has_post_search_filters` mantida de proposito e documentada por parametro `for_sort_defer`
+- Hotspot paginate original fechado por `977e67cdc2129e1296bdf39a40a8705db6fda66c`; nova medicao 50k: paginate avg ~0.035ms, render avg ~4.144ms
 - Reviews externos (clawpatch/coderabbit/semgrep) nao fechados
 - Push atomico por slice nao executado
 
@@ -302,7 +305,7 @@ Commits novos desde `f8239fdf` (15 commits):
 
 | ID | Pendencia | Evidencia | Acao sugerida |
 |----|-----------|-----------|---------------|
-| P0-1 | **Push 26 commits** + checks remotos | ahead 26 vs `origin/dev` | Push atomico por slice/tema apos gates locais |
+| P0-1 | **Push 62 commits** + checks remotos | ahead 62 vs `origin/dev` | Push atomico por slice/tema apos gates locais |
 | P0-2 | **Reviews externos nao limpos** | clawpatch/coderabbit/semgrep timeout ou escopo global | Re-rodar por diff staged ou PR dedicado |
 | P0-3 | **Relabel `faeb8f19`** | Concluido no rebase (HOTFIX_BLOCKER) | — |
 | P0-4 | **Smoke visual GUI real** | AGENTS.md exige smoke pos-patch GUI | Abrir janela, aplicar filtro avancado com falha simulada, validar status |
@@ -311,11 +314,11 @@ Commits novos desde `f8239fdf` (15 commits):
 
 | ID | Pendencia | Evidencia | Acao sugerida |
 |----|-----------|-----------|---------------|
-| P1-1 | **has_post_search_filters unificar** | Divergencia `on_filter_finished` vs `_refresh_after_filter_change`; CHANGELOG defer | Helper duplo nomeado (`for_sort_defer` / `for_pipeline`) + migracao callers |
-| P1-2 | **H5/J1 sort unico** | `_sort_filter_refresh_result` ainda re-ordena com pos-filtros | Spy sort_values; max 1 sort/ciclo |
-| P1-3 | **Paginate hotspot runtime** | ~313ms/50k (87% do ciclo medido) | Investigar `paginator.set_dataframe` + sinais Qt |
-| P1-4 | **Notice H6 explicita** | Suffix em refresh; apply path pode carecer texto igual | Unificar suffix em todos callers de falha mascara |
-| P1-5 | **Header visual `[f]` semana_executada** | Teste unit mapa dict; cenario Qt header ainda fraco | `test_scenario_visual_filter_state_qt.py` end-to-end header |
+| P1-1 | **has_post_search_filters unificar** | Parametro `for_sort_defer` ja explicita contrato; refactor amplo nao justificado | Manter; reabrir so com regressao ou simplificacao menor comprovada |
+| P1-2 | **H5/J1 sort unico** | Reuse parcial entregue; falta spy formal de max 1 sort/ciclo | Adicionar teste se nova regressao aparecer |
+| P1-3 | **Paginate hotspot runtime** | Fechado em `977e67cdc2129e1296bdf39a40a8705db6fda66c`; 50k paginate avg ~0.035ms | Manter smoke performance como guarda |
+| P1-4 | **Notice H6 explicita** | Fechado em `671554e7bc54b47ef2b5f5e262a524a32a61864c` | Manter testes H6 apply/refresh |
+| P1-5 | **Header visual `[f]` semana_executada** | Coberto por `test_scenario_visual_filter_state_qt.py` (`ano_execucao` marca `semana_executada`) | Manter cobertura Qt |
 
 ### P2 — performance / decisao produto
 
@@ -328,6 +331,7 @@ Commits novos desde `f8239fdf` (15 commits):
 | P2-5 | **H7 estrutural** | `tolist()` e multi-pass scan opcoes | unique/lazy + agregar passes refresh |
 | P2-6 | **CI job performance** | `-m "not performance"` no pytest normal | Workflow dedicado com marker performance |
 | P2-7 | **except flags L917-921** | Falha flags -> sort indevido silencioso | Tratar como erro visivel ou fail-closed sem sort |
+| P2-8 | **Fonte Qt headless** | Fechado em `cf85ec83ca6157265d57bef267748b108e9ecf41`; smoke direto usa `Helvetica Neue` no macOS e remove aviso `Sans Serif` | Manter lista por plataforma; nao alterar layout sem screenshot/smoke |
 
 ---
 
@@ -472,13 +476,13 @@ git diff f8239fdf..HEAD --stat
 
 ## 10. Sintese executiva (3 bullets)
 
-1. **Pos-v4.43:** 29 commits locais fecham P0 funcional principal (dirty cache, H1/H2/H6, infra regressao massiva Cursor); HEAD `b3e0b740` completa cadeia H6 incluindo on_filter_finished e except scope.
-2. **Vs report f8239fdf:** Slice 1 e H6 passam de Parcial para Entregue; cache env 0 regression fechada (`e5ab1585`); dirty gate menu rebuild testado (`b3e0b740`).
-3. **Proximo foco P0:** push preparatorio (33 commits), reviews externos, smoke visual real; P1: paginate runtime, sort unico J1.
+1. **Pos-v4.43:** 57 commits locais fecham P0 funcional principal (dirty cache, H1/H2/H6, infra regressao massiva Cursor) e estabilizam paginate/fonte; runtime HEAD `cf85ec83` aplica fonte Qt concreta por plataforma.
+2. **Vs report f8239fdf:** Slice 1, H6, P1-3 paginate e fonte headless passam de Parcial/Pendente para Entregue; `has_post_search_filters` fica estabilizado sem refactor amplo.
+3. **Proximo foco P0:** push preparatorio (62 commits), reviews externos e smoke visual real; P2 segue para deep copies, universo de opcoes, SELECT * e CI performance dedicado.
 
 ---
 
-*Gerado: 2026-06-27. Atualizado pos-fix closure 2026-06-27. Sem push.*
+*Gerado: 2026-06-27. Atualizado pos-fix closure 2026-06-27. Atualizado pos-paginate/fonte 2026-06-29. Sem push.*
 # Codex Audit - Filter Hardening (2026-06-27)
 
 ## Validation Gates
