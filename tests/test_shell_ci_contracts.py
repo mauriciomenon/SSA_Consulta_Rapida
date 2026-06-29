@@ -701,14 +701,14 @@ def test_opencode_review_script_sanitizes_opencode_environment(monkeypatch) -> N
     monkeypatch.setenv("GITHUB_TOKEN", "ghs_secret")
     monkeypatch.setenv("GH_TOKEN", "ghs_secret")
     monkeypatch.setenv("REVIEW_GITHUB_TOKEN", "ghs_secret")
-    monkeypatch.setenv("OPENCODE_API_KEY", "provider_secret")
+    monkeypatch.setenv("MODEL_PROVIDER_VALUE", "fake-provider-value")
 
     env = module.opencode_env()
 
     assert "GITHUB_TOKEN" not in env
     assert "GH_TOKEN" not in env
     assert "REVIEW_GITHUB_TOKEN" not in env
-    assert env["OPENCODE_API_KEY"] == "provider_secret"
+    assert env["MODEL_PROVIDER_VALUE"] == "fake-provider-value"
     with pytest.raises(RuntimeError, match="PROMPT"):
         module.require_prompt_argument("   ")
 

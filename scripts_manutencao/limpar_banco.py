@@ -6,7 +6,8 @@ from pathlib import Path
 
 from utils.robust_logging import get_robust_logger
 
-TABLE_NAME = "ssa_table"
+COUNT_SSA_ROWS_SQL = "SELECT COUNT(*) FROM ssa_table"
+DELETE_SSA_ROWS_SQL = "DELETE FROM ssa_table"
 logger = get_robust_logger().get_logger(__name__, "maintenance")
 
 
@@ -28,15 +29,15 @@ def limpar_banco():
         # Limpar tabela
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+            cursor.execute(COUNT_SSA_ROWS_SQL)
             count_before = cursor.fetchone()[0]
             logger.info("INFO Registros antes da limpeza: %s", f"{count_before:,}")
 
-            cursor.execute(f"DELETE FROM {TABLE_NAME}")
+            cursor.execute(DELETE_SSA_ROWS_SQL)
             conn.commit()
             cursor.execute("VACUUM")  # Otimizar o banco
 
-            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+            cursor.execute(COUNT_SSA_ROWS_SQL)
             count_after = cursor.fetchone()[0]
             logger.info("INFO Registros apos limpeza: %s", f"{count_after:,}")
             logger.info("OK Banco limpo com sucesso!")
