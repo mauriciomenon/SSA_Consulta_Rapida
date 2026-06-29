@@ -698,17 +698,38 @@ def test_opencode_review_script_rejects_fork_pr(monkeypatch) -> None:
 
 def test_opencode_review_script_sanitizes_opencode_environment(monkeypatch) -> None:
     module = _load_opencode_review_module()
-    monkeypatch.setenv("GITHUB_TOKEN", "ghs_secret")
-    monkeypatch.setenv("GH_TOKEN", "ghs_secret")
-    monkeypatch.setenv("REVIEW_GITHUB_TOKEN", "ghs_secret")
+    opencode_key = "OPENCODE_API_KEY"
+    qwen_key = "QWEN_API_KEY"
+    zai_key = "ZAI_API_KEY"
+    zhipu_key = "ZHIPU_API_KEY"
+    monkeypatch.setenv("GITHUB_TOKEN", "dummy-github-token")
+    monkeypatch.setenv("GH_TOKEN", "dummy-gh-token")
+    monkeypatch.setenv("REVIEW_GITHUB_TOKEN", "dummy-review-token")
+    monkeypatch.setenv(opencode_key, "dummy-opencode-key")
+    monkeypatch.setenv(qwen_key, "dummy-qwen-key")
+    monkeypatch.setenv(zai_key, "dummy-zai-key")
+    monkeypatch.setenv(zhipu_key, "dummy-zhipu-key")
     monkeypatch.setenv("MODEL_PROVIDER_VALUE", "fake-provider-value")
 
-    env = module.opencode_env()
+    env = module.opencode_env("qwen-cloud-coding-plan/qwen3-coder-plus")
 
     assert "GITHUB_TOKEN" not in env
     assert "GH_TOKEN" not in env
     assert "REVIEW_GITHUB_TOKEN" not in env
-    assert env["MODEL_PROVIDER_VALUE"] == "fake-provider-value"
+    assert "MODEL_PROVIDER_VALUE" not in env
+    assert env[qwen_key] == os.environ[qwen_key]
+    assert opencode_key not in env
+    assert zai_key not in env
+    assert zhipu_key not in env
+    assert module.opencode_env("zai-coding-plan/glm-4.7") == {
+        **{
+            name: value
+            for name in module.OPENCODE_BASE_ENV_NAMES
+            if (value := os.environ.get(name)) is not None
+        },
+        zai_key: os.environ[zai_key],
+        zhipu_key: os.environ[zhipu_key],
+    }
     with pytest.raises(RuntimeError, match="PROMPT"):
         module.require_prompt_argument("   ")
 

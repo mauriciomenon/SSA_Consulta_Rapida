@@ -10,6 +10,23 @@ from typing import Any
 
 DIFF_LIMIT_BYTES = 200_000
 GH_COMMAND_TIMEOUT = 120
+OPENCODE_BASE_ENV_NAMES = (
+    "CI",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "RUNNER_TEMP",
+    "SHELL",
+    "TEMP",
+    "TERM",
+    "TMP",
+    "TMPDIR",
+    "USER",
+    "XDG_CACHE_HOME",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+)
 DEFAULT_PROMPT = (
     "Review this pull request for concrete bugs, security risks, CI/CD regressions, "
     "path/quoting problems, and release/build reproducibility issues. Comment only "
@@ -128,10 +145,25 @@ def github_cli_env() -> dict[str, str]:
     return env
 
 
-def opencode_env() -> dict[str, str]:
-    env = os.environ.copy()
-    for name in ("GITHUB_TOKEN", "GH_TOKEN", "REVIEW_GITHUB_TOKEN", "USE_GITHUB_TOKEN"):
-        env.pop(name, None)
+def opencode_provider_secret_names(model: str) -> tuple[str, ...]:
+    model_text = str(model or "").lower()
+    if "qwen" in model_text:
+        return ("QWEN_API_KEY",)
+    if "glm" in model_text or "zai-" in model_text or "zhipu" in model_text:
+        return ("ZAI_API_KEY", "ZHIPU_API_KEY")
+    return ("OPENCODE_API_KEY",)
+
+
+def opencode_env(model: str) -> dict[str, str]:
+    env = {
+        name: value
+        for name in OPENCODE_BASE_ENV_NAMES
+        if (value := os.environ.get(name)) is not None
+    }
+    for name in opencode_provider_secret_names(model):
+        value = os.environ.get(name)
+        if value:
+            env[name] = value
     return env
 
 
@@ -208,7 +240,7 @@ def run_opencode_review(model: str, agent: str, review_diff_file: Path, prompt: 
         ],
         stdout_path=review_file,
         timeout=1200,
-        env=opencode_env(),
+        env=opencode_env(safe_model),
     )
 
 
