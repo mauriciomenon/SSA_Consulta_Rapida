@@ -81,7 +81,7 @@ def build_central_widget_qss(bg_color: str) -> str:
     """
     return (
         "/* SSA_MAIN_BG_START */\n"
-        f"QWidget {{ background-color: {bg_color}; }}\n"
+        f".QWidget {{ background-color: {bg_color}; }}\n"
         "/* SSA_MAIN_BG_END */"
     )
 

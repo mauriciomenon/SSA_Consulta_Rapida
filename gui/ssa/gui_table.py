@@ -751,7 +751,12 @@ def _populate_table_items(window, display_df, table_cell_alignment):
             font.setUnderline(False)
             item.setFont(font)
             if QBrush is not None:
-                item.setForeground(QBrush())
+                try:
+                    pal = window.palette()
+                    text_color = pal.color(pal.ColorRole.Text)
+                    item.setForeground(QBrush(text_color))
+                except Exception:
+                    pass
             if hasattr(item, "setToolTip"):
                 item.setToolTip("")
             item.setData(_HASH_LINK_STYLE_ROLE, None)
