@@ -2,18 +2,48 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-04-15 21:50 -0300)
+## Sync status (2026-07-06 09:21 -0300)
 
 1. Baseline ativo confirmado: `4.44`.
 2. Branch operacional: `dev`.
-3. Release/tag publicada relevante: `v4.36`.
-4. Estado atual do branch:
+3. Baseline local/tag: `v4.44`.
+4. Release/tag publicada relevante: `v4.36`.
+5. HEAD de entrada confirmado para este DOC_SYNC:
+   - `75c30f2f681a2303309cce9d51d9bd2da788fdc2` `DOC_SYNC: close filter hardening audit statuses`
+   - `dev` estava 66 commits a frente de `origin/dev` pela ref local antes deste DOC_SYNC residual.
+   - este DOC_SYNC adiciona 1 commit local; apos o commit, o branch fica 67 commits ahead.
+6. Estado remoto:
+   - `git ls-remote --heads origin dev` retorna HTTP 403 com conta GitHub suspensa.
+   - `fetch`, `push`, PR e checks remotos nao sao confiaveis ate desbloqueio da conta.
+7. Slices locais relevantes desde `v4.43`:
+   - `445f1d25` `STABILITY_PATCH: fix validation gates for v4.44 baseline`
+   - `acc299f8` `STABILITY_PATCH: fix ty validation gate`
+   - `4ae43f05` `DOC_SYNC: promote local baseline to 4.44`
+   - `75c30f2f` `DOC_SYNC: close filter hardening audit statuses`
+   - `DOC_SYNC: align v4.44 operational status` (este slice)
+8. Estado validado local:
+   - `ruff check .`: OK
+   - `ty check`: OK
+   - `pytest -q tests`: 2455 passed, 6 skipped, 2 warnings, 11 subtests
+   - H3/H4/H5/J4 fechados documentalmente; H7/J2 seguem como medicao/deferido.
+9. Pendencias imediatas:
+   - smoke visual GUI real para H6 com screenshot local
+   - desbloqueio GitHub antes de qualquer fetch/push
+   - DOC_SYNC/decisao separada para untracked `docs/handoffs/SKILLS_*`
+   - nao commitar `quality_gates_output.jsonl` sem pedido explicito
+
+## Snapshot historico de abril/GUI
+
+O bloco abaixo e contexto historico da frente GUI/preferencias de abril de 2026. Nao representa o estado remoto ou PR atual.
+
+1. Baseline historico da frente: `4.44` apos promocao local.
+2. Estado historico do branch naquela frente:
    - `HEAD` local esta 1 commit a frente de `origin/dev`
    - PR remoto ainda aponta para `fb068228`
-5. Ultimos slices funcionais relevantes nesta frente:
+3. Ultimos slices funcionais relevantes naquela frente:
    - `3fa1b38d` `STABILITY_PATCH: version gui preferences reference file and width precedence`
    - slice atual desta rodada: isolamento e restauracao do estado global de lifecycle em `tests/test_gui_filter_logic.py`
-6. O contrato de preferencias GUI agora precisa ser lido assim:
+4. O contrato de preferencias GUI daquela frente deve ser lido assim:
    - se faltar `config/gui_main_preferences.json` ou mudar `SSA_CONFIG_DIR`, o runtime usa os defaults em memoria do codigo
    - largura persistida valida vence a largura automatica
    - fallback local da tabela e baseline automatico partem de `gui/gui_config.py`
@@ -22,17 +52,17 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - o header da GUI agora usa matriz explicita `short/medium/long` por coluna e escolhe a maior variante que cabe na largura real, com reserva para `[f] `
    - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
    - `core/handler_base.py:197` permanece apenas como renderer paralelo documentado, fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
-7. PR operacional atual:
+5. PR operacional historico:
    - `#47` `dev -> main`
    - `mergeStateStatus=UNSTABLE`
-8. Checks remotos relevantes no momento:
+6. Checks remotos historicos daquela frente:
    - `DeepSource: Python` -> status externo ruidoso; tratar como warning operacional
    - `code/snyk (mauriciomenon)` -> fail por limite/conta; tratar como warning operacional
    - `security/snyk (mauriciomenon)` -> fail por limite/conta; tratar como warning operacional
    - `dev` e `main` sem branch protection obrigando esses checks neste host
-9. `kluster` esta disponivel neste host:
+7. `kluster` estava disponivel neste host:
    - `/Users/menon/.kluster/cli/bin/kluster`
-10. Sprint GUI desta frente ja foi aterrado no runtime:
+8. Sprint GUI daquela frente foi aterrado no runtime:
    - `Abrir SAM`
    - status `filtrado/total`
    - `#` abrindo SAM externo
@@ -40,22 +70,22 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - copia por duplo clique do numero da SSA
    - derivadas em arvore textual e detalhe mais largo
    - `load_other_database()` fora da UI thread em runtime normal
-11. Relatorio consolidado do ciclo de build:
+9. Relatorio consolidado do ciclo de build:
    - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
-12. Runbook operacional 3x3:
+10. Runbook operacional 3x3:
    - `docs/BUILD_3X3_RUNBOOK.md`
-13. Contrato de upsert/update por SSA alinhado nos docs vivos:
+11. Contrato de upsert/update por SSA alinhado nos docs vivos:
    - `docs/ARCH_DB_UPSERT.md`
    - `docs/ARQUITETURA_IMPORTACAO.md`
    - `docs/TROUBLESHOOTING_IMPORTACAO.md`
    - `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
-14. Handoff host-agnostic para continuidade no macOS:
+12. Handoff host-agnostic para continuidade no macOS:
    - `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
-15. Estrutura canonica de preferencias da GUI:
+13. Estrutura canonica de preferencias da GUI:
    - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
-16. Widths por sistema operacional da GUI:
+14. Widths por sistema operacional da GUI:
    - `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
-17. Estado atual do harness de testes GUI:
+15. Estado historico do harness de testes GUI:
    - `tests/test_gui_filter_logic.py` agora limpa e restaura globais de workers aposentados por teste
    - a correcao fecha a pendencia media confirmada de vazamento de lifecycle entre casos
 

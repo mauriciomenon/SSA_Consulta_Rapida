@@ -1,6 +1,12 @@
 # Codex Audit V443 Plus
 
-Handoff DOC_SYNC para Codex. Baseline funcional `9e36576` (tag `v4.43`).
+> HISTORICAL SNAPSHOT: este handoff preserva a fotografia v4.43+ de 2026-06-27.
+> Estado de entrada do DOC_SYNC residual: HEAD `75c30f2f681a2303309cce9d51d9bd2da788fdc2`,
+> baseline local `v4.44` em `4ae43f05b0d81d15b7b224a09dcac7dfb316c915`,
+> 66 commits ahead da ref local `origin/dev` antes deste DOC_SYNC; 67 apos este DOC_SYNC.
+> GitHub remoto bloqueado por HTTP 403.
+
+Handoff DOC_SYNC historico para Codex. Baseline funcional original `9e36576` (tag `v4.43`).
 
 ## Metadata
 
