@@ -198,7 +198,7 @@ def test_release_windows_backend_paths_are_grouped_expressions() -> None:
     backend_block = section_between(
         script,
         "function Get-BackendConfig",
-        "function Invoke-CheckedProcess",
+        "function Get-UserWorkspaceRelativeDirs",
     )
 
     for line in backend_block.splitlines():
@@ -213,3 +213,65 @@ def test_release_windows_tests_use_guarded_string_positions() -> None:
     test_source = Path(__file__).read_text(encoding="utf-8")
 
     assert_no_unguarded_string_position_helpers(test_source)
+
+
+def test_release_windows_script_has_backend_cleanup_allowlist() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+
+    assert "function Get-BackendCleanupAllowlist" in script
+    assert "function Invoke-BackendCleanup" in script
+    assert "Invoke-BackendCleanup $repoRoot $backendName $version" in release_loop
+    assert_before(
+        release_loop,
+        "Invoke-BackendCleanup $repoRoot $backendName $version",
+        "Invoke-CheckedProcess $repoRoot $config.build_script",
+    )
+    assert 'launchers\\dist\\windows_amd64' in script
+    assert 'builds\\pyinstaller\\windows_amd64' in script
+    assert "gui_entry.dist" in script
+    assert "cli_entry.build" in script
+    assert "cleanup_removed" in release_loop
+
+
+def test_release_windows_script_ensures_user_workspace_dirs_before_zip() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+
+    assert "function Get-UserWorkspaceRelativeDirs" in script
+    assert "function Ensure-UserWorkspaceDirs" in script
+    assert "docs_entrada" in script
+    assert "historico_backups" in script
+    assert "exportacao" in script
+    assert ".gitkeep" in script
+    assert "user_dirs_created" in release_loop
+    assert_before(
+        release_loop,
+        "Ensure-UserWorkspaceDirs $runtimeRoots",
+        "Write-BackendReleaseZips $config.release_zips",
+    )
+
+
+def test_release_windows_script_protects_runtime_before_zip() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+
+    assert "function Get-RuntimeBundleRoots" in script
+    assert "runtime_source_protection" in release_loop
+    assert_before(
+        release_loop,
+        "Assert-SourceProtection $repoRoot $runtimeRoots",
+        "Write-BackendReleaseZips $config.release_zips",
+    )

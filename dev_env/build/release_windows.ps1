@@ -259,6 +259,113 @@ function Get-BackendConfig {
     }
 }
 
+function Get-UserWorkspaceRelativeDirs {
+    return @(
+        "data",
+        "data\historico_backups",
+        "docs_entrada",
+        "docs_saida",
+        "logs",
+        "reports",
+        "exportacao"
+    )
+}
+
+function Get-BackendCleanupAllowlist {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string] $BackendName,
+        [Parameter(Mandatory = $true)] [string] $Version
+    )
+
+    switch ($BackendName) {
+        'pyinstaller' {
+            return @(
+                (Join-Path $RepoRoot "launchers\dist\windows_amd64"),
+                (Join-Path $RepoRoot "builds\pyinstaller\windows_amd64"),
+                (Join-Path $RepoRoot "launchers\platforms\windows_amd64\temp")
+            )
+        }
+        'nuitka' {
+            $nuitkaRoot = Join-Path $RepoRoot "builds\nuitka\windows_amd64"
+            return @(
+                (Join-Path $nuitkaRoot "gui_entry.dist"),
+                (Join-Path $nuitkaRoot "cli_entry.dist"),
+                (Join-Path $nuitkaRoot "gui_entry.build"),
+                (Join-Path $nuitkaRoot "cli_entry.build"),
+                (Join-Path $nuitkaRoot "SSA_GUI_v$($Version)_windows_amd64.dist"),
+                (Join-Path $nuitkaRoot "SSA_CLI_v$($Version)_windows_amd64.dist")
+            )
+        }
+        'pyoxidizer' {
+            return @(
+                (Join-Path $RepoRoot "builds\pyoxidizer\windows_amd64")
+            )
+        }
+        default {
+            throw "Backend sem allowlist de cleanup: $BackendName"
+        }
+    }
+}
+
+function Invoke-BackendCleanup {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string] $BackendName,
+        [Parameter(Mandatory = $true)] [string] $Version
+    )
+
+    $removed = @()
+    $paths = Get-BackendCleanupAllowlist $RepoRoot $BackendName $Version
+    foreach ($path in $paths) {
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Recurse -Force
+            $removed += $path
+        }
+    }
+    return $removed
+}
+
+function Get-RuntimeBundleRoots {
+    param(
+        [Parameter(Mandatory = $true)] [hashtable] $Config
+    )
+
+    $roots = @()
+    foreach ($item in $Config.release_zips) {
+        if ($item.source -and ($roots -notcontains $item.source)) {
+            $roots += $item.source
+        }
+    }
+    return $roots
+}
+
+function Ensure-UserWorkspaceDirs {
+    param(
+        [Parameter(Mandatory = $true)] [string[]] $RuntimeRoots
+    )
+
+    $created = @()
+    $relativeDirs = Get-UserWorkspaceRelativeDirs
+    foreach ($root in $RuntimeRoots) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+            continue
+        }
+        foreach ($rel in $relativeDirs) {
+            $dir = Join-Path $root $rel
+            if (-not (Test-Path -LiteralPath $dir)) {
+                New-Item -ItemType Directory -Path $dir -Force | Out-Null
+                $created += $dir
+            }
+            $gitkeep = Join-Path $dir ".gitkeep"
+            if (-not (Test-Path -LiteralPath $gitkeep -PathType Leaf)) {
+                New-Item -ItemType File -Path $gitkeep -Force | Out-Null
+            }
+        }
+    }
+    return $created
+}
+
 function Invoke-CheckedProcess {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
@@ -639,7 +746,11 @@ $results = @()
 
 foreach ($backendName in $selectedBackends) {
     $config = $configs[$backendName]
+    $cleanupRemoved = @()
+    $userDirsCreated = @()
+    $runtimeProtectionRecords = @()
     if (-not $SkipBuild) {
+        $cleanupRemoved = @(Invoke-BackendCleanup $repoRoot $backendName $version)
         Invoke-CheckedProcess $repoRoot $config.build_script @("--silent")
     }
 
@@ -647,6 +758,9 @@ foreach ($backendName in $selectedBackends) {
     $exePaths = @($config.cli_exe, $config.gui_exe) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $metadataRecords = Assert-ExeMetadata $exePaths $windowsVersion
     $smokeRecord = Invoke-Smoke $backendName $config
+    $runtimeRoots = @(Get-RuntimeBundleRoots $config)
+    $userDirsCreated = @(Ensure-UserWorkspaceDirs $runtimeRoots)
+    $runtimeProtectionRecords = @(Assert-SourceProtection $repoRoot $runtimeRoots)
     if (-not $SkipPackage) {
         Write-BackendReleaseZips $config.release_zips
         Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller)
@@ -660,9 +774,12 @@ foreach ($backendName in $selectedBackends) {
     $results += [ordered]@{
         backend = $backendName
         scorecard = $scorecard[$backendName]
+        cleanup_removed = $cleanupRemoved
+        user_dirs_created = $userDirsCreated
         build_info = $buildInfoRecords
         exe_metadata = $metadataRecords
         smoke = $smokeRecord
+        runtime_source_protection = $runtimeProtectionRecords
         zip_validation = $zipRecords
         zip_source_protection = $zipProtectionRecords
         hashes = $hashRecords
