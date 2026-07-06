@@ -62,7 +62,9 @@ for arg in args:
 PY
   )" || exit 2
   if [[ -n "$parsed_pytest_addopts" ]]; then
-    mapfile -t pytest_extra_opts <<< "$parsed_pytest_addopts"
+    while IFS= read -r pytest_arg; do
+      pytest_extra_opts+=( "$pytest_arg" )
+    done <<< "$parsed_pytest_addopts"
   fi
 fi
 
