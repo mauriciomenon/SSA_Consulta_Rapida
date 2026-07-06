@@ -1,13 +1,23 @@
 # README – PIPELINE DE BUILD AUTOMATIZADO (RASCUNHO)
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH 2026-07-06 10h16
+
+- Branch fonte local: `dev`.
+- Baseline local ativo: `v4.44` em `4ae43f05b0d81d15b7b224a09dcac7dfb316c915`.
+- Branch local esta ahead da ref local `origin/dev`; GitHub remoto retorna HTTP 403 por conta suspensa.
+- Nao fazer fetch, push, PR ou release remota ate desbloqueio e comparacao de divergencia.
+- Artefatos antigos versionados sao ruido historico/local e nao devem ser usados para publicacao final.
+- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
+- Proximo passo operacional apos P2 e desbloqueio remoto: comparar divergencia e so entao propor push/release.
+
+## HISTORICAL SNAPSHOT 2026-05-04 01h14
 
 - Branch alvo operacional: `dev` e `main` sincronizados.
 - Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
 - PR #58 e PR #59: merged.
 - PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #59.
 - `main`, `dev`, `origin/main` e `origin/dev` apontam para o mesmo HEAD.
-- Artefatos v4.43 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
+- Artefatos antigos anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
 - Orquestradores ativos:
   - Windows AMD64: `dev_env/build/release_windows.ps1`.
@@ -20,7 +30,7 @@
   - Nuitka continua backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e atualizar release v4.43 somente com pacotes novos.
+- Proximo passo operacional historico: rebuildar Windows AMD64 e Debian AMD64 a partir daquele HEAD, validar artefatos e atualizar a release somente com pacotes novos.
 
 ## 1. Objetivos
 | Objetivo | Beneficio |

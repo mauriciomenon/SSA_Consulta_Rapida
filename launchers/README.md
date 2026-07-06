@@ -1,8 +1,10 @@
 # Sistema de Build - Launchers
 
-## CURRENT TRUTH (v4.33)
+## CURRENT TRUTH (v4.44 local / v4.36 published)
 
 - Pipeline oficial de build: `launchers/build_multiplatform.py`.
+- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
+- GitHub remoto retorna HTTP 403 por conta suspensa; nao publicar artefatos remotos ate desbloqueio e comparacao de divergencia.
 - Plataformas ativas:
   - `windows_amd64`
   - `macos_arm64`
@@ -89,6 +91,6 @@ uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 ## Historical Snapshot
 
 - Este README substitui texto legado v3.10 com targets antigos.
-- Estado oficial de runtime/build para este ciclo e v4.33.
+- Estado oficial de runtime/build deste snapshot antigo foi substituido pelo bloco `CURRENT TRUTH`.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
