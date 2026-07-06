@@ -259,7 +259,7 @@ function Get-BackendConfig {
     }
 }
 
-function Get-UserWorkspaceRelativeDirs {
+function Get-UserWorkspaceRelativeDirectory {
     return @(
         "data",
         "data\historico_backups",
@@ -271,7 +271,7 @@ function Get-UserWorkspaceRelativeDirs {
     )
 }
 
-function Get-BackendCleanupAllowlist {
+function Get-BackendCleanupPath {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
         [Parameter(Mandatory = $true)] [string] $BackendName,
@@ -303,7 +303,7 @@ function Get-BackendCleanupAllowlist {
             )
         }
         default {
-            throw "Backend sem allowlist de cleanup: $BackendName"
+            throw "Backend sem paths de cleanup: $BackendName"
         }
     }
 }
@@ -316,7 +316,7 @@ function Invoke-BackendCleanup {
     )
 
     $removed = @()
-    $paths = Get-BackendCleanupAllowlist $RepoRoot $BackendName $Version
+    $paths = Get-BackendCleanupPath -RepoRoot $RepoRoot -BackendName $BackendName -Version $Version
     foreach ($path in $paths) {
         if (Test-Path -LiteralPath $path) {
             Remove-Item -LiteralPath $path -Recurse -Force
@@ -326,7 +326,7 @@ function Invoke-BackendCleanup {
     return $removed
 }
 
-function Get-RuntimeBundleRoots {
+function Get-RuntimeBundleRoot {
     param(
         [Parameter(Mandatory = $true)] [hashtable] $Config
     )
@@ -340,14 +340,14 @@ function Get-RuntimeBundleRoots {
     return $roots
 }
 
-function Ensure-UserWorkspaceDirs {
+function Initialize-UserWorkspaceDirectory {
     param(
-        [Parameter(Mandatory = $true)] [string[]] $RuntimeRoots
+        [Parameter(Mandatory = $true)] [string[]] $RuntimeRoot
     )
 
     $created = @()
-    $relativeDirs = Get-UserWorkspaceRelativeDirs
-    foreach ($root in $RuntimeRoots) {
+    $relativeDirs = Get-UserWorkspaceRelativeDirectory
+    foreach ($root in $RuntimeRoot) {
         if (-not (Test-Path -LiteralPath $root -PathType Container)) {
             continue
         }
@@ -750,7 +750,7 @@ foreach ($backendName in $selectedBackends) {
     $userDirsCreated = @()
     $runtimeProtectionRecords = @()
     if (-not $SkipBuild) {
-        $cleanupRemoved = @(Invoke-BackendCleanup $repoRoot $backendName $version)
+        $cleanupRemoved = @(Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version)
         Invoke-CheckedProcess $repoRoot $config.build_script @("--silent")
     }
 
@@ -758,8 +758,8 @@ foreach ($backendName in $selectedBackends) {
     $exePaths = @($config.cli_exe, $config.gui_exe) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $metadataRecords = Assert-ExeMetadata $exePaths $windowsVersion
     $smokeRecord = Invoke-Smoke $backendName $config
-    $runtimeRoots = @(Get-RuntimeBundleRoots $config)
-    $userDirsCreated = @(Ensure-UserWorkspaceDirs $runtimeRoots)
+    $runtimeRoots = @(Get-RuntimeBundleRoot -Config $config)
+    $userDirsCreated = @(Initialize-UserWorkspaceDirectory -RuntimeRoot $runtimeRoots)
     $runtimeProtectionRecords = @(Assert-SourceProtection $repoRoot $runtimeRoots)
     if (-not $SkipPackage) {
         Write-BackendReleaseZips $config.release_zips

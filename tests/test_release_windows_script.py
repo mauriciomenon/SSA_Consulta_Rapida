@@ -198,7 +198,7 @@ def test_release_windows_backend_paths_are_grouped_expressions() -> None:
     backend_block = section_between(
         script,
         "function Get-BackendConfig",
-        "function Get-UserWorkspaceRelativeDirs",
+        "function Get-UserWorkspaceRelativeDirectory",
     )
 
     for line in backend_block.splitlines():
@@ -223,12 +223,12 @@ def test_release_windows_script_has_backend_cleanup_allowlist() -> None:
         "Write-ReleaseReport",
     )
 
-    assert "function Get-BackendCleanupAllowlist" in script
+    assert "function Get-BackendCleanupPath" in script
     assert "function Invoke-BackendCleanup" in script
-    assert "Invoke-BackendCleanup $repoRoot $backendName $version" in release_loop
+    assert "Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version" in release_loop
     assert_before(
         release_loop,
-        "Invoke-BackendCleanup $repoRoot $backendName $version",
+        "Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version",
         "Invoke-CheckedProcess $repoRoot $config.build_script",
     )
     assert 'launchers\\dist\\windows_amd64' in script
@@ -246,8 +246,8 @@ def test_release_windows_script_ensures_user_workspace_dirs_before_zip() -> None
         "Write-ReleaseReport",
     )
 
-    assert "function Get-UserWorkspaceRelativeDirs" in script
-    assert "function Ensure-UserWorkspaceDirs" in script
+    assert "function Get-UserWorkspaceRelativeDirectory" in script
+    assert "function Initialize-UserWorkspaceDirectory" in script
     assert "docs_entrada" in script
     assert "historico_backups" in script
     assert "exportacao" in script
@@ -255,7 +255,7 @@ def test_release_windows_script_ensures_user_workspace_dirs_before_zip() -> None
     assert "user_dirs_created" in release_loop
     assert_before(
         release_loop,
-        "Ensure-UserWorkspaceDirs $runtimeRoots",
+        "Initialize-UserWorkspaceDirectory -RuntimeRoot $runtimeRoots",
         "Write-BackendReleaseZips $config.release_zips",
     )
 
@@ -268,8 +268,13 @@ def test_release_windows_script_protects_runtime_before_zip() -> None:
         "Write-ReleaseReport",
     )
 
-    assert "function Get-RuntimeBundleRoots" in script
+    assert "function Get-RuntimeBundleRoot" in script
     assert "runtime_source_protection" in release_loop
+    assert_before(
+        release_loop,
+        "Get-RuntimeBundleRoot -Config $config",
+        "Initialize-UserWorkspaceDirectory -RuntimeRoot $runtimeRoots",
+    )
     assert_before(
         release_loop,
         "Assert-SourceProtection $repoRoot $runtimeRoots",
