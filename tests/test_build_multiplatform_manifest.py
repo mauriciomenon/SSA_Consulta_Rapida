@@ -152,7 +152,7 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
         tmp_path,
         "nuitka",
         "debian_amd64",
-        "4.43",
+        "4.44",
     )
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
@@ -224,13 +224,13 @@ def test_write_build_info_main_reports_output_write_errors(
             "--platform",
             "debian_amd64",
             "--app-version",
-            "4.43",
+            "4.44",
         ],
     )
     monkeypatch.setattr(
         write_build_info,
         "build_payload",
-        lambda *_args: {"app_version": "4.43"},
+        lambda *_args: {"app_version": "4.44"},
     )
 
     assert write_build_info.main() == 1
@@ -253,17 +253,17 @@ def test_write_build_info_main_writes_valid_json(monkeypatch, tmp_path) -> None:
             "--platform",
             "debian_amd64",
             "--app-version",
-            "4.43",
+            "4.44",
         ],
     )
     monkeypatch.setattr(
         write_build_info,
         "build_payload",
-        lambda *_args: {"app_version": "4.43"},
+        lambda *_args: {"app_version": "4.44"},
     )
 
     assert write_build_info.main() == 0
-    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.43"}
+    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.44"}
 
 
 def test_pyinstaller_build_info_write_logs_before_raising(monkeypatch) -> None:
@@ -305,12 +305,12 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     platform_dir = builder.dist_dir / "macos_arm64"
     platform_dir.mkdir(parents=True)
 
-    cli_dir = platform_dir / "SSA_CLI_v4.33_macos_arm64"
+    cli_dir = platform_dir / "SSA_CLI_v4.44_macos_arm64"
     cli_dir.mkdir()
-    (cli_dir / "SSA_CLI_v4.33_macos_arm64").write_bytes(b"cli-bin")
+    (cli_dir / "SSA_CLI_v4.44_macos_arm64").write_bytes(b"cli-bin")
 
-    gui_app = platform_dir / "SSA_GUI_v4.33_macos_arm64.app"
-    gui_app_bin = gui_app / "Contents" / "MacOS" / "SSA_GUI_v4.33_macos_arm64"
+    gui_app = platform_dir / "SSA_GUI_v4.44_macos_arm64.app"
+    gui_app_bin = gui_app / "Contents" / "MacOS" / "SSA_GUI_v4.44_macos_arm64"
     gui_app_bin.parent.mkdir(parents=True)
     gui_app_bin.write_bytes(b"gui-bin")
 
@@ -325,11 +325,11 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
 
     assert ".DS_Store" not in entries
     assert "build_manifest.json" not in entries
-    assert entries["SSA_CLI_v4.33_macos_arm64"]["kind"] == "directory"
-    assert entries["SSA_GUI_v4.33_macos_arm64.app"]["kind"] == "directory"
+    assert entries["SSA_CLI_v4.44_macos_arm64"]["kind"] == "directory"
+    assert entries["SSA_GUI_v4.44_macos_arm64.app"]["kind"] == "directory"
     assert entries["notes.txt"]["kind"] == "file"
     assert (
-        entries["SSA_GUI_v4.33_macos_arm64.app"]["path"]
+        entries["SSA_GUI_v4.44_macos_arm64.app"]["path"]
         .replace("\\", "/")
         .startswith("macos_arm64/")
     )

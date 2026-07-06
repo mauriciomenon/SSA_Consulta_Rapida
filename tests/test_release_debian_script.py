@@ -408,8 +408,8 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
 ) -> None:
     package_dir = tmp_path / "builds" / "packages" / "debian_amd64"
     package_dir.mkdir(parents=True)
-    current = package_dir / "SSA_Consulta_Rapida_v4.43_debian_amd64_nuitka_cli.tar.gz"
-    stale = package_dir / "SSA_Consulta_Rapida_v4.43_debian_amd64_pyoxidizer.tar.gz"
+    current = package_dir / "SSA_Consulta_Rapida_v4.44_debian_amd64_nuitka_cli.tar.gz"
+    stale = package_dir / "SSA_Consulta_Rapida_v4.44_debian_amd64_pyoxidizer.tar.gz"
     current.write_bytes(b"current")
     stale.write_bytes(b"stale")
 
@@ -423,7 +423,7 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
             platform="debian_amd64",
             backends="nuitka",
             packages="tar",
-            app_version="4.43",
+            app_version="4.44",
             git_commit="abc",
         )
     )
@@ -447,7 +447,7 @@ def test_release_debian_report_fails_when_package_dir_is_missing(tmp_path) -> No
                 platform="debian_amd64",
                 backends="nuitka",
                 packages="tar",
-                app_version="4.43",
+                app_version="4.44",
                 git_commit="abc",
             )
         )
@@ -477,20 +477,20 @@ def test_release_debian_expected_asset_names_cover_supported_package_matrix() ->
     names = REPORT_MODULE._expected_debian_asset_names(
         ["pyinstaller", "nuitka", "pyoxidizer"],
         ["deb", "appimage", "tar"],
-        "4.43",
+        "4.44",
     )
 
     assert names == {
-        "ssa-consulta-rapida-pyinstaller-amd64_4.43_amd64.deb",
-        "ssa-consulta-rapida-nuitka-amd64_4.43_amd64.deb",
-        "ssa-consulta-rapida-pyoxidizer-amd64_4.43_amd64.deb",
-        "SSA_Consulta_Rapida_v4.43_debian_amd64_pyinstaller.AppImage",
-        "SSA_Consulta_Rapida_v4.43_debian_amd64_nuitka.AppImage",
-        "SSA_Consulta_Rapida_v4.43_debian_amd64_pyinstaller_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.43_debian_amd64_pyinstaller_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.43_debian_amd64_nuitka_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.43_debian_amd64_nuitka_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.43_debian_amd64_pyoxidizer.tar.gz",
+        "ssa-consulta-rapida-pyinstaller-amd64_4.44_amd64.deb",
+        "ssa-consulta-rapida-nuitka-amd64_4.44_amd64.deb",
+        "ssa-consulta-rapida-pyoxidizer-amd64_4.44_amd64.deb",
+        "SSA_Consulta_Rapida_v4.44_debian_amd64_pyinstaller.AppImage",
+        "SSA_Consulta_Rapida_v4.44_debian_amd64_nuitka.AppImage",
+        "SSA_Consulta_Rapida_v4.44_debian_amd64_pyinstaller_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.44_debian_amd64_pyinstaller_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.44_debian_amd64_nuitka_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.44_debian_amd64_nuitka_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.44_debian_amd64_pyoxidizer.tar.gz",
     }
 
 
@@ -498,22 +498,22 @@ def test_release_debian_arm64_expected_asset_names_cover_supported_package_matri
     names = REPORT_MODULE._expected_debian_asset_names(
         ["pyinstaller", "nuitka", "pyoxidizer"],
         ["deb", "appimage", "tar"],
-        "4.43",
+        "4.44",
         "debian_arm64",
         "arm64",
     )
 
     assert names == {
-        "ssa-consulta-rapida-pyinstaller-arm64_4.43_arm64.deb",
-        "ssa-consulta-rapida-nuitka-arm64_4.43_arm64.deb",
-        "ssa-consulta-rapida-pyoxidizer-arm64_4.43_arm64.deb",
-        "SSA_Consulta_Rapida_v4.43_debian_arm64_pyinstaller.AppImage",
-        "SSA_Consulta_Rapida_v4.43_debian_arm64_nuitka.AppImage",
-        "SSA_Consulta_Rapida_v4.43_debian_arm64_pyinstaller_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.43_debian_arm64_pyinstaller_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.43_debian_arm64_nuitka_cli.tar.gz",
-        "SSA_Consulta_Rapida_v4.43_debian_arm64_nuitka_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.43_debian_arm64_pyoxidizer.tar.gz",
+        "ssa-consulta-rapida-pyinstaller-arm64_4.44_arm64.deb",
+        "ssa-consulta-rapida-nuitka-arm64_4.44_arm64.deb",
+        "ssa-consulta-rapida-pyoxidizer-arm64_4.44_arm64.deb",
+        "SSA_Consulta_Rapida_v4.44_debian_arm64_pyinstaller.AppImage",
+        "SSA_Consulta_Rapida_v4.44_debian_arm64_nuitka.AppImage",
+        "SSA_Consulta_Rapida_v4.44_debian_arm64_pyinstaller_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.44_debian_arm64_pyinstaller_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.44_debian_arm64_nuitka_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.44_debian_arm64_nuitka_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.44_debian_arm64_pyoxidizer.tar.gz",
     }
 
 
@@ -521,10 +521,10 @@ def test_release_macos_expected_asset_names_cover_dmg_package() -> None:
     names = REPORT_MODULE._expected_macos_asset_names(
         ["pyinstaller"],
         ["dmg"],
-        "4.43",
+        "4.44",
     )
 
-    assert names == {"SSA_Consulta_Rapida_v4.43_macos_arm64.dmg"}
+    assert names == {"SSA_Consulta_Rapida_v4.44_macos_arm64.dmg"}
 
 
 def test_release_report_rejects_unknown_platform_for_expected_assets() -> None:
@@ -533,7 +533,7 @@ def test_release_report_rejects_unknown_platform_for_expected_assets() -> None:
             "linux_s390x",
             ["nuitka"],
             ["tar"],
-            "4.43",
+            "4.44",
         )
 
     assert "platform desconhecido no report: linux_s390x" in str(excinfo.value)
@@ -542,7 +542,7 @@ def test_release_report_rejects_unknown_platform_for_expected_assets() -> None:
 def test_release_macos_report_filters_stale_dmg_assets(tmp_path, monkeypatch) -> None:
     package_dir = tmp_path / "builds" / "packages" / "macos_arm64"
     package_dir.mkdir(parents=True)
-    current = package_dir / "SSA_Consulta_Rapida_v4.43_macos_arm64.dmg"
+    current = package_dir / "SSA_Consulta_Rapida_v4.44_macos_arm64.dmg"
     stale = package_dir / "SSA_Consulta_Rapida_v4.41_macos_arm64.dmg"
     current.write_bytes(b"current")
     stale.write_bytes(b"stale")
@@ -557,7 +557,7 @@ def test_release_macos_report_filters_stale_dmg_assets(tmp_path, monkeypatch) ->
             platform="macos_arm64",
             backends="pyinstaller",
             packages="dmg",
-            app_version="4.43",
+            app_version="4.44",
             git_commit="abc",
         )
     )

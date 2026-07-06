@@ -12,32 +12,32 @@ from launchers.runtime_entry_helpers import GUI_SMOKE_OK_MARKER, SMOKE_TEST_ENV
 def test_executable_path_helpers_use_windows_extension(tmp_path: Path) -> None:
     cli_path = smoke_validation.cli_executable_path(
         tmp_path,
-        "4.43",
+        "4.44",
         "windows_amd64",
     )
     simple_path = smoke_validation.cli_executable_path(
         tmp_path,
-        "4.43",
+        "4.44",
         "windows_amd64",
         simple=True,
     )
     gui_path = smoke_validation.gui_executable_path(
         tmp_path,
-        "4.43",
+        "4.44",
         "windows_amd64",
     )
 
-    assert cli_path.name == "SSA_CLI_v4.43_windows_amd64.exe"
-    assert simple_path.name == "SSA_CLI_v4.43_SIMPLES.exe"
-    assert gui_path.name == "SSA_GUI_v4.43_windows_amd64.exe"
+    assert cli_path.name == "SSA_CLI_v4.44_windows_amd64.exe"
+    assert simple_path.name == "SSA_CLI_v4.44_SIMPLES.exe"
+    assert gui_path.name == "SSA_GUI_v4.44_windows_amd64.exe"
     assert (
         smoke_validation.cli_executable_path(
             tmp_path,
-            "4.43",
+            "4.44",
             "debian_amd64",
             simple=True,
         ).name
-        == "SSA_CLI_v4.43_SIMPLES"
+        == "SSA_CLI_v4.44_SIMPLES"
     )
 
 
@@ -74,7 +74,7 @@ def test_gui_startup_smoke_executes_artifact_with_smoke_env(
         return subprocess.CompletedProcess(
             cmd,
             0,
-            stdout=f"{GUI_SMOKE_OK_MARKER} v4.43\n",
+            stdout=f"{GUI_SMOKE_OK_MARKER} v4.44\n",
             stderr="",
         )
 
