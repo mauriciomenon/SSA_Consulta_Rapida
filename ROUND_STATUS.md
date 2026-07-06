@@ -1,15 +1,24 @@
 # ROUND_STATUS
 
+## 2026-07-06 P2 runtime cleanup and measured defer
+
+- P2 `SELECT *` runtime closed locally at `bd76ace31d77d98455e7e6125e698164bde99e9a` (2026-07-06 10:28:11 -0300, `STABILITY_PATCH: replace runtime select star queries`).
+- Runtime search `rg -n "SELECT \* FROM" armazenamento gui core scripts` returned no matches; remaining `SELECT *` occurrences are tests/fixtures or custom SQL contract cases.
+- H7/J2 measured before runtime patch: GUI filter smoke `4 passed, 2 deselected in 3.87s`; focused filter/cache contracts `54 passed in 26.91s`.
+- RSS/timing evidence: small filter cycles delta 6.3 MB; 50k rows/3 cycles delta 4.5 MB; largest observed stage was `column=8.31ms`, `render=3.99ms`.
+- J5 derivadas contracts passed: `40 passed in 4.97s` for CLI snapshot/family, sync controller, import triggers, and derivada checkbox scenario.
+- Decision: no H7/J2/J5 runtime patch in this cycle because current evidence shows no hotspot or failing contract. Next step is GitHub non-mutating check; do not fetch/push while 403 persists.
+
 ## 2026-07-06 DOC_SYNC v4.44 local baseline
 
 - Local baseline promoted to `v4.44` at `4ae43f05b0d81d15b7b224a09dcac7dfb316c915` (`DOC_SYNC: promote local baseline to 4.44`).
 - Current local runtime includes `54bcbc002af3db8877a3b718c105d808a0d5381b` (`STABILITY_PATCH: show commit ISO date in about dialog`), which makes About/Data ISO fall back to the running commit date when `build_info.json` is absent.
-- This DOC_SYNC input HEAD was `54bcbc002af3db8877a3b718c105d808a0d5381b` on `dev`, 68 commits ahead of local `origin/dev`; this DOC_SYNC adds 1 local commit, making the branch 69 commits ahead after commit.
+- This DOC_SYNC input HEAD was `54bcbc002af3db8877a3b718c105d808a0d5381b` on `dev`, 68 commits ahead of local `origin/dev`; subsequent local cleanup and P2 commits leave the branch 74 commits ahead after `4ac834b23fe243f801aac4995b0c11efa6fe62fe`.
 - Local gates recorded for v4.44: `ruff check .` OK, `ty check` OK, `pip-audit` OK, full pytest `2455 passed, 6 skipped, 2 warnings, 11 subtests`.
-- Follow-up docs closed H3/H4/H5/J4 as delivered or delivered functionally; H7 remains partial and J2 remains deferred pending measured baseline.
+- Follow-up docs closed H3/H4/H5/J4 as delivered or delivered functionally; H7/J2/J5 were measured in P2 and remain defer-only without runtime patch because no hotspot was observed.
 - GitHub operations are blocked: `git ls-remote --heads origin dev` returns HTTP 403 because the account is suspended. Do not fetch, push, open PRs, or rely on remote checks until this is resolved.
 - Local untracked files intentionally remain outside commits: `docs/handoffs/SKILLS_*`, skill audit backups/logs, and `quality_gates_output.jsonl`.
-- H6 visual smoke was executed locally with screenshot evidence in the conversation; next functional cycle is P2 H7/J2/J5/SELECT * after remote unblock and divergence review.
+- H6 visual smoke was executed locally with screenshot evidence in the conversation; P2 runtime cleanup and measured defer is recorded above.
 
 ## 2026-06-07 STABILITY_PATCH advanced filter popup/theme learning
 

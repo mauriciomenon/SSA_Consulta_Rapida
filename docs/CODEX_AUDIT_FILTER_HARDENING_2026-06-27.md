@@ -16,12 +16,22 @@ Documento de handoff para Codex. Referencia permanente de diagnostico: relatorio
 | Baseline local atual | `4ae43f05b0d81d15b7b224a09dcac7dfb316c915` — DOC_SYNC: promote local baseline to 4.44 |
 | Baseline local data | 2026-07-06 00:46:00 -0300 |
 | Tags locais | `v4.43` -> `9e36576`; `v4.44` -> `4ae43f05` |
-| Ahead vs `origin/dev` | **66 commits** na entrada do DOC_SYNC residual; **67** apos `7eab54b5`; **68** apos `54bcbc002af3db8877a3b718c105d808a0d5381b`; **69** apos este DOC_SYNC |
+| Ahead vs `origin/dev` | **66 commits** na entrada do DOC_SYNC residual; **67** apos `7eab54b5`; **68** apos `54bcbc002af3db8877a3b718c105d808a0d5381b`; **74** apos `4ac834b23fe243f801aac4995b0c11efa6fe62fe` |
 | Merge-base `origin/dev` | `ae36e281fa92432b292cf754368e9249a1b9f35b` |
 | Workspace | tracked limpo; untracked `docs/handoffs/SKILLS_*` e `quality_gates_output.jsonl` fora do app |
 | Report anterior (referencia) | HEAD `f8239fdfe2e8e97b56bd73c705acbc22281f82ee` (2026-06-27 17:28:30 -0300) |
-| Commits pos-baseline v4.43 | **66** na entrada (`9e36576..75c30f2f`); **69** apos este DOC_SYNC |
+| Commits pos-baseline v4.43 | **66** na entrada (`9e36576..75c30f2f`); **74** apos P2 runtime cleanup |
 | Push/fetch | **bloqueado**: GitHub retorna HTTP 403 por conta suspensa |
+
+---
+
+### 1.1 Atualizacao P2 local — 2026-07-06
+
+- `bd76ace31d77d98455e7e6125e698164bde99e9a` (2026-07-06 10:28:11 -0300, `STABILITY_PATCH: replace runtime select star queries`) fechou P2 `SELECT *` no runtime (`armazenamento`, `gui`, `core`, `scripts`).
+- Busca runtime: `rg -n "SELECT \* FROM" armazenamento gui core scripts` retornou sem matches; residuos ficam em testes/fixtures e SQL customizado historico.
+- H7/J2 medidos sem patch runtime: smoke performance `4 passed, 2 deselected in 3.87s`; contratos filter/cache `54 passed in 26.91s`; RSS pequeno delta 6.3 MB; 50k rows/3 ciclos delta 4.5 MB; maior stage `column=8.31ms`.
+- J5 medido sem patch runtime: `tests/test_derivadas_cli.py`, `tests/test_derivadas_sync_controller.py`, `tests/test_import_derivadas_trigger.py`, `tests/test_scenario_derivada_checkbox_click_qt.py` passaram (`40 passed in 4.97s`).
+- Decisao P2: nao aplicar patch H7/J2/J5 sem hotspot; manter como medicao documentada e reabrir somente com falha real, dados maiores ou novo budget.
 
 ---
 
@@ -218,7 +228,7 @@ Legenda autor sessao:
 ## 5. Matriz plano A-K vs report antigo (HEAD f8239fdf)
 
 Referencia report #1: HEAD `f8239fdf`, ahead 11, ~40% plano Codex entregue.
-Referencia operacional atual: entrada do DOC_SYNC residual em `75c30f2f681a2303309cce9d51d9bd2da788fdc2` (66 ahead); este DOC_SYNC residual eleva o branch para 67 ahead. A coluna `Runtime cf85ec83` abaixo e snapshot historico da rodada 2026-06-29.
+Referencia operacional atual: entrada do DOC_SYNC residual em `75c30f2f681a2303309cce9d51d9bd2da788fdc2` (66 ahead); apos P2 runtime cleanup, o branch local esta 74 commits ahead. A coluna `Runtime cf85ec83` abaixo e snapshot historico da rodada 2026-06-29.
 
 | Item | Report f8239fdf | Runtime cf85ec83 (snapshot historico) | Delta |
 |------|-----------------|----------------------|-------|
@@ -227,22 +237,22 @@ Referencia operacional atual: entrada do DOC_SYNC residual em `75c30f2f681a23033
 | **Slice 2** H6 `_mask_any` | Parcial (raise sem GUI) | **Entregue** | `b2a51b81` + `9b2005d5` cobrem apply e refresh |
 | **Slice 3** H1/H2/J6 | Entregue | Entregue | testes visuais Qt reforcados (Cursor) |
 | **Slice 4** smoke RSS/ms | Pendente | **Parcial** | `@pytest.mark.performance` + medicao 50k; CI job dedicado pendente |
-| **Slice 5** J2 deep copies | Pendente | **Deferido** | contracts deep_copy existem; patch runtime depende de baseline RSS/deep-copy |
-| **Slice 6** J5 arvore derivadas | Parcial (~15%) | **Parcial** | normalizacao vetorizada; arvore deferida (benchmark) |
+| **Slice 5** J2 deep copies | Pendente | **Medido/deferido** | contracts deep_copy existem; 2026-07-06 RSS delta 4.5 MB em 50k/3 ciclos, sem hotspot |
+| **Slice 6** J5 arvore derivadas | Parcial (~15%) | **Medido/deferido** | contratos derivadas passaram (`40 passed in 4.97s`); sem patch runtime |
 | **Slice 7** H4 universo opcoes | Pendente | **Entregue** | contrato atual documentado: opcoes avancadas usam `df_completo` |
-| **Slice 8** SQL/load SELECT * | Pendente | **Parcial** | testes SQL policy; runtime SELECT * intacto |
+| **Slice 8** SQL/load SELECT * | Pendente | **Entregue** | `bd76ace31d77d98455e7e6125e698164bde99e9a`; runtime sem `SELECT *` em `armazenamento`, `gui`, `core`, `scripts` |
 | **H1** mapa visual execucao | Resolvido | Resolvido | — |
 | **H2** terminal vs post-search | Resolvido | Resolvido | — |
 | **H3** worker cache token | Parcial | Entregue funcionalmente | hash conteudo entregue; baseline de custo do hash fica como perf follow-up |
 | **H4** opcoes de universo global | Pendente | Entregue | contrato atual: opcoes avancadas usam `df_completo` |
 | **H5** sort antes pos-filtros | Parcial | Entregue funcionalmente | contrato `for_sort_defer` e sort reuse existem; manter sem refactor amplo |
 | **H6** contador vs df_exibido | Parcial | **Entregue** | fix producao + refresh mixin + on_filter_finished (`faeb8f19`, `37ad59d0`) |
-| **H7** materializacao menus | Pendente | **Parcial** | `5ca3b193` micro-opt; medir materializacao antes de novo patch runtime |
+| **H7** materializacao menus | Pendente | **Medido/deferido** | 2026-07-06 maior stage observado `column=8.31ms` em 50k; sem patch runtime |
 | **J1** sort unico por ciclo | Parcial | Parcial | `ssa_sorted_for_display` reduz re-sort; sem prova formal de max 1 sort/ciclo |
-| **J2** deep copies | Pendente | Deferido | requer baseline RSS/deep-copy antes de patch runtime |
+| **J2** deep copies | Pendente | Medido/deferido | baseline RSS registrado; contratos de isolacao continuam verdes |
 | **J3** contratos cache | Resolvido | Resolvido | testes ampliados |
 | **J4** opcoes pos-busca | Pendente | Entregue | entregue junto com H4 conforme contrato `df_completo` |
-| **J5** derivadas performance | Parcial | Parcial | defer arvore documentado |
+| **J5** derivadas performance | Parcial | Medido/deferido | contratos CLI/sync/import/Qt passaram; sem hotspot |
 | **J6** terminal-only refresh | Resolvido | Resolvido | — |
 | **has_post_search_filters** | Parcial (semantica dupla) | **Parcial estabilizado** | `_compute_has_post_search_filters(..., for_sort_defer)` documenta divergencia; trocar por novo helper seria refactor sem ganho claro |
 | **paginate** hotspot | Pendente | **Entregue** | `977e67cdc2129e1296bdf39a40a8705db6fda66c` reduz duplicate render; 50k: paginate avg ~0.035ms, render avg ~4.144ms |
@@ -305,7 +315,7 @@ Commits novos desde `f8239fdf` (15 commits):
 
 | ID | Pendencia | Evidencia | Acao sugerida |
 |----|-----------|-----------|---------------|
-| P0-1 | **Push/checks remotos bloqueados** | branch local fica 67 commits ahead apos este DOC_SYNC; GitHub retorna HTTP 403 por conta suspensa | Nao fazer fetch/push/PR ate desbloquear GitHub; depois comparar divergencia antes de propor push |
+| P0-1 | **Push/checks remotos bloqueados** | branch local fica 74 commits ahead apos P2 runtime cleanup; GitHub retorna HTTP 403 por conta suspensa | Nao fazer fetch/push/PR ate desbloquear GitHub; depois comparar divergencia antes de propor push |
 | P0-2 | **Checks remotos indisponiveis** | sem PR/checks confiaveis enquanto GitHub retorna HTTP 403 | Reavaliar apos desbloqueio remoto; gates locais seguem como fonte temporaria |
 | P0-3 | **Relabel `faeb8f19`** | Concluido no rebase (HOTFIX_BLOCKER) | — |
 | P0-4 | **Smoke visual GUI real H6** | Fechado em 2026-07-06 com janela Qt real, falha simulada de mascara avancada, 4/4 linhas preservadas e status de falha explicito | Evidencia local reportada na conversa; screenshot nao commitado |
@@ -324,11 +334,11 @@ Commits novos desde `f8239fdf` (15 commits):
 
 | ID | Pendencia | Evidencia | Acao sugerida |
 |----|-----------|-----------|---------------|
-| P2-1 | **Slice 5 J2 deep copies** | Deferido; contracts existem | Patch runtime so apos baseline RSS/deep-copy |
-| P2-2 | **Slice 6 J5 arvore derivadas** | CHANGELOG: vectorizacao mais lenta que itertuples 50k | Manter defer ou re-benchmark com dados reais |
+| P2-1 | **Slice 5 J2 deep copies** | Medido 2026-07-06; contracts existem | Sem patch runtime ate haver hotspot/RSS acima do budget |
+| P2-2 | **Slice 6 J5 arvore derivadas** | Medido 2026-07-06; contratos derivadas verdes | Reabrir so com dados reais maiores ou budget novo |
 | P2-3 | **Slice 7 H4/J4 universo opcoes** | Entregue conforme contrato atual `df_completo` global | Reabrir somente com decisao produto para universo filtrado |
-| P2-4 | **Slice 8 SELECT *** | Runtime inalterado; tests SQL policy | Projecao colunas ou paginacao SQL |
-| P2-5 | **H7 estrutural** | `tolist()` e multi-pass scan opcoes | medir materializacao antes de unique/lazy ou agregar passes refresh |
+| P2-4 | **Slice 8 SELECT *** | Entregue em `bd76ace31d77d98455e7e6125e698164bde99e9a` | Manter tests de policy; residuos em testes sao historicos/custom SQL |
+| P2-5 | **H7 estrutural** | Medido 2026-07-06; sem hotspot | Reabrir com benchmark falhando ou dataset maior |
 | P2-6 | **CI job performance** | `-m "not performance"` no pytest normal | Workflow dedicado com marker performance |
 | P2-7 | **except flags L917-921** | Falha flags -> sort indevido silencioso | Tratar como erro visivel ou fail-closed sem sort |
 | P2-8 | **Fonte Qt headless** | Fechado em `cf85ec83ca6157265d57bef267748b108e9ecf41`; smoke direto usa `Helvetica Neue` no macOS e remove aviso `Sans Serif` | Manter lista por plataforma; nao alterar layout sem screenshot/smoke |
@@ -408,7 +418,7 @@ uv run --python 3.13 pytest -q \
   tests/test_scenario_grid_paginator_order_qt.py \
   tests/test_scenario_grid_table_ssa_display_qt.py
 
-# SQL policy (runtime SELECT * ainda pendente)
+# SQL policy (runtime SELECT * fechado em 2026-07-06)
 uv run --python 3.13 pytest -q tests/test_contract_data_loader_sql_policy.py
 
 # Suite historica filtro ampliada (~6-7 min)
@@ -464,25 +474,25 @@ git diff f8239fdf..HEAD --stat
 | H4 | Opcoes avancadas de `df_completo` vs recorte busca | Entregue conforme contrato atual `df_completo` |
 | H5 | Sort geral antes pos-filtros | Entregue funcionalmente; manter `for_sort_defer` sem refactor |
 | H6 | Falha mascara vs contador/grid | Entregue (`b2a51b81`, `faeb8f19`, `37ad59d0`) |
-| H7 | Materializacao O(n) menus | Parcial (`5ca3b193`); medir materializacao antes de patch |
+| H7 | Materializacao O(n) menus | Medido/deferido; sem hotspot em 50k rows |
 | J1 | Um sort por ciclo | Parcial |
-| J2 | Deep copies cache/pipeline | Deferido; requer baseline RSS/deep-copy |
+| J2 | Deep copies cache/pipeline | Medido/deferido; baseline RSS registrado e contratos verdes |
 | J3 | Contratos invalidacao cache | Entregue + testes |
 | J4 | Universo opcoes pos-busca | Entregue junto com H4 conforme contrato `df_completo` |
-| J5 | Performance filtros derivada | Parcial (normalizacao only) |
+| J5 | Performance filtros derivada | Medido/deferido; contratos derivadas verdes |
 | J6 | Terminal-only sem pos-filtros | Entregue (`6e230bcf`) |
 
 ---
 
 ## 10. Sintese executiva (3 bullets)
 
-1. **Pos-v4.43:** 66 commits locais na entrada do DOC_SYNC residual promoveram baseline `v4.44`, fecharam P0 funcional principal (dirty cache, H1/H2/H6, H3/H4/H5/J4 por contrato atual) e estabilizaram paginate/fonte; `54bcbc002af3db8877a3b718c105d808a0d5381b` corrige About/Data ISO e este DOC_SYNC eleva o ahead local para 69.
+1. **Pos-v4.43:** 66 commits locais na entrada do DOC_SYNC residual promoveram baseline `v4.44`, fecharam P0 funcional principal (dirty cache, H1/H2/H6, H3/H4/H5/J4 por contrato atual) e estabilizaram paginate/fonte; `54bcbc002af3db8877a3b718c105d808a0d5381b` corrige About/Data ISO e P2 cleanup eleva o ahead local para 74.
 2. **Estado local validado:** `ruff`, `ty`, `pip-audit` e suite completa passaram; pytest registrou 2455 passed, 6 skipped, 2 warnings e 11 subtests.
-3. **Proximo foco operacional:** desbloqueio GitHub e, depois, ciclo P2 H7/J2/J5/SELECT *. Enquanto `git ls-remote` retornar HTTP 403 por conta suspensa, nao fazer fetch/push/PR nem confiar em checks remotos.
+3. **Proximo foco operacional:** checagem GitHub nao mutante. Enquanto `git ls-remote` retornar HTTP 403 por conta suspensa, nao fazer fetch/push/PR nem confiar em checks remotos.
 
 ---
 
-*Gerado: 2026-06-27. Atualizado pos-fix closure 2026-06-27. Atualizado pos-paginate/fonte 2026-06-29. Atualizado pos-v4.44 local 2026-07-06. Sem push.*
+*Gerado: 2026-06-27. Atualizado pos-fix closure 2026-06-27. Atualizado pos-paginate/fonte 2026-06-29. Atualizado pos-v4.44 local 2026-07-06. Atualizado pos-P2 runtime cleanup 2026-07-06. Sem push.*
 # Codex Audit - Filter Hardening (2026-06-27)
 
 ## Validation Gates

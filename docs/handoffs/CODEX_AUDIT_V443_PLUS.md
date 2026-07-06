@@ -5,6 +5,11 @@
 > baseline local `v4.44` em `4ae43f05b0d81d15b7b224a09dcac7dfb316c915`,
 > 66 commits ahead da ref local `origin/dev` antes deste DOC_SYNC; 67 apos este DOC_SYNC.
 > GitHub remoto bloqueado por HTTP 403.
+>
+> Atualizacao P2 2026-07-06: `bd76ace31d77d98455e7e6125e698164bde99e9a`
+> fechou `SELECT *` no runtime. H7/J2/J5 foram medidos sem hotspot:
+> GUI performance `4 passed`, filter/cache `54 passed`, derivadas `40 passed`;
+> RSS 50k/3 ciclos delta 4.5 MB. Sem patch runtime adicional.
 
 Handoff DOC_SYNC historico para Codex. Baseline funcional original `9e36576` (tag `v4.43`).
 
@@ -941,22 +946,22 @@ gui/mixins/filter_gui_ssa_mixin.py              |  4 ++--
 | Slice 2 H6 mask | Entregue | `ad4a2cff`, `b2a51b81`, `faeb8f19`, `a38a2ac3` |
 | Slice 3 H1/H2/J6 | Entregue | `6e230bcf` + contracts |
 | Slice 4 smoke RSS/ms | Parcial | markers performance; CI job pendente |
-| Slice 5 J2 deep copies | Deferido | patch runtime requer baseline RSS/deep-copy |
-| Slice 6 J5 arvore derivadas | Parcial | normalizacao vetorizada only |
+| Slice 5 J2 deep copies | Medido/deferido | baseline RSS registrado em 2026-07-06; sem hotspot |
+| Slice 6 J5 arvore derivadas | Medido/deferido | contratos derivadas verdes em 2026-07-06 |
 | Slice 7 H4 universo opcoes | Entregue | contrato atual: opcoes avancadas usam `df_completo` |
-| Slice 8 SQL SELECT * | Parcial | tests policy; runtime intacto |
+| Slice 8 SQL SELECT * | Entregue | `bd76ace31d77d98455e7e6125e698164bde99e9a`; runtime sem `SELECT *` |
 | H1 mapa visual | Resolvido |  |
 | H2 terminal vs post-search | Resolvido |  |
 | H3 worker token | Entregue funcionalmente | `84178418`; baseline de custo do hash fica como perf follow-up |
 | H4 opcoes universo | Entregue | contrato atual: opcoes avancadas usam `df_completo` |
 | H5 sort pos-filtros | Entregue funcionalmente | manter `for_sort_defer` sem refactor |
 | H6 contador vs grid | Entregue | cadeia apply + refresh + on_filter_finished (`37ad59d0`) |
-| H7 materializacao | Parcial | `5ca3b193`; medir materializacao antes de patch |
+| H7 materializacao | Medido/deferido | maior stage observado `column=8.31ms` em 50k rows |
 | J1 sort unico | Parcial | `0c4e6684` helper unificado |
-| J2 deep copies | Deferido | baseline RSS/deep-copy pendente |
+| J2 deep copies | Medido/deferido | contratos de isolacao verdes; RSS registrado |
 | J3 contratos cache | Resolvido |  |
 | J4 opcoes pos-busca | Entregue | entregue junto com H4 conforme contrato `df_completo` |
-| J5 derivadas perf | Parcial |  |
+| J5 derivadas perf | Medido/deferido | contratos CLI/sync/import/Qt verdes |
 | J6 terminal-only refresh | Resolvido |  |
 | has_post_search_filters | Parcial->Entregue helper | `0c4e6684` |
 | paginate hotspot | Parcial | testes grid; runtime ~313ms/50k |
@@ -986,10 +991,10 @@ gui/mixins/filter_gui_ssa_mixin.py              |  4 ++--
 - Unificar suffix H6 em todos callers de falha de mascara
 
 ### P2
-- Slice 5 J2 deep copies: baseline RSS/deep-copy antes de patch
-- Slice 6 J5 arvore derivadas (benchmark 50k)
-- H7 materializacao: medir custo antes de patch runtime
-- Slice 8 SELECT * runtime
+- Slice 5 J2 deep copies: medido 2026-07-06; sem patch runtime sem hotspot.
+- Slice 6 J5 arvore derivadas: contratos derivadas verdes; reabrir so com dados reais maiores ou budget novo.
+- H7 materializacao: maior stage observado `column=8.31ms` em 50k rows; sem patch runtime.
+- Slice 8 SELECT * runtime: entregue em `bd76ace31d77d98455e7e6125e698164bde99e9a`.
 - CI job performance dedicado
 
 ## Validacao sessao (pytest focado)

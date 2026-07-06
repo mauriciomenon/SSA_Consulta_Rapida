@@ -2,16 +2,15 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-07-06 09:45 -0300)
+## Sync status (2026-07-06 10:34 -0300)
 
 1. Baseline ativo confirmado: `4.44`.
 2. Branch operacional: `dev`.
 3. Baseline local/tag: `v4.44`.
 4. Release/tag publicada relevante: `v4.36`.
-5. HEAD de entrada confirmado para este DOC_SYNC de pente fino:
-   - `54bcbc002af3db8877a3b718c105d808a0d5381b` `STABILITY_PATCH: show commit ISO date in about dialog`
-   - `dev` estava 68 commits a frente de `origin/dev` pela ref local antes deste DOC_SYNC.
-   - este DOC_SYNC adiciona 1 commit local; apos o commit, o branch fica 69 commits ahead.
+5. HEAD local confirmado:
+   - `4ac834b23fe243f801aac4995b0c11efa6fe62fe` `DOC_SYNC: record P2 runtime cleanup status`
+   - `dev` esta 74 commits a frente de `origin/dev` pela ref local.
 6. Estado remoto:
    - `git ls-remote --heads origin dev` retorna HTTP 403 com conta GitHub suspensa.
    - `fetch`, `push`, PR e checks remotos nao sao confiaveis ate desbloqueio da conta.
@@ -22,15 +21,17 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `75c30f2f` `DOC_SYNC: close filter hardening audit statuses`
    - `7eab54b5` `DOC_SYNC: align v4.44 operational status`
    - `54bcbc00` `STABILITY_PATCH: show commit ISO date in about dialog`
-   - `DOC_SYNC: align active docs to v4.44` (este slice)
+   - `2a19d876` `DOC_SYNC: align active docs to v4.44`
+   - `bd76ace3` `STABILITY_PATCH: replace runtime select star queries`
+   - `4ac834b2` `DOC_SYNC: record P2 runtime cleanup status`
 8. Estado validado local:
    - `ruff check .`: OK
    - `ty check`: OK
    - `pytest -q tests`: 2455 passed, 6 skipped, 2 warnings, 11 subtests
-   - H3/H4/H5/J4 fechados documentalmente; H7/J2 seguem como medicao/deferido.
+   - H3/H4/H5/J4 fechados documentalmente; H7/J2/J5 medidos e deferidos sem patch runtime por ausencia de hotspot.
 9. Pendencias imediatas:
    - desbloqueio GitHub antes de qualquer fetch/push
-   - P2 H7/J2/J5/SELECT * apos desbloqueio e comparacao de divergencia remota
+   - P2 `SELECT *` fechado localmente; H7/J2/J5 medidos e deferidos sem patch runtime por ausencia de hotspot
    - DOC_SYNC/decisao separada para untracked `docs/handoffs/SKILLS_*`
    - nao commitar `quality_gates_output.jsonl` sem pedido explicito
 
