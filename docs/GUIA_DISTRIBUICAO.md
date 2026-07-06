@@ -1,6 +1,16 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH 2026-06-11 11h
+## CURRENT TRUTH 2026-07-06 09h45
+
+- Branch fonte local: `dev`.
+- Baseline local ativo: `v4.44` em `4ae43f05b0d81d15b7b224a09dcac7dfb316c915`.
+- Runtime local inclui `54bcbc002af3db8877a3b718c105d808a0d5381b 2026-07-06 09:45:28 -0300 STABILITY_PATCH: show commit ISO date in about dialog`.
+- Branch local estava 68 commits ahead de `origin/dev` antes deste DOC_SYNC; este DOC_SYNC adiciona 1 commit local.
+- GitHub remoto retorna HTTP 403 por conta suspensa; nao fazer fetch, push, PR ou release remota ate desbloqueio.
+- Artefatos antigos v4.43 seguem historicos e nao devem ser usados para publicacao final.
+- Proximo passo operacional apos desbloqueio remoto: comparar divergencia e so entao propor push/release.
+
+## HISTORICAL SNAPSHOT 2026-06-11 11h
 
 - Branch fonte: `dev`.
 - Branch destino: `main`.
@@ -28,7 +38,7 @@
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
 - `setup_env.sh` e `setup_env.ps1` nao executam instalador remoto de pyenv sem opt-in e SHA256 explicitos.
 - `dev_env/setup_msvc_path.ps1` e diagnostico/sessao; nao altera PATH permanente do usuario por padrao.
-- Proximo passo operacional: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.43.
+- Proximo passo operacional historico: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.43.
 
 ## Comandos Simples De Release
 

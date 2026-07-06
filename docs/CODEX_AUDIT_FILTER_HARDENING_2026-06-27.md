@@ -16,11 +16,11 @@ Documento de handoff para Codex. Referencia permanente de diagnostico: relatorio
 | Baseline local atual | `4ae43f05b0d81d15b7b224a09dcac7dfb316c915` — DOC_SYNC: promote local baseline to 4.44 |
 | Baseline local data | 2026-07-06 00:46:00 -0300 |
 | Tags locais | `v4.43` -> `9e36576`; `v4.44` -> `4ae43f05` |
-| Ahead vs `origin/dev` | **66 commits** na entrada deste DOC_SYNC residual; **67 commits** apos o commit do DOC_SYNC |
+| Ahead vs `origin/dev` | **66 commits** na entrada do DOC_SYNC residual; **67** apos `7eab54b5`; **68** apos `54bcbc002af3db8877a3b718c105d808a0d5381b`; **69** apos este DOC_SYNC |
 | Merge-base `origin/dev` | `ae36e281fa92432b292cf754368e9249a1b9f35b` |
 | Workspace | tracked limpo; untracked `docs/handoffs/SKILLS_*` e `quality_gates_output.jsonl` fora do app |
 | Report anterior (referencia) | HEAD `f8239fdfe2e8e97b56bd73c705acbc22281f82ee` (2026-06-27 17:28:30 -0300) |
-| Commits pos-baseline v4.43 | **66** na entrada (`9e36576..75c30f2f`); **67** apos este DOC_SYNC residual |
+| Commits pos-baseline v4.43 | **66** na entrada (`9e36576..75c30f2f`); **69** apos este DOC_SYNC |
 | Push/fetch | **bloqueado**: GitHub retorna HTTP 403 por conta suspensa |
 
 ---
@@ -476,7 +476,7 @@ git diff f8239fdf..HEAD --stat
 
 ## 10. Sintese executiva (3 bullets)
 
-1. **Pos-v4.43:** 66 commits locais na entrada deste DOC_SYNC promovem baseline `v4.44`, fecham P0 funcional principal (dirty cache, H1/H2/H6, H3/H4/H5/J4 por contrato atual) e estabilizam paginate/fonte; este DOC_SYNC residual eleva o ahead local para 67.
+1. **Pos-v4.43:** 66 commits locais na entrada do DOC_SYNC residual promoveram baseline `v4.44`, fecharam P0 funcional principal (dirty cache, H1/H2/H6, H3/H4/H5/J4 por contrato atual) e estabilizaram paginate/fonte; `54bcbc002af3db8877a3b718c105d808a0d5381b` corrige About/Data ISO e este DOC_SYNC eleva o ahead local para 69.
 2. **Estado local validado:** `ruff`, `ty`, `pip-audit` e suite completa passaram; pytest registrou 2455 passed, 6 skipped, 2 warnings e 11 subtests.
 3. **Proximo foco operacional:** desbloqueio GitHub e, depois, ciclo P2 H7/J2/J5/SELECT *. Enquanto `git ls-remote` retornar HTTP 403 por conta suspensa, nao fazer fetch/push/PR nem confiar em checks remotos.
 

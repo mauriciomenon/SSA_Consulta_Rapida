@@ -1,4 +1,4 @@
-# ARCH DB UPSERT (v4.43)
+# ARCH DB UPSERT (v4.44)
 
 Este arquivo e a referencia curta do contrato de update por `numero_ssa`.
 Nao e apenas ponte legado.
@@ -46,4 +46,3 @@ Quando update e permitido:
 2. Historico forense da mudanca de criterio: `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
 
 <!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
-

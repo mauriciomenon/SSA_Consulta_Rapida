@@ -1,9 +1,9 @@
-# Guia Completo de Migracao - SSA Consulta Rapida v4.43
+# Guia Completo de Migracao - SSA Consulta Rapida v4.44
 
 **Data de Criacao:** 27 de Agosto de 2025
-**Versao do Sistema:** v4.43 (Baseline local)
+**Versao do Sistema:** v4.44 (Baseline local)
 **Tipo:** Migracao Completa para Nova Instalacao
-**Sync:** 26/03/2026 07:35 -0300
+**Sync:** 06/07/2026 09:45 -0300
 
 ---
 
@@ -509,9 +509,8 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 09/04/2026 - v4.43*
+*Ultima atualizacao: 06/07/2026 - v4.44*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*
 
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

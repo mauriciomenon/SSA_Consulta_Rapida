@@ -3,7 +3,7 @@
 Tag local da baseline atual: `v4.44`.
 Release/tag publicada mais recente no remoto `dev`: `v4.36`.
 
-## Current Truth (2026-07-06 00:10 -0300)
+## Current Truth (2026-07-06 09:45 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.44`
@@ -12,6 +12,8 @@ Release/tag publicada mais recente no remoto `dev`: `v4.36`.
   - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
   - `4.44` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada remota permanece `v4.36`
   - `v4.44` foi reservado para fechar a baseline local apos os fixes de validacao e antes do fechamento documental H3/H4/H5/H7/J2/J4
+  - `54bcbc002af3db8877a3b718c105d808a0d5381b` faz o About/Data ISO usar a data ISO do commit em execucao quando `build_info.json` nao esta disponivel
+  - GitHub remoto retorna HTTP 403 por conta suspensa; nao fazer fetch/push/PR/release remota ate desbloqueio e comparacao de divergencia
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
   - validacao completa recente apos os fixes de gate: `2455 passed, 6 skipped, 2 warnings, 11 subtests passed`
   - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos

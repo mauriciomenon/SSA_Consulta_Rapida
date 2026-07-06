@@ -3,12 +3,13 @@
 ## 2026-07-06 DOC_SYNC v4.44 local baseline
 
 - Local baseline promoted to `v4.44` at `4ae43f05b0d81d15b7b224a09dcac7dfb316c915` (`DOC_SYNC: promote local baseline to 4.44`).
-- Slice input HEAD was `75c30f2f681a2303309cce9d51d9bd2da788fdc2` (`DOC_SYNC: close filter hardening audit statuses`) on `dev`, 66 commits ahead of local `origin/dev`; this DOC_SYNC adds 1 local commit, making the branch 67 commits ahead after commit.
+- Current local runtime includes `54bcbc002af3db8877a3b718c105d808a0d5381b` (`STABILITY_PATCH: show commit ISO date in about dialog`), which makes About/Data ISO fall back to the running commit date when `build_info.json` is absent.
+- This DOC_SYNC input HEAD was `54bcbc002af3db8877a3b718c105d808a0d5381b` on `dev`, 68 commits ahead of local `origin/dev`; this DOC_SYNC adds 1 local commit, making the branch 69 commits ahead after commit.
 - Local gates recorded for v4.44: `ruff check .` OK, `ty check` OK, `pip-audit` OK, full pytest `2455 passed, 6 skipped, 2 warnings, 11 subtests`.
 - Follow-up docs closed H3/H4/H5/J4 as delivered or delivered functionally; H7 remains partial and J2 remains deferred pending measured baseline.
 - GitHub operations are blocked: `git ls-remote --heads origin dev` returns HTTP 403 because the account is suspended. Do not fetch, push, open PRs, or rely on remote checks until this is resolved.
 - Local untracked files intentionally remain outside commits: `docs/handoffs/SKILLS_*`, skill audit backups/logs, and `quality_gates_output.jsonl`.
-- Next required GUI evidence: real H6 visual smoke with screenshot showing displayed rows preserved and status suffix/count aligned after simulated `AdvancedFilterMaskError`.
+- H6 visual smoke was executed locally with screenshot evidence in the conversation; next functional cycle is P2 H7/J2/J5/SELECT * after remote unblock and divergence review.
 
 ## 2026-06-07 STABILITY_PATCH advanced filter popup/theme learning
 

@@ -1,9 +1,11 @@
 # BUILD SYSTEM - SSA Consulta Rapida v4.0.0
 
-## CURRENT TRUTH (4.43 local / v4.36 published)
+## CURRENT TRUTH (4.44 local / v4.36 published)
 
-- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Sync deste guia: `2026-07-06 09:45 -0300`.
 - Este arquivo e historico e nao representa o fluxo atual de release.
+- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
+- GitHub remoto esta bloqueado por HTTP 403; nao publicar nem reconstruir release remota ate desbloqueio.
 - Fluxo atual:
   - `docs/BUILD_MULTIPLATFORM.md`
   - `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`

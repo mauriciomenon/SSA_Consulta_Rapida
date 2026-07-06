@@ -1,4 +1,4 @@
-# Troubleshooting de Importacao (Baseline v4.43)
+# Troubleshooting de Importacao (Baseline v4.44)
 
 Guia ativo para diagnosticar falhas de importacao de planilhas.
 
@@ -103,4 +103,3 @@ uv run --python 3.13 python -m pytest -q \
 ```
 
 <!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
-

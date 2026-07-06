@@ -2,17 +2,24 @@
 
 ## Baseline ativo
 
-- Versao de referencia: `4.43`.
+- Versao de referencia: `4.44`.
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
-- Current truth operacional 2026-06-27 15h56:
-  - metadata local ativa: `4.43`
-  - tag local da baseline atual: `v4.43`
+- Current truth operacional 2026-07-06 09h45:
+  - metadata local ativa: `4.44`
+  - tag local da baseline atual: `v4.44`
   - ultima tag publicada remota: `v4.36`
-  - proximo passo funcional: iniciar os slices de filtros/cache/GUI sem misturar com DOC_SYNC
+  - runtime local inclui `54bcbc002af3db8877a3b718c105d808a0d5381b` (`STABILITY_PATCH: show commit ISO date in about dialog`)
+  - GitHub remoto segue bloqueado por HTTP 403; nao usar checks remotos como fonte atual ate desbloqueio
+  - proximo passo funcional: P2 H7/J2/J5/SELECT * apos desbloqueio remoto
 
 ## Historical snapshot
 
+- Snapshot operacional 2026-06-27 15h56:
+  - metadata local ativa: `4.43`
+  - tag local da baseline entao atual: `v4.43`
+  - ultima tag publicada remota: `v4.36`
+  - proximo passo funcional era iniciar os slices de filtros/cache/GUI sem misturar com DOC_SYNC
 - Snapshot operacional anterior 2026-05-04 01h14:
   - `main`, `dev`, `origin/main` e `origin/dev` deveriam estar sincronizados; base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`
   - PR #58 e PR #59 estavam merged

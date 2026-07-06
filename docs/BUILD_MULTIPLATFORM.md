@@ -2,9 +2,12 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (4.43 local release candidate)
+## CURRENT TRUTH (4.44 local / v4.36 published)
 
-- Sync deste guia: `2026-06-11 11:00 -0300`.
+- Sync deste guia: `2026-07-06 09:45 -0300`.
+- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
+- Estado remoto: GitHub retorna HTTP 403 por conta suspensa; nao fazer fetch/push/release remoto ate desbloqueio.
+- Artefatos `v4.43` citados abaixo sao exemplos historicos de nomenclatura, nao artefatos atuais para publicacao.
 - Relatorio consolidado deste ciclo:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional 3x3:
@@ -68,7 +71,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## Nota de versao
 
-Exemplos de nomes versionados neste documento usam v4.43 como baseline atual.
+Exemplos de nomes versionados neste documento preservam o snapshot historico v4.43.
 No fluxo ativo, usar a versao corrente definida em `VERSION` e `config/version.json`.
 
 ## Estrutura de Build

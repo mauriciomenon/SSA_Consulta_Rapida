@@ -1,8 +1,10 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (baseline v4.43)
+## CURRENT TRUTH (baseline v4.44 local / v4.36 published)
 
-- Sync deste guia: `2026-04-15 15:45 -0300`.
+- Sync deste guia: `2026-07-06 09:45 -0300`.
+- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
+- GitHub remoto esta bloqueado por HTTP 403; nao publicar release remota ate desbloqueio e nova comparacao de divergencia.
 - Caminho operacional principal:
   - build: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`
@@ -35,7 +37,7 @@ Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
 > operacional atual deste guia fica no bloco `CURRENT TRUTH`.
 
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.43
+**Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: MSYS2 UCRT64 / CMD / PowerShell
 

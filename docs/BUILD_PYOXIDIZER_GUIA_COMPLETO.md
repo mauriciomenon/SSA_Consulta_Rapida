@@ -1,8 +1,10 @@
 # Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
 
-## CURRENT TRUTH (4.43 local / v4.36 published)
+## CURRENT TRUTH (4.44 local / v4.36 published)
 
-- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Sync deste guia: `2026-07-06 09:45 -0300`.
+- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
+- GitHub remoto esta bloqueado por HTTP 403; nao publicar release remota ate desbloqueio e nova comparacao de divergencia.
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
   - `windows_amd64`
   - `debian_amd64` (via WSL)
@@ -26,11 +28,11 @@
 ## HISTORICAL SNAPSHOT NOTICE
 
 Este documento foi mantido para contexto tecnico.
-Nao usar como runbook primario de release em v4.33.
+Nao usar como runbook primario de release.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.43
+**Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (NAO MSYS2)
 

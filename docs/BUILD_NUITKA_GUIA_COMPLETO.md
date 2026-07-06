@@ -1,8 +1,10 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (baseline v4.43)
+## CURRENT TRUTH (baseline v4.44 local / v4.36 published)
 
-- Sync deste guia: `2026-04-15 15:45 -0300`.
+- Sync deste guia: `2026-07-06 09:45 -0300`.
+- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
+- GitHub remoto esta bloqueado por HTTP 403; nao publicar release remota ate desbloqueio e nova comparacao de divergencia.
 - Fluxo canonico Nuitka (sempre via uv wrappers):
   - Windows: `dev_env/build/build_nuitka.bat --silent`
   - Debian/WSL: `bash dev_env/build/build_nuitka_debian.sh --silent`
@@ -30,7 +32,7 @@ Quando houver conflito com docs operacionais, prevalece CURRENT TRUTH.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.43
+**Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (PATH limpo)
 
