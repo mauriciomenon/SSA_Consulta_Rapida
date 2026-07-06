@@ -11,7 +11,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from scripts.pwsh_discovery import pick_pwsh
 from utils.robust_logging import get_robust_logger
@@ -244,7 +244,7 @@ def build_timeout_wrapper_header(cmd: list[str], timeout_s: int) -> str:
 
 
 def _terminate_process(
-    process: subprocess.Popen[str],
+    process: subprocess.Popen[Any],
     *,
     kill_process_tree: bool,
     pwsh_picker: Callable[[], str | None] | None,
@@ -309,7 +309,7 @@ def _terminate_process(
 
 
 def _wait_for_termination(
-    process: subprocess.Popen[str],
+    process: subprocess.Popen[Any],
     *,
     kill_process_tree: bool,
     logger,
@@ -343,7 +343,7 @@ def _wait_for_termination(
 
 
 def _terminate_and_wait(
-    process: subprocess.Popen[str],
+    process: subprocess.Popen[Any],
     *,
     kill_process_tree: bool,
     pwsh_picker: Callable[[], str | None] | None = None,
@@ -377,20 +377,24 @@ def run_logged_pytest(
 ) -> int:
     logger = get_robust_logger().get_logger(__name__, "cli")
     resolved_pwsh_picker = pwsh_picker or pick_pwsh
-    process = None
+    process: subprocess.Popen[Any] | None = None
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
         logf.write(header)
         logf.flush()
         try:
-            popen_kwargs = {}
             if os.name != "nt":
-                popen_kwargs["start_new_session"] = True
-            process = subprocess.Popen(
-                cmd,
-                stdout=logf,
-                stderr=subprocess.STDOUT,
-                **popen_kwargs,
-            )
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=logf,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+            else:
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=logf,
+                    stderr=subprocess.STDOUT,
+                )
             try:
                 process.wait(timeout=timeout_s)
             except subprocess.TimeoutExpired:

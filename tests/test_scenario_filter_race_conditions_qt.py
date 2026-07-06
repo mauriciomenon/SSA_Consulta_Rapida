@@ -152,9 +152,11 @@ class TestScenarioFilterRaceConditions(GUIFilterScenarioHarness):
         assert second_request > first_request
 
         self.wait_until_filter_idle()
+        beta_descriptions = self.extract_visible_descriptions()
         beta_snapshot = self.snapshot_display_state()
-        assert all("Beta" in row for row in beta_snapshot["descriptions"])
-        assert not any("Alpha" in row for row in beta_snapshot["descriptions"])
+        assert beta_descriptions == beta_snapshot["descriptions"]
+        assert all("Beta" in row for row in beta_descriptions)
+        assert not any("Alpha" in row for row in beta_descriptions)
 
         release_slow.set()
         self.wait_until_filter_idle()

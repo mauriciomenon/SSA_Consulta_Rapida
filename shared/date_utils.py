@@ -68,13 +68,13 @@ def parse_any_date(value) -> str | None:
     if not text:
         return None
     # Strategy order
-    strategies = []
+    strategies: list[bool] = []
     if _ISO_PREFIX.match(text):
-        strategies.append(dict(dayfirst=False))
-    strategies.append(dict(dayfirst=True))
-    strategies.append(dict(dayfirst=False))
-    for opts in strategies:
-        dt = pd.to_datetime(text, errors="coerce", **opts)
+        strategies.append(False)
+    strategies.append(True)
+    strategies.append(False)
+    for dayfirst in strategies:
+        dt = pd.to_datetime(text, errors="coerce", dayfirst=dayfirst)
         if not pd.isna(dt):
             return dt.strftime("%Y-%m-%d %H:%M:%S")
     return None
