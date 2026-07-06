@@ -227,21 +227,21 @@ Estado corrente DOC_SYNC: runtime HEAD auditado `cf85ec83ca6157265d57bef267748b1
 | **Slice 2** H6 `_mask_any` | Parcial (raise sem GUI) | **Entregue** | `b2a51b81` + `9b2005d5` cobrem apply e refresh |
 | **Slice 3** H1/H2/J6 | Entregue | Entregue | testes visuais Qt reforcados (Cursor) |
 | **Slice 4** smoke RSS/ms | Pendente | **Parcial** | `@pytest.mark.performance` + medicao 50k; CI job dedicado pendente |
-| **Slice 5** J2 deep copies | Pendente | **Pendente** | CHANGELOG deferido; contracts deep_copy existem |
+| **Slice 5** J2 deep copies | Pendente | **Deferido** | contracts deep_copy existem; patch runtime depende de baseline RSS/deep-copy |
 | **Slice 6** J5 arvore derivadas | Parcial (~15%) | **Parcial** | normalizacao vetorizada; arvore deferida (benchmark) |
-| **Slice 7** H4 universo opcoes | Pendente | **Pendente** | testes documentam `df_completo`; decisao produto aberta |
+| **Slice 7** H4 universo opcoes | Pendente | **Entregue** | contrato atual documentado: opcoes avancadas usam `df_completo` |
 | **Slice 8** SQL/load SELECT * | Pendente | **Parcial** | testes SQL policy; runtime SELECT * intacto |
 | **H1** mapa visual execucao | Resolvido | Resolvido | — |
 | **H2** terminal vs post-search | Resolvido | Resolvido | — |
-| **H3** worker cache token | Parcial | Parcial | hash conteudo entregue; custo hash_pandas sem baseline formal |
-| **H4** opcoes de universo global | Pendente | Pendente | — |
-| **H5** sort antes pos-filtros | Parcial | Parcial | contrato `for_sort_defer` e sort reuse existem; manter sem refactor amplo |
+| **H3** worker cache token | Parcial | Entregue funcionalmente | hash conteudo entregue; baseline de custo do hash fica como perf follow-up |
+| **H4** opcoes de universo global | Pendente | Entregue | contrato atual: opcoes avancadas usam `df_completo` |
+| **H5** sort antes pos-filtros | Parcial | Entregue funcionalmente | contrato `for_sort_defer` e sort reuse existem; manter sem refactor amplo |
 | **H6** contador vs df_exibido | Parcial | **Entregue** | fix producao + refresh mixin + on_filter_finished (`faeb8f19`, `37ad59d0`) |
-| **H7** materializacao menus | Pendente | **Parcial** | `5ca3b193` micro-opt; tolist/multi-pass abertos |
+| **H7** materializacao menus | Pendente | **Parcial** | `5ca3b193` micro-opt; medir materializacao antes de novo patch runtime |
 | **J1** sort unico por ciclo | Parcial | Parcial | `ssa_sorted_for_display` reduz re-sort; sem prova formal de max 1 sort/ciclo |
-| **J2** deep copies | Pendente | Pendente | — |
+| **J2** deep copies | Pendente | Deferido | requer baseline RSS/deep-copy antes de patch runtime |
 | **J3** contratos cache | Resolvido | Resolvido | testes ampliados |
-| **J4** opcoes pos-busca | Pendente | Pendente | — |
+| **J4** opcoes pos-busca | Pendente | Entregue | entregue junto com H4 conforme contrato `df_completo` |
 | **J5** derivadas performance | Parcial | Parcial | defer arvore documentado |
 | **J6** terminal-only refresh | Resolvido | Resolvido | — |
 | **has_post_search_filters** | Parcial (semantica dupla) | **Parcial estabilizado** | `_compute_has_post_search_filters(..., for_sort_defer)` documenta divergencia; trocar por novo helper seria refactor sem ganho claro |
@@ -315,7 +315,7 @@ Commits novos desde `f8239fdf` (15 commits):
 | ID | Pendencia | Evidencia | Acao sugerida |
 |----|-----------|-----------|---------------|
 | P1-1 | **has_post_search_filters unificar** | Parametro `for_sort_defer` ja explicita contrato; refactor amplo nao justificado | Manter; reabrir so com regressao ou simplificacao menor comprovada |
-| P1-2 | **H5/J1 sort unico** | Reuse parcial entregue; falta spy formal de max 1 sort/ciclo | Adicionar teste se nova regressao aparecer |
+| P1-2 | **H5/J1 sort unico** | H5 entregue funcionalmente; J1 segue sem spy formal de max 1 sort/ciclo | Adicionar teste se nova regressao aparecer |
 | P1-3 | **Paginate hotspot runtime** | Fechado em `977e67cdc2129e1296bdf39a40a8705db6fda66c`; 50k paginate avg ~0.035ms | Manter smoke performance como guarda |
 | P1-4 | **Notice H6 explicita** | Fechado em `671554e7bc54b47ef2b5f5e262a524a32a61864c` | Manter testes H6 apply/refresh |
 | P1-5 | **Header visual `[f]` semana_executada** | Coberto por `test_scenario_visual_filter_state_qt.py` (`ano_execucao` marca `semana_executada`) | Manter cobertura Qt |
@@ -324,11 +324,11 @@ Commits novos desde `f8239fdf` (15 commits):
 
 | ID | Pendencia | Evidencia | Acao sugerida |
 |----|-----------|-----------|---------------|
-| P2-1 | **Slice 5 J2 deep copies** | CHANGELOG deferido; contracts existem | Patch runtime apos RSS baseline Slice 4 |
+| P2-1 | **Slice 5 J2 deep copies** | Deferido; contracts existem | Patch runtime so apos baseline RSS/deep-copy |
 | P2-2 | **Slice 6 J5 arvore derivadas** | CHANGELOG: vectorizacao mais lenta que itertuples 50k | Manter defer ou re-benchmark com dados reais |
-| P2-3 | **Slice 7 H4/J4 universo opcoes** | Testes documentam `df_completo` global | Decision gate produto: complete vs filtered |
+| P2-3 | **Slice 7 H4/J4 universo opcoes** | Entregue conforme contrato atual `df_completo` global | Reabrir somente com decisao produto para universo filtrado |
 | P2-4 | **Slice 8 SELECT *** | Runtime inalterado; tests SQL policy | Projecao colunas ou paginacao SQL |
-| P2-5 | **H7 estrutural** | `tolist()` e multi-pass scan opcoes | unique/lazy + agregar passes refresh |
+| P2-5 | **H7 estrutural** | `tolist()` e multi-pass scan opcoes | medir materializacao antes de unique/lazy ou agregar passes refresh |
 | P2-6 | **CI job performance** | `-m "not performance"` no pytest normal | Workflow dedicado com marker performance |
 | P2-7 | **except flags L917-921** | Falha flags -> sort indevido silencioso | Tratar como erro visivel ou fail-closed sem sort |
 | P2-8 | **Fonte Qt headless** | Fechado em `cf85ec83ca6157265d57bef267748b108e9ecf41`; smoke direto usa `Helvetica Neue` no macOS e remove aviso `Sans Serif` | Manter lista por plataforma; nao alterar layout sem screenshot/smoke |
@@ -460,15 +460,15 @@ git diff f8239fdf..HEAD --stat
 |-----------|-----------------|-------------|
 | H1 | Mapa visual ano/semana execucao -> `semana_executada` | Entregue (`6e230bcf`) |
 | H2 | Terminal exclusion fora de post-search no refresh | Entregue (`6e230bcf`) |
-| H3 | Token worker sensivel a mutacao in-place | Parcial (`84178418`) |
-| H4 | Opcoes avancadas de `df_completo` vs recorte busca | Pendente (decisao produto) |
-| H5 | Sort geral antes pos-filtros | Parcial (`f8239fdf`) |
+| H3 | Token worker sensivel a mutacao in-place | Entregue funcionalmente (`84178418`); baseline de custo do hash fica como perf follow-up |
+| H4 | Opcoes avancadas de `df_completo` vs recorte busca | Entregue conforme contrato atual `df_completo` |
+| H5 | Sort geral antes pos-filtros | Entregue funcionalmente; manter `for_sort_defer` sem refactor |
 | H6 | Falha mascara vs contador/grid | Entregue (`b2a51b81`, `faeb8f19`, `37ad59d0`) |
-| H7 | Materializacao O(n) menus | Parcial (`5ca3b193`) |
+| H7 | Materializacao O(n) menus | Parcial (`5ca3b193`); medir materializacao antes de patch |
 | J1 | Um sort por ciclo | Parcial |
-| J2 | Deep copies cache/pipeline | Pendente (deferido) |
+| J2 | Deep copies cache/pipeline | Deferido; requer baseline RSS/deep-copy |
 | J3 | Contratos invalidacao cache | Entregue + testes |
-| J4 | Universo opcoes pos-busca | Pendente |
+| J4 | Universo opcoes pos-busca | Entregue junto com H4 conforme contrato `df_completo` |
 | J5 | Performance filtros derivada | Parcial (normalizacao only) |
 | J6 | Terminal-only sem pos-filtros | Entregue (`6e230bcf`) |
 

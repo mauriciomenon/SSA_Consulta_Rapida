@@ -935,21 +935,21 @@ gui/mixins/filter_gui_ssa_mixin.py              |  4 ++--
 | Slice 2 H6 mask | Entregue | `ad4a2cff`, `b2a51b81`, `faeb8f19`, `a38a2ac3` |
 | Slice 3 H1/H2/J6 | Entregue | `6e230bcf` + contracts |
 | Slice 4 smoke RSS/ms | Parcial | markers performance; CI job pendente |
-| Slice 5 J2 deep copies | Pendente | CHANGELOG defer |
+| Slice 5 J2 deep copies | Deferido | patch runtime requer baseline RSS/deep-copy |
 | Slice 6 J5 arvore derivadas | Parcial | normalizacao vetorizada only |
-| Slice 7 H4 universo opcoes | Pendente | decisao produto |
+| Slice 7 H4 universo opcoes | Entregue | contrato atual: opcoes avancadas usam `df_completo` |
 | Slice 8 SQL SELECT * | Parcial | tests policy; runtime intacto |
 | H1 mapa visual | Resolvido |  |
 | H2 terminal vs post-search | Resolvido |  |
-| H3 worker token | Parcial | `84178418` |
-| H4 opcoes universo | Pendente |  |
-| H5 sort pos-filtros | Parcial | `f8239fdf`, `b309ebbe` fail-closed flags |
+| H3 worker token | Entregue funcionalmente | `84178418`; baseline de custo do hash fica como perf follow-up |
+| H4 opcoes universo | Entregue | contrato atual: opcoes avancadas usam `df_completo` |
+| H5 sort pos-filtros | Entregue funcionalmente | manter `for_sort_defer` sem refactor |
 | H6 contador vs grid | Entregue | cadeia apply + refresh + on_filter_finished (`37ad59d0`) |
-| H7 materializacao | Parcial | `5ca3b193` |
+| H7 materializacao | Parcial | `5ca3b193`; medir materializacao antes de patch |
 | J1 sort unico | Parcial | `0c4e6684` helper unificado |
-| J2 deep copies | Pendente |  |
+| J2 deep copies | Deferido | baseline RSS/deep-copy pendente |
 | J3 contratos cache | Resolvido |  |
-| J4 opcoes pos-busca | Pendente |  |
+| J4 opcoes pos-busca | Entregue | entregue junto com H4 conforme contrato `df_completo` |
 | J5 derivadas perf | Parcial |  |
 | J6 terminal-only refresh | Resolvido |  |
 | has_post_search_filters | Parcial->Entregue helper | `0c4e6684` |
@@ -976,13 +976,13 @@ gui/mixins/filter_gui_ssa_mixin.py              |  4 ++--
 
 ### P1
 - Paginate hotspot runtime (~313ms/50k)
-- H5/J1: validar max 1 sort/ciclo apos `b309ebbe`
+- J1: validar max 1 sort/ciclo se nova regressao aparecer
 - Unificar suffix H6 em todos callers de falha de mascara
 
 ### P2
-- Slice 5 J2 deep copies (defer CHANGELOG)
+- Slice 5 J2 deep copies: baseline RSS/deep-copy antes de patch
 - Slice 6 J5 arvore derivadas (benchmark 50k)
-- Slice 7 H4/J4 decisao universo opcoes
+- H7 materializacao: medir custo antes de patch runtime
 - Slice 8 SELECT * runtime
 - CI job performance dedicado
 
