@@ -112,7 +112,7 @@ Release/tag publicada mais recente no remoto `dev`: `v4.36`.
 
 ## Historical Snapshot (2026-03-23 19:01 -0300)
 
-- Baseline ativo mantido em `v4.33` (snapshot historico, nao corrente).
+- Snapshot historico preservado; nao representa o baseline ativo.
 - Commits mais recentes relevantes para o estado daquele fechamento:
   - `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
   - `25c64c58` `STABILITY_PATCH: close residual nullable filter paths`

@@ -119,7 +119,7 @@ def test_source_protection_rejects_app_pyc_in_directory(tmp_path: Path) -> None:
 def test_source_protection_rejects_nested_bundle_app_source(tmp_path: Path) -> None:
     package = tmp_path / "artifact.zip"
     with zipfile.ZipFile(package, "w") as archive:
-        archive.writestr("release/v4.42/bundle/core/app_logic.py", "print('leak')\n")
+        archive.writestr("release/v4.44/bundle/core/app_logic.py", "print('leak')\n")
 
     with pytest.raises(SourceExposureError, match="core/app_logic.py"):
         validate_source_protection(package)
