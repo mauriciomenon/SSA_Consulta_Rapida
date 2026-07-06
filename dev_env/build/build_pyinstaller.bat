@@ -28,6 +28,12 @@ if "%SILENT%"=="1" (
     uv run --python 3.13 "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --clean
 )
 
+if errorlevel 1 (
+    echo Limpeza PyInstaller falhou.
+    if "%SILENT%"=="0" pause
+    exit /b 1
+)
+
 if "%SILENT%"=="1" (
     echo [build_pyinstaller] modo silencioso ativo. log: "%LOG_FILE%"
     uv run --python 3.13 "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --apps cli gui > "%LOG_FILE%" 2>&1

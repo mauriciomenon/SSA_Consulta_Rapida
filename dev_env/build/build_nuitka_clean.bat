@@ -46,6 +46,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist"
+if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.dist"
+if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.build" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.build"
+if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.build" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.build"
 if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist"
 if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist"
 
@@ -73,6 +77,23 @@ if "%SILENT%"=="1" (
 if errorlevel 1 (
     echo Build Nuitka CLI falhou. Veja o log: "%LOG_FILE%"
     if "%SILENT%"=="0" pause
+    exit /b 1
+)
+
+if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist"
+if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.dist"
+if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist" (
+    ren "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist" gui_entry.dist
+)
+if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist" (
+    ren "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist" cli_entry.dist
+)
+if not exist "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist" (
+    echo Build Nuitka GUI concluiu sem gui_entry.dist canonico.
+    exit /b 1
+)
+if not exist "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.dist" (
+    echo Build Nuitka CLI concluiu sem cli_entry.dist canonico.
     exit /b 1
 )
 

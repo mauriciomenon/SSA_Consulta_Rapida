@@ -5,6 +5,7 @@ import importlib.util
 import pytest
 
 from launchers.build_complete import _get_project_root
+from tests.release_script_assertions import section_between
 
 
 PROJECT_ROOT = _get_project_root()
@@ -228,6 +229,36 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
     assert "--build-system pyoxidizer" in pyoxidizer_script
     assert "--platform windows_amd64" in pyoxidizer_script
+
+
+def test_pyinstaller_windows_checks_clean_errorlevel() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--platform windows_amd64 --clean" in script
+    assert "if errorlevel 1 (" in script
+    assert "Limpeza PyInstaller falhou." in script
+    clean_block = section_between(
+        script,
+        "--platform windows_amd64 --clean",
+        "--platform windows_amd64 --apps cli gui",
+    )
+    assert "if errorlevel 1 (" in clean_block
+
+
+def test_nuitka_windows_cleanup_and_canonical_dist_names() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_clean.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert "gui_entry.dist" in script
+    assert "cli_entry.dist" in script
+    assert "gui_entry.build" in script
+    assert "cli_entry.build" in script
+    assert "ren " in script
+    assert "gui_entry.dist canonico" in script
+    assert "cli_entry.dist canonico" in script
 
 
 def test_setup_msvc_path_is_session_only_diagnostic() -> None:
