@@ -1,18 +1,19 @@
-# SSA Consulta Rapida v4.43
+# SSA Consulta Rapida v4.44
 
-Tag local da baseline atual: `v4.43`.
+Tag local da baseline atual: `v4.44`.
 Release/tag publicada mais recente no remoto `dev`: `v4.36`.
 
-## Current Truth (2026-06-27 15:56 -0300)
+## Current Truth (2026-07-06 00:10 -0300)
 
 - Estado operacional:
-  - metadata local ativa: `4.43`
-  - tag local da baseline atual: `v4.43`
+  - metadata local ativa: `4.44`
+  - tag local da baseline atual: `v4.44`
   - ultima tag publicada no remoto `dev`: `v4.36`
   - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
-  - `4.43` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada remota permanece `v4.36`
-  - `v4.43` foi reservado para fechar a baseline local antes dos slices funcionais de filtros/cache/GUI
+  - `4.44` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada remota permanece `v4.36`
+  - `v4.44` foi reservado para fechar a baseline local apos os fixes de validacao e antes do fechamento documental H3/H4/H5/H7/J2/J4
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
+  - validacao completa recente apos os fixes de gate: `2455 passed, 6 skipped, 2 warnings, 11 subtests passed`
   - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos
   - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
 - Contrato de update por SSA (resumo):
@@ -125,7 +126,14 @@ Release/tag publicada mais recente no remoto `dev`: `v4.36`.
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 
-## Baseline v4.43 (2026-06)
+## Baseline v4.44 (2026-07)
+
+### Destaques
+- Metadata local e docs ativos foram promovidos para `4.44`.
+- A tag local `v4.44` marca a baseline apos os fixes de validacao dos gates locais.
+- A ultima tag publicada remota continua sendo `v4.36` ate existir ciclo de release remoto explicitamente aprovado.
+
+## Baseline v4.43 (2026-06, historical)
 
 ### Destaques
 - Metadata local, docs ativos e expectativas de empacotamento foram promovidos para `4.43`.
@@ -265,7 +273,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.43)
+### Documentacao tecnica atual (v4.44)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:

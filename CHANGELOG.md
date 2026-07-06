@@ -2,7 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased] - 2026-06-27
+## [Unreleased]
+
+## [v4.44] - 2026-07-06
+
+### Changed
+- Promoted local active baseline to `4.44`.
+- Synchronized runtime metadata in `VERSION`, `config/version.json`, `pyproject.toml` and `uv.lock`.
+- Fixed local validation gates for the v4.44 baseline:
+  - `scripts/run_tests.sh` no longer depends on Bash `mapfile`, preserving macOS system Bash compatibility.
+  - `tests/test_gui_stability.py` now accepts official `data_cadastro` header variants.
+- Preserved `v4.36` as the latest published remote tag.
+
+### Validation
+- `bash -n scripts/run_tests.sh`
+- `shellcheck scripts/run_tests.sh`
+- `ruff check .`
+- `pytest -q tests`: `2455 passed, 6 skipped, 2 warnings, 11 subtests passed`
+
+## [v4.43+ local] - 2026-06-27
 
 ### Changed
 - Local top on `dev` after baseline `4.43`:

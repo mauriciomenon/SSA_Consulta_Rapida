@@ -35,11 +35,25 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - `display_current_page(...)` continua concentrando responsabilidades demais.
 - O risco agudo dos call sites principais caiu, mas qualquer refatoracao nessa area segue devendo slice proprio e pequeno.
 
-## **RELEASE v4.43 - CURRENT LOCAL BASELINE**
+## **RELEASE v4.44 - CURRENT LOCAL BASELINE**
+
+**Data de Lancamento**: Julho 2026
+**Tipo**: Local validation baseline and release alignment
+**Status**: Baseline local ativo
+
+### **Principais entregas**
+- Baseline operacional promovido para `4.44`.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
+- Fixes de validacao incorporados antes da tag local:
+  - `scripts/run_tests.sh` compativel com Bash antigo do macOS.
+  - teste de estabilidade GUI alinhado as variantes oficiais de `data_cadastro`.
+- Ultima tag/release GitHub publicada permanece `v4.36`.
+
+## **RELEASE v4.43 - HISTORICAL LOCAL BASELINE**
 
 **Data de Lancamento**: Junho 2026
 **Tipo**: Stabilization baseline and release alignment
-**Status**: Baseline local ativo
+**Status**: Baseline local historico
 
 ### **Principais entregas**
 - Baseline operacional promovido para `4.43`.
@@ -699,7 +713,8 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.43**: Baseline estavel local ativo
+- **v4.44**: Baseline estavel local ativo
+- **v4.43**: Baseline local historico
 - **v4.42**: Baseline local historico
 - **v4.37**: Baseline local historico
 - **v4.36**: Ultima tag publicada
@@ -712,7 +727,7 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de referencia mais recente no baseline atual (`4.43`).
+Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de referencia mais recente no baseline atual (`4.44`).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
 
