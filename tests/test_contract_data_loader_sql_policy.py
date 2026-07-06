@@ -1,4 +1,4 @@
-"""Contract tests for DataLoader SELECT * / LIMIT / OFFSET policy.
+"""Contract tests for DataLoader projection / LIMIT / OFFSET policy.
 
 Cross-ref: gui/workers/data_loader_query.py (build_select_query).
 Integration test would fail if OFFSET were ignored (len != 7, wrong first id).
@@ -34,6 +34,7 @@ def qapp():
 def test_offset_without_explicit_limit_adds_sqlite_cap():
     query, already_sorted = build_select_query(
         target_table="ssa_data",
+        select_columns=("numero_ssa", "situacao", "descricao_ssa"),
         order_by=None,
         limit=None,
         offset=25,
@@ -48,6 +49,7 @@ def test_offset_without_explicit_limit_adds_sqlite_cap():
 def test_zero_offset_omits_offset_clause():
     query, _already_sorted = build_select_query(
         target_table="ssa_data",
+        select_columns=("numero_ssa", "situacao", "descricao_ssa"),
         order_by=None,
         limit=None,
         offset=0,
@@ -68,6 +70,7 @@ def test_negative_limit_or_offset_raises(limit, offset, match):
     with pytest.raises(ValueError, match=match):
         build_select_query(
             target_table="ssa_data",
+            select_columns=("numero_ssa", "situacao", "descricao_ssa"),
             order_by=None,
             limit=limit,
             offset=offset,
@@ -79,6 +82,7 @@ def test_disallowed_order_column_raises():
     with pytest.raises(ValueError, match="nao permitida"):
         build_select_query(
             target_table="ssa_data",
+            select_columns=("numero_ssa", "situacao", "descricao_ssa"),
             order_by="password ASC",
             limit=10,
             offset=0,
@@ -112,6 +116,8 @@ def test_data_loader_worker_sql_contains_offset_clause(tmp_path):
         worker.run()
 
     normalized = captured["query"].upper()
+    assert "SELECT *" not in normalized
+    assert normalized.startswith('SELECT "NUMERO_SSA", "SITUACAO", "DESCRICAO_SSA" FROM')
     assert f"LIMIT {SQLITE_OFFSET_WITHOUT_LIMIT}" in normalized
     assert " OFFSET 3" in normalized
 
@@ -154,6 +160,7 @@ def test_data_loader_worker_offset_skips_first_rows(tmp_path):
 def test_build_select_query_limit_and_offset_combined():
     query, already_sorted = build_select_query(
         target_table="ssa_data",
+        select_columns=("numero_ssa", "situacao", "descricao_ssa"),
         order_by="numero_ssa ASC",
         limit=5,
         offset=2,

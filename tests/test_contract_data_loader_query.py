@@ -23,9 +23,10 @@ def qapp():
     yield app
 
 
-def test_build_select_query_without_limit_uses_select_star():
+def test_build_select_query_without_limit_uses_explicit_projection():
     query, already_sorted = build_select_query(
         target_table="ssa_data",
+        select_columns=("numero_ssa", "situacao", "descricao_ssa"),
         order_by=None,
         limit=None,
         offset=None,
@@ -33,7 +34,10 @@ def test_build_select_query_without_limit_uses_select_star():
     )
 
     normalized = query.upper()
-    assert normalized.startswith("SELECT * FROM")
+    assert normalized.startswith(
+        'SELECT "NUMERO_SSA", "SITUACAO", "DESCRICAO_SSA" FROM'
+    )
+    assert "SELECT *" not in normalized
     assert " LIMIT " not in normalized
     assert " ORDER BY " in normalized
     assert "NUMERO_SSA" in normalized
@@ -82,6 +86,7 @@ def test_data_loader_worker_e2e_sqlite_loads_full_table_without_limit(tmp_path):
 
     query, _already_sorted = build_select_query(
         target_table="ssa_table",
+        select_columns=("numero_ssa", "situacao", "descricao_ssa"),
         order_by=None,
         limit=None,
         offset=None,

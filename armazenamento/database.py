@@ -252,7 +252,9 @@ def query_db(
                 if params:
                     raise ValueError("params require a custom SQL query")
                 resolved_table = _resolve_target_table(conn, table_name)
-                effective_query = f"SELECT * FROM {_quote_identifier(resolved_table)}"  # nosec B608  # skipcq: BAN-B608
+                effective_query = _build_explicit_select_all_query(
+                    conn, resolved_table
+                )
             else:
                 _validate_read_only_query(effective_query)
 
@@ -529,6 +531,16 @@ def _quote_identifier(name: str) -> str:
     if not is_valid_identifier(safe_name):
         raise ValueError(f"Invalid SQL identifier: {name!r}")
     return f'"{safe_name}"'
+
+
+def _build_explicit_select_all_query(conn: sqlite3.Connection, table_name: str) -> str:
+    quoted_table = _quote_identifier(table_name)
+    rows = conn.execute(f"PRAGMA table_info({quoted_table})").fetchall()  # nosec B608
+    columns = [str(row[1]) for row in rows if len(row) > 1 and row[1]]
+    if not columns:
+        raise ValueError(f"No columns found for table: {table_name}")
+    projection = ", ".join(_quote_identifier(column) for column in columns)
+    return f"SELECT {projection} FROM {quoted_table}"  # nosec B608
 
 
 def _normalize_column_definition(column_definition: str) -> str:

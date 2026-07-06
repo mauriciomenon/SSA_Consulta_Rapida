@@ -39,6 +39,16 @@ def _quote_identifier(name: str) -> str:
     return '"' + safe_name.replace('"', '""') + '"'
 
 
+def _build_explicit_select_all_query(conn: sqlite3.Connection, table_name: str) -> str:
+    quoted_table = _quote_identifier(table_name)
+    rows = conn.execute(f"PRAGMA table_info({quoted_table})").fetchall()  # nosec B608
+    columns = [str(row[1]) for row in rows if len(row) > 1 and row[1]]
+    if not columns:
+        raise ValueError(f"No columns found for table: {table_name}")
+    projection = ", ".join(_quote_identifier(column) for column in columns)
+    return f"SELECT {projection} FROM {quoted_table}"  # nosec B608
+
+
 def _resolve_report_table_name(conn, requested_table_name: str) -> str:
     safe_table_name = str(requested_table_name or "").strip()
     if not is_valid_identifier(safe_table_name):
@@ -283,9 +293,8 @@ def repair_database_if_needed(
                             )
                         if not is_valid_identifier(source_table):
                             raise ValueError(f"Invalid SQL identifier: {source_table}")
-                        quoted_source_table = _quote_identifier(source_table)
                         df_backup = pd.read_sql_query(
-                            f"SELECT * FROM {quoted_source_table}",  # nosec B608  # skipcq: BAN-B608
+                            _build_explicit_select_all_query(conn, source_table),
                             conn,
                         )
                     except Exception as e:  # pragma: no cover

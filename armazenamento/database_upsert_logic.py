@@ -173,6 +173,14 @@ def _quote_identifier(name: str) -> str:
     return f'"{safe_name}"'
 
 
+def _build_table_projection(conn: Any, quoted_table_name: str) -> str:
+    rows = conn.execute(f"PRAGMA table_info({quoted_table_name})").fetchall()  # nosec B608
+    columns = [str(row[1]) for row in rows if len(row) > 1 and row[1]]
+    if not columns:
+        raise ValueError(f"No columns found for table: {quoted_table_name}")
+    return ", ".join(_quote_identifier(column) for column in columns)
+
+
 def _coerce_sqlite_scalar(value: Any) -> Any:
     if isinstance(value, np.generic) and np.isscalar(value):
         scalar_value = cast(np.generic, value)
@@ -852,11 +860,12 @@ def _load_existing_chunk_caches(
     if not chunk_num_ssa:
         return pd.DataFrame(), {}, {}
     existing_parts: list[pd.DataFrame] = []
+    projection = _build_table_projection(conn, quoted_table_name)
     for start in range(0, len(chunk_num_ssa), _SQLITE_IN_MAX_VARS):
         query_ids = chunk_num_ssa[start : start + _SQLITE_IN_MAX_VARS]
         placeholders = ", ".join(["?"] * len(query_ids))
         part = pd.read_sql_query(
-            f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",  # nosec B608
+            f"SELECT {projection} FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",  # nosec B608
             conn,
             params=query_ids,
         )

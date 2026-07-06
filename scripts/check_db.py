@@ -31,7 +31,7 @@ try:
         print(f"  {col[1]} ({col[2]})")
 
     print("\n=== SAMPLE DATA ===")
-    cur.execute("SELECT * FROM ssa_table LIMIT 1")
+    cur.execute("SELECT numero_ssa FROM ssa_table LIMIT 1")
     sample = cur.fetchone()
     if sample:
         print("First record has data: YES")

@@ -8,7 +8,7 @@ from armazenamento.identifier_utils import is_valid_identifier
 
 SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SQLITE_OFFSET_WITHOUT_LIMIT = 9223372036854775807
-ALLOWED_ORDER_COLUMNS = {
+DEFAULT_SELECT_COLUMNS = (
     "numero_ssa",
     "situacao",
     "data_cadastro",
@@ -24,7 +24,8 @@ ALLOWED_ORDER_COLUMNS = {
     "grau_prioridade_emissao",
     "grau_prioridade_planejamento",
     "derivada_de",
-}
+)
+ALLOWED_ORDER_COLUMNS = set(DEFAULT_SELECT_COLUMNS)
 
 
 def sanitize_identifier(value: str) -> str:
@@ -86,9 +87,27 @@ def normalize_order_by(order_by: str | None) -> str | None:
     return ", ".join(normalized_parts)
 
 
+def build_select_projection(select_columns: tuple[str, ...] | None) -> str:
+    columns = select_columns or DEFAULT_SELECT_COLUMNS
+    normalized_columns = []
+    seen = set()
+    for raw_column in columns:
+        column = sanitize_identifier(raw_column)
+        if not column:
+            raise ValueError(f"Coluna SELECT invalida: {raw_column}")
+        if column in seen:
+            continue
+        normalized_columns.append(quote_identifier(column))
+        seen.add(column)
+    if not normalized_columns:
+        raise ValueError("Consulta SELECT sem colunas validas")
+    return ", ".join(normalized_columns)
+
+
 def build_select_query(
     *,
     target_table: str,
+    select_columns: tuple[str, ...] | None = None,
     order_by: str | None,
     limit: int | None,
     offset: int | None,
@@ -96,7 +115,8 @@ def build_select_query(
 ) -> tuple[str, bool]:
     if not sanitize_identifier(target_table):
         raise ValueError("Tabela alvo invalida para DataLoaderWorker")
-    query = f"SELECT * FROM {quote_identifier(target_table)}"  # nosec B608
+    projection = build_select_projection(select_columns)
+    query = f"SELECT {projection} FROM {quote_identifier(target_table)}"  # nosec B608
     already_sorted_for_ui = False
 
     order_clause = normalize_order_by(order_by)

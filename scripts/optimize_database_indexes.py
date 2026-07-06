@@ -127,7 +127,7 @@ def analyze_query_performance():
     test_queries = [
         (
             "Busca por número SSA",
-            "SELECT * FROM ssas WHERE numero_ssa = '2025001' LIMIT 1",
+            "SELECT numero_ssa FROM ssas WHERE numero_ssa = '2025001' LIMIT 1",
         ),
         (
             "Filtro por situação",

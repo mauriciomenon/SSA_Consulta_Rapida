@@ -17,7 +17,7 @@ from gui.workers.data_loader_processing import (
     LoadedDataFrames,
     prepare_loaded_payload,
 )
-from gui.workers.data_loader_repository import resolve_target_table
+from gui.workers.data_loader_repository import resolve_table_columns, resolve_target_table
 from gui.workers.data_loader_query import build_select_query
 
 logger = logging.getLogger(__name__)
@@ -62,8 +62,10 @@ class DataLoaderWorker(QThread):
             if self._is_cancelled():
                 return
             target_table = resolve_target_table(self.db_path, self.table_name)
+            select_columns = resolve_table_columns(self.db_path, target_table)
             query, already_sorted_for_ui = build_select_query(
                 target_table=target_table,
+                select_columns=select_columns,
                 order_by=self.order_by,
                 limit=self.limit,
                 offset=self.offset,
