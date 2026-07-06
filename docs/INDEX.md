@@ -2,15 +2,15 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-07-06 10:34 -0300)
+## Sync status (2026-07-06 12:52 -0300)
 
 1. Baseline ativo confirmado: `4.44`.
 2. Branch operacional: `dev`.
 3. Baseline local/tag: `v4.44`.
 4. Release/tag publicada relevante: `v4.36`.
 5. HEAD local confirmado:
-   - `4ac834b23fe243f801aac4995b0c11efa6fe62fe` `DOC_SYNC: record P2 runtime cleanup status`
-   - `dev` esta 74 commits a frente de `origin/dev` pela ref local.
+   - `63631e72b1f622c33d0c64fdb43e8e5fb342c4b8` `STABILITY_PATCH: harden release_windows.ps1 pre-zip workspace`
+   - `dev` esta 76 commits a frente de `origin/dev` pela ref local.
 6. Estado remoto:
    - `git ls-remote --heads origin dev` retorna HTTP 403 com conta GitHub suspensa.
    - `fetch`, `push`, PR e checks remotos nao sao confiaveis ate desbloqueio da conta.
@@ -23,15 +23,17 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `54bcbc00` `STABILITY_PATCH: show commit ISO date in about dialog`
    - `2a19d876` `DOC_SYNC: align active docs to v4.44`
    - `bd76ace3` `STABILITY_PATCH: replace runtime select star queries`
-   - `4ac834b2` `DOC_SYNC: record P2 runtime cleanup status`
+   - `c3874e49` `DOC_SYNC: record P2 runtime cleanup status`
+   - `bdad722c` `STABILITY_PATCH: harden Windows build wrapper cleanup`
+   - `63631e72` `STABILITY_PATCH: harden release_windows.ps1 pre-zip workspace`
 8. Estado validado local:
-   - `ruff check .`: OK
-   - `ty check`: OK
-   - `pytest -q tests`: 2455 passed, 6 skipped, 2 warnings, 11 subtests
+   - `ruff check .`: OK (ultimo ciclo P2)
+   - `ty check`: OK (ultimo ciclo P2)
+   - release Windows contracts: 91 passed (subset release-related)
    - H3/H4/H5/J4 fechados documentalmente; H7/J2/J5 medidos e deferidos sem patch runtime por ausencia de hotspot.
 9. Pendencias imediatas:
    - desbloqueio GitHub antes de qualquer fetch/push
-   - P2 `SELECT *` fechado localmente; H7/J2/J5 medidos e deferidos sem patch runtime por ausencia de hotspot
+   - smoke real Windows `release_windows.ps1` em host Win32NT
    - DOC_SYNC/decisao separada para untracked `docs/handoffs/SKILLS_*`
    - nao commitar `quality_gates_output.jsonl` sem pedido explicito
 
