@@ -760,6 +760,35 @@ def resolve_git_commit_hash_text(*, short: bool = True) -> str:
     return "indisponivel"
 
 
+def resolve_git_commit_datetime_text() -> str:
+    """Resolve the current commit date in strict ISO format for UI display."""
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return "indisponivel"
+    try:
+        result = subprocess.run(  # nosec B603
+            [git_exe, "show", "-s", "--format=%cI", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+            cwd=project_root,
+        )
+        output = str(result.stdout or "").strip()
+        if output:
+            return output
+    except Exception as exc:
+        logger.debug("Falha ao resolver data ISO de commit: %s", exc)
+    return "indisponivel"
+
+
+def resolve_about_datetime_text(build_info: dict[str, Any]) -> str:
+    build_datetime = str(build_info.get("build_datetime") or "").strip()
+    if build_datetime:
+        return build_datetime
+    return resolve_git_commit_datetime_text()
+
+
 def build_about_message(app_version: str) -> str:
     """Monta texto do dialogo Sobre."""
     build_info = _load_embedded_build_info()
@@ -770,7 +799,7 @@ def build_about_message(app_version: str) -> str:
             or build_info.get("git_commit")
             or commit_hash
         )
-    build_datetime = str(build_info.get("build_datetime") or "").strip() or "indisponivel"
+    build_datetime = resolve_about_datetime_text(build_info)
     lines = [
         "Consulta Rapida de SSAs",
         f"Versao: {app_version}",
@@ -783,7 +812,7 @@ def build_about_message(app_version: str) -> str:
 
 def build_about_summary_line(app_version: str) -> str:
     build_info = _load_embedded_build_info()
-    build_datetime = str(build_info.get("build_datetime") or "").strip() or "indisponivel"
+    build_datetime = resolve_about_datetime_text(build_info)
     commit_hash = resolve_git_commit_hash_text(short=False)
     if commit_hash == "indisponivel":
         commit_hash = str(

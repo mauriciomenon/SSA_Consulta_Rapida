@@ -10,13 +10,29 @@ from gui import gui_ssa
 def test_build_about_message_includes_commit_hash(monkeypatch) -> None:
     monkeypatch.setattr(gui_ssa, "resolve_uv_version_text", lambda: "0.0.0-test")
     monkeypatch.setattr(gui_ssa, "resolve_git_commit_hash_text", lambda: "abc1234")
+    monkeypatch.setattr(
+        gui_ssa, "resolve_git_commit_datetime_text", lambda: "2026-07-06T09:27:56-03:00"
+    )
 
     message = gui_ssa.build_about_message("9.9.9")
 
     assert "Versao: 9.9.9" in message
     assert "Autor: Mauricio Menon" in message
-    assert "Data ISO: indisponivel" in message
+    assert "Data ISO: 2026-07-06T09:27:56-03:00" in message
     assert "Commit: abc1234" in message
+
+
+def test_build_about_message_uses_unavailable_when_build_info_and_git_date_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(gui_ssa, "resolve_git_commit_hash_text", lambda: "abc1234")
+    monkeypatch.setattr(
+        gui_ssa, "resolve_git_commit_datetime_text", lambda: "indisponivel"
+    )
+
+    message = gui_ssa.build_about_message("9.9.9")
+
+    assert "Data ISO: indisponivel" in message
 
 
 def test_build_about_summary_line_includes_host_full_hash_and_iso(monkeypatch) -> None:
@@ -90,6 +106,30 @@ def test_resolve_git_commit_returns_unavailable_without_git(monkeypatch) -> None
     monkeypatch.setattr(gui_ssa.subprocess, "run", _unexpected_run)
 
     assert gui_ssa.resolve_git_commit_hash_text() == "indisponivel"
+
+
+def test_resolve_git_commit_datetime_uses_commit_iso(monkeypatch) -> None:
+    captured = {}
+
+    def _fake_run(cmd, **_kwargs):  # noqa: ANN001
+        captured["cmd"] = cmd
+        return SimpleNamespace(stdout="2026-07-06T09:27:56-03:00\n", stderr="")
+
+    monkeypatch.setattr(gui_ssa.shutil, "which", lambda name: f"/tools/{name}")
+    monkeypatch.setattr(gui_ssa.subprocess, "run", _fake_run)
+
+    assert gui_ssa.resolve_git_commit_datetime_text() == "2026-07-06T09:27:56-03:00"
+    assert captured["cmd"] == ["/tools/git", "show", "-s", "--format=%cI", "HEAD"]
+
+
+def test_resolve_git_commit_datetime_returns_unavailable_without_git(monkeypatch) -> None:
+    def _unexpected_run(*_args, **_kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("subprocess.run should not be called without git")
+
+    monkeypatch.setattr(gui_ssa.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(gui_ssa.subprocess, "run", _unexpected_run)
+
+    assert gui_ssa.resolve_git_commit_datetime_text() == "indisponivel"
 
 
 def test_iter_build_info_candidates_includes_pyinstaller_internal(
