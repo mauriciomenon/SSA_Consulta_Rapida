@@ -1,3 +1,8 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Get-ReleaseTargetNames', Justification = 'Internal helper returns a list of release target names.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Get-SelectedBackends', Justification = 'Internal helper returns a list of selected backends.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Assert-ExeMetadata', Justification = 'Metadata is the conventional noun for executable version records.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Write-BackendReleaseZips', Justification = 'Internal helper writes multiple backend ZIP artifacts.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Assert-ZipContents', Justification = 'Internal helper validates ZIP content records.')]
 param(
     [string[]] $Backend,
     [switch] $Yes,
@@ -150,7 +155,7 @@ function Get-SelectedBackends {
 
     $valid = @($ValidBackends)
     if (-not $RequestedBackends -or $RequestedBackends.Count -eq 0) {
-        Write-Host "Backends disponiveis: $($valid -join ', '), all"
+        Write-Output "Backends disponiveis: $($valid -join ', '), all"
         $raw = Read-Host "Informe um ou mais backends separados por virgula"
         $RequestedBackends = $raw -split "," | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ }
     }
@@ -719,22 +724,22 @@ $dirtyEntries = Assert-CleanReleaseWorkspace $repoRoot
 $scorecard = Get-BackendScorecard $repoRoot
 
 if ($DryRun) {
-    Write-Host "Dry-run Windows concluido sem build/pacote."
-    Write-Host "Repo: $repoRoot"
-    Write-Host "HEAD: $($gitHead.commit)"
-    Write-Host "Versao: $version"
-    Write-Host "Backends: $($selectedBackends -join ', ')"
+    Write-Output "Dry-run Windows concluido sem build/pacote."
+    Write-Output "Repo: $repoRoot"
+    Write-Output "HEAD: $($gitHead.commit)"
+    Write-Output "Versao: $version"
+    Write-Output "Backends: $($selectedBackends -join ', ')"
     foreach ($backendName in $selectedBackends) {
         $backendScore = $scorecard[$backendName]
-        Write-Host "Scorecard ${backendName}: seguranca=$($backendScore.security_score); python=$($backendScore.source_protection_score); pastas=$($backendScore.easy_user_dirs_score); tamanho=$($backendScore.package_size_score); nota=$($backendScore.note)"
+        Write-Output "Scorecard ${backendName}: seguranca=$($backendScore.security_score); python=$($backendScore.source_protection_score); pastas=$($backendScore.easy_user_dirs_score); tamanho=$($backendScore.package_size_score); nota=$($backendScore.note)"
     }
     return
 }
 
 if (-not $Yes) {
-    Write-Host "Repo: $repoRoot"
-    Write-Host "HEAD: $($gitHead.commit)"
-    Write-Host "Backends: $($selectedBackends -join ', ')"
+    Write-Output "Repo: $repoRoot"
+    Write-Output "HEAD: $($gitHead.commit)"
+    Write-Output "Backends: $($selectedBackends -join ', ')"
     $confirm = Read-Host "Continuar? [s/N]"
     if ($confirm.ToLowerInvariant() -ne "s") {
         throw "Operacao cancelada pelo usuario."
@@ -761,15 +766,17 @@ foreach ($backendName in $selectedBackends) {
     $runtimeRoots = @(Get-RuntimeBundleRoot -Config $config)
     $userDirsCreated = @(Initialize-UserWorkspaceDirectory -RuntimeRoot $runtimeRoots)
     $runtimeProtectionRecords = @(Assert-SourceProtection $repoRoot $runtimeRoots)
+    $zipRecords = @()
+    $zipProtectionRecords = @()
+    $hashRecords = @()
     if (-not $SkipPackage) {
         Write-BackendReleaseZips $config.release_zips
         Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller)
+        $zipPaths = @($config.release_zips | ForEach-Object { $_.zip })
+        $zipRecords = @(Assert-ZipContents $zipPaths)
+        $zipProtectionRecords = @(Assert-SourceProtection $repoRoot $zipPaths)
+        $hashRecords = @(Get-ArtifactHash $zipPaths)
     }
-
-    $zipPaths = @($config.release_zips | ForEach-Object { $_.zip })
-    $zipRecords = Assert-ZipContents $zipPaths
-    $zipProtectionRecords = @(Assert-SourceProtection $repoRoot $zipPaths)
-    $hashRecords = Get-ArtifactHash $zipPaths
 
     $results += [ordered]@{
         backend = $backendName
@@ -804,4 +811,4 @@ $report = [ordered]@{
 }
 
 $reportPath = Write-ReleaseReport $repoRoot $report
-Write-Host "Release Windows concluido. Report: $reportPath"
+Write-Output "Release Windows concluido. Report: $reportPath"

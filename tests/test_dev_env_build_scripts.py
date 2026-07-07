@@ -251,12 +251,29 @@ def test_nuitka_windows_cleanup_and_canonical_dist_names() -> None:
     script = (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_clean.bat").read_text(
         encoding="utf-8"
     )
+    post_build_block = section_between(
+        script,
+        'if "%WITH_LOCAL_DATA%"=="1" (',
+        "echo Build Nuitka concluido com sucesso.",
+    )
 
     assert "gui_entry.dist" in script
     assert "cli_entry.dist" in script
     assert "gui_entry.build" in script
     assert "cli_entry.build" in script
     assert "ren " in script
+    assert (
+        'if not exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\gui_entry.dist" '
+        'if exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\SSA_GUI_v%APP_VERSION%_windows_amd64.dist"'
+        in script
+    )
+    assert (
+        'if not exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\cli_entry.dist" '
+        'if exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\SSA_CLI_v%APP_VERSION%_windows_amd64.dist"'
+        in script
+    )
+    assert 'rmdir /s /q "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\gui_entry.dist"' not in post_build_block
+    assert 'rmdir /s /q "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\cli_entry.dist"' not in post_build_block
     assert "gui_entry.dist canonico" in script
     assert "cli_entry.dist canonico" in script
 

@@ -27,6 +27,7 @@ def test_release_windows_script_is_powershell_only_and_interactive() -> None:
     assert "param(" in script
     assert "ValidateSet" not in script
     assert "Read-Host" in script
+    assert "Write-Host" not in script
     assert "Assert-WindowsHost" in script
     assert "Assert-PowerShellHost" in script
     assert "[switch] $DryRun" in script
@@ -280,3 +281,25 @@ def test_release_windows_script_protects_runtime_before_zip() -> None:
         "Assert-SourceProtection $repoRoot $runtimeRoots",
         "Write-BackendReleaseZips $config.release_zips",
     )
+
+
+def test_release_windows_script_skips_zip_validation_when_package_is_skipped() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+
+    package_block = section_between(
+        release_loop,
+        "if (-not $SkipPackage) {",
+        "\n    }\n\n    $results += [ordered]@{",
+    )
+
+    assert "$zipRecords = @()" in release_loop
+    assert "$zipProtectionRecords = @()" in release_loop
+    assert "$hashRecords = @()" in release_loop
+    assert "Assert-ZipContents $zipPaths" in package_block
+    assert "Assert-SourceProtection $repoRoot $zipPaths" in package_block
+    assert "Get-ArtifactHash $zipPaths" in package_block

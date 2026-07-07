@@ -80,12 +80,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist"
-if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.dist"
-if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist" (
+if not exist "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist" if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist" (
     ren "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist" gui_entry.dist
 )
-if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist" (
+if not exist "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.dist" if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist" (
     ren "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist" cli_entry.dist
 )
 if not exist "%REPO_ROOT%\builds\nuitka\windows_amd64\gui_entry.dist" (
