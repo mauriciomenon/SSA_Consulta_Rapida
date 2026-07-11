@@ -1452,14 +1452,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.load_button.clicked.connect(self._open_sam_reports_xls_page)
         toolbar_layout.addWidget(cast(Any, self.load_button))
 
-        # Botões de ações
-        self.rescan_button = QPushButton("Reescanear")
-        self.rescan_button.setToolTip(
-            "Abrir opcoes de sincronizacao do banco, incluindo importacao e reescaneamento"
-        )
-        self.rescan_button.clicked.connect(self.rescan_data)
-        self.rescan_button.hide()
-
         # Temporary release shortcut: load XLS/XLSX through the existing importer.
         self.api_button = QPushButton("Carregar xls")
         self.api_button.setToolTip("Importar arquivo XLS ou XLSX externo")

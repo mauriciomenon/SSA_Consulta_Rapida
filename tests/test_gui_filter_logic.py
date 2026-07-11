@@ -549,7 +549,6 @@ class TestGUIFilterLogic:
         generate_button = getattr(self.window, "load_button", None)
         load_xls_button = getattr(self.window, "api_button", None)
         filtered_status = getattr(self.window, "filtered_status_label", None)
-        rescan_button = getattr(self.window, "rescan_button", None)
 
         assert sam_button is not None
         assert str(sam_button.text() or "") == "Abrir SAM"
@@ -566,8 +565,6 @@ class TestGUIFilterLogic:
         ]
         assert filtered_status is not None
         assert str(filtered_status.text() or "") == "0 de 0 SSAs"
-        assert rescan_button is not None
-        assert rescan_button.isVisible() is False
 
     def test_search_and_filter_summary_place_controls_in_expected_order(self):
         main_ctx = self._panel_context()
