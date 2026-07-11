@@ -607,6 +607,22 @@ def cleanup_window_workers_on_close(
         sip_module=sip_module,
     )
 
+    pai_worker = getattr(window, "_active_pai_api_worker", None)
+    if pai_worker is not None and hasattr(pai_worker, "isRunning"):
+        try:
+            if pai_worker.isRunning():
+                cancel_fn = getattr(pai_worker, "cancel", None)
+                if callable(cancel_fn):
+                    cancel_fn()
+                else:
+                    pai_worker.requestInterruption()
+                pai_worker.quit()
+                pai_worker.wait(3000)
+        except Exception as exc:
+            logger.debug(
+                "Falha no cleanup do PaiApi worker no closeEvent: %s", exc
+            )
+
 
 def prune_retired_rescan_workers(
     window,

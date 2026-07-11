@@ -104,6 +104,28 @@ class PaiApiRefreshWorker(QThread):
         self._import_decision = False
         self._import_decision_ready = False
         self._import_decision_timed_out = False
+        self._cancel_requested = False
+        self._executor: ThreadPoolExecutor | None = None
+
+    def cancel(self) -> None:
+        """Request the worker to stop as soon as possible.
+
+        Signals the import-decision wait (if blocked) and shuts down the
+        internal ThreadPoolExecutor so pending fetches are cancelled.
+        """
+        with self._state_lock:
+            self._cancel_requested = True
+        self._import_decision_event.set()
+        executor = self._executor
+        if executor is not None:
+            try:
+                executor.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+
+    def _is_cancelled(self) -> bool:
+        with self._state_lock:
+            return self._cancel_requested
 
     def summary(self) -> PaiApiRefreshSummary:
         with self._state_lock:
@@ -169,6 +191,8 @@ class PaiApiRefreshWorker(QThread):
         total_scope_runs = max(len(data_scopes) * len(sectors), 1)
         scope_run_index = 1
         for data_scope in data_scopes:
+            if self._is_cancelled():
+                return
             scoped_request = replace(
                 base_request,
                 data_scope=data_scope,
@@ -308,12 +332,21 @@ class PaiApiRefreshWorker(QThread):
     ):
         workers = min(PAI_API_MAX_CONCURRENT_FETCHES, len(requests))
         with ThreadPoolExecutor(max_workers=workers) as executor:
+            with self._state_lock:
+                if self._cancel_requested:
+                    self._executor = None
+                    return
+                self._executor = executor
             futures = [
                 executor.submit(self._fetch_sector_preview, request)
                 for request in requests
             ]
             for sector_request, future in zip(requests, futures):
+                if self._is_cancelled():
+                    break
                 yield sector_request, future
+            with self._state_lock:
+                self._executor = None
 
     def _sector_preview_from_future(
         self,
