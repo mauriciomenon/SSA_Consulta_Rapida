@@ -131,6 +131,7 @@ def get_db_connection(db_path: str):
         conn = sqlite3.connect(db_path)
         # Configuracoes recomendadas para performance e seguranca (FKs, etc.)
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 5000")
         yield conn
     except sqlite3.Error as e:
         logger.error(f"Erro de banco de dados: {e}")
