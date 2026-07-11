@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [v4.45] - 2026-07-11 - EM DESENVOLVIMENTO
+
+### Changed
+- Promoted local baseline to `4.45` as start of hardening PyQt6 refactor cycle.
+- Synchronized runtime metadata in `VERSION`, `config/version.json`, `pyproject.toml` and `uv.lock`.
+- Detailed plan attached at `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
+- Planned work (see plan for full detail):
+  - P0: explicit shutdown(), SQLite progress_handler cancellation, PaiApiRefreshWorker cancel(), move advanced filter options off GUI thread.
+  - P1: ListExport cancellable, FilterWorker df snapshot, busy_timeout on read, unify _quote_identifier/SSA normalization/date parsing, XLSX import limits, replace fragile singleShot polling.
+  - P2: remove dead files/widgets/imports, consolidate scripts and Qt stubs, narrow except Exception.
+  - P3: decompose SSAMainWindow God Class into Theme/Event/Display mixins.
+- Preserved `v4.36` as the latest published remote tag.
+
+### Validation
+- `ruff check .`: OK
+- Version reads correctly at runtime: `get_app_version()` returns `4.45`.
+
 ## [v4.44] - 2026-07-06
 
 ### Changed

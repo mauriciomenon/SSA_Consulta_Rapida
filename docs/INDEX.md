@@ -1,12 +1,13 @@
-# INDEX de Documentacao (Baseline v4.44 local / v4.36 published)
+# INDEX de Documentacao (Baseline v4.45 local / v4.36 published)
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-07-06 12:52 -0300)
+## Sync status (2026-07-11 12:46 -0300)
 
-1. Baseline ativo confirmado: `4.44`.
+1. Baseline ativo confirmado: `4.45` (em desenvolvimento; hardening PyQt6 refactor).
 2. Branch operacional: `dev`.
-3. Baseline local/tag: `v4.44`.
+3. Baseline local/tag: `v4.45`.
+4. Baseline local anterior: `v4.44` (historico, estavel).
 4. Release/tag publicada relevante: `v4.36`.
 5. HEAD local confirmado:
    - `63631e72b1f622c33d0c64fdb43e8e5fb342c4b8` `STABILITY_PATCH: harden release_windows.ps1 pre-zip workspace`
@@ -96,7 +97,7 @@ O bloco abaixo e contexto historico da frente GUI/preferencias de abril de 2026.
 
 ## Regras de leitura
 
-1. Baseline ativo de versao: `4.44`.
+1. Baseline ativo de versao: `4.45` (em desenvolvimento). Baseline anterior estavel: `4.44`.
 2. Em conflito de informacao, prevalece:
    - `AGENTS.md` (raiz)
    - `docs/POLICY_BASELINE_V1_1_FROZEN.md`

@@ -2,16 +2,17 @@
 
 ## Baseline ativo
 
-- Versao de referencia: `4.44`.
+- Versao de referencia: `4.45` (em desenvolvimento; baseline anterior estavel: `4.44`).
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
-- Current truth operacional 2026-07-06 09h45:
-  - metadata local ativa: `4.44`
-  - tag local da baseline atual: `v4.44`
+- Plano de hardening ativo: `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
+- Current truth operacional 2026-07-11 12:46 -0300:
+  - metadata local ativa: `4.45`
+  - tag local da baseline atual: `v4.45`
+  - tag local anterior estavel: `v4.44`
   - ultima tag publicada remota: `v4.36`
-  - runtime local inclui `54bcbc002af3db8877a3b718c105d808a0d5381b` (`STABILITY_PATCH: show commit ISO date in about dialog`)
   - GitHub remoto segue bloqueado por HTTP 403; nao usar checks remotos como fonte atual ate desbloqueio
-  - proximo passo funcional: P2 H7/J2/J5/SELECT * apos desbloqueio remoto
+  - proximo passo funcional: executar Ciclo 1 (P0) do plano de hardening PyQt6
 
 ## Historical snapshot
 

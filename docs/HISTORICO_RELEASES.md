@@ -35,11 +35,24 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - `display_current_page(...)` continua concentrando responsabilidades demais.
 - O risco agudo dos call sites principais caiu, mas qualquer refatoracao nessa area segue devendo slice proprio e pequeno.
 
-## **RELEASE v4.44 - CURRENT LOCAL BASELINE**
+## **RELEASE v4.45 - CURRENT LOCAL BASELINE (EM DESENVOLVIMENTO)**
+
+**Data de Lancamento**: Julho 2026
+**Tipo**: Hardening PyQt6 refactor start
+**Status**: Baseline local em desenvolvimento
+
+### **Principais entregas (planejadas - ver plano detalhado)**
+- Baseline operacional promovido para `4.45` como inicio do ciclo de hardening PyQt6.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
+- Plano detalhado anexado em `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
+- Escopo planejado: races criticas de shutdown/cancelamento/bloqueio (P0), performance/dedup (P1), limpeza (P2), decomposicao da God Class SSAMainWindow em mixins (P3).
+- Ultima tag/release GitHub publicada permanece `v4.36`.
+
+## **RELEASE v4.44 - HISTORICAL LOCAL BASELINE**
 
 **Data de Lancamento**: Julho 2026
 **Tipo**: Local validation baseline and release alignment
-**Status**: Baseline local ativo
+**Status**: Baseline local historico estavel
 
 ### **Principais entregas**
 - Baseline operacional promovido para `4.44`.
