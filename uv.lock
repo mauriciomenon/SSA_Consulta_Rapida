@@ -3122,7 +3122,7 @@ wheels = [
 
 [[package]]
 name = "ssa-consulta-rapida"
-version = "4.44.0"
+version = "4.45.0"
 source = { editable = "." }
 dependencies = [
     { name = "defusedxml" },
