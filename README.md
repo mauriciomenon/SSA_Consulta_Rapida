@@ -1,13 +1,17 @@
-# SSA Consulta Rapida v4.44
+# SSA Consulta Rapida v4.45
 
-Tag local da baseline atual: `v4.44`.
+Tag local da baseline atual: `v4.45` (em desenvolvimento; hardening PyQt6 refactor).
+Tag local anterior estavel: `v4.44`.
 Release/tag publicada mais recente no remoto `dev`: `v4.36`.
 
-## Current Truth (2026-07-06 09:45 -0300)
+Plano de hardening ativo: [docs/HARDENING_PYQT6_V4_45_PLAN.md](docs/HARDENING_PYQT6_V4_45_PLAN.md)
+
+## Current Truth (2026-07-11 12:46 -0300)
 
 - Estado operacional:
-  - metadata local ativa: `4.44`
-  - tag local da baseline atual: `v4.44`
+  - metadata local ativa: `4.45`
+  - tag local da baseline atual: `v4.45`
+  - tag local anterior estavel: `v4.44`
   - ultima tag publicada no remoto `dev`: `v4.36`
   - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
   - `4.44` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada remota permanece `v4.36`
@@ -128,7 +132,15 @@ Release/tag publicada mais recente no remoto `dev`: `v4.36`.
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 
-## Baseline v4.44 (2026-07)
+## Baseline v4.45 (2026-07, em desenvolvimento)
+
+### Destaques
+- Metadata local e docs ativos foram promovidos para `4.45` como inicio do ciclo de hardening PyQt6.
+- A tag local `v4.45` marca o inicio do refactor; `v4.44` permanece como baseline estavel anterior.
+- Plano detalhado: `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
+- A ultima tag publicada remota continua sendo `v4.36` ate existir ciclo de release remoto explicitamente aprovado.
+
+## Baseline v4.44 (2026-07, historical)
 
 ### Destaques
 - Metadata local e docs ativos foram promovidos para `4.44`.
@@ -275,7 +287,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.44)
+### Documentacao tecnica atual (v4.45)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:
