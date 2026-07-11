@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass
 from dataclasses import replace
@@ -33,6 +34,8 @@ from gui.workers.qt_thread_shim import QThread, pyqtSignal
 PAI_API_MAX_CONCURRENT_FETCHES = 3
 PAI_API_IMPORT_CONFIRM_TIMEOUT_SECONDS = 300.0
 PAI_API_FETCH_FUTURE_GRACE_SECONDS = 30.0
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -120,8 +123,8 @@ class PaiApiRefreshWorker(QThread):
         if executor is not None:
             try:
                 executor.shutdown(wait=False, cancel_futures=True)
-            except Exception:
-                pass
+            except RuntimeError as exc:
+                logger.debug("Falha ao encerrar executor do PaiApi no cancel: %s", exc)
 
     def _is_cancelled(self) -> bool:
         with self._state_lock:
