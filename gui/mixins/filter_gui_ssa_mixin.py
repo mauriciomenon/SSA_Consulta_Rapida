@@ -766,6 +766,8 @@ class FilterGUISSAMixin:
         general_search_columns: list[str],
         request_id: int,
     ) -> None:
+        if bool(getattr(self, "_is_shutting_down", False)):
+            return
         filter_cache_context = self._build_filter_cache_context()
         worker = FilterWorker(
             filter_source,

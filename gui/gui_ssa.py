@@ -1253,6 +1253,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._derivadas_sync_lock = threading.Lock()
         self._active_pai_api_worker = None
         self._active_pai_api_timer = None
+        self._is_shutting_down = False
 
         try:
             base_font = QFont(self.font())
@@ -2315,6 +2316,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
 
     def load_data(self):
+        if self._is_shutting_down:
+            return
         ssa_gui_workers.load_data(
             self,
             db_path=DB_PATH,
@@ -5117,6 +5120,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return self._active_pai_api_worker
 
     def set_active_pai_api_worker(self, worker) -> None:
+        if self._is_shutting_down and worker is not None:
+            return
         self._active_pai_api_worker = worker
 
     def active_pai_api_timer(self):
@@ -6034,32 +6039,65 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
         return ssa_gui_resize.apply_computed_widths_only(self)
 
-    def closeEvent(self, event):
+    def shutdown(self):
         """
-        Metodo chamado quando a janela eh fechada.
-        Garante cleanup adequado dos QThreads para evitar o erro:
-        'QThread: Destroyed while thread is still running'
+        Encerramento explicito e ordenado da janela.
+
+        Bloqueia novos trabalhos, para timers, cancela o worker PAI ativo,
+        chama o cleanup de workers existente e aguarda retirees com timeout.
+        Retorna True se todos os workers pararam antes do timeout.
         """
+        if self._is_shutting_down:
+            return True
+        self._is_shutting_down = True
+        all_stopped = True
+
+        for timer_attr in (
+            "_debounce_timer",
+            "_sector_debounce_timer",
+            "_advanced_apply_timer",
+        ):
+            timer = getattr(self, timer_attr, None)
+            if timer is not None:
+                try:
+                    timer.stop()
+                except Exception as exc:
+                    logger.debug("Falha ao parar %s no shutdown: %s", timer_attr, exc)
+
+        pai_timer = getattr(self, "_active_pai_api_timer", None)
+        if pai_timer is not None:
+            try:
+                pai_timer.stop()
+            except Exception as exc:
+                logger.debug("Falha ao parar timer PAI no shutdown: %s", exc)
+
+        pai_worker = getattr(self, "_active_pai_api_worker", None)
+        if pai_worker is not None:
+            try:
+                cancel_fn = getattr(pai_worker, "cancel", None)
+                if callable(cancel_fn):
+                    cancel_fn()
+                else:
+                    pai_worker.requestInterruption()
+                if hasattr(pai_worker, "isRunning") and pai_worker.isRunning():
+                    pai_worker.quit()
+                    pai_worker.wait(3000)
+                    if pai_worker.isRunning():
+                        all_stopped = False
+                        logger.warning(
+                            "PaiApiRefreshWorker nao parou apos timeout no shutdown"
+                        )
+            except Exception as exc:
+                logger.debug("Falha no cleanup do PaiApi worker no shutdown: %s", exc)
+
         try:
-            self._debounce_timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce principal no closeEvent: %s", exc)
-        try:
-            self._sector_debounce_timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce de setor no closeEvent: %s", exc)
-        try:
-            advanced_apply_timer = getattr(self, "_advanced_apply_timer", None)
-            if advanced_apply_timer is not None:
-                advanced_apply_timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce avancado no closeEvent: %s", exc)
-        try:
-            from gui.ssa.gui_preferences_persistence import shutdown_gui_preferences_writer
+            from gui.ssa.gui_preferences_persistence import (
+                shutdown_gui_preferences_writer,
+            )
 
             shutdown_gui_preferences_writer(timeout=1.0)
         except Exception as exc:
-            logger.debug("Falha ao aguardar persistencia GUI no closeEvent: %s", exc)
+            logger.debug("Falha ao aguardar persistencia GUI no shutdown: %s", exc)
 
         ssa_gui_workers.cleanup_window_workers_on_close(
             self,
@@ -6067,7 +6105,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             sip_module=sip,
         )
 
-        # Aceita o evento de fechamento
+        return all_stopped
+
+    def closeEvent(self, event):
+        """
+        Metodo chamado quando a janela eh fechada.
+        Garante cleanup adequado dos QThreads para evitar o erro:
+        'QThread: Destroyed while thread is still running'
+        """
+        self.shutdown()
         event.accept()
 
 
