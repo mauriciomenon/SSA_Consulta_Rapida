@@ -33,6 +33,7 @@ from shared.date_utils import parse_any_date
 from shared.db_names import CANONICAL_SSA_TABLE
 from utils.file_metadata import parse_datetime_from_filename
 
+from .identifier_utils import quote_identifier as _quote_identifier
 from .numero_ssa_utils import normalize_numero_ssa_storage
 
 # Lazy imports from database.py to avoid circular dependency (see line 303)
@@ -164,13 +165,6 @@ def _sanitize_dynamic_column_name(
         suffix += 1
     assigned_names.add(candidate)
     return candidate
-
-
-def _quote_identifier(name: str) -> str:
-    safe_name = str(name or "").strip()
-    if _VALID_IDENTIFIER_RE.fullmatch(safe_name) is None:
-        raise ValueError(f"Invalid SQL identifier: {name!r}")
-    return f'"{safe_name}"'
 
 
 def _build_table_projection(conn: Any, quoted_table_name: str) -> str:

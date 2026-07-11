@@ -23,20 +23,13 @@ import pandas as pd
 from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE
 from utils.robust_logging import get_robust_logger
 
-from .identifier_utils import is_valid_identifier
+from .identifier_utils import is_valid_identifier, quote_identifier as _quote_identifier
 
 # Lazy imports from database.py to avoid circular dependency (see lines 82, 100, 117, etc.)
 
 logger = get_robust_logger().get_logger(__name__, "storage")
 
 MIN_FREE_SPACE_GB_WARN = 0.1
-
-
-def _quote_identifier(name: str) -> str:
-    safe_name = str(name or "").strip()
-    if not is_valid_identifier(safe_name):
-        raise ValueError(f"Invalid SQL identifier: {name!r}")
-    return '"' + safe_name.replace('"', '""') + '"'
 
 
 def _build_explicit_select_all_query(conn: sqlite3.Connection, table_name: str) -> str:

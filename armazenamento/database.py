@@ -21,7 +21,7 @@ import pandas as pd
 from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 
 from . import numero_ssa_utils as _numero_ssa_utils
-from .identifier_utils import is_valid_identifier
+from .identifier_utils import is_valid_identifier, quote_identifier as _quote_identifier
 from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display
 from .numero_ssa_utils import (
     normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
@@ -550,13 +550,6 @@ def _execute_simple_insert(
         (len(work_df) / total_time) if total_time else 0.0,
     )
     return True
-
-
-def _quote_identifier(name: str) -> str:
-    safe_name = str(name or "").strip()
-    if not is_valid_identifier(safe_name):
-        raise ValueError(f"Invalid SQL identifier: {name!r}")
-    return f'"{safe_name}"'
 
 
 def _build_explicit_select_all_query(conn: sqlite3.Connection, table_name: str) -> str:

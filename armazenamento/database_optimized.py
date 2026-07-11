@@ -35,7 +35,7 @@ from utils.robust_logging import get_robust_logger
 from .database import (
     get_db_connection,
 )  # Top-level import (safe - defined early in database.py)
-from .identifier_utils import is_valid_identifier
+from .identifier_utils import is_valid_identifier, quote_identifier as _quote_identifier
 from .numero_ssa_utils import normalize_numero_ssa_storage
 from .schema_manager import ensure_columns_exist
 
@@ -46,13 +46,6 @@ logger = get_robust_logger().get_logger(__name__, "core")
 SQLITE_MAX_VARIABLES = 999
 SQLITE_SAFETY_EXTRA_COLUMNS = 1
 SQLITE_DEFAULT_CHUNK_CAP = 500
-
-
-def _quote_identifier(identifier: str) -> str:
-    """Quote a validated SQL identifier."""
-    if not is_valid_identifier(identifier):
-        raise ValueError(f"Invalid SQL identifier: {identifier!r}")
-    return f'"{identifier}"'
 
 
 def _validate_canonical_storage_ids(work: pd.DataFrame) -> None:

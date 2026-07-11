@@ -8,24 +8,17 @@ assertions for row counts.
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
 
+from armazenamento.identifier_utils import quote_identifier as _quote_identifier
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = PROJECT_ROOT / "config"
 DEFAULT_SCHEMA = CONFIG_DIR / "schema.sql"
-_SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-def _quote_identifier(identifier: str) -> str:
-    text = str(identifier)
-    if not _SQL_IDENTIFIER_RE.fullmatch(text):
-        raise ValueError(f"Invalid SQL identifier: {text!r}")
-    return f'"{text}"'
 
 
 def create_temp_db(schema_path: str | os.PathLike | None = None) -> tuple[str, str]:
