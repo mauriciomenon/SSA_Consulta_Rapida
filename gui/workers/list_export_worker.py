@@ -26,8 +26,26 @@ class ListExportWorker(QThread):
         self._dataframe = dataframe
         self._visible_columns = list(visible_columns)
         self._path = str(path)
+        self._cancel_requested = False
+
+    def cancel(self) -> None:
+        self._cancel_requested = True
+        try:
+            self.requestInterruption()
+        except RuntimeError as exc:
+            logger.debug("Falha ao solicitar interrupcao do ListExportWorker: %s", exc)
+
+    def _is_cancelled(self) -> bool:
+        if self._cancel_requested:
+            return True
+        try:
+            return bool(self.isInterruptionRequested())
+        except RuntimeError:
+            return False
 
     def run(self) -> None:
+        if self._is_cancelled():
+            return
         try:
             result = write_current_list_tsv(
                 self._dataframe,
@@ -37,5 +55,7 @@ class ListExportWorker(QThread):
         except (OSError, RuntimeError, ValueError, TypeError, AttributeError) as exc:
             logger.exception("Erro ao exportar lista atual")
             self.error_occurred.emit(str(exc))
+            return
+        if self._is_cancelled():
             return
         self.export_finished.emit(result)

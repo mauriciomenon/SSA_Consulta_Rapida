@@ -6106,6 +6106,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             sip_module=sip,
         )
 
+        list_export_state = getattr(self, "_list_export_state", None)
+        list_export_worker = (
+            getattr(list_export_state, "worker", None)
+            if list_export_state is not None
+            else None
+        )
+        if list_export_worker is not None and hasattr(
+            list_export_worker, "isRunning"
+        ):
+            try:
+                if list_export_worker.isRunning():
+                    cancel_fn = getattr(list_export_worker, "cancel", None)
+                    if callable(cancel_fn):
+                        cancel_fn()
+                    list_export_worker.quit()
+                    list_export_worker.wait(2000)
+            except Exception as exc:
+                logger.debug(
+                    "Falha no cleanup do list export worker no shutdown: %s", exc
+                )
+
         return all_stopped
 
     def closeEvent(self, event):
