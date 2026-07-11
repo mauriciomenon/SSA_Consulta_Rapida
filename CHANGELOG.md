@@ -4,22 +4,55 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-## [v4.45] - 2026-07-11 - EM DESENVOLVIMENTO
+## [v4.45] - 2026-07-11 - HARDENING PYQT6 (P0/P1/P2 ENTREGUES)
 
 ### Changed
 - Promoted local baseline to `4.45` as start of hardening PyQt6 refactor cycle.
 - Synchronized runtime metadata in `VERSION`, `config/version.json`, `pyproject.toml` and `uv.lock`.
 - Detailed plan attached at `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
-- Planned work (see plan for full detail):
-  - P0: explicit shutdown(), SQLite progress_handler cancellation, PaiApiRefreshWorker cancel(), move advanced filter options off GUI thread.
-  - P1: ListExport cancellable, FilterWorker df snapshot, busy_timeout on read, unify _quote_identifier/SSA normalization/date parsing, XLSX import limits, replace fragile singleShot polling.
-  - P2: remove dead files/widgets/imports, consolidate scripts and Qt stubs, narrow except Exception.
-  - P3: decompose SSAMainWindow God Class into Theme/Event/Display mixins.
-- Preserved `v4.36` as the latest published remote tag.
+
+### P0 - Critical races fixed (4 HOTFIX_BLOCKER commits)
+- `97c70fee` Explicit shutdown() prevents QThread destroyed warning and PaiApi use-after-free.
+- `77da4621` SQLite progress_handler cancellation makes long queries interruptible.
+- `33ab54a4` PaiApiRefreshWorker cancel() + cleanup stops ThreadPoolExecutor and subprocesses on close.
+- `32688ed4` Advanced filter options computation moved off GUI thread (was blocking event loop).
+
+### P1 - Performance/cancel/dedup (6 STABILITY_PATCH + 1 HOTFIX_BLOCKER)
+- `f7be4429` ListExportWorker cancellable on shutdown.
+- `1753b897` FilterWorker snapshots df_completo (shallow copy) to prevent pandas data race.
+- `161f6355` busy_timeout=5000 on read connections prevents database locked under schema changes.
+- `a415a9df` Unified 5 duplicate _quote_identifier copies into shared identifier_utils.quote_identifier.
+- `cf6ee9d4` XLSX import limits enforced (64 files, 128 MiB each, 1 GiB batch).
+- `28773ef3` Fixed derivadas_sync timeout-vs-delivery race (late results no longer lost).
+
+### P2 - Cleanup (5 commits)
+- `5f0f52b6` Removed 10 confirmed dead files (1119 lines deleted).
+- `389cb892` Removed dead rescan_button widget.
+- `76f4c025` Removed 4 empty debug placeholders from tests/.
+- `02d1e22c` Documented retrocompat shims as removal candidates.
+- `ae55f60c` Narrowed except Exception to RuntimeError/AttributeError in shutdown paths.
+- `33dc6837` Replaced silent except pass in PaiApi cancel with logged RuntimeError (bandit B110).
+
+### P3 - God Class decomposition - DEFERRED
+- Extraction of Theme/Event/Display mixins degenerated into local patchwork
+  (8+ module-global dependencies per mixin). Deferred by user decision.
+- See `docs/HARDENING_PYQT6_V4_45_PLAN.md` Ciclo 4 section for future approaches.
+
+### Deferred items (with technical justification)
+- Slice 2.5/2.6 (unify SSA normalization / date parsing): 3 sources have different
+  contracts (storage strict vs display compat). Requires product decision.
+- Slice 3.3 (consolidate v1/v2 scripts): v1 referenced by test_stream_log_wrapper_guards.
+- Slice 3.4 (unify Qt stubs): qt_stubs.py and headless_qt_stubs.py are complementary,
+  not duplicates. Broad refactor of 7+ modules.
+- Full except Exception triage (770 occurrences): only critical paths narrowed.
 
 ### Validation
-- `ruff check .`: OK
-- Version reads correctly at runtime: `get_app_version()` returns `4.45`.
+- `ruff check .`: All checks passed.
+- `ty check`: All checks passed (on touched files).
+- `semgrep` p/python + p/owasp-top-ten: 0 findings on 15 touched files.
+- `bandit`: 0 issues on touched files (1 B110 fixed).
+- Focused pytest: 1000+ tests passed across database, GUI, PaiApi, filter, derivadas suites.
+- Preserved `v4.36` as the latest published remote tag.
 
 ## [v4.44] - 2026-07-06
 

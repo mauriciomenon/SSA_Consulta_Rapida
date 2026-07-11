@@ -116,14 +116,39 @@ Fontes: `shared/numero_ssa.py` (canonica), `armazenamento/numero_ssa_utils.py` (
 - **3.5** Documentar shims `core/numero_ssa.py`/`core/date_utils.py` (manter, docstring SHIM, RECOVERY_BACKLOG).
 - **3.6** Triar `except Exception` (770) focando closeEvent/cleanup/workers -> excecoes especificas (`sqlite3.Error`, `OSError`, `ValueError`). Resto DEFERRED_NOTE.
 
-## Ciclo 4 (P3) - Decompor God Class
+## Ciclo 4 (P3) - Decompor God Class - DEFERRED
 
-Padrao mixin: classe plain, sem `__init__`, sem metaclass, `self.X` access, `if TYPE_CHECKING: def __getattr__` para type safety. MRO multipla.
+**Status**: DEFERRED por decisao do usuario (2026-07-11) apos a extracao do
+ThemeGUISSAMixin degenerar em costura local.
 
-- **4.1 ThemeGUISSAMixin** (7 metodos: `_resolve_startup_theme` :945, `theme_filter_context` :990, `set_theme_name_for_filter_context` :994, `refresh_filter_widgets_after_theme` :999, `toggle_theme_menu` :2717, `apply_theme` :2726, `_apply_preferences_combo_popup_styles` :3763). Teste: troca tema A/B, spy setStyleSheet, 5x sem crash.
-- **4.2 EventGUISSAMixin** (7 metodos: `eventFilter` :2644, `resizeEvent` :6016, `closeEvent` :6037 pos-1.1, `_recompute_column_widths_on_resize` :6021, `_schedule_resize_recompute` :6027, `_on_resize_recompute_timeout` :6030, `_apply_computed_widths_only` :6033). Teste: wheel event, resize spy, close com workers.
-- **4.3 DisplayGUISSAMixin** (~13 metodos: `_build_tab_content` :1630, `_build_advanced_filters_panel` :2176, `_show_derivadas_popup` :2179, `_build_derivadas_tree` :2182, `display_current_page` :3320, `display_data` :3325, `show_context_menu` :4924, `show_header_context_menu` :2580, `_refresh_main_details_derivadas_panel` :4895, statics sort/graph). Cuidado sobreposicao Filter. Teste: smoke offscreen + screenshot.
-- **4.4** Descomentar `gui/mixins/__init__.py:10-12`, SSAMainWindow herda 4 mixins, atualizar `GUI_SSA_REFACTOR_NOTES.md`.
+**Motivo tecnico**: os metodos de tema dependem de 8+ variaveis de modulo de
+`gui_ssa.py` (`GUI_MAIN_PREFERENCES`, `ssa_gui_theme`, `project_root`,
+`TSM_DEBUG_ENABLED`, `HIGHLIGHT_BACKGROUND_COLOR`, `HIGHLIGHT_FONT_WEIGHT`,
+`QT_AVAILABLE`, `_is_widget_valid`). O mixin plain precisaria re-importar cada
+uma com fallback condicional, gerando codigo fragil que quebra o principio do
+"patch mais curto e com menor impacto". O AGENTS.md manda parar e declarar
+isso explicitamente quando o raciocinio de "patch minimo" degenera.
+
+**Abordagens futuras candidatas** (requerem nova aprovacao):
+1. Criar `gui/ssa/runtime_context.py` que centraliza as dependencias de modulo
+   e permite que os mixins importem limpo sem fallbacks.
+2. Mover as constantes/dependencias para atributos de instancia da MainWindow
+   setados no `__init__`, para que os mixins acessem via `self.*`.
+3. Aceitar a God Class como esta e focar apenas em extrair metodos que tem
+   pouca dependencia de module-globals (EventGUISSAMixin e o melhor candidato).
+
+Padrao mixin originalmente planejado: classe plain, sem `__init__`, sem
+metaclass, `self.X` access, `if TYPE_CHECKING: def __getattr__` para type
+safety. MRO multipla.
+
+- **4.1 ThemeGUISSAMixin** (7 metodos: `_resolve_startup_theme` :945,
+  `theme_filter_context` :990, `set_theme_name_for_filter_context` :994,
+  `refresh_filter_widgets_after_theme` :999, `toggle_theme_menu` :2713,
+  `apply_theme` :2722). DEFERRED.
+- **4.2 EventGUISSAMixin** (7 metodos: `eventFilter`, `resizeEvent`,
+  `closeEvent`, helpers de resize). DEFERRED.
+- **4.3 DisplayGUISSAMixin** (~13 metodos). DEFERRED.
+- **4.4** Ativacao dos mixins. DEFERRED.
 
 ## Races DEFERRED (explicitas, nao abordadas)
 
