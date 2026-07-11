@@ -106,6 +106,30 @@ def stage_external_import_files(
     )
     docs_path.mkdir(parents=True, exist_ok=True)
 
+    from extracao.extractor import MAX_IMPORT_BATCH_BYTES, MAX_IMPORT_BATCH_FILES
+
+    if len(source_files) > MAX_IMPORT_BATCH_FILES:
+        raise ValueError(
+            f"Lote de importacao excede o limite de {MAX_IMPORT_BATCH_FILES} arquivos "
+            f"(recebido: {len(source_files)})."
+        )
+
+    total_batch_bytes = 0
+    for raw_source in source_files:
+        source = str(raw_source or "").strip()
+        if not source:
+            continue
+        try:
+            total_batch_bytes += os.path.getsize(source)
+        except OSError:
+            pass
+    if total_batch_bytes > MAX_IMPORT_BATCH_BYTES:
+        raise ValueError(
+            f"Lote de importacao excede o limite de "
+            f"{MAX_IMPORT_BATCH_BYTES // (1024 * 1024 * 1024)} GiB "
+            f"(total: {total_batch_bytes // (1024 * 1024 * 1024)} GiB)."
+        )
+
     reserved_paths = {
         os.path.abspath(str(path)) for path in docs_path.iterdir() if path.is_file()
     }

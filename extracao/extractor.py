@@ -21,6 +21,10 @@ from utils.robust_importer import import_excel_robust
 logger = logging.getLogger(__name__)
 TEMPO_EXCEDIDO_RE = re.compile(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", re.IGNORECASE)
 
+MAX_XLSX_FILE_BYTES = 128 * 1024 * 1024
+MAX_IMPORT_BATCH_FILES = 64
+MAX_IMPORT_BATCH_BYTES = 1024 * 1024 * 1024
+
 
 class ExtractionError(Exception):
     """Erro durante a extração de dados de um arquivo."""
@@ -353,6 +357,20 @@ def extract_data_from_excel(
                 )
 
         _check_cancel()
+        try:
+            file_size = os.path.getsize(file_path)
+        except OSError as size_exc:
+            raise ExtractionError(
+                f"Nao foi possivel verificar o tamanho do arquivo '{base_name}': {size_exc}",
+                error_code="FILE_SIZE_CHECK_FAILED",
+            ) from size_exc
+        if file_size > MAX_XLSX_FILE_BYTES:
+            raise ExtractionError(
+                f"Arquivo '{base_name}' excede o limite de "
+                f"{MAX_XLSX_FILE_BYTES // (1024 * 1024)} MiB "
+                f"(tamanho: {file_size // (1024 * 1024)} MiB).",
+                error_code="FILE_TOO_LARGE",
+            )
         all_sheets_data = []
         column_mappings = _load_column_mappings()
         normalized_column_mappings = {
