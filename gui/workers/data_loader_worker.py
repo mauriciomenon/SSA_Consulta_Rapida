@@ -74,7 +74,13 @@ class DataLoaderWorker(QThread):
 
             if self._is_cancelled():
                 return
-            df = query_db(self.db_path, "", query, raise_on_error=True)
+            df = query_db(
+                self.db_path,
+                "",
+                query,
+                raise_on_error=True,
+                cancel_callback=self._is_cancelled,
+            )
             if self._is_cancelled():
                 return
             if not isinstance(df, pd.DataFrame):

@@ -231,6 +231,7 @@ def query_db(
     query: str = "",
     params: tuple = (),
     raise_on_error: bool = False,
+    cancel_callback=None,
 ) -> pd.DataFrame:
     """
     Consulta o banco de dados e retorna um DataFrame.
@@ -241,6 +242,12 @@ def query_db(
         query (str, optional): Query SQL customizada. Se vazia, seleciona tudo da tabela.
         params (tuple, optional): Parametros para a query.
         raise_on_error (bool, optional): Se True, propaga excecao em caso de erro.
+        cancel_callback (callable, optional): Se fornecido, registra um
+            sqlite3 progress handler que aborta a query quando o callback
+            retorna True. O callback deve ser uma funcao sem argumentos que
+            retorna bool. A interrupcao gera sqlite3.OperationalError com
+            sqlite_errorcode == SQLITE_INTERRUPT (999), tratada como
+            cancelamento silencioso.
 
     Returns:
         pd.DataFrame: Resultado da consulta.
@@ -258,6 +265,16 @@ def query_db(
             else:
                 _validate_read_only_query(effective_query)
 
+            if cancel_callback is not None:
+
+                def _progress_handler() -> int:
+                    try:
+                        return 1 if bool(cancel_callback()) else 0
+                    except Exception:
+                        return 0
+
+                conn.set_progress_handler(_progress_handler, 1000)
+
             logger.debug(
                 "Executando consulta: %s com %s parametros",
                 effective_query,
@@ -273,6 +290,14 @@ def query_db(
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
     except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
+        if (
+            isinstance(e, sqlite3.OperationalError)
+            and getattr(e, "sqlite_errorcode", None) == 999
+        ):
+            logger.debug("query_db interrompida por cancelamento (SQLITE_INTERRUPT).")
+            if raise_on_error:
+                raise
+            return pd.DataFrame()
         logger.exception(
             "Erro ao executar consulta '%s' com %s parametros: %s",
             query or table_name,
