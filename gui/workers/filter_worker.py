@@ -65,7 +65,11 @@ class FilterWorker(QThread):
         cache: FilterCache | None = None,
     ):
         super().__init__()
-        self.df_completo = df_completo
+        self.df_completo = (
+            df_completo.copy(deep=False)
+            if isinstance(df_completo, pd.DataFrame)
+            else df_completo
+        )
         self.search_chunks = list(search_chunks or [])
         self.search_columns = (
             list(search_columns) if search_columns is not None else None
