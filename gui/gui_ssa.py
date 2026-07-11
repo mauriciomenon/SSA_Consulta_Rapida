@@ -6054,14 +6054,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if timer is not None:
                 try:
                     timer.stop()
-                except Exception as exc:
+                except RuntimeError as exc:
                     logger.debug("Falha ao parar %s no shutdown: %s", timer_attr, exc)
 
         pai_timer = getattr(self, "_active_pai_api_timer", None)
         if pai_timer is not None:
             try:
                 pai_timer.stop()
-            except Exception as exc:
+            except RuntimeError as exc:
                 logger.debug("Falha ao parar timer PAI no shutdown: %s", exc)
 
         pai_worker = getattr(self, "_active_pai_api_worker", None)
@@ -6080,7 +6080,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         logger.warning(
                             "PaiApiRefreshWorker nao parou apos timeout no shutdown"
                         )
-            except Exception as exc:
+            except (RuntimeError, AttributeError) as exc:
                 logger.debug("Falha no cleanup do PaiApi worker no shutdown: %s", exc)
 
         try:
@@ -6114,7 +6114,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         cancel_fn()
                     list_export_worker.quit()
                     list_export_worker.wait(2000)
-            except Exception as exc:
+            except (RuntimeError, AttributeError) as exc:
                 logger.debug(
                     "Falha no cleanup do list export worker no shutdown: %s", exc
                 )
