@@ -276,7 +276,7 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(df.copy())
         self._set_filter_panel_tab("filters")
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
         return df
 
     def _toggle_responsavel_filter_value(
@@ -352,6 +352,16 @@ class TestGUIFilterLogic:
         else:
             assert "Incluir:" in tooltip
         assert button.isEnabled() is True
+
+    def _wait_until_adv_options_idle(self, timeout_ms: int = 5000) -> None:
+        import time as _time
+
+        deadline = _time.monotonic() + (timeout_ms / 1000)
+        while _time.monotonic() < deadline:
+            QApplication.processEvents()
+            if not bool(getattr(self.window, "_adv_options_worker_active", False)):
+                return
+        QApplication.processEvents()
 
     def teardown_method(self):
         try:
@@ -2252,7 +2262,7 @@ class TestGUIFilterLogic:
     def test_advanced_situacao_positive_applies_and_marks_quick_button(self):
         self._set_filter_panel_tab("filters")
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
         status_checks = getattr(self.window, "adv_status_checks", [])
         ste_checks = [
             checkbox
@@ -2273,7 +2283,7 @@ class TestGUIFilterLogic:
     def test_advanced_situacao_exclude_applies_without_positive_quick_mark(self):
         self._set_filter_panel_tab("filters")
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
         status_exclude_checks = getattr(self.window, "adv_status_exclude_checks", [])
         ste_checks = [
             checkbox
@@ -2382,7 +2392,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
 
         target = next(
             check
@@ -6020,7 +6030,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
         assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
 
         self._set_filter_panel_tab("main")
@@ -6050,7 +6060,7 @@ class TestGUIFilterLogic:
             wraps=self.window._refresh_responsavel_options,
         ) as refresh_mock:
             self.window._refresh_advanced_filter_options()
-            QApplication.processEvents()
+            self._wait_until_adv_options_idle()
 
         assert refresh_mock.call_count == 0
         assert responsavel_state.status_flags() == (False, True)
@@ -6571,7 +6581,7 @@ class TestGUIFilterLogic:
 
     def test_advanced_exclude_is_menu_only_without_field_checkbox(self):
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
 
         exclude = getattr(self.window, "adv_status_exclude", None)
 
@@ -6594,7 +6604,7 @@ class TestGUIFilterLogic:
     def test_advanced_selection_applies_after_configured_debounce(self):
         self.window._debounce_timer.setInterval(120)
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
 
         status_checks = getattr(self.window, "adv_status_checks", [])
         target_check = next(check for check in status_checks if check.property("value"))
@@ -7520,7 +7530,7 @@ class TestGUIFilterLogic:
         self._set_filter_panel_tab("filters")
         QApplication.processEvents()
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
 
         def check_values(checks, values):
             expected = set(values)
@@ -12591,7 +12601,7 @@ class TestGUIFilterLogic:
         }
 
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
 
         checks = getattr(self.window, "adv_reprog_checks", [])
         assert checks, (
@@ -12619,7 +12629,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
 
         executor_labels = [
             str(check.property("value") or "")
@@ -12653,7 +12663,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self._wait_until_adv_options_idle()
 
         reprog_button = self.window.adv_reprog_button
         derivada_button = self.window.adv_derivada_button

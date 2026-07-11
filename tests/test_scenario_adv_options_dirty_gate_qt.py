@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from PyQt6.QtWidgets import QApplication
-
 from gui.ssa.gui_filters_advanced_refresh import (
     build_advanced_values_cache_key,
     get_cached_advanced_filter_option_values,
@@ -29,7 +27,7 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
             wraps=get_cached_advanced_filter_option_values,
         ) as wrapped:
             self.window._refresh_advanced_filter_options()
-            QApplication.processEvents()
+            self.wait_until_adv_options_idle()
 
         assert wrapped.call_count >= 1
         assert wrapped.call_args.kwargs.get("force_refresh") is True
@@ -46,11 +44,11 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
             wraps=get_cached_advanced_filter_option_values,
         ) as wrapped:
             self.window._refresh_advanced_filter_options()
-            QApplication.processEvents()
+            self.wait_until_adv_options_idle()
             first_exec_vals = list(self.window._adv_values_cache.get("exec_vals") or [])
             wrapped.reset_mock()
             self.window._refresh_advanced_filter_options()
-            QApplication.processEvents()
+            self.wait_until_adv_options_idle()
 
         assert wrapped.call_count == 0
         wrapped.assert_not_called()
@@ -62,13 +60,13 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
         self.load_advanced_contract_df()
         self.window._adv_options_dirty = False
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self.wait_until_adv_options_idle()
         before = list(self.window._adv_values_cache.get("exec_vals") or [])
 
         self.window.df_completo.loc[0, "setor_executor"] = "ZZZ9"
         self.window._adv_options_dirty = True
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self.wait_until_adv_options_idle()
         after = list(self.window._adv_values_cache.get("exec_vals") or [])
 
         assert before != after
@@ -89,7 +87,7 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
 
         self.window._adv_options_dirty = True
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self.wait_until_adv_options_idle()
 
         exec_vals = list(self.window._adv_values_cache.get("exec_vals") or [])
         assert "ZZZ9" in exec_vals
@@ -98,7 +96,7 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
         self.load_advanced_contract_df()
         self.window._adv_options_dirty = False
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self.wait_until_adv_options_idle()
 
         stale_exec = ["STALE_ONLY"]
         df_key = build_advanced_values_cache_key(
@@ -121,7 +119,7 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
             side_effect=_spy_get_cached,
         ):
             self.window._refresh_advanced_filter_options()
-            QApplication.processEvents()
+            self.wait_until_adv_options_idle()
 
         assert call_order == [("get_cached", True)]
         exec_vals = list(self.window._adv_values_cache.get("exec_vals") or [])
@@ -133,7 +131,7 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
         """Dirty gate must rebuild adv_executor_checks from refreshed option values."""
         self.load_advanced_contract_df()
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self.wait_until_adv_options_idle()
         before_values = {
             str(check.property("value") or "")
             for check in (getattr(self.window, "adv_executor_checks", []) or [])
@@ -143,7 +141,7 @@ class TestScenarioAdvOptionsDirtyGate(GUIFilterScenarioHarness):
         self.window.df_completo.loc[0, "setor_executor"] = "ZZZ9"
         self.window._adv_options_dirty = True
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self.wait_until_adv_options_idle()
 
         after_values = {
             str(check.property("value") or "")

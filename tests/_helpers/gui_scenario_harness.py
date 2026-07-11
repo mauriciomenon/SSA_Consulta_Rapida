@@ -143,8 +143,18 @@ class GUIFilterScenarioHarness:
     def load_advanced_contract_df(self) -> pd.DataFrame:
         df = self.bind_window_dataframes(build_advanced_filter_contract_df())
         self.window._refresh_advanced_filter_options()
-        QApplication.processEvents()
+        self.wait_until_adv_options_idle()
         return df
+
+    def wait_until_adv_options_idle(self, timeout_ms: int = 5000) -> None:
+        """Wait until the advanced options worker has finished and applied its result."""
+        deadline = time.monotonic() + (timeout_ms / 1000)
+        while time.monotonic() < deadline:
+            QApplication.processEvents()
+            if not bool(getattr(self.window, "_adv_options_worker_active", False)):
+                return
+            cast(Any, QTest).qWait(10)
+        QApplication.processEvents()
 
     def wait_until_timer_inactive(self, timer: QTimer, timeout_ms: int = 1000) -> None:
         deadline = time.monotonic() + (timeout_ms / 1000)

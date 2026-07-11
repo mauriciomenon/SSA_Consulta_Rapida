@@ -1369,6 +1369,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_options_dirty = True
         self._adv_cache_token = -1
         self._adv_values_cache = {}
+        self._adv_options_worker_active = False
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
         self._adv_sector_handler_running = False
