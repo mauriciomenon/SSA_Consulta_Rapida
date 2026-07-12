@@ -52,11 +52,14 @@ class AdvancedOptionsWorker(QThread):
         super().__init__()
         self._df_snapshot = df
         self._filters = dict(filters)
-        self._cache_snapshot = cache
+        self._cache_snapshot = dict(cache)
         self._data_load_token = data_load_token
         self._sort_sectors = sort_sectors
         self._get_cached_fn = get_cached_fn
         self._force_refresh = force_refresh
+
+    def cache_snapshot(self) -> dict[str, Any]:
+        return dict(self._cache_snapshot)
 
     def run(self) -> None:
         try:

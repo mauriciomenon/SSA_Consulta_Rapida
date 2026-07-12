@@ -1974,14 +1974,19 @@ def _refresh_advanced_filter_options(self):
             return
         if bool(getattr(self, "_adv_options_worker_active", False)):
             logger.debug(
-                "_refresh_advanced_filter_options: worker anterior ainda ativo; pulando"
+                "_refresh_advanced_filter_options: worker anterior ainda ativo; "
+                "agendando refresh posterior"
             )
+            self._adv_options_refresh_pending = True
             return
 
         self._adv_options_worker_active = True
+        self._adv_options_refresh_pending = False
+        generation_key = df_key
+        filters_snapshot = dict(filters)
         worker = AdvancedOptionsWorker(
             df,
-            filters,
+            filters_snapshot,
             cache,
             getattr(self, "_data_load_token", None),
             lambda values: order_sector_values(values, sector_to_div=SECTOR_TO_DIV),
@@ -1989,48 +1994,94 @@ def _refresh_advanced_filter_options(self):
             force_refresh=dirty,
         )
         worker_ref = worker
+        refresh_after_finish = False
 
         def _on_ready(ui_state, w=worker_ref):
+            nonlocal refresh_after_finish
+            if bool(getattr(self, "_is_shutting_down", False)):
+                return
+            current_df = getattr(self, "df_completo", None)
+            current_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+            current_key = (
+                build_advanced_values_cache_key(
+                    current_df,
+                    getattr(self, "_data_load_token", None),
+                )
+                if isinstance(current_df, pd.DataFrame)
+                else None
+            )
+            if (
+                current_key != generation_key
+                or current_filters != filters_snapshot
+                or bool(getattr(self, "_adv_options_refresh_pending", False))
+            ):
+                self._adv_options_dirty = True
+                refresh_after_finish = True
+                return
+            new_cache = getattr(self, "_adv_values_cache", {})
+            if isinstance(new_cache, dict):
+                new_cache.clear()
+                new_cache.update(w.cache_snapshot())
+            _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+            self._adv_options_dirty = False
             try:
-                if bool(getattr(self, "_is_shutting_down", False)):
-                    return
-                new_cache = getattr(self, "_adv_values_cache", {})
-                if isinstance(new_cache, dict):
-                    df_key_now = build_advanced_values_cache_key(
-                        df, getattr(self, "_data_load_token", None)
-                    )
-                    new_cache["df_key"] = df_key_now
-                    new_cache["values"] = ui_state.values
-                _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
-                self._adv_options_dirty = False
-                try:
-                    elapsed_ms = (perf_counter() - start) * 1000.0
-                    logger.debug(
-                        "Advanced filter options refresh (async): %.1fms", elapsed_ms
-                    )
-                except Exception as exc:
-                    logger.debug(
-                        "Failed to log advanced filter options refresh timing: %s", exc
-                    )
-            finally:
-                self._adv_options_worker_active = False
+                elapsed_ms = (perf_counter() - start) * 1000.0
+                logger.debug(
+                    "Advanced filter options refresh (async): %.1fms", elapsed_ms
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Failed to log advanced filter options refresh timing: %s", exc
+                )
 
         def _on_error(error_msg, w=worker_ref):
+            nonlocal refresh_after_finish
             logger.debug(
                 "AdvancedOptionsWorker erro: %s; fallback para path sincrono", error_msg
             )
-            self._adv_options_worker_active = False
             try:
                 if bool(getattr(self, "_is_shutting_down", False)):
                     return
-                ui_state = _read_advanced_filter_ui_state(self, df, filters)
+                current_df = getattr(self, "df_completo", None)
+                current_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+                current_key = (
+                    build_advanced_values_cache_key(
+                        current_df,
+                        getattr(self, "_data_load_token", None),
+                    )
+                    if isinstance(current_df, pd.DataFrame)
+                    else None
+                )
+                if (
+                    not isinstance(current_df, pd.DataFrame)
+                    or current_key != generation_key
+                    or current_filters != filters_snapshot
+                    or bool(getattr(self, "_adv_options_refresh_pending", False))
+                ):
+                    self._adv_options_dirty = True
+                    refresh_after_finish = True
+                    return
+                ui_state = _read_advanced_filter_ui_state(
+                    self, current_df, current_filters
+                )
                 _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
                 self._adv_options_dirty = False
             except Exception as exc:
                 logger.debug("Fallback sincrono de advanced options falhou: %s", exc)
 
+        def _on_finished(w=worker_ref):
+            self._adv_options_worker_active = False
+            needs_refresh = refresh_after_finish or bool(
+                getattr(self, "_adv_options_refresh_pending", False)
+            )
+            self._adv_options_refresh_pending = False
+            if needs_refresh and not bool(getattr(self, "_is_shutting_down", False)):
+                self._adv_options_dirty = True
+                self._schedule_adv_options_refresh()
+
         worker.ui_state_ready.connect(_on_ready)
         worker.error_occurred.connect(_on_error)
+        worker.finished.connect(_on_finished)
         worker.finished.connect(worker.deleteLater)
         worker.start()
     finally:

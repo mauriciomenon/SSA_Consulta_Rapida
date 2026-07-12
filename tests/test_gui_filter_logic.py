@@ -12607,6 +12607,83 @@ class TestGUIFilterLogic:
         selected = self.window._get_checked_values(checks)
         assert "2" in selected
 
+    def test_refresh_advanced_filter_options_coalesces_stale_worker_result(
+        self,
+    ):
+        from gui.ssa.gui_filters_advanced_refresh import (
+            AdvancedFilterUIState,
+            collect_advanced_filter_option_values,
+        )
+
+        class _Signal:
+            def __init__(self):
+                self.callbacks = []
+
+            def connect(self, callback):
+                self.callbacks.append(callback)
+
+            def emit(self, *args):
+                for callback in list(self.callbacks):
+                    callback(*args)
+
+        class _ControlledWorker:
+            instances = []
+
+            def __init__(self, *_args, **_kwargs):
+                self.ui_state_ready = _Signal()
+                self.error_occurred = _Signal()
+                self.finished = _Signal()
+                self.started = False
+                type(self).instances.append(self)
+
+            def start(self):
+                self.started = True
+
+            def deleteLater(self):
+                return None
+
+            def cache_snapshot(self):
+                return {}
+
+        original_df = self.base_df.copy()
+        self.window.df_completo = original_df
+        self.window._adv_values_cache = {}
+        self.window._adv_options_dirty = True
+
+        with (
+            patch(
+                "gui.ssa.gui_filters_advanced_ui.AdvancedOptionsWorker",
+                _ControlledWorker,
+            ),
+            patch(
+                "gui.ssa.gui_filters_advanced_ui._apply_advanced_filter_ui_state"
+            ) as apply_mock,
+            patch.object(self.window, "_schedule_adv_options_refresh") as schedule_mock,
+        ):
+            self.window._refresh_advanced_filter_options()
+            worker = _ControlledWorker.instances[-1]
+            assert worker.started is True
+
+            self.window.df_completo = original_df.assign(situacao="MUTATED")
+            self.window._data_load_token = object()
+            self.window._refresh_advanced_filter_options()
+
+            stale_state = AdvancedFilterUIState(
+                filters={},
+                values=collect_advanced_filter_option_values(
+                    original_df,
+                    sort_sectors=sorted,
+                ),
+            )
+            worker.ui_state_ready.emit(stale_state)
+            worker.finished.emit()
+
+        apply_mock.assert_not_called()
+        schedule_mock.assert_called_once_with()
+        assert self.window._adv_options_worker_active is False
+        assert self.window._adv_options_refresh_pending is False
+        assert self.window._adv_options_dirty is True
+
     def test_refresh_advanced_filter_options_excludes_na_literal_from_sector_values(
         self,
     ):
