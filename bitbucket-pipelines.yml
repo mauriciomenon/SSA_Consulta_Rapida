@@ -1,0 +1,44 @@
+image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+clone:
+  depth: 20
+
+definitions:
+  caches:
+    uv: .uv-cache
+  steps:
+    - step: &quality-gates
+        name: Python quality gates and smoke tests
+        max-time: 45
+        caches:
+          - uv
+        script:
+          - export QT_QPA_PLATFORM=offscreen
+          - export UV_CACHE_DIR="$BITBUCKET_CLONE_DIR/.uv-cache"
+          - >-
+            apt-get update && apt-get install --yes --no-install-recommends
+            jq libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
+          - uv sync --frozen --extra dev
+          - export PATH="$BITBUCKET_CLONE_DIR/.venv/bin:$PATH"
+          - PYTHON="$BITBUCKET_CLONE_DIR/.venv/bin/python" bash scripts/ci_quality_gates.sh
+    - step: &pytest-full
+        name: Full Python test suite
+        max-time: 60
+        caches:
+          - uv
+        script:
+          - export QT_QPA_PLATFORM=offscreen
+          - export UV_CACHE_DIR="$BITBUCKET_CLONE_DIR/.uv-cache"
+          - >-
+            apt-get update && apt-get install --yes --no-install-recommends
+            libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
+          - uv sync --frozen --extra dev
+          - export PATH="$BITBUCKET_CLONE_DIR/.venv/bin:$PATH"
+          - bash scripts/run_tests.sh
+
+pipelines:
+  custom:
+    quality-gates:
+      - step: *quality-gates
+    pytest-full:
+      - step: *pytest-full
