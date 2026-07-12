@@ -2097,9 +2097,12 @@ def import_explicit_files_to_database(
     docs_dir: str = "docs_entrada",
     db_path: str = "data/ssas.db",
     raise_on_error: bool = False,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> bool:
     """Import explicit supported files already staged under docs_dir into the database."""
     try:
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Importacao explicita cancelada antes do preflight")
         safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
         explicit_resolved = _resolve_explicit_import_files(
             file_paths,
@@ -2110,6 +2113,8 @@ def import_explicit_files_to_database(
                 "Nenhum arquivo explicito valido foi fornecido para importacao."
             )
             return False
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Importacao explicita cancelada antes do importer")
         data_dir = safe_db_path.parent
         db_name = safe_db_path.name
         os.makedirs(data_dir, exist_ok=True)
@@ -2119,6 +2124,7 @@ def import_explicit_files_to_database(
             db_name=db_name,
             table_name="ssa_table",
             force_import=False,
+            should_cancel=should_cancel,
             explicit_files=explicit_resolved,
         )
     except PathSafetyError as e:

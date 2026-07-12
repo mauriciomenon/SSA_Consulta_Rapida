@@ -41,7 +41,8 @@ def test_pai_api_worker_refreshes_each_executor_sector(
             normalized_rows=2,
         )
 
-    def _fake_import(request, preview, *, docs_dir, db_path):
+    def _fake_import(request, preview, *, docs_dir, db_path, should_cancel):
+        assert should_cancel() is False
         captured["import_calls"] = int(captured.get("import_calls", 0)) + 1
         captured["import_requests"].append(request)
         captured["preview"] = preview
@@ -428,8 +429,9 @@ def test_pai_api_worker_continues_after_sector_failure(
             normalized_rows=1,
         )
 
-    def _fake_import(request, preview, *, docs_dir, db_path):
+    def _fake_import(request, preview, *, docs_dir, db_path, should_cancel):
         _ = preview, docs_dir, db_path
+        assert should_cancel() is False
         captured["import_requests"].append(request)
         return PaiImportResult(
             export=preview.export,
@@ -499,8 +501,9 @@ def test_pai_api_worker_waits_for_import_confirmation(
             normalized_rows=2,
         )
 
-    def _fake_import(request, preview, *, docs_dir, db_path):
+    def _fake_import(request, preview, *, docs_dir, db_path, should_cancel):
         _ = request, docs_dir, db_path
+        assert should_cancel() is False
         captured["import_calls"] += 1
         return PaiImportResult(
             export=preview.export,

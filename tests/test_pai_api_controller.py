@@ -119,6 +119,7 @@ class _Worker:
         self.import_decision_required = _Signal()
         self.finished_success = _Signal()
         self.finished_error = _Signal()
+        self.finished = _Signal()
         self.started = False
         self.import_decision: bool | None = None
 
@@ -221,7 +222,7 @@ def test_auto_refresh_timeout_starts_worker_without_reload_prompt(tmp_path: Path
     assert window.reload_count == 1
 
 
-def test_finish_success_clears_worker_when_summary_is_none(tmp_path: Path) -> None:
+def test_finish_success_retains_worker_until_native_finished(tmp_path: Path) -> None:
     window = _Window()
     preferences = _preferences(auto_enabled=False)
     window.preferences = preferences
@@ -239,6 +240,8 @@ def test_finish_success_clears_worker_when_summary_is_none(tmp_path: Path) -> No
     worker = window.worker
     worker.finished_success.emit()
 
+    assert window.worker is worker
+    worker.finished.emit()
     assert window.worker is None
     assert window.reload_count == 1
 
@@ -460,7 +463,7 @@ def test_pai_api_error_status_is_short() -> None:
 
     pai_api_controller._finish_error(window, worker, long_error)
 
-    assert window.worker is None
+    assert window.worker is worker
     assert len(window.statuses[-1]) <= 120
     assert window.statuses[-1].endswith("...")
 

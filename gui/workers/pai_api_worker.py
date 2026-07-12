@@ -110,6 +110,7 @@ class PaiApiRefreshWorker(QThread):
         self._import_decision_ready = False
         self._import_decision_timed_out = False
         self._cancel_requested = False
+        self._terminal_emitted = False
         self._executor: ThreadPoolExecutor | None = None
 
     def cancel(self) -> None:
@@ -119,9 +120,11 @@ class PaiApiRefreshWorker(QThread):
         internal ThreadPoolExecutor so pending fetches are cancelled.
         """
         with self._state_lock:
+            if self._terminal_emitted:
+                return
             self._cancel_requested = True
+            executor = self._executor
         self._import_decision_event.set()
-        executor = self._executor
         if executor is not None:
             try:
                 executor.shutdown(wait=False, cancel_futures=True)
@@ -151,7 +154,18 @@ class PaiApiRefreshWorker(QThread):
             self._import_decision = False
             self._import_decision_ready = False
             self._import_decision_timed_out = False
+            self._terminal_emitted = False
             self._import_decision_event.clear()
+
+    def _finish(self, error: str | None = None) -> None:
+        with self._state_lock:
+            if self._cancel_requested or self._terminal_emitted:
+                return
+            self._terminal_emitted = True
+        if error is None:
+            self.finished_success.emit()
+        else:
+            self.finished_error.emit(error)
 
     def run(self) -> None:
         self.reset_for_start()
@@ -165,7 +179,7 @@ class PaiApiRefreshWorker(QThread):
             message = trim_pai_api_status_detail(str(exc or "") or type(exc).__name__)
             self._add_failure(message)
             self._refresh_summary()
-            self.finished_error.emit(message)
+            self._finish(message)
 
     def _run_refresh(self) -> None:
         if self._is_cancelled():
@@ -176,7 +190,7 @@ class PaiApiRefreshWorker(QThread):
             scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
         )
         if (error_message := pai_api_options_error(options)) is not None:
-            self.finished_error.emit(error_message)
+            self._finish(error_message)
             return
 
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -233,7 +247,7 @@ class PaiApiRefreshWorker(QThread):
             return
         self._refresh_summary(previews=previews)
         if not previews:
-            self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
+            self._finish(_format_total_failure(self._failures_snapshot()))
             return
 
         if self.config.fetch_only:
@@ -241,7 +255,7 @@ class PaiApiRefreshWorker(QThread):
                 return
             self._mark_import_skipped(previews=previews)
             self.progress.emit(100, "SAM API preview concluido; DB inalterado")
-            self.finished_success.emit()
+            self._finish()
             return
 
         if self.config.confirm_before_import and not self._confirm_import(previews):
@@ -249,11 +263,11 @@ class PaiApiRefreshWorker(QThread):
                 return
             if self._import_decision_timed_out:
                 self._refresh_summary(previews=previews)
-                self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
+                self._finish(_format_total_failure(self._failures_snapshot()))
                 return
             self._mark_import_skipped(previews=previews)
             self.progress.emit(100, "SAM API preview concluido; DB inalterado")
-            self.finished_success.emit()
+            self._finish()
             return
 
         for preview in previews:
@@ -266,7 +280,7 @@ class PaiApiRefreshWorker(QThread):
         imported_count = sum(1 for result in self._results_snapshot() if result.imported)
         self._refresh_summary(previews=previews)
         if imported_count == 0:
-            self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
+            self._finish(_format_total_failure(self._failures_snapshot()))
             return
 
         self.progress.emit(
@@ -274,7 +288,7 @@ class PaiApiRefreshWorker(QThread):
             f"SAM API concluida: {imported_count} setores importados; "
             f"{len(self._failures_snapshot())} falharam",
         )
-        self.finished_success.emit()
+        self._finish()
 
     def _validate_ca(self, request: PaiScrapReportRequest):
         try:
@@ -376,7 +390,7 @@ class PaiApiRefreshWorker(QThread):
                 if self._executor is executor:
                     self._executor = None
             executor.shutdown(
-                wait=not self._is_cancelled(),
+                wait=True,
                 cancel_futures=True,
             )
 
@@ -463,6 +477,7 @@ class PaiApiRefreshWorker(QThread):
                 sector_preview.preview,
                 docs_dir=sector_preview.docs_dir,
                 db_path=self.config.db_path,
+                should_cancel=self._is_cancelled,
             )
         except Exception as exc:
             if self._is_cancelled():
