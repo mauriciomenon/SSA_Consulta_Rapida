@@ -54,8 +54,6 @@ class DeferredFilterWorkerRegistry:
         for worker_id, worker in list(self._workers.items()):
             if not is_running(worker):
                 self._workers.pop(worker_id, None)
-        while len(self._workers) > self.max_workers:
-            self._workers.popitem(last=False)
 
 
 class FilterWorkerLifecycle:

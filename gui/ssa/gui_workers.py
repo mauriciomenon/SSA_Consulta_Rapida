@@ -200,29 +200,13 @@ def retain_data_loader_worker_until_finished(
             )
 
     finished_signal = getattr(worker, "finished", None)
-    if not _connect_signal(
+    release_connected = _connect_signal(
         finished_signal, _release_worker_ref, label="data_loader.finished.cleanup"
-    ):
-        try:
-            if hasattr(worker, "isRunning") and worker.isRunning():
-                if hasattr(worker, "quit"):
-                    worker.quit()
-                if hasattr(worker, "wait"):
-                    worker.wait(retired_force_wait_ms)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao encerrar worker de carga apos erro de conexao de sinal: %s",
-                exc,
-            )
-        try:
-            if hasattr(worker, "deleteLater"):
-                worker.deleteLater()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao agendar deleteLater de worker apos erro de conexao de sinal: %s",
-                exc,
-            )
-        return
+    )
+    if not release_connected:
+        logger.warning(
+            "DataLoader sem callback finished; mantendo ownership ate prune observar termino."
+        )
     with _GLOBAL_WORKERS_LOCK:
         retired = getattr(window, "_retired_data_loader_workers", None)
         if retired is None:
@@ -233,24 +217,12 @@ def retain_data_loader_worker_until_finished(
         if worker not in global_workers:
             global_workers.append(worker)
         global_meta[worker] = now
-        if max_global_workers > 0 and len(global_workers) > max_global_workers:
-            overflow = len(global_workers) - max_global_workers
-            dropped_workers = global_workers[:overflow]
-            dropped_worker_ids = {id(worker_ref) for worker_ref in dropped_workers}
-            del global_workers[:overflow]
-            for dropped_worker in dropped_workers:
-                global_meta.pop(dropped_worker, None)
-            retired[:] = [
-                worker_ref
-                for worker_ref in retired
-                if id(worker_ref) not in dropped_worker_ids
-            ]
     destroyed_signal = getattr(worker, "destroyed", None)
     if destroyed_signal is not None:
         _connect_signal(
             destroyed_signal, _release_worker_ref, label="data_loader.destroyed.cleanup"
         )
-    if finished_signal is not None and hasattr(worker, "deleteLater"):
+    if release_connected and finished_signal is not None and hasattr(worker, "deleteLater"):
         _connect_signal(
             finished_signal,
             worker.deleteLater,
@@ -348,18 +320,16 @@ def prune_retired_data_loader_workers(
     )
 
     def _stop_data_loader_worker(worker, **_unused) -> bool:
-        return cleanup_data_loader_worker(
-            window,
-            worker,
-            wait_ms=retired_force_wait_ms,
-            run_prune=False,
-            global_workers=global_workers,
-            global_meta=global_meta,
-            max_global_workers=max_global_workers,
-            retired_ttl_sec=retired_ttl_sec,
-            retired_force_wait_ms=retired_force_wait_ms,
-            sip_module=sip_module,
-        )
+        cancel_fn = getattr(worker, "cancel", None)
+        interruption_fn = getattr(worker, "requestInterruption", None)
+        if callable(cancel_fn):
+            cancel_fn()
+        elif callable(interruption_fn):
+            interruption_fn()
+        quit_fn = getattr(worker, "quit", None)
+        if callable(quit_fn):
+            quit_fn()
+        return not is_data_loader_worker_running(worker, sip_module)
 
     removed_by_ttl = _process_expired_workers(
         expired_all,
@@ -402,13 +372,12 @@ def is_rescan_worker_running(worker, sip_module) -> bool:
 def _enforce_global_worker_cap(
     global_workers: list, global_meta: dict, max_global_workers: int
 ) -> None:
-    if len(global_workers) <= max_global_workers:
-        return
-    overflow = len(global_workers) - max_global_workers
-    dropped_workers = global_workers[:overflow]
-    global_workers[:] = global_workers[overflow:]
-    for dropped_worker in dropped_workers:
-        global_meta.pop(dropped_worker, None)
+    if max_global_workers > 0 and len(global_workers) > max_global_workers:
+        logger.warning(
+            "Registry de workers acima do cap (%s > %s); mantendo workers ativos.",
+            len(global_workers),
+            max_global_workers,
+        )
 
 
 def retain_rescan_worker_global(
@@ -495,23 +464,14 @@ def cleanup_rescan_worker_on_close(
                     "Falha ao solicitar quit do RescanWorker no closeEvent: %s",
                     exc,
                 )
-        if running_now and not retained_globally:
-            try:
-                if hasattr(worker, "wait"):
-                    worker.wait(max(0, int(retired_force_wait_ms)))
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aguardar RescanWorker no closeEvent: %s",
-                    exc,
-                )
     except Exception as exc:
         logger.debug("Falha ao encerrar RescanWorker durante closeEvent: %s", exc)
     finally:
-        if (
-            not retained_globally
-            and is_worker_alive(worker, sip_module)
-            and is_rescan_worker_running(worker, sip_module)
-        ):
+        try:
+            running_after_request = is_rescan_worker_running(worker, sip_module)
+        except Exception:
+            running_after_request = True
+        if running_after_request and not retained_globally:
             retain_rescan_worker_global(
                 worker,
                 reason="fallback-finally",
@@ -520,7 +480,11 @@ def cleanup_rescan_worker_on_close(
                 max_global_workers=max_global_workers,
                 sip_module=sip_module,
             )
-        window._active_rescan_worker = None
+        if (
+            not running_after_request
+            and getattr(window, "_active_rescan_worker", None) is worker
+        ):
+            window._active_rescan_worker = None
 
 
 def cleanup_window_workers_on_close(
@@ -539,10 +503,9 @@ def cleanup_window_workers_on_close(
     data_worker = getattr(window, "data_loader_thread", None)
     if data_worker is not None:
         try:
-            cleanup_data_loader_worker(
+            retain_data_loader_worker_until_finished(
                 window,
                 data_worker,
-                wait_ms=max(0, int(retired_force_wait_ms)),
                 global_workers=data_loader_workers,
                 global_meta=data_loader_meta,
                 max_global_workers=max_data_loader_workers,
@@ -550,11 +513,16 @@ def cleanup_window_workers_on_close(
                 retired_force_wait_ms=retired_force_wait_ms,
                 sip_module=sip_module,
             )
+            cancel_fn = getattr(data_worker, "cancel", None)
+            interruption_fn = getattr(data_worker, "requestInterruption", None)
+            if callable(cancel_fn):
+                cancel_fn()
+            elif callable(interruption_fn):
+                interruption_fn()
+            if hasattr(data_worker, "quit"):
+                data_worker.quit()
         except Exception as exc:
             logger.debug("Falha no cleanup do data loader durante closeEvent: %s", exc)
-        finally:
-            if getattr(window, "data_loader_thread", None) is data_worker:
-                window.data_loader_thread = None
 
     filter_worker = getattr(window, "filter_thread", None)
     filter_worker_running = False
@@ -576,7 +544,6 @@ def cleanup_window_workers_on_close(
                 worker_for_fallback = filter_worker
                 if worker_for_fallback is not None:
                     worker_for_fallback.quit()
-                    worker_for_fallback.wait(3000)
             except Exception as fallback_exc:
                 logger.debug(
                     "Falha no fallback de encerramento do filter worker: %s",
@@ -617,7 +584,6 @@ def cleanup_window_workers_on_close(
                 else:
                     pai_worker.requestInterruption()
                 pai_worker.quit()
-                pai_worker.wait(3000)
         except Exception as exc:
             logger.debug(
                 "Falha no cleanup do PaiApi worker no closeEvent: %s", exc
@@ -635,7 +601,7 @@ def prune_retired_rescan_workers(
     sip_module,
 ) -> None:
     now = perf_counter()
-    wait_ms = int(retired_force_wait_ms or 0)
+    _ = retired_force_wait_ms
     expired_global = []
     with _GLOBAL_WORKERS_LOCK:
         expired_global = _classify_and_update_global_workers_locked(
@@ -653,15 +619,6 @@ def prune_retired_rescan_workers(
             worker.stop()
         if hasattr(worker, "quit"):
             worker.quit()
-        if hasattr(worker, "wait"):
-            worker.wait(wait_ms)
-        if (
-            hasattr(worker, "isRunning")
-            and worker.isRunning()
-            and hasattr(worker, "terminate")
-        ):
-            worker.terminate()
-            worker.wait(wait_ms)
         return not is_rescan_worker_running(worker, sip_module)
 
     _process_expired_workers(

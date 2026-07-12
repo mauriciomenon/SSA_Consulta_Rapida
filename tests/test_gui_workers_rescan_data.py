@@ -784,7 +784,7 @@ def test_classify_workers_for_ttl_expires_oldest_when_above_cap():
         is_running_fn=lambda _worker: True,
     )
 
-    assert running == ["w2", "w3"]
+    assert running == ["w1", "w2", "w3"]
     assert expired == ["w1"]
 
 
@@ -871,3 +871,56 @@ def test_prune_retired_rescan_workers_expires_oldest_when_above_cap(monkeypatch)
     assert newer in global_meta
     assert older not in global_meta
     assert older.stop_called is True
+    assert older.wait_calls == 0
+
+
+def test_prune_retains_overflow_rescan_worker_that_does_not_stop(monkeypatch):
+    class _Worker:
+        def __init__(self, name: str):
+            self.name = name
+            self.stop_called = False
+            self.quit_called = False
+
+        def isRunning(self):
+            return True
+
+        def stop(self):
+            self.stop_called = True
+
+        def quit(self):
+            self.quit_called = True
+
+    monkeypatch.setattr(ssa_gui_workers, "perf_counter", lambda: 120.0)
+    older = _Worker("older")
+    newer = _Worker("newer")
+    global_workers = [older, newer]
+    global_meta = {older: 100.0, newer: 110.0}
+
+    ssa_gui_workers.prune_retired_rescan_workers(
+        _Window(),
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=1,
+        retired_ttl_sec=60.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+    )
+
+    assert global_workers == [older, newer]
+    assert older in global_meta
+    assert older.stop_called is True
+    assert older.quit_called is True
+
+
+def test_filter_registry_keeps_running_workers_above_cap():
+    from gui.ssa.filter_worker_lifecycle import DeferredFilterWorkerRegistry
+
+    registry = DeferredFilterWorkerRegistry(max_workers=1)
+    first = object()
+    second = object()
+    registry.add(first)
+    registry.add(second)
+
+    registry.prune(lambda _worker: True)
+
+    assert registry.snapshot() == [first, second]

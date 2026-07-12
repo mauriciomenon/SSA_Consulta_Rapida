@@ -14820,8 +14820,8 @@ class TestGUIFilterLogic:
             self.window.closeEvent(event)
 
             assert event.isAccepted() is False
-            assert gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS == [worker_new]
-            assert worker_old not in gui_ssa.GLOBAL_RETIRED_RESCAN_META
+            assert gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS == [worker_old, worker_new]
+            assert worker_old in gui_ssa.GLOBAL_RETIRED_RESCAN_META
             assert worker_new in gui_ssa.GLOBAL_RETIRED_RESCAN_META
             assert self.window._active_rescan_worker is worker_new
         finally:
@@ -15368,10 +15368,11 @@ class TestGUIFilterLogic:
             sip_module=gui_ssa.sip,
         )
 
-        assert worker.quit_called is True
-        assert worker.wait_called_ms == gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS
-        assert worker.deleted is True
-        assert worker not in getattr(self.window, "_retired_data_loader_workers", [])
+        assert worker.quit_called is False
+        assert worker.wait_called_ms is None
+        assert worker.deleted is False
+        assert worker in getattr(self.window, "_retired_data_loader_workers", [])
+        assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
 
     def test_repeated_load_data_handoffs_release_retired_workers(self):
         class _FakeSignal:
