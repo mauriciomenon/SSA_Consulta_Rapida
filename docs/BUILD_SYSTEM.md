@@ -4,8 +4,8 @@
 
 - Sync deste guia: `2026-07-06 09:45 -0300`.
 - Este arquivo e historico e nao representa o fluxo atual de release.
-- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
-- GitHub remoto esta bloqueado por HTTP 403; nao publicar nem reconstruir release remota ate desbloqueio.
+- Baseline local ativo: `v4.45`; ultima tag publicada no GitHub: `v4.36`.
+- `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente `gh` (GitHub).
 - Fluxo atual:
   - `docs/BUILD_MULTIPLATFORM.md`
   - `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`

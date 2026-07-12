@@ -9,12 +9,12 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 3. Baseline local/tag: `v4.45`.
 4. Baseline local anterior: `v4.44` (historico, estavel).
 4. Release/tag publicada relevante: `v4.36`.
-5. HEAD local confirmado:
-   - `63631e72b1f622c33d0c64fdb43e8e5fb342c4b8` `STABILITY_PATCH: harden release_windows.ps1 pre-zip workspace`
-   - `dev` esta 76 commits a frente de `origin/dev` pela ref local.
+5. Estado Git atual:
+   - mapa canonico: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub.
+   - `dev` deve permanecer publicado em `origin/dev` e `bitbucket/dev`; `git pull` padrao usa `origin/dev`.
 6. Estado remoto:
-   - `git ls-remote --heads origin dev` retorna HTTP 403 com conta GitHub suspensa.
-   - `fetch`, `push`, PR e checks remotos nao sao confiaveis ate desbloqueio da conta.
+   - GitLab e Bitbucket estao operacionais para fetch, pull e push.
+   - HTTP 403 por conta suspensa afeta somente `gh`; PR, checks, tag e release no GitHub continuam bloqueados.
 7. Slices locais relevantes desde `v4.43`:
    - `445f1d25` `STABILITY_PATCH: fix validation gates for v4.44 baseline`
    - `acc299f8` `STABILITY_PATCH: fix ty validation gate`

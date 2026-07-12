@@ -3,8 +3,8 @@
 ## CURRENT TRUTH (v4.44 local / v4.36 published)
 
 - Pipeline oficial de build: `launchers/build_multiplatform.py`.
-- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
-- GitHub remoto retorna HTTP 403 por conta suspensa; nao publicar artefatos remotos ate desbloqueio e comparacao de divergencia.
+- Baseline local ativo: `v4.45`; ultima tag publicada no GitHub: `v4.36`.
+- `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente `gh` (GitHub) e publicacoes naquele provedor.
 - Plataformas ativas:
   - `windows_amd64`
   - `macos_arm64`

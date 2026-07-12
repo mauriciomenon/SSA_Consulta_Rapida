@@ -11,8 +11,9 @@
   - tag local da baseline atual: `v4.45`
   - tag local anterior estavel: `v4.44`
   - ultima tag publicada remota: `v4.36`
-  - GitHub remoto segue bloqueado por HTTP 403; nao usar checks remotos como fonte atual ate desbloqueio
-  - proximo passo funcional: executar Ciclo 1 (P0) do plano de hardening PyQt6
+  - mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub
+  - `dev` e publicado em `origin/dev` e `bitbucket/dev`; `git pull` padrao usa GitLab
+  - HTTP 403 afeta somente `gh`; a estabilizacao v4.45 local foi concluida
 
 ## Historical snapshot
 

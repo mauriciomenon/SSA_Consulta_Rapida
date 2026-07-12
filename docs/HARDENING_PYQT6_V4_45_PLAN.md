@@ -13,7 +13,7 @@
 - Dead-code review removeu somente o lock Derivadas sem caller. Callbacks Qt, slots, `eventFilter`, resize e binding dinamico de tema foram mantidos.
 - Smoke GUI real validou 96028 linhas, 1921 paginas, filtros, limpeza, detalhes, links, grafo Derivadas, tema, resize e fechamento nativo. Screenshots com dados permanecem somente em `/private/tmp`.
 - Medianas em cinco rodadas: startup/carga 2.247 s, render 0.278 s, filtro simples 0.238 s, filtro avancado 0.238 s, detalhes 0.011 s. RSS final ficou cerca de 29 MiB menor que o baseline medido.
-- Gates locais focados estao verdes. CodeRabbit e Clawpatch permanecem bloqueados quando nao emitem verdict; timeout nunca foi classificado como limpo. GitHub continua bloqueado por HTTP 403, portanto nao houve push, PR, tag ou release.
+- Gates locais focados estao verdes. CodeRabbit e Clawpatch permanecem bloqueados quando nao emitem verdict; timeout nunca foi classificado como limpo. `origin` (GitLab) e `bitbucket` receberam a estabilizacao; HTTP 403 afeta somente `gh` (GitHub), onde nao houve PR, tag ou release.
 
 ## HISTORICAL SNAPSHOT 2026-07-11
 

@@ -116,6 +116,10 @@ Cada slice deve declarar:
 
 ## Politica De Git Operacional
 
+- Mapa canonico de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub.
+- Neste projeto, o pedido explicito `commitar` autoriza criar o commit e publicar a branch nos dois remotos operacionais: `origin` e `bitbucket`.
+- HTTP 403 ou conta suspensa no remote `gh` bloqueia somente GitHub; nao implica bloqueio de fetch, pull ou push em `origin`/`bitbucket`.
+- Antes do push duplo, confirmar fast-forward nos dois remotos; nunca usar force push sem autorizacao explicita.
 - Proibido rodar commits em paralelo (evitar `index.lock`).
 - Ao trocar de branch com arquivos locais:
   - criar stash nomeado com timestamp e motivo;

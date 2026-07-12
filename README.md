@@ -14,10 +14,10 @@ Plano de hardening ativo: [docs/HARDENING_PYQT6_V4_45_PLAN.md](docs/HARDENING_PY
   - tag local anterior estavel: `v4.44`
   - ultima tag publicada no remoto `dev`: `v4.36`
   - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
-  - `4.44` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada remota permanece `v4.36`
-  - `v4.44` foi reservado para fechar a baseline local apos os fixes de validacao e antes do fechamento documental H3/H4/H5/H7/J2/J4
-  - `54bcbc002af3db8877a3b718c105d808a0d5381b` faz o About/Data ISO usar a data ISO do commit em execucao quando `build_info.json` nao esta disponivel
-  - GitHub remoto retorna HTTP 403 por conta suspensa; nao fazer fetch/push/PR/release remota ate desbloqueio e comparacao de divergencia
+  - `4.45` e a baseline local ativa e estabilizada; a ultima tag publicada no GitHub permanece `v4.36`
+  - mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub
+  - `dev`, `origin/dev` e `bitbucket/dev` ficam sincronizados por politica de commit do projeto; `git pull` padrao usa `origin/dev`
+  - o HTTP 403 por conta suspensa afeta somente `gh`; nao bloqueia GitLab nem Bitbucket
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
   - validacao completa recente apos os fixes de gate: `2455 passed, 6 skipped, 2 warnings, 11 subtests passed`
   - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos

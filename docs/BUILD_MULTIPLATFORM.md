@@ -5,8 +5,8 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 ## CURRENT TRUTH (4.44 local / v4.36 published)
 
 - Sync deste guia: `2026-07-06 09:45 -0300`.
-- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
-- Estado remoto: GitHub retorna HTTP 403 por conta suspensa; nao fazer fetch/push/release remoto ate desbloqueio.
+- Baseline local ativo: `v4.45`; ultima tag publicada no GitHub: `v4.36`.
+- Estado remoto: `origin` (GitLab) e `bitbucket` estao operacionais; HTTP 403 somente em `gh` (GitHub).
 - Artefatos `v4.43` citados abaixo sao exemplos historicos de nomenclatura, nao artefatos atuais para publicacao.
 - Relatorio consolidado deste ciclo:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`

@@ -3,8 +3,8 @@
 ## CURRENT TRUTH (baseline v4.44 local / v4.36 published)
 
 - Sync deste guia: `2026-07-06 09:45 -0300`.
-- Baseline local ativo: `v4.44`; ultima tag publicada remota: `v4.36`.
-- GitHub remoto esta bloqueado por HTTP 403; nao publicar release remota ate desbloqueio e nova comparacao de divergencia.
+- Baseline local ativo: `v4.45`; ultima tag publicada no GitHub: `v4.36`.
+- `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
 - Fluxo canonico Nuitka (sempre via uv wrappers):
   - Windows: `dev_env/build/build_nuitka.bat --silent`
   - Debian/WSL: `bash dev_env/build/build_nuitka_debian.sh --silent`

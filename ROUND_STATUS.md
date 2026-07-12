@@ -7,7 +7,9 @@
 - Scope: PyInstaller `--clean` fails on non-zero exit; Nuitka Windows renames `SSA_*_windows_amd64.dist` to canonical `gui_entry.dist` / `cli_entry.dist`; release script adds backend allowlist cleanup, user workspace dirs with `.gitkeep`, and runtime source protection before ZIP.
 - Local contract gates: `tests/test_release_windows_script.py` and focused `tests/test_dev_env_build_scripts.py` Windows cases passed (15 focused / 91 release-related).
 - Commits were created without GPG signature in agent environment (`commit.gpgsign=false` override); re-sign locally if policy requires.
-- Next step: Windows smoke on real host with `release_windows.ps1 -Backend pyinstaller,nuitka -Yes -SkipInstaller`; push remains blocked by GitHub HTTP 403.
+- Next step: Windows smoke on real host with `release_windows.ps1 -Backend pyinstaller,nuitka -Yes -SkipInstaller`.
+- Remote map: `origin` is GitLab, `bitbucket` is Bitbucket, and `gh` is GitHub. `dev` is published to GitLab and Bitbucket; the HTTP 403 affects only `gh`.
+- Standard `git pull` on `dev` uses `origin/dev` (GitLab). A request to `commitar` also publishes to `bitbucket/dev`.
 
 ## 2026-07-06 P2 runtime cleanup and measured defer
 
@@ -25,7 +27,7 @@
 - This DOC_SYNC input HEAD was `54bcbc002af3db8877a3b718c105d808a0d5381b` on `dev`, 68 commits ahead of local `origin/dev`; subsequent local cleanup and P2 commits leave the branch 74 commits ahead after `4ac834b23fe243f801aac4995b0c11efa6fe62fe`.
 - Local gates recorded for v4.44: `ruff check .` OK, `ty check` OK, `pip-audit` OK, full pytest `2455 passed, 6 skipped, 2 warnings, 11 subtests`.
 - Follow-up docs closed H3/H4/H5/J4 as delivered or delivered functionally; H7/J2/J5 were measured in P2 and remain defer-only without runtime patch because no hotspot was observed.
-- GitHub operations are blocked: `git ls-remote --heads origin dev` returns HTTP 403 because the account is suspended. Do not fetch, push, open PRs, or rely on remote checks until this is resolved.
+- Historical correction: the HTTP 403 came from remote `gh` (GitHub), not `origin`. GitLab operations through `origin` and Bitbucket operations through `bitbucket` remain available.
 - Local untracked files intentionally remain outside commits: `docs/handoffs/SKILLS_*`, skill audit backups/logs, and `quality_gates_output.jsonl`.
 - H6 visual smoke was executed locally with screenshot evidence in the conversation; P2 runtime cleanup and measured defer is recorded above.
 

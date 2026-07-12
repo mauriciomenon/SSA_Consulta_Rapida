@@ -5,12 +5,12 @@
 - Branch fonte local: `dev`.
 - Baseline local ativo: `v4.45`; a estabilizacao local foi recuperada e validada sem criar tag ou release.
 - Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
-- PR #58 e PR #59: merged na linhagem historica acima; o estado local atual possui commits ainda nao publicados.
+- PR #58 e PR #59: merged na linhagem historica acima; `dev` esta publicado em GitLab e Bitbucket.
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
 - Exemplos diretos: `.\release.ps1 -Yes` e `./release.sh`; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
-- GitHub remoto retorna HTTP 403 por conta suspensa; nao fazer fetch, push, PR ou release remota ate desbloqueio.
+- Mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub. O HTTP 403 afeta somente `gh`.
 - Artefatos antigos v4.43 seguem historicos e nao devem ser usados para publicacao final.
-- Proximo passo operacional apos desbloqueio remoto: comparar divergencia e so entao propor push/release.
+- Commits autorizados sao publicados em `origin/dev` e `bitbucket/dev`; PR, tag e release no GitHub aguardam desbloqueio de `gh`.
 
 ## HISTORICAL SNAPSHOT 2026-06-11 11h
 
