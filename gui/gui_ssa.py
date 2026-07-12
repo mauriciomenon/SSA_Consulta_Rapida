@@ -5112,10 +5112,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def active_pai_api_worker(self):
         return self._active_pai_api_worker
 
-    def set_active_pai_api_worker(self, worker) -> None:
+    def set_active_pai_api_worker(self, worker) -> bool:
         if self._is_shutting_down and worker is not None:
-            return
+            return False
         self._active_pai_api_worker = worker
+        return True
 
     def active_pai_api_timer(self):
         return self._active_pai_api_timer

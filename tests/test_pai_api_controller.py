@@ -67,6 +67,7 @@ class _Window:
         self.reload_count = 0
         self.confirm_count = 0
         self.last_decision_request: Any | None = None
+        self.accept_workers = True
 
     def pai_api_preferences(self) -> dict[str, Any]:
         return self.preferences
@@ -82,8 +83,11 @@ class _Window:
     def active_pai_api_worker(self) -> Any:
         return self.worker
 
-    def set_active_pai_api_worker(self, worker: Any | None) -> None:
+    def set_active_pai_api_worker(self, worker: Any | None) -> bool:
+        if worker is not None and not self.accept_workers:
+            return False
         self.worker = worker
+        return True
 
     def active_pai_api_timer(self) -> Any:
         return self.timer
@@ -131,6 +135,32 @@ class _Worker:
 class _WorkerWithEmptySummary(_Worker):
     def summary(self) -> None:
         return None
+
+
+def test_refresh_does_not_start_worker_when_ownership_is_rejected(
+    tmp_path: Path,
+) -> None:
+    created_workers = []
+
+    class _RejectedWorker(_Worker):
+        def __init__(self, config: Any) -> None:
+            super().__init__(config)
+            created_workers.append(self)
+
+    window = _Window()
+    window.accept_workers = False
+    preferences = _preferences(auto_enabled=False)
+
+    assert not pai_api_controller.start_pai_api_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        worker_cls=_RejectedWorker,
+    )
+
+    assert window.worker is None
+    assert len(created_workers) == 1
+    assert created_workers[0].started is False
 
 
 @pytest.fixture(autouse=True)

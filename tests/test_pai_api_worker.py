@@ -863,3 +863,104 @@ def test_pai_api_worker_emits_fallback_message_for_empty_exception(
 
     assert errors == ["RuntimeError"]
     assert worker.failures == ["RuntimeError"]
+
+
+def test_pai_api_worker_cancel_before_run_emits_nothing(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    calls = []
+    terminal_signals = []
+
+    monkeypatch.setattr(
+        pai_api_worker,
+        "run_pai_scrap_report_ca_export",
+        lambda _request: calls.append("ca"),
+    )
+    monkeypatch.setattr(
+        pai_api_worker,
+        "fetch_pai_xlsx_preview",
+        lambda *_args, **_kwargs: calls.append("fetch"),
+    )
+    monkeypatch.setattr(
+        pai_api_worker,
+        "import_prepared_pai_xlsx",
+        lambda *_args, **_kwargs: calls.append("import"),
+    )
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
+        )
+    )
+    worker.finished_success.connect(lambda: terminal_signals.append("success"))
+    worker.finished_error.connect(lambda _message: terminal_signals.append("error"))
+
+    worker.cancel()
+    worker.run()
+
+    assert calls == []
+    assert terminal_signals == []
+
+
+def test_pai_api_worker_cancel_after_preview_skips_import_and_terminal_signals(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    import_calls = []
+    terminal_signals = []
+
+    def _fake_fetch(request, *, docs_dir):
+        _ = request, docs_dir
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=tmp_path / "data.xlsx",
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=tmp_path / "import.xlsx",
+            normalized_rows=1,
+        )
+
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    monkeypatch.setattr(
+        pai_api_worker,
+        "import_prepared_pai_xlsx",
+        lambda *_args, **_kwargs: import_calls.append(True),
+    )
+    monkeypatch.setattr(
+        pai_api_worker,
+        "run_pai_scrap_report_ca_export",
+        lambda _request: PaiScrapReportCertificate(
+            command=("cert",),
+            scrap_report_root=tmp_path,
+            ca_file=tmp_path / "ca.pem",
+            manifest_path=tmp_path / "cert.json",
+            stdout="",
+            stderr="",
+        ),
+    )
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
+        )
+    )
+    worker.preview_ready.connect(lambda _preview: worker.cancel())
+    worker.finished_success.connect(lambda: terminal_signals.append("success"))
+    worker.finished_error.connect(lambda _message: terminal_signals.append("error"))
+
+    worker.run()
+
+    assert import_calls == []
+    assert terminal_signals == []
