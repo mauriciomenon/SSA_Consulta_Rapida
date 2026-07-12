@@ -72,8 +72,13 @@ def parse_datetime_from_filename(filename: str) -> Optional[datetime]:
                 if ampm == "AM" and h == 12:
                     h = 0
             return datetime(y, mth, d, h, M)
-        except Exception:
-            # Se parsing falhar, tenta próximo padrão
+        except (TypeError, ValueError) as exc:
+            logger.debug(
+                "Falha ao interpretar data no nome %s com padrao %s: %s",
+                base,
+                rx.pattern,
+                exc,
+            )
             continue
     return None
 
@@ -112,8 +117,9 @@ def choose_latest(files: Iterable[str]) -> Optional[str]:
             base = os.path.basename(f).lower()
             if base in PROTECTED_FILENAMES:
                 continue
-        except Exception:
-            pass
+        except (TypeError, ValueError) as exc:
+            logger.debug("Ignorando candidato de arquivo invalido %r: %s", f, exc)
+            continue
         dt = best_datetime_for_file(f)
         if dt is None:
             continue
