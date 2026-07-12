@@ -2309,7 +2309,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
 
     def load_data(self):
-        if self._is_shutting_down:
+        if bool(getattr(self, "_is_shutting_down", False)):
             return
         ssa_gui_workers.load_data(
             self,
