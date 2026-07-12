@@ -4,7 +4,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-## [v4.45] - 2026-07-11 - HARDENING PYQT6 (P0/P1/P2 ENTREGUES)
+## [v4.45] - 2026-07-11 - HARDENING PYQT6 (ESTABILIZACAO RECUPERADA)
+
+### Recovery and stabilization - 2026-07-12
+- Archived and removed the interrupted, uncommitted Cycle 4 mixin/XLSX patch before applying any forward fix.
+- Kept Theme/Event/Display mixin extraction deferred; event, resize, theme and headless behavior remain in the stable implementation.
+- Window close now remains refused until every owned or retired worker has actually stopped; native Qt deletion is classified without forced termination.
+- PaiApi cancellation is terminal through staging and SQLite import, with ownership retained until native thread completion and no success signal after cancel.
+- SQLite progress cancellation is classified with `SQLITE_INTERRUPT=9`; DataLoader distinguishes expected cancellation from callback or startup failures.
+- AdvancedOptions rejects stale generations and does not rebuild controls while a user selection is waiting for the apply timer.
+- Derivadas completion is exactly once, including timeout followed by a late result.
+- XLSX limits are canonical across extractor, staging, PAI, robust importer, Derivadas, CLI and trusted full rescan: 64 external files, 128 MiB per file, 1 GiB per batch and 1 GiB expanded ZIP content per file.
+- Details refresh uses a bounded fingerprint sample when a data revision token is available, while preserving the exact full hash path without a token.
+- Global filter clear now synchronizes quick status buttons; silent fallback failures in touched runtime paths are logged.
+- Dead-code review removed only the obsolete Derivadas lock allocation; Qt callbacks, slots, eventFilter, resize and dynamic theme binding were retained.
 
 ### Changed
 - Promoted local baseline to `4.45` as start of hardening PyQt6 refactor cycle.
@@ -52,6 +65,11 @@ All notable changes to this project are documented in this file.
 - `semgrep` p/python + p/owasp-top-ten: 0 findings on 15 touched files.
 - `bandit`: 0 issues on touched files (1 B110 fixed).
 - Focused pytest: 1000+ tests passed across database, GUI, PaiApi, filter, derivadas suites.
+- XLSX focused validation: 137 tests passed; trusted preflight scanned 1767 files / 538283881 bytes in 0.378 s with no material RSS increase.
+- AdvancedOptions/Derivadas caller validation: 588 tests passed and 1 skipped.
+- Real GUI smoke loaded 96028 rows and validated pagination, simple/advanced filters, clear, details, links, Derivadas graph, theme, resize and native close.
+- Five-run medians after the GUI performance fix: render 0.278 s, simple filter 0.238 s, advanced filter 0.238 s, details 0.011 s; RSS improved by about 29 MiB.
+- `pip-audit`, gitleaks and verified-only trufflehog: no vulnerabilities or verified leaks.
 - Preserved `v4.36` as the latest published remote tag.
 
 ## [v4.44] - 2026-07-06

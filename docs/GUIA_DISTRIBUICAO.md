@@ -1,11 +1,13 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH 2026-07-06 09h45
+## CURRENT TRUTH 2026-07-12 18h32
 
 - Branch fonte local: `dev`.
-- Baseline local ativo: `v4.44` em `4ae43f05b0d81d15b7b224a09dcac7dfb316c915`.
-- Runtime local inclui `54bcbc002af3db8877a3b718c105d808a0d5381b 2026-07-06 09:45:28 -0300 STABILITY_PATCH: show commit ISO date in about dialog`.
-- Branch local estava 68 commits ahead de `origin/dev` antes deste DOC_SYNC; este DOC_SYNC adiciona 1 commit local.
+- Baseline local ativo: `v4.45`; a estabilizacao local foi recuperada e validada sem criar tag ou release.
+- Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
+- PR #58 e PR #59: merged na linhagem historica acima; o estado local atual possui commits ainda nao publicados.
+- Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
+- Exemplos diretos: `.\release.ps1 -Yes` e `./release.sh`; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
 - GitHub remoto retorna HTTP 403 por conta suspensa; nao fazer fetch, push, PR ou release remota ate desbloqueio.
 - Artefatos antigos v4.43 seguem historicos e nao devem ser usados para publicacao final.
 - Proximo passo operacional apos desbloqueio remoto: comparar divergencia e so entao propor push/release.

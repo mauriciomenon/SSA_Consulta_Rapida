@@ -1,6 +1,21 @@
 # Hardening Python/PyQt6 v4.45 - Plano Detalhado
 
-## Sumario
+## CURRENT TRUTH 2026-07-12 18h32
+
+- O patch local interrompido do Ciclo 4 foi arquivado fora do repositorio e removido do workspace antes das correcoes para frente.
+- ThemeGUISSAMixin, EventGUISSAMixin e DisplayGUISSAMixin permanecem suspensos. A God Class e `NAO_BLOQUEANTE_DEFERIDO`; nenhum mixin estrutural entrou na estabilizacao.
+- Os status antigos de Ciclos 1 a 3 nao eram aceite final: shutdown, PaiApi, SQLite, DataLoader, AdvancedOptions, Derivadas e XLSX exigiram correcoes adicionais.
+- Shutdown recusa fechamento enquanto qualquer worker owned ou retired estiver ativo, sem `terminate()` e sem liberar ownership antes do termino nativo.
+- Cancelamento PaiApi e terminal antes de staging/import/SQLite/sinal; SQLite usa `SQLITE_INTERRUPT=9`; DataLoader so trata `InterruptedError` como cancelamento quando o flag esta ativo.
+- AdvancedOptions usa cache independente, rejeita geracao stale e preserva selecao enquanto o timer de aplicacao esta ativo. Derivadas entrega exatamente um resultado terminal.
+- O validador XLSX canonico cobre extractor, staging, PAI, robust importer, Derivadas, CLI, backfill e full rescan confiavel. Ele valida e consome o mesmo stream, revalida snapshots e aplica 64 arquivos externos, 128 MiB por arquivo, 1 GiB por lote e 1 GiB expandido por arquivo.
+- A proposta posterior do z.ai para validar quatro entrypoints por `getsize` foi absorvida pelo fechamento mais forte acima; nao deve ser reaplicada.
+- Dead-code review removeu somente o lock Derivadas sem caller. Callbacks Qt, slots, `eventFilter`, resize e binding dinamico de tema foram mantidos.
+- Smoke GUI real validou 96028 linhas, 1921 paginas, filtros, limpeza, detalhes, links, grafo Derivadas, tema, resize e fechamento nativo. Screenshots com dados permanecem somente em `/private/tmp`.
+- Medianas em cinco rodadas: startup/carga 2.247 s, render 0.278 s, filtro simples 0.238 s, filtro avancado 0.238 s, detalhes 0.011 s. RSS final ficou cerca de 29 MiB menor que o baseline medido.
+- Gates locais focados estao verdes. CodeRabbit e Clawpatch permanecem bloqueados quando nao emitem verdict; timeout nunca foi classificado como limpo. GitHub continua bloqueado por HTTP 403, portanto nao houve push, PR, tag ou release.
+
+## HISTORICAL SNAPSHOT 2026-07-11
 
 Mapeei o modelo de concorrencia completo: 5 workers QThread (Filter, DataLoader, Rescan, PaiApi, ListExport), 3 threads daemon (vacuum, other_db, derivadas_sync), 1 singleton thread (PreferencesWriter), 1 cache de classe compartilhado (FilterCache), 3 registries globais de retirees, 7 locks. Encontrei **11 races distintas** (4 criticas), 3 riscos use-after-free via sip, 2 bloqueios de GUI thread, e God Class SSAMainWindow (238 metodos).
 
