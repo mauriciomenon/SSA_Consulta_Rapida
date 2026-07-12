@@ -253,16 +253,13 @@ def _start_async_derivadas_sync(
             result = {"ok": False, "error": str(exc)}
         current_thread = threading.current_thread()
         with sync_lock:
-            was_running = state.running
-            if state.running or state.pending_result is None:
+            if state.running:
                 state.pending_result = result
             if not state.running and (
                 state.thread is current_thread or not _thread_alive(state.thread)
             ):
                 state.thread = None
         _sync_state(sync_state_callback)
-        if not was_running and _window_alive(ui.message_parent, sip_module):
-            qtimer.singleShot(0, _poll_delivery)
 
     def _poll_delivery() -> None:
         if not _window_alive(ui.message_parent, sip_module):
@@ -270,6 +267,8 @@ def _start_async_derivadas_sync(
             return
         pending: dict[str, Any] | None
         with sync_lock:
+            if not state.running:
+                return
             phase_status = str(state.phase_status or "")
             pending = state.pending_result
             if pending is not None:
@@ -279,6 +278,8 @@ def _start_async_derivadas_sync(
         if pending is None:
             if monotonic() - started > DERIVADAS_SYNC_TIMEOUT_SEC:
                 with sync_lock:
+                    if not state.running:
+                        return
                     pending = state.pending_result
                     if pending is not None:
                         state.pending_result = None
@@ -291,6 +292,8 @@ def _start_async_derivadas_sync(
                 qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
             return
         with sync_lock:
+            if not state.running:
+                return
             state.mark_finished()
         _sync_state(sync_state_callback)
         finalize_result(ui.message_parent, pending)
