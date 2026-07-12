@@ -6133,6 +6133,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
 
         for worker in tracked_workers.values():
+            if not ssa_gui_workers.is_worker_alive(worker, sip):
+                continue
             try:
                 is_running = getattr(worker, "isRunning", None)
                 if callable(is_running) and not is_running():
@@ -6171,6 +6173,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         running_workers = []
         running_labels = []
         for worker in tracked_workers.values():
+            if not ssa_gui_workers.is_worker_alive(worker, sip):
+                continue
             try:
                 is_running = getattr(worker, "isRunning", None)
                 if callable(is_running) and is_running():

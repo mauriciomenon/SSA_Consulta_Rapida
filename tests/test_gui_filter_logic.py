@@ -13956,6 +13956,35 @@ class TestGUIFilterLogic:
         assert not self.window._filter_worker_registry.contains(worker)
         assert "Falha ao solicitar encerramento do worker de filtro" not in caplog.text
 
+    def test_close_event_ignores_natively_deleted_filter_worker(self, monkeypatch):
+        class _DeletedWorker:
+            def __init__(self):
+                self.cancel_called = False
+
+            def isRunning(self):
+                raise RuntimeError(
+                    "wrapped C/C++ object of type FilterWorker has been deleted"
+                )
+
+            def cancel(self):
+                self.cancel_called = True
+
+        worker = _DeletedWorker()
+
+        class _SipModule:
+            def isdeleted(self, target):
+                return target is worker
+
+        monkeypatch.setattr(gui_ssa, "sip", _SipModule())
+        self.window._filter_worker_registry.add(worker)
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert worker.cancel_called is False
+        assert self.window._shutdown_pending_workers == []
+
     def test_close_event_cancels_filter_worker_when_running_check_fails(self):
         class _BrokenRunningWorker:
             def __init__(self):
