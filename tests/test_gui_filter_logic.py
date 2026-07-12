@@ -14419,14 +14419,18 @@ class TestGUIFilterLogic:
         event = QCloseEvent()
         self.window.closeEvent(event)
 
-        assert event.isAccepted() is True
+        assert event.isAccepted() is False
         assert worker.quit_called is True
-        assert worker.wait_called_ms is None
+        assert worker.wait_called_ms == gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS
         assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
 
         worker.finish_now()
         assert worker.deleted is True
         assert worker not in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+
+        retry_event = QCloseEvent()
+        self.window.closeEvent(retry_event)
+        assert retry_event.isAccepted() is True
 
     def test_close_event_retains_slow_filter_worker_globally_until_finished(self):
         class _FakeSignal:
@@ -14480,7 +14484,7 @@ class TestGUIFilterLogic:
         event = QCloseEvent()
         self.window.closeEvent(event)
 
-        assert event.isAccepted() is True
+        assert event.isAccepted() is False
         assert worker.quit_called is True
         assert worker.wait_called_ms is None
         assert self.window._filter_worker_registry.contains(worker)
@@ -14488,6 +14492,51 @@ class TestGUIFilterLogic:
         worker.finish_now()
         assert worker.deleted is True
         assert not self.window._filter_worker_registry.contains(worker)
+
+        retry_event = QCloseEvent()
+        self.window.closeEvent(retry_event)
+        assert retry_event.isAccepted() is True
+
+    def test_close_event_waits_for_slow_list_export_worker(self):
+        class _SlowListExportWorker:
+            def __init__(self):
+                self._running = True
+                self.cancel_called = False
+                self.quit_called = False
+                self.wait_calls = []
+
+            def isRunning(self):
+                return self._running
+
+            def cancel(self):
+                self.cancel_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+        class _ListExportState:
+            def __init__(self, worker):
+                self.worker = worker
+
+        worker = _SlowListExportWorker()
+        self.window._list_export_state = _ListExportState(worker)
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert worker.cancel_called is True
+        assert worker.quit_called is True
+        assert worker.wait_calls == [2000]
+
+        worker._running = False
+        retry_event = QCloseEvent()
+        self.window.closeEvent(retry_event)
+        assert retry_event.isAccepted() is True
 
     def test_close_event_retains_slow_rescan_worker_globally_and_clears_active_ref(
         self,
@@ -14526,13 +14575,18 @@ class TestGUIFilterLogic:
             event = QCloseEvent()
             self.window.closeEvent(event)
 
-            assert event.isAccepted() is True
+            assert event.isAccepted() is False
             assert worker.stop_called is True
             assert worker.quit_called is True
             assert worker.wait_calls == []
             assert worker.terminate_called is False
             assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
             assert self.window._active_rescan_worker is None
+
+            worker._running = False
+            retry_event = QCloseEvent()
+            self.window.closeEvent(retry_event)
+            assert retry_event.isAccepted() is True
         finally:
             if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
                 gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)

@@ -542,7 +542,7 @@ def cleanup_window_workers_on_close(
             cleanup_data_loader_worker(
                 window,
                 data_worker,
-                wait_ms=0,
+                wait_ms=max(0, int(retired_force_wait_ms)),
                 global_workers=data_loader_workers,
                 global_meta=data_loader_meta,
                 max_global_workers=max_data_loader_workers,

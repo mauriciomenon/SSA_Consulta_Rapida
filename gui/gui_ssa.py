@@ -6032,7 +6032,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
         return ssa_gui_resize.apply_computed_widths_only(self)
 
-    def shutdown(self):
+    def shutdown(self) -> bool:
         """
         Encerramento explicito e ordenado da janela.
 
@@ -6040,8 +6040,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         chama o cleanup de workers existente e aguarda retirees com timeout.
         Retorna True se todos os workers pararam antes do timeout.
         """
-        if self._is_shutting_down:
-            return True
+        tracked_workers = {
+            id(worker): worker
+            for worker in getattr(self, "_shutdown_pending_workers", [])
+            if worker is not None
+        }
+        for worker_attr in (
+            "data_loader_thread",
+            "filter_thread",
+            "_active_rescan_worker",
+            "_active_pai_api_worker",
+        ):
+            worker = getattr(self, worker_attr, None)
+            if worker is not None:
+                tracked_workers[id(worker)] = worker
+
         self._is_shutting_down = True
         all_stopped = True
 
@@ -6104,6 +6117,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if list_export_state is not None
             else None
         )
+        if list_export_worker is not None:
+            tracked_workers[id(list_export_worker)] = list_export_worker
         if list_export_worker is not None and hasattr(
             list_export_worker, "isRunning"
         ):
@@ -6119,6 +6134,37 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Falha no cleanup do list export worker no shutdown: %s", exc
                 )
 
+        running_workers = []
+        running_labels = []
+        for worker in tracked_workers.values():
+            try:
+                if hasattr(worker, "isRunning") and worker.isRunning():
+                    running_workers.append(worker)
+                    running_labels.append(type(worker).__name__)
+            except RuntimeError as exc:
+                if "has been deleted" not in str(exc):
+                    running_workers.append(worker)
+                    running_labels.append(type(worker).__name__)
+                    logger.warning(
+                        "Falha ao consultar worker durante shutdown: %s", exc
+                    )
+
+        self._shutdown_pending_workers = running_workers
+        all_stopped = all_stopped and not running_workers
+        if not all_stopped:
+            labels = ", ".join(sorted(set(running_labels))) or "worker desconhecido"
+            logger.warning("Shutdown adiado; workers ativos: %s", labels)
+            status_label = getattr(self, "status_label", None)
+            if status_label is not None and hasattr(status_label, "setText"):
+                try:
+                    status_label.setText(
+                        "Encerramento aguardando operacoes em andamento."
+                    )
+                except (RuntimeError, AttributeError) as exc:
+                    logger.debug(
+                        "Falha ao informar shutdown pendente na GUI: %s", exc
+                    )
+
         return all_stopped
 
     def closeEvent(self, event):
@@ -6127,8 +6173,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         Garante cleanup adequado dos QThreads para evitar o erro:
         'QThread: Destroyed while thread is still running'
         """
-        self.shutdown()
-        event.accept()
+        if self.shutdown():
+            event.accept()
+        else:
+            event.ignore()
 
 
 # --- Ponto de Entrada ---
