@@ -39,6 +39,10 @@ class TestScenarioAdvOptionsLoadWaste(GUIFilterScenarioHarness):
         self.window._adv_options_dirty = False
         self.window._refresh_advanced_filter_options()
         QApplication.processEvents()
+        worker = getattr(self.window, "_adv_options_worker", None)
+        if worker is not None:
+            assert worker.wait(1000)
+            QApplication.processEvents()
 
         self.window._adv_values_cache["exec_vals"] = ["STALE_EXEC"]
         self.window.df_completo.loc[0, "setor_executor"] = "RACE_FRESH"
@@ -47,6 +51,10 @@ class TestScenarioAdvOptionsLoadWaste(GUIFilterScenarioHarness):
         with patch_adv_options_cache_spies() as (get_cached_spy, collect_spy):
             self.window._refresh_advanced_filter_options()
             QApplication.processEvents()
+            worker = getattr(self.window, "_adv_options_worker", None)
+            if worker is not None:
+                assert worker.wait(1000)
+                QApplication.processEvents()
 
         assert get_cached_spy.call_count == 1
         assert get_cached_spy.call_args.kwargs.get("force_refresh") is True

@@ -2011,10 +2011,12 @@ def _refresh_advanced_filter_options(self):
                 if isinstance(current_df, pd.DataFrame)
                 else None
             )
+            apply_timer = getattr(self, "_advanced_apply_timer", None)
             if (
                 current_key != generation_key
                 or current_filters != filters_snapshot
                 or bool(getattr(self, "_adv_options_refresh_pending", False))
+                or (apply_timer is not None and apply_timer.isActive())
             ):
                 self._adv_options_dirty = True
                 refresh_after_finish = True
@@ -2053,11 +2055,13 @@ def _refresh_advanced_filter_options(self):
                     if isinstance(current_df, pd.DataFrame)
                     else None
                 )
+                apply_timer = getattr(self, "_advanced_apply_timer", None)
                 if (
                     not isinstance(current_df, pd.DataFrame)
                     or current_key != generation_key
                     or current_filters != filters_snapshot
                     or bool(getattr(self, "_adv_options_refresh_pending", False))
+                    or (apply_timer is not None and apply_timer.isActive())
                 ):
                     self._adv_options_dirty = True
                     refresh_after_finish = True
