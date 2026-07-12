@@ -1715,6 +1715,7 @@ class FilterGUISSAMixin:
                 "Falha ao sincronizar UI de filtros avancados em clear_all_filters_global: %s",
                 exc,
             )
+        self._refresh_quick_situacao_buttons()
 
         # Restaura linhas ocultas e limpa Filtro OU dedicado (exibição)
         try:

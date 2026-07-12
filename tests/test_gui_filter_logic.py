@@ -11875,6 +11875,25 @@ class TestGUIFilterLogic:
                 assert checkbox.isChecked() is False
         assert self.window.clear_filter_button.isEnabled() is False
 
+    def test_clear_all_filters_global_unchecks_quick_situacao_buttons(self):
+        self.window._refresh_quick_situacao_buttons()
+        apv_button = self.window.quick_situacao_buttons["APV"]
+
+        apv_button.click()
+        QApplication.processEvents()
+
+        assert apv_button.isChecked() is True
+        assert str(self.window._active_column_filters.get("situacao") or "") == "APV"
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert all(
+            not button.isChecked()
+            for button in self.window.quick_situacao_buttons.values()
+        )
+        assert not str(self.window._active_column_filters.get("situacao") or "")
+
     def test_clear_all_filters_global_resets_full_filter_state_matrix(self):
         self.window.search_input.setText("Teste A")
         self.window._active_column_filters["descricao_ssa"] = "Teste"
