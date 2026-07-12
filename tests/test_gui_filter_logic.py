@@ -3026,6 +3026,51 @@ class TestGUIFilterLogic:
         assert second_fingerprint
         assert first_fingerprint != second_fingerprint
 
+    def test_details_frame_fingerprint_bounds_tokenized_large_frame_hash(
+        self, monkeypatch
+    ):
+        self.window._data_uuid = "uuid-1"
+        self.window._data_revision = 1
+        df = pd.DataFrame({"numero_ssa": [str(value) for value in range(80)]})
+        hashed_row_counts = []
+        original_hash = ssa_gui_details.build_dataframe_filter_hash
+
+        def capture_hash(frame):
+            hashed_row_counts.append(len(frame))
+            return original_hash(frame)
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "build_dataframe_filter_hash",
+            capture_hash,
+        )
+
+        fingerprint = ssa_gui_details._get_details_frame_fingerprint(
+            self.window,
+            df,
+        )
+
+        assert fingerprint
+        assert hashed_row_counts == [24]
+
+    def test_details_frame_fingerprint_revision_covers_unsampled_change(self):
+        self.window._data_uuid = "uuid-1"
+        self.window._data_revision = 1
+        df = pd.DataFrame({"numero_ssa": [str(value) for value in range(80)]})
+
+        first_fingerprint = ssa_gui_details._get_details_frame_fingerprint(
+            self.window,
+            df,
+        )
+        df.loc[30, "numero_ssa"] = "changed-outside-sample"
+        self.window._data_revision = 2
+        second_fingerprint = ssa_gui_details._get_details_frame_fingerprint(
+            self.window,
+            df,
+        )
+
+        assert first_fingerprint != second_fingerprint
+
     def test_advanced_panel_context_exposes_emissor_before_executor(self):
         _ = self._panel_context()
         grid_widgets = self.window._advanced_filter_panel_state.grid_widgets
