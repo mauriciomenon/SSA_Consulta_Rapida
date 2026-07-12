@@ -100,7 +100,6 @@ def connect_rescan_worker_lifecycle(
             release_dialog_ref()
             return
         was_active_worker = getattr(window, "_active_rescan_worker", None) is worker
-        release_worker_ref()
         progress_dialog.set_finished(True)
         release_dialog_ref()
         _finish_successful_rescan(

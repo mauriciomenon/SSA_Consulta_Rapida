@@ -49,7 +49,6 @@ def export_current_list_tsv(
     state.worker = worker
 
     def _on_success(result: Any) -> None:
-        state.clear()
         if isinstance(result, ListExportResult):
             logger.info(
                 "Lista exportada para %s (%s linhas, %s colunas).",
@@ -59,14 +58,19 @@ def export_current_list_tsv(
             )
 
     def _on_error(error: str) -> None:
-        state.clear()
         logger.error("Falha ao exportar lista para arquivo: %s", error)
         message_box.information(window, "Aviso", "Falha ao exportar a lista.")
 
+    def _on_finished() -> None:
+        if state.worker is worker:
+            state.clear()
+
     worker.export_finished.connect(_on_success)
     worker.error_occurred.connect(_on_error)
-    if hasattr(worker, "finished") and hasattr(worker, "deleteLater"):
-        worker.finished.connect(worker.deleteLater)
+    if hasattr(worker, "finished"):
+        worker.finished.connect(_on_finished)
+        if hasattr(worker, "deleteLater"):
+            worker.finished.connect(worker.deleteLater)
     worker.start()
 
 

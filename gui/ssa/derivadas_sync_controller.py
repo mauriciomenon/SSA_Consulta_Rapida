@@ -259,12 +259,14 @@ def _start_async_derivadas_sync(
                 state.thread is current_thread or not _thread_alive(state.thread)
             ):
                 state.thread = None
-        _sync_state(sync_state_callback)
 
     def _poll_delivery() -> None:
         if not _window_alive(ui.message_parent, sip_module):
             _clear_abandoned_derivadas_sync(state, sync_lock, sync_state_callback)
             return
+        shutting_down = bool(
+            getattr(ui.message_parent, "_is_shutting_down", False)
+        )
         pending: dict[str, Any] | None
         with sync_lock:
             if not state.running:
@@ -286,7 +288,8 @@ def _start_async_derivadas_sync(
                     state.mark_finished()
                 _sync_state(sync_state_callback)
                 result = pending or {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
-                finalize_result(ui.message_parent, result)
+                if not shutting_down:
+                    finalize_result(ui.message_parent, result)
                 return
             if state.running:
                 qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
@@ -296,7 +299,8 @@ def _start_async_derivadas_sync(
                 return
             state.mark_finished()
         _sync_state(sync_state_callback)
-        finalize_result(ui.message_parent, pending)
+        if not shutting_down:
+            finalize_result(ui.message_parent, pending)
 
     worker = thread_factory(target=_work, daemon=True)
     with sync_lock:

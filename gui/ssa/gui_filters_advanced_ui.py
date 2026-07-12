@@ -1993,6 +1993,7 @@ def _refresh_advanced_filter_options(self):
             get_cached_fn=get_cached_advanced_filter_option_values,
             force_refresh=dirty,
         )
+        self._adv_options_worker = worker
         worker_ref = worker
         refresh_after_finish = False
 
@@ -2070,6 +2071,8 @@ def _refresh_advanced_filter_options(self):
                 logger.debug("Fallback sincrono de advanced options falhou: %s", exc)
 
         def _on_finished(w=worker_ref):
+            if getattr(self, "_adv_options_worker", None) is w:
+                self._adv_options_worker = None
             self._adv_options_worker_active = False
             needs_refresh = refresh_after_finish or bool(
                 getattr(self, "_adv_options_refresh_pending", False)

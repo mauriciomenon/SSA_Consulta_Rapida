@@ -1370,6 +1370,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_cache_token = -1
         self._adv_values_cache = {}
         self._adv_options_worker_active = False
+        self._adv_options_worker = None
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
         self._adv_sector_handler_running = False
@@ -6035,29 +6036,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def shutdown(self) -> bool:
         """
-        Encerramento explicito e ordenado da janela.
+        Solicita cancelamento cooperativo e mantem a janela viva ate o fim real.
 
-        Bloqueia novos trabalhos, para timers, cancela o worker PAI ativo,
-        chama o cleanup de workers existente e aguarda retirees com timeout.
-        Retorna True se todos os workers pararam antes do timeout.
+        O metodo nao aguarda workers em serie. Cada nova tentativa de fechamento
+        consulta novamente o estado nativo e aceita somente quando todos pararam.
         """
-        tracked_workers = {
-            id(worker): worker
-            for worker in getattr(self, "_shutdown_pending_workers", [])
-            if worker is not None
-        }
+        worker_candidates = list(getattr(self, "_shutdown_pending_workers", []) or [])
         for worker_attr in (
             "data_loader_thread",
             "filter_thread",
             "_active_rescan_worker",
             "_active_pai_api_worker",
+            "_adv_options_worker",
         ):
             worker = getattr(self, worker_attr, None)
             if worker is not None:
-                tracked_workers[id(worker)] = worker
+                worker_candidates.append(worker)
+
+        filter_registry = getattr(self, "_filter_worker_registry", None)
+        if filter_registry is not None and hasattr(filter_registry, "snapshot"):
+            worker_candidates.extend(filter_registry.snapshot())
+        worker_candidates.extend(
+            list(getattr(self, "_retired_data_loader_workers", []) or [])
+        )
+        worker_candidates.extend(list(GLOBAL_RETIRED_DATA_LOADER_WORKERS))
+        worker_candidates.extend(list(GLOBAL_RETIRED_RESCAN_WORKERS))
+
+        list_export_state = getattr(self, "_list_export_state", None)
+        list_export_worker = getattr(list_export_state, "worker", None)
+        if list_export_worker is not None:
+            worker_candidates.append(list_export_worker)
+
+        tracked_workers = {
+            id(worker): worker for worker in worker_candidates if worker is not None
+        }
 
         self._is_shutting_down = True
-        all_stopped = True
 
         for timer_attr in (
             "_debounce_timer",
@@ -6078,81 +6092,112 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except RuntimeError as exc:
                 logger.debug("Falha ao parar timer PAI no shutdown: %s", exc)
 
-        pai_worker = getattr(self, "_active_pai_api_worker", None)
-        if pai_worker is not None:
+        rescan_worker = getattr(self, "_active_rescan_worker", None)
+        if rescan_worker is not None:
             try:
-                cancel_fn = getattr(pai_worker, "cancel", None)
-                if callable(cancel_fn):
-                    cancel_fn()
-                else:
-                    pai_worker.requestInterruption()
-                if hasattr(pai_worker, "isRunning") and pai_worker.isRunning():
-                    pai_worker.quit()
-                    pai_worker.wait(3000)
-                    if pai_worker.isRunning():
-                        all_stopped = False
-                        logger.warning(
-                            "PaiApiRefreshWorker nao parou apos timeout no shutdown"
-                        )
-            except (RuntimeError, AttributeError) as exc:
-                logger.debug("Falha no cleanup do PaiApi worker no shutdown: %s", exc)
+                ssa_gui_workers.retain_rescan_worker_global(
+                    rescan_worker,
+                    reason="shutdown",
+                    global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+                    global_meta=GLOBAL_RETIRED_RESCAN_META,
+                    max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+                    sip_module=sip,
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao reter RescanWorker durante shutdown: %s", exc
+                )
 
-        try:
-            from gui.ssa.gui_preferences_persistence import (
-                shutdown_gui_preferences_writer,
-            )
-
-            shutdown_gui_preferences_writer(timeout=1.0)
-        except Exception as exc:
-            logger.debug("Falha ao aguardar persistencia GUI no shutdown: %s", exc)
-
-        ssa_gui_workers.cleanup_window_workers_on_close(
-            self,
-            **_close_retention_kwargs(),
-            sip_module=sip,
-        )
-
-        list_export_state = getattr(self, "_list_export_state", None)
-        list_export_worker = (
-            getattr(list_export_state, "worker", None)
-            if list_export_state is not None
-            else None
-        )
-        if list_export_worker is not None:
-            tracked_workers[id(list_export_worker)] = list_export_worker
-        if list_export_worker is not None and hasattr(
-            list_export_worker, "isRunning"
+        data_loader_worker = getattr(self, "data_loader_thread", None)
+        data_loader_finished = getattr(data_loader_worker, "finished", None)
+        if data_loader_worker is not None and hasattr(
+            data_loader_finished, "connect"
         ):
             try:
-                if list_export_worker.isRunning():
-                    cancel_fn = getattr(list_export_worker, "cancel", None)
-                    if callable(cancel_fn):
-                        cancel_fn()
-                    list_export_worker.quit()
-                    list_export_worker.wait(2000)
+                ssa_gui_workers.retain_data_loader_worker_until_finished(
+                    self,
+                    data_loader_worker,
+                    **_data_loader_retention_kwargs(),
+                    sip_module=sip,
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao reter DataLoader durante shutdown: %s", exc
+                )
+
+        if getattr(self, "filter_thread", None) is not None:
+            try:
+                self._cancel_active_filter_worker("closeEvent")
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao transferir FilterWorker durante shutdown: %s", exc
+                )
+
+        for worker in tracked_workers.values():
+            try:
+                is_running = getattr(worker, "isRunning", None)
+                if callable(is_running) and not is_running():
+                    continue
             except (RuntimeError, AttributeError) as exc:
                 logger.debug(
-                    "Falha no cleanup do list export worker no shutdown: %s", exc
+                    "Falha ao consultar estado de %s no shutdown; tratando como ativo: %s",
+                    type(worker).__name__,
+                    exc,
                 )
+            for method_name in ("cancel", "stop", "requestInterruption"):
+                stop_fn = getattr(worker, method_name, None)
+                if not callable(stop_fn):
+                    continue
+                try:
+                    stop_fn()
+                    break
+                except (RuntimeError, AttributeError) as exc:
+                    logger.debug(
+                        "Falha ao solicitar %s de %s: %s",
+                        method_name,
+                        type(worker).__name__,
+                        exc,
+                    )
+            quit_fn = getattr(worker, "quit", None)
+            if callable(quit_fn):
+                try:
+                    quit_fn()
+                except (RuntimeError, AttributeError) as exc:
+                    logger.debug(
+                        "Falha ao solicitar quit de %s: %s",
+                        type(worker).__name__,
+                        exc,
+                    )
 
         running_workers = []
         running_labels = []
         for worker in tracked_workers.values():
             try:
-                if hasattr(worker, "isRunning") and worker.isRunning():
+                is_running = getattr(worker, "isRunning", None)
+                if callable(is_running) and is_running():
                     running_workers.append(worker)
                     running_labels.append(type(worker).__name__)
-            except RuntimeError as exc:
-                if "has been deleted" not in str(exc):
-                    running_workers.append(worker)
-                    running_labels.append(type(worker).__name__)
-                    logger.warning(
-                        "Falha ao consultar worker durante shutdown: %s", exc
-                    )
+            except (RuntimeError, AttributeError) as exc:
+                running_workers.append(worker)
+                running_labels.append(type(worker).__name__)
+                logger.warning(
+                    "Falha ao consultar worker durante shutdown: %s", exc
+                )
+
+        derivadas_state = getattr(self, "_derivadas_sync_state", None)
+        derivadas_thread = getattr(derivadas_state, "thread", None)
+        if derivadas_thread is not None:
+            try:
+                if derivadas_thread.is_alive():
+                    running_labels.append(type(derivadas_thread).__name__)
+            except (RuntimeError, AttributeError) as exc:
+                running_labels.append(type(derivadas_thread).__name__)
+                logger.warning(
+                    "Falha ao consultar thread de derivadas no shutdown: %s", exc
+                )
 
         self._shutdown_pending_workers = running_workers
-        all_stopped = all_stopped and not running_workers
-        if not all_stopped:
+        if running_labels:
             labels = ", ".join(sorted(set(running_labels))) or "worker desconhecido"
             logger.warning("Shutdown adiado; workers ativos: %s", labels)
             status_label = getattr(self, "status_label", None)
@@ -6165,8 +6210,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     logger.debug(
                         "Falha ao informar shutdown pendente na GUI: %s", exc
                     )
+            return False
 
-        return all_stopped
+        try:
+            from gui.ssa.gui_preferences_persistence import (
+                shutdown_gui_preferences_writer,
+            )
+
+            shutdown_gui_preferences_writer(timeout=1.0)
+        except Exception as exc:
+            logger.debug("Falha ao aguardar persistencia GUI no shutdown: %s", exc)
+        return True
 
     def closeEvent(self, event):
         """

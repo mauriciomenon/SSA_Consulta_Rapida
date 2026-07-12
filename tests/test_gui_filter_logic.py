@@ -13938,10 +13938,10 @@ class TestGUIFilterLogic:
             event = QCloseEvent()
             self.window.closeEvent(event)
 
-        assert event.isAccepted() is True
+        assert event.isAccepted() is False
         cancel_mock.assert_called_once_with("closeEvent")
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
+        assert worker.wait_called_ms is None
 
     def test_initiate_filtering_keeps_slow_previous_worker_retained_until_finished(
         self,
@@ -14074,8 +14074,8 @@ class TestGUIFilterLogic:
         assert event.isAccepted() is True
         assert worker.quit_called is True
         assert worker.wait_called_ms is None
-        assert worker.deleted is True
-        assert self.window.data_loader_thread is None
+        assert worker.deleted is False
+        assert self.window.data_loader_thread is worker
 
     def test_close_event_stops_main_and_sector_debounce_timers(self):
         self.window._debounce_timer.start()
@@ -14093,6 +14093,62 @@ class TestGUIFilterLogic:
         assert self.window._debounce_timer.isActive() is False
         assert self.window._sector_debounce_timer.isActive() is False
         assert self.window._advanced_apply_timer.isActive() is False
+
+    def test_close_event_rejects_active_advanced_options_worker(self):
+        class _AdvancedWorker:
+            def __init__(self):
+                self.running = True
+                self.interruption_requested = False
+                self.quit_called = False
+
+            def isRunning(self):
+                return self.running
+
+            def requestInterruption(self):
+                self.interruption_requested = True
+
+            def quit(self):
+                self.quit_called = True
+
+        worker = _AdvancedWorker()
+        self.window._adv_options_worker = worker
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert worker.interruption_requested is True
+        assert worker.quit_called is True
+
+        worker.running = False
+        retry_event = QCloseEvent()
+        self.window.closeEvent(retry_event)
+        assert retry_event.isAccepted() is True
+
+    def test_close_event_rejects_alive_derivadas_thread(self):
+        class _DerivadasThread:
+            def __init__(self):
+                self.alive = True
+
+            def is_alive(self):
+                return self.alive
+
+        thread = _DerivadasThread()
+        self.window._derivadas_sync_state = type(
+            "DerivadasState",
+            (),
+            {"thread": thread},
+        )()
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+
+        thread.alive = False
+        retry_event = QCloseEvent()
+        self.window.closeEvent(retry_event)
+        assert retry_event.isAccepted() is True
 
     def test_on_data_loaded_ignores_stale_request(self):
         original_df = self.window.df_completo.copy()
@@ -14506,7 +14562,7 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is False
         assert worker.quit_called is True
-        assert worker.wait_called_ms == gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS
+        assert worker.wait_called_ms is None
         assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
 
         worker.finish_now()
@@ -14582,7 +14638,7 @@ class TestGUIFilterLogic:
         self.window.closeEvent(retry_event)
         assert retry_event.isAccepted() is True
 
-    def test_close_event_waits_for_slow_list_export_worker(self):
+    def test_close_event_does_not_wait_for_slow_list_export_worker(self):
         class _SlowListExportWorker:
             def __init__(self):
                 self._running = True
@@ -14616,14 +14672,14 @@ class TestGUIFilterLogic:
         assert event.isAccepted() is False
         assert worker.cancel_called is True
         assert worker.quit_called is True
-        assert worker.wait_calls == [2000]
+        assert worker.wait_calls == []
 
         worker._running = False
         retry_event = QCloseEvent()
         self.window.closeEvent(retry_event)
         assert retry_event.isAccepted() is True
 
-    def test_close_event_retains_slow_rescan_worker_globally_and_clears_active_ref(
+    def test_close_event_retains_slow_rescan_worker_until_native_finish(
         self,
     ):
         class _SlowRescanWorker:
@@ -14666,7 +14722,7 @@ class TestGUIFilterLogic:
             assert worker.wait_calls == []
             assert worker.terminate_called is False
             assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
-            assert self.window._active_rescan_worker is None
+            assert self.window._active_rescan_worker is worker
 
             worker._running = False
             retry_event = QCloseEvent()
@@ -14717,12 +14773,12 @@ class TestGUIFilterLogic:
             event = QCloseEvent()
             self.window.closeEvent(event)
 
-            assert event.isAccepted() is True
+            assert event.isAccepted() is False
             assert worker.stop_called is True
             assert worker.quit_called is True
             assert worker.wait_calls == []
             assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
-            assert self.window._active_rescan_worker is None
+            assert self.window._active_rescan_worker is worker
         finally:
             if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
                 gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
@@ -14763,11 +14819,11 @@ class TestGUIFilterLogic:
             event = QCloseEvent()
             self.window.closeEvent(event)
 
-            assert event.isAccepted() is True
+            assert event.isAccepted() is False
             assert gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS == [worker_new]
             assert worker_old not in gui_ssa.GLOBAL_RETIRED_RESCAN_META
             assert worker_new in gui_ssa.GLOBAL_RETIRED_RESCAN_META
-            assert self.window._active_rescan_worker is None
+            assert self.window._active_rescan_worker is worker_new
         finally:
             setattr(gui_ssa, "MAX_GLOBAL_RETIRED_RESCAN_WORKERS", old_cap)
             gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS[:] = []
@@ -14823,13 +14879,13 @@ class TestGUIFilterLogic:
             event = QCloseEvent()
             self.window.closeEvent(event)
 
-            assert event.isAccepted() is True
+            assert event.isAccepted() is False
             assert worker.stop_called is True
             assert worker.quit_called is True
-            assert call_counter["count"] == 1
+            assert call_counter["count"] == 0
             assert worker.wait_calls == []
             assert worker.terminate_called is False
-            assert self.window._active_rescan_worker is None
+            assert self.window._active_rescan_worker is worker
         finally:
             if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
                 gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)

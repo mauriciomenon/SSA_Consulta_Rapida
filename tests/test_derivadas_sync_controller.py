@@ -14,6 +14,14 @@ class _ImmediateTimer:
         callback()
 
 
+class _QueuedTimer:
+    callbacks: list[Any] = []
+
+    @classmethod
+    def singleShot(cls, _msec: int, callback) -> None:
+        cls.callbacks.append(callback)
+
+
 class _HungThread(threading.Thread):
     def __init__(self, target=None, daemon: bool | None = None, **_kwargs: Any) -> None:
         super().__init__(target=target, daemon=daemon)
@@ -283,3 +291,44 @@ def test_async_derivadas_timeout_rejects_second_start_while_worker_alive(
         "db_path": str(tmp_path / "ssas.db"),
         "table_name": "",
     }
+
+
+def test_derivadas_worker_does_not_call_gui_state_callback(tmp_path) -> None:
+    state = derivadas_sync_controller.DerivadasSyncState()
+    state.mark_started()
+    sync_lock = derivadas_sync_controller._ensure_derivadas_sync_lock(state)
+    callbacks: list[str] = []
+    workers: list[_HungThread] = []
+
+    def _thread_factory(**kwargs: Any) -> _HungThread:
+        worker = _HungThread(**kwargs)
+        workers.append(worker)
+        return worker
+
+    _QueuedTimer.callbacks.clear()
+    derivadas_sync_controller._start_async_derivadas_sync(
+        derivadas_sync_controller.DerivadasSyncUiRefs(
+            message_parent=object(),
+            status_label=None,
+            progress_bar=None,
+            update_button=None,
+        ),
+        state,
+        db_path=str(tmp_path / "ssas.db"),
+        table_name="ssa_table",
+        special_files=[],
+        sync_lock=sync_lock,
+        qtimer=_QueuedTimer,
+        sip_module=None,
+        thread_factory=_thread_factory,
+        execute_job=lambda **_kwargs: {"ok": True, "merged_edges": 1},
+        finalize_result=lambda _parent, result: result,
+        sync_state_callback=lambda: callbacks.append(threading.current_thread().name),
+    )
+    callback_count_before_work = len(callbacks)
+
+    assert workers[0]._target is not None
+    workers[0]._target()
+
+    assert len(callbacks) == callback_count_before_work
+    assert state.pending_result == {"ok": True, "merged_edges": 1}
