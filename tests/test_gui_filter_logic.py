@@ -14159,6 +14159,38 @@ class TestGUIFilterLogic:
 
         assert self.window.df_completo.equals(original_df)
 
+    def test_on_data_loaded_ignores_delivery_during_shutdown(self):
+        original_df = self.window.df_completo.copy()
+        self.window._is_shutting_down = True
+
+        self.window.on_data_loaded(self.base_df.iloc[:1].copy(), request_id=1)
+
+        assert self.window.df_completo.equals(original_df)
+
+    def test_missing_database_startup_shows_empty_window(self, tmp_path):
+        missing_db = tmp_path / "missing.db"
+        self.window.hide()
+        self.window._startup_show_pending = True
+
+        ssa_gui_workers.load_data(
+            self.window,
+            db_path=str(missing_db),
+            table_name="ssa_table",
+            data_loader_cls=None,
+            qmessagebox=None,
+            global_workers=[],
+            global_meta={},
+            max_global_workers=64,
+            retired_ttl_sec=300.0,
+            retired_force_wait_ms=0,
+            sip_module=None,
+        )
+        QApplication.processEvents()
+
+        assert self.window.isVisible() is True
+        assert self.window._startup_show_pending is False
+        assert self.window.status_label.text() == "Status: Banco de dados nao encontrado."
+
     def test_on_data_loaded_stops_pending_sector_timer(self):
         self.window._active_data_load_request_id = 12
         self.window._sector_debounce_timer.start()

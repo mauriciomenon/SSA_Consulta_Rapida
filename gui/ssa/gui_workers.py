@@ -650,6 +650,9 @@ def cleanup_data_loader_worker(
     still_running = False
     try:
         _safe_disconnect(
+            getattr(worker, "data_prepared", None), "data_prepared do worker de carga"
+        )
+        _safe_disconnect(
             getattr(worker, "data_loaded", None), "data_loaded do worker de carga"
         )
         _safe_disconnect(
@@ -832,6 +835,11 @@ def _connect_data_loader_callbacks(
     sip_module,
 ) -> None:
     def _handle_data_loaded(data, rid=request_id):
+        if bool(getattr(window, "_is_shutting_down", False)):
+            logger.debug(
+                "Ignorando entrega de carga durante shutdown (request_id=%s)", rid
+            )
+            return None
         handler = getattr(window, "on_data_loaded", None)
         if callable(handler):
             return handler(data, request_id=rid)
@@ -938,6 +946,14 @@ def load_data(
             "Status: Banco de dados nao encontrado.",
             context="load_data_missing_db",
         )
+        if bool(getattr(window, "_startup_show_pending", False)):
+            try:
+                window.show()
+                window._startup_show_pending = False
+            except (RuntimeError, AttributeError) as exc:
+                logger.warning(
+                    "Falha ao mostrar janela sem banco no startup: %s", exc
+                )
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return
         if qmessagebox is not None:
@@ -1247,6 +1263,12 @@ def _update_loaded_data_status(window) -> None:
 
 
 def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
+    if bool(getattr(window, "_is_shutting_down", False)):
+        logger.debug(
+            "Ignorando resultado de carga durante shutdown (request_id=%s)",
+            request_id,
+        )
+        return
     if _is_stale_data_load_result(window, request_id):
         return
     loaded = prepare_loaded_dataframes(df)

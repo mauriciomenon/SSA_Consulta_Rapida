@@ -104,16 +104,21 @@ class DataLoaderWorker(QThread):
                     attrs=dict(getattr(df, "attrs", {}) or {}),
                 )
                 df = loaded.complete
+            if self._is_cancelled():
+                return
             # data_loaded is kept for legacy consumers; GUI uses data_prepared.
             prepared_receivers = int(self.receivers(self.data_prepared))
             legacy_receivers = int(self.receivers(self.data_loaded))
-            if prepared_receivers > 0:
+            if prepared_receivers > 0 and not self._is_cancelled():
                 self.data_prepared.emit(loaded)
-            if legacy_receivers > 0:
+            if legacy_receivers > 0 and not self._is_cancelled():
                 self.data_loaded.emit(df)
         except InterruptedError:
-            logger.debug("DataLoaderWorker cancelado durante consulta SQLite.")
-            return
+            if self._is_cancelled():
+                logger.debug("DataLoaderWorker cancelado durante consulta SQLite.")
+                return
+            logger.exception("Interrupcao inesperada no DataLoaderWorker")
+            self.error_occurred.emit("Falha ao carregar dados do banco.")
         except (
             sqlite3.Error,
             pd.errors.DatabaseError,

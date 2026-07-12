@@ -326,7 +326,7 @@ def test_run_skips_emit_when_interrupted_after_query():
     assert errors == []
 
 
-def test_run_skips_error_signal_for_sqlite_cancellation():
+def test_run_reports_unexpected_interrupted_error_without_cancel():
     emitted = []
     errors = []
     worker = DataLoaderWorker(":memory:", "ssa_table")
@@ -336,6 +336,59 @@ def test_run_skips_error_signal_for_sqlite_cancellation():
     with patch(
         "gui.workers.data_loader_worker.query_db",
         side_effect=InterruptedError("Database query cancelled"),
+    ):
+        worker.run()
+
+    assert emitted == []
+    assert errors == ["Falha ao carregar dados do banco."]
+
+
+def test_run_skips_error_signal_for_requested_sqlite_cancellation():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+    worker.error_occurred.connect(lambda msg: errors.append(msg))
+
+    def _cancelled_query(*_args, **_kwargs):
+        worker.cancel()
+        raise InterruptedError("Database query cancelled")
+
+    with patch(
+        "gui.workers.data_loader_worker.query_db",
+        side_effect=_cancelled_query,
+    ):
+        worker.run()
+
+    assert emitted == []
+    assert errors == []
+
+
+def test_run_skips_emit_when_cancelled_during_preprocessing():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    worker.data_prepared.connect(emitted.append)
+    worker.error_occurred.connect(errors.append)
+
+    from gui.workers import data_loader_worker as worker_module
+
+    original_prepare = worker_module.prepare_loaded_payload
+
+    def _prepare_then_cancel(*args, **kwargs):
+        loaded = original_prepare(*args, **kwargs)
+        worker.cancel()
+        return loaded
+
+    with (
+        patch(
+            "gui.workers.data_loader_worker.query_db",
+            return_value=pd.DataFrame({"numero_ssa": ["1"]}),
+        ),
+        patch(
+            "gui.workers.data_loader_worker.prepare_loaded_payload",
+            side_effect=_prepare_then_cancel,
+        ),
     ):
         worker.run()
 
