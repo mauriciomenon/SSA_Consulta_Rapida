@@ -359,7 +359,15 @@ class TestGUIFilterLogic:
         deadline = _time.monotonic() + (timeout_ms / 1000)
         while _time.monotonic() < deadline:
             QApplication.processEvents()
-            if not bool(getattr(self.window, "_adv_options_worker_active", False)):
+            refresh_busy = any(
+                bool(getattr(self.window, attr, False))
+                for attr in (
+                    "_adv_options_worker_active",
+                    "_adv_options_refresh_pending",
+                    "_adv_options_scheduled",
+                )
+            )
+            if not refresh_busy:
                 return
         QApplication.processEvents()
 
