@@ -17,7 +17,8 @@ definitions:
           - export UV_CACHE_DIR="$BITBUCKET_CLONE_DIR/.uv-cache"
           - >-
             apt-get update && apt-get install --yes --no-install-recommends
-            jq libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
+            jq libegl1 libfontconfig1 libgl1 libglib2.0-0 libopengl0
+            libxkbcommon-x11-0 libxcb-cursor0
           - uv sync --frozen --extra dev
           - export PATH="$BITBUCKET_CLONE_DIR/.venv/bin:$PATH"
           - PYTHON="$BITBUCKET_CLONE_DIR/.venv/bin/python" bash scripts/ci_quality_gates.sh
@@ -31,7 +32,8 @@ definitions:
           - export UV_CACHE_DIR="$BITBUCKET_CLONE_DIR/.uv-cache"
           - >-
             apt-get update && apt-get install --yes --no-install-recommends
-            libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
+            libegl1 libfontconfig1 libgl1 libglib2.0-0 libopengl0
+            libxkbcommon-x11-0 libxcb-cursor0
           - uv sync --frozen --extra dev
           - export PATH="$BITBUCKET_CLONE_DIR/.venv/bin:$PATH"
           - bash scripts/run_tests.sh

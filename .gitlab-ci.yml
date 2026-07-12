@@ -27,7 +27,8 @@ default:
     - apt-get update
     - >-
       apt-get install --yes --no-install-recommends
-      jq libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
+      jq libegl1 libfontconfig1 libgl1 libglib2.0-0 libopengl0
+      libxkbcommon-x11-0 libxcb-cursor0
     - uv sync --frozen --extra dev
     - export PATH="$CI_PROJECT_DIR/.venv/bin:$PATH"
 
