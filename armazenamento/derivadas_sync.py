@@ -32,6 +32,7 @@ from armazenamento.derivadas_schema import (
     scan_derivadas_read_schema_readiness,
 )
 from armazenamento.identifier_utils import is_valid_identifier
+from extracao.extractor import open_validated_excel_source
 from shared.numero_ssa import normalize_strict
 from utils.path_safety import ensure_path_is_allowed
 
@@ -365,7 +366,9 @@ def _load_excel_frames(
     try:
         frames: list[pd.DataFrame] = []
         parse_errors: list[tuple[str, Exception]] = []
-        with pd.ExcelFile(sheet_file) as workbook:
+        with open_validated_excel_source(sheet_file) as source_stream, pd.ExcelFile(
+            source_stream
+        ) as workbook:
             target_sheets = [sheet_name] if sheet_name else list(workbook.sheet_names)
             for target_sheet in target_sheets:
                 try:

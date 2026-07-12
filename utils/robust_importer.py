@@ -168,13 +168,16 @@ def _read_excel_source(
             header=header,
             dtype_backend="numpy_nullable",
         )
-    return pd.read_excel(
-        excel_source,
-        sheet_name=sheet_name,
-        header=header,
-        engine="openpyxl",
-        dtype_backend="numpy_nullable",
-    )
+    from extracao.extractor import open_validated_excel_source
+
+    with open_validated_excel_source(excel_source) as source_stream:
+        return pd.read_excel(
+            source_stream,
+            sheet_name=sheet_name,
+            header=header,
+            engine="openpyxl",
+            dtype_backend="numpy_nullable",
+        )
 
 
 def _coalesce_columns(df: pd.DataFrame, columns: List[str]) -> pd.Series:

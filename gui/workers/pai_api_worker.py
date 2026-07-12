@@ -28,6 +28,7 @@ from core.pai_scrap_report_provider import (
     PaiScrapReportRequest,
     run_pai_scrap_report_ca_export,
 )
+from extracao.extractor import ExtractionError, validate_excel_import_limits
 from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
 from gui.workers.qt_thread_shim import QThread, pyqtSignal
 
@@ -247,6 +248,18 @@ class PaiApiRefreshWorker(QThread):
             return
         self._refresh_summary(previews=previews)
         if not previews:
+            self._finish(_format_total_failure(self._failures_snapshot()))
+            return
+
+        try:
+            validate_excel_import_limits(
+                tuple(item.preview.import_xlsx_path for item in previews),
+                ignore_unavailable=True,
+                reject_invalid_archives=False,
+            )
+        except ExtractionError as exc:
+            self._add_failure(f"lote XLSX PAI rejeitado: {exc}")
+            self._refresh_summary(previews=previews)
             self._finish(_format_total_failure(self._failures_snapshot()))
             return
 

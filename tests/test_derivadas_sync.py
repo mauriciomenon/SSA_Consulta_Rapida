@@ -733,6 +733,28 @@ def test_schema_migration_handles_legacy_matrix_without_active_column(temp_db):
     assert row == (0, "Derivada da", 1)
 
 
+def test_derivadas_xlsx_limit_rejects_before_excel_open(tmp_path, monkeypatch):
+    from extracao.extractor import ExtractionError
+
+    source = tmp_path / "large.xlsx"
+    source.write_bytes(b"12345")
+    excel_opened = False
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    def _unexpected_excel_file(*_args, **_kwargs):
+        nonlocal excel_opened
+        excel_opened = True
+        raise AssertionError("ExcelFile must not run")
+
+    monkeypatch.setattr(derivadas_sync.pd, "ExcelFile", _unexpected_excel_file)
+
+    with pytest.raises(ValueError, match="excede o limite") as exc_info:
+        derivadas_sync._load_excel_frames(str(source))
+
+    assert isinstance(exc_info.value.__cause__, ExtractionError)
+    assert excel_opened is False
+
+
 def test_sync_succeeds_after_short_write_lock_contention(temp_db):
     _insert_ssa_rows(
         temp_db,

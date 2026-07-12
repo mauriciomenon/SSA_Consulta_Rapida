@@ -41,6 +41,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from armazenamento import database  # noqa: E402
+from extracao.extractor import ExtractionError, validate_excel_import_limits  # noqa: E402
 from utils.robust_importer import import_excel_robust  # noqa: E402
 
 logger = logging.getLogger("backfill_reprocessar")
@@ -132,11 +133,6 @@ def main(argv: List[str]) -> int:
         logger.error("Diretório não existe: %s", root)
         return 2
 
-    if args.reset_db:
-        logger.info("Recriando schema unificado no banco: %s", args.db)
-        database.reset_database(args.db, mode="file")
-        database.initialize_database(args.db, "schema_unified.sql")
-
     cutoff = None
     if args.since:
         try:
@@ -180,6 +176,17 @@ def main(argv: List[str]) -> int:
             logger.info("Relatório vazio salvo em: %s", args.report_path)
         return 0
 
+    try:
+        validate_excel_import_limits(selected)
+    except ExtractionError as exc:
+        logger.error("Lote XLSX rejeitado: %s", exc)
+        return 2
+
+    if args.reset_db:
+        logger.info("Recriando schema unificado no banco: %s", args.db)
+        database.reset_database(args.db, mode="file")
+        database.initialize_database(args.db, "schema_unified.sql")
+
     logger.info(
         "Processando %d arquivos (limit=%s, since=%s)",
         len(selected),
@@ -194,7 +201,11 @@ def main(argv: List[str]) -> int:
         try:
             if args.verbose:
                 logger.info("[START] %s", path.name)
-            df, stats = import_excel_robust(str(path), mappings_path=args.mappings)
+            df, stats = import_excel_robust(
+                str(path),
+                mappings_path=args.mappings,
+                raise_on_error=True,
+            )
             fr.rows_in = stats.get("total_rows_in", 0)
             fr.rows_out = stats.get("total_rows_out", 0)
             fr.mapped_cols = stats.get("mapped_columns_count", 0)

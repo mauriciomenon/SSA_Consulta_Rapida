@@ -106,35 +106,23 @@ def stage_external_import_files(
     )
     docs_path.mkdir(parents=True, exist_ok=True)
 
-    from extracao.extractor import MAX_IMPORT_BATCH_BYTES, MAX_IMPORT_BATCH_FILES
+    from extracao.extractor import ExtractionError, validate_excel_import_limits
 
-    if len(source_files) > MAX_IMPORT_BATCH_FILES:
-        raise ValueError(
-            f"Lote de importacao excede o limite de {MAX_IMPORT_BATCH_FILES} arquivos "
-            f"(recebido: {len(source_files)})."
+    try:
+        validate_excel_import_limits(
+            source_files,
+            inspect_archives=False,
+            ignore_unavailable=True,
         )
-
-    total_batch_bytes = 0
-    for raw_source in source_files:
-        source = str(raw_source or "").strip()
-        if not source:
-            continue
-        try:
-            total_batch_bytes += os.path.getsize(source)
-        except OSError:
-            pass
-    if total_batch_bytes > MAX_IMPORT_BATCH_BYTES:
-        raise ValueError(
-            f"Lote de importacao excede o limite de "
-            f"{MAX_IMPORT_BATCH_BYTES // (1024 * 1024 * 1024)} GiB "
-            f"(total: {total_batch_bytes // (1024 * 1024 * 1024)} GiB)."
-        )
+    except ExtractionError as exc:
+        raise ValueError(str(exc)) from exc
 
     reserved_paths = {
         os.path.abspath(str(path)) for path in docs_path.iterdir() if path.is_file()
     }
     summary = empty_external_staging_summary()
     staged_files: list[str] = []
+    copied_staged_files: list[str] = []
     total_sources = len(source_files)
     explicit_allowed_files = _normalize_explicit_allowed_files(source_files)
 
@@ -178,8 +166,23 @@ def stage_external_import_files(
             if cancelled:
                 break
             if staged_file:
+                try:
+                    validate_excel_import_limits(
+                        (staged_file,),
+                        reject_invalid_archives=False,
+                    )
+                except ExtractionError as exc:
+                    if was_copied:
+                        _remove_destination(
+                            Path(staged_file),
+                            error_callback=error_callback,
+                            context="apos rejeicao por limite",
+                            ignore_missing=True,
+                        )
+                    raise ValueError(str(exc)) from exc
                 staged_files.append(staged_file)
                 if was_copied:
+                    copied_staged_files.append(staged_file)
                     summary["copied"] += 1
                 else:
                     summary["already_staged"] += 1
@@ -189,6 +192,18 @@ def stage_external_import_files(
                 error_callback,
                 f"Falha ao copiar arquivo externo '{validated_source}': {exc}",
             )
+
+    try:
+        validate_excel_import_limits(staged_files, inspect_archives=False)
+    except ExtractionError as exc:
+        for copied_file in copied_staged_files:
+            _remove_destination(
+                Path(copied_file),
+                error_callback=error_callback,
+                context="apos rejeicao do lote",
+                ignore_missing=True,
+            )
+        raise ValueError(str(exc)) from exc
 
     summary["staged"] = len(staged_files)
     _emit_stage_summary(output_callback, summary)

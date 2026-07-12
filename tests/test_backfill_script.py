@@ -62,3 +62,31 @@ def test_backfill_limit_and_report(tmp_path):
     assert report_path.exists()
     data = json.loads(report_path.read_text())
     assert data["summary"]["files_processed"] <= 2
+
+
+def test_backfill_rejects_batch_limit_before_reset_or_import(tmp_path, monkeypatch):
+    from scripts.migracao import backfill_reprocessar
+
+    for index in range(2):
+        (tmp_path / f"arq_{index}.xlsx").write_bytes(b"x")
+    import_calls: list[str] = []
+    reset_calls: list[str] = []
+    monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_FILES", 1)
+    monkeypatch.setattr(
+        backfill_reprocessar,
+        "import_excel_robust",
+        lambda path, **_kwargs: import_calls.append(path),
+    )
+    monkeypatch.setattr(
+        backfill_reprocessar.database,
+        "reset_database",
+        lambda *_args, **_kwargs: reset_calls.append("reset"),
+    )
+
+    exit_code = backfill_reprocessar.main(
+        ["--dir", str(tmp_path), "--dry-run", "--reset-db"]
+    )
+
+    assert exit_code == 2
+    assert import_calls == []
+    assert reset_calls == []

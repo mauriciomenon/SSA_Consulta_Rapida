@@ -967,3 +967,67 @@ def test_pai_api_worker_cancel_after_preview_skips_import_and_terminal_signals(
 
     assert import_calls == []
     assert terminal_signals == []
+
+
+def test_pai_api_worker_rejects_aggregate_preview_batch(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from extracao.extractor import ExtractionError
+
+    validated_paths: list[Path] = []
+    terminal_signals: list[str] = []
+
+    def _fake_fetch(request, *, docs_dir):
+        _ = request, docs_dir
+        import_path = tmp_path / "import.xlsx"
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=import_path,
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=import_path,
+            normalized_rows=1,
+        )
+
+    def _reject_batch(paths, **_kwargs):
+        validated_paths.extend(paths)
+        raise ExtractionError(
+            "lote acima do limite",
+            error_code="BATCH_FILE_LIMIT_EXCEEDED",
+        )
+
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    monkeypatch.setattr(
+        pai_api_worker,
+        "validate_excel_import_limits",
+        _reject_batch,
+    )
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=_enabled_options(
+                {
+                    "executor_sectors": ["IEE3", "MEL4"],
+                    "data_scopes": ["executadas"],
+                    "sam_username": "sam.user",
+                }
+            ),
+            fetch_only=True,
+        )
+    )
+    worker.finished_success.connect(lambda: terminal_signals.append("success"))
+    worker.finished_error.connect(lambda _message: terminal_signals.append("error"))
+
+    worker.run()
+
+    assert len(validated_paths) == 2
+    assert terminal_signals == ["error"]

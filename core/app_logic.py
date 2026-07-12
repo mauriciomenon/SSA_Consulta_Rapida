@@ -1876,6 +1876,19 @@ def run_importer_logic(
         discovery_settings = cast(Dict[str, Any], work_items["discovery_settings"])
         files_to_process = cast(List[str], work_items["files_to_process"])
         derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
+        import_batch_files = list(
+            dict.fromkeys([*files_to_process, *derivadas_sheet_files])
+        )
+        trusted_full_rescan = bool(force_import and explicit_files is None)
+        try:
+            extractor.validate_excel_import_limits(
+                import_batch_files,
+                enforce_batch_file_limit=not trusted_full_rescan,
+                ignore_unavailable=True,
+                reject_invalid_archives=False,
+            )
+        except extractor.ExtractionError as exc:
+            raise ImporterError(str(exc)) from exc
         move_processed_after_import = bool(work_items["move_processed_after_import"])
         db_only_derivadas_sync = False
         auto_derivadas_sync_enabled = True
