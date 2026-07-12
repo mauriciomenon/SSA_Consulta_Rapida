@@ -13,7 +13,7 @@ import sqlite3
 import threading
 import time
 from contextlib import closing, contextmanager
-from typing import Any, Literal, cast
+from typing import Any, Callable, Literal, cast
 
 import pandas as pd
 
@@ -232,7 +232,7 @@ def query_db(
     query: str = "",
     params: tuple = (),
     raise_on_error: bool = False,
-    cancel_callback=None,
+    cancel_callback: Callable[[], bool] | None = None,
 ) -> pd.DataFrame:
     """
     Consulta o banco de dados e retorna um DataFrame.
@@ -246,13 +246,14 @@ def query_db(
         cancel_callback (callable, optional): Se fornecido, registra um
             sqlite3 progress handler que aborta a query quando o callback
             retorna True. O callback deve ser uma funcao sem argumentos que
-            retorna bool. A interrupcao gera sqlite3.OperationalError com
-            sqlite_errorcode == SQLITE_INTERRUPT (999), tratada como
-            cancelamento silencioso.
+            retorna bool. A interrupcao e propagada como InterruptedError,
+            inclusive quando pandas encapsula o SQLITE_INTERRUPT (codigo 9).
 
     Returns:
         pd.DataFrame: Resultado da consulta.
     """
+    cancel_requested = False
+    cancel_callback_error: Exception | None = None
     try:
         with get_db_connection(db_path) as conn:
             effective_query = query
@@ -269,10 +270,13 @@ def query_db(
             if cancel_callback is not None:
 
                 def _progress_handler() -> int:
+                    nonlocal cancel_requested, cancel_callback_error
                     try:
-                        return 1 if bool(cancel_callback()) else 0
-                    except Exception:
-                        return 0
+                        cancel_requested = bool(cancel_callback())
+                        return 1 if cancel_requested else 0
+                    except Exception as exc:
+                        cancel_callback_error = exc
+                        return 1
 
                 conn.set_progress_handler(_progress_handler, 1000)
 
@@ -288,17 +292,26 @@ def query_db(
                 params=cast(Any, params),
                 dtype_backend="numpy_nullable",
             )
+            if cancel_callback_error is not None:
+                raise RuntimeError("query_db cancel callback failed") from cancel_callback_error
+            if cancel_requested:
+                raise InterruptedError("Database query cancelled")
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
     except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
-        if (
-            isinstance(e, sqlite3.OperationalError)
-            and getattr(e, "sqlite_errorcode", None) == 999
-        ):
+        if cancel_callback_error is not None:
+            logger.error(
+                "Falha no cancel_callback de query_db.",
+                exc_info=(
+                    type(cancel_callback_error),
+                    cancel_callback_error,
+                    cancel_callback_error.__traceback__,
+                ),
+            )
+            raise RuntimeError("query_db cancel callback failed") from cancel_callback_error
+        if cancel_requested:
             logger.debug("query_db interrompida por cancelamento (SQLITE_INTERRUPT).")
-            if raise_on_error:
-                raise
-            return pd.DataFrame()
+            raise InterruptedError("Database query cancelled") from e
         logger.exception(
             "Erro ao executar consulta '%s' com %s parametros: %s",
             query or table_name,

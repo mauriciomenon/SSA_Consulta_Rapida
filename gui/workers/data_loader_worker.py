@@ -111,6 +111,9 @@ class DataLoaderWorker(QThread):
                 self.data_prepared.emit(loaded)
             if legacy_receivers > 0:
                 self.data_loaded.emit(df)
+        except InterruptedError:
+            logger.debug("DataLoaderWorker cancelado durante consulta SQLite.")
+            return
         except (
             sqlite3.Error,
             pd.errors.DatabaseError,

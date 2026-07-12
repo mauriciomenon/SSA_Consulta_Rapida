@@ -324,3 +324,20 @@ def test_run_skips_emit_when_interrupted_after_query():
 
     assert emitted == []
     assert errors == []
+
+
+def test_run_skips_error_signal_for_sqlite_cancellation():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+    worker.error_occurred.connect(lambda msg: errors.append(msg))
+
+    with patch(
+        "gui.workers.data_loader_worker.query_db",
+        side_effect=InterruptedError("Database query cancelled"),
+    ):
+        worker.run()
+
+    assert emitted == []
+    assert errors == []

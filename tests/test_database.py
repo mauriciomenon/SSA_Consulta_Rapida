@@ -11,6 +11,7 @@ import sqlite3
 import sys
 import tempfile
 import threading
+from time import monotonic
 
 import pandas as pd
 import pytest
@@ -319,6 +320,56 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
     assert df_result.empty
     # Verifica se as colunas estão corretas mesmo com resultado vazio
     assert list(df_result.columns) == ["id", "nome", "idade"]
+
+
+def test_query_db_interrupts_long_running_query(temp_db_path):
+    callback_calls = 0
+
+    def _cancel_query() -> bool:
+        nonlocal callback_calls
+        callback_calls += 1
+        return callback_calls >= 2
+
+    started = monotonic()
+    with pytest.raises(InterruptedError, match="Database query cancelled"):
+        query_db(
+            temp_db_path,
+            "",
+            """
+            WITH RECURSIVE numbers(value) AS (
+                VALUES(1)
+                UNION ALL
+                SELECT value + 1 FROM numbers WHERE value < 1000000
+            )
+            SELECT sum(value) FROM numbers
+            """,
+            cancel_callback=_cancel_query,
+        )
+
+    assert callback_calls >= 2
+    assert monotonic() - started < 2.0
+
+
+def test_query_db_propagates_cancel_callback_failure(temp_db_path):
+    def _broken_cancel_callback() -> bool:
+        raise ValueError("cancel callback failed")
+
+    with pytest.raises(RuntimeError, match="query_db cancel callback failed") as exc_info:
+        query_db(
+            temp_db_path,
+            "",
+            """
+            WITH RECURSIVE numbers(value) AS (
+                VALUES(1)
+                UNION ALL
+                SELECT value + 1 FROM numbers WHERE value < 1000000
+            )
+            SELECT sum(value) FROM numbers
+            """,
+            cancel_callback=_broken_cancel_callback,
+        )
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
 
 
 def test_query_db_rejects_non_read_only_custom_query(temp_db_path):
