@@ -1250,7 +1250,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_completo = pd.DataFrame()
         self.df_exibido = pd.DataFrame()  # DataFrame filtrado
         self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibiçção
-        self._derivadas_sync_lock = threading.Lock()
         self._active_pai_api_worker = None
         self._active_pai_api_timer = None
         self._is_shutting_down = False
