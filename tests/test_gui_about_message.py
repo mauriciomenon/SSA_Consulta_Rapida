@@ -18,7 +18,8 @@ def test_build_about_message_includes_commit_hash(monkeypatch) -> None:
 
     assert "Versao: 9.9.9" in message
     assert "Autor: Mauricio Menon" in message
-    assert "Data ISO: 2026-07-06T09:27:56-03:00" in message
+    assert "Data: 2026-07-06T09:27:56-03:00" in message
+    assert "Data ISO:" not in message
     assert "Commit: abc1234" in message
 
 
@@ -32,7 +33,7 @@ def test_build_about_message_uses_unavailable_when_build_info_and_git_date_missi
 
     message = gui_ssa.build_about_message("9.9.9")
 
-    assert "Data ISO: indisponivel" in message
+    assert "Data: indisponivel" in message
 
 
 def test_build_about_summary_line_includes_host_full_hash_and_iso(monkeypatch) -> None:
@@ -81,7 +82,7 @@ def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> 
     assert "Versao: 9.9.9" in message
     assert "Autor: Mauricio Menon" in message
     assert "Commit: def5678" in message
-    assert "Data ISO: 2026-04-28T06:30:00-03:00" in message
+    assert "Data: 2026-04-28T06:30:00-03:00" in message
 
 
 def test_resolve_uv_version_uses_resolved_executable(monkeypatch) -> None:

@@ -804,7 +804,7 @@ def build_about_message(app_version: str) -> str:
         "Consulta Rapida de SSAs",
         f"Versao: {app_version}",
         f"Autor: {_APP_AUTHOR_TEXT}",
-        f"Data ISO: {build_datetime}",
+        f"Data: {build_datetime}",
         f"Commit: {commit_hash}",
     ]
     return "\n".join(lines)
