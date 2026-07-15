@@ -10,6 +10,10 @@ All notable changes to this project are documented in this file.
 - Current `uv.lock` contains PyPI artifact URLs only. Future lock regeneration must isolate the private Safety index configured outside the lock.
 - The audit found 69 distinct update candidates across runtime, build, development, web, and transitive dependencies. Updates will be applied in controlled slices, excluding major or high-risk pre-1.0 jumps.
 - Clawpatch was not allowed to include the dirty tree; its fallback broad review was interrupted and produced no applied changes. Vulture findings remain ignored as false positives.
+- Completed the first controlled lock slice in commit `afcc46da32874d93c7a6ecb8f263f35a04c34aae` (`STABILITY_PATCH: update selected dependency lock`, 2026-07-15 12:26:56 -0300). Direct updates cover `idna`, PyQt6, Nuitka, PyInstaller, Black, Filelock, Isort, Mypy, Pytest, Ruff, and Virtualenv.
+- Mypy and Virtualenv required the transitive updates `ast-serialize 0.6.0`, `librt 0.13.0`, `pyinstaller-hooks-contrib 2026.6`, and `python-discovery 1.4.4`. Click `8.4.2` and Pillow `12.3.0` are also present from the previous authorized lock update.
+- Full validation passed: `2526 passed, 6 skipped, 2 warnings, 11 subtests passed`; all lock, type, lint, package integrity, security, import, PyInstaller, and Nuitka checks passed.
+- Remaining major, high-risk pre-1.0, and Streamlit-discrepancy candidates remain deferred.
 
 ## [v4.45] - 2026-07-11 - HARDENING PYQT6 (ESTABILIZACAO RECUPERADA)
 

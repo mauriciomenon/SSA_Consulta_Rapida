@@ -8,7 +8,11 @@
 - Current security and consistency checks: `pip-audit` 0 vulnerabilities, Safety 0 vulnerabilities across 121 packages, `pip check` OK, and `uv lock --check` OK.
 - Click `8.4.2` and Pillow `12.3.0` are the current locked versions after the previous authorized update; both are outside the base runtime dependency list.
 - Clawpatch was rerun without dirty-tree inclusion, but fell back to broad repository feature review and was interrupted before completion. No findings were applied. Vulture findings remain intentionally ignored as false positives.
-- Next step: controlled no-major dependency slice covering PyQt6, build tooling, and selected development tooling, followed by lock regeneration against PyPI and full validation.
+- Controlled dependency slice completed at `afcc46da32874d93c7a6ecb8f263f35a04c34aae` (`STABILITY_PATCH: update selected dependency lock`, 2026-07-15 12:26:56 -0300). Direct updates cover `idna`, PyQt6 and its Qt/SIP pair, Nuitka, PyInstaller, Black, Filelock, Isort, Mypy, Pytest, Ruff, and Virtualenv.
+- The resolver-coupled transitive updates are `ast-serialize 0.6.0`, `librt 0.13.0`, `pyinstaller-hooks-contrib 2026.6`, and `python-discovery 1.4.4`; Mypy and Virtualenv metadata require these versions. Click `8.4.2` and Pillow `12.3.0` from the previous authorized update are included in the same lock commit.
+- Full validation after the lock update: `2526 passed, 6 skipped, 2 warnings, 11 subtests passed`; `py_compile`, Ruff, Ty, `pip check`, `pip-audit`, Safety, `uv lock --check`, PyQt6/Pillow imports, PyInstaller, and Nuitka all passed.
+- Clawpatch review without dirty-tree inclusion reported no features touched by the DOC_SYNC and lock commits; no findings were applied. Vulture findings remain intentionally ignored as false positives.
+- Remaining update candidates stay deferred: Streamlit source discrepancy, Ty 0.x, major jumps, and other high-risk transitive updates.
 
 ## 2026-07-06 Windows release hardening
 
