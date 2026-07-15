@@ -175,8 +175,19 @@ def _svg_cache_key(owner_cls: type[Any], graph_cache_key: str, *parts: int) -> s
     return f"{owner}:{graph_cache_key}:{suffix}"
 
 
-@dataclass(slots=True)
+@dataclass
 class DetailsGraphExportController:
+    __slots__ = (
+        "dialog",
+        "graph_widget",
+        "export_state",
+        "file_dialog_cls",
+        "message_box_cls",
+        "menu_cls",
+        "logger",
+        "__weakref__",
+    )
+
     dialog: Any
     graph_widget: Any
     export_state: MutableMapping[str, object]

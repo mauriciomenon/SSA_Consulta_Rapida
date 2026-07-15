@@ -352,6 +352,24 @@ def test_graph_export_controller_menu_registers_expected_actions(tmp_path: Path)
     assert menu.exec_pos == "point"
 
 
+def test_graph_export_controller_callbacks_register_with_real_qmenu(
+    tmp_path: Path,
+) -> None:
+    from PyQt6.QtWidgets import QApplication, QMenu
+
+    app = QApplication.instance() or QApplication([])
+    controller = _controller(tmp_path, state={"target": "202600001"})
+    menu = QMenu()
+
+    menu.addAction("Exportar PNG", controller.export_png)
+    menu.addAction("Exportar SVG", controller.export_svg)
+    menu.addAction("Exportar Mermaid", controller.export_mermaid)
+
+    assert len(menu.actions()) == 3
+    menu.deleteLater()
+    app.processEvents()
+
+
 def test_graph_export_controller_warns_when_parent_dir_is_missing(
     tmp_path: Path,
 ) -> None:

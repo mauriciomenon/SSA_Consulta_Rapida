@@ -184,7 +184,7 @@ def _add_options_menu(
         opcoes_menu,
         action_cls,
         window,
-        "Abrir arquivo de opcoes",
+        "Preparar arquivo de opcoes",
         window.open_settings_file_with_backup,
     )
     _add_action(

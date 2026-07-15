@@ -117,7 +117,10 @@ def test_data_loader_worker_sql_contains_offset_clause(tmp_path):
 
     normalized = captured["query"].upper()
     assert "SELECT *" not in normalized
-    assert normalized.startswith('SELECT "NUMERO_SSA", "SITUACAO", "DESCRICAO_SSA" FROM')
+    assert normalized.startswith(
+        'SELECT "NUMERO_SSA", "SITUACAO", "DESCRICAO_SSA", '
+    )
+    assert '0 AS "QTD_DERIVADAS" FROM "SSA_TABLE"' in normalized
     assert f"LIMIT {SQLITE_OFFSET_WITHOUT_LIMIT}" in normalized
     assert " OFFSET 3" in normalized
 

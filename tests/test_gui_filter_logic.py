@@ -3485,7 +3485,7 @@ class TestGUIFilterLogic:
             "semana_cadastro",
             "descricao_ssa",
             "solicitante",
-            "grau_prioridade_planejamento",
+            "qtd_derivadas",
             "semana_programada",
             "total_de_reprogramacoes",
             "execucao_parcial",
@@ -3494,6 +3494,9 @@ class TestGUIFilterLogic:
             "responsavel_execucao",
         ]
         assert list(gui_ssa.GUI_MAIN_PREFERENCES["display_columns"]) == expected
+        assert "grau_prioridade_planejamento" in gui_ssa.GUI_MAIN_PREFERENCES[
+            "hidden_columns"
+        ]
         assert list(gui_ssa.REQUIRED_GUI_COLUMNS) == [
             "numero_ssa",
             "localizacao_codigo",

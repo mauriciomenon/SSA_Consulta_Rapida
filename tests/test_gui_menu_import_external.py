@@ -231,7 +231,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "Abrir Pasta Arquivos Redundantes",
     ]
     assert opcoes_labels == [
-        "Abrir arquivo de opcoes",
+        "Preparar arquivo de opcoes",
         "Restaurar opcoes padrao",
         "Limpar Filtros",
         "Selecionar Tema",
@@ -472,22 +472,11 @@ def test_open_settings_file_with_backup_creates_backup(
     settings_path = settings_dir / "settings.json"
     settings_path.write_text('{"x":1}', encoding="utf-8")
 
-    monkeypatch.setattr(gui_ssa, "QT_AVAILABLE", True)
+    open_calls = []
     monkeypatch.setattr(
-        gui_ssa,
-        "QUrl",
-        type("DummyQUrl", (), {"fromLocalFile": staticmethod(lambda path: path)}),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        gui_ssa,
-        "QDesktopServices",
-        type(
-            "DummyDesktopServices",
-            (),
-            {"openUrl": staticmethod(lambda *_args, **_kwargs: True)},
-        ),
-        raising=False,
+        gui_ssa.ssa_system_controller,
+        "open_local_path",
+        lambda *args, **kwargs: open_calls.append((args, kwargs)) or True,
     )
 
     class _Window:
@@ -501,17 +490,18 @@ def test_open_settings_file_with_backup_creates_backup(
     result = gui_ssa.SSAMainWindow.open_settings_file_with_backup(cast(Any, window))
 
     backups = list(settings_dir.glob("settings.json.bak_*"))
-    assert result["opened"] is True
+    assert result["opened"] is False
     assert result["backup_created"] is True
     assert len(backups) == 1
-    assert "editor externo" in window.status_label.text
+    assert "editor nao aberto" in window.status_label.text
 
     result_second = gui_ssa.SSAMainWindow.open_settings_file_with_backup(
         cast(Any, window)
     )
     backups_after_second = list(settings_dir.glob("settings.json.bak_*"))
-    assert result_second["opened"] is True
+    assert result_second["opened"] is False
     assert len(backups_after_second) == 2
+    assert open_calls == []
 
 
 def test_reset_settings_to_defaults_overwrites_user_file(

@@ -18,7 +18,7 @@ from gui.workers.data_loader_processing import (
     prepare_loaded_payload,
 )
 from gui.workers.data_loader_repository import resolve_table_columns, resolve_target_table
-from gui.workers.data_loader_query import build_select_query
+from gui.workers.data_loader_query import DERIVADAS_SUMMARY_TABLE, build_select_query
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,21 @@ class DataLoaderWorker(QThread):
                 return
             target_table = resolve_target_table(self.db_path, self.table_name)
             select_columns = resolve_table_columns(self.db_path, target_table)
+            include_derivadas_count = (
+                "numero_ssa" in select_columns and "qtd_derivadas" not in select_columns
+            )
+            summary_columns = resolve_table_columns(
+                self.db_path, DERIVADAS_SUMMARY_TABLE
+            )
+            derivadas_summary_available = include_derivadas_count and {
+                "ssa",
+                "descendants_count",
+            }.issubset(summary_columns)
+            if include_derivadas_count and not derivadas_summary_available:
+                logger.warning(
+                    "Tabela ssa_derivada_summary indisponivel ou incompleta; "
+                    "qtd_derivadas sera carregada com zero."
+                )
             query, already_sorted_for_ui = build_select_query(
                 target_table=target_table,
                 select_columns=select_columns,
@@ -70,6 +85,8 @@ class DataLoaderWorker(QThread):
                 limit=self.limit,
                 offset=self.offset,
                 default_sort_spec=self._DEFAULT_UI_SORT_SPEC,
+                include_derivadas_count=include_derivadas_count,
+                derivadas_summary_available=derivadas_summary_available,
             )
 
             if self._is_cancelled():

@@ -1294,11 +1294,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.internal_to_display = dict(self.display_map)
 
         # Colunas padrção para exibiçção (das configurações JSON)
-        self.default_columns = GUI_MAIN_PREFERENCES.get(
-            "display_columns", list(REQUIRED_GUI_COLUMNS)
+        self.default_columns = list(
+            GUI_MAIN_PREFERENCES.get("display_columns", list(REQUIRED_GUI_COLUMNS))
+        )
+        hidden_default_columns = set(
+            GUI_MAIN_PREFERENCES.get("hidden_columns", []) or []
         )
         for required_col in REQUIRED_GUI_COLUMNS:
-            if required_col not in self.default_columns:
+            if (
+                required_col not in hidden_default_columns
+                and required_col not in self.default_columns
+            ):
                 self.default_columns.append(required_col)
 
         # Garante que colunas padrção existam no mapeamento
@@ -2586,6 +2592,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)
+            hide_column_action = QAction(f"Ocultar Coluna '{full_name}'", self)
             best_fit_visible_action = QAction("Best fit colunas visiveis", self)
             show_all_affinity_action = QAction("Exibir todas colunas (afinidade)", self)
 
@@ -2621,6 +2628,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             apply_action.triggered.connect(_apply)
             clear_action.triggered.connect(_clear)
             clear_all_action.triggered.connect(_clear_all)
+            hide_column_action.triggered.connect(
+                lambda _checked=False: self.remove_column_by_index(logical_index)
+            )
             best_fit_visible_action.triggered.connect(self.best_fit_visible_columns)
             show_all_affinity_action.triggered.connect(
                 self._show_all_columns_by_affinity
@@ -2631,11 +2641,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 cast(Any, menu).addAction(clear_action)
             if self._active_column_filters:
                 cast(Any, menu).addAction(clear_all_action)
+            cast(Any, menu).addAction(hide_column_action)
             cast(Any, menu).addAction(best_fit_visible_action)
             cast(Any, menu).addAction(show_all_affinity_action)
-            menu.exec(header.mapToGlobal(pos))
+            menu.exec(header.viewport().mapToGlobal(pos))
         except Exception as exc:
-            logger.debug("Falha ao abrir menu de contexto do header da tabela: %s", exc)
+            logger.warning("Falha ao abrir menu de contexto do header da tabela: %s", exc)
 
     def eventFilter(self, obj, event):
         try:
@@ -2665,24 +2676,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     event_name = _TSM_DEBUG_EVENT_NAMES.get(event.type())
                     if role and event_name:
                         self._log_tsm_debug(event_name, widget_role=role, obj=obj)
-            header = self.table_widget.horizontalHeader()
-            if obj is header:
-                et = event.type()
-                if et == QEvent.Type.ContextMenu:
-                    self.show_header_context_menu(event.pos())
-                    return True
-                # Qt6: MouseButtonPress com botção direito
-                if et == QEvent.Type.MouseButtonPress:
-                    btn = getattr(event, "button", lambda: None)()
-                    if btn == Qt.MouseButton.RightButton:
-                        # Compatável com position() (Qt6) e pos()
-                        pos = getattr(event, "position", None)
-                        if callable(pos):
-                            p = pos().toPoint()
-                        else:
-                            p = event.pos()
-                        self.show_header_context_menu(p)
-                        return True
             details_viewport = getattr(self, "_details_text_viewport", None)
             if obj is details_viewport and event.type() in (
                 QEvent.Type.MouseButtonPress,
@@ -4942,17 +4935,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             menu_cls=QMenu,
         )
 
-    def copy_cell_value(self, *_):  # QAction triggered pode enviar 'checked'
+    def copy_cell_value(self, value=None):
         """Copia o valor da celula selecionada."""
-        current_item = self.table_widget.currentItem()
-        if current_item:
-            clipboard = QApplication.clipboard()
-            if clipboard is not None:
-                clipboard.setText(current_item.text())
+        text_value = None
+        if isinstance(value, str):
+            text_value = value
+        elif value is not None and not isinstance(value, bool):
+            text_getter = getattr(value, "text", None)
+            if callable(text_getter):
+                text_value = str(text_getter())
+        if text_value is None:
+            current_item = self.table_widget.currentItem()
+            if current_item is not None:
+                text_value = str(current_item.text())
+        if text_value is None:
+            return
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(text_value)
 
-    def copy_row_data(self, *_):  # aceita args opcionais de QAction
+    def copy_row_data(self, row=None):
         """Copia todos os dados da linha selecionada."""
-        current_row = self.table_widget.currentRow()
+        current_row = (
+            int(row)
+            if isinstance(row, int) and not isinstance(row, bool)
+            else self.table_widget.currentRow()
+        )
         if current_row >= 0:
             row_data = []
             for col in range(self.table_widget.columnCount()):
@@ -5292,7 +5300,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_system.resolve_platform_open_command()
 
     def open_settings_file_with_backup(self):
-        """Abre settings.json para edicao apos criar backup failsafe com timestamp."""
+        """Prepara settings.json para edicao sem abrir um editor externo."""
         try:
             requested_settings_path = self._resolve_settings_file_path()
             prepared = ssa_system_controller.prepare_settings_file_for_edit(
@@ -5331,31 +5339,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "settings_path": settings_path,
             }
 
-        opened = False
-        try:
-            opened = ssa_system_controller.open_local_path(
-                safe_settings_path,
-                qdesktopservices=QDesktopServices,
-                qurl_cls=QUrl,
-                qt_available=QT_AVAILABLE,
-                logger=logger,
-            )
-        except Exception as exc:
-            logger.warning("Falha ao abrir settings para edicao: %s", exc)
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.warning(self, "Erro", f"Falha ao abrir opcoes: {exc}")
-            return {
-                "opened": False,
-                "backup_created": True,
-                "settings_path": settings_path,
-            }
-
         if hasattr(self, "status_label"):
             self.status_label.setText(
-                "Status: Opcoes abertas no editor externo (arquivo principal)."
+                "Status: Arquivo de opcoes pronto para edicao (editor nao aberto)."
             )
         return {
-            "opened": opened,
+            "opened": False,
             "backup_created": True,
             "settings_path": safe_settings_path,
         }
