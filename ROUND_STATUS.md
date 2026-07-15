@@ -1,5 +1,15 @@
 # ROUND_STATUS
 
+## 2026-07-15 dependency update cycle checkpoint
+
+- Local incremental checkpoint tag created: `v4.45.1`, targeting `d8c4033c6828f1ecde05f4f3140f137ee43d496f` (`DOC_SYNC: clarify GitLab Bitbucket and GitHub remotes`, 2026-07-14 19:32:28 -0300). This is a local rollback marker, not a published release.
+- Read-only dependency audit confirmed 69 distinct outdated packages in the locked all-groups graph; no bulk update is authorized by this cycle.
+- `uv.lock` currently has PyPI sources only. The private Safety index remains configured in user/project files and must be isolated with `UV_CONFIG_FILE=/dev/null` during lock regeneration.
+- Current security and consistency checks: `pip-audit` 0 vulnerabilities, Safety 0 vulnerabilities across 121 packages, `pip check` OK, and `uv lock --check` OK.
+- Click `8.4.2` and Pillow `12.3.0` are the current locked versions after the previous authorized update; both are outside the base runtime dependency list.
+- Clawpatch was rerun without dirty-tree inclusion, but fell back to broad repository feature review and was interrupted before completion. No findings were applied. Vulture findings remain intentionally ignored as false positives.
+- Next step: controlled no-major dependency slice covering PyQt6, build tooling, and selected development tooling, followed by lock regeneration against PyPI and full validation.
+
 ## 2026-07-06 Windows release hardening
 
 - Windows build wrappers hardened at `bdad722c343fcd604a5a35f0d9bb307dd37c8a5b` (2026-07-06 12:39:15 -0300, `STABILITY_PATCH: harden Windows build wrapper cleanup`).
