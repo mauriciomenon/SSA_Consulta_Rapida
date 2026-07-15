@@ -264,8 +264,8 @@ class CLIWidthManager:
 
         # Word wrap para colunas de descrição
         words = text.split()
-        lines = []
-        current_line = []
+        lines: list[str] = []
+        current_line: list[str] = []
         current_length = 0
 
         for word in words:

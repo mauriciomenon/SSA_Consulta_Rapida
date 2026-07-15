@@ -4298,8 +4298,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             or _DEFAULT_TABLE_CELL_ALIGNMENT
         )
         current_alignment_index = 0
-        for index, (key, label) in enumerate(_TABLE_CELL_ALIGNMENT_LABELS.items()):
-            alignment_combo.addItem(label, key)
+        for index, (key, alignment_text) in enumerate(
+            _TABLE_CELL_ALIGNMENT_LABELS.items()
+        ):
+            alignment_combo.addItem(alignment_text, key)
             if key == current_alignment:
                 current_alignment_index = index
         alignment_combo.setCurrentIndex(current_alignment_index)

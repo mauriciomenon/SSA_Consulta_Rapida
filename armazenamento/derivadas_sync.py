@@ -1014,7 +1014,10 @@ def _analyze_reconciliation(
     matrix_edges: list[MatrixEdge],
     source_edges: list[SourceEdge],
 ) -> dict[str, Any]:
-    pair_edges = [(edge.parent_ssa, edge.child_ssa) for edge in matrix_edges]
+    pair_edges = [
+        (matrix_edge.parent_ssa, matrix_edge.child_ssa)
+        for matrix_edge in matrix_edges
+    ]
 
     child_parents = _build_child_parent_map(pair_edges)
     multiparent_children = {
@@ -1032,11 +1035,11 @@ def _analyze_reconciliation(
 
     db_parents: dict[str, set[str]] = defaultdict(set)
     sheet_parents: dict[str, set[str]] = defaultdict(set)
-    for edge in source_edges:
-        if edge.source_name == SOURCE_DB_FIELD:
-            db_parents[edge.child_ssa].add(edge.parent_ssa)
-        elif edge.source_name == SOURCE_SHEET_DERIVADAS:
-            sheet_parents[edge.child_ssa].add(edge.parent_ssa)
+    for source_edge in source_edges:
+        if source_edge.source_name == SOURCE_DB_FIELD:
+            db_parents[source_edge.child_ssa].add(source_edge.parent_ssa)
+        elif source_edge.source_name == SOURCE_SHEET_DERIVADAS:
+            sheet_parents[source_edge.child_ssa].add(source_edge.parent_ssa)
 
     db_vs_sheet_conflicts: dict[str, dict[str, list[str]]] = {}
     for child in sorted(set(db_parents).intersection(sheet_parents)):
@@ -1050,8 +1053,8 @@ def _analyze_reconciliation(
         }
 
     source_distribution: dict[str, int] = defaultdict(int)
-    for edge in matrix_edges:
-        source_distribution[str(edge.source_flags)] += 1
+    for matrix_edge in matrix_edges:
+        source_distribution[str(matrix_edge.source_flags)] += 1
 
     cycle_nodes = _cycle_nodes_scc(pair_edges)
     return {

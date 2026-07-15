@@ -46,6 +46,7 @@ def test_sync_from_db_materializes_matrix_closure_summary(temp_db):
     assert report["closure_rows"] == 4
     assert report["summary_rows"] == 4
     assert report["reconciliation"]["db_vs_sheet_conflict_count"] == 0
+    assert report["reconciliation"]["source_distribution"] == {"1": 3}
 
     with sqlite3.connect(temp_db) as conn:
         matrix_active = conn.execute(

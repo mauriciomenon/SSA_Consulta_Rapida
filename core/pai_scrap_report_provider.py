@@ -294,13 +294,13 @@ def build_pai_scrap_report_command(
     xlsx_path = output_dir / PAI_XLSX_FILENAME
     data_scope = _normalized_data_scope(request)
     if data_scope != PAI_DATA_SCOPE_CONSULTA or str(request.report_kind or "").strip():
-        command = _build_pai_sweep_run_command(
+        sweep_command = _build_pai_sweep_run_command(
             request,
             execution=execution,
             manifest_path=manifest_path,
             output_dir=output_dir,
         )
-        return command, execution, manifest_path, xlsx_path
+        return sweep_command, execution, manifest_path, xlsx_path
 
     command = [
         *execution.command_prefix,
