@@ -87,7 +87,6 @@ def connect_rescan_worker_lifecycle(
             )
 
     def on_finished_successfully() -> None:
-        nonlocal cancelled
         outcome = _resolve_rescan_outcome(worker)
         if cancelled:
             _finish_rescan_as_cancelled(

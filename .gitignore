@@ -25,6 +25,8 @@ __pycache__/
 *.log
 *.db
 *.db-journal
+.safety-project.ini
+quality_gates_output.jsonl
 
 # Local-only internal handoff/backlog artifacts removed from public GitHub refs.
 GUI_SSA_REFACTOR_NOTES.md

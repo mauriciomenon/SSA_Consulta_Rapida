@@ -18,7 +18,7 @@ from gui.ssa.gui_loaded_dataframes import (
     prepare_loaded_dataframes,
     resolve_loaded_columns_with_values,
 )
-from gui.ssa.gui_worker_registry import (
+from gui.ssa.gui_worker_registry import (  # noqa: F401
     GLOBAL_WORKERS_LOCK as _GLOBAL_WORKERS_LOCK,
     _classify_and_update_global_workers_locked,
     _classify_workers_for_ttl,  # noqa: F401 - re-exported for existing tests
