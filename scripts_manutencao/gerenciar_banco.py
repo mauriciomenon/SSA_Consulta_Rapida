@@ -287,10 +287,10 @@ def main():
                     print(" Operao cancelada")
                 break
             elif choice == "2":
-                days = input(
+                days_text = input(
                     "Manter backups dos ltimos quantos dias? (padro: 7): "
                 ).strip()
-                days = int(days) if days.isdigit() else 7
+                days = int(days_text) if days_text.isdigit() else 7
                 clean_old_backups(days_to_keep=days)
                 break
             elif choice == "3":
