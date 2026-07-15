@@ -236,7 +236,7 @@ class RobustLogger:
 
     def _load_config(self, config_path: Optional[str]) -> Dict:
         """Carrega configuração do logging."""
-        base_config = {
+        base_config: dict[str, Any] = {
             "version": "1.0",
             "level": "INFO",
             "console_level": "WARNING",
@@ -273,6 +273,13 @@ class RobustLogger:
                 loaded_config = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             print(f"Erro ao carregar config de logging: {e}. Usando padrão.")
+            return base_config
+
+        if not isinstance(loaded_config, dict):
+            print(
+                "Configuracao de logging deve ser um objeto JSON. "
+                "Usando padrao."
+            )
             return base_config
 
         # Configuração estruturada (logging/paths) ou chave/valor plana.

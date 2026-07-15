@@ -1591,7 +1591,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.filter_thread = None
         self._data_load_request_seq = 0
         self._active_data_load_request_id = 0
-        self._data_revision = 0
+        self._data_revision: int = 0
         self._data_revision_request_id = None
         self._data_uuid = None
         self._preferences_content_scroll_active = None
@@ -4188,8 +4188,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             theme_items = list(ssa_gui_theme.get_theme_dialog_items())
         current_theme = str(getattr(self, "_current_theme", "") or "")
         current_theme_index = -1
-        for index, (label, key) in enumerate(theme_items):
-            theme_combo.addItem(label, key)
+        for index, (theme_text, key) in enumerate(theme_items):
+            theme_combo.addItem(theme_text, key)
             if key == current_theme:
                 current_theme_index = index
         if current_theme_index >= 0:
@@ -4221,8 +4221,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             gui_settings.get("default_filter_mode", "contains") or "contains"
         ).strip()
         current_search_mode_index = 0
-        for index, (label, key) in enumerate(mode_items):
-            search_mode_combo.addItem(label, key)
+        for index, (mode_text, key) in enumerate(mode_items):
+            search_mode_combo.addItem(mode_text, key)
             if key == current_search_mode:
                 current_search_mode_index = index
         search_mode_combo.setCurrentIndex(current_search_mode_index)

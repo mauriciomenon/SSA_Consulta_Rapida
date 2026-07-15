@@ -139,7 +139,7 @@ class DatabaseAnalyzer:
             logger.info(f"Backup criado: {backup_path}")
             return backup_path
         except Exception as e:
-            raise DatabaseMaintenanceError(f"Falha ao criar backup: {e}")
+            raise DatabaseMaintenanceError(f"Falha ao criar backup: {e}") from e
 
     def analyze_table_structure(self) -> Dict[str, Any]:
         """Analisa a estrutura da tabela identificando duplicacoes."""
@@ -172,7 +172,7 @@ class DatabaseAnalyzer:
                 }
 
         except Exception as e:
-            raise DatabaseMaintenanceError(f"Erro ao analisar estrutura: {e}")
+            raise DatabaseMaintenanceError(f"Erro ao analisar estrutura: {e}") from e
 
     def _count_populated_columns(
         self,
@@ -401,7 +401,9 @@ class DatabaseAnalyzer:
                 }
 
         except Exception as e:
-            raise DatabaseMaintenanceError(f"Erro na verificacao de sanidade: {e}")
+            raise DatabaseMaintenanceError(
+                f"Erro na verificacao de sanidade: {e}"
+            ) from e
 
 
 class DatabaseMigrator:
@@ -680,7 +682,7 @@ class DatabaseMigrator:
                 return stats
 
         except Exception as e:
-            raise DatabaseMaintenanceError(f"Erro durante migracao: {e}")
+            raise DatabaseMaintenanceError(f"Erro durante migracao: {e}") from e
 
 
 class DatabaseMaintenanceReportService:
@@ -717,7 +719,7 @@ class DatabaseMaintenanceReportService:
             return output_file
         except Exception as e:
             logger.exception("Falha ao gerar relatorio de manutencao")
-            raise DatabaseMaintenanceError(f"Erro ao gerar relatorio: {e}")
+            raise DatabaseMaintenanceError(f"Erro ao gerar relatorio: {e}") from e
 
 
 def main():

@@ -635,12 +635,11 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
     selected_values = set(selected_getter(values) if callable(selected_getter) else [])
     buttons: dict[str, QPushButton] = {}
     existing_buttons = getattr(window, "quick_situacao_buttons", None)
-    can_reuse = (
+    if (
         isinstance(existing_buttons, dict)
         and list(existing_buttons.keys()) == values
         and layout.count() == len(values)
-    )
-    if can_reuse:
+    ):
         for value in values:
             button = existing_buttons[value]
             _sync_quick_situacao_button(window, button, value, selected_values)

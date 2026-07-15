@@ -241,6 +241,12 @@ class TestRobustLogging(unittest.TestCase):
         robust_logger = RobustLogger(str(invalid_config))
         self.assertIsNotNone(robust_logger.config)
 
+        # JSON valido, mas com raiz estruturalmente invalida.
+        malformed_shape_config = self.temp_dir / "malformed_shape.json"
+        malformed_shape_config.write_text("[]", encoding="utf-8")
+        robust_logger = RobustLogger(str(malformed_shape_config))
+        self.assertEqual(robust_logger.config["version"], "1.0")
+
 
 def run_performance_test():
     """Executa teste de performance do sistema de logging."""

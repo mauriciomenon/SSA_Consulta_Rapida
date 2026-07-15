@@ -199,7 +199,9 @@ def _acquire_cache_lock(lock_path: str) -> int:
             if _recover_stale_cache_lock(lock_path):
                 continue
             if time.monotonic() >= deadline:
-                raise TimeoutError(f"Timeout acquiring cache write lock: {lock_path}")
+                raise TimeoutError(
+                    f"Timeout acquiring cache write lock: {lock_path}"
+                ) from None
             time.sleep(_CACHE_LOCK_RETRY_SEC)
         except OSError as exc:
             raise RuntimeError(
