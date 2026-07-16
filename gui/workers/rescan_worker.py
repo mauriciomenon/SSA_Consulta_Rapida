@@ -339,7 +339,7 @@ class RescanWorker(QThread):
             )
             self._last_rejection_only = bool(data.get("rejection_only", False))
             self.output_line.emit("")
-            if self._batch_total > 1:
+            if self._batch_total > 1 or self.explicit_files or self.source_files:
                 self.output_line.emit(
                     f"Bloco {self._batch_index}/{self._batch_total} concluido: "
                     f"{processed}/{total} arquivos | "

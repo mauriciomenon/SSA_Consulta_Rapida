@@ -360,6 +360,22 @@ class TestRescanWorkerUnit:
         assert "test.xlsx" in signal_collector.error_lines[0]
         assert "Arquivo corrompido" in signal_collector.error_lines[0]
 
+    def test_progress_callback_explicit_single_batch_emits_batch_summary(
+        self, rescan_worker, signal_collector
+    ):
+        rescan_worker.explicit_files = ("test.xlsx",)
+        rescan_worker.output_line.connect(signal_collector.on_output)
+
+        rescan_worker._progress_callback(
+            "finish", {"total": 1, "processed": 1, "errors": []}
+        )
+
+        assert any(
+            "Bloco 1/1 concluido: 1/1 arquivos | 0 SSAs atualizadas | 0 SSAs novas"
+            in line
+            for line in signal_collector.output_lines
+        )
+
     def test_progress_callback_deterministic_rejection_is_warning_only(
         self, rescan_worker, signal_collector
     ):
