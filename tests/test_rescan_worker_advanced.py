@@ -285,7 +285,10 @@ class TestRescanWorkerUnit:
         assert len(signal_collector.output_lines) == 1
         assert "10 arquivos" in signal_collector.output_lines[0]
         assert len(signal_collector.progress) == 1
-        assert signal_collector.progress[0] == (10, "Iniciando processamento...")
+        assert signal_collector.progress[0][0] == 10
+        assert signal_collector.progress[0][1].endswith(
+            "Iniciando processamento..."
+        )
 
     def test_progress_callback_file_start(self, rescan_worker, signal_collector):
         """Testa callback de progresso - evento file_start."""
@@ -930,7 +933,14 @@ class TestRescanWorkerIntegration:
 
         assert batch_sizes == [64, 64, 15]
         assert completed_batches == [(1, 3), (2, 3), (3, 3)]
-        assert outputs[0] == "=== Iniciando Importacao externa ==="
+        assert outputs[0].endswith("=== Iniciando Importacao externa ===")
+        assert any(
+            "143 arquivos selecionados; serao processados em 3 ciclos de ate 64 arquivos"
+            in line
+            for line in outputs
+        )
+        assert any("Etapa: preparando ciclo 2/3 (65-128/143)" in line for line in outputs)
+        assert any("[STAGE 65/143]" in line for line in outputs)
         assert sum("SSAs atualizadas" in line for line in outputs) == 3
         assert (
             "Banco de dados: 100 -> 134 SSAs no total; "

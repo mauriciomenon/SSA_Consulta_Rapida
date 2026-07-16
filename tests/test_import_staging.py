@@ -38,6 +38,28 @@ def test_stage_external_import_files_accepts_only_backend_supported_formats(
     assert not (docs_dir / "entrada.xls").exists()
 
 
+def test_stage_external_import_files_preserves_global_progress_offset(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source_dir = tmp_path / "fontes"
+    source_dir.mkdir()
+    source = source_dir / "entrada.xlsx"
+    source.write_text("xlsx", encoding="utf-8")
+    output: list[str] = []
+
+    stage_external_import_files(
+        project_root=str(tmp_path),
+        source_files=(str(source),),
+        progress_offset=64,
+        progress_total=1359,
+        output_callback=output.append,
+    )
+
+    assert any("[STAGE 65/1359]" in line for line in output)
+
+
 def test_validate_external_source_path_accepts_explicit_selected_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

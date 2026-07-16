@@ -146,6 +146,17 @@ def test_rescan_progress_dialog_update_progress_clamps_percentage():
     assert dlg.progress_bar.value() == 100
 
 
+def test_rescan_progress_dialog_title_shows_global_file_progress():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    dlg.set_operation_label("Importacao externa")
+
+    dlg.update_progress(42, "Arquivo 60/1359")
+
+    assert dlg.windowTitle() == "Importacao externa em andamento - 60/1359"
+
+
 def test_rescan_progress_dialog_starts_non_modal():
     from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
 

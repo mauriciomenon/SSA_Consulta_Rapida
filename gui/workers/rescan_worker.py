@@ -5,6 +5,7 @@ import logging
 import sqlite3
 import sys
 import threading
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Sequence, TypedDict, cast
@@ -271,7 +272,10 @@ class RescanWorker(QThread):
             percentage = int(
                 10 + (self._batch_file_offset / max(overall_total, 1) * 70)
             )
-            self.progress.emit(percentage, "Iniciando processamento...")
+            self.progress.emit(
+                percentage,
+                f"[{datetime.now():%H:%M:%S}] Iniciando processamento...",
+            )
 
         elif event_type == "file_start":
             filename = data.get("filename", "")
@@ -412,9 +416,23 @@ class RescanWorker(QThread):
         self._resolve_explicit_files()
         resolved_sources = self._resolve_source_files()
         if resolved_sources:
+            overall_total = self._overall_total_files or len(resolved_sources)
+            stage_start = self._batch_file_offset + 1
+            stage_end = self._batch_file_offset + len(resolved_sources)
+            self.output_line.emit(
+                f"[{datetime.now():%H:%M:%S}] Etapa: preparando ciclo "
+                f"{self._batch_index}/{self._batch_total} "
+                f"({stage_start}-{stage_end}/{overall_total})"
+            )
+            self.progress.emit(
+                int(10 + (self._batch_file_offset / max(overall_total, 1) * 70)),
+                f"Preparando arquivos {self._batch_file_offset}/{overall_total}",
+            )
             staged_files, summary = stage_external_import_files(
                 project_root=self.project_root,
                 source_files=resolved_sources,
+                progress_offset=self._batch_file_offset,
+                progress_total=overall_total,
                 should_cancel=lambda: self._should_stop,
                 output_callback=self.output_line.emit,
                 error_callback=self.error_line.emit,
@@ -487,6 +505,16 @@ class RescanWorker(QThread):
             1,
             (len(work_items) + MAX_IMPORT_BATCH_FILES - 1)
             // MAX_IMPORT_BATCH_FILES,
+        )
+        self.output_line.emit(
+            f"[{datetime.now():%H:%M:%S}] Importacao externa: "
+            f"{self._overall_total_files} arquivos selecionados; "
+            f"serao processados em {self._batch_total} ciclos de ate "
+            f"{MAX_IMPORT_BATCH_FILES} arquivos."
+        )
+        self.progress.emit(
+            5,
+            f"Preparando importacao externa: 0/{self._overall_total_files} arquivos",
         )
         self._database_rows_before = self._count_database_rows()
         self._database_rows_after = self._database_rows_before
@@ -571,7 +599,8 @@ class RescanWorker(QThread):
                 mode_label = "FULL" if self.force_import else "DIFF"
             mode_suffix = f" ({mode_label})" if mode_label else ""
             self.output_line.emit(
-                f"=== Iniciando {self.operation_label}{mode_suffix} ==="
+                f"[{datetime.now():%H:%M:%S}] === Iniciando "
+                f"{self.operation_label}{mode_suffix} ==="
             )
             self.output_line.emit("")
             self.progress.emit(5, "Configurando...")
