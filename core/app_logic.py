@@ -49,6 +49,7 @@ from core.import_errors import (  # noqa: E402
     DatabaseSchemaError,
     DatabaseSpaceError,
     ExtractionError,
+    ImportMetricsContractError,
     ImporterError,
 )
 from core.import_formats import (  # noqa: E402
@@ -822,19 +823,34 @@ def _process_file_with_resilience(
             _metrics_out=file_metrics,
             metadata_columns_ready=True,
         )
-        if file_metrics:
-            file_metrics["status"] = "success" if success else "no_rows"
-            file_reports.append(file_metrics)
         if success:
             normalized_record_count = int(record_count)
+            counts = file_metrics.get("counts")
+            if not isinstance(counts, dict) or not {
+                "ssa_inserted",
+                "ssa_updated",
+            }.issubset(counts):
+                raise ValueError(
+                    f"Metricas SSA ausentes no resultado de {base_name}"
+                )
+            file_metrics["status"] = "success"
+            file_reports.append(file_metrics)
             successfully_processed_files.append(file_path)
             successful_regular_files_with_records.append(
                 (file_path, normalized_record_count)
             )
             emit_progress(
                 "file_success",
-                {"filename": base_name, "records": normalized_record_count},
+                {
+                    "filename": base_name,
+                    "records": normalized_record_count,
+                    "ssa_inserted": int(counts["ssa_inserted"]),
+                    "ssa_updated": int(counts["ssa_updated"]),
+                },
             )
+        elif file_metrics:
+            file_metrics["status"] = "no_rows"
+            file_reports.append(file_metrics)
         return FileProcessAction.CONTINUE
     except DatabaseConnectionError as exc:
         logger.error(
@@ -914,6 +930,36 @@ def _process_file_with_resilience(
                 "status": "extraction_error",
                 "error": str(exc),
                 "error_code": error_code,
+            }
+        )
+        emit_progress(
+            "file_error",
+            {
+                "filename": base_name,
+                "error": str(exc),
+                "error_code": error_code,
+                "deterministic": error_code == "MISSING_REQUIRED_COLUMNS",
+            },
+        )
+        return FileProcessAction.CONTINUE
+    except ImportMetricsContractError as exc:
+        logger.error(
+            "Falha no contrato de metricas apos gravacao de '%s': %s",
+            file_path,
+            exc,
+        )
+        normalized_record_count = int(exc.record_count)
+        successfully_processed_files.append(file_path)
+        successful_regular_files_with_records.append(
+            (file_path, normalized_record_count)
+        )
+        critical_errors.append(("metrics_contract", file_path, str(exc)))
+        file_reports.append(
+            {
+                "file": base_name,
+                "status": "metrics_contract_error",
+                "records": normalized_record_count,
+                "error": str(exc),
             }
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})

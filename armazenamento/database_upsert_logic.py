@@ -997,7 +997,12 @@ def _collect_chunk_upsert_delta(
 
 
 def _perform_upsert(
-    has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int | None = None
+    has_ssa: pd.DataFrame,
+    table_name: str,
+    conn,
+    *,
+    chunk_size: int | None = None,
+    metrics_out: dict[str, int] | None = None,
 ) -> int:
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
     effective_policy = _resolve_short_circuit_policy()
@@ -1010,6 +1015,8 @@ def _perform_upsert(
         else _resolve_upsert_chunk_size(len(has_ssa))
     )
     total_upserted = 0
+    inserted_keys: set[str] = set()
+    updated_keys: set[str] = set()
     quoted_table_name = _quote_identifier(table_name)
     _begin_transaction_if_needed(conn, context="_perform_upsert")
     logger.debug(
@@ -1045,6 +1052,11 @@ def _perform_upsert(
         if existing_chunk.empty and len(chunk_num_ssa) == len(chunk):
             _append_dataframe_rows(conn, table_name, chunk)
             total_upserted += len(chunk)
+            inserted_keys.update(
+                cache_key
+                for numero_ssa in chunk_num_ssa
+                if (cache_key := _upsert_cache_key(numero_ssa)) is not None
+            )
             logger.info(
                 "Fast-path append de %s registros com numero_ssa unicos e ausentes no banco",
                 len(chunk),
@@ -1066,8 +1078,19 @@ def _perform_upsert(
             date_columns=date_columns,
         )
         total_upserted += changed_rows
+        persisted_keys = set(rows_to_persist)
+        chunk_updated_keys = {
+            cache_key
+            for numero_ssa in delete_keys
+            if (cache_key := _upsert_cache_key(numero_ssa)) is not None
+        }
+        updated_keys.update(chunk_updated_keys - inserted_keys)
+        inserted_keys.update(persisted_keys - chunk_updated_keys)
         if rows_to_persist or delete_keys:
             _persist_upsert_chunk(conn, table_name, rows_to_persist, delete_keys)
+    if metrics_out is not None:
+        metrics_out["ssa_inserted"] = len(inserted_keys)
+        metrics_out["ssa_updated"] = len(updated_keys)
     return total_upserted
 
 
@@ -1118,9 +1141,16 @@ def apply_column_whitelist(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def insert_dataframe_with_smart_upsert_impl(
-    df: pd.DataFrame, db_path: str | Any, table_name: str
+    df: pd.DataFrame,
+    db_path: str | Any,
+    table_name: str,
+    *,
+    metrics_out: dict[str, int] | None = None,
 ) -> bool:
     work = prepare_dataframe_for_upsert(df)
+    if metrics_out is not None:
+        metrics_out["ssa_inserted"] = 0
+        metrics_out["ssa_updated"] = 0
     from . import database as _db_mod  # lazy import evita circularidade
 
     conn: Any = None
@@ -1209,7 +1239,12 @@ def insert_dataframe_with_smart_upsert_impl(
             _append_dataframe_rows(conn, table_name, no_ssa, chunk_size=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
         if not has_ssa.empty:
-            inserted = _perform_upsert(has_ssa, table_name, conn)
+            inserted = _perform_upsert(
+                has_ssa,
+                table_name,
+                conn,
+                metrics_out=metrics_out,
+            )
             logger.info("Processados %s registros com numero_ssa via upsert", inserted)
         conn.commit()
         logger.info("Inserção completada com sucesso")

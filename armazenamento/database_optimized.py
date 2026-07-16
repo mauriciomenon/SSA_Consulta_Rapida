@@ -350,6 +350,8 @@ def insert_dataframe_optimized(
     df: pd.DataFrame,
     db_path: str,
     table_name: str = "ssas",
+    *,
+    metrics_out: dict[str, int] | None = None,
 ) -> bool:
     """
     Versão OTIMIZADA da inserção de DataFrame com as seguintes melhorias:
@@ -368,6 +370,10 @@ def insert_dataframe_optimized(
     Returns:
         bool: True se sucesso, False se erro
     """
+    if metrics_out is not None:
+        metrics_out["ssa_inserted"] = 0
+        metrics_out["ssa_updated"] = 0
+
     if df is None or df.empty:
         logger.info("DataFrame vazio, nada para inserir")
         return True
@@ -512,6 +518,8 @@ def insert_dataframe_optimized(
                         chunksize=safe_chunksize,
                     )
                     total_inserted += len(insert_df)
+                    if metrics_out is not None:
+                        metrics_out["ssa_inserted"] += len(insert_df)
                     logger.info(
                         f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})"
                     )
@@ -593,6 +601,10 @@ def insert_dataframe_optimized(
                                     "Lookup incompleto no caminho delete+insert para SSAs: "
                                     f"{missing_existing_ssas[:5]}"
                                 )
+                            from .database_upsert_logic import (
+                                _merge_overwrite_with_incoming_non_empty,
+                            )
+
                             merged_rows: list[dict[str, object | None]] = []
                             update_columns_all = list(normalized_update_df.columns)
                             for row_values in normalized_update_df.itertuples(
@@ -602,11 +614,14 @@ def insert_dataframe_optimized(
                                 numero_ssa = update_row.get("numero_ssa")
                                 if numero_ssa is None:
                                     continue
-                                merged_row = existing_rows_by_ssa[
-                                    str(numero_ssa)
-                                ].copy()
-                                merged_row.update(update_row)
-                                merged_rows.append(merged_row)
+                                existing_row = pd.Series(
+                                    existing_rows_by_ssa[str(numero_ssa)]
+                                )
+                                merged_row = _merge_overwrite_with_incoming_non_empty(
+                                    existing_row,
+                                    pd.Series(update_row),
+                                )
+                                merged_rows.append(merged_row.to_dict())
 
                             if not merged_rows:
                                 logger.info(
@@ -659,6 +674,8 @@ def insert_dataframe_optimized(
                                     if params:
                                         conn.executemany(insert_sql, params)
                                 total_inserted += len(update_df)
+                                if metrics_out is not None:
+                                    metrics_out["ssa_updated"] += len(merged_df)
                                 logger.info(
                                     "[OK] Atualizados %s registros existentes via delete+insert",
                                     len(update_df),

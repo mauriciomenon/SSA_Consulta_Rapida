@@ -962,6 +962,8 @@ def insert_dataframe_with_smart_upsert(
     df: pd.DataFrame | sqlite3.Connection,
     db_path: str | pd.DataFrame | None = None,
     table_name: str = CANONICAL_SSA_TABLE,
+    *,
+    metrics_out: dict[str, int] | None = None,
 ) -> bool:  # noqa: PLR0912, PLR0914, PLR0915
     """Insere DataFrame com logica de upsert (por ``numero_ssa``) em baixo
     nivel. Esta versao foi refatorada para reduzir complexidade mantendo a
@@ -975,6 +977,10 @@ def insert_dataframe_with_smart_upsert(
     Dispatcher: Se modo otimizado estiver ativo, delega para implementacao
     otimizada. Modo legado (conn, df) sempre usa implementacao padrao.
     """
+    if metrics_out is not None:
+        metrics_out["ssa_inserted"] = 0
+        metrics_out["ssa_updated"] = 0
+
     # Suporte retrocompativel:
     #  - Novo contrato: (df, db_path, table_name)
     #  - Contrato legado usado em testes: (conn, df) ou (conn, df, table_name)
@@ -992,7 +998,10 @@ def insert_dataframe_with_smart_upsert(
         # Modo legado sempre usa implementacao padrao (nao suportado por optimized)
         try:
             return _up.insert_dataframe_with_smart_upsert_impl(
-                real_df, conn, table_name
+                real_df,
+                conn,
+                table_name,
+                metrics_out=metrics_out,
             )
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao (legacy conn mode): {e}")
@@ -1027,7 +1036,12 @@ def insert_dataframe_with_smart_upsert(
         try:
             from .database_optimized import insert_dataframe_optimized
 
-            return insert_dataframe_optimized(real_df, db_path, table_name)
+            return insert_dataframe_optimized(
+                real_df,
+                db_path,
+                table_name,
+                metrics_out=metrics_out,
+            )
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao otimizada: {e}")
             return False
@@ -1037,7 +1051,10 @@ def insert_dataframe_with_smart_upsert(
             # A implementacao de upsert aplica prepare_dataframe_for_upsert()
             # internamente, incluindo whitelist e normalizacao canonica.
             return _up.insert_dataframe_with_smart_upsert_impl(
-                real_df, db_path, table_name
+                real_df,
+                db_path,
+                table_name,
+                metrics_out=metrics_out,
             )
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao: {e}")

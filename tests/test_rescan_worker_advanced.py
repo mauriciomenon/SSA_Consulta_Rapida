@@ -9,11 +9,13 @@ import json
 import logging
 import os
 import shutil
+import sqlite3
 import sys
 import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 
 pytest.importorskip(
@@ -168,6 +170,24 @@ class TestRescanWorkerUnit:
         rescan_worker.stop()
         assert rescan_worker._should_stop is True
 
+    def test_count_database_rows_returns_unavailable_on_database_error(
+        self, rescan_worker, tmp_path
+    ):
+        db_path = tmp_path / "broken.db"
+        db_path.touch()
+        rescan_worker.db_path = str(db_path)
+
+        with (
+            patch.object(rescan_worker.logger, "warning") as warning,
+            patch(
+                "gui.workers.rescan_worker.count_table_rows",
+                side_effect=sqlite3.OperationalError("broken"),
+            ),
+        ):
+            assert rescan_worker._count_database_rows() is None
+        warning.assert_called_once()
+        assert "broken" in str(warning.call_args)
+
     def test_attach_logger_adds_handler(self, rescan_worker):
         """Testa que _attach_logger adiciona handler ao logger."""
         logger = rescan_worker.logger
@@ -295,6 +315,35 @@ class TestRescanWorkerUnit:
         assert "test.xlsx" in signal_collector.output_lines[0]
         assert "100 registros" in signal_collector.output_lines[0]
 
+    def test_progress_callback_appends_updated_ssas_only_when_nonzero(
+        self, rescan_worker, signal_collector
+    ):
+        rescan_worker.output_line.connect(signal_collector.on_output)
+
+        rescan_worker._progress_callback(
+            "file_success",
+            {
+                "filename": "updated.xlsx",
+                "records": 100,
+                "ssa_inserted": 4,
+                "ssa_updated": 7,
+            },
+        )
+        rescan_worker._progress_callback(
+            "file_success",
+            {
+                "filename": "unchanged.xlsx",
+                "records": 100,
+                "ssa_inserted": 0,
+                "ssa_updated": 0,
+            },
+        )
+
+        assert signal_collector.output_lines[0].endswith(
+            "100 registros | 7 SSAs atualizadas"
+        )
+        assert "SSAs atualizadas" not in signal_collector.output_lines[1]
+
     def test_progress_callback_file_error(self, rescan_worker, signal_collector):
         """Testa callback de progresso - evento file_error."""
         rescan_worker.error_line.connect(signal_collector.on_error)
@@ -307,6 +356,26 @@ class TestRescanWorkerUnit:
         assert "[ERRO]" in signal_collector.error_lines[0]
         assert "test.xlsx" in signal_collector.error_lines[0]
         assert "Arquivo corrompido" in signal_collector.error_lines[0]
+
+    def test_progress_callback_deterministic_rejection_is_warning_only(
+        self, rescan_worker, signal_collector
+    ):
+        rescan_worker.error_line.connect(signal_collector.on_error)
+
+        rescan_worker._progress_callback(
+            "file_error",
+            {
+                "filename": "fora_do_padrao.xlsx",
+                "error": "colunas obrigatorias ausentes",
+                "error_code": "MISSING_REQUIRED_COLUMNS",
+                "deterministic": True,
+            },
+        )
+
+        assert rescan_worker._has_runtime_errors is False
+        assert signal_collector.error_lines == [
+            "[AVISO] fora_do_padrao.xlsx: colunas obrigatorias ausentes"
+        ]
 
     def test_progress_callback_finish(self, rescan_worker, signal_collector):
         """Testa callback de progresso - evento finish."""
@@ -441,7 +510,15 @@ class TestRescanWorkerIntegration:
             callback = kwargs["progress_callback"]
             callback("start", {"total": 1})
             callback("file_start", {"filename": "bad.xlsx", "current": 1, "total": 1})
-            callback("file_error", {"filename": "bad.xlsx", "error": "bad cols"})
+            callback(
+                "file_error",
+                {
+                    "filename": "bad.xlsx",
+                    "error": "bad cols",
+                    "error_code": "MISSING_REQUIRED_COLUMNS",
+                    "deterministic": True,
+                },
+            )
             callback(
                 "finish",
                 {
@@ -521,7 +598,15 @@ class TestRescanWorkerIntegration:
             callback = kwargs["progress_callback"]
             callback("start", {"total": 1})
             callback("file_start", {"filename": "bad.xlsx", "current": 1, "total": 1})
-            callback("file_error", {"filename": "bad.xlsx", "error": "bad cols"})
+            callback(
+                "file_error",
+                {
+                    "filename": "bad.xlsx",
+                    "error": "bad cols",
+                    "error_code": "MISSING_REQUIRED_COLUMNS",
+                    "deterministic": True,
+                },
+            )
             callback(
                 "finish",
                 {
@@ -765,6 +850,278 @@ class TestRescanWorkerIntegration:
         finally:
             if worker._logger_attached:
                 worker._detach_logger()
+
+    def test_run_splits_143_external_files_into_three_batches(self, tmp_path):
+        docs_dir = tmp_path / "docs_entrada"
+        docs_dir.mkdir()
+        source_dir = tmp_path / "fontes"
+        source_dir.mkdir()
+        sources = []
+        for index in range(143):
+            source = source_dir / f"entrada_{index:03d}.xlsx"
+            source.write_bytes(b"xlsx")
+            sources.append(str(source))
+        db_path = tmp_path / "data" / "ssas.db"
+        db_path.parent.mkdir()
+        db_path.touch()
+
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            force_import=False,
+            source_files=tuple(sources),
+            db_path=str(db_path),
+            operation_label="Importacao externa",
+        )
+        assert hasattr(worker, "batch_completed")
+        outputs: list[str] = []
+        completed_batches: list[tuple[int, int]] = []
+        worker.output_line.connect(outputs.append)
+        worker.batch_completed.connect(
+            lambda current, total: completed_batches.append((current, total))
+        )
+        batch_sizes: list[int] = []
+        inserted_by_batch = (20, 10, 5)
+        updated_by_batch = (3, 0, 2)
+
+        def _mock_importer(**kwargs):
+            batch_index = len(batch_sizes)
+            explicit_files = tuple(kwargs["explicit_files"] or ())
+            batch_sizes.append(len(explicit_files))
+            callback = kwargs["progress_callback"]
+            callback("start", {"total": len(explicit_files)})
+            callback(
+                "file_success",
+                {
+                    "filename": Path(explicit_files[0]).name,
+                    "records": 1,
+                    "ssa_inserted": inserted_by_batch[batch_index],
+                    "ssa_updated": updated_by_batch[batch_index],
+                },
+            )
+            callback(
+                "finish",
+                {
+                    "total": len(explicit_files),
+                    "processed": len(explicit_files),
+                    "errors": [],
+                },
+            )
+            return True
+
+        try:
+            with (
+                patch(
+                    "gui.workers.rescan_worker.run_importer_logic",
+                    side_effect=_mock_importer,
+                ),
+                patch(
+                    "gui.workers.rescan_worker.count_table_rows",
+                    create=True,
+                    # Deliberate mismatch: inserted metrics must not be derived
+                    # from a net row delta that can include independent removals.
+                    side_effect=(100, 119, 130, 134),
+                ),
+            ):
+                worker.run()
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+        assert batch_sizes == [64, 64, 15]
+        assert completed_batches == [(1, 3), (2, 3), (3, 3)]
+        assert outputs[0] == "=== Iniciando Importacao externa ==="
+        assert sum("SSAs atualizadas" in line for line in outputs) == 3
+        assert (
+            "Banco de dados: 100 -> 134 SSAs no total; "
+            "5 SSAs atualizadas; 35 SSAs novas."
+        ) in outputs
+
+    def test_force_import_only_recreates_database_for_first_explicit_batch(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("SSA_RUNTIME_ROOT", str(tmp_path / "runtime"))
+        source_dir = tmp_path / "fontes"
+        source_dir.mkdir()
+        sources = []
+        for index in range(65):
+            source = source_dir / f"entrada_{index:03d}.xlsx"
+            pd.DataFrame(
+                [
+                    {
+                        "Numero SSA": f"2026{index + 1:05d}",
+                        "Situacao": "ABERTA",
+                        "Setor Executor": "TEST",
+                        "Emitida Em": "01/01/2026",
+                        "Descricao": f"Lote {index + 1}",
+                    }
+                ]
+            ).to_excel(source, index=False)
+            sources.append(str(source))
+
+        db_path = tmp_path / "data" / "ssas.db"
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            force_import=True,
+            source_files=tuple(sources),
+            db_path=str(db_path),
+            operation_label="Importacao externa",
+        )
+        try:
+            worker.run()
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+        with sqlite3.connect(db_path) as conn:
+            rows = conn.execute(
+                "SELECT numero_ssa FROM ssa_table "
+                "WHERE numero_ssa IN (?, ?) ORDER BY numero_ssa",
+                ("202600001", "202600065"),
+            ).fetchall()
+            total = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
+
+        assert worker.last_outcome == RescanOutcome.UPDATED
+        assert total == 65
+        assert rows == [("202600001",), ("202600065",)]
+        assert worker.force_import is True
+
+    def test_run_reports_error_when_later_explicit_batch_fails(
+        self, tmp_path, signal_collector
+    ):
+        source_dir = tmp_path / "fontes"
+        source_dir.mkdir()
+        sources = []
+        for index in range(65):
+            source = source_dir / f"entrada_{index:03d}.xlsx"
+            source.write_bytes(b"xlsx")
+            sources.append(str(source))
+        db_path = tmp_path / "data" / "ssas.db"
+        db_path.parent.mkdir()
+        db_path.touch()
+
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            force_import=False,
+            source_files=tuple(sources),
+            db_path=str(db_path),
+            operation_label="Importacao externa",
+        )
+        worker.finished_success.connect(signal_collector.on_finished_success)
+        worker.finished_error.connect(signal_collector.on_finished_error)
+        calls = {"count": 0}
+
+        def _mock_importer(**kwargs):
+            calls["count"] += 1
+            callback = kwargs["progress_callback"]
+            explicit_files = tuple(kwargs["explicit_files"] or ())
+            callback("start", {"total": len(explicit_files)})
+            if calls["count"] == 1:
+                callback(
+                    "file_success",
+                    {
+                        "filename": Path(explicit_files[0]).name,
+                        "records": 1,
+                        "ssa_inserted": 1,
+                        "ssa_updated": 0,
+                    },
+                )
+                callback(
+                    "finish",
+                    {
+                        "total": len(explicit_files),
+                        "processed": len(explicit_files),
+                        "errors": [],
+                    },
+                )
+                return True
+            callback(
+                "file_error",
+                {"filename": Path(explicit_files[0]).name, "error": "falha"},
+            )
+            callback(
+                "finish",
+                {
+                    "total": len(explicit_files),
+                    "processed": 0,
+                    "errors": [("import", explicit_files[0], "falha")],
+                },
+            )
+            return False
+
+        try:
+            with (
+                patch(
+                    "gui.workers.rescan_worker.run_importer_logic",
+                    side_effect=_mock_importer,
+                ),
+                patch(
+                    "gui.workers.rescan_worker.count_table_rows",
+                    side_effect=(10, 11, 11),
+                ),
+            ):
+                worker.run()
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+        assert calls["count"] == 2
+        assert worker.last_outcome == RescanOutcome.ERROR
+        assert signal_collector.finished_success is False
+        assert "falhou com erros" in signal_collector.finished_error
+
+    def test_run_explicit_batch_emits_cancelled_when_stop_arrives_during_import(
+        self, tmp_path, signal_collector
+    ):
+        docs_dir = tmp_path / "docs_entrada"
+        docs_dir.mkdir()
+        source = tmp_path / "entrada.xlsx"
+        source.write_bytes(b"xlsx")
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            force_import=False,
+            source_files=(str(source),),
+            operation_label="Importacao externa",
+        )
+        worker.finished_error.connect(signal_collector.on_finished_error)
+        outputs: list[str] = []
+        worker.output_line.connect(outputs.append)
+
+        def _cancel_during_import(**kwargs):
+            kwargs["progress_callback"](
+                "file_success",
+                {
+                    "filename": "entrada.xlsx",
+                    "records": 1,
+                    "ssa_inserted": 1,
+                    "ssa_updated": 0,
+                },
+            )
+            worker.stop()
+            return True
+
+        try:
+            with (
+                patch(
+                    "gui.workers.rescan_worker.run_importer_logic",
+                    side_effect=_cancel_during_import,
+                ),
+                patch(
+                    "gui.workers.rescan_worker.count_table_rows",
+                    return_value=0,
+                ),
+            ):
+                worker.run()
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+        assert worker.last_outcome == RescanOutcome.CANCELLED
+        assert signal_collector.finished_error == "Processo cancelado pelo usuario"
+        assert not any(line.startswith("Banco de dados:") for line in outputs)
 
     def test_stage_source_files_stops_after_copy_when_cancel_requested(self, tmp_path):
         docs_dir = tmp_path / "docs_entrada"

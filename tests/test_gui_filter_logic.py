@@ -563,7 +563,7 @@ class TestGUIFilterLogic:
         assert generate_button is not None
         assert str(generate_button.text() or "") == "Gerar xls"
         assert load_xls_button is not None
-        assert str(load_xls_button.text() or "") == "Carregar xls"
+        assert str(load_xls_button.text() or "") == "Carregar XLSX"
         toolbar = getattr(self.window, "_top_toolbar_layout", None)
         assert toolbar is not None
         assert [toolbar.itemAt(index).widget() for index in range(3)] == [

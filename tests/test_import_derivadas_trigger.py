@@ -82,6 +82,11 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(
 
     def _fake_import(file_path: str, *args, **kwargs):
         imported_files.append(file_path)
+        metrics_out = kwargs.get("_metrics_out")
+        assert isinstance(metrics_out, dict)
+        metrics_out.update(
+            {"counts": {"ssa_inserted": 3, "ssa_updated": 0}}
+        )
         return True, 3
 
     monkeypatch.setattr(app_logic, "_import_single_file", _fake_import)
@@ -319,7 +324,15 @@ def test_run_importer_runs_db_only_derivadas_sync_for_regular_import(
     monkeypatch.setattr(
         app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)]
     )
-    monkeypatch.setattr(app_logic, "_import_single_file", lambda *a, **k: (True, 5))
+    def _fake_import(*args, **kwargs):
+        metrics_out = kwargs.get("_metrics_out")
+        assert isinstance(metrics_out, dict)
+        metrics_out.update(
+            {"counts": {"ssa_inserted": 5, "ssa_updated": 0}}
+        )
+        return True, 5
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _fake_import)
 
     sync_calls: list[dict] = []
 
@@ -736,7 +749,15 @@ def test_run_importer_blocks_success_when_derivadas_consistency_fails(
     monkeypatch.setattr(
         app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)]
     )
-    monkeypatch.setattr(app_logic, "_import_single_file", lambda *a, **k: (True, 3))
+    def _fake_import(*args, **kwargs):
+        metrics_out = kwargs.get("_metrics_out")
+        assert isinstance(metrics_out, dict)
+        metrics_out.update(
+            {"counts": {"ssa_inserted": 3, "ssa_updated": 0}}
+        )
+        return True, 3
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _fake_import)
     monkeypatch.setattr(
         app_logic,
         "sync_derivadas",

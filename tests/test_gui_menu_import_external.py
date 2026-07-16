@@ -286,6 +286,12 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     monkeypatch.setattr(
         gui_ssa.QMessageBox, "information", lambda *_args, **_kwargs: None
     )
+    warnings: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "warning",
+        lambda *args, **_kwargs: warnings.append(args),
+    )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
         gui_ssa.ssa_gui_workers,
@@ -318,6 +324,8 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert captured["kwargs"]["reload_on_success"] is True
     assert captured["kwargs"]["operation_kind"] == "import"
     assert window.status_label.text == ""
+    assert len(warnings) == 1
+    assert "outra.xls" in str(warnings[0])
 
 
 def test_import_external_excel_files_accepts_selected_file_outside_project(
@@ -444,6 +452,12 @@ def test_import_external_excel_files_filters_invalid_and_unsupported_before_queu
             "Arquivos Excel",
         ),
     )
+    warnings: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "warning",
+        lambda *args, **_kwargs: warnings.append(args),
+    )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
         gui_ssa.ssa_gui_workers,
@@ -462,6 +476,8 @@ def test_import_external_excel_files_filters_invalid_and_unsupported_before_queu
     assert result["unsupported"] == 1
     assert result["staged"] == 1
     assert list(captured["kwargs"]["source_files"]) == [str(ok_file)]
+    assert len(warnings) == 1
+    assert "nota.txt" in str(warnings[0])
 
 
 def test_open_settings_file_with_backup_creates_backup(

@@ -6,11 +6,15 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Protocol
 
 from utils.file_metadata import best_datetime_for_file
 
-from core.import_errors import DatabaseError, ExtractionError
+from core.import_errors import (
+    DatabaseError,
+    ExtractionError,
+    ImportMetricsContractError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +25,24 @@ SOURCE_METADATA_COLUMNS: tuple[tuple[str, str], ...] = (
 )
 
 
+class SmartUpsert(Protocol):
+    def __call__(
+        self,
+        df: Any,
+        db_path: str,
+        table_name: str,
+        *,
+        metrics_out: dict[str, int] | None = None,
+    ) -> bool: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ImportSingleFileServices:
     extract_data_from_excel: Callable[..., Any]
     extractor_error_type: type[Exception]
     validate_dataframe_before_insert: Callable[[Any, str], Dict[str, Any]]
     ensure_column_exists: Callable[[str, str, str, str], Any]
-    insert_dataframe_with_smart_upsert: Callable[[Any, str, str], bool]
+    insert_dataframe_with_smart_upsert: SmartUpsert
 
 
 def ensure_source_metadata_columns(
@@ -203,6 +218,8 @@ def import_single_file(
             ),
             "rows_ready_for_insert": 0,
             "rows_inserted": 0,
+            "ssa_inserted": 0,
+            "ssa_updated": 0,
         }
         metrics["invalid_identity"] = invalid_row_summary
         metrics["invalid_identity_tracked"] = bool(invalid_row_summary)
@@ -300,13 +317,35 @@ def import_single_file(
                 raise ExtractionError(
                     "operation cancelled", error_code="OPERATION_CANCELLED"
                 )
+            upsert_metrics: dict[str, int] = {}
             success = services.insert_dataframe_with_smart_upsert(
-                df, db_path, table_name
+                df,
+                db_path,
+                table_name,
+                metrics_out=upsert_metrics,
             )
+            if success:
+                missing_metrics = {
+                    "ssa_inserted",
+                    "ssa_updated",
+                }.difference(upsert_metrics)
+                if missing_metrics:
+                    missing_text = ", ".join(sorted(missing_metrics))
+                    raise ImportMetricsContractError(
+                        "Upsert concluido sem metricas obrigatorias "
+                        f"({missing_text}) para {os.path.basename(file_path)}",
+                        record_count=record_count,
+                    )
             metrics["durations"]["insert_seconds"] = round(
                 time.perf_counter() - insertion_started, 3
             )
             metrics["counts"]["rows_inserted"] = int(record_count if success else 0)
+            metrics["counts"]["ssa_inserted"] = int(
+                upsert_metrics.get("ssa_inserted", 0) if success else 0
+            )
+            metrics["counts"]["ssa_updated"] = int(
+                upsert_metrics.get("ssa_updated", 0) if success else 0
+            )
             if success:
                 counts = metrics.get("counts", {})
                 logger.info(

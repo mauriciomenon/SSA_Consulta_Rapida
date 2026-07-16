@@ -19,6 +19,12 @@ def _valid_df() -> pd.DataFrame:
     )
 
 
+def _successful_upsert(*args, metrics_out=None, **kwargs) -> bool:
+    assert isinstance(metrics_out, dict)
+    metrics_out.update({"ssa_inserted": 1, "ssa_updated": 0})
+    return True
+
+
 @pytest.fixture(autouse=True)
 def _create_default_import_file(tmp_path: Path) -> None:
     (tmp_path / "input.xlsx").write_bytes(b"placeholder")
@@ -182,7 +188,7 @@ def test_import_single_file_tolerates_missing_is_valid_in_validation_report(
     monkeypatch.setattr(
         app_logic.database,
         "insert_dataframe_with_smart_upsert",
-        lambda *args, **kwargs: True,
+        _successful_upsert,
     )
 
     file_path = str(tmp_path / "input.xlsx")
@@ -192,6 +198,44 @@ def test_import_single_file_tolerates_missing_is_valid_in_validation_report(
 
     assert ok is True
     assert count == 1
+
+
+def test_import_single_file_rejects_upsert_success_without_ssa_metrics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: _valid_df(),
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "validate_dataframe_before_insert",
+        lambda *args, **kwargs: {
+            "is_valid": True,
+            "violations": [],
+            "invalid_by_column": {},
+            "issues": [],
+        },
+    )
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        lambda *args, **kwargs: True,
+    )
+
+    with pytest.raises(
+        app_logic.ImportMetricsContractError,
+        match="Upsert concluido sem metricas obrigatorias",
+    ):
+        app_logic._import_single_file(
+            str(tmp_path / "input.xlsx"),
+            str(tmp_path / "db.sqlite"),
+            "ssa_table",
+        )
 
 
 def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cast_error(
@@ -249,6 +293,72 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cas
                 "error": "int() argument must be a string, a bytes-like object or a real number, not 'object'",
             },
         )
+    ]
+
+
+def test_process_file_with_resilience_records_metrics_contract_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def _raise_metrics_contract(*args, **kwargs):
+        raise app_logic.ImportMetricsContractError(
+            "Metricas SSA ausentes no resultado de input.xlsx",
+            record_count=1,
+        )
+
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        _raise_metrics_contract,
+    )
+
+    successful_files: list[str] = []
+    successful_with_records: list[tuple[str, int]] = []
+    critical_errors: list[tuple[str, str, str]] = []
+    file_reports: list[dict[str, object]] = []
+    progress_events: list[tuple[str, dict[str, object]]] = []
+
+    action = app_logic._process_file_with_resilience(
+        file_path=str(tmp_path / "input.xlsx"),
+        base_name="input.xlsx",
+        working_db_path=str(tmp_path / "db.sqlite"),
+        table_name="ssa_table",
+        should_cancel=None,
+        candidate_db_path=None,
+        successfully_processed_files=successful_files,
+        successful_regular_files_with_records=successful_with_records,
+        critical_errors=critical_errors,
+        deterministic_failed_files=[],
+        file_reports=file_reports,
+        emit_progress=lambda event_type, data: progress_events.append(
+            (event_type, data)
+        ),
+    )
+
+    assert action == app_logic.FileProcessAction.CONTINUE
+    input_path = str(tmp_path / "input.xlsx")
+    assert successful_files == [input_path]
+    assert successful_with_records == [(input_path, 1)]
+    assert critical_errors == [
+        (
+            "metrics_contract",
+            input_path,
+            "Metricas SSA ausentes no resultado de input.xlsx",
+        )
+    ]
+    assert progress_events[-1] == (
+        "file_error",
+        {
+            "filename": "input.xlsx",
+            "error": "Metricas SSA ausentes no resultado de input.xlsx",
+        },
+    )
+    assert file_reports == [
+        {
+            "file": "input.xlsx",
+            "status": "metrics_contract_error",
+            "records": 1,
+            "error": "Metricas SSA ausentes no resultado de input.xlsx",
+        }
     ]
 
 
@@ -408,7 +518,7 @@ def test_import_single_file_logs_friendly_duplicate_labels(
     monkeypatch.setattr(
         app_logic.database,
         "insert_dataframe_with_smart_upsert",
-        lambda *args, **kwargs: True,
+        _successful_upsert,
     )
 
     caplog.set_level("WARNING")
@@ -461,6 +571,9 @@ def test_import_single_file_drops_invalid_numero_ssa_rows_before_insert(
     def _fake_insert(dataframe, *args, **kwargs):
         captured["rows"] = len(dataframe)
         captured["ssas"] = dataframe["numero_ssa"].astype(str).tolist()
+        metrics_out = kwargs.get("metrics_out")
+        assert isinstance(metrics_out, dict)
+        metrics_out.update({"ssa_inserted": len(dataframe), "ssa_updated": 0})
         return True
 
     monkeypatch.setattr(

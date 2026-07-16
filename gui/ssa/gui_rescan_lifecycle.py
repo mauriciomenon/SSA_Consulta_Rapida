@@ -36,6 +36,8 @@ def connect_rescan_worker_lifecycle(
     set_status_label_text,
 ) -> None:
     cancelled = False
+    batch_reload_count = 0
+    batch_reload_failed = False
     register_rescan_worker(
         worker,
         global_workers=global_workers,
@@ -104,13 +106,31 @@ def connect_rescan_worker_lifecycle(
         _finish_successful_rescan(
             window,
             outcome,
-            allow_reload=was_active_worker,
+            allow_reload=was_active_worker
+            and (batch_reload_count == 0 or batch_reload_failed),
             reload_on_success=reload_on_success,
             is_explicit_import=is_explicit_import,
             explicit_import_has_files=bool(getattr(worker, "explicit_files", ())),
             normalized_kind=normalized_kind,
             set_status_label_text=set_status_label_text,
         )
+
+    def on_batch_completed(_current: int, _total: int) -> None:
+        nonlocal batch_reload_count, batch_reload_failed
+        if not reload_on_success or normalized_kind == "consolidate":
+            return
+        if getattr(window, "_active_rescan_worker", None) is not worker:
+            return
+        try:
+            window.load_data()
+            batch_reload_count += 1
+            batch_reload_failed = False
+        except Exception as exc:
+            batch_reload_failed = True
+            logger.warning(
+                "Falha ao recarregar dados apos bloco de importacao: %s",
+                exc,
+            )
 
     def on_error(error_msg) -> None:
         nonlocal cancelled
@@ -155,6 +175,13 @@ def connect_rescan_worker_lifecycle(
         on_finished_successfully,
         label="rescan.finished_success",
     )
+    batch_completed_signal = getattr(worker, "batch_completed", None)
+    if batch_completed_signal is not None:
+        connect_signal(
+            batch_completed_signal,
+            on_batch_completed,
+            label="rescan.batch_completed",
+        )
     connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
     connect_signal(
         worker.finished,

@@ -1458,9 +1458,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.load_button.clicked.connect(self._open_sam_reports_xls_page)
         toolbar_layout.addWidget(cast(Any, self.load_button))
 
-        # Temporary release shortcut: load XLS/XLSX through the existing importer.
-        self.api_button = QPushButton("Carregar xls")
-        self.api_button.setToolTip("Importar arquivo XLS ou XLSX externo")
+        # Temporary release shortcut: load XLSX through the existing importer.
+        self.api_button = QPushButton("Carregar XLSX")
+        self.api_button.setToolTip("Importar arquivos XLSX externos")
         self.api_button.clicked.connect(self.import_external_excel_files)
         toolbar_layout.addWidget(cast(Any, self.api_button))
 
@@ -5230,7 +5230,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         skipped = int(prepared_selection["skipped"])
         failed = int(prepared_selection["failed"])
         unsupported = int(prepared_selection["unsupported"])
+        unsupported_files = list(prepared_selection["unsupported_files"])
         safe_selected_files = list(prepared_selection["safe_selected_files"])
+        if unsupported_files:
+            QMessageBox.warning(
+                self,
+                "Arquivo Excel nao suportado",
+                "Nao foi possivel carregar os seguintes arquivos. "
+                "O importador aceita somente XLSX:\n\n"
+                + "\n".join(unsupported_files),
+            )
         try:
             from gui.widgets import RescanProgressDialog
             from gui.workers import RescanWorker
@@ -5257,11 +5266,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             failed += len(safe_selected_files)
 
         if hasattr(self, "status_label") and not queued:
-            summary = (
-                f"Status: Importacao externa preparada - selecionados={selected_count}, "
-                f"falhas={failed}, "
-                f"enfileirada=nao."
-            )
+            if unsupported > 0 and not safe_selected_files:
+                summary = (
+                    "Status: Erro na importacao externa - nenhum arquivo XLSX "
+                    f"valido; nao suportados={unsupported}."
+                )
+            else:
+                summary = (
+                    "Status: Importacao externa preparada - "
+                    f"selecionados={selected_count}, falhas={failed}, "
+                    "enfileirada=nao."
+                )
             self.status_label.setText(summary)
 
         return {
@@ -5877,7 +5892,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Sucesso",
                     (
                         f"Banco de dados selecionado: {os.path.basename(db_file)}\n\n"
-                        "Clique em 'Carregar xls' para importar um arquivo externo."
+                        "Clique em 'Carregar XLSX' para importar arquivos externos."
                     ),
                 )
             return result
