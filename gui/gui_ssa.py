@@ -5199,7 +5199,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
 
     def import_external_excel_files(self):
-        """Enfileira importacao externa; o staging roda em background."""
+        """Inicia importacao; o staging roda em background."""
         selected_files, _ = QFileDialog.getOpenFileNames(
             self,
             "Selecionar arquivos Excel para importar",
@@ -5256,24 +5256,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     rescan_mode="explicit",
                     source_files=tuple(safe_selected_files),
                     db_path=DB_PATH,
-                    operation_label="Importacao externa",
+                    operation_label="Importacao",
                     reload_on_success=True,
                     operation_kind="import",
                 )
                 queued = True
         except Exception as exc:
-            logger.warning("Falha ao iniciar importacao externa: %s", exc)
+            logger.warning("Falha ao iniciar importacao: %s", exc)
             failed += len(safe_selected_files)
 
         if hasattr(self, "status_label") and not queued:
             if unsupported > 0 and not safe_selected_files:
                 summary = (
-                    "Status: Erro na importacao externa - nenhum arquivo XLSX "
+                    "Status: Erro na importacao - nenhum arquivo XLSX "
                     f"valido; nao suportados={unsupported}."
                 )
             else:
                 summary = (
-                    "Status: Importacao externa preparada - "
+                    "Status: Importacao preparada - "
                     f"selecionados={selected_count}, falhas={failed}, "
                     "enfileirada=nao."
                 )

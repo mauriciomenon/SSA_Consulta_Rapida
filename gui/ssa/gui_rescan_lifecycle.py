@@ -350,7 +350,7 @@ def _cancelled_status_text(is_explicit_import: bool, normalized_kind: str) -> st
     if normalized_kind == "consolidate":
         return "Status: Consolidacao de arquivos cancelada."
     if is_explicit_import:
-        return "Status: Importacao externa cancelada."
+        return "Status: Importacao cancelada."
     return "Status: Reescaneamento cancelado."
 
 
@@ -358,7 +358,7 @@ def _error_status_text(is_explicit_import: bool, normalized_kind: str) -> str:
     if normalized_kind == "consolidate":
         return "Status: Erro na consolidacao de arquivos."
     if is_explicit_import:
-        return "Status: Erro na importacao externa."
+        return "Status: Erro na importacao."
     return "Status: Erro no reescaneamento."
 
 

@@ -150,11 +150,23 @@ def test_rescan_progress_dialog_title_shows_global_file_progress():
     from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
 
     dlg = RescanProgressDialog()
-    dlg.set_operation_label("Importacao externa")
+    dlg.set_operation_label("Importacao")
 
     dlg.update_progress(42, "Arquivo 60/1359")
 
-    assert dlg.windowTitle() == "Importacao externa em andamento - 60/1359"
+    assert dlg.windowTitle() == "Importacao em andamento - 60/1359"
+
+
+def test_rescan_progress_dialog_error_section_uses_neutral_lowercase_label():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    labels = dlg.findChildren(type(dlg.status_label))
+
+    error_label = next(label for label in labels if label.text() == "Erros e avisos:")
+
+    assert error_label.text() == "Erros e avisos:"
+    assert "color: red" not in error_label.styleSheet()
 
 
 def test_rescan_progress_dialog_starts_non_modal():

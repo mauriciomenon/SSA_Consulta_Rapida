@@ -217,6 +217,8 @@ class RescanWorker(QThread):
         self._overall_total_files = 0
         self._last_ssa_inserted = 0
         self._last_ssa_updated = 0
+        self._batch_ssa_inserted = 0
+        self._batch_ssa_updated = 0
         self._database_rows_before: int | None = 0
         self._database_rows_after: int | None = 0
         self.last_outcome = RescanOutcome.NO_CHANGES
@@ -300,6 +302,8 @@ class RescanWorker(QThread):
             ssa_updated = int(data.get("ssa_updated", 0) or 0)
             self._last_ssa_inserted += ssa_inserted
             self._last_ssa_updated += ssa_updated
+            self._batch_ssa_inserted += ssa_inserted
+            self._batch_ssa_updated += ssa_updated
             suffix = (
                 f" | {ssa_updated} SSAs atualizadas" if ssa_updated > 0 else ""
             )
@@ -338,7 +342,9 @@ class RescanWorker(QThread):
             if self._batch_total > 1:
                 self.output_line.emit(
                     f"Bloco {self._batch_index}/{self._batch_total} concluido: "
-                    f"{processed}/{total} arquivos"
+                    f"{processed}/{total} arquivos | "
+                    f"{self._batch_ssa_updated} SSAs atualizadas | "
+                    f"{self._batch_ssa_inserted} SSAs novas"
                 )
             else:
                 self.output_line.emit(
@@ -374,6 +380,8 @@ class RescanWorker(QThread):
         self._overall_total_files = 0
         self._last_ssa_inserted = 0
         self._last_ssa_updated = 0
+        self._batch_ssa_inserted = 0
+        self._batch_ssa_updated = 0
         self._database_rows_before = 0
         self._database_rows_after = 0
 
@@ -446,7 +454,7 @@ class RescanWorker(QThread):
             if summary["failed"] > 0:
                 self.last_outcome = RescanOutcome.ERROR
                 self.finished_error.emit(
-                    "Importacao externa sem arquivos validos apos staging"
+                    "Importacao sem arquivos validos apos staging"
                 )
             else:
                 self.last_outcome = RescanOutcome.NO_CHANGES
@@ -507,14 +515,14 @@ class RescanWorker(QThread):
             // MAX_IMPORT_BATCH_FILES,
         )
         self.output_line.emit(
-            f"[{datetime.now():%H:%M:%S}] Importacao externa: "
+            f"[{datetime.now():%H:%M:%S}] Importacao: "
             f"{self._overall_total_files} arquivos selecionados; "
             f"serao processados em {self._batch_total} ciclos de ate "
             f"{MAX_IMPORT_BATCH_FILES} arquivos."
         )
         self.progress.emit(
             5,
-            f"Preparando importacao externa: 0/{self._overall_total_files} arquivos",
+            f"Preparando importacao: 0/{self._overall_total_files} arquivos",
         )
         self._database_rows_before = self._count_database_rows()
         self._database_rows_after = self._database_rows_before
@@ -531,6 +539,8 @@ class RescanWorker(QThread):
                 batch = work_items[start : start + MAX_IMPORT_BATCH_FILES]
                 self._batch_index = batch_index
                 self._batch_file_offset = start
+                self._batch_ssa_inserted = 0
+                self._batch_ssa_updated = 0
                 self.force_import = initial_force_import and batch_index == 1
                 if source_mode:
                     self.source_files = batch

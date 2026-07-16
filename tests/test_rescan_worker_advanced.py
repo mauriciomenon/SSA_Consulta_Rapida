@@ -874,7 +874,7 @@ class TestRescanWorkerIntegration:
             force_import=False,
             source_files=tuple(sources),
             db_path=str(db_path),
-            operation_label="Importacao externa",
+            operation_label="Importacao",
         )
         assert hasattr(worker, "batch_completed")
         outputs: list[str] = []
@@ -933,7 +933,7 @@ class TestRescanWorkerIntegration:
 
         assert batch_sizes == [64, 64, 15]
         assert completed_batches == [(1, 3), (2, 3), (3, 3)]
-        assert outputs[0].endswith("=== Iniciando Importacao externa ===")
+        assert outputs[0].endswith("=== Iniciando Importacao ===")
         assert any(
             "143 arquivos selecionados; serao processados em 3 ciclos de ate 64 arquivos"
             in line
@@ -941,7 +941,20 @@ class TestRescanWorkerIntegration:
         )
         assert any("Etapa: preparando ciclo 2/3 (65-128/143)" in line for line in outputs)
         assert any("[STAGE 65/143]" in line for line in outputs)
-        assert sum("SSAs atualizadas" in line for line in outputs) == 3
+        assert any(
+            "Bloco 1/3 concluido: 64/64 arquivos | 3 SSAs atualizadas | 20 SSAs novas"
+            in line
+            for line in outputs
+        )
+        assert any(
+            "Bloco 2/3 concluido: 64/64 arquivos | 0 SSAs atualizadas | 10 SSAs novas"
+            in line
+            for line in outputs
+        )
+        assert sum(
+            line.startswith("Bloco ") and "SSAs atualizadas" in line
+            for line in outputs
+        ) == 3
         assert (
             "Banco de dados: 100 -> 134 SSAs no total; "
             "5 SSAs atualizadas; 35 SSAs novas."

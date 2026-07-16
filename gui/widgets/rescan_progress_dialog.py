@@ -76,8 +76,8 @@ class RescanProgressDialog(QDialog):
         layout.addWidget(self.output_text)
 
         # Error section
-        error_label = QLabel("Erros e Avisos:")
-        error_label.setStyleSheet("font-weight: bold; color: red;")
+        error_label = QLabel("Erros e avisos:")
+        error_label.setStyleSheet("font-weight: bold;")
         layout.addWidget(error_label)
 
         self.error_text = QTextEdit()

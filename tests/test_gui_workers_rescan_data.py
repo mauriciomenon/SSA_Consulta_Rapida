@@ -398,7 +398,7 @@ def test_rescan_data_explicit_cancel_uses_specific_status_text(tmp_path):
 
     assert (
         window.status_label.text
-        == "Status: Cancelamento solicitado na importacao externa."
+        == "Status: Cancelamento solicitado na importacao."
     )
 
 
@@ -434,7 +434,7 @@ def test_rescan_data_explicit_success_without_updates_does_not_reload(tmp_path):
     assert window.load_calls == 0
     assert (
         window.status_label.text
-        == "Status: Importacao externa concluida sem alteracoes."
+        == "Status: Importacao concluida sem alteracoes."
     )
 
 
