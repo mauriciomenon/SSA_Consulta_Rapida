@@ -572,7 +572,8 @@ function Assert-ZipContents {
             })
             $runtimeEntries = @($sensitiveEntries | Where-Object {
                 $normalized = $_.FullName.Replace("\", "/")
-                $normalized.EndsWith("/data/ssas.db") -and -not $normalized.Contains("/_internal/")
+                ($normalized -eq "data/ssas.db" -or $normalized.EndsWith("/data/ssas.db")) -and
+                    -not $normalized.Contains("/_internal/")
             })
             $runtimeHash = $null
             if (-not $hasBuildInfo) {
