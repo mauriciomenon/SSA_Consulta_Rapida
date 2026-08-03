@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 import gui.ssa.details_dialog_presenter as presenter_module
+from gui.ssa.details_dialog_navigation import resolve_details_anchor
 from gui.ssa.details_dialog_presenter import (
     DetailsDialogCallbacks,
     DetailsDialogPresenter,
@@ -163,6 +164,37 @@ class _Url:
 
     def toString(self) -> str:
         return self.href
+
+
+def test_resolve_details_anchor_accepts_ssa_context() -> None:
+    assert resolve_details_anchor("ssa-context:202500777") == ("ssa", "202500777")
+
+
+def test_handle_anchor_navigates_ssa_context_without_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger = _Logger()
+    presenter = DetailsDialogPresenter(
+        window=SimpleNamespace(),
+        target="202500001",
+        series=pd.Series({"numero_ssa": "202500001"}),
+        callbacks=_callbacks(logger),
+    )
+    presenter._style = ("#000", 10.0, 10.0, 10.0, "monospace")
+    rendered = []
+    monkeypatch.setattr(
+        presenter,
+        "_render_target",
+        lambda **kwargs: rendered.append(kwargs),
+    )
+    widgets = SimpleNamespace()
+
+    presenter._handle_anchor(widgets, _Url("ssa-context:202500777"))
+
+    assert len(rendered) == 1
+    assert rendered[0]["widgets"] is widgets
+    assert rendered[0]["ssa_target"] == "202500777"
+    assert logger.warning_messages == []
 
 
 def test_handle_anchor_logs_unknown_action(monkeypatch: pytest.MonkeyPatch) -> None:
