@@ -501,6 +501,62 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
         assert not any(name.endswith("input.xlsx") for name in names)
 
 
+def test_create_zip_package_preserves_only_embedded_runtime_database(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    app_dir = canonical_dir / "SSA_GUI_v1_windows_amd64"
+    internal_data = app_dir / "_internal" / "data"
+    internal_data.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    (app_dir / "SSA_GUI_v1_windows_amd64.exe").write_text(
+        "fake exe", encoding="utf-8"
+    )
+    (internal_data / "ssas.db").write_bytes(b"runtime db")
+    (internal_data / "other.db").write_bytes(b"other db")
+    (internal_data / "input.xlsx").write_bytes(b"xlsx")
+    (internal_data / "note.txt").write_text("not allowed", encoding="utf-8")
+    (canonical_dir / "ssas.db").write_bytes(b"top-level db")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package(
+        "pyinstaller", "1.0.0", include_runtime_db=True
+    )
+
+    assert result is not None
+    with zipfile.ZipFile(result, "r") as zf:
+        sensitive_names = [
+            name
+            for name in zf.namelist()
+            if Path(name).suffix.lower() in {".db", ".xls", ".xlsx"}
+        ]
+        assert len(sensitive_names) == 1
+        assert sensitive_names[0].endswith(
+            "SSA_GUI_v1_windows_amd64/_internal/data/ssas.db"
+        )
+        assert zf.read(sensitive_names[0]) == b"runtime db"
+        assert not any(name.endswith("note.txt") for name in zf.namelist())
+
+
 def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
     tmp_path: Path,
     monkeypatch,
@@ -570,6 +626,15 @@ def test_inno_excludes_match_backup_fragments() -> None:
     assert "*.backup" in excludes
     assert "*.backup*" in excludes
     assert "*.backup_*" in excludes
+
+
+def test_inno_excludes_preserve_nested_runtime_database_only_when_requested() -> None:
+    default_excludes = create_distribution._build_inno_excludes_str().split(",")
+    runtime_excludes = create_distribution._build_inno_excludes_str(True).split(",")
+
+    assert "data\\*" in default_excludes
+    assert "data\\*" not in runtime_excludes
+    assert "docs_entrada\\*" in runtime_excludes
 
 
 def test_create_zip_package_keeps_sample_db_out_by_default(
