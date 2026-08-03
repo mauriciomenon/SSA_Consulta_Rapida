@@ -9,6 +9,7 @@ param(
     [switch] $SkipBuild,
     [switch] $SkipPackage,
     [switch] $SkipInstaller,
+    [switch] $IncludeRuntimeDb,
     [switch] $DryRun
 )
 
@@ -552,7 +553,8 @@ function Write-BackendReleaseZips {
 
 function Assert-ZipContents {
     param(
-        [Parameter(Mandatory = $true)] [array] $ZipPaths
+        [Parameter(Mandatory = $true)] [array] $ZipPaths,
+        [string] $ExpectedRuntimeDbHash
     )
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -565,6 +567,13 @@ function Assert-ZipContents {
             $hasBuildInfo = [bool]($entries | Where-Object { $_ -like "*config/build_info.json" -or $_ -like "*config\build_info.json" })
             $hasGuide = [bool]($entries | Where-Object { $_ -like "*$MandatoryGuideName" })
             $hasExe = [bool]($entries | Where-Object { $_ -like "*.exe" })
+            $sensitiveEntries = @($archive.Entries | Where-Object {
+                [System.IO.Path]::GetExtension($_.FullName).ToLowerInvariant() -in @(".db", ".xls", ".xlsx")
+            })
+            $runtimeEntries = @($sensitiveEntries | Where-Object {
+                $_.FullName.Replace("\", "/").EndsWith("_internal/data/ssas.db")
+            })
+            $runtimeHash = $null
             if (-not $hasBuildInfo) {
                 throw "ZIP sem build_info.json: $path"
             }
@@ -574,12 +583,38 @@ function Assert-ZipContents {
             if (-not $hasExe) {
                 throw "ZIP sem exe: $path"
             }
+            if ([string]::IsNullOrWhiteSpace($ExpectedRuntimeDbHash)) {
+                if ($sensitiveEntries.Count -gt 0) {
+                    throw "ZIP contem DB/XLS/XLSX sem autorizacao: $path"
+                }
+            } else {
+                if ($sensitiveEntries.Count -ne 1 -or $runtimeEntries.Count -ne 1) {
+                    throw "ZIP deve conter somente _internal/data/ssas.db: $path"
+                }
+                $runtimeStream = $runtimeEntries[0].Open()
+                $runtimeSha256 = $null
+                try {
+                    $runtimeSha256 = [System.Security.Cryptography.SHA256]::Create()
+                    $runtimeHashBytes = $runtimeSha256.ComputeHash($runtimeStream)
+                    $runtimeHash = ([System.BitConverter]::ToString($runtimeHashBytes) -replace "-", "").ToUpperInvariant()
+                }
+                finally {
+                    if ($runtimeSha256) {
+                        $runtimeSha256.Dispose()
+                    }
+                    $runtimeStream.Dispose()
+                }
+                if ($runtimeHash -ne $ExpectedRuntimeDbHash) {
+                    throw "Hash do banco de runtime diverge no ZIP ${path}: $runtimeHash != $ExpectedRuntimeDbHash"
+                }
+            }
             $records += [ordered]@{
                 path = $path
                 entry_count = $entries.Count
                 has_build_info = $hasBuildInfo
                 has_guide = $hasGuide
                 has_exe = $hasExe
+                runtime_db_sha256 = $runtimeHash
             }
         }
         finally {
@@ -660,16 +695,55 @@ function Get-ArtifactHash {
     return $records
 }
 
+function Assert-RuntimeDatabase {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string[]] $RuntimeRoot
+    )
+
+    $sourcePath = Join-Path $RepoRoot "data\ssas.db"
+    $sourceHash = @(Get-ArtifactHash @($sourcePath))[0]
+    $records = @()
+    foreach ($root in $RuntimeRoot) {
+        Assert-ExistingDirectory $root
+        $runtimePath = Join-Path $root "_internal\data\ssas.db"
+        $runtimeHash = @(Get-ArtifactHash @($runtimePath))[0]
+        if ($runtimeHash['sha256'] -ne $sourceHash['sha256']) {
+            throw "Hash do banco de runtime diverge em ${runtimePath}: $($runtimeHash['sha256']) != $($sourceHash['sha256'])"
+        }
+        $sensitiveFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
+            $_.Extension.ToLowerInvariant() -in @(".db", ".xls", ".xlsx")
+        })
+        $unexpected = @($sensitiveFiles | Where-Object {
+            $_.FullName -ne $runtimeHash.path
+        })
+        if ($unexpected.Count -gt 0) {
+            throw "Bundle contem DB/XLS/XLSX nao autorizado: $($unexpected.FullName -join ', ')"
+        }
+        $records += [ordered]@{
+            source = $sourceHash.path
+            path = $runtimeHash.path
+            sha256 = $runtimeHash['sha256']
+            length = $runtimeHash.length
+        }
+    }
+    return $records
+}
+
 function Invoke-DistributionPackage {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
         [Parameter(Mandatory = $true)] [string] $BackendName,
-        [Parameter(Mandatory = $true)] [bool] $SkipInstallerFlag
+        [Parameter(Mandatory = $true)] [bool] $SkipInstallerFlag,
+        [Parameter(Mandatory = $true)] [bool] $IncludeRuntimeDbFlag
     )
 
     $distributionArgs = @("run", "--python", "3.13", "python", "-m", $DistributionModule, "--build-system", $BackendName)
     if ($SkipInstallerFlag) {
         $distributionArgs += "--skip-installer"
+    }
+    if ($IncludeRuntimeDbFlag) {
+        $distributionArgs += "--include-runtime-db"
     }
     Invoke-CheckedProcess $RepoRoot "uv" $distributionArgs
 }
@@ -754,9 +828,14 @@ foreach ($backendName in $selectedBackends) {
     $cleanupRemoved = @()
     $userDirsCreated = @()
     $runtimeProtectionRecords = @()
+    $runtimeDatabaseRecords = @()
     if (-not $SkipBuild) {
         $cleanupRemoved = @(Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version)
-        Invoke-CheckedProcess $repoRoot $config.build_script @("--silent")
+        $buildArgs = @("--silent")
+        if ($IncludeRuntimeDb -and $backendName -eq "pyinstaller") {
+            $buildArgs += "--with-runtime-db"
+        }
+        Invoke-CheckedProcess $repoRoot $config.build_script $buildArgs
     }
 
     $buildInfoRecords = Assert-BuildInfo $config.build_info $gitHead.commit $Platform $config.package_system
@@ -764,6 +843,9 @@ foreach ($backendName in $selectedBackends) {
     $metadataRecords = Assert-ExeMetadata $exePaths $windowsVersion
     $smokeRecord = Invoke-Smoke $backendName $config
     $runtimeRoots = @(Get-RuntimeBundleRoot -Config $config)
+    if ($IncludeRuntimeDb -and $backendName -eq "pyinstaller") {
+        $runtimeDatabaseRecords = @(Assert-RuntimeDatabase -RepoRoot $repoRoot -RuntimeRoot $runtimeRoots)
+    }
     $userDirsCreated = @(Initialize-UserWorkspaceDirectory -RuntimeRoot $runtimeRoots)
     $runtimeProtectionRecords = @(Assert-SourceProtection $repoRoot $runtimeRoots)
     $zipRecords = @()
@@ -771,9 +853,11 @@ foreach ($backendName in $selectedBackends) {
     $hashRecords = @()
     if (-not $SkipPackage) {
         Write-BackendReleaseZips $config.release_zips
-        Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller)
+        $includeBackendRuntimeDb = [bool]($IncludeRuntimeDb -and $backendName -eq "pyinstaller")
+        Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller) $includeBackendRuntimeDb
         $zipPaths = @($config.release_zips | ForEach-Object { $_.zip })
-        $zipRecords = @(Assert-ZipContents $zipPaths)
+        $runtimeDbHash = if ($runtimeDatabaseRecords.Count -gt 0) { $runtimeDatabaseRecords[0]['sha256'] } else { $null }
+        $zipRecords = @(Assert-ZipContents $zipPaths $runtimeDbHash)
         $zipProtectionRecords = @(Assert-SourceProtection $repoRoot $zipPaths)
         $hashRecords = @(Get-ArtifactHash $zipPaths)
     }
@@ -787,6 +871,7 @@ foreach ($backendName in $selectedBackends) {
         exe_metadata = $metadataRecords
         smoke = $smokeRecord
         runtime_source_protection = $runtimeProtectionRecords
+        runtime_database = $runtimeDatabaseRecords
         zip_validation = $zipRecords
         zip_source_protection = $zipProtectionRecords
         hashes = $hashRecords

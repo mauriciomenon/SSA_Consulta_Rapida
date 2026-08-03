@@ -8,6 +8,7 @@ param(
     [switch] $DryRun,
     [switch] $AllowMissingRemote,
     [switch] $SkipInstaller,
+    [switch] $IncludeRuntimeDb,
     [switch] $Help
 )
 
@@ -35,6 +36,7 @@ function Show-Usage {
     Write-Host "  -Yes                 executa sem prompt"
     Write-Host "  -Target all          Windows local + Debian via WSL"
     Write-Host "  -AllowMissingRemote  em -Target all, pula Debian se WSL nao existir"
+    Write-Host "  -IncludeRuntimeDb    inclui data\ssas.db no build Windows PyInstaller"
 }
 
 function Resolve-RepoRoot {
@@ -112,6 +114,9 @@ function Invoke-WindowsRelease {
     }
     if ($SkipInstaller) {
         $releaseArgs += "-SkipInstaller"
+    }
+    if ($IncludeRuntimeDb) {
+        $releaseArgs += "-IncludeRuntimeDb"
     }
     & powershell @releaseArgs
     if ($LASTEXITCODE -ne 0) {

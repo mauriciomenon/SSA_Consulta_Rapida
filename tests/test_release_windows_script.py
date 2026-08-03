@@ -31,6 +31,7 @@ def test_release_windows_script_is_powershell_only_and_interactive() -> None:
     assert "Assert-WindowsHost" in script
     assert "Assert-PowerShellHost" in script
     assert "[switch] $DryRun" in script
+    assert "[switch] $IncludeRuntimeDb" in script
     assert "bash " not in script
     assert "wsl " not in script
     assert ".sh" not in script
@@ -303,3 +304,38 @@ def test_release_windows_script_skips_zip_validation_when_package_is_skipped() -
     assert "Assert-ZipContents $zipPaths" in package_block
     assert "Assert-SourceProtection $repoRoot $zipPaths" in package_block
     assert "Get-ArtifactHash $zipPaths" in package_block
+
+
+def test_release_windows_requires_exact_runtime_database_in_bundles_and_zips() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+    runtime_check = section_between(
+        script,
+        "function Assert-RuntimeDatabase",
+        "function Invoke-DistributionPackage",
+    )
+    zip_check = section_between(
+        script,
+        "function Assert-ZipContents",
+        "function Assert-SourceProtection",
+    )
+
+    assert 'Join-Path $RepoRoot "data\\ssas.db"' in runtime_check
+    assert 'Join-Path $root "_internal\\data\\ssas.db"' in runtime_check
+    assert '@(".db", ".xls", ".xlsx")' in runtime_check
+    assert "Hash do banco de runtime diverge" in runtime_check
+    assert "_internal/data/ssas.db" in zip_check
+    assert "ComputeHash($runtimeStream)" in zip_check
+    assert "ZIP deve conter somente" in zip_check
+    assert '"--with-runtime-db"' in release_loop
+    assert '"--include-runtime-db"' in script
+    assert "runtime_database = $runtimeDatabaseRecords" in release_loop
+    assert_before(
+        release_loop,
+        "Assert-RuntimeDatabase -RepoRoot $repoRoot -RuntimeRoot $runtimeRoots",
+        "Write-BackendReleaseZips $config.release_zips",
+    )

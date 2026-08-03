@@ -21,6 +21,7 @@ def test_root_release_powershell_exposes_simple_defaults() -> None:
     assert "build_pyoxidizer" not in script
     assert "[switch] $SkipBuild" not in script
     assert "[switch] $SkipPackage" not in script
+    assert "[switch] $IncludeRuntimeDb" in script
     assert "Target: windows" in script
     assert "Backend Windows/Debian: nuitka" in script
     assert "Pacote Debian: deb" in script
@@ -36,6 +37,7 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert 'Join-ReleaseCsv $Backend $DefaultBackend' in script
     assert 'Join-ReleaseCsv $DebianPackage $DefaultDebianPackage' in script
     assert '"-Backend", $BackendCsv' in script
+    assert '$releaseArgs += "-IncludeRuntimeDb"' in script
     assert "$releaseArgs = @(" in script
     assert "& powershell @releaseArgs" in script
     assert "Initialize-WindowsBuildExtra $RepoRoot $BackendCsv" in script
