@@ -467,6 +467,23 @@ VSVersionInfo(
         # Configuracao base
         app_config = config[f"{app_type}_config"]
         pyinstaller_args = config["pyinstaller_args"]
+        if pyinstaller_args.get("onefile", False) or not pyinstaller_args.get(
+            "onedir", False
+        ):
+            logger.error("Build de distribuicao exige modo onedir: %s", platform_name)
+            return False
+        if runtime_db is None and pyinstaller_args.get("include_local_data", False):
+            runtime_db = self.base_dir / "data" / "ssas.db"
+            logger.warning(
+                "include_local_data legado ativado; somente data/ssas.db sera "
+                "copiado externamente."
+            )
+        runtime_db_path = None
+        if runtime_db is not None:
+            runtime_db_path = Path(runtime_db).resolve()
+            if runtime_db_path.name != "ssas.db" or not runtime_db_path.is_file():
+                logger.error("Banco de runtime invalido ou ausente: %s", runtime_db_path)
+                return False
 
         # Comando base
         cmd = [
@@ -551,21 +568,6 @@ VSVersionInfo(
         if guide_path.exists():
             cmd.extend(["--add-data", f"{guide_path}{add_data_sep}docs"])
         cmd.extend(["--add-data", f"{build_info_path}{add_data_sep}config"])
-        if runtime_db is None and pyinstaller_args.get("include_local_data", False):
-            runtime_db = self.base_dir / "data" / "ssas.db"
-            logger.warning(
-                "include_local_data legado ativado; somente data/ssas.db sera embedado."
-            )
-        if runtime_db is not None:
-            runtime_db_path = Path(runtime_db).resolve()
-            if runtime_db_path.name != "ssas.db" or not runtime_db_path.is_file():
-                logger.error("Banco de runtime invalido ou ausente: %s", runtime_db_path)
-                return False
-            logger.info("Embedando banco operacional: %s", runtime_db_path)
-            cmd.extend(
-                ["--add-data", f"{runtime_db_path}{add_data_sep}data"]
-            )
-
         # Argumentos adicionais
         for arg in app_config.get("additional_args", []):
             cmd.append(arg)
@@ -586,6 +588,45 @@ VSVersionInfo(
         )
 
         if result.returncode == 0:
+            bundle_root = self.dist_dir / platform_name / app_config["name"]
+            runtime_root = bundle_root
+            if platform_name == "macos_arm64" and app_config.get("windowed", False):
+                bundle_root = bundle_root.with_suffix(".app")
+                runtime_root = bundle_root / "Contents" / "MacOS"
+            if runtime_db_path is not None:
+                if not bundle_root.is_dir():
+                    logger.error("Bundle onedir nao encontrado: %s", bundle_root)
+                    return False
+                internal_sensitive = [
+                    path
+                    for path in bundle_root.rglob("*")
+                    if path.is_file()
+                    and "_internal" in path.parts
+                    and path.suffix.lower()
+                    in {".db", ".xls", ".xlsx", ".xlsm", ".ods"}
+                ]
+                if internal_sensitive:
+                    logger.error(
+                        "Bundle contem banco ou planilha em _internal: %s",
+                        ", ".join(str(path) for path in internal_sensitive),
+                    )
+                    return False
+                runtime_data = runtime_root / "data"
+                runtime_data.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(runtime_db_path, runtime_data / "ssas.db")
+                logger.info(
+                    "Banco operacional copiado externamente: %s",
+                    runtime_data / "ssas.db",
+                )
+            for folder in (
+                runtime_root / "data" / "historico_backups",
+                runtime_root / "docs_entrada",
+                runtime_root / "docs_saida",
+                runtime_root / "logs",
+                runtime_root / "reports",
+                runtime_root / "exportacao",
+            ):
+                folder.mkdir(parents=True, exist_ok=True)
             logger.info(f"{app_type.upper()} construido com sucesso")
             return True
         else:

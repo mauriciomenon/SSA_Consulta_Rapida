@@ -568,10 +568,11 @@ function Assert-ZipContents {
             $hasGuide = [bool]($entries | Where-Object { $_ -like "*$MandatoryGuideName" })
             $hasExe = [bool]($entries | Where-Object { $_ -like "*.exe" })
             $sensitiveEntries = @($archive.Entries | Where-Object {
-                [System.IO.Path]::GetExtension($_.FullName).ToLowerInvariant() -in @(".db", ".xls", ".xlsx")
+                [System.IO.Path]::GetExtension($_.FullName).ToLowerInvariant() -in @(".db", ".ods", ".xls", ".xlsm", ".xlsx")
             })
             $runtimeEntries = @($sensitiveEntries | Where-Object {
-                $_.FullName.Replace("\", "/").EndsWith("_internal/data/ssas.db")
+                $normalized = $_.FullName.Replace("\", "/")
+                $normalized.EndsWith("/data/ssas.db") -and -not $normalized.Contains("/_internal/")
             })
             $runtimeHash = $null
             if (-not $hasBuildInfo) {
@@ -589,7 +590,7 @@ function Assert-ZipContents {
                 }
             } else {
                 if ($sensitiveEntries.Count -ne 1 -or $runtimeEntries.Count -ne 1) {
-                    throw "ZIP deve conter somente _internal/data/ssas.db: $path"
+                    throw "ZIP deve conter somente data/ssas.db externo: $path"
                 }
                 $runtimeStream = $runtimeEntries[0].Open()
                 $runtimeSha256 = $null
@@ -706,13 +707,13 @@ function Assert-RuntimeDatabase {
     $records = @()
     foreach ($root in $RuntimeRoot) {
         Assert-ExistingDirectory $root
-        $runtimePath = Join-Path $root "_internal\data\ssas.db"
+        $runtimePath = Join-Path $root "data\ssas.db"
         $runtimeHash = @(Get-ArtifactHash @($runtimePath))[0]
         if ($runtimeHash['sha256'] -ne $sourceHash['sha256']) {
             throw "Hash do banco de runtime diverge em ${runtimePath}: $($runtimeHash['sha256']) != $($sourceHash['sha256'])"
         }
         $sensitiveFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
-            $_.Extension.ToLowerInvariant() -in @(".db", ".xls", ".xlsx")
+            $_.Extension.ToLowerInvariant() -in @(".db", ".ods", ".xls", ".xlsm", ".xlsx")
         })
         $unexpected = @($sensitiveFiles | Where-Object {
             $_.FullName -ne $runtimeHash.path

@@ -9,6 +9,7 @@ from types import ModuleType
 
 
 APP_RUNTIME_NAME = "SSA_Consulta_Rapida"
+RUNTIME_HOME_ARG = "--runtime-home"
 SMOKE_TEST_ENV = "SSA_SMOKE_TEST"
 CLI_SMOKE_OK_MARKER = "SMOKE_CLI_OK"
 GUI_SMOKE_OK_MARKER = "SMOKE_GUI_OK"
@@ -135,13 +136,15 @@ def find_bundled_dir(app_dir: str, folder_name: str) -> Path | None:
     """Find bundled folders in common packaging layouts."""
     exe_path = resolve_executable_path()
     app_path = Path(app_dir)
+    if folder_name == "data":
+        external_data = exe_path.parent / folder_name
+        return external_data if external_data.is_dir() else None
     candidates = [
         app_path / folder_name,
         app_path / "_internal" / folder_name,
         exe_path.parent.parent / "Resources" / folder_name,
     ]
-    if folder_name != "data":
-        candidates.append(exe_path.parent.parent / folder_name)
+    candidates.append(exe_path.parent.parent / folder_name)
     for candidate in candidates:
         if candidate.is_dir():
             return candidate
@@ -255,6 +258,8 @@ def seed_runtime_data(
     runtime_data.mkdir(parents=True, exist_ok=True)
     if bundled_data is None:
         return runtime_data
+    if bundled_data.resolve() == runtime_data.resolve():
+        return runtime_data
 
     try:
         if copy_all:
@@ -324,7 +329,11 @@ def _seed_runtime_tree_folder(
 
 
 def _trusted_runtime_roots() -> list[Path]:
-    roots = [Path.home(), Path(tempfile.gettempdir())]
+    roots = [
+        Path.home(),
+        Path(tempfile.gettempdir()),
+        resolve_executable_path().parent,
+    ]
     for env_key in ("APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME"):
         raw_root = os.environ.get(env_key)
         if raw_root:
@@ -335,9 +344,13 @@ def _trusted_runtime_roots() -> list[Path]:
 def _resolve_writable_runtime_dir() -> Path:
     from utils.path_safety import ensure_path_is_allowed
 
-    runtime_dir = Path(
-        os.environ.get("SSA_RUNTIME_ROOT") or resolve_runtime_home()
-    ).expanduser()
+    explicit_root = os.environ.get("SSA_RUNTIME_ROOT")
+    if explicit_root:
+        runtime_dir = Path(explicit_root).expanduser()
+    elif RUNTIME_HOME_ARG in sys.argv:
+        runtime_dir = resolve_runtime_home()
+    else:
+        runtime_dir = resolve_executable_path().parent
     safe_runtime_dir = ensure_path_is_allowed(
         runtime_dir,
         purpose="runtime root",

@@ -301,8 +301,9 @@ def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> Non
     assert r"%APPDATA%\SSA_Consulta_Rapida\docs_entrada" in content
     assert "~/Library/Application Support/SSA_Consulta_Rapida/docs_entrada" in content
     assert "${XDG_DATA_HOME:-~/.local/share}/SSA_Consulta_Rapida/docs_entrada" in content
-    assert "Nao use a pasta de instalacao como area de trabalho" in content
-    assert "na pasta tecnica SSA_Consulta_Rapida" in content
+    assert "No ZIP portatil, docs_entrada fica ao lado do executavel" in content
+    assert "--gui --runtime-home" in content
+    assert "nunca e substituido pelo instalador" in content
 
 
 def test_get_version_reads_config_version_without_default(
@@ -501,7 +502,7 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
         assert not any(name.endswith("input.xlsx") for name in names)
 
 
-def test_create_zip_package_preserves_only_embedded_runtime_database(
+def test_create_zip_package_preserves_only_external_runtime_database(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -509,14 +510,20 @@ def test_create_zip_package_preserves_only_embedded_runtime_database(
     canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
     app_dir = canonical_dir / "SSA_GUI_v1_windows_amd64"
     internal_data = app_dir / "_internal" / "data"
+    external_data = app_dir / "data"
     internal_data.mkdir(parents=True)
+    external_data.mkdir()
     dist_output = project_root / "dist_packages"
     dist_output.mkdir(parents=True)
 
     (app_dir / "SSA_GUI_v1_windows_amd64.exe").write_text(
         "fake exe", encoding="utf-8"
     )
-    (internal_data / "ssas.db").write_bytes(b"runtime db")
+    (external_data / "ssas.db").write_bytes(b"runtime db")
+    (external_data / "other.db").write_bytes(b"other db")
+    (external_data / "input.xlsx").write_bytes(b"xlsx")
+    (external_data / "note.txt").write_text("not allowed", encoding="utf-8")
+    (internal_data / "ssas.db").write_bytes(b"internal db")
     (internal_data / "other.db").write_bytes(b"other db")
     (internal_data / "input.xlsx").write_bytes(b"xlsx")
     (internal_data / "note.txt").write_text("not allowed", encoding="utf-8")
@@ -551,9 +558,10 @@ def test_create_zip_package_preserves_only_embedded_runtime_database(
         ]
         assert len(sensitive_names) == 1
         assert sensitive_names[0].endswith(
-            "SSA_GUI_v1_windows_amd64/_internal/data/ssas.db"
+            "SSA_GUI_v1_windows_amd64/data/ssas.db"
         )
         assert zf.read(sensitive_names[0]) == b"runtime db"
+        assert "_internal/data/ssas.db" not in sensitive_names[0]
         assert not any(name.endswith("note.txt") for name in zf.namelist())
 
 
@@ -1177,6 +1185,8 @@ def test_create_inno_setup_script_uses_sourcepath_outputdir(
     assert f'#define SourceDir "{expected_source}"' in iss_content
     assert '#define SourcePathMode "absolute"' in iss_content
     assert 'Source: "{#SourceDir}\\SSA_GUI.exe"' in iss_content
+    assert 'Parameters: "--gui --runtime-home"' in iss_content
+    assert 'Name: "{app}\\data"' not in iss_content
 
 
 def test_create_inno_setup_script_includes_sample_db_when_option_enabled(
@@ -1229,6 +1239,45 @@ def test_create_inno_setup_script_includes_sample_db_when_option_enabled(
         f'Source: "{expected_readme}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "LEIA-ME.txt"; Flags: ignoreversion'
         in iss_content
     )
+
+
+def test_create_inno_setup_script_accepts_only_external_runtime_database(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    dist_output = project_root / "dist_packages"
+    runtime_data = canonical_dir / "data"
+    runtime_data.mkdir(parents=True)
+    dist_output.mkdir(parents=True)
+    (canonical_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
+    (runtime_data / "ssas.db").write_text("runtime db", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    iss_path = create_distribution.create_inno_setup_script(
+        "pyinstaller", "1.0.0", include_runtime_db=True
+    )
+
+    assert iss_path is not None
+    content = iss_path.read_text(encoding="utf-8")
+    assert "data\\*" not in content
+    assert 'Parameters: "--gui --runtime-home"' in content
 
 
 def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled(

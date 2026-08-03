@@ -51,7 +51,9 @@ EXCLUDED_BUNDLE_ITEMS = {
 
 SENSITIVE_LOCAL_EXTENSIONS: set[str] = {
     ".db",
+    ".ods",
     ".xls",
+    ".xlsm",
     ".xlsx",
 }
 SENSITIVE_LOCAL_NAME_FRAGMENTS = (
@@ -440,19 +442,14 @@ def _should_skip_bundle_path(
     include_runtime_db: bool = False,
 ) -> bool:
     if include_runtime_db:
+        runtime_data = candidate if candidate.is_dir() else candidate.parent
         if (
-            candidate.name == "data"
-            and candidate.is_dir()
-            and candidate.parent.name == "_internal"
+            runtime_data.name == "data"
+            and "_internal" not in runtime_data.parts
+            and _resolve_primary_executable_name(runtime_data.parent) is not None
         ):
-            return False
-        if (
-            candidate.name == "ssas.db"
-            and candidate.is_file()
-            and candidate.parent.name == "data"
-            and candidate.parent.parent.name == "_internal"
-        ):
-            return False
+            if candidate.is_dir() or candidate.name == "ssas.db":
+                return False
     if _should_skip_bundle_entry(candidate.name, candidate.is_file()):
         return True
     if candidate.is_file() and candidate.name == "__init__.py":
@@ -475,7 +472,8 @@ def _build_bundle_ignore(
         if (
             include_runtime_db
             and src_path.name == "data"
-            and src_path.parent.name == "_internal"
+            and "_internal" not in src_path.parts
+            and _resolve_primary_executable_name(src_path.parent) is not None
             and not (candidate.is_file() and candidate.name == "ssas.db")
         ):
             ignored.add(name)
@@ -768,18 +766,20 @@ INSTALACAO E USO
 
 2. IMPORTAR DADOS
    - Na GUI, use Importacao externa ou Abrir pasta de entrada
-   - Em app instalado, a pasta tecnica de runtime e: {APP_RUNTIME_DIR}
-   - A pasta real de entrada fica no perfil do usuario:
+   - No ZIP portatil, docs_entrada fica ao lado do executavel
+   - O atalho do instalador usa --runtime-home e grava no perfil do usuario:
      Windows: %APPDATA%\\{APP_RUNTIME_DIR}\\docs_entrada
      macOS: ~/Library/Application Support/{APP_RUNTIME_DIR}/docs_entrada
      Linux: ${{XDG_DATA_HOME:-~/.local/share}}/{APP_RUNTIME_DIR}/docs_entrada
-   - Nao use a pasta de instalacao como area de trabalho
+   - Para preferir o perfil no ZIP, execute tambem com --runtime-home
 
 3. BANCOS DE DADOS
-   - Banco principal no app instalado:
+   - No ZIP portatil, o banco principal fica em data/ssas.db ao lado do executavel
+   - No app instalado, o banco externo e copiado uma vez para:
      Windows: %APPDATA%\\{APP_RUNTIME_DIR}\\data\\ssas.db
      macOS: ~/Library/Application Support/{APP_RUNTIME_DIR}/data/ssas.db
      Linux: ${{XDG_DATA_HOME:-~/.local/share}}/{APP_RUNTIME_DIR}/data/ssas.db
+   - Um banco ja existente no perfil nunca e substituido pelo instalador
    - Backups automaticos ficam em data/historico_backups dentro da pasta de runtime
 
 4. EXPORTACOES
@@ -794,6 +794,9 @@ MODOS DE USO
 
 1. Interface Grafica (GUI):
    {primary_executable_name} --gui
+
+   Para usar o perfil do usuario:
+   {primary_executable_name} --gui --runtime-home
 
 2. Interface CLI (Linha de Comando):
    {primary_executable_name}
@@ -944,15 +947,36 @@ def _prepare_package_staging(
         runtime_databases = [
             path
             for path in package_dir.rglob("ssas.db")
-            if path.parent.name == "data" and path.parent.parent.name == "_internal"
+            if path.parent.name == "data"
+            and "_internal" not in path.parts
+            and _resolve_primary_executable_name(path.parent.parent) is not None
         ]
         if not runtime_databases:
             logger.error(
-                "Banco de runtime solicitado, mas _internal/data/ssas.db nao foi staged"
+                "Banco de runtime solicitado, mas data/ssas.db externo nao foi staged"
+            )
+            return False
+        internal_sensitive = [
+            path
+            for path in package_dir.rglob("*")
+            if path.is_file()
+            and "_internal" in path.parts
+            and path.suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS
+        ]
+        if internal_sensitive:
+            logger.error(
+                "Pacote contem banco ou planilha em _internal: %s",
+                ", ".join(str(path) for path in internal_sensitive),
             )
             return False
 
-    create_user_structure(package_dir)
+    runtime_roots = [
+        path
+        for path in package_dir.iterdir()
+        if path.is_dir() and _resolve_primary_executable_name(path) is not None
+    ]
+    for runtime_root in runtime_roots or [package_dir]:
+        create_user_structure(runtime_root)
     copy_documentation(package_dir)
     if include_sample_db and not _copy_sample_db_assets(package_dir):
         return False
@@ -1208,23 +1232,16 @@ Source: "{{#SourceDir}}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesub
 {local_db_files_section}
 
 [Dirs]
-Name: "{{app}}\\data"
-Name: "{{app}}\\data\\historico_backups"
-Name: "{{app}}\\docs_entrada"
-Name: "{{app}}\\docs_saida"
-Name: "{{app}}\\logs"
-Name: "{{app}}\\reports"
-Name: "{{app}}\\exportacao"
 {sample_db_dirs_section}
 {local_db_dirs_section}
 
 [Icons]
-Name: "{{group}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"
-Name: "{{group}}\\{{#MyAppName}} (GUI)"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui"
-Name: "{{autodesktop}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui"; Tasks: desktopicon
+Name: "{{group}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--runtime-home"
+Name: "{{group}}\\{{#MyAppName}} (GUI)"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui --runtime-home"
+Name: "{{autodesktop}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui --runtime-home"; Tasks: desktopicon
 
 [Run]
-Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui"; Description: "{{cm:LaunchProgram,{{#StringChange(MyAppName, '&', '&&')}}}}"; Flags: nowait postinstall skipifsilent
+Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui --runtime-home"; Description: "{{cm:LaunchProgram,{{#StringChange(MyAppName, '&', '&&')}}}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
 function InitializeSetup(): Boolean;
@@ -1263,6 +1280,27 @@ def create_inno_setup_script(
         return None
 
     source_dir, exe_name = resolved
+    if include_runtime_db:
+        sensitive_files = [
+            path
+            for path in source_dir.rglob("*")
+            if path.is_file() and path.suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS
+        ]
+        runtime_databases = [
+            path
+            for path in sensitive_files
+            if path.name == "ssas.db"
+            and path.parent.name == "data"
+            and "_internal" not in path.parts
+            and _resolve_primary_executable_name(path.parent.parent) is not None
+        ]
+        unexpected = [path for path in sensitive_files if path not in runtime_databases]
+        if not runtime_databases or unexpected:
+            logger.error(
+                "Instalador requer somente data/ssas.db externo; encontrados: %s",
+                ", ".join(str(path) for path in sensitive_files) or "nenhum",
+            )
+            return None
     source_dir_spec = _normalize_windows_path(str(source_dir.resolve()))
     dist_output_spec = _normalize_windows_path(str(DIST_OUTPUT.resolve()))
     exe_name = exe_name.replace('"', "")
@@ -1467,7 +1505,7 @@ def _parse_distribution_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-runtime-db",
         action="store_true",
-        help="Preservar somente _internal/data/ssas.db no ZIP e instalador",
+        help="Preservar somente data/ssas.db externo no ZIP e instalador",
     )
 
     args = parser.parse_args()

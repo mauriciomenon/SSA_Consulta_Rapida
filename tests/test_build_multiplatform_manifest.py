@@ -342,6 +342,7 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     builder.base_dir = tmp_path
     builder.launchers_dir = tmp_path / "launchers"
     builder.platforms_dir = builder.launchers_dir / "platforms"
+    builder.dist_dir = builder.launchers_dir / "dist"
 
     (builder.launchers_dir / "cli_entry.py").parent.mkdir(parents=True, exist_ok=True)
     (builder.launchers_dir / "cli_entry.py").write_text(
@@ -384,7 +385,8 @@ def test_build_executable_uses_platform_specific_add_data_separator(
 
     config = {
         "pyinstaller_args": {
-            "onefile": True,
+            "onefile": False,
+            "onedir": True,
             "exclude_modules": [],
             "hidden_imports": [],
         },
@@ -395,6 +397,8 @@ def test_build_executable_uses_platform_specific_add_data_separator(
             "additional_args": [],
         },
     }
+    windows_bundle = builder.dist_dir / "windows_amd64" / "SSA_CLI_test"
+    windows_bundle.mkdir(parents=True)
 
     ok = builder.build_executable(
         "windows_amd64",
@@ -432,7 +436,10 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         for idx, value in enumerate(windows_cmd)
         if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";data")
     ]
-    assert runtime_db_args == [f"{runtime_db.resolve()};data"]
+    assert runtime_db_args == []
+    assert (windows_bundle / "data" / "ssas.db").read_bytes() == b"sqlite"
+    assert not (windows_bundle / "_internal" / "data" / "ssas.db").exists()
+    assert (windows_bundle / "docs_entrada").is_dir()
     assert "--icon" in windows_cmd
     icon_value = windows_cmd[windows_cmd.index("--icon") + 1]
     assert icon_value.replace("\\", "/").endswith("resources/app_icon.ico")

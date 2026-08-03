@@ -325,12 +325,13 @@ def test_release_windows_requires_exact_runtime_database_in_bundles_and_zips() -
     )
 
     assert 'Join-Path $RepoRoot "data\\ssas.db"' in runtime_check
-    assert 'Join-Path $root "_internal\\data\\ssas.db"' in runtime_check
-    assert '@(".db", ".xls", ".xlsx")' in runtime_check
+    assert 'Join-Path $root "data\\ssas.db"' in runtime_check
+    assert '".xlsm"' in runtime_check
     assert "Hash do banco de runtime diverge" in runtime_check
-    assert "_internal/data/ssas.db" in zip_check
+    assert 'EndsWith("/data/ssas.db")' in zip_check
+    assert 'Contains("/_internal/")' in zip_check
     assert "ComputeHash($runtimeStream)" in zip_check
-    assert "ZIP deve conter somente" in zip_check
+    assert "ZIP deve conter somente data/ssas.db externo" in zip_check
     assert '"--with-runtime-db"' in release_loop
     assert '"--include-runtime-db"' in script
     assert "runtime_database = $runtimeDatabaseRecords" in release_loop
