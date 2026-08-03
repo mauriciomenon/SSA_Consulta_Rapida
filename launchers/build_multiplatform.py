@@ -532,7 +532,22 @@ VSVersionInfo(
         add_data_sep = ";" if platform_name.startswith("windows") else ":"
 
         if config_path.exists():
-            cmd.extend(["--add-data", f"{config_path}{add_data_sep}config"])
+            for config_file in sorted(config_path.rglob("*")):
+                if (
+                    not config_file.is_file()
+                    or "__pycache__" in config_file.parts
+                    or config_file.suffix.lower() in {".py", ".pyc"}
+                ):
+                    continue
+                config_destination = Path("config") / config_file.relative_to(
+                    config_path
+                ).parent
+                cmd.extend(
+                    [
+                        "--add-data",
+                        f"{config_file}{add_data_sep}{config_destination.as_posix()}",
+                    ]
+                )
         if guide_path.exists():
             cmd.extend(["--add-data", f"{guide_path}{add_data_sep}docs"])
         cmd.extend(["--add-data", f"{build_info_path}{add_data_sep}config"])

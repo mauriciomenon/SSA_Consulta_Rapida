@@ -348,6 +348,15 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         "print('ok')\n", encoding="utf-8"
     )
     (builder.base_dir / "config").mkdir(parents=True, exist_ok=True)
+    (builder.base_dir / "config" / "settings.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    (builder.base_dir / "config" / "__init__.py").write_text(
+        "", encoding="utf-8"
+    )
+    config_cache = builder.base_dir / "config" / "__pycache__"
+    config_cache.mkdir()
+    (config_cache / "__init__.pyc").write_bytes(b"bytecode")
     (builder.base_dir / "docs").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md").write_text(
         "guide",
@@ -411,6 +420,13 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         for idx, value in enumerate(windows_cmd)
         if idx > 0 and windows_cmd[idx - 1] == "--add-data"
     )
+    config_add_data = [
+        value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";config")
+    ]
+    assert any("settings.json" in value for value in config_add_data)
+    assert not any("__init__.py" in value or "__pycache__" in value for value in windows_cmd)
     runtime_db_args = [
         value
         for idx, value in enumerate(windows_cmd)
