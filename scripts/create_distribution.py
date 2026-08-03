@@ -168,6 +168,17 @@ PRIMARY_EXECUTABLE_NAMES = (
     "SSA_GUI.exe",
     "main.exe",
 )
+POSIX_EXECUTABLE_MAGICS = {
+    b"\x7fELF",
+    b"\xfe\xed\xfa\xce",
+    b"\xfe\xed\xfa\xcf",
+    b"\xce\xfa\xed\xfe",
+    b"\xcf\xfa\xed\xfe",
+    b"\xca\xfe\xba\xbe",
+    b"\xbe\xba\xfe\xca",
+    b"\xca\xfe\xba\xbf",
+    b"\xbf\xba\xfe\xca",
+}
 
 
 def _preferred_file_candidates(_source_dir: Path, file_entries: list[Path]) -> list[str]:
@@ -201,7 +212,15 @@ def _exe_file_candidates(
 def _posix_executable_candidates(
     _source_dir: Path, file_entries: list[Path]
 ) -> list[str]:
-    return [p.name for p in sorted(file_entries) if os.access(p, os.X_OK)]
+    candidates = []
+    for path in sorted(file_entries):
+        if not os.access(path, os.X_OK):
+            continue
+        with path.open("rb") as stream:
+            magic = stream.read(4)
+        if magic in POSIX_EXECUTABLE_MAGICS or magic.startswith(b"#!"):
+            candidates.append(path.name)
+    return candidates
 
 
 def _app_bundle_candidates(source_dir: Path, _file_entries: list[Path]) -> list[str]:

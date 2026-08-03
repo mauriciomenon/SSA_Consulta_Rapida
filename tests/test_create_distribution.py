@@ -1048,6 +1048,20 @@ def test_detect_primary_executable_name_returns_none_when_package_has_no_binary(
     assert detected is None
 
 
+def test_detect_primary_executable_name_accepts_posix_binary_without_suffix(
+    tmp_path: Path,
+) -> None:
+    package_dir = tmp_path / "package"
+    package_dir.mkdir(parents=True)
+    binary = package_dir / "SSA_GUI_v4.45_linux_amd64"
+    binary.write_bytes(b"\x7fELFbinary")
+    binary.chmod(0o755)
+
+    detected = create_distribution._detect_primary_executable_name(package_dir)
+
+    assert detected == binary.name
+
+
 def test_detect_primary_executable_name_accepts_app_bundle_directory(
     tmp_path: Path,
 ) -> None:
