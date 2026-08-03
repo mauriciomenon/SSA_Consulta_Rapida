@@ -247,6 +247,17 @@ def test_pyinstaller_windows_checks_clean_errorlevel() -> None:
     assert "if errorlevel 1 (" in clean_block
 
 
+def test_pyinstaller_windows_embeds_only_explicit_runtime_database() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--with-runtime-db" in script
+    assert '--runtime-db "%REPO_ROOT%\\data\\ssas.db"' in script
+    assert "copy_data_to_builds.py" not in script
+    assert "--allow-local-data" not in script
+
+
 def test_nuitka_windows_cleanup_and_canonical_dist_names() -> None:
     script = (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_clean.bat").read_text(
         encoding="utf-8"

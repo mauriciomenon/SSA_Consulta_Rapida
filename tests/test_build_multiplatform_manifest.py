@@ -356,6 +356,9 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     (builder.base_dir / "resources").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "resources" / "app_icon.ico").write_bytes(b"ico")
     (builder.base_dir / "resources" / "app_icon.icns").write_bytes(b"icns")
+    runtime_db = builder.base_dir / "data" / "ssas.db"
+    runtime_db.parent.mkdir(parents=True)
+    runtime_db.write_bytes(b"sqlite")
 
     captured_cmds = []
 
@@ -385,7 +388,11 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     }
 
     ok = builder.build_executable(
-        "windows_amd64", "cli", tmp_path / "python.exe", config
+        "windows_amd64",
+        "cli",
+        tmp_path / "python.exe",
+        config,
+        runtime_db=runtime_db,
     )
     assert ok is True
     assert captured_cmds, "subprocess.run nao foi chamado"
@@ -404,6 +411,12 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         for idx, value in enumerate(windows_cmd)
         if idx > 0 and windows_cmd[idx - 1] == "--add-data"
     )
+    runtime_db_args = [
+        value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";data")
+    ]
+    assert runtime_db_args == [f"{runtime_db.resolve()};data"]
     assert "--icon" in windows_cmd
     icon_value = windows_cmd[windows_cmd.index("--icon") + 1]
     assert icon_value.replace("\\", "/").endswith("resources/app_icon.ico")

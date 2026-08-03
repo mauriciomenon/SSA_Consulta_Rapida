@@ -458,7 +458,9 @@ VSVersionInfo(
             logger.error(f"Erro executando conversao de icones: {e}")
             return False
 
-    def build_executable(self, platform_name, app_type, python_exe, config):
+    def build_executable(
+        self, platform_name, app_type, python_exe, config, runtime_db=None
+    ):
         """Constroi executavel para tipo especifico (cli/gui)"""
         logger.info(f"Construindo {app_type.upper()} para {platform_name}")
 
@@ -525,7 +527,6 @@ VSVersionInfo(
 
         # Dados adicionais
         config_path = self.base_dir / "config"
-        data_path = self.base_dir / "data"
         guide_path = self.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
         build_info_path = self._write_build_info_file("pyinstaller", platform_name)
         add_data_sep = ";" if platform_name.startswith("windows") else ":"
@@ -535,13 +536,20 @@ VSVersionInfo(
         if guide_path.exists():
             cmd.extend(["--add-data", f"{guide_path}{add_data_sep}docs"])
         cmd.extend(["--add-data", f"{build_info_path}{add_data_sep}config"])
-        include_local_data = bool(pyinstaller_args.get("include_local_data", False))
-        if include_local_data and data_path.exists():
+        if runtime_db is None and pyinstaller_args.get("include_local_data", False):
+            runtime_db = self.base_dir / "data" / "ssas.db"
             logger.warning(
-                "include_local_data ativado; data/ sera embedado no build. "
-                "Use apenas em ambiente controlado."
+                "include_local_data legado ativado; somente data/ssas.db sera embedado."
             )
-            cmd.extend(["--add-data", f"{data_path}{add_data_sep}data"])
+        if runtime_db is not None:
+            runtime_db_path = Path(runtime_db).resolve()
+            if runtime_db_path.name != "ssas.db" or not runtime_db_path.is_file():
+                logger.error("Banco de runtime invalido ou ausente: %s", runtime_db_path)
+                return False
+            logger.info("Embedando banco operacional: %s", runtime_db_path)
+            cmd.extend(
+                ["--add-data", f"{runtime_db_path}{add_data_sep}data"]
+            )
 
         # Argumentos adicionais
         for arg in app_config.get("additional_args", []):
@@ -897,7 +905,9 @@ VSVersionInfo(
 
         return total
 
-    def build_platform(self, platform_name, apps=None, skip_venv=False):
+    def build_platform(
+        self, platform_name, apps=None, skip_venv=False, runtime_db=None
+    ):
         """Constroi executaveis para uma plataforma especifica"""
         if platform_name not in self.PLATFORMS:
             logger.error(f"Plataforma nao suportada: {platform_name}")
@@ -924,7 +934,9 @@ VSVersionInfo(
         success = True
 
         for app_type in apps:
-            if not self.build_executable(platform_name, app_type, python_exe, config):
+            if not self.build_executable(
+                platform_name, app_type, python_exe, config, runtime_db=runtime_db
+            ):
                 success = False
 
         # Pos-processamento
@@ -1383,6 +1395,12 @@ def main(argv=None):
     )
 
     parser.add_argument(
+        "--runtime-db",
+        type=Path,
+        help="Embedar exatamente um data/ssas.db no bundle onedir",
+    )
+
+    parser.add_argument(
         "--auto-cleanup",
         action="store_true",
         help="Executar limpeza automatica apos build bem-sucedido",
@@ -1486,7 +1504,12 @@ def main(argv=None):
     # Executar builds
     success = True
     for plat in platforms_to_build:
-        if not builder.build_platform(plat, args.apps, skip_venv=args.skip_venv):
+        if not builder.build_platform(
+            plat,
+            args.apps,
+            skip_venv=args.skip_venv,
+            runtime_db=args.runtime_db,
+        ):
             success = False
 
     if success:
