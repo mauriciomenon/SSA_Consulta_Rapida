@@ -10,6 +10,13 @@ FORCE="${FORCE:-0}"
 ALLOW_REMOTE_PYENV_INSTALL="${SSA_ALLOW_REMOTE_PYENV_INSTALL:-0}"
 PYENV_INSTALLER_SHA256="${SSA_PYENV_INSTALLER_SHA256:-}"
 CONFIRM_REMOVE_PYENV="${SSA_CONFIRM_REMOVE_PYENV:-0}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${repo_root}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$repo_root" || exit 1
+ssa_native_guard_tools uv || exit 1
+ssa_native_guard_venv "$repo_root/.venv" || exit 1
+ssa_native_guard_venv "$repo_root/.venv_ft" || exit 1
 
 env_log() {
     printf '\033[36m[setup]\033[0m %s\n' "$*"
@@ -119,7 +126,6 @@ if [[ "$SKIP_PYENV" != "1" ]]; then
 fi
 
 # Determinar versão
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python_version_file="$repo_root/.python-version"
 
 if [[ -f "$python_version_file" ]]; then

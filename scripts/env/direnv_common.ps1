@@ -1,16 +1,21 @@
 # Shared environment bootstrap for SSA_Consulta_Rapida (PowerShell version)
 # Compatible with direnv_common.sh logic but adapted for Windows PowerShell
 
+# Validate the native host before honoring recursion guards or touching an environment.
+$ssaRepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+. (Join-Path $PSScriptRoot 'native_host_guard.ps1')
+Assert-SsaWindowsHost -RepoRoot $ssaRepoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $ssaRepoRoot '.venv')
+Assert-SsaWindowsVenv -VenvDir (Join-Path $ssaRepoRoot '.venv_ft')
+
 # Prevent recursive sourcing
 if (${env:SSA_ENV_COMMON_SOURCED}) {
     return 0
 }
 $env:SSA_ENV_COMMON_SOURCED = "1"
 
-# Set repository root
-if (-not $env:SSA_ENV_REPO_ROOT) {
-    $env:SSA_ENV_REPO_ROOT = (Get-Location).Path
-}
+# Set repository root from this script, never from the caller's working directory.
+$env:SSA_ENV_REPO_ROOT = $ssaRepoRoot
 
 # Python version configuration
 if (-not $env:SSA_PYTHON_STABLE_VERSION) {
@@ -77,6 +82,9 @@ function ssa_env__determine_variant {
     }
 
     if ($env:SSA_VENV_DIR_OVERRIDE) {
+        if ($env:SSA_VENV_DIR_OVERRIDE -notmatch '^\.venv[_A-Za-z0-9.-]*$') {
+            throw 'SSA_VENV_DIR_OVERRIDE must be a .venv name inside the repository'
+        }
         $env:SSA_ENV_VENV_DIR = $env:SSA_VENV_DIR_OVERRIDE
     }
 
@@ -195,7 +203,8 @@ function ssa_env__ensure_pyenv_env {
 }
 
 function ssa_env__activate_local_venv {
-    $dir = $env:SSA_ENV_VENV_DIR
+    $dir = Join-Path $env:SSA_ENV_REPO_ROOT $env:SSA_ENV_VENV_DIR
+    Assert-SsaWindowsVenv -VenvDir $dir
     $pythonCmd = if ($env:SSA_ENV_FALLBACK_PYTHON) { $env:SSA_ENV_FALLBACK_PYTHON } else { "python3" }
 
     try {
@@ -344,6 +353,8 @@ function ssa_env_apply {
     }
 
     ssa_env__determine_variant
+    $env:UV_PYTHON = $env:SSA_ENV_PY_VERSION
+    $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:SSA_ENV_REPO_ROOT $env:SSA_ENV_VENV_DIR
     $usedPyenv = $false
 
     if (ssa_env__init_pyenv) {

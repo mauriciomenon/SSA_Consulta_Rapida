@@ -12,6 +12,10 @@ set -euo pipefail
 # The script auto-clears pytest cache to avoid stale references after file deletions.
 
 PROJECT_ROOT="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+# shellcheck disable=SC1091
+source "${PROJECT_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$PROJECT_ROOT" || exit 1
+ssa_native_guard_tools python || exit 1
 cd "$PROJECT_ROOT"
 
 if [[ ! -f pyproject.toml ]]; then

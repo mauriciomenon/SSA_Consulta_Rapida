@@ -12,6 +12,9 @@ function Test-CommandAvailable($Name) {
 }
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+. (Join-Path $ProjectRoot 'scripts\env\native_host_guard.ps1')
+Assert-SsaWindowsHost -RepoRoot $ProjectRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $ProjectRoot '.venv')
 Set-Location $ProjectRoot
 
 if (-not $VenvName) {

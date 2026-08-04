@@ -18,7 +18,12 @@ CHECK_SECRETS=0
 MODE_QUICK=0
 MODE_FULL=0
 SELF_TEST=0
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 2
+ssa_native_guard_tools git || exit 2
 ZDOTDIR_REAL="${ZDOTDIR:-$HOME}"
 ZSHRC_FILE="$ZDOTDIR_REAL/.zshrc"
 ZCOMPDUMP_FILE="$ZDOTDIR_REAL/.zcompdump"

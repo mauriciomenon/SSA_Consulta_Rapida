@@ -10,7 +10,7 @@ if (Test-Path $PROFILE) {
 }
 $snippet = @'
 # Auto-source project activation helper when in the project path
-$repoRoot = 'C:\Users\menon\git\SSA_Consulta_Rapida'
+$repoRoot = Join-Path $env:USERPROFILE 'gitlab\ssa_consulta_rapida_pyqt6'
 if ($PWD.Path -like "$repoRoot*") {
     $helper = Join-Path $repoRoot 'activate_repo.ps1'
     if (Test-Path $helper) {

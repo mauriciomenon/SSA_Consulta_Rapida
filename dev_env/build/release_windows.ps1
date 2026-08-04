@@ -765,12 +765,16 @@ function Write-ReleaseReport {
     return $reportPath
 }
 
+$scriptRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $scriptRepoRoot 'scripts\env\native_host_guard.ps1')
+Assert-SsaWindowsHost -RepoRoot $scriptRepoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
 Assert-WindowsHost
 Assert-PowerShellHost
 Assert-Tool "git" "instale Git para Windows"
 Assert-Tool "uv" "instale uv"
 
 $repoRoot = Resolve-RepoRoot
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
 $validBackends = Get-ReleaseTargetNames $repoRoot "backends"
 $selectedBackends = Get-SelectedBackends $Backend $validBackends
 if ((-not $DryRun) -and (-not $SkipInstaller)) {

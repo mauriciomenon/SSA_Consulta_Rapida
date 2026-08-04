@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${SCRIPT_REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$SCRIPT_REPO_ROOT" || exit 1
+ssa_native_guard_tools git mkdir cp chmod || exit 1
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || { echo 'Execute dentro de um repo git'; exit 1; })"
+if [[ "$(cd "$REPO_ROOT" && pwd -P)" != "$SCRIPT_REPO_ROOT" ]]; then
+  echo '[install-hooks] Repo ativo difere do repo do script.' >&2
+  exit 1
+fi
 HOOK_SRC_DIR="$REPO_ROOT/scripts/git_hooks"
 HOOK_DST_DIR="$(git rev-parse --git-path hooks 2>/dev/null || true)"
 

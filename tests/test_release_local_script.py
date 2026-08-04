@@ -105,6 +105,15 @@ def test_release_local_quotes_wsl_bash_arguments() -> None:
     assert "cd '$repoRootWsl'" not in script
 
 
+def test_release_local_resolves_wsl_home_without_personal_path() -> None:
+    script = _script_text()
+
+    assert "function Resolve-WslRepoRoot" in script
+    assert 'printf %s "$HOME"' in script
+    assert "/home/" not in script
+    assert "C:\\Users\\" not in script
+
+
 def test_release_local_requires_wsl_only_for_debian_phase() -> None:
     script = _script_text()
     pre_resolution = section_between(
@@ -189,7 +198,7 @@ def test_release_local_forwards_comma_separated_backends_to_windows(tmp_path: Pa
 def test_release_local_keeps_shells_separated() -> None:
     script = _script_text()
 
-    assert "ConvertTo-WslPath" in script
+    assert "ConvertTo-WslPath" not in script
     assert "& powershell @windowsArgs" in script
     assert "& wsl @debianArgs" in script
     assert "release_windows.ps1" in script

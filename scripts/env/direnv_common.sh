@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Shared environment bootstrap used by .envrc and manual activation scripts.
 
+ssa_env__repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${ssa_env__repo_root}/scripts/env/native_host_guard.sh" || return 1
+ssa_native_guard_repo "$ssa_env__repo_root" || return 1
+ssa_native_guard_tools uv || return 1
+ssa_native_guard_venv "$ssa_env__repo_root/.venv" || return 1
+ssa_native_guard_venv "$ssa_env__repo_root/.venv_ft" || return 1
+
 if [[ -n "${SSA_ENV_COMMON_SOURCED:-}" ]]; then
   return 0
 fi
 SSA_ENV_COMMON_SOURCED=1
-
-ssa_env__repo_root="${SSA_ENV_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+SSA_ENV_REPO_ROOT="$ssa_env__repo_root"
+export SSA_ENV_REPO_ROOT
 
 if [[ -z "${SSA_PYTHON_STABLE_VERSION+x}" ]]; then
   SSA_ENV__STABLE_FROM_ENV=0
@@ -64,6 +72,10 @@ ssa_env__determine_variant() {
       ;;
   esac
   if [[ -n "${SSA_VENV_DIR_OVERRIDE:-}" ]]; then
+    if [[ ! "$SSA_VENV_DIR_OVERRIDE" =~ ^[.]venv[_A-Za-z0-9.-]*$ ]]; then
+      ssa_env__log "error: SSA_VENV_DIR_OVERRIDE must be a .venv name inside the repository"
+      return 1
+    fi
     SSA_ENV_VENV_DIR="$SSA_VENV_DIR_OVERRIDE"
   fi
   local sanitized
@@ -135,27 +147,33 @@ ssa_env__activate_uv_venv() {
   fi
 
   local dir="$SSA_ENV_VENV_DIR"
+  if [[ "$dir" != /* ]]; then
+    dir="$ssa_env__repo_root/$dir"
+  fi
   local requested="$SSA_ENV_PY_VERSION"
   local current_version=""
-  local needs_recreate=0
   local uv_python_arg="$requested"
   local managed_python_path=""
 
-  if [[ -x "$dir/bin/python" ]]; then
+  # Pin all later uv commands to the interpreter selected by this harness.
+  # This prevents a parent/global .python-version from replacing the repo venv.
+  export UV_PYTHON="$requested"
+  export UV_PROJECT_ENVIRONMENT="$dir"
+
+  if [[ -e "$dir" ]]; then
+    if [[ ! -x "$dir/bin/python" || ! -f "$dir/bin/activate" ]]; then
+      ssa_env__log "error: existing venv is incomplete; quarantine it manually: $dir"
+      return 2
+    fi
     current_version=$("$dir/bin/python" -V 2>/dev/null | awk '{print $2}')
     if ! ssa_env__python_version_matches "$requested" "$current_version"; then
-      ssa_env__log "uv: recreating $dir (current $current_version, wanted $requested)"
-      needs_recreate=1
+      ssa_env__log "error: existing venv has Python $current_version; wanted $requested"
+      ssa_env__log "error: move $dir to quarantine before creating another environment"
+      return 2
     fi
-  else
-    needs_recreate=1
   fi
 
-  if [[ ! -f "$dir/bin/activate" ]]; then
-    needs_recreate=1
-  fi
-
-  if [[ "$needs_recreate" -eq 1 ]]; then
+  if [[ ! -e "$dir" ]]; then
     if uv python install "$requested" >/dev/null 2>&1; then
       managed_python_path=$(uv python find --no-project --managed-python "$requested" 2>/dev/null || true)
       if [[ -n "$managed_python_path" ]]; then
@@ -163,12 +181,10 @@ ssa_env__activate_uv_venv() {
       fi
     fi
 
-    if ! uv venv --seed --clear --python "$uv_python_arg" "$dir" >/dev/null 2>&1; then
-      # Last resort: let uv resolve through any available interpreter.
-      if ! uv venv --seed --clear --python "$requested" "$dir" >/dev/null 2>&1; then
-        ssa_env__log "error: uv failed to provision venv $dir for Python $requested"
-        return 1
-      fi
+    if ! uv venv --seed --python "$uv_python_arg" "$dir" >/dev/null 2>&1; then
+      ssa_env__log "error: uv failed to provision venv $dir for Python $requested"
+      ssa_env__log "error: inspect and quarantine any partial directory before retrying"
+      return 2
     fi
   fi
 
@@ -287,7 +303,7 @@ ssa_env__ensure_pyenv_env() {
     SSA_ENV_SOURCE="pyenv-virtualenv"
   else
     # Use pyenv local instead of shell to avoid session pollution
-    if ! pyenv local "$version" >/dev/null 2>&1; then
+    if ! (cd "$ssa_env__repo_root" && pyenv local "$version") >/dev/null 2>&1; then
       ssa_env__log "error: pyenv local $version failed"
       return 1
     fi
@@ -303,6 +319,9 @@ ssa_env__ensure_pyenv_env() {
 
 ssa_env__activate_local_venv() {
   local dir="$SSA_ENV_VENV_DIR"
+  if [[ "$dir" != /* ]]; then
+    dir="$ssa_env__repo_root/$dir"
+  fi
   local python_cmd="${SSA_ENV_FALLBACK_PYTHON:-python3}"
 
   if command -v uv >/dev/null 2>&1; then
@@ -395,12 +414,17 @@ ssa_env::apply() {
   if [[ -z "${DIRENV_LOG_FORMAT:-}" ]]; then
     export DIRENV_LOG_FORMAT='[direnv] %s'
   fi
-  ssa_env__determine_variant
+  ssa_env__determine_variant || return 1
   local env_ready=0
 
+  local uv_status=0
   if ssa_env__activate_uv_venv; then
     env_ready=1
   else
+    uv_status=$?
+    if [[ $uv_status -eq 2 ]]; then
+      return 1
+    fi
     ssa_env__log "warn: uv setup failed; trying pyenv/local fallback"
   fi
 

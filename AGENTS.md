@@ -13,6 +13,28 @@
 - Recovery/hardening history is context only; public operational docs must stay minimal.
 - Stable behavior from previous golden/release-candidate cycles must be preserved.
 
+## Isolamento Obrigatorio De Host
+
+- No WSL, este repositorio so pode ser operado em `$HOME/gitlab_repo/ssa_consulta_rapida_pyqt6`, em filesystem Linux ext4.
+- `$HOME/gitlab` e symlink para o Windows e e proibido para Git, `uv`, Python, build, teste, lint ou scanner POSIX.
+- Qualquer caminho em `/mnt/*`, ferramenta `*.exe`, binario PE/MZ ou symlink resolvido para o Windows deve bloquear o harness antes do primeiro efeito colateral.
+- O preflight de host e ferramentas deve ocorrer antes de `git status`, criacao de `.venv`, instalacao, limpeza, build ou teste.
+- `.venv` nunca pode ser copiada ou compartilhada entre Windows, WSL, Linux ou macOS. Ambiente existente incompleto ou de outro host deve falhar; e proibido usar `uv venv --clear` como autorrecuperacao.
+- Proibido executar `uv run`, `uv sync` ou `uv venv` diretamente antes do preflight. Aplicar `scripts/env/direnv_common.sh` ou usar entrypoint oficial que fixe `UV_PYTHON` e `UV_PROJECT_ENVIRONMENT`.
+- Operacoes Linux sao publicadas pelo clone Linux. Depois do push, o clone Windows e atualizado com `git.exe pull --ff-only origin dev` executado no Windows nativo.
+- Build e validacao Windows so podem ocorrer em `$env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6`, por ferramentas Windows nativas e fora de sessao WSL.
+- Ferramentas POSIX nunca podem chamar executaveis Windows, e ferramentas Windows nunca podem operar o clone Linux. Cada host usa seu clone, venv, Git e toolchain nativos.
+- Orquestracao Windows + Debian e permitida somente pelo entrypoint dedicado, usando `wsl.exe` para entrar no clone Linux canonico; nunca mapear o clone Windows em `/mnt/*`.
+- O mesmo isolamento se aplica ao repositorio C++ canonico `$HOME/gitlab_repo/ssa_consulta_rapida_cpp`.
+
+## Dados Operacionais Fora Do Git
+
+- O banco operacional Linux canonico fica em `$HOME/.ssaconsultarapida/data/ssas.db`; nunca versionar bancos ou copiar `.ssaconsultarapida` para dentro do Git.
+- Os clones Linux mantem apenas a estrutura local necessaria de `data`, `docs_entrada` e `docs_saida`; arquivos grandes permanecem fora do controle de versao.
+- Para o Python Linux, definir `SSA_DB_PATH=$HOME/.ssaconsultarapida/data/ssas.db` de forma explicita no comando de execucao.
+- Antes de transportar o banco, fechar Python e C++, confirmar ausencia de WAL/SHM, gerar snapshot pela API de backup do SQLite, validar `quick_check` e comparar SHA-256.
+- Nao executar Python e C++ como escritores simultaneos no mesmo banco sem teste explicito de concorrencia.
+
 ## Objetivo
 
 - Estabilizar codigo.

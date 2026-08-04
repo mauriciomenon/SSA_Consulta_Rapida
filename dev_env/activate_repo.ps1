@@ -31,10 +31,15 @@ function Invoke-Python {
     throw "Python interpreter not found on PATH"
 }
 
-$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if (-not $repoRoot) {
     $repoRoot = (Get-Location).Path
 }
+$guardScript = Join-Path $repoRoot 'scripts\env\native_host_guard.ps1'
+. $guardScript
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv')
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv_ft')
 
 $requestedVariant = if ($Variant) {
     $Variant

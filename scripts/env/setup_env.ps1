@@ -10,6 +10,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+. (Join-Path $PSScriptRoot 'native_host_guard.ps1')
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv')
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv_ft')
 
 function Write-EnvLog {
     param([string]$Message)
@@ -96,7 +101,6 @@ if (-not $SkipPyenv) {
 }
 
 # Determinar versão
-$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $pythonVersionFile = Join-Path $repoRoot ".python-version"
 
 if (Test-Path $pythonVersionFile) {
