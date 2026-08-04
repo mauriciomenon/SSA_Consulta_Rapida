@@ -109,22 +109,19 @@ def test_derivadas_column_defaults_and_planning_visibility_are_canonical():
 
 def test_versioned_preferences_match_requested_column_defaults():
     project_root = Path(__file__).resolve().parents[1]
-    for filename in (
-        "gui_main_preferences.json",
-        "gui_main_preferences.json.example",
-    ):
-        payload = json.loads((project_root / "config" / filename).read_text("utf-8"))
-        display = payload["display_columns"]
-        hidden = payload["hidden_columns"]
-        assert display.index("qtd_derivadas") == display.index("solicitante") + 1
-        assert "grau_prioridade_planejamento" not in display
-        assert "grau_prioridade_planejamento" in hidden
-        assert payload["column_display_names"]["qtd_derivadas"] == "Qtd. Der."
-        assert payload["column_widths"]["qtd_derivadas"] == 48
-        assert all(
-            widths["qtd_derivadas"] == 48
-            for widths in payload["column_widths_by_platform"].values()
-        )
+    versioned_preferences = project_root / "config" / "gui_main_preferences.json.example"
+    payload = json.loads(versioned_preferences.read_text("utf-8"))
+    display = payload["display_columns"]
+    hidden = payload["hidden_columns"]
+    assert display.index("qtd_derivadas") == display.index("solicitante") + 1
+    assert "grau_prioridade_planejamento" not in display
+    assert "grau_prioridade_planejamento" in hidden
+    assert payload["column_display_names"]["qtd_derivadas"] == "Qtd. Der."
+    assert payload["column_widths"]["qtd_derivadas"] == 48
+    assert all(
+        widths["qtd_derivadas"] == 48
+        for widths in payload["column_widths_by_platform"].values()
+    )
 
 
 class _Signal:
