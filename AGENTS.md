@@ -18,6 +18,7 @@
 - No WSL, este repositorio so pode ser operado em `$HOME/gitlab_repo/ssa_consulta_rapida_pyqt6`, em filesystem Linux ext4.
 - `$HOME/gitlab` e symlink para o Windows e e proibido para Git, `uv`, Python, build, teste, lint ou scanner POSIX.
 - Qualquer caminho em `/mnt/*`, ferramenta `*.exe`, binario PE/MZ ou symlink resolvido para o Windows deve bloquear o harness antes do primeiro efeito colateral.
+- Toda chamada POSIX ao guard deve encerrar o fluxo em falha (`ssa_native_guard_tools ... || exit $?`); e proibido executar a ferramenta em uma linha posterior sem short-circuit.
 - O preflight de host e ferramentas deve ocorrer antes de `git status`, criacao de `.venv`, instalacao, limpeza, build ou teste.
 - `.venv` nunca pode ser copiada ou compartilhada entre Windows, WSL, Linux ou macOS. Ambiente existente incompleto ou de outro host deve falhar; e proibido usar `uv venv --clear` como autorrecuperacao.
 - Proibido executar `uv run`, `uv sync` ou `uv venv` diretamente antes do preflight. Aplicar `scripts/env/direnv_common.sh` ou usar entrypoint oficial que fixe `UV_PYTHON` e `UV_PROJECT_ENVIRONMENT`.
@@ -34,6 +35,18 @@
 - Para o Python Linux, definir `SSA_DB_PATH=$HOME/.ssaconsultarapida/data/ssas.db` de forma explicita no comando de execucao.
 - Antes de transportar o banco, fechar Python e C++, confirmar ausencia de WAL/SHM, gerar snapshot pela API de backup do SQLite, validar `quick_check` e comparar SHA-256.
 - Nao executar Python e C++ como escritores simultaneos no mesmo banco sem teste explicito de concorrencia.
+
+## Contrato De Build E Distribuicao Local
+
+- Windows deve usar PowerShell nativo no clone `$env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6`; nunca gerar release Windows pelo WSL ou pelo clone Linux.
+- Comando canonico com banco atual: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- A entrega Windows deve gerar dois bundles PyInstaller `onedir` (CLI e GUI), ZIP portatil com pastas e instalador Inno. `onefile` e proibido.
+- `_internal` pode conter somente runtime e dependencias. DB, XLS e XLSX sao proibidos dentro de `_internal`.
+- Quando solicitado, cada bundle deve conter exatamente `data\ssas.db` ao lado do executavel. `docs_entrada`, `docs_saida`, `exportacao`, `config` e `data` permanecem pastas externas e gravaveis.
+- Primeiro startup frozen copia o DB externo para `%APPDATA%\SSA_Consulta_Rapida\data\ssas.db` somente quando o destino nao existe; nunca sobrescrever DB do usuario.
+- `SSA_RUNTIME_ROOT` pode selecionar outra pasta gravavel permitida, inclusive dentro do perfil do usuario. O runtime deve criar nela `data`, `docs_entrada`, `docs_saida`, `exportacao`, `reports` e `logs`.
+- Saidas locais ficam em `launchers\dist\windows_amd64`, `builds\pyinstaller\windows_amd64`, `builds\packages\windows_amd64` e `dist_packages`. Nunca adicionar executaveis, ZIPs, instaladores ou bancos ao Git.
+- Antes e depois do build, executar guardas nativas, testes de contrato, smoke funcional real do artefato e verificacao de hash do DB. Falha bloqueia entrega local.
 
 ## Objetivo
 
