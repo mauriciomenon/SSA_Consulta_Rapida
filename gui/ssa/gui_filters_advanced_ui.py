@@ -1632,6 +1632,23 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
     data = _read_advanced_filters_from_ui(self, previous_filters)
     self._advanced_filters = data
     _sync_quick_executor_from_advanced_filters(self, previous_filters, data)
+    status_filters_were_active = bool(
+        previous_filters.get("situacao")
+        or previous_filters.get("situacao_exclude_values")
+        or data.get("situacao")
+        or data.get("situacao_exclude_values")
+    )
+    try:
+        sync_situacao = getattr(
+            self, "_sync_active_situacao_filter_from_advanced_filters", None
+        )
+        if callable(sync_situacao):
+            sync_situacao(clear_when_missing=status_filters_were_active)
+    except Exception as exc:
+        logger.warning(
+            "Falha ao sincronizar situacao rapida a partir do painel avancado: %s",
+            exc,
+        )
     self._advanced_filters_active = self._has_active_advanced_filters(data)
     refresh_quick_situacao = getattr(self, "_refresh_quick_situacao_buttons", None)
     if callable(refresh_quick_situacao):

@@ -33,6 +33,16 @@ class TestScenarioFilterWorkerCache(GUIFilterScenarioHarness):
         assert unchanged_revision == first
         assert after_revision_bump != first
 
+    def test_filter_refresh_does_not_invalidate_unchanged_search_source(self):
+        source = self.window.df_completo
+        first_token = self.window._build_filter_worker_df_token(source)
+        first_revision = self.window._data_revision
+
+        self.window._bump_filter_refresh_revision()
+
+        assert self.window._data_revision == first_revision
+        assert self.window._build_filter_worker_df_token(source) == first_token
+
     def test_filter_worker_cache_miss_after_inplace_mutation(self):
         df1 = pd.DataFrame({"texto": ["alfa", "omega"]})
         df2 = pd.DataFrame({"texto": ["beta", "gamma"]})

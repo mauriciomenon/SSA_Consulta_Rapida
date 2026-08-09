@@ -953,7 +953,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             next_rev = 1
         self._data_revision = next_rev
         try:
-            self._data_revision_df_ids = (id(self.df_completo), id(self.df_exibido))
+            self._data_revision_df_ids = id(self.df_completo)
         except AttributeError:
             self._data_revision_df_ids = None
         self._details_ssa_index_sources = None
@@ -967,10 +967,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _ensure_data_revision(self) -> None:
         try:
-            current_ids = (id(self.df_completo), id(self.df_exibido))
+            current_id = id(self.df_completo)
         except AttributeError:
             return
-        if getattr(self, "_data_revision_df_ids", None) != current_ids:
+        if getattr(self, "_data_revision_df_ids", None) != current_id:
             self._bump_data_revision("df_identity_change")
 
     def _sync_checks_to_tab_context(self) -> None:
@@ -2996,6 +2996,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._refresh_quick_situacao_buttons()
         self._refresh_after_filter_change()
 
+    def _sync_active_situacao_filter_from_advanced_filters(
+        self, *, clear_when_missing: bool = False
+    ) -> None:
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        selected_values = self._normalize_filter_sequence_values(
+            advanced_filters.get("situacao")
+        )
+        excluded_values = self._normalize_filter_sequence_values(
+            advanced_filters.get("situacao_exclude_values")
+        )
+        active_filters = getattr(self, "_active_column_filters", None)
+        if not isinstance(active_filters, OrderedDict):
+            active_filters = OrderedDict(active_filters or {})
+            self._active_column_filters = active_filters
+        combined = selected_values + [f"!{value}" for value in excluded_values]
+        if combined:
+            active_filters["situacao"] = ", ".join(combined)
+        elif clear_when_missing:
+            active_filters.pop("situacao", None)
+        self._sync_column_filter_input_from_active_filter("situacao")
+
     def _populate_quick_setor_executor_combo(
         self, combo, selected_value: str = ""
     ) -> None:
@@ -3035,11 +3056,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug(
                 "Falha ao ler valor atual do combo rapido de setor executor: %s", exc
             )
-        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
-        active_value = str(active_filters.get("setor_executor", "") or "")
-        multiple_selected = "," in active_value
+        multiple_selected = len(self._selected_setor_executor_filter_values()) > 1
         all_item_text = "..." if multiple_selected else "Todos"
-        display_text = value if value else all_item_text
+        display_text = all_item_text if multiple_selected else (value or all_item_text)
         try:
             all_idx = combo.findData("")
             if all_idx >= 0:
@@ -3082,6 +3101,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             seen.add(key)
             values.append(item)
         return values
+
+    def _selected_setor_executor_filter_values(self) -> list[str]:
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        values = self._split_filter_csv_values(
+            str(active_filters.get("setor_executor", "") or "")
+        )
+        values.extend(
+            self._normalize_filter_sequence_values(
+                advanced_filters.get("setor_executor")
+            )
+        )
+        values.extend(
+            self._normalize_filter_sequence_values(
+                advanced_filters.get("setor_executor_exclude_values")
+            )
+        )
+        return self._normalize_filter_sequence_values(values)
 
     def _sync_advanced_executor_filter_from_active_filters(
         self, *, clear_exclude: bool = False
@@ -3171,14 +3208,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         advanced_excludes = self._normalize_filter_sequence_values(
             advanced_filters.get("setor_executor_exclude_values")
         )
+        if len(self._selected_setor_executor_filter_values()) > 1:
+            return ""
         if (
             not selected_value
             and len(advanced_executor_candidates) == 1
             and not advanced_excludes
         ):
             selected_value = advanced_executor_candidates[0]
-        if "," in selected_value:
-            return ""
         return selected_value
 
     def _sync_quick_setor_executor_combo_from_filters(self) -> None:

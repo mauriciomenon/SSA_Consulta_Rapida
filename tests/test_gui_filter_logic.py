@@ -2394,6 +2394,7 @@ class TestGUIFilterLogic:
         ]
         assert len(ste_checks) == 1
 
+        self.window._active_column_filters["situacao"] = "APV"
         ste_checks[0].setChecked(True)
         self.window._apply_advanced_filters_from_ui()
         QApplication.processEvents()
@@ -2401,7 +2402,7 @@ class TestGUIFilterLogic:
         assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
         buttons = getattr(self.window, "quick_situacao_buttons", {})
         assert buttons["STE"].property("quick_situacao_state") == 1
-        assert str(self.window._active_column_filters.get("situacao") or "") == ""
+        assert self.window._active_column_filters.get("situacao") == "STE"
 
     def test_advanced_situacao_exclude_applies_and_marks_quick_exclusion(self):
         self._set_filter_panel_tab("filters")
@@ -2581,6 +2582,31 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert self.window._active_column_filters["setor_executor"] == "IEE1, IEE2"
+        assert str(combo.currentData() or "") == ""
+        assert str(combo.currentText() or "") == "..."
+
+    @pytest.mark.parametrize(
+        "advanced_filters",
+        [
+            {"setor_executor_exclude_values": ["IEE1", "IEE2"]},
+            {
+                "setor_executor": ["IEE1"],
+                "setor_executor_exclude_values": ["IEE2"],
+            },
+        ],
+    )
+    def test_quick_setor_executor_combo_shows_ellipsis_for_multiple_advanced_sectors(
+        self, advanced_filters
+    ):
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+        self.window._active_column_filters.pop("setor_executor", None)
+        self.window._advanced_filters = advanced_filters
+
+        self.window._sync_quick_setor_executor_combo_from_filters()
+        QApplication.processEvents()
+
         assert str(combo.currentData() or "") == ""
         assert str(combo.currentText() or "") == "..."
 

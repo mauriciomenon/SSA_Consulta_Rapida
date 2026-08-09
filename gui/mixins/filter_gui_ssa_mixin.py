@@ -2510,13 +2510,6 @@ class FilterGUISSAMixin:
 
     def _bump_filter_refresh_revision(self) -> None:
         try:
-            if hasattr(self, "_bump_data_revision"):
-                self._bump_data_revision("filter_refresh")
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar data revision em refresh de filtros: %s", exc
-            )
-        try:
             if hasattr(self, "_ensure_data_revision"):
                 self._ensure_data_revision()
         except Exception as exc:
