@@ -11,6 +11,8 @@ All notable changes to this project are documented in this file.
 - Existing active, column and advanced executor-sector filter synchronization remains unchanged.
 - Runtime and package metadata now identify stable release `4.47`.
 - `cleanup_ai_artifacts.ps1` now checks native `git rm` exit codes, records failures and reports when deletion could not be staged.
+- Functional CLI smoke now closes its verification connection before removing the temporary Windows database.
+- Exact SSA search now treats nullable Arrow values as non-matches instead of aborting the filter.
 
 ### Notes
 - No database schema, application filter-operator or layout change.
@@ -21,7 +23,7 @@ All notable changes to this project are documented in this file.
 - These are the minimum versions that clear the advisories reported by `pip-audit` in build, development and web dependency paths.
 
 ### Validation
-- Full candidate suite completed with 2551 passed and 16 skipped; its only failure was a stale visual expectation, then the full affected GUI module passed with 550 passed and 1 skipped.
+- Final candidate suite completed with 2555 passed and 16 skipped after fixing the stale visual expectation and nullable exact-search regression found during hardening.
 - Release contracts, static checks and dependency audit passed before the clean Windows build gate.
 
 ## [v4.46] - 2026-08-09

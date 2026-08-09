@@ -14,6 +14,8 @@ Release estavel de manutencao da familia 4.x.
 
 - Scripts de ativacao e teste usam caminhos nativos Windows com tratamento consistente.
 - Utilitario de limpeza registra falhas de `git rm` e nao oculta mais erros em blocos `catch`.
+- Smoke funcional fecha a conexao SQLite de verificacao antes de limpar o banco temporario no Windows.
+- Busca exata de SSA ignora valores ausentes nullable sem interromper o filtro.
 - Build de release exige clone nativo em `%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6`.
 - Pacotes PyInstaller continuam `onedir`, com CLI e GUI separados.
 - Quando incluido, banco runtime fica somente em `data\ssas.db`, fora de `_internal`.
@@ -44,7 +46,7 @@ Artefatos so podem ser publicados apos testes completos, smoke funcional do exec
 
 ## Validacao da candidata
 
-- Suite completa: `2551 passed, 16 skipped`; a unica falha encontrada era uma expectativa visual antiga no teste do seletor rapido.
+- Suite completa final: `2555 passed, 16 skipped`; os achados de expectativa visual e busca exata nullable foram corrigidos antes do build final.
 - Modulo GUI afetado apos a correcao da expectativa: `550 passed, 1 skipped`.
 - Contratos focados de release e multiplataforma: `122 passed, 6 skipped`.
 - `ruff`, `ty`, `py_compile`, validadores de configuracao e documentacao: OK.
