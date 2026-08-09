@@ -667,7 +667,10 @@ def test_open_validated_excel_source_keeps_validated_inode(tmp_path):
         archive.writestr("new.xml", b"new")
 
     with open_validated_excel_source(source) as source_stream:
-        os.replace(replacement, source)
+        try:
+            os.replace(replacement, source)
+        except PermissionError:
+            assert os.name == "nt"
         with ZipFile(source_stream) as archive:
             names = archive.namelist()
 

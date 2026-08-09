@@ -8,7 +8,7 @@ function Write-EnvLog {
     Write-Host "[env] $Message"
 }
 
-function Sanitize-ForName {
+function ConvertTo-EnvNameSegment {
     param([string]$Value)
     if (-not $Value) { return 'python' }
     $result = $Value.ToLowerInvariant()
@@ -72,7 +72,7 @@ switch ($requestedVariant.ToLowerInvariant()) {
     }
 }
 
-$pyenvEnvName = "ssa_consulta_{0}_{1}" -f ($variant -replace '-', '_'), (Sanitize-ForName -Value $targetVersion)
+$pyenvEnvName = "ssa_consulta_{0}_{1}" -f ($variant -replace '-', '_'), (ConvertTo-EnvNameSegment -Value $targetVersion)
 $envSource = $null
 
 $pyenv = Get-Command pyenv -ErrorAction SilentlyContinue
@@ -81,17 +81,15 @@ $pyenvHasVirtualenv = $false
 if ($pyenv) {
     $pyenvAvailable = $true
     try {
-        $init = (pyenv init -) 2>$null
-        if ($init) { Invoke-Expression $init }
-    } catch {}
-    try {
         $commands = pyenv commands
+        if ($LASTEXITCODE -ne 0) {
+            throw "pyenv commands failed with exit code $LASTEXITCODE"
+        }
         if ($commands -match '(?m)^virtualenv$') {
             $pyenvHasVirtualenv = $true
-            $virt = (pyenv virtualenv-init -) 2>$null
-            if ($virt) { Invoke-Expression $virt }
         }
     } catch {
+        Write-EnvLog "warn: pyenv inspection failed; using local venv fallback ($_)"
         $pyenvAvailable = $false
     }
 }

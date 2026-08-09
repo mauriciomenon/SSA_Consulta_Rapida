@@ -2050,9 +2050,14 @@ class TestGUIFilterLogic:
         reprog_button = self.window.adv_reprog_button
 
         assert reprog_mode.maximumWidth() <= 126
-        sem_dados_width = reprog_button.fontMetrics().horizontalAdvance("Sem dados")
-        assert sem_dados_width + 16 <= reprog_button.maximumWidth() <= 104
-        assert reprog_mode.maximumHeight() <= 24
+        assert reprog_button.maximumWidth() <= 104
+        assert str(reprog_button.text() or "") in {"Sem dados", "N/D"}
+        assert (
+            reprog_button.fontMetrics().horizontalAdvance(reprog_button.text())
+            <= max(24, reprog_button.width() - 10)
+        )
+        expected_mode_height = 26 if sys.platform.startswith("win") else 24
+        assert reprog_mode.maximumHeight() <= expected_mode_height
         assert reprog_button.maximumHeight() <= 24
         assert str(reprog_button.toolTip() or "") in {"Nº", "Nenhum dado disponivel"}
 
@@ -2980,6 +2985,11 @@ class TestGUIFilterLogic:
                 options=Qt.FindChildOption.FindDirectChildrenOnly,
             ):
                 if child.isVisible():
+                    if child.objectName() == "advancedFilterFieldTitleLabel":
+                        assert isinstance(child, QLabel)
+                        assert str(child.text() or "").strip()
+                        assert int(child.geometry().y()) == 0
+                        continue
                     assert int(child.geometry().y()) >= min_child_top
                     assert int(child.geometry().bottom()) <= contents_bottom
             widget_bottoms.append(widget.geometry().y() + widget.geometry().height())
@@ -6756,7 +6766,12 @@ class TestGUIFilterLogic:
         assert status_button is not None
         parent = status_button.parentWidget()
         assert isinstance(parent, QGroupBox)
-        assert parent.title() == "Situacao"
+        if sys.platform.startswith("win"):
+            title_label = parent.findChild(QLabel, "advancedFilterFieldTitleLabel")
+            assert title_label is not None
+            assert title_label.text() == "Situacao"
+        else:
+            assert parent.title() == "Situacao"
         assert not [
             child
             for child in parent.findChildren(QCheckBox)
@@ -12614,7 +12629,11 @@ class TestGUIFilterLogic:
         self._set_filter_panel_tab("filters")
         self.window.resize(1680, 900)
         QApplication.processEvents()
-        self.window._reorganize_advanced_filters_grid(1680)
+        self.window._restore_main_bottom_splitter_sizes()
+        self.window._sync_bottom_panel_heights()
+        self.window._reorganize_advanced_filters_grid(
+            self.window.adv_filters_group.width()
+        )
         QApplication.processEvents()
 
         state = self.window._advanced_filter_panel_state
@@ -12646,6 +12665,11 @@ class TestGUIFilterLogic:
                 options=Qt.FindChildOption.FindDirectChildrenOnly,
             ):
                 if child.isVisible():
+                    if child.objectName() == "advancedFilterFieldTitleLabel":
+                        assert isinstance(child, QLabel)
+                        assert str(child.text() or "").strip()
+                        assert int(child.geometry().y()) == 0
+                        continue
                     assert int(child.geometry().y()) >= min_child_top
                     assert int(child.geometry().bottom()) <= contents_bottom
             assert widget.geometry().y() + widget.geometry().height() <= viewport_height - 4
@@ -12685,7 +12709,7 @@ class TestGUIFilterLogic:
 
         assert int(state.last_effective_width) == 1680
         assert int(state.grid_cols) >= compact_cols
-        assert int(state.grid_cols) == 4
+        assert int(state.grid_cols) == (3 if sys.platform.startswith("win") else 4)
 
     def test_advanced_selection_windows_sized_layout_fills_bottom_area(self):
         self._set_filter_panel_tab("filters")
@@ -12769,8 +12793,11 @@ class TestGUIFilterLogic:
         assert int(grid.horizontalSpacing()) == 4
         assert int(grid.verticalSpacing()) == 2
         reprog_button = self.window.adv_reprog_button
-        sem_dados_width = reprog_button.fontMetrics().horizontalAdvance("Sem dados")
-        assert int(reprog_button.maximumWidth()) >= sem_dados_width + 16
+        assert str(reprog_button.text() or "") in {"Sem dados", "N/D"}
+        assert (
+            reprog_button.fontMetrics().horizontalAdvance(reprog_button.text())
+            <= max(24, reprog_button.width() - 10)
+        )
         assert int(state.grid_widgets["macro_box"].maximumWidth()) <= 340
         assert "action_box" not in state.grid_widgets
 

@@ -613,6 +613,7 @@ def build_pagination_filter_bar(
         cast(Any, QSizePolicy.Policy.Fixed),
         cast(Any, QSizePolicy.Policy.Fixed),
     )
+    quick_setor_executor_box.setMaximumWidth(186)
 
     pagination_filters_layout.addWidget(cast(Any, quick_situacao_box), 1)
     pagination_filters_layout.addSpacing(4)

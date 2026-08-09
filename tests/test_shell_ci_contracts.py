@@ -12,6 +12,10 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+NATIVE_POSIX_ONLY = pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="POSIX harness intentionally blocks Windows filesystems; use PowerShell",
+)
 
 
 def _test_env(**overrides: str) -> dict[str, str]:
@@ -87,6 +91,18 @@ def test_direnv_common_shell_and_powershell_share_stable_version() -> None:
     assert 'else { "3.13.12" }' in direnv_common_ps1
 
 
+def test_windows_activation_avoids_dynamic_eval_and_silent_catches() -> None:
+    activate_repo = _read_repo_text("dev_env", "activate_repo.ps1")
+    direnv_common = _read_repo_text("scripts", "env", "direnv_common.ps1")
+
+    assert "Invoke-Expression" not in activate_repo
+    assert "pyenv init -" not in activate_repo
+    assert "pyenv virtualenv-init -" not in activate_repo
+    silent_catch = re.compile(r"catch\s*\{\s*(?:#[^\r\n]*\s*)?\}", re.MULTILINE)
+    assert silent_catch.search(activate_repo) is None
+    assert silent_catch.search(direnv_common) is None
+
+
 def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     script = _read_repo_text("scripts", "ci_quality_gates.sh")
 
@@ -97,6 +113,7 @@ def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     assert '"${GATES_ARGS_ARRAY[@]}"' in script
 
 
+@NATIVE_POSIX_ONLY
 def test_ci_quality_gates_parses_gate_args_with_quotes(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -148,6 +165,7 @@ def test_ci_quality_gates_parses_gate_args_with_quotes(tmp_path: Path) -> None:
     ]
 
 
+@NATIVE_POSIX_ONLY
 def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -335,6 +353,7 @@ def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> Non
     assert 'bash "${{ steps.secret_scanner.outputs.script }}" history' in workflow
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -371,6 +390,7 @@ def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
     assert "TEST_SECRET_1234" not in dirty_result.stderr
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_blocks_untracked_git_workspace_matches(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     git = shutil.which("git")
@@ -419,6 +439,7 @@ def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -
     assert 'SECRET_SCAN_HISTORY_MAX_COUNT:-200' in script
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_treats_dash_prefixed_pattern_as_data(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -438,6 +459,7 @@ def test_secret_scan_script_treats_dash_prefixed_pattern_as_data(tmp_path: Path)
     assert result.returncode == 0, result.stderr
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_valid_pattern_without_match_succeeds(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"

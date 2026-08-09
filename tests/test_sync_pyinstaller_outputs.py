@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
 from pathlib import Path
 
@@ -34,7 +35,13 @@ def test_sync_platform_updates_incrementally_and_removes_stale(
 
     changed_source = source_dir / "changed.txt"
     changed_source.write_text("new", encoding="utf-8")
-    (target_dir / "changed.txt").write_text("old", encoding="utf-8")
+    changed_target = target_dir / "changed.txt"
+    changed_target.write_text("old", encoding="utf-8")
+    source_mtime_ns = changed_source.stat().st_mtime_ns
+    os.utime(
+        changed_target,
+        ns=(source_mtime_ns - 1_000_000_000, source_mtime_ns - 1_000_000_000),
+    )
 
     new_source = source_dir / "nested" / "new.txt"
     new_source.parent.mkdir()

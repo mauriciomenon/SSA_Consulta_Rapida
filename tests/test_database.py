@@ -4,6 +4,7 @@ Testes unitários para o módulo armazenamento.database.
 """
 
 import concurrent.futures
+from contextlib import closing
 import os
 import logging
 import shutil
@@ -148,7 +149,7 @@ def test_initialize_database_connection_clears_only_current_db_cache(
     from armazenamento import database as database_module
 
     try:
-        with sqlite3.connect(temp_db_path) as conn:
+        with closing(sqlite3.connect(temp_db_path)) as conn:
             current_key = (database_module._get_connection_db_path(conn), "usuarios")
             other_key = (os.path.abspath(temp_db_path + ".other"), "usuarios")
             database_module._resolved_table_cache.clear()
@@ -191,7 +192,7 @@ def test_resolved_table_cache_prunes_oldest_entry():
 def test_resolved_table_cache_handles_concurrent_resolve_and_clear(temp_db_path):
     from armazenamento import database as database_module
 
-    with sqlite3.connect(temp_db_path) as conn:
+    with closing(sqlite3.connect(temp_db_path)) as conn:
         conn.execute("CREATE TABLE ssa_table (id INTEGER)")
 
     workers = 8
@@ -200,7 +201,7 @@ def test_resolved_table_cache_handles_concurrent_resolve_and_clear(temp_db_path)
 
     def resolve_worker():
         barrier.wait()
-        with sqlite3.connect(temp_db_path) as conn:
+        with closing(sqlite3.connect(temp_db_path)) as conn:
             for _ in range(iterations):
                 assert resolve_target_table(conn, "ssas") == "ssa_table"
 
@@ -733,14 +734,15 @@ def test_resolve_target_table_cache_is_connection_specific_for_memory_db():
 
 
 def test_vacuum_analyze_database_runs_sqlite_maintenance(temp_db_path):
-    with sqlite3.connect(temp_db_path) as conn:
+    with closing(sqlite3.connect(temp_db_path)) as conn:
         conn.execute("CREATE TABLE maint(a INTEGER)")
         conn.execute("INSERT INTO maint(a) VALUES (1)")
+        conn.commit()
 
     result = vacuum_analyze_database(temp_db_path)
 
     assert result == {"ok": True, "db_path": temp_db_path}
-    with sqlite3.connect(temp_db_path) as conn:
+    with closing(sqlite3.connect(temp_db_path)) as conn:
         rows = conn.execute("SELECT a FROM maint").fetchall()
     assert rows == [(1,)]
 

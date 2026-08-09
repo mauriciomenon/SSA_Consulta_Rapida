@@ -70,7 +70,7 @@ def test_resolve_platform_open_command_prefers_absolute_linux_launcher(monkeypat
 
     monkeypatch.setattr(system_integration.sys, "platform", "linux")
     monkeypatch.setattr(
-        system_integration.os.path,
+        system_integration.posixpath,
         "isfile",
         lambda path: path == "/usr/bin/xdg-open",
     )

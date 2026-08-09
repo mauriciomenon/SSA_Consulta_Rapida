@@ -7,7 +7,7 @@ TestScenarioGUIFilterSmokeFunctional covers row-count smoke without perf markers
 from __future__ import annotations
 
 import os
-import resource
+import sys
 
 import pytest
 from PyQt6.QtWidgets import QApplication
@@ -44,9 +44,48 @@ class TestScenarioGUIFilterSmokeFunctional(GUIFilterScenarioHarness):
 
 
 def _rss_mb() -> float:
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        class ProcessMemoryCounters(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(ProcessMemoryCounters),
+            wintypes.DWORD,
+        ]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+
+        counters = ProcessMemoryCounters()
+        counters.cb = ctypes.sizeof(counters)
+        process = kernel32.GetCurrentProcess()
+        if not psapi.GetProcessMemoryInfo(
+            process, ctypes.byref(counters), counters.cb
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return counters.PeakWorkingSetSize / (1024 * 1024)
+
+    import resource
+
     usage = resource.getrusage(resource.RUSAGE_SELF)
     # macOS reports bytes; Linux reports kilobytes.
-    if os.uname().sysname == "Darwin":
+    if sys.platform == "darwin":
         return usage.ru_maxrss / (1024 * 1024)
     return usage.ru_maxrss / 1024
 

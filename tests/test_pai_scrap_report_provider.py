@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -398,7 +399,9 @@ def test_run_pai_scrap_report_export_rejects_manifest_path_escape(
         output_dir.mkdir(exist_ok=True)
         outside.write_bytes(b"xlsx")
         (output_dir / "pai_sam_api_manifest.json").write_text(
-            f'{{"status":"ok","exports":{{"data_xlsx":"{outside}"}}}}',
+            json.dumps(
+                {"status": "ok", "exports": {"data_xlsx": str(outside)}}
+            ),
             encoding="utf-8",
         )
         return _Completed()
@@ -427,7 +430,9 @@ def test_run_pai_scrap_report_export_accepts_absolute_manifest_path_in_output_di
         xlsx_path.parent.mkdir(parents=True)
         xlsx_path.write_bytes(b"xlsx")
         (output_dir / "pai_sam_api_manifest.json").write_text(
-            f'{{"status":"ok","exports":{{"data_xlsx":"{xlsx_path}"}}}}',
+            json.dumps(
+                {"status": "ok", "exports": {"data_xlsx": str(xlsx_path)}}
+            ),
             encoding="utf-8",
         )
         return _Completed()

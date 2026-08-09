@@ -728,11 +728,12 @@ class TestRescanWorkerIntegration:
 
             mock_importer.assert_called_once()
             call_kwargs = mock_importer.call_args[1]
+            expected_root = str(Path("/fake/project").resolve())
 
-            assert call_kwargs["docs_dir"] == "/fake/project/docs_entrada"
-            assert call_kwargs["data_dir"] == "/fake/project/data"
+            assert call_kwargs["docs_dir"] == str(Path(expected_root) / "docs_entrada")
+            assert call_kwargs["data_dir"] == str(Path(expected_root) / "data")
             assert call_kwargs["db_name"] == "ssas.db"
-            assert call_kwargs["extra_allowed_roots"] == ("/fake/project",)
+            assert call_kwargs["extra_allowed_roots"] == (expected_root,)
             assert call_kwargs["table_name"] == "ssa_table"
             assert call_kwargs["force_import"] is True
             assert callable(call_kwargs["should_cancel"])

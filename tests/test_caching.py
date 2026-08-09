@@ -259,7 +259,10 @@ def test_get_all_xlsx_files_rejects_symlink_outside_docs_dir(tmp_path):
     docs_dir.mkdir()
     outside = tmp_path / "outside.xlsx"
     outside.write_text("x", encoding="utf-8")
-    (docs_dir / "link.xlsx").symlink_to(outside)
+    try:
+        (docs_dir / "link.xlsx").symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
 
     with pytest.raises(ValueError, match="fora de docs_dir"):
         get_all_xlsx_files(str(docs_dir))

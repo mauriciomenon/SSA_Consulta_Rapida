@@ -35,7 +35,7 @@ if ($env:SSA_ENV__STABLE_FROM_ENV -eq 0 -and (Test-Path "$env:SSA_ENV_REPO_ROOT\
             $env:SSA_PYTHON_STABLE_VERSION = $env:SSA_ENV__FILE_VERSION
         }
     } catch {
-        # Ignore errors reading file
+        Write-Verbose "Failed to read .python-version: $_"
     }
 }
 Remove-Variable -Name SSA_ENV__STABLE_FROM_ENV -ErrorAction SilentlyContinue
@@ -185,7 +185,11 @@ function ssa_env__ensure_pyenv_env {
             pyenv local $version 2>$null
             if ($LASTEXITCODE -eq 0) {
                 # Ensure no session override remains
-                try { pyenv shell --unset 2>$null } catch {}
+                try {
+                    pyenv shell --unset 2>$null
+                } catch {
+                    Write-Verbose "Failed to clear pyenv shell override: $_"
+                }
                 Remove-Item Env:PYENV_VERSION -ErrorAction SilentlyContinue
                 # Let pyenv manage version via .python-version
                 $env:SSA_ENV_SOURCE = "pyenv-local"
@@ -274,7 +278,7 @@ function ssa_env__ensure_venv_pip {
             return $true
         }
     } catch {
-        # continue to ensurepip bootstrap
+        Write-Verbose "Initial pip probe failed; trying ensurepip: $_"
     }
 
     ssa_env__log "venv: pip missing in $dir; bootstrapping with ensurepip"
@@ -295,7 +299,7 @@ function ssa_env__ensure_venv_pip {
             return $true
         }
     } catch {
-        # continue to final error
+        Write-Verbose "Final pip probe failed: $_"
     }
 
     ssa_env__log "error: pip still unavailable in $dir after ensurepip"
