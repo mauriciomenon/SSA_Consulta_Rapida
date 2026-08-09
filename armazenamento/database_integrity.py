@@ -124,7 +124,12 @@ def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | N
     if snapshots and not force:
         age_seconds = time.time() - snapshots[-1].stat().st_mtime
         if age_seconds < INTEGRITY_SNAPSHOT_MIN_INTERVAL_SECONDS:
-            return snapshots[-1]
+            if _raw_sqlite_integrity_ok(snapshots[-1]):
+                return snapshots[-1]
+            logger.warning(
+                "Snapshot recente ignorado por falha de integridade: %s",
+                snapshots[-1],
+            )
 
     backup_dir = db.parent / "historico_backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -207,6 +212,7 @@ def _restore_latest_valid_snapshot_locked(db_path: str, table_name: str) -> bool
                     rollback_error,
                 )
                 return False
+            _prune_forensic_backups(db_path)
             continue
 
         final_report = verify_database_integrity(str(db), table_name)
@@ -238,6 +244,7 @@ def _restore_latest_valid_snapshot_locked(db_path: str, table_name: str) -> bool
                     _replace_file_with_retry(original, archived)
             logger.critical("Falha ao restaurar banco original apos rollback: %s", exc)
             return False
+        _prune_forensic_backups(db_path)
     return False
 
 

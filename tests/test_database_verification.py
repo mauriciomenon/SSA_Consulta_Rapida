@@ -1599,6 +1599,45 @@ class TestDatabaseRepair:
 
         assert len(database_integrity_module._snapshot_paths(str(db_path))) == 2
 
+    def test_recent_corrupt_integrity_snapshot_is_replaced(self, tmp_path):
+        db_path = Path(tmp_path) / "recent_corrupt_snapshot.db"
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        initialize_database(str(db_path), str(schema_path))
+        corrupt_snapshot = database_integrity_module._create_integrity_snapshot(
+            str(db_path), force=True
+        )
+        assert corrupt_snapshot is not None
+        corrupt_snapshot.write_bytes(b"not a sqlite database")
+
+        replacement = database_integrity_module._create_integrity_snapshot(str(db_path))
+
+        assert replacement is not None
+        assert replacement != corrupt_snapshot
+        assert database_integrity_module._raw_sqlite_integrity_ok(replacement)
+
+    def test_failed_functional_restores_keep_forensic_backups_bounded(self, tmp_path):
+        db_path = Path(tmp_path) / "corrupt_primary.db"
+        db_path.write_bytes(b"not a sqlite database")
+        backup_dir = tmp_path / "historico_backups"
+        backup_dir.mkdir()
+        invalid_snapshot = (
+            backup_dir / "corrupt_primary.db.integrity_20260809_120000_000001.db"
+        )
+        with closing(sqlite3.connect(invalid_snapshot)) as conn:
+            conn.execute("CREATE TABLE unrelated (value TEXT)")
+            conn.commit()
+
+        for _ in range(4):
+            assert (
+                database_integrity_module._restore_latest_valid_snapshot(
+                    str(db_path), "ssa_table"
+                )
+                is False
+            )
+
+        assert len(database_integrity_module._backup_paths(str(db_path), "corrupt")) <= 2
+
     @pytest.mark.parametrize(
         ("first_name", "second_name"),
         [
