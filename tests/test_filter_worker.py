@@ -67,7 +67,8 @@ class TestFilterWorker:
 
     def test_gui_filter_worker_token_changes_after_revision_bump(self):
         class _Window(FilterGUISSAMixin):
-            pass
+            _data_revision: int
+            _data_uuid: str
 
         window = _Window()
         setattr(window, "_data_revision", 1)
@@ -85,7 +86,9 @@ class TestFilterWorker:
 
     def test_gui_source_stamps_and_preserves_cache_token_for_worker_copy(self):
         class _Window(FilterGUISSAMixin):
-            pass
+            _data_revision: int
+            _data_uuid: str
+            df_completo: pd.DataFrame
 
         window = _Window()
         window._data_revision = 7
