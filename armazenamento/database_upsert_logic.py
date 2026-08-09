@@ -1155,6 +1155,7 @@ def insert_dataframe_with_smart_upsert_impl(
 
     conn: Any = None
     conn_cm = None
+    external_savepoint_started = False
     if hasattr(db_path, "cursor"):  # conexão externa
         conn = cast(Any, db_path)
         close_after = False
@@ -1171,6 +1172,11 @@ def insert_dataframe_with_smart_upsert_impl(
         )
         table_exists = table_name in existing_tables
         if not table_exists:
+            if not close_after:
+                raise RuntimeError(
+                    "Tabela alvo ausente em conexao externa; inicialize o schema "
+                    "antes do upsert para preservar a transacao do chamador."
+                )
             logger.warning(
                 "Tabela alvo '%s' ausente. Aplicando bootstrap de schema canonico antes do upsert.",
                 table_name,
@@ -1191,6 +1197,12 @@ def insert_dataframe_with_smart_upsert_impl(
                     table_name,
                 )
                 return False
+        if not close_after:
+            _begin_transaction_if_needed(
+                conn, context="insert_dataframe_with_smart_upsert_impl"
+            )
+            conn.execute("SAVEPOINT ssa_smart_upsert")
+            external_savepoint_started = True
         if table_name != CANONICAL_SSA_TABLE:
             logger.warning(
                 "Upsert com tabela nao canonica resolvida para '%s'.",
@@ -1221,9 +1233,10 @@ def insert_dataframe_with_smart_upsert_impl(
         else:
             has_ssa = work[work["numero_ssa"].notna()].copy()
             no_ssa = work[work["numero_ssa"].isna()].copy()
-        _begin_transaction_if_needed(
-            conn, context="insert_dataframe_with_smart_upsert_impl"
-        )
+        if close_after:
+            _begin_transaction_if_needed(
+                conn, context="insert_dataframe_with_smart_upsert_impl"
+            )
         if not no_ssa.empty:
             # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
             chunk_size = (
@@ -1246,12 +1259,23 @@ def insert_dataframe_with_smart_upsert_impl(
                 metrics_out=metrics_out,
             )
             logger.info("Processados %s registros com numero_ssa via upsert", inserted)
-        conn.commit()
+        if external_savepoint_started:
+            conn.execute("RELEASE SAVEPOINT ssa_smart_upsert")
+            external_savepoint_started = False
+        else:
+            conn.commit()
         logger.info("Inserção completada com sucesso")
         return True
     except Exception:
-        if (
-            conn is not None
+        if external_savepoint_started:
+            try:
+                conn.execute("ROLLBACK TO SAVEPOINT ssa_smart_upsert")
+                conn.execute("RELEASE SAVEPOINT ssa_smart_upsert")
+            except Exception as rollback_exc:
+                logger.warning("Falha no rollback do savepoint de upsert: %s", rollback_exc)
+        elif (
+            close_after
+            and conn is not None
             and hasattr(conn, "in_transaction")
             and bool(conn.in_transaction)
         ):

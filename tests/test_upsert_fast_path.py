@@ -418,6 +418,9 @@ def test_insert_dataframe_with_smart_upsert_impl_keeps_mixed_transaction_flow() 
         ("202600001", "com identidade", "2026-01-02 00:00:00", 202602, "integer"),
         (None, "sem identidade", "2026-01-01 00:00:00", 202601, "integer"),
     ]
+    assert conn.in_transaction is True
+    conn.rollback()
+    assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
 
 
 def test_perform_upsert_fast_path_handles_multiple_chunks_in_same_transaction() -> None:
@@ -454,6 +457,10 @@ def test_insert_dataframe_with_smart_upsert_impl_rolls_back_if_upsert_phase_fail
 ) -> None:
     conn = sqlite3.connect(":memory:")
     _create_test_table(conn)
+    conn.execute(
+        "INSERT INTO ssa_table(numero_ssa, descricao_ssa) VALUES (?, ?)",
+        ("existing", "caller transaction"),
+    )
     incoming = pd.DataFrame(
         [
             {
@@ -481,8 +488,28 @@ def test_insert_dataframe_with_smart_upsert_impl_rolls_back_if_upsert_phase_fail
             incoming, conn, "ssa_table"
         )
 
-    persisted_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
-    assert persisted_count == 0
+    rows = conn.execute(
+        "SELECT numero_ssa, descricao_ssa FROM ssa_table"
+    ).fetchall()
+    assert rows == [("existing", "caller transaction")]
+    assert conn.in_transaction is True
+    conn.rollback()
+    assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
+
+
+def test_external_connection_requires_preinitialized_schema() -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE caller_data(value TEXT)")
+    conn.execute("INSERT INTO caller_data(value) VALUES ('pending')")
+    incoming = pd.DataFrame([{"numero_ssa": "202600999"}])
+
+    with pytest.raises(RuntimeError, match="inicialize o schema"):
+        upsert_logic.insert_dataframe_with_smart_upsert_impl(
+            incoming, conn, "ssa_table"
+        )
+
+    assert conn.in_transaction is True
+    assert conn.execute("SELECT value FROM caller_data").fetchone() == ("pending",)
 
 
 def test_insert_dataframe_with_smart_upsert_impl_preserves_enter_failure(
