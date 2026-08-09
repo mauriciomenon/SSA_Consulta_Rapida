@@ -2,11 +2,8 @@
 param(
     [string] $Target = "windows",
     [string[]] $Backend = @(),
-    [string[]] $DebianPackage = @(),
-    [string] $WslDistro = "Debian",
     [switch] $Yes,
     [switch] $DryRun,
-    [switch] $AllowMissingRemote,
     [switch] $SkipInstaller,
     [switch] $IncludeRuntimeDb,
     [switch] $Help
@@ -16,27 +13,22 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
 
 $DefaultBackend = "nuitka"
-$DefaultDebianPackage = "deb"
 
 function Show-Usage {
     Write-Host "Uso:"
     Write-Host "  .\release.ps1"
     Write-Host "  .\release.ps1 -Target windows"
-    Write-Host "  .\release.ps1 -Target debian"
-    Write-Host "  .\release.ps1 -Target all -Yes"
     Write-Host ""
     Write-Host "Defaults:"
     Write-Host "  Target: windows"
-    Write-Host "  Backend Windows/Debian: nuitka"
-    Write-Host "  Pacote Debian: deb"
+    Write-Host "  Backend Windows: nuitka"
     Write-Host "  Instalador Windows: ativado por padrao; use -SkipInstaller para desativar"
     Write-Host ""
     Write-Host "Opcoes uteis:"
     Write-Host "  -DryRun              mostra plano sem build/pacote"
     Write-Host "  -Yes                 executa sem prompt"
-    Write-Host "  -Target all          Windows local + Debian via WSL"
-    Write-Host "  -AllowMissingRemote  em -Target all, pula Debian se WSL nao existir"
     Write-Host "  -IncludeRuntimeDb    inclui data\ssas.db no build Windows PyInstaller"
+    Write-Host "  Debian deve usar ./release.sh em clone Linux nativo; WSL fica restrito ao CodeRabbit."
 }
 
 function Resolve-RepoRoot {
@@ -72,8 +64,8 @@ function Normalize-Target {
     param([Parameter(Mandatory = $true)] [string] $RawTarget)
 
     $value = $RawTarget.Trim().ToLowerInvariant()
-    if ($value -notin @("windows", "debian", "all")) {
-        throw "Target invalido: $RawTarget. Use windows, debian ou all."
+    if ($value -ne "windows") {
+        throw "Target invalido no wrapper Windows: $RawTarget. Use windows; Debian deve rodar via ./release.sh em clone Linux nativo."
     }
     return $value
 }
@@ -84,18 +76,6 @@ function Assert-WindowsReleaseHost {
     }
 }
 
-function ConvertTo-WslPath {
-    param([Parameter(Mandatory = $true)] [string] $Path)
-
-    $resolved = (Resolve-Path $Path).Path
-    if ($resolved -notmatch "^[A-Za-z]:\\") {
-        throw "Caminho Windows absoluto esperado para WSL: $resolved"
-    }
-    $drive = $resolved.Substring(0, 1).ToLowerInvariant()
-    $tail = $resolved.Substring(2).Replace("\", "/")
-    return "/mnt/$drive$tail"
-}
-
 function Invoke-WindowsRelease {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
@@ -103,7 +83,9 @@ function Invoke-WindowsRelease {
     )
 
     Assert-WindowsReleaseHost
-    Initialize-WindowsBuildExtra $RepoRoot $BackendCsv
+    if (-not $DryRun) {
+        Initialize-WindowsBuildExtra $RepoRoot $BackendCsv
+    }
     $script = Join-Path $RepoRoot "dev_env\build\release_windows.ps1"
     $releaseArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
     if ($Yes) {
@@ -218,42 +200,6 @@ function Initialize-WindowsBuildExtra {
     }
 }
 
-function Invoke-DebianReleaseViaWsl {
-    param(
-        [Parameter(Mandatory = $true)] [string] $RepoRoot,
-        [Parameter(Mandatory = $true)] [string] $BackendCsv,
-        [Parameter(Mandatory = $true)] [string] $PackageCsv
-    )
-
-    if (-not (Get-Command "wsl" -ErrorAction SilentlyContinue)) {
-        throw "WSL nao encontrado. Instale WSL ou use -AllowMissingRemote com -Target all."
-    }
-    if ($WslDistro -notmatch "^[A-Za-z0-9_.-]+$") {
-        throw "Nome de distro WSL invalido: $WslDistro"
-    }
-    if ($BackendCsv -notmatch "^[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+)*$") {
-        throw "Backend Debian invalido: $BackendCsv"
-    }
-    if ($PackageCsv -notmatch "^[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+)*$") {
-        throw "Pacote Debian invalido: $PackageCsv"
-    }
-
-    $repoRootWsl = ConvertTo-WslPath $RepoRoot
-    $scriptWsl = "$repoRootWsl/dev_env/build/release_debian.sh"
-    $releaseArgs = @("-d", $WslDistro, "--", "bash", $scriptWsl, "--backend", $BackendCsv, "--package", $PackageCsv)
-    if ($Yes) {
-        $releaseArgs += "-y"
-    }
-    if ($DryRun) {
-        $releaseArgs += "--dry-run"
-    }
-
-    & wsl @releaseArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Release Debian via WSL falhou."
-    }
-}
-
 if ($Help) {
     Show-Usage
     return
@@ -261,25 +207,13 @@ if ($Help) {
 
 $targetName = Normalize-Target $Target
 $repoRoot = Resolve-RepoRoot
+. (Join-Path $repoRoot "scripts\env\native_host_guard.ps1")
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot ".venv")
 $backendCsv = Join-ReleaseCsv $Backend $DefaultBackend
-$packageCsv = Join-ReleaseCsv $DebianPackage $DefaultDebianPackage
 
 Write-Host "Release target: $targetName"
 Write-Host "Backend: $backendCsv"
-if ($targetName -in @("debian", "all")) {
-    Write-Host "Pacote Debian: $packageCsv"
-}
-
-if ($targetName -in @("windows", "all")) {
-    Invoke-WindowsRelease $repoRoot $backendCsv
-}
-
-if ($targetName -in @("debian", "all")) {
-    if ($targetName -eq "all" -and $AllowMissingRemote -and -not (Get-Command "wsl" -ErrorAction SilentlyContinue)) {
-        Write-Host "Debian via WSL pulado: executavel WSL nao encontrado."
-    } else {
-        Invoke-DebianReleaseViaWsl $repoRoot $backendCsv $packageCsv
-    }
-}
+Invoke-WindowsRelease $repoRoot $backendCsv
 
 Write-Host "Release concluido."

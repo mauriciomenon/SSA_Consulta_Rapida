@@ -704,14 +704,19 @@ function Assert-RuntimeDatabase {
     )
 
     $sourcePath = Join-Path $RepoRoot "data\ssas.db"
-    $sourceHash = @(Get-ArtifactHash @($sourcePath))[0]
+    Assert-ExistingFile $sourcePath
+    $sourceResolved = (Resolve-Path -LiteralPath $sourcePath).Path
+    $expectedRuntimeHash = $null
     $records = @()
     foreach ($root in $RuntimeRoot) {
         Assert-ExistingDirectory $root
         $runtimePath = Join-Path $root "data\ssas.db"
         $runtimeHash = @(Get-ArtifactHash @($runtimePath))[0]
-        if ($runtimeHash['sha256'] -ne $sourceHash['sha256']) {
-            throw "Hash do banco de runtime diverge em ${runtimePath}: $($runtimeHash['sha256']) != $($sourceHash['sha256'])"
+        if ([string]::IsNullOrWhiteSpace($expectedRuntimeHash)) {
+            $expectedRuntimeHash = $runtimeHash['sha256']
+        }
+        elseif ($runtimeHash['sha256'] -ne $expectedRuntimeHash) {
+            throw "Hash do banco de runtime diverge entre bundles em ${runtimePath}: $($runtimeHash['sha256']) != $expectedRuntimeHash"
         }
         $sensitiveFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
             $_.Extension.ToLowerInvariant() -in @(".db", ".ods", ".xls", ".xlsm", ".xlsx")
@@ -723,7 +728,7 @@ function Assert-RuntimeDatabase {
             throw "Bundle contem DB/XLS/XLSX nao autorizado: $($unexpected.FullName -join ', ')"
         }
         $records += [ordered]@{
-            source = $sourceHash.path
+            source = $sourceResolved
             path = $runtimeHash.path
             sha256 = $runtimeHash['sha256']
             length = $runtimeHash.length

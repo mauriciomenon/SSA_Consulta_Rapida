@@ -13,9 +13,8 @@ def test_root_release_powershell_exposes_simple_defaults() -> None:
 
     assert '[string] $Target = "windows"' in script
     assert '$DefaultBackend = "nuitka"' in script
-    assert '$DefaultDebianPackage = "deb"' in script
     assert "release_windows.ps1" in script
-    assert "release_debian.sh" in script
+    assert "release_debian.sh" not in script
     assert "build_nuitka" not in script
     assert "build_pyinstaller" not in script
     assert "build_pyoxidizer" not in script
@@ -23,9 +22,9 @@ def test_root_release_powershell_exposes_simple_defaults() -> None:
     assert "[switch] $SkipPackage" not in script
     assert "[switch] $IncludeRuntimeDb" in script
     assert "Target: windows" in script
-    assert "Backend Windows/Debian: nuitka" in script
-    assert "Pacote Debian: deb" in script
+    assert "Backend Windows: nuitka" in script
     assert "Instalador Windows: ativado por padrao" in script
+    assert "Debian deve usar ./release.sh em clone Linux nativo" in script
 
 
 def test_root_release_powershell_forwards_safe_defaults() -> None:
@@ -35,7 +34,6 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert "Assert-WindowsReleaseHost" in script
     assert "Release Windows deve rodar em Windows ou VM Windows" in script
     assert 'Join-ReleaseCsv $Backend $DefaultBackend' in script
-    assert 'Join-ReleaseCsv $DebianPackage $DefaultDebianPackage' in script
     assert '"-Backend", $BackendCsv' in script
     assert '$releaseArgs += "-IncludeRuntimeDb"' in script
     assert "$releaseArgs = @(" in script
@@ -54,21 +52,24 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert '"build"' in script
     assert "$args = @(" not in script
     assert "& powershell @args" not in script
-    assert '$scriptWsl = "$repoRootWsl/dev_env/build/release_debian.sh"' in script
-    assert '$releaseArgs = @("-d", $WslDistro' in script
-    assert '"--backend", $BackendCsv, "--package", $PackageCsv' in script
-    assert 'Get-Command "wsl"' in script
-    assert 'Nome de distro WSL invalido' in script
-    assert 'Backend Debian invalido' in script
-    assert 'Pacote Debian invalido' in script
-    assert "-AllowMissingRemote" in script
+    assert "ConvertTo-WslPath" not in script
+    assert "Invoke-DebianReleaseViaWsl" not in script
+    assert "& wsl" not in script
+    assert "/mnt/" not in script
+    assert "Assert-SsaWindowsHost" in script
+    assert "Assert-SsaWindowsVenv" in script
+    assert "if (-not $DryRun)" in script
     execution_block = section_between(script, "$targetName = Normalize-Target", 'Write-Host "Release concluido."')
-    assert '-not (Get-Command "wsl" -ErrorAction SilentlyContinue)' in execution_block
     assert "catch" not in execution_block
     assert_before(
         execution_block,
+        "Assert-SsaWindowsHost -RepoRoot $repoRoot",
         "Invoke-WindowsRelease $repoRoot",
-        "Invoke-DebianReleaseViaWsl",
+    )
+    assert_before(
+        execution_block,
+        "Assert-SsaWindowsVenv -VenvDir",
+        "Invoke-WindowsRelease $repoRoot",
     )
     assert_before(script, "Assert-WindowsReleaseHost", "& powershell @releaseArgs")
 
