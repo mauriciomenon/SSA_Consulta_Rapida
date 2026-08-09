@@ -32,6 +32,13 @@ def test_dataframe_filter_hash_covers_unsampled_rows() -> None:
     assert build_dataframe_filter_hash(first) != build_dataframe_filter_hash(second)
 
 
+def test_dataframe_filter_hash_includes_index_values() -> None:
+    first = pd.DataFrame({"value": [1, 2]}, index=[10, 20])
+    second = pd.DataFrame({"value": [1, 2]}, index=[30, 40])
+
+    assert build_dataframe_filter_hash(first) != build_dataframe_filter_hash(second)
+
+
 def test_dataframe_filter_hash_fallback_uses_content(monkeypatch) -> None:
     first = pd.DataFrame({"value": [1, 2, 3]})
     second = pd.DataFrame({"value": [1, 999, 3]})

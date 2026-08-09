@@ -14,7 +14,7 @@ def _fallback_dataframe_hash_payload(dataframe: pd.DataFrame | None) -> bytes:
     if dataframe is None:
         return b"none"
     try:
-        return dataframe.to_csv(index=False).encode("utf-8", errors="replace")
+        return dataframe.to_csv(index=True).encode("utf-8", errors="replace")
     except (AttributeError, KeyError, OverflowError, TypeError, ValueError) as exc:
         logger.debug("Fallback DataFrame serialization failed: %s", exc)
         fallback = repr((getattr(dataframe, "shape", "unknown"), id(dataframe)))
@@ -64,7 +64,7 @@ def build_dataframe_filter_hash(dataframe: pd.DataFrame | None) -> str:
 
         data_hashes = pd.util.hash_pandas_object(
             dataframe,
-            index=False,
+            index=True,
         ).to_numpy(dtype="uint64", copy=False)
         hasher = hashlib.blake2b(digest_size=8)
         hasher.update(repr(tuple(dataframe.shape)).encode("utf-8"))

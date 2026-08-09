@@ -49,9 +49,12 @@ except ImportError:
 
 # Imports do core
 from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_MARKER_ATTR
-from core.search_filter_constants import FILTER_SEARCH_SIGNATURE_CACHE_ATTR
+from core.search_filter_constants import (
+    FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+    FILTER_SOURCE_REVISION_ATTR,
+    FILTER_SOURCE_TOKEN_ATTR,
+)
 from core.app_logic import filter_dataframe, parse_search_terms
-from core.dataframe_fingerprint import build_dataframe_filter_hash
 from core.search_filter import apply_general_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 
@@ -549,12 +552,29 @@ class FilterGUISSAMixin:
         self._clear_all_filters_global()
         self._maybe_offer_hard_reset_after_repeated_clear_click()
 
+    def _stamp_filter_source_attrs(self, source: pd.DataFrame) -> str:
+        revision_marker = (
+            getattr(self, "_data_uuid", None),
+            int(getattr(self, "_data_revision", 0) or 0),
+        )
+        attrs = dict(getattr(source, "attrs", {}) or {})
+        source_token = attrs.get(FILTER_SOURCE_TOKEN_ATTR)
+        if attrs.get(FILTER_SOURCE_REVISION_ATTR) != revision_marker or not source_token:
+            source_token = repr(
+                ("gui-filter-source", revision_marker, id(source))
+            )
+            attrs[FILTER_SOURCE_REVISION_ATTR] = revision_marker
+            attrs[FILTER_SOURCE_TOKEN_ATTR] = source_token
+            source.attrs = attrs
+        return str(source_token)
+
     def _get_filter_source_dataframe(
         self, source: pd.DataFrame | None = None
     ) -> pd.DataFrame:
         """Retorna a fonte de busca preservando cache seguro entre requests."""
         source = self.df_completo if source is None else source
         try:
+            self._stamp_filter_source_attrs(source)
             source_attrs = getattr(source, "attrs", {})
         except Exception as exc:
             logger.debug(
@@ -570,6 +590,8 @@ class FilterGUISSAMixin:
             FILTER_SEARCH_MARKER_ATTR,
             FILTER_SEARCH_CACHE_ATTR,
             FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+            FILTER_SOURCE_REVISION_ATTR,
+            FILTER_SOURCE_TOKEN_ATTR,
             "ssa_preprocessed_for_gui",
             "ssa_non_null_cols",
         }
@@ -600,37 +622,12 @@ class FilterGUISSAMixin:
 
     def _build_filter_worker_df_token(self, source: pd.DataFrame) -> str:
         shape = tuple(getattr(source, "shape", (0, 0)))
-        revision = getattr(self, "_data_revision", None)
-        data_uuid = getattr(self, "_data_uuid", None)
-        content_hash = build_dataframe_filter_hash(source)
-        cached = getattr(self, "_filter_worker_df_token_cache", None)
-        if isinstance(cached, tuple) and len(cached) == 5:
-            (
-                cached_source_id,
-                cached_shape,
-                cached_revision,
-                cached_content_hash,
-                cached_token,
-            ) = cached
-            if (
-                cached_source_id == id(source)
-                and cached_shape == shape
-                and cached_revision == (revision, data_uuid)
-                and cached_content_hash == content_hash
-            ):
-                return str(cached_token)
+        source_token = self._stamp_filter_source_attrs(source)
         columns = tuple(str(column) for column in getattr(source, "columns", ()))
-        token = repr(
-            ("gui-filter-source", content_hash, shape, columns, revision, data_uuid)
+        dtypes = tuple(str(dtype) for dtype in getattr(source, "dtypes", ()))
+        return repr(
+            ("gui-filter-source", source_token, shape, columns, dtypes)
         )
-        self._filter_worker_df_token_cache = (
-            id(source),
-            shape,
-            (revision, data_uuid),
-            content_hash,
-            token,
-        )
-        return token
 
     def _reset_repeated_clear_click_tracking(self) -> None:
         self._clear_filter_click_count = 0

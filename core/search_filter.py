@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import weakref
 from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional, cast
 
@@ -19,6 +18,8 @@ from core.search_filter_constants import (
     FILTER_SEARCH_CACHE_ATTR,
     FILTER_SEARCH_MARKER_ATTR,
     FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+    FILTER_SOURCE_REVISION_ATTR,
+    FILTER_SOURCE_TOKEN_ATTR,
 )
 from core.search_filter_defaults import DEFAULT_FILTER_SEARCH_COLUMNS
 from core.regex_safety import safe_regex_contains
@@ -154,22 +155,24 @@ def _build_normalized_column_cache(
     available_search_cols: list[str],
     should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, pd.Series]:
-    revision = df.attrs.get("ssa_data_revision")
-    if revision is None:
+    revision = df.attrs.get(FILTER_SOURCE_REVISION_ATTR)
+    source_token = df.attrs.get(FILTER_SOURCE_TOKEN_ATTR)
+    if revision is None or source_token is None:
         return _build_normalized_columns(df, available_search_cols, should_cancel)
 
     cache_key = (
-        id(df),
+        str(source_token),
+        str(revision),
         tuple(available_search_cols),
         len(df.index),
-        str(revision),
+        tuple(str(df[column].dtype) for column in available_search_cols),
     )
     with _NORMALIZED_SEARCH_CACHE_LOCK:
         cached = _NORMALIZED_SEARCH_CACHE.get(cache_key)
         if (
             isinstance(cached, dict)
-            and callable(cached.get("df_ref"))
-            and cached["df_ref"]() is df
+            and isinstance(cached.get("index"), pd.Index)
+            and cached["index"].equals(df.index)
             and isinstance(cached.get("columns"), dict)
         ):
             _NORMALIZED_SEARCH_CACHE.move_to_end(cache_key)
@@ -185,14 +188,14 @@ def _build_normalized_column_cache(
         cached = _NORMALIZED_SEARCH_CACHE.get(cache_key)
         if (
             isinstance(cached, dict)
-            and callable(cached.get("df_ref"))
-            and cached["df_ref"]() is df
+            and isinstance(cached.get("index"), pd.Index)
+            and cached["index"].equals(df.index)
             and isinstance(cached.get("columns"), dict)
         ):
             _NORMALIZED_SEARCH_CACHE.move_to_end(cache_key)
             return dict(cached["columns"])
         _NORMALIZED_SEARCH_CACHE[cache_key] = {
-            "df_ref": weakref.ref(df),
+            "index": df.index.copy(deep=False),
             "columns": normalized_columns,
         }
         while len(_NORMALIZED_SEARCH_CACHE) > _NORMALIZED_SEARCH_CACHE_MAX_ENTRIES:
@@ -442,34 +445,41 @@ def _combine_or_of_and_group_masks(
     mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
     should_cancel: Callable[[], bool] | None = None,
 ) -> pd.Series:
-    final_mask = pd.Series(False, index=full_index)
+    final_values = np.zeros(len(full_index), dtype=bool)
     for group_terms in grouped_terms.values():
         _raise_if_search_cancelled(should_cancel)
-        candidate_index = final_mask[~final_mask].index
-        if len(candidate_index) == 0:
+        candidate_positions = (
+            np.arange(len(full_index))
+            if full_index.has_duplicates
+            else np.flatnonzero(~final_values)
+        )
+        if len(candidate_positions) == 0:
             break
-        group_mask = pd.Series(True, index=candidate_index)
+        candidate_index = full_index.take(candidate_positions)
+        group_values = np.ones(len(candidate_positions), dtype=bool)
         positives = [t for t in group_terms if not t.get("negative")]
         negatives = [t for t in group_terms if t.get("negative")]
 
         for term in positives:
             _raise_if_search_cancelled(should_cancel)
-            term_mask = mask_for_term(term, candidate_index).reindex(
-                candidate_index,
-                fill_value=False,
+            term_values = mask_for_term(term, candidate_index).to_numpy(
+                dtype=bool, copy=False
             )
-            group_mask = group_mask & term_mask
+            if len(term_values) != len(candidate_positions):
+                raise ValueError("Search term mask length does not match candidate rows")
+            group_values &= term_values
 
         for term in negatives:
             _raise_if_search_cancelled(should_cancel)
-            term_mask = mask_for_term(term, candidate_index).reindex(
-                candidate_index,
-                fill_value=False,
+            term_values = mask_for_term(term, candidate_index).to_numpy(
+                dtype=bool, copy=False
             )
-            group_mask = group_mask & (~term_mask)
+            if len(term_values) != len(candidate_positions):
+                raise ValueError("Search term mask length does not match candidate rows")
+            group_values &= ~term_values
 
-        final_mask.loc[candidate_index] = group_mask
-    return final_mask
+        final_values[candidate_positions] |= group_values
+    return pd.Series(final_values, index=full_index)
 
 
 def _candidate_series(series: pd.Series, candidate_index: pd.Index) -> pd.Series:

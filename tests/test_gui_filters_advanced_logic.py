@@ -359,6 +359,38 @@ def test_apply_advanced_filters_emissao_week_keys_filter_cadastro_week_column():
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500002"]
 
 
+@pytest.mark.parametrize("dtype", ["Int64", "string[pyarrow]"])
+def test_excluded_week_range_keeps_nullable_rows(dtype):
+    if dtype == "string[pyarrow]":
+        pytest.importorskip("pyarrow")
+        values = ["202501", None, "202503"]
+    else:
+        values = [202501, None, 202503]
+    window = _DummyWindow(
+        {
+            "semana_emissao_inicio": 202501,
+            "semana_emissao_fim": 202502,
+            "semana_emissao_exclude": True,
+        }
+    )
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "semana_cadastro": pd.Series(values, dtype=dtype),
+        }
+    )
+
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+
+    assert filtered["numero_ssa"].tolist() == ["202500002", "202500003"]
+
+
 def test_apply_advanced_filters_applies_priority_filter_with_grau_columns():
     window = _DummyWindow({"prioridade_emissao_values": ["2"]})
     df = pd.DataFrame(

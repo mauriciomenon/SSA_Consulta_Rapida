@@ -23,12 +23,15 @@ class TestScenarioFilterWorkerCache(GUIFilterScenarioHarness):
         if hasattr(cache, "clear"):
             cache.clear()
 
-    def test_filter_worker_token_tracks_inplace_mutation(self):
+    def test_filter_worker_token_tracks_revision_after_inplace_mutation(self):
         df = self.base_df.copy()
         first = self.window._build_filter_worker_df_token(df)
         df.loc[0, "descricao_ssa"] = "Mutated"
-        second = self.window._build_filter_worker_df_token(df)
-        assert second != first
+        unchanged_revision = self.window._build_filter_worker_df_token(df)
+        self.window._bump_data_revision("test_inplace_mutation")
+        after_revision_bump = self.window._build_filter_worker_df_token(df)
+        assert unchanged_revision == first
+        assert after_revision_bump != first
 
     def test_filter_worker_cache_miss_after_inplace_mutation(self):
         df1 = pd.DataFrame({"texto": ["alfa", "omega"]})
@@ -76,6 +79,7 @@ class TestScenarioFilterWorkerCache(GUIFilterScenarioHarness):
         assert self.window.df_exibido.iloc[0]["descricao_ssa"] == "Teste A"
 
         self.window.df_completo.loc[4, "descricao_ssa"] = "Teste A secundario"
+        self.window._bump_data_revision("test_inplace_edit")
         self.window.initiate_filtering()
         self.wait_until_filter_idle()
 
@@ -110,6 +114,7 @@ class TestScenarioFilterWorkerCache(GUIFilterScenarioHarness):
         self.wait_until_event(slow_started)
 
         self.window.df_completo.loc[4, "descricao_ssa"] = "Teste A secundario"
+        self.window._bump_data_revision("test_async_inplace_edit")
         self.window.search_input.setText("Teste A")
         self.window.initiate_filtering()
         QApplication.processEvents()

@@ -499,6 +499,7 @@ def _apply_week_range_filters(
                 range_mask &= nums.ge(int(start_val))
             if end_val is not None and not pd.isna(end_val):
                 range_mask &= nums.le(int(end_val))
+            range_mask = range_mask.fillna(False).astype(bool)
             if filters.get(exclude_key):
                 mask &= ~range_mask
             else:
