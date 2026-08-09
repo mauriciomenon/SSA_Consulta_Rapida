@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -103,6 +105,40 @@ def test_copy_data_to_build_reuses_staged_config_for_multiple_runtime_dirs(
         runtime_dir_one / "config",
         runtime_dir_two / "config",
     }
+
+
+def test_copy_data_to_build_includes_committed_active_wal_rows(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "copy_data_to_builds_active_wal",
+        root / "scripts" / "copy_data_to_builds.py",
+    )
+    source_db = tmp_path / "source.db"
+    build_dir = tmp_path / "build"
+    runtime_dir = build_dir / "SSA_Runtime.dist"
+    runtime_dir.mkdir(parents=True)
+
+    with closing(sqlite3.connect(source_db)) as writer:
+        writer.execute("CREATE TABLE rows (value TEXT)")
+        writer.commit()
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute("INSERT INTO rows VALUES ('committed-in-wal')")
+        writer.commit()
+        assert Path(f"{source_db}-wal").is_file()
+
+        copied = module.copy_data_to_build(
+            build_dir,
+            verbose=False,
+            db_path=source_db,
+            docs_dir=tmp_path / "missing_docs",
+        )
+
+        with closing(sqlite3.connect(runtime_dir / "data" / "ssas.db")) as conn:
+            values = conn.execute("SELECT value FROM rows").fetchall()
+
+    assert copied is True
+    assert values == [("committed-in-wal",)]
 
 
 def test_copy_data_to_build_reports_cached_excel_size_after_target_removal(

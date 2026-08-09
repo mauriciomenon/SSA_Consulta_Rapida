@@ -15,9 +15,12 @@ Uso:
 
 import argparse
 import importlib
+import os
 import shutil
+import sqlite3
 import sys
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -229,13 +232,28 @@ def copy_data_to_build(
 
             if db_ok:
                 target_db = target_data_dir / "ssas.db"
+                temporary_db = target_db.with_name(f"{target_db.name}.tmp")
                 if verbose:
                     print(f"PKG Copiando DB: {source_db} -> {target_db}")
                 try:
-                    shutil.copy2(source_db, target_db)
+                    temporary_db.unlink(missing_ok=True)
+                    source_uri = f"{source_db.resolve().as_uri()}?mode=ro"
+                    with closing(
+                        sqlite3.connect(source_uri, uri=True, timeout=5)
+                    ) as source_conn:
+                        with closing(sqlite3.connect(temporary_db)) as target_conn:
+                            source_conn.backup(target_conn)
+                            if target_conn.execute("PRAGMA quick_check").fetchone() != (
+                                "ok",
+                            ):
+                                raise sqlite3.DatabaseError(
+                                    "snapshot do banco falhou no quick_check"
+                                )
+                    os.replace(temporary_db, target_db)
                     if verbose:
                         print(f"    DB copiado ({db_size_mb:.1f} MB)")
-                except Exception as e:
+                except (OSError, sqlite3.Error) as e:
+                    temporary_db.unlink(missing_ok=True)
                     print(f"   ERR Erro ao copiar DB para {runtime_dir}: {e}")
                     success = False
 
