@@ -479,6 +479,27 @@ def test_import_single_file_honors_cancel_before_empty_dataframe_branch(
         )
 
 
+def test_import_single_file_rejects_dataframe_emptied_by_identity_filter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    rejected = pd.DataFrame()
+    rejected.attrs["row_count_before_invalid_filter"] = 3
+    rejected.attrs["invalid_row_summary"] = {"total_removed": 3}
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: rejected,
+    )
+
+    file_path = str(tmp_path / "input.xlsx")
+    with pytest.raises(app_logic.ExtractionError) as exc_info:
+        app_logic._import_single_file(
+            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+        )
+
+    assert exc_info.value.error_code == "ALL_ROWS_REJECTED"
+
+
 def test_import_single_file_logs_friendly_duplicate_labels(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

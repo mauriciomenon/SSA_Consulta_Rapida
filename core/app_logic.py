@@ -918,7 +918,7 @@ def _process_file_with_resilience(
         if error_code == "OPERATION_CANCELLED" and should_cancel:
             logger.info("Cancelamento solicitado; interrompendo importacao.")
             return FileProcessAction.CANCELLED
-        if error_code == "MISSING_REQUIRED_COLUMNS":
+        if error_code in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"}:
             deterministic_failed_files.append(file_path)
         logger.warning(
             "Erro de extracao em '%s': %s. Pulando arquivo...", file_path, exc

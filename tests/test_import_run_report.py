@@ -1500,9 +1500,13 @@ def test_write_import_run_report_uses_runtime_root_logs(
     assert Path(report_path).is_file()
 
 
+@pytest.mark.parametrize(
+    "error_code", ["MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"]
+)
 def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    error_code: str,
 ) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
@@ -1550,7 +1554,7 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
         app_logic,
         "_import_single_file",
         lambda *args, **kwargs: (_ for _ in ()).throw(
-            app_logic.ExtractionError("boom", error_code="MISSING_REQUIRED_COLUMNS")
+            app_logic.ExtractionError("boom", error_code=error_code)
         ),
     )
 

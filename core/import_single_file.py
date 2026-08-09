@@ -373,6 +373,12 @@ def import_single_file(
                 )
                 raise DatabaseError(f"Erro ao inserir dados do arquivo {file_path}")
         else:
+            if row_count_before_invalid_filter > 0:
+                raise ExtractionError(
+                    "Todas as linhas foram rejeitadas por identidade SSA invalida em "
+                    f"'{os.path.basename(file_path)}'",
+                    error_code="ALL_ROWS_REJECTED",
+                )
             logger.warning(
                 "Arquivo '%s' sem linhas validas apos extracao; importacao ignorada.",
                 os.path.basename(file_path),
