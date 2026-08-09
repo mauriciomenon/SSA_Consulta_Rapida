@@ -17,6 +17,10 @@
 
 - No WSL, este repositorio so pode ser operado em `$HOME/gitlab_repo/ssa_consulta_rapida_pyqt6`, em filesystem Linux ext4.
 - `$HOME/gitlab` e symlink para o Windows e e proibido para Git, `uv`, Python, build, teste, lint ou scanner POSIX.
+- Ao trabalhar a partir do Windows, a unica invocacao manual permitida de `wsl.exe` e o CodeRabbit CLI, executado dentro do clone Linux proprio em `$HOME/gitlab_repo/ssa_consulta_rapida_pyqt6`.
+- CodeRabbit no WSL nunca pode receber caminho do checkout Windows, operar em `/mnt/*`, executar `uv`/Python/testes ou criar/modificar o `.venv` Windows.
+- Review de diff ainda nao publicado no Windows nao deve ser improvisado pelo WSL. Primeiro criar commit atomico, publicar o ref autorizado, atualizar o clone Linux com Git Linux nativo e entao executar CodeRabbit no clone Linux.
+- Fora dessa excecao do CodeRabbit, harness iniciado no Windows nao pode chamar WSL para Git, package manager, Python, build, teste, lint, scanner ou manipulacao de arquivos. Trabalho Linux deve iniciar e terminar no host e clone Linux proprios.
 - Qualquer caminho em `/mnt/*`, ferramenta `*.exe`, binario PE/MZ ou symlink resolvido para o Windows deve bloquear o harness antes do primeiro efeito colateral.
 - Toda chamada POSIX ao guard deve encerrar o fluxo em falha (`ssa_native_guard_tools ... || exit $?`); e proibido executar a ferramenta em uma linha posterior sem short-circuit.
 - O preflight de host e ferramentas deve ocorrer antes de `git status`, criacao de `.venv`, instalacao, limpeza, build ou teste.
@@ -25,7 +29,7 @@
 - Operacoes Linux sao publicadas pelo clone Linux. Depois do push, o clone Windows e atualizado com `git.exe pull --ff-only origin dev` executado no Windows nativo.
 - Build e validacao Windows so podem ocorrer em `$env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6`, por ferramentas Windows nativas e fora de sessao WSL.
 - Ferramentas POSIX nunca podem chamar executaveis Windows, e ferramentas Windows nunca podem operar o clone Linux. Cada host usa seu clone, venv, Git e toolchain nativos.
-- Orquestracao Windows + Debian e permitida somente pelo entrypoint dedicado, usando `wsl.exe` para entrar no clone Linux canonico; nunca mapear o clone Windows em `/mnt/*`.
+- Orquestracao Windows + Debian deve usar jobs independentes nos clones nativos de cada host. O agente no Windows nao pode usar WSL para build/teste Debian; a unica excecao WSL permanece o CodeRabbit no clone Linux proprio.
 - O mesmo isolamento se aplica ao repositorio C++ canonico `$HOME/gitlab_repo/ssa_consulta_rapida_cpp`.
 
 ## Dados Operacionais Fora Do Git
@@ -201,6 +205,7 @@ Cada slice deve declarar:
 ## Politica Para Ferramentas Auxiliares
 
 - Cada mudança deve ser validada com testes focados e ferramentas de análise antes de ser considerada completa, e cada teste deve ser projetado para pegar regressões reais, não apenas verificar que o código não quebre.
+- `.codewhale` e estado local pertencente ao CodeWhale. Nunca tratar como residuo, apagar, recriar ou editar sem pedido explicito; preservar mesmo quando estiver vazio ou ignorado pelo Git.
 - Se ferramenta auxiliar entrar em loop, contradizer pedido, ou sugerir acao fora de escopo:
   - informar o usuario imediatamente;
   - oferecer opcoes objetivas:
