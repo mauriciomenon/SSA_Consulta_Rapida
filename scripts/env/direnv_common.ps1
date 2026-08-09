@@ -116,6 +116,9 @@ function ssa_env__init_pyenv {
         # Check if virtualenv command is available
         try {
             $null = pyenv commands 2>$null | Select-String "virtualenv"
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv commands failed with exit code $LASTEXITCODE"
+            }
             $env:SSA_ENV_PYENV_HAS_VIRTUALENV = "1"
         } catch {
             $env:SSA_ENV_PYENV_HAS_VIRTUALENV = "0"
@@ -140,14 +143,16 @@ function ssa_env__ensure_pyenv_env {
     # Check if version is installed
     try {
         $installedVersions = pyenv versions --bare 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            ssa_env__log "error: pyenv versions failed"
+            return $false
+        }
         if ($installedVersions -notcontains $version) {
             ssa_env__log "pyenv: installing Python $version (first run may take a while)"
+            pyenv install $version
             if ($LASTEXITCODE -ne 0) {
-                pyenv install $version
-                if ($LASTEXITCODE -ne 0) {
-                    ssa_env__log "error: pyenv install $version failed"
-                    return $false
-                }
+                ssa_env__log "error: pyenv install $version failed"
+                return $false
             }
         }
     } catch {
@@ -159,6 +164,10 @@ function ssa_env__ensure_pyenv_env {
         # Create/activate virtualenv
         try {
             $virtualenvs = pyenv virtualenvs --bare 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                ssa_env__log "error: pyenv virtualenvs failed"
+                return $false
+            }
             if ($virtualenvs -notcontains $envName) {
                 ssa_env__log "pyenv: creating virtualenv $envName"
                 pyenv virtualenv $version $envName
@@ -187,6 +196,10 @@ function ssa_env__ensure_pyenv_env {
                 # Ensure no session override remains
                 try {
                     pyenv shell --unset 2>$null
+                    if ($LASTEXITCODE -ne 0) {
+                        ssa_env__log "error: pyenv shell --unset failed"
+                        return $false
+                    }
                 } catch {
                     Write-Verbose "Failed to clear pyenv shell override: $_"
                 }

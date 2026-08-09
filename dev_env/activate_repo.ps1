@@ -97,24 +97,42 @@ if ($pyenv) {
 if ($pyenvAvailable) {
     try {
         $versions = (pyenv versions --bare) 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "pyenv versions failed with exit code $LASTEXITCODE"
+        }
         $versionList = @()
         if ($versions) { $versionList = $versions -split "`n" }
         if (-not ($versionList -contains $targetVersion)) {
             Write-EnvLog "pyenv: installing Python $targetVersion (first run may take a while)"
             pyenv install $targetVersion | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv install failed with exit code $LASTEXITCODE"
+            }
         }
         if ($pyenvHasVirtualenv) {
             $venvs = (pyenv virtualenvs --bare) 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv virtualenvs failed with exit code $LASTEXITCODE"
+            }
             $venvList = @()
             if ($venvs) { $venvList = $venvs -split "`n" }
             if (-not ($venvList -contains $pyenvEnvName)) {
                 Write-EnvLog "pyenv: creating virtualenv $pyenvEnvName"
                 pyenv virtualenv $targetVersion $pyenvEnvName | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    throw "pyenv virtualenv failed with exit code $LASTEXITCODE"
+                }
             }
             pyenv activate $pyenvEnvName | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv activate failed with exit code $LASTEXITCODE"
+            }
             $envSource = "pyenv-virtualenv:$pyenvEnvName"
         } else {
             pyenv shell $targetVersion | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv shell failed with exit code $LASTEXITCODE"
+            }
             $envSource = "pyenv:$targetVersion"
         }
     } catch {

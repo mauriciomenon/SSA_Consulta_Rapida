@@ -63,6 +63,8 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert 'Pacote Debian invalido' in script
     assert "-AllowMissingRemote" in script
     execution_block = section_between(script, "$targetName = Normalize-Target", 'Write-Host "Release concluido."')
+    assert '-not (Get-Command "wsl" -ErrorAction SilentlyContinue)' in execution_block
+    assert "catch" not in execution_block
     assert_before(
         execution_block,
         "Invoke-WindowsRelease $repoRoot",

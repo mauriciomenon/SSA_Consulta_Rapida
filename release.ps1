@@ -275,14 +275,10 @@ if ($targetName -in @("windows", "all")) {
 }
 
 if ($targetName -in @("debian", "all")) {
-    try {
+    if ($targetName -eq "all" -and $AllowMissingRemote -and -not (Get-Command "wsl" -ErrorAction SilentlyContinue)) {
+        Write-Host "Debian via WSL pulado: executavel WSL nao encontrado."
+    } else {
         Invoke-DebianReleaseViaWsl $repoRoot $backendCsv $packageCsv
-    } catch {
-        if ($targetName -eq "all" -and $AllowMissingRemote) {
-            Write-Host "Debian via WSL pulado: $($_.Exception.Message)"
-        } else {
-            throw
-        }
     }
 }
 
