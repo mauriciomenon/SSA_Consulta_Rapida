@@ -15,8 +15,10 @@ import platform
 import plistlib
 import shlex
 import shutil
+import sqlite3
 import subprocess  # nosec B404
 import sys
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -613,10 +615,30 @@ VSVersionInfo(
                     return False
                 runtime_data = runtime_root / "data"
                 runtime_data.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(runtime_db_path, runtime_data / "ssas.db")
+                runtime_db_target = runtime_data / "ssas.db"
+                runtime_db_temporary = runtime_data / "ssas.db.tmp"
+                runtime_db_temporary.unlink(missing_ok=True)
+                try:
+                    source_uri = f"{runtime_db_path.as_uri()}?mode=ro"
+                    with closing(
+                        sqlite3.connect(source_uri, uri=True, timeout=5)
+                    ) as source_conn:
+                        with closing(sqlite3.connect(runtime_db_temporary)) as target_conn:
+                            source_conn.backup(target_conn)
+                            if target_conn.execute("PRAGMA quick_check").fetchone() != (
+                                "ok",
+                            ):
+                                raise sqlite3.DatabaseError(
+                                    "snapshot do banco de runtime falhou no quick_check"
+                                )
+                    os.replace(runtime_db_temporary, runtime_db_target)
+                except (OSError, sqlite3.Error) as exc:
+                    runtime_db_temporary.unlink(missing_ok=True)
+                    logger.error("Falha ao criar snapshot do banco de runtime: %s", exc)
+                    return False
                 logger.info(
                     "Banco operacional copiado externamente: %s",
-                    runtime_data / "ssas.db",
+                    runtime_db_target,
                 )
             for folder in (
                 runtime_root / "data" / "historico_backups",

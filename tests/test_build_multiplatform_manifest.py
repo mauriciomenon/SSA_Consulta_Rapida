@@ -4,7 +4,9 @@ import json
 import plistlib
 import os
 import subprocess
+import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -368,7 +370,11 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     (builder.base_dir / "resources" / "app_icon.icns").write_bytes(b"icns")
     runtime_db = builder.base_dir / "data" / "ssas.db"
     runtime_db.parent.mkdir(parents=True)
-    runtime_db.write_bytes(b"sqlite")
+    source_conn = sqlite3.connect(runtime_db)
+    source_conn.execute("PRAGMA journal_mode=WAL")
+    source_conn.execute("CREATE TABLE build_probe(value TEXT)")
+    source_conn.execute("INSERT INTO build_probe(value) VALUES ('from_wal')")
+    source_conn.commit()
 
     captured_cmds = []
 
@@ -400,13 +406,16 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     windows_bundle = builder.dist_dir / "windows_amd64" / "SSA_CLI_test"
     windows_bundle.mkdir(parents=True)
 
-    ok = builder.build_executable(
-        "windows_amd64",
-        "cli",
-        tmp_path / "python.exe",
-        config,
-        runtime_db=runtime_db,
-    )
+    try:
+        ok = builder.build_executable(
+            "windows_amd64",
+            "cli",
+            tmp_path / "python.exe",
+            config,
+            runtime_db=runtime_db,
+        )
+    finally:
+        source_conn.close()
     assert ok is True
     assert captured_cmds, "subprocess.run nao foi chamado"
     windows_cmd = captured_cmds[-1]
@@ -437,7 +446,11 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";data")
     ]
     assert runtime_db_args == []
-    assert (windows_bundle / "data" / "ssas.db").read_bytes() == b"sqlite"
+    bundled_db = windows_bundle / "data" / "ssas.db"
+    with closing(sqlite3.connect(bundled_db)) as bundled_conn:
+        assert bundled_conn.execute("SELECT value FROM build_probe").fetchone() == (
+            "from_wal",
+        )
     assert not (windows_bundle / "_internal" / "data" / "ssas.db").exists()
     assert (windows_bundle / "docs_entrada").is_dir()
     assert "--icon" in windows_cmd
