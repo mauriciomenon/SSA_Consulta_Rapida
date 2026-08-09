@@ -28,7 +28,7 @@ formatter-cmds = ["ruff check --exit-zero --fix $file", "ruff format $file"]
 
 [project]
 name = "ssa-consulta-rapida"
-version = "4.45.0"
+version = "4.46.0"
 requires-python = ">=3.10"
 dependencies = [
     "pandas>=2.3.3",
