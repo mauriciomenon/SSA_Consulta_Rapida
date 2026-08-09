@@ -2889,10 +2889,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             }
         )
 
-    def _resolve_quick_situacao_selected_values(
+    def _resolve_quick_situacao_states(
         self, values: list[str] | tuple[str, ...]
-    ) -> list[str]:
+    ) -> dict[str, int]:
         ordered_values = [str(value or "").strip().upper() for value in values if value]
+        states = dict.fromkeys(ordered_values, 0)
         selected_raw = str(
             OrderedDict(getattr(self, "_active_column_filters", {}) or {}).get(
                 "situacao", ""
@@ -2901,18 +2902,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         ).strip()
         if not selected_raw:
             advanced_filters = getattr(self, "_advanced_filters", {}) or {}
-            if not advanced_filters.get("situacao_exclude_values"):
-                selected_raw = ", ".join(
-                    str(value or "").strip()
-                    for value in advanced_filters.get("situacao", []) or []
-                    if str(value or "").strip()
-                )
-        if not selected_raw:
-            return []
-        selected_keys = {
-            item.upper() for item in self._split_filter_csv_values(selected_raw)
-        }
-        return [value for value in ordered_values if value.upper() in selected_keys]
+            for value in advanced_filters.get("situacao", []) or []:
+                key = str(value or "").strip().upper()
+                if key in states:
+                    states[key] = 1
+            for value in advanced_filters.get("situacao_exclude_values", []) or []:
+                key = str(value or "").strip().upper()
+                if key in states:
+                    states[key] = 2
+            return states
+        for item in self._split_filter_csv_values(selected_raw):
+            excluded = item.startswith("!")
+            key = item[1:].strip().upper() if excluded else item.upper()
+            if key in states:
+                states[key] = 2 if excluded else 1
+        return states
 
     def _refresh_quick_situacao_buttons(self) -> None:
         layout = getattr(self, "quick_situacao_layout", None)
@@ -2955,17 +2959,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 exc,
             )
 
-    def _on_quick_situacao_toggled(self, status: str, checked: bool) -> None:
-        _ = (status, checked)
+    def _on_quick_situacao_clicked(self, status: str, checked: bool = False) -> None:
+        _ = checked
         buttons = getattr(self, "quick_situacao_buttons", {}) or {}
         values = list(getattr(self, "quick_situacao_values", []) or [])
         if not buttons or not values:
             return
-        selected_values = [
-            value
-            for value in values
-            if bool(getattr(buttons.get(value), "isChecked", lambda: False)())
-        ]
+        states = self._resolve_quick_situacao_states(values)
+        selected_values = []
+        for value in values:
+            state = int(states.get(value, 0))
+            if value == status:
+                state = (state + 1) % 3
+            if state == 1:
+                selected_values.append(value)
+            elif state == 2:
+                selected_values.append(f"!{value}")
         self._safe_store_last_filter_state("quick_situacao_changed")
         active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
         if selected_values:

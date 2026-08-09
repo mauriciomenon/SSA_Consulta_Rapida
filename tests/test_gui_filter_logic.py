@@ -2199,6 +2199,11 @@ class TestGUIFilterLogic:
         self, monkeypatch
     ):
         self.window._active_column_filters["situacao"] = ""
+        self.window._current_theme_roles = {
+            **self.window._current_theme_roles,
+            "accent": "#123456",
+            "input_border_focus": "#abcdef",
+        }
         self.window._build_column_filters_panel()
         self.window._refresh_quick_situacao_buttons()
         buttons = getattr(self.window, "quick_situacao_buttons", None)
@@ -2221,23 +2226,131 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(self.window, "_build_column_filters_panel", _count_rebuild)
         monkeypatch.setattr(self.window, "_refresh_after_filter_change", _count_refresh)
 
-        buttons["APV"].setChecked(True)
+        cast(Any, QTest).mouseClick(buttons["APV"], Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         assert self.window._active_column_filters.get("situacao") == "APV"
         assert rebuild_calls == 0
         assert refresh_calls == 1
-        assert "qlineargradient" in str(buttons["APV"].styleSheet() or "")
-        assert "font-weight:800" in str(buttons["APV"].styleSheet() or "")
+        assert buttons["APV"].property("quick_situacao_state") == 1
+        assert "qlineargradient" not in str(buttons["APV"].styleSheet() or "")
+        assert "font-weight:500" in str(buttons["APV"].styleSheet() or "")
+        assert "padding:0px 2px" in str(buttons["APV"].styleSheet() or "")
+        assert "border:1px solid #abcdef" in str(
+            buttons["APV"].styleSheet() or ""
+        )
 
-        buttons["STE"].setChecked(True)
+        cast(Any, QTest).mouseClick(buttons["STE"], Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         assert self.window._active_column_filters.get("situacao") == "APV, STE"
         assert rebuild_calls == 0
         assert refresh_calls == 2
-        assert "qlineargradient" in str(buttons["STE"].styleSheet() or "")
-        assert "stop:0" in str(buttons["STE"].styleSheet() or "")
-        assert "font-weight:800" in str(buttons["STE"].styleSheet() or "")
+        assert buttons["STE"].property("quick_situacao_state") == 1
+        assert "qlineargradient" not in str(buttons["STE"].styleSheet() or "")
+        assert "font-weight:500" in str(buttons["STE"].styleSheet() or "")
         assert "qlineargradient" not in str(buttons["AMP"].styleSheet() or "")
+
+        cast(Any, QTest).mouseClick(buttons["STE"], Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        assert self.window._active_column_filters.get("situacao") == "APV, !STE"
+        assert self.window._column_filter_inputs["situacao"].text() == "APV, !STE"
+        assert buttons["APV"].property("quick_situacao_state") == 1
+        assert buttons["STE"].property("quick_situacao_state") == 2
+        assert buttons["APV"].styleSheet() != buttons["STE"].styleSheet()
+        assert rebuild_calls == 0
+        assert refresh_calls == 3
+
+    def test_quick_situacao_click_cycles_include_exclude_and_clear(self):
+        self.window._active_column_filters.pop("situacao", None)
+        self.window._advanced_filters = {}
+        self.window._advanced_filters_active = False
+        self.window._refresh_quick_situacao_buttons()
+        ste_button = self.window.quick_situacao_buttons["STE"]
+        assert self.window.quick_situacao_box.toolTip() == (
+            "Clique para incluir; clique novamente para excluir; terceiro clique remove."
+        )
+
+        cast(Any, QTest).mouseClick(ste_button, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        assert self.window._active_column_filters.get("situacao") == "STE"
+        assert ste_button.property("quick_situacao_state") == 1
+        assert ste_button.toolTip() == "Incluindo STE - clicar exclui"
+
+        cast(Any, QTest).mouseClick(ste_button, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        assert self.window._active_column_filters.get("situacao") == "!STE"
+        assert ste_button.property("quick_situacao_state") == 2
+        assert ste_button.toolTip() == "Excluindo STE - clicar remove"
+
+        cast(Any, QTest).mouseClick(ste_button, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        assert "situacao" not in self.window._active_column_filters
+        assert ste_button.property("quick_situacao_state") == 0
+        assert ste_button.toolTip() == "Filtrar situacao STE"
+
+    def test_quick_situacao_click_resolves_filters_when_visual_state_is_stale(self):
+        self.window._active_column_filters["situacao"] = "APV, !STE"
+        self.window._advanced_filters = {}
+        self.window._advanced_filters_active = False
+        self.window._refresh_quick_situacao_buttons()
+        buttons = self.window.quick_situacao_buttons
+        buttons["APV"].setProperty("quick_situacao_state", 0)
+        buttons["STE"].setProperty("quick_situacao_state", 0)
+
+        cast(Any, QTest).mouseClick(buttons["SCA"], Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters.get("situacao") == (
+            "APV, SCA, !STE"
+        )
+        assert buttons["APV"].property("quick_situacao_state") == 1
+        assert buttons["SCA"].property("quick_situacao_state") == 1
+        assert buttons["STE"].property("quick_situacao_state") == 2
+        assert set(self.window.df_exibido["situacao"].astype(str)) == {"APV", "SCA"}
+
+    def test_quick_situacao_undo_restores_previous_cycle_state(self):
+        self.window._active_column_filters.pop("situacao", None)
+        self.window._advanced_filters = {}
+        self.window._advanced_filters_active = False
+        self.window._refresh_quick_situacao_buttons()
+        ste_button = self.window.quick_situacao_buttons["STE"]
+
+        cast(Any, QTest).mouseClick(ste_button, Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(ste_button, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        assert self.window._active_column_filters.get("situacao") == "!STE"
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters.get("situacao") == "STE"
+        assert ste_button.property("quick_situacao_state") == 1
+
+    def test_quick_situacao_undo_survives_visual_sync_failure(self, monkeypatch):
+        self.window._active_column_filters.pop("situacao", None)
+        self.window._advanced_filters = {}
+        self.window._advanced_filters_active = False
+        self.window._refresh_quick_situacao_buttons()
+        ste_button = self.window.quick_situacao_buttons["STE"]
+        cast(Any, QTest).mouseClick(ste_button, Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(ste_button, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        sync_calls: list[int] = []
+
+        def _fail_visual_sync():
+            sync_calls.append(1)
+            raise RuntimeError("quick situacao visual sync failed")
+
+        monkeypatch.setattr(
+            self.window, "_refresh_quick_situacao_buttons", _fail_visual_sync
+        )
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters.get("situacao") == "STE"
+        assert self.window._restoring_filter_state is False
+        assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
+        assert sync_calls
 
     def test_advanced_situacao_selection_marks_quick_button(self):
         self.window._active_column_filters["situacao"] = ""
@@ -2247,10 +2360,10 @@ class TestGUIFilterLogic:
         self.window._refresh_quick_situacao_buttons()
 
         buttons = getattr(self.window, "quick_situacao_buttons", {})
-        assert buttons["STE"].isChecked() is True
-        assert buttons["APV"].isChecked() is False
+        assert buttons["STE"].property("quick_situacao_state") == 1
+        assert buttons["APV"].property("quick_situacao_state") == 0
 
-    def test_advanced_situacao_exclude_does_not_mark_positive_quick_button(self):
+    def test_advanced_situacao_include_and_exclude_map_to_quick_states(self):
         self.window._active_column_filters["situacao"] = ""
         self.window._advanced_filters = {
             "situacao": ["STE"],
@@ -2261,8 +2374,8 @@ class TestGUIFilterLogic:
         self.window._refresh_quick_situacao_buttons()
 
         buttons = getattr(self.window, "quick_situacao_buttons", {})
-        assert buttons["STE"].isChecked() is False
-        assert buttons["APV"].isChecked() is False
+        assert buttons["STE"].property("quick_situacao_state") == 1
+        assert buttons["APV"].property("quick_situacao_state") == 2
 
     def test_advanced_situacao_positive_applies_and_marks_quick_button(self):
         self._set_filter_panel_tab("filters")
@@ -2282,10 +2395,10 @@ class TestGUIFilterLogic:
 
         assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
         buttons = getattr(self.window, "quick_situacao_buttons", {})
-        assert buttons["STE"].isChecked() is True
+        assert buttons["STE"].property("quick_situacao_state") == 1
         assert str(self.window._active_column_filters.get("situacao") or "") == ""
 
-    def test_advanced_situacao_exclude_applies_without_positive_quick_mark(self):
+    def test_advanced_situacao_exclude_applies_and_marks_quick_exclusion(self):
         self._set_filter_panel_tab("filters")
         self.window._refresh_advanced_filter_options()
         self._wait_until_adv_options_idle()
@@ -2303,9 +2416,9 @@ class TestGUIFilterLogic:
 
         assert "STE" not in set(self.window.df_exibido["situacao"].astype(str))
         buttons = getattr(self.window, "quick_situacao_buttons", {})
-        assert all(not button.isChecked() for button in buttons.values())
+        assert buttons["STE"].property("quick_situacao_state") == 2
 
-    def test_quick_situacao_click_clears_advanced_exclude_and_applies_filter(self):
+    def test_quick_situacao_click_removes_advanced_exclusion(self):
         self.window._advanced_filters = {"situacao_exclude_values": ["STE"]}
         self.window._advanced_filters_active = True
         self.window._active_column_filters["situacao"] = ""
@@ -2317,9 +2430,9 @@ class TestGUIFilterLogic:
 
         assert self.window._advanced_filters == {}
         assert self.window._advanced_filters_active is False
-        assert self.window._active_column_filters.get("situacao") == "STE"
-        assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
-        assert buttons["STE"].isChecked() is True
+        assert "situacao" not in self.window._active_column_filters
+        assert len(self.window.df_exibido) == len(self.base_df)
+        assert buttons["STE"].property("quick_situacao_state") == 0
 
     def test_search_exclusion_and_quick_situacao_keep_result_and_visual_sync(self):
         scenario_df = self.base_df.copy()
@@ -2341,7 +2454,7 @@ class TestGUIFilterLogic:
 
         assert self.window.search_input.text() == "!G097"
         assert self.window._active_column_filters.get("situacao") == "STE"
-        assert buttons["STE"].isChecked() is True
+        assert buttons["STE"].property("quick_situacao_state") == 1
         assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
         assert not self.window.df_exibido["localizacao_codigo"].astype(str).str.contains(
             "G097", case=False
@@ -5769,7 +5882,7 @@ class TestGUIFilterLogic:
         buttons = getattr(self.window, "quick_situacao_buttons", {})
         assert self.window.search_input.text() == "!G097"
         assert self.window._active_column_filters.get("situacao") == "STE"
-        assert buttons["STE"].isChecked() is True
+        assert buttons["STE"].property("quick_situacao_state") == 1
         assert set(self.window.df_exibido["situacao"].astype(str)) == {"STE"}
         assert not self.window.df_exibido["localizacao_codigo"].astype(str).str.contains(
             "G097", case=False
@@ -11885,14 +11998,14 @@ class TestGUIFilterLogic:
         apv_button.click()
         QApplication.processEvents()
 
-        assert apv_button.isChecked() is True
+        assert apv_button.property("quick_situacao_state") == 1
         assert str(self.window._active_column_filters.get("situacao") or "") == "APV"
 
         self.window._clear_all_filters_global()
         QApplication.processEvents()
 
         assert all(
-            not button.isChecked()
+            button.property("quick_situacao_state") == 0
             for button in self.window.quick_situacao_buttons.values()
         )
         assert not str(self.window._active_column_filters.get("situacao") or "")

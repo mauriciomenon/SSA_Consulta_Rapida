@@ -300,6 +300,11 @@ def restore_filter_advanced_state(window: Any, state: dict) -> None:
     window._advanced_filters_active = bool(state.get("advanced_filters_active"))
     try:
         window._sync_advanced_filter_ui()
+        refresh_quick_situacao = getattr(
+            window, "_refresh_quick_situacao_buttons", None
+        )
+        if callable(refresh_quick_situacao):
+            refresh_quick_situacao()
     except Exception as exc:
         logger.warning(
             "Falha ao sincronizar UI de filtros avancados no restore: %s", exc
