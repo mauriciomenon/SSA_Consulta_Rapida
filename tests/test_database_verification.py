@@ -7,13 +7,15 @@ Testes para as novas funcionalidades de verificação e integridade do banco de 
 import os
 import sqlite3
 import logging
+import threading
+import time
+from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
 import armazenamento.database_integrity as database_integrity_module
-import armazenamento.database_upsert_logic as database_upsert_logic
 import armazenamento.database_validation as database_validation
 from armazenamento.database import (
     ensure_column_exists,
@@ -23,9 +25,52 @@ from armazenamento.database import (
     validate_dataframe_before_insert,
     verify_database_integrity,
 )
+from armazenamento.database_optimized import insert_dataframe_optimized
+from armazenamento.database_lock import database_writer_lock
+from shared.db_names import SSA_READ_REQUIRED_COLUMNS
 from utils.db_maintenance import DatabaseAnalyzer, DatabaseMigrator
 
 TOTAL_VALID_ROWS = 2  # Constante para evitar magic numbers
+
+
+def _runtime_schema_sql(
+    table_name: str = "ssa_table",
+    *,
+    missing: frozenset[str] = frozenset(),
+    legacy_status: bool = False,
+    optional_columns: bool = True,
+) -> str:
+    columns: list[str] = []
+    for column in SSA_READ_REQUIRED_COLUMNS:
+        if column in missing:
+            continue
+        name = "status" if legacy_status and column == "situacao" else column
+        if name == "id":
+            definition = "INTEGER PRIMARY KEY AUTOINCREMENT"
+        elif name in {
+            "semana_cadastro",
+            "semana_programada",
+            "semana_executada",
+            "num_reprogramacoes",
+        }:
+            definition = "INTEGER"
+        else:
+            definition = "TEXT"
+        columns.append(f'"{name}" {definition}')
+    if optional_columns:
+        columns.extend(('"arquivo_origem" TEXT', '"data_planilha" TEXT'))
+    return f'CREATE TABLE "{table_name}" ({", ".join(columns)});'
+
+
+def _write_runtime_schema(
+    schema_path: str,
+    table_name: str = "ssa_table",
+    **kwargs,
+) -> None:
+    Path(schema_path).write_text(
+        _runtime_schema_sql(table_name, **kwargs),
+        encoding="utf-8",
+    )
 
 
 class TestDatabaseVerification:  # noqa: D101
@@ -76,16 +121,7 @@ class TestDatabaseVerification:  # noqa: D101
         db_path = os.path.join(tmp_path, "test.db")
         schema_path = os.path.join(tmp_path, "schema.sql")
 
-        # Criar schema mínimo
-        with open(schema_path, "w") as f:
-            f.write("""
-            CREATE TABLE IF NOT EXISTS ssas (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            );
-            """)
+        _write_runtime_schema(schema_path, "ssas")
 
         # Inicializar banco
         initialize_database(db_path, schema_path)
@@ -102,19 +138,8 @@ class TestDatabaseVerification:  # noqa: D101
     def test_verify_alias_table_resolves_to_canonical_table(self, tmp_path):
         """Alias legado deve resolver para a tabela canonica quando ela existe."""
         db_path = os.path.join(tmp_path, "canonical_alias.db")
-        conn = sqlite3.connect(db_path)
-        conn.execute(
-            """
-            CREATE TABLE ssa_table (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            )
-            """
-        )
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql())
 
         report = verify_database_integrity(db_path, table_name="ssas")
 
@@ -125,20 +150,9 @@ class TestDatabaseVerification:  # noqa: D101
     def test_verify_prefers_table_over_view_when_both_exist(self, tmp_path):
         """Quando alias existe como view e tabela canonica existe, deve priorizar tabela."""
         db_path = os.path.join(tmp_path, "prefer_table_over_view.db")
-        conn = sqlite3.connect(db_path)
-        conn.execute(
-            """
-            CREATE TABLE ssa_table (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            )
-            """
-        )
-        conn.execute("CREATE VIEW ssas AS SELECT * FROM ssa_table")
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql())
+            conn.execute("CREATE VIEW ssas AS SELECT * FROM ssa_table")
 
         report = verify_database_integrity(db_path, table_name="ssas")
 
@@ -146,8 +160,8 @@ class TestDatabaseVerification:  # noqa: D101
         assert report["table_name"] == "ssa_table"
         assert report["table_exists"] is True
 
-    def test_verify_view_only_alias_is_accepted(self, tmp_path):
-        """Quando so existe uma view compativel, o report nao deve falhar por falso negativo."""
+    def test_verify_view_only_alias_is_rejected_for_runtime_storage(self, tmp_path):
+        """A view sem tabela SSA fisica nao pode passar o contrato de escrita."""
         db_path = os.path.join(tmp_path, "view_only_alias.db")
         conn = sqlite3.connect(db_path)
         conn.execute(
@@ -178,9 +192,139 @@ class TestDatabaseVerification:  # noqa: D101
 
         report = verify_database_integrity(db_path, table_name="ssas")
 
+        assert report["is_valid"] is False
+        assert report["table_name"] == "ssas"
+        assert report["table_exists"] is False
+        assert any("view sem tabela fisica" in issue for issue in report["issues"])
+
+    def test_verify_rejects_two_physical_ssa_tables(self, tmp_path):
+        db_path = os.path.join(tmp_path, "ambiguous.db")
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql("ssa_table"))
+            conn.execute(_runtime_schema_sql("ssas"))
+
+        report = verify_database_integrity(db_path, table_name="ssas")
+
+        assert report["is_valid"] is False
+        assert any("Ambiguous SSA storage tables" in issue for issue in report["issues"])
+
+    def test_verify_and_repair_canonical_request_accept_legacy_only_storage(
+        self, tmp_path
+    ):
+        db_path = os.path.join(tmp_path, "legacy_only.db")
+        schema_path = os.path.join(tmp_path, "schema.sql")
+        _write_runtime_schema(schema_path)
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql("ssas"))
+
+        report = verify_database_integrity(db_path, table_name="ssa_table")
+
         assert report["is_valid"] is True
         assert report["table_name"] == "ssas"
-        assert report["table_exists"] is True
+        assert repair_database_if_needed(db_path, schema_path) is True
+        with closing(sqlite3.connect(db_path)) as conn:
+            physical_tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+        assert "ssas" in physical_tables
+        assert "ssa_table" not in physical_tables
+
+    def test_verify_resolves_uppercase_canonical_table(self, tmp_path):
+        db_path = os.path.join(tmp_path, "uppercase.db")
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql("SSA_TABLE"))
+
+        report = verify_database_integrity(db_path, table_name="ssas")
+
+        assert report["is_valid"] is True
+        assert report["table_name"] == "SSA_TABLE"
+
+    @pytest.mark.parametrize(
+        ("numero_ssa", "situacao", "data_cadastro", "issue_key"),
+        [
+            ("BAD-ID", "STE", "2026-01-02 03:04:05", "invalid_numero_ssa"),
+            ("202600001", "ZZZ", "2026-01-02 03:04:05", "unknown_situacao"),
+            ("202600001", "STE", "not-a-date", "invalid_data_cadastro"),
+        ],
+    )
+    def test_verify_rejects_malformed_operational_data(
+        self,
+        tmp_path,
+        numero_ssa,
+        situacao,
+        data_cadastro,
+        issue_key,
+    ):
+        db_path = os.path.join(tmp_path, f"invalid_{issue_key}.db")
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql())
+            conn.execute(
+                "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                "VALUES (?, ?, ?)",
+                (numero_ssa, situacao, data_cadastro),
+            )
+
+        report = verify_database_integrity(db_path)
+
+        assert report["is_valid"] is False
+        assert report["data_consistent"] is False
+        assert report["invalid_data"][issue_key]
+
+    def test_verify_rejects_duplicate_canonical_ssa(self, tmp_path):
+        db_path = os.path.join(tmp_path, "duplicate.db")
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql())
+            conn.executemany(
+                "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                "VALUES (?, 'STE', '2026-01-02 03:04:05')",
+                [("202600001",), ("202600001",)],
+            )
+
+        report = verify_database_integrity(db_path)
+
+        assert report["is_valid"] is False
+        assert report["invalid_data"]["duplicate_numero_ssa"] == 1
+
+    def test_verify_accepts_incomplete_rows_persisted_by_import_contract(self, tmp_path):
+        db_path = os.path.join(tmp_path, "incomplete_import_row.db")
+        schema_path = os.path.join(tmp_path, "schema.sql")
+        _write_runtime_schema(schema_path)
+        initialize_database(db_path, schema_path)
+        frame = pd.DataFrame(
+            {
+                "numero_ssa": [None],
+                "situacao": [None],
+                "data_cadastro": ["2026-01-02 03:04:05"],
+                "descricao_ssa": ["linha incompleta tolerada"],
+            }
+        )
+        assert insert_dataframe_optimized(frame, db_path, "ssa_table") is True
+
+        report = verify_database_integrity(db_path)
+
+        assert report["is_valid"] is True
+        assert report["invalid_data"]["missing_numero_ssa"] == 1
+        assert report["invalid_data"]["missing_situacao"] == 1
+        assert report["invalid_data"]["invalid_numero_ssa"] == 0
+        assert report["invalid_data"]["unknown_situacao"] == []
+
+    def test_verify_null_status_does_not_hide_missing_required_date(self, tmp_path):
+        db_path = os.path.join(tmp_path, "null_status_and_date.db")
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql())
+            conn.execute(
+                "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                "VALUES ('202600001', NULL, NULL)"
+            )
+
+        report = verify_database_integrity(db_path)
+
+        assert report["is_valid"] is False
+        assert report["invalid_data"]["missing_situacao"] == 1
+        assert report["invalid_data"]["invalid_data_cadastro"] == 1
 
     def test_verify_corrupted_database(self, tmp_path):
         """Testa verificação de banco corrompido."""
@@ -1160,16 +1304,7 @@ class TestDatabaseRepair:
         db_path = os.path.join(tmp_path, "new.db")
         schema_path = os.path.join(tmp_path, "schema.sql")
 
-        # Criar schema
-        with open(schema_path, "w") as f:
-            f.write("""
-            CREATE TABLE IF NOT EXISTS ssas (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            );
-            """)
+        _write_runtime_schema(schema_path, "ssas")
 
         result = repair_database_if_needed(db_path, schema_path, table_name="ssas")
 
@@ -1186,15 +1321,7 @@ class TestDatabaseRepair:
         db_path = os.path.join(tmp_path, "empty_repair.db")
         schema_path = os.path.join(tmp_path, "schema.sql")
 
-        with open(schema_path, "w") as f:
-            f.write("""
-            CREATE TABLE IF NOT EXISTS ssas (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            );
-            """)
+        _write_runtime_schema(schema_path, "ssas")
 
         Path(db_path).touch()
         assert os.path.getsize(db_path) == 0
@@ -1211,15 +1338,10 @@ class TestDatabaseRepair:
         db_path = os.path.join(tmp_path, "repair_missing_column.db")
         schema_path = os.path.join(tmp_path, "schema.sql")
 
-        with open(schema_path, "w") as f:
-            f.write("""
-            CREATE TABLE IF NOT EXISTS ssa_table (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            );
-            """)
+        _write_runtime_schema(
+            schema_path,
+            optional_columns=False,
+        )
 
         initialize_database(db_path, schema_path)
 
@@ -1237,14 +1359,10 @@ class TestDatabaseRepair:
         db_path = os.path.join(tmp_path, "missing_required_report.db")
         with sqlite3.connect(db_path) as conn:
             conn.execute(
-                """
-                CREATE TABLE ssa_table (
-                    numero_ssa INTEGER,
-                    descricao_ssa TEXT
+                _runtime_schema_sql(
+                    missing=frozenset({"situacao", "data_cadastro"})
                 )
-                """
             )
-            conn.commit()
 
         report = verify_database_integrity(db_path, table_name="ssa_table")
 
@@ -1255,92 +1373,55 @@ class TestDatabaseRepair:
         ]
         assert report["repair_suggestion"] is not None
 
-    def test_repair_adds_missing_required_columns_when_table_exists(self, tmp_path):
-        """Reparo minimo deve adicionar colunas obrigatorias ausentes quando a tabela ja existe."""
+    def test_repair_refuses_required_column_without_safe_mapping(self, tmp_path):
+        """Reparo nao deve criar coluna obrigatoria vazia e declarar sucesso."""
         db_path = os.path.join(tmp_path, "repair_missing_required.db")
+        schema_path = os.path.join(tmp_path, "schema.sql")
         with sqlite3.connect(db_path) as conn:
             conn.execute(
-                """
-                CREATE TABLE ssa_table (
-                    numero_ssa INTEGER,
-                    descricao_ssa TEXT
-                )
-                """
+                _runtime_schema_sql(missing=frozenset({"data_cadastro"}))
             )
-            conn.commit()
+        _write_runtime_schema(schema_path)
 
+        result = repair_database_if_needed(db_path, schema_path, table_name="ssa_table")
+
+        assert result is False
+        with sqlite3.connect(db_path) as conn:
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(ssa_table)")}
+        assert "data_cadastro" not in columns
+
+    def test_repair_renames_legacy_status_without_losing_value(self, tmp_path):
+        """A unica migracao automatica obrigatoria preserva o valor funcional."""
+        db_path = os.path.join(tmp_path, "repair_legacy_status.db")
         schema_path = os.path.join(tmp_path, "schema.sql")
-        with open(schema_path, "w") as f:
-            f.write(
-                """
-                CREATE TABLE IF NOT EXISTS ssa_table (
-                    numero_ssa INTEGER,
-                    situacao TEXT,
-                    data_cadastro TEXT,
-                    descricao_ssa TEXT
-                );
-                """
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                _runtime_schema_sql(legacy_status=True, optional_columns=False)
             )
+            conn.execute(
+                "INSERT INTO ssa_table (numero_ssa, status, data_cadastro) "
+                "VALUES ('202600001', 'STE', '2026-01-02 03:04:05')"
+            )
+        _write_runtime_schema(schema_path)
 
         result = repair_database_if_needed(db_path, schema_path, table_name="ssa_table")
 
         assert result is True
-        columns = query_db(db_path, "ssa_table").columns.tolist()
-        assert "situacao" in columns
-        assert "data_cadastro" in columns
-
-    def test_repair_adds_required_and_optional_columns_in_single_pass(self, tmp_path):
-        """Reparo unico deve resolver faltas obrigatorias e opcionais no mesmo ciclo."""
-        db_path = os.path.join(tmp_path, "repair_missing_required_and_optional.db")
         with sqlite3.connect(db_path) as conn:
-            conn.execute(
-                """
-                CREATE TABLE ssa_table (
-                    numero_ssa INTEGER,
-                    descricao_ssa TEXT
-                )
-                """
-            )
-            conn.commit()
-
-        schema_path = os.path.join(tmp_path, "schema.sql")
-        with open(schema_path, "w") as f:
-            f.write(
-                """
-                CREATE TABLE IF NOT EXISTS ssa_table (
-                    numero_ssa INTEGER,
-                    situacao TEXT,
-                    data_cadastro TEXT,
-                    descricao_ssa TEXT
-                );
-                """
-            )
-
-        result = repair_database_if_needed(db_path, schema_path, table_name="ssa_table")
-
-        assert result is True
-        columns = query_db(db_path, "ssa_table").columns.tolist()
-        assert "situacao" in columns
-        assert "data_cadastro" in columns
-        assert "arquivo_origem" in columns
-        assert "data_planilha" in columns
-        report = verify_database_integrity(db_path, table_name="ssa_table")
-        assert report["missing_optional_columns"] == []
+            row = conn.execute(
+                "SELECT situacao FROM ssa_table WHERE numero_ssa='202600001'"
+            ).fetchone()
+            columns = {item[1] for item in conn.execute("PRAGMA table_info(ssa_table)")}
+        assert row == ("STE",)
+        assert "status" not in columns
+        assert {"situacao", "arquivo_origem", "data_planilha"} <= columns
 
     def test_repair_nonexistent_database_avoids_false_warning(self, tmp_path, caplog):
         """Banco ausente em bootstrap nao deve logar warning generico de problema."""
         db_path = os.path.join(tmp_path, "new_bootstrap.db")
         schema_path = os.path.join(tmp_path, "schema.sql")
 
-        with open(schema_path, "w") as f:
-            f.write("""
-            CREATE TABLE IF NOT EXISTS ssas (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            );
-            """)
+        _write_runtime_schema(schema_path, "ssas")
 
         caplog.set_level("INFO")
         result = repair_database_if_needed(db_path, schema_path, table_name="ssas")
@@ -1355,15 +1436,7 @@ class TestDatabaseRepair:
         schema_path = os.path.join(tmp_path, "schema.sql")
 
         # Criar schema e banco válido (com colunas obrigatórias)
-        with open(schema_path, "w") as f:
-            f.write("""
-            CREATE TABLE IF NOT EXISTS ssas (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            );
-            """)
+        _write_runtime_schema(schema_path, "ssas")
 
         initialize_database(db_path, schema_path)
 
@@ -1372,224 +1445,298 @@ class TestDatabaseRepair:
 
         assert result is True
 
-    def test_repair_failed_restore_preserves_original_database(
-        self, tmp_path, monkeypatch
-    ):
-        """Falha no restore nao deve apagar o banco original antes da substituicao segura."""
-        db_path = os.path.join(tmp_path, "restore_preserves_original.db")
-        schema_path = os.path.join(tmp_path, "schema.sql")
+    def test_corrupt_database_without_snapshot_is_left_untouched(self, tmp_path):
+        db_path = Path(tmp_path) / "corrupt_without_snapshot.db"
+        schema_path = Path(tmp_path) / "schema.sql"
+        db_path.write_bytes(b"not a sqlite database")
+        original = db_path.read_bytes()
+        _write_runtime_schema(str(schema_path))
 
-        with open(schema_path, "w") as f:
-            f.write("""
-            CREATE TABLE IF NOT EXISTS ssa_table (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            );
-            """)
+        result = repair_database_if_needed(
+            str(db_path), str(schema_path), table_name="ssa_table"
+        )
 
-        initialize_database(db_path, schema_path)
-        with sqlite3.connect(db_path) as conn:
+        assert result is False
+        assert db_path.read_bytes() == original
+
+    def test_snapshot_includes_active_wal_and_auxiliary_objects(self, tmp_path):
+        db_path = Path(tmp_path) / "active_wal.db"
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        initialize_database(str(db_path), str(schema_path))
+
+        with sqlite3.connect(db_path) as writer:
+            writer.execute("PRAGMA journal_mode=WAL")
+            writer.execute("PRAGMA wal_autocheckpoint=0")
+            writer.execute("CREATE TABLE aux_history (value TEXT)")
+            writer.execute("INSERT INTO aux_history VALUES ('preserved')")
+            writer.execute(
+                "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                "VALUES ('202600010', 'STE', '2026-01-02 03:04:05')"
+            )
+            writer.commit()
+            assert Path(f"{db_path}-wal").exists()
+
+            snapshot = database_integrity_module._create_integrity_snapshot(
+                str(db_path), force=True
+            )
+
+        assert snapshot is not None
+        with sqlite3.connect(snapshot) as conn:
+            assert conn.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+            assert conn.execute("SELECT value FROM aux_history").fetchone() == (
+                "preserved",
+            )
+            assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (1,)
+
+    def test_corrupt_database_restores_complete_valid_snapshot(self, tmp_path):
+        db_path = Path(tmp_path) / "restore_complete.db"
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        initialize_database(str(db_path), str(schema_path))
+        with closing(sqlite3.connect(db_path)) as conn:
+            conn.execute("CREATE TABLE aux_history (value TEXT)")
+            conn.execute("CREATE TABLE aux_audit (value TEXT)")
+            conn.execute("CREATE INDEX aux_history_value ON aux_history(value)")
             conn.execute(
-                """
-                INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro, descricao_ssa)
-                VALUES (?, ?, ?, ?)
-                """,
-                (202312345, "STE", "2023-12-01 10:00:00", "Original"),
+                "CREATE TRIGGER aux_history_audit AFTER INSERT ON aux_history "
+                "BEGIN INSERT INTO aux_audit VALUES (NEW.value); END"
+            )
+            conn.execute("CREATE VIEW aux_history_view AS SELECT value FROM aux_history")
+            conn.execute("INSERT INTO aux_history VALUES ('kept')")
+            conn.execute(
+                "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                "VALUES ('202600011', 'STE', '2026-01-02 03:04:05')"
             )
             conn.commit()
 
-        monkeypatch.setattr(
-            database_integrity_module,
-            "verify_database_integrity",
-            lambda *_args, **_kwargs: {
-                "is_valid": False,
-                "issues": ["forced corruption"],
-                "warnings": [],
-                "database_exists": True,
-                "database_accessible": True,
-                "table_exists": True,
-                "schema_valid": True,
-                "data_consistent": False,
-                "disk_space_sufficient": True,
-                "file_permissions_ok": True,
-                "needs_creation": False,
-                "missing_optional_columns": [],
-                "table_name": "ssa_table",
-            },
+        snapshot = database_integrity_module._create_integrity_snapshot(
+            str(db_path), force=True
         )
-        monkeypatch.setattr(
-            database_upsert_logic,
-            "insert_dataframe_with_smart_upsert_impl",
-            lambda *_args, **_kwargs: False,
+        assert snapshot is not None
+        db_path.write_bytes(b"corrupted after snapshot")
+
+        result = repair_database_if_needed(
+            str(db_path), str(schema_path), table_name="ssa_table"
         )
 
-        result = repair_database_if_needed(db_path, schema_path, table_name="ssa_table")
-
-        assert result is False
+        assert result is True
         with sqlite3.connect(db_path) as conn:
-            row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
-        assert row_count == 1
-
-    def test_repair_restores_backup_when_final_validation_fails(
-        self, tmp_path, monkeypatch
-    ):
-        db_path = os.path.join(tmp_path, "restore_after_final_failure.db")
-        schema_path = os.path.join(tmp_path, "schema.sql")
-
-        with open(schema_path, "w") as f:
-            f.write("""
-            CREATE TABLE IF NOT EXISTS ssa_table (
-                numero_ssa INTEGER,
-                situacao TEXT,
-                data_cadastro TEXT,
-                descricao_ssa TEXT
-            );
-            """)
-
-        initialize_database(db_path, schema_path)
-        with sqlite3.connect(db_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro, descricao_ssa)
-                VALUES (?, ?, ?, ?)
-                """,
-                (202312347, "STE", "2023-12-03 10:00:00", "Original final"),
+            assert conn.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+            assert conn.execute("SELECT value FROM aux_history").fetchone() == ("kept",)
+            assert conn.execute("SELECT value FROM aux_audit").fetchone() == ("kept",)
+            assert conn.execute("SELECT value FROM aux_history_view").fetchone() == (
+                "kept",
             )
-            conn.commit()
+            assert conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' "
+                "AND name='aux_history_value'"
+            ).fetchone() == ("aux_history_value",)
+            assert conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='trigger' "
+                "AND name='aux_history_audit'"
+            ).fetchone() == ("aux_history_audit",)
+            assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (1,)
 
-        calls = {"db_path": 0}
+    @pytest.mark.parametrize("failure_point", ["sidecar", "primary_replace"])
+    def test_restore_failure_never_leaves_primary_path_absent(
+        self, tmp_path, monkeypatch, failure_point
+    ):
+        db_path = Path(tmp_path) / f"restore_failure_{failure_point}.db"
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        initialize_database(str(db_path), str(schema_path))
+        snapshot = database_integrity_module._create_integrity_snapshot(
+            str(db_path), force=True
+        )
+        assert snapshot is not None
+        original = b"corrupt-primary-must-remain"
+        db_path.write_bytes(original)
+        wal_path = Path(f"{db_path}-wal")
+        shm_path = Path(f"{db_path}-shm")
+        wal_path.write_bytes(b"wal-bundle")
+        shm_path.write_bytes(b"shm-bundle")
+        real_replace = database_integrity_module._replace_file_with_retry
 
-        def _fake_verify(path, table_name="ssa_table"):
-            if path == db_path:
-                calls["db_path"] += 1
-                return {
-                    "is_valid": False,
-                    "issues": ["forced final validation failure"],
-                    "warnings": [],
-                    "database_exists": True,
-                    "database_accessible": True,
-                    "table_exists": True,
-                    "schema_valid": True,
-                    "data_consistent": False,
-                    "disk_space_sufficient": True,
-                    "file_permissions_ok": True,
-                    "needs_creation": False,
-                    "missing_optional_columns": [],
-                    "table_name": table_name,
-                }
-            return {
-                "is_valid": True,
-                "issues": [],
-                "warnings": [],
-                "database_exists": True,
-                "database_accessible": True,
-                "table_exists": True,
-                "schema_valid": True,
-                "data_consistent": True,
-                "disk_space_sufficient": True,
-                "file_permissions_ok": True,
-                "needs_creation": False,
-                "missing_optional_columns": [],
-                "table_name": table_name,
-            }
+        def _inject_failure(source, target):
+            source_path = Path(source)
+            target_path = Path(target)
+            if failure_point == "sidecar" and source_path == shm_path:
+                raise OSError("forced sidecar move failure")
+            if (
+                failure_point == "primary_replace"
+                and target_path == db_path.resolve()
+                and source_path.suffix == ".tmp"
+            ):
+                raise OSError("forced primary replace failure")
+            real_replace(source, target)
 
         monkeypatch.setattr(
             database_integrity_module,
-            "verify_database_integrity",
-            _fake_verify,
-        )
-        monkeypatch.setattr(
-            database_upsert_logic,
-            "insert_dataframe_with_smart_upsert_impl",
-            lambda *_args, **_kwargs: True,
+            "_replace_file_with_retry",
+            _inject_failure,
         )
 
-        result = repair_database_if_needed(db_path, schema_path, table_name="ssa_table")
+        restored = database_integrity_module._restore_latest_valid_snapshot(
+            str(db_path), "ssa_table"
+        )
 
-        assert result is False
-        with sqlite3.connect(db_path) as conn:
-            row = conn.execute(
-                "SELECT descricao_ssa FROM ssa_table WHERE numero_ssa = ?",
-                (202312347,),
+        assert restored is False
+        assert db_path.read_bytes() == original
+        assert wal_path.read_bytes() == b"wal-bundle"
+        assert shm_path.read_bytes() == b"shm-bundle"
+
+    def test_integrity_snapshot_retention_is_bounded(self, tmp_path):
+        db_path = Path(tmp_path) / "bounded.db"
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        initialize_database(str(db_path), str(schema_path))
+
+        for _ in range(4):
+            assert database_integrity_module._create_integrity_snapshot(
+                str(db_path), force=True
+            )
+
+        assert len(database_integrity_module._snapshot_paths(str(db_path))) == 2
+
+    @pytest.mark.parametrize(
+        ("first_name", "second_name"),
+        [
+            ("same.db", "same.sqlite"),
+            ("same[1].db", "same1.db"),
+            ("same.db", "same.db.integrity_shadow"),
+        ],
+    )
+    def test_snapshot_namespace_uses_literal_complete_database_filename(
+        self, tmp_path, first_name, second_name
+    ):
+        first_db = Path(tmp_path) / first_name
+        second_db = Path(tmp_path) / second_name
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        for db_path, numero in (
+            (first_db, "202600021"),
+            (second_db, "202600022"),
+        ):
+            initialize_database(str(db_path), str(schema_path))
+            with closing(sqlite3.connect(db_path)) as conn:
+                conn.execute(
+                    "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                    "VALUES (?, 'STE', '2026-01-02 03:04:05')",
+                    (numero,),
+                )
+                conn.commit()
+            assert database_integrity_module._create_integrity_snapshot(
+                str(db_path), force=True
+            )
+
+        assert set(database_integrity_module._snapshot_paths(str(first_db))).isdisjoint(
+            database_integrity_module._snapshot_paths(str(second_db))
+        )
+        first_db.write_bytes(b"corrupt first database only")
+
+        assert repair_database_if_needed(
+            str(first_db), str(schema_path), table_name="ssa_table"
+        )
+        with closing(sqlite3.connect(first_db)) as conn:
+            restored_numero = conn.execute(
+                "SELECT numero_ssa FROM ssa_table"
             ).fetchone()
-        assert row == ("Original final",)
+        assert restored_numero == ("202600021",)
 
-    def test_repair_prefers_restore_flow_before_reinitialize_when_corrupted(
-        self, tmp_path, monkeypatch
+    def test_restore_waits_for_writer_and_preserves_committed_state_forensics(
+        self, tmp_path
     ):
-        """Caminho de corrupcao nao deve reusar initialize_database diretamente no banco original."""
-        db_path = os.path.join(tmp_path, "corrupted_prefers_restore.db")
-        schema_path = os.path.join(tmp_path, "schema.sql")
-
-        with open(schema_path, "w") as f:
-            f.write(
-                """
-                CREATE TABLE IF NOT EXISTS ssa_table (
-                    numero_ssa INTEGER,
-                    situacao TEXT,
-                    data_cadastro TEXT,
-                    descricao_ssa TEXT
-                );
-                """
-            )
-
-        initialize_database(db_path, schema_path)
-        with sqlite3.connect(db_path) as conn:
+        db_path = Path(tmp_path) / "concurrent_restore.db"
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        initialize_database(str(db_path), str(schema_path))
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.execute(
-                """
-                INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro, descricao_ssa)
-                VALUES (?, ?, ?, ?)
-                """,
-                (202312346, "STE", "2023-12-02 11:00:00", "Restore branch"),
+                "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                "VALUES ('202600031', 'STE', '2026-01-02 03:04:05')"
             )
             conn.commit()
-
-        real_verify = database_integrity_module.verify_database_integrity
-        calls = {"count": 0}
-
-        def _fake_verify(path, table_name="ssa_table"):
-            if path == db_path and calls["count"] == 0:
-                calls["count"] += 1
-                return {
-                    "is_valid": False,
-                    "issues": ["forced corruption branch"],
-                    "warnings": [],
-                    "database_exists": True,
-                    "database_accessible": False,
-                    "table_exists": False,
-                    "schema_valid": False,
-                    "data_consistent": False,
-                    "disk_space_sufficient": True,
-                    "file_permissions_ok": True,
-                    "needs_creation": False,
-                    "missing_required_columns": [],
-                    "missing_optional_columns": [],
-                    "repair_suggestion": None,
-                    "table_name": "ssa_table",
-                }
-            return real_verify(path, table_name=table_name)
-
-        initialize_calls: list[str] = []
-
-        def _guarded_initialize(path, schema):
-            initialize_calls.append(path)
-            assert path != db_path
-            return initialize_database(path, schema)
-
-        monkeypatch.setattr(
-            database_integrity_module, "verify_database_integrity", _fake_verify
-        )
-        monkeypatch.setattr(
-            "armazenamento.database.initialize_database", _guarded_initialize
+        assert database_integrity_module._create_integrity_snapshot(
+            str(db_path), force=True
         )
 
-        result = repair_database_if_needed(db_path, schema_path, table_name="ssa_table")
+        writer_committed = threading.Event()
+        release_writer = threading.Event()
+        restore_finished = threading.Event()
+        restore_result: list[bool] = []
 
-        assert result in (True, False)
-        assert any(path != db_path for path in initialize_calls)
-        assert all(path != db_path for path in initialize_calls)
+        def _writer() -> None:
+            with database_writer_lock(str(db_path)):
+                with closing(sqlite3.connect(db_path)) as conn:
+                    conn.execute(
+                        "INSERT INTO ssa_table "
+                        "(numero_ssa, situacao, data_cadastro) "
+                        "VALUES ('202600032', 'SPG', '2026-01-02 03:04:05')"
+                    )
+                    conn.commit()
+                writer_committed.set()
+                release_writer.wait(timeout=5)
+
+        def _restore() -> None:
+            restore_result.append(
+                database_integrity_module._restore_latest_valid_snapshot(
+                    str(db_path), "ssa_table"
+                )
+            )
+            restore_finished.set()
+
+        writer_thread = threading.Thread(target=_writer)
+        restore_thread = threading.Thread(target=_restore)
+        writer_thread.start()
+        assert writer_committed.wait(timeout=5)
+        restore_thread.start()
+        assert restore_finished.wait(timeout=0.2) is False
+        release_writer.set()
+        writer_thread.join(timeout=5)
+        restore_thread.join(timeout=5)
+
+        assert restore_result == [True]
+        with closing(sqlite3.connect(db_path)) as conn:
+            restored_rows = conn.execute(
+                "SELECT numero_ssa FROM ssa_table ORDER BY numero_ssa"
+            ).fetchall()
+        assert restored_rows == [("202600031",)]
+        forensic = database_integrity_module._backup_paths(str(db_path), "corrupt")
+        assert len(forensic) == 1
+        with closing(sqlite3.connect(forensic[0])) as conn:
+            forensic_rows = conn.execute(
+                "SELECT numero_ssa FROM ssa_table ORDER BY numero_ssa"
+            ).fetchall()
+        assert forensic_rows == [("202600031",), ("202600032",)]
+
+    def test_snapshot_interval_uses_snapshot_creation_time(self, tmp_path):
+        db_path = Path(tmp_path) / "old_source.db"
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        initialize_database(str(db_path), str(schema_path))
+        old_time = time.time() - (30 * 24 * 60 * 60)
+        os.utime(db_path, (old_time, old_time))
+
+        first = database_integrity_module._create_integrity_snapshot(str(db_path))
+        second = database_integrity_module._create_integrity_snapshot(str(db_path))
+
+        assert first is not None
+        assert second == first
+        assert len(database_integrity_module._snapshot_paths(str(db_path))) == 1
+
+    def test_disposable_full_rescan_candidate_does_not_create_snapshot(self, tmp_path):
+        db_path = Path(tmp_path) / "test.db.full_rescan_candidate_run123"
+        schema_path = Path(tmp_path) / "schema.sql"
+        _write_runtime_schema(str(schema_path))
+        initialize_database(str(db_path), str(schema_path))
+
+        snapshot = database_integrity_module._create_integrity_snapshot(
+            str(db_path), force=True
+        )
+
+        assert snapshot is None
+        assert database_integrity_module._snapshot_paths(str(db_path)) == []
 
 
 if __name__ == "__main__":

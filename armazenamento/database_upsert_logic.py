@@ -1159,7 +1159,7 @@ def insert_dataframe_with_smart_upsert_impl(
         conn = cast(Any, db_path)
         close_after = False
     else:
-        conn_cm = _db_mod.get_db_connection(db_path)
+        conn_cm = _db_mod.get_db_connection(db_path, write=True)
         conn = cast(Any, conn_cm.__enter__())
         close_after = True
     try:

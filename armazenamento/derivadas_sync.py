@@ -1559,7 +1559,7 @@ def sync_derivadas(
         )
     )
 
-    with get_db_connection(safe_db_path) as conn:
+    with get_db_connection(safe_db_path, write=True) as conn:
         _configure_derivadas_connection(conn)
         db_source_table_exists = _table_exists(conn, table_name=table_name)
 

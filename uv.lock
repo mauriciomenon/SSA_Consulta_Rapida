@@ -3127,6 +3127,7 @@ version = "4.47.0"
 source = { editable = "." }
 dependencies = [
     { name = "defusedxml" },
+    { name = "filelock" },
     { name = "idna" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -3150,7 +3151,6 @@ build = [
 dev = [
     { name = "black" },
     { name = "codeflash" },
-    { name = "filelock" },
     { name = "flake8" },
     { name = "isort" },
     { name = "mypy" },
@@ -3170,7 +3170,6 @@ web = [
 dev = [
     { name = "black" },
     { name = "codeflash" },
-    { name = "filelock" },
     { name = "flake8" },
     { name = "isort" },
     { name = "mypy" },
@@ -3190,7 +3189,7 @@ requires-dist = [
     { name = "codeflash", marker = "extra == 'dev'", specifier = ">=0.20.6" },
     { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "dmgbuild", marker = "sys_platform == 'darwin' and extra == 'build'", specifier = ">=1.6.7" },
-    { name = "filelock", marker = "extra == 'dev'", specifier = ">=3.20.3" },
+    { name = "filelock", specifier = ">=3.20.3" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=7.3.0" },
     { name = "idna", specifier = ">=3.15" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.13.2" },
@@ -3221,7 +3220,6 @@ provides-extras = ["dev", "build", "web"]
 dev = [
     { name = "black", specifier = ">=26.3.1" },
     { name = "codeflash", specifier = ">=0.20.6" },
-    { name = "filelock", specifier = ">=3.20.3" },
     { name = "flake8", specifier = ">=7.3.0" },
     { name = "isort", specifier = ">=5.13.2" },
     { name = "mypy", specifier = ">=2.1.0" },

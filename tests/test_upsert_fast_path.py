@@ -514,7 +514,7 @@ def test_insert_dataframe_with_smart_upsert_impl_preserves_enter_failure(
     monkeypatch.setattr(
         database_module,
         "get_db_connection",
-        lambda _db_path: conn_cm,
+        lambda _db_path, **_kwargs: conn_cm,
     )
 
     with pytest.raises(RuntimeError, match="forced enter failure"):

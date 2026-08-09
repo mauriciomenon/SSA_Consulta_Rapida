@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from armazenamento.database_lock import database_writer_lock
 from core.import_errors import DatabaseError
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,13 @@ def promote_full_rescan_candidate(
     candidate_db_path: str, primary_db_path: str
 ) -> Optional[str]:
     """Promote a validated full-rescan candidate DB into the primary path."""
+    with database_writer_lock(primary_db_path):
+        return _promote_full_rescan_candidate_locked(candidate_db_path, primary_db_path)
+
+
+def _promote_full_rescan_candidate_locked(
+    candidate_db_path: str, primary_db_path: str
+) -> Optional[str]:
     if not os.path.exists(candidate_db_path):
         raise DatabaseError(
             f"DB candidato ausente para promocao final: {candidate_db_path}"
@@ -87,6 +95,11 @@ def promote_full_rescan_candidate(
 
 def rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
     """Rotate the current DB file to a timestamped backup and return the backup path."""
+    with database_writer_lock(db_path):
+        return _rotate_database_for_full_rescan_locked(db_path)
+
+
+def _rotate_database_for_full_rescan_locked(db_path: str) -> Optional[str]:
     if not os.path.exists(db_path):
         return None
     logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")

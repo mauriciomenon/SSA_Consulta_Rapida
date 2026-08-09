@@ -12,15 +12,21 @@ import re
 import sqlite3
 import threading
 import time
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, nullcontext
 from typing import Any, Callable, Literal, cast
 
 import pandas as pd
 
 # Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
-from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
+from shared.db_names import (
+    ALL_SSA_TABLE_NAMES,
+    CANONICAL_SSA_TABLE,
+    LEGACY_SSA_TABLE_ALIASES,
+    SSA_READ_REQUIRED_COLUMNS,
+)
 
 from . import numero_ssa_utils as _numero_ssa_utils
+from .database_lock import database_writer_lock
 from .identifier_utils import is_valid_identifier, quote_identifier as _quote_identifier
 from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display
 from .numero_ssa_utils import (
@@ -111,7 +117,7 @@ DEFAULT_SCHEMA_FILE = "schema.sql"
 
 
 @contextmanager
-def get_db_connection(db_path: str):
+def get_db_connection(db_path: str, *, write: bool = False):
     """
     Gerenciador de contexto para obter uma conexao com o banco de dados.
 
@@ -121,31 +127,33 @@ def get_db_connection(db_path: str):
     Yields:
         sqlite3.Connection: Uma conexao ativa com o banco de dados.
     """
-    conn = None
-    try:
-        # Verifica se o diretorio do DB existe
-        db_dir = os.path.dirname(db_path)
-        if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
+    lock_context = database_writer_lock(db_path) if write else nullcontext()
+    with lock_context:
+        conn = None
+        try:
+            # Verifica se o diretorio do DB existe
+            db_dir = os.path.dirname(db_path)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
 
-        conn = sqlite3.connect(db_path)
-        # Configuracoes recomendadas para performance e seguranca (FKs, etc.)
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA busy_timeout = 5000")
-        yield conn
-    except sqlite3.Error as e:
-        logger.error(f"Erro de banco de dados: {e}")
-        if conn:
-            conn.rollback()
-        raise
-    except Exception as e:
-        logger.error(f"Erro durante uso da conexao de banco de dados: {e}")
-        if conn:
-            conn.rollback()
-        raise
-    finally:
-        if conn:
-            conn.close()
+            conn = sqlite3.connect(db_path)
+            # Configuracoes recomendadas para performance e seguranca (FKs, etc.)
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA busy_timeout = 5000")
+            yield conn
+        except sqlite3.Error as e:
+            logger.error(f"Erro de banco de dados: {e}")
+            if conn:
+                conn.rollback()
+            raise
+        except Exception as e:
+            logger.error(f"Erro durante uso da conexao de banco de dados: {e}")
+            if conn:
+                conn.rollback()
+            raise
+        finally:
+            if conn:
+                conn.close()
 
 
 # --- Funcoes de Banco de Dados ---
@@ -217,7 +225,7 @@ def initialize_database(
         _clear_resolved_table_cache(_get_connection_db_path(conn))
         return True
 
-    with get_db_connection(db_path) as conn:  # caminho normal (string)
+    with get_db_connection(db_path, write=True) as conn:  # caminho normal (string)
         conn.executescript(schema_sql)
         conn.commit()
     _clear_resolved_table_cache(str(db_path))
@@ -334,10 +342,11 @@ def vacuum_analyze_database(db_path: str, *, timeout: float = 30.0) -> dict[str,
         logger.error(error)
         return {"ok": False, "error": error, "db_path": db_path}
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(timeout))) as conn:
-            conn.execute("VACUUM")
-            conn.execute("ANALYZE")
-            conn.commit()
+        with database_writer_lock(db_path):
+            with closing(sqlite3.connect(db_path, timeout=float(timeout))) as conn:
+                conn.execute("VACUUM")
+                conn.execute("ANALYZE")
+                conn.commit()
         _clear_resolved_table_cache(str(db_path))
         return {"ok": True, "db_path": db_path}
     except sqlite3.Error as exc:
@@ -363,48 +372,10 @@ def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
     elif table_name != CANONICAL_SSA_TABLE:
         raise ValueError(f"Unsupported table for CLI query: {table_name!r}")
     quoted_table_name = _quote_identifier(table_name)
-    query_template = """
-    SELECT
-        numero_ssa,
-        situacao,
-        derivada_de,
-        localizacao_codigo,
-        descricao_localizacao,
-        equipamento,
-        semana_cadastro,
-        data_cadastro,
-        descricao_ssa,
-        setor_emissor,
-        setor_executor,
-        solicitante,
-        servico_origem,
-        grau_prioridade_emissao,
-        grau_prioridade_planejamento,
-        execucao_simples,
-        responsavel_programacao,
-        semana_programada,
-        responsavel_execucao,
-        descricao_execucao,
-        id,
-        sistema_origem,
-        prazo_limite,
-        tempo_disponivel,
-        data_limite,
-        tempo_excedido,
-        desde,
-        tempo_total,
-        desde_1,
-        total_tempo_tpe_planejado,
-        total_tempo_tex_planejado,
-        total_tempo_tpo_planejado,
-        total_horas_programadas,
-        execucao_parcial,
-        anomalia,
-        semana_executada,
-        num_reprogramacoes
-    FROM {table_name}
-    """
-    return query_template.format(table_name=quoted_table_name)  # nosec B608
+    projection = ",\n        ".join(
+        _quote_identifier(column) for column in SSA_READ_REQUIRED_COLUMNS
+    )
+    return f"SELECT\n        {projection}\n    FROM {quoted_table_name}"  # nosec B608
 
 
 def _validate_read_only_query(query: str) -> None:
@@ -589,43 +560,64 @@ def _get_connection_db_path(conn: sqlite3.Connection) -> str:
     return ":memory:"
 
 
+def find_physical_ssa_tables(conn: sqlite3.Connection) -> dict[str, str]:
+    """Return physical SSA storage tables keyed case-insensitively."""
+    placeholders = ",".join("?" for _ in ALL_SSA_TABLE_NAMES)
+    rows = conn.execute(
+        f"SELECT name FROM sqlite_master WHERE type='table' "  # nosec B608
+        f"AND lower(name) IN ({placeholders})",  # nosec B608
+        tuple(name.casefold() for name in ALL_SSA_TABLE_NAMES),
+    ).fetchall()
+    return {str(row[0]).casefold(): str(row[0]) for row in rows}
+
+
 def _resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
     safe_table_name = str(table_name or "").strip()
     if not is_valid_identifier(safe_table_name):
         raise ValueError(f"Invalid SQL identifier for table: {table_name!r}")
 
     lookup_name = safe_table_name.casefold()
+    is_ssa_target = lookup_name == CANONICAL_SSA_TABLE.casefold() or lookup_name in {
+        alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
+    }
     conn_db_path = _get_connection_db_path(conn)
     cache_key = None if conn_db_path == ":memory:" else (conn_db_path, lookup_name)
-    if cache_key is not None:
+    if cache_key is not None and not is_ssa_target:
         with _resolved_table_cache_lock:
             cached_table = _resolved_table_cache.get(cache_key)
         if cached_table is not None:
             return cached_table
 
-    is_ssa_target = lookup_name == CANONICAL_SSA_TABLE.casefold() or lookup_name in {
-        alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
-    }
-
     if is_ssa_target:
-        canonical_row = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND lower(name)=?",
-            (CANONICAL_SSA_TABLE.casefold(),),
-        ).fetchone()
+        physical_tables = find_physical_ssa_tables(conn)
+        if len(physical_tables) > 1:
+            names = ", ".join(sorted(physical_tables.values()))
+            raise ValueError(f"Ambiguous SSA storage tables: {names}")
+
+        canonical_row = physical_tables.get(CANONICAL_SSA_TABLE.casefold())
         if canonical_row:
-            if cache_key is not None:
-                _store_resolved_table_cache(cache_key, str(canonical_row[0]))
-            return str(canonical_row[0])
+            return canonical_row
+
+        if physical_tables:
+            legacy_table = next(iter(physical_tables.values()))
+            if lookup_name == CANONICAL_SSA_TABLE.casefold():
+                return legacy_table
+            if legacy_table.casefold() != lookup_name:
+                raise ValueError(
+                    f"Requested SSA alias '{safe_table_name}' does not match existing "
+                    f"legacy table '{legacy_table}'"
+                )
+            return legacy_table
 
     row = conn.execute(
         "SELECT name FROM sqlite_master WHERE type IN ('table', 'view') AND lower(name)=?",
         (lookup_name,),
     ).fetchone()
     if row:
-        if cache_key is not None:
+        if cache_key is not None and not is_ssa_target:
             _store_resolved_table_cache(cache_key, str(row[0]))
         return str(row[0])
-    if cache_key is not None:
+    if cache_key is not None and not is_ssa_target:
         _store_resolved_table_cache(cache_key, safe_table_name)
     return safe_table_name
 
@@ -730,7 +722,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             if db_path is None:
                 raise ValueError("db_path ausente no caminho padrao de insercao")
 
-            with get_db_connection(db_path) as conn:
+            with get_db_connection(db_path, write=True) as conn:
                 active_conn = conn
                 cur = conn.cursor()
                 cur.execute("PRAGMA journal_mode")
@@ -819,9 +811,10 @@ def reset_database(
     """
     try:
         if mode == "file":
-            if os.path.exists(db_path):
-                os.remove(db_path)
-            _clear_resolved_table_cache(db_path)
+            with database_writer_lock(db_path):
+                if os.path.exists(db_path):
+                    os.remove(db_path)
+                _clear_resolved_table_cache(db_path)
             return True
         if mode == "table":
             # Reaplica o schema
@@ -829,15 +822,16 @@ def reset_database(
                 schema_path = (
                     DEFAULT_SCHEMA_FILE  # usa padrao e resolucao em initialize_database
                 )
-            if os.path.exists(db_path):
-                with get_db_connection(db_path) as conn:
-                    table_name = _resolve_target_table(conn, _table_name)
-                    conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-                        f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}"
-                    )
-                    conn.commit()
-            initialize_database(db_path, schema_path)
-            _clear_resolved_table_cache(db_path)
+            with database_writer_lock(db_path):
+                if os.path.exists(db_path):
+                    with get_db_connection(db_path, write=True) as conn:
+                        table_name = _resolve_target_table(conn, _table_name)
+                        conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                            f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}"
+                        )
+                        conn.commit()
+                initialize_database(db_path, schema_path)
+                _clear_resolved_table_cache(db_path)
             return True
         logger.error(f"Modo de reset desconhecido: {mode}")
         return False
@@ -849,7 +843,7 @@ def reset_database(
 def ensure_indexes(db_path: str, table_name: str = CANONICAL_SSA_TABLE) -> bool:
     """Garante indices uteis para consultas comuns."""
     try:
-        with get_db_connection(db_path) as conn:
+        with get_db_connection(db_path, write=True) as conn:
             cur = conn.cursor()
             resolved_table = _resolve_target_table(conn, table_name)
             quoted_table = _quote_identifier(resolved_table)
@@ -895,7 +889,7 @@ def ensure_column_exists(
 ) -> bool:
     """Garante que uma coluna exista na tabela fisica alvo."""
     try:
-        with get_db_connection(db_path) as conn:
+        with get_db_connection(db_path, write=True) as conn:
             physical_table = _resolve_target_table(conn, table_name)
             quoted_table = _quote_identifier(physical_table)
             quoted_column = _quote_identifier(column_name)

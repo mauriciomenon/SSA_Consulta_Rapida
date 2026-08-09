@@ -704,6 +704,58 @@ def test_resolve_target_table_returns_actual_database_identifier_casing(temp_db_
     assert resolved == "SSA_TABLE"
 
 
+def test_resolve_target_table_rejects_multiple_physical_ssa_tables(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        conn.commit()
+
+        with pytest.raises(ValueError, match="Ambiguous SSA storage tables"):
+            resolve_target_table(conn, "ssas")
+
+
+def test_resolve_target_table_rechecks_ssa_schema_after_cached_resolution(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.commit()
+        assert resolve_target_table(conn, "ssas") == "ssa_table"
+
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        conn.commit()
+
+        with pytest.raises(ValueError, match="Ambiguous SSA storage tables"):
+            resolve_target_table(conn, "ssas")
+
+
+def test_resolve_target_table_reuses_single_legacy_for_canonical_request(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        conn.commit()
+
+        resolved = resolve_target_table(conn, "ssa_table")
+
+    assert resolved == "ssas"
+
+
+def test_standard_insert_canonical_request_does_not_create_second_ssa_table(
+    temp_db_path,
+):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT, situacao TEXT)")
+        conn.commit()
+    frame = pd.DataFrame({"numero_ssa": ["202500113"], "situacao": ["STE"]})
+
+    assert insert_dataframe_to_db(frame, temp_db_path, "ssa_table") is True
+
+    with get_db_connection(temp_db_path) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssas").fetchone() == (
+            "202500113",
+        )
+        assert conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ssa_table'"
+        ).fetchone() is None
+
+
 def test_resolve_target_table_ignores_indexes_when_matching_identifier(temp_db_path):
     with get_db_connection(temp_db_path) as conn:
         conn.execute("CREATE TABLE indexed_source (id INTEGER)")

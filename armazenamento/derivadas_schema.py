@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+from contextlib import closing
 from typing import Any, Iterable
 
 from armazenamento.database import get_db_connection
@@ -442,7 +443,7 @@ def ensure_derivadas_schema(db_path: str) -> None:
     safe_db_path = str(
         ensure_path_is_allowed(db_path, purpose="ensure derivadas schema")
     )
-    with get_db_connection(safe_db_path) as conn:
+    with get_db_connection(safe_db_path, write=True) as conn:
         ensure_derivadas_schema_on_connection(conn)
         conn.commit()
 
@@ -493,7 +494,7 @@ def scan_derivadas_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
             "missing_columns": {},
             "existing_columns": {},
         }
-    with sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True) as conn:
+    with closing(sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True)) as conn:
         return scan_derivadas_schema_readiness(conn)
 
 
@@ -536,7 +537,7 @@ def scan_derivadas_read_schema_readiness_from_path(db_path: str) -> dict[str, An
             "missing_tables": required_tables,
             "missing_columns": {},
         }
-    with sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True) as conn:
+    with closing(sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True)) as conn:
         return scan_derivadas_read_schema_readiness(conn)
 
 
