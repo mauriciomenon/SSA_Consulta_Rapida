@@ -362,6 +362,41 @@ def test_process_file_with_resilience_records_metrics_contract_failure(
     ]
 
 
+def test_all_rows_rejected_progress_is_deterministic(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def _reject_all_rows(*args, **kwargs):
+        raise app_logic.ExtractionError(
+            "todas as linhas foram rejeitadas",
+            error_code="ALL_ROWS_REJECTED",
+        )
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _reject_all_rows)
+    deterministic_failed: list[str] = []
+    progress_events: list[tuple[str, dict[str, object]]] = []
+
+    action = app_logic._process_file_with_resilience(
+        file_path=str(tmp_path / "input.xlsx"),
+        base_name="input.xlsx",
+        working_db_path=str(tmp_path / "db.sqlite"),
+        table_name="ssa_table",
+        should_cancel=None,
+        candidate_db_path=None,
+        successfully_processed_files=[],
+        successful_regular_files_with_records=[],
+        critical_errors=[],
+        deterministic_failed_files=deterministic_failed,
+        file_reports=[],
+        emit_progress=lambda event_type, data: progress_events.append(
+            (event_type, data)
+        ),
+    )
+
+    assert action == app_logic.FileProcessAction.CONTINUE
+    assert deterministic_failed == [str(tmp_path / "input.xlsx")]
+    assert progress_events[-1][1]["deterministic"] is True
+
+
 @pytest.mark.parametrize(
     ("raised_exc", "expected_error"),
     [

@@ -376,8 +376,11 @@ class TestRescanWorkerUnit:
             for line in signal_collector.output_lines
         )
 
+    @pytest.mark.parametrize(
+        "error_code", ["MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"]
+    )
     def test_progress_callback_deterministic_rejection_is_warning_only(
-        self, rescan_worker, signal_collector
+        self, rescan_worker, signal_collector, error_code
     ):
         rescan_worker.error_line.connect(signal_collector.on_error)
 
@@ -386,8 +389,7 @@ class TestRescanWorkerUnit:
             {
                 "filename": "fora_do_padrao.xlsx",
                 "error": "colunas obrigatorias ausentes",
-                "error_code": "MISSING_REQUIRED_COLUMNS",
-                "deterministic": True,
+                "error_code": error_code,
             },
         )
 

@@ -315,7 +315,8 @@ class RescanWorker(QThread):
             filename = data.get("filename", "")
             error = data.get("error", "Unknown error")
             deterministic = bool(data.get("deterministic")) or (
-                data.get("error_code") == "MISSING_REQUIRED_COLUMNS"
+                data.get("error_code")
+                in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"}
             )
             if deterministic:
                 self.error_line.emit(f"[AVISO] {filename}: {error}")

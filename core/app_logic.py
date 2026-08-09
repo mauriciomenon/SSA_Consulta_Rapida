@@ -938,7 +938,8 @@ def _process_file_with_resilience(
                 "filename": base_name,
                 "error": str(exc),
                 "error_code": error_code,
-                "deterministic": error_code == "MISSING_REQUIRED_COLUMNS",
+                "deterministic": error_code
+                in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"},
             },
         )
         return FileProcessAction.CONTINUE
