@@ -2571,6 +2571,19 @@ class TestGUIFilterLogic:
         assert str(combo.currentData() or "") == "IEE3"
         assert str(combo.currentText() or "") == "IEE3"
 
+    def test_sync_quick_setor_executor_combo_shows_ellipsis_for_multiple_sectors(self):
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+
+        self.window._active_column_filters["setor_executor"] = "IEE1, IEE2"
+        self.window._sync_quick_setor_executor_combo_from_filters()
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters["setor_executor"] == "IEE1, IEE2"
+        assert str(combo.currentData() or "") == ""
+        assert str(combo.currentText() or "") == "..."
+
     def test_sync_quick_setor_executor_combo_repopulates_when_value_missing(
         self, monkeypatch
     ):
@@ -6753,7 +6766,7 @@ class TestGUIFilterLogic:
             filter_key="setor_executor",
             expected_ssas={202600001, 202600002, 202600003, 202600004},
         )
-        assert str(combo.currentText() or "") == "Todos"
+        assert str(combo.currentText() or "") == "..."
 
     def test_advanced_exclude_is_menu_only_without_field_checkbox(self):
         self.window._refresh_advanced_filter_options()

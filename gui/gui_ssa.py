@@ -3035,8 +3035,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug(
                 "Falha ao ler valor atual do combo rapido de setor executor: %s", exc
             )
-        display_text = value if value else "Todos"
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        active_value = str(active_filters.get("setor_executor", "") or "")
+        multiple_selected = "," in active_value
+        all_item_text = "..." if multiple_selected else "Todos"
+        display_text = value if value else all_item_text
         try:
+            all_idx = combo.findData("")
+            if all_idx >= 0:
+                combo.setItemText(all_idx, all_item_text)
             line_edit = combo.lineEdit()
             if line_edit is not None:
                 line_edit.setText(display_text)
@@ -3232,8 +3239,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             active_filters["setor_executor"] = selected
         else:
             active_filters.pop("setor_executor", None)
-        self._update_quick_setor_executor_combo_display(combo)
         self._active_column_filters = active_filters
+        self._update_quick_setor_executor_combo_display(combo)
         self._sync_column_filter_input_from_active_filter("setor_executor")
         self._sync_advanced_executor_filter_from_active_filters(
             clear_exclude=True
