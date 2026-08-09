@@ -18,6 +18,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+from contextlib import closing
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
@@ -67,7 +68,7 @@ def sqlite_table_presence(db_path: str, table_name: str) -> TablePresence:
     if not os.path.exists(db_path):
         return "unknown"
     try:
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             row = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
                 (table_name,),

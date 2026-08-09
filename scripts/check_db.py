@@ -1,7 +1,8 @@
 import sqlite3
 import sys
 
-db_path = 'data/ssas.db'
+db_path = "data/ssas.db"
+conn = None
 
 try:
     conn = sqlite3.connect(db_path)
@@ -9,7 +10,9 @@ try:
 
     print("=== DATABASE STRUCTURE ===")
     print("\nTables and Views:")
-    cur.execute("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') ORDER BY type, name")
+    cur.execute(
+        "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') ORDER BY type, name"
+    )
     for row in cur.fetchall():
         print(f"  {row[0]} ({row[1]})")
 
@@ -36,8 +39,9 @@ try:
     if sample:
         print("First record has data: YES")
 
-    conn.close()
-
 except Exception as e:
     print(f"ERROR: {e}")
     sys.exit(1)
+finally:
+    if conn is not None:
+        conn.close()

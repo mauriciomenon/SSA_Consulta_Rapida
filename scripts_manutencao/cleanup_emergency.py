@@ -1,6 +1,7 @@
-import shutil
 import sqlite3
+from contextlib import closing
 from datetime import datetime
+from pathlib import Path
 
 from utils.robust_logging import get_robust_logger
 
@@ -116,9 +117,21 @@ def emergency_cleanup():
 
     # Backup adicional de segurança
     backup_name = (
-        f"data/ssas_emergency_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        f"data/ssas_emergency_backup_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.db"
     )
-    shutil.copy2("data/ssas.db", backup_name)
+    source_path = Path("data/ssas.db").resolve()
+    backup_path = Path(backup_name)
+    try:
+        with closing(
+            sqlite3.connect(f"{source_path.as_uri()}?mode=ro", uri=True)
+        ) as source_conn:
+            with closing(sqlite3.connect(backup_path)) as backup_conn:
+                source_conn.backup(backup_conn)
+                if backup_conn.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise sqlite3.DatabaseError("backup falhou no quick_check")
+    except (OSError, sqlite3.Error):
+        backup_path.unlink(missing_ok=True)
+        raise
     logger.info("OK Backup criado: %s", backup_name)
 
     conn = sqlite3.connect("data/ssas.db")

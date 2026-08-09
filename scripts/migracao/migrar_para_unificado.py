@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import argparse
 import re
-import shutil
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -51,6 +51,7 @@ def infer_type(column_name: str) -> str:
     if any(h in low for h in INT_HINTS):
         return "INTEGER"
     return "TEXT"
+
 
 def parse_target_columns() -> List[str]:
     if not SCHEMA_PATH.exists():
@@ -86,11 +87,21 @@ def parse_target_columns() -> List[str]:
 
 
 def backup_database(db_path: Path) -> Path:
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_dir = Path("data")
     backup_dir.mkdir(exist_ok=True)
     backup_path = backup_dir / f"ssas.db.backup_before_unified_{ts}"
-    shutil.copy2(db_path, backup_path)
+    try:
+        with closing(
+            sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
+        ) as source_conn:
+            with closing(sqlite3.connect(backup_path)) as backup_conn:
+                source_conn.backup(backup_conn)
+                if backup_conn.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise sqlite3.DatabaseError("backup falhou no quick_check")
+    except (OSError, sqlite3.Error):
+        backup_path.unlink(missing_ok=True)
+        raise
     return backup_path
 
 
@@ -99,7 +110,7 @@ def migrate(db_path: Path) -> None:
         raise SystemExit(f"Banco não encontrado: {db_path}")
     target_cols = parse_target_columns()
     quoted_target_table = quote_identifier(TARGET_TABLE)
-    with sqlite3.connect(db_path) as con:
+    with closing(sqlite3.connect(db_path)) as con:
         cur = con.cursor()
         cur.execute(f"PRAGMA table_info({quoted_target_table})")
         existing = [row[1] for row in cur.fetchall()]
@@ -117,9 +128,7 @@ def migrate(db_path: Path) -> None:
             for col in missing:
                 col_type = infer_type(col)
                 quoted_col = quote_identifier(col)
-                sql = (
-                    f"ALTER TABLE {quoted_target_table} ADD COLUMN {quoted_col} {col_type}"
-                )
+                sql = f"ALTER TABLE {quoted_target_table} ADD COLUMN {quoted_col} {col_type}"
                 print("> ", sql)
                 cur.execute(sql)
             con.commit()
