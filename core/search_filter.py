@@ -107,19 +107,19 @@ def _identifier_column_match_mask(
     numeric_identifier: int | None,
 ) -> pd.Series:
     if numeric_identifier is not None and pd.api.types.is_numeric_dtype(column.dtype):
-        return column.eq(numeric_identifier)
+        return column.eq(numeric_identifier).fillna(False).astype(bool)
 
     direct_mask = column.eq(identifier_text)
     if numeric_identifier is not None:
         direct_mask = direct_mask | column.eq(numeric_identifier)
 
     if numeric_identifier is None:
-        return direct_mask
+        return direct_mask.fillna(False).astype(bool)
 
-    return direct_mask | _float_artifact_identifier_mask(
-        column,
-        identifier_text,
-    )
+    return (
+        direct_mask.fillna(False)
+        | _float_artifact_identifier_mask(column, identifier_text)
+    ).fillna(False).astype(bool)
 
 
 def _float_artifact_identifier_mask(
@@ -134,8 +134,8 @@ def _float_artifact_identifier_mask(
     decimal_tail = text.str.slice(len(decimal_prefix))
     return (
         text.str.startswith(decimal_prefix).fillna(False)
-        & decimal_tail.ne("")
-        & decimal_tail.str.strip("0").eq("")
+        & decimal_tail.ne("").fillna(False)
+        & decimal_tail.str.strip("0").eq("").fillna(False)
     ).fillna(False).astype(bool)
 
 

@@ -64,3 +64,23 @@ def test_exact_identifier_search_accepts_float_artifact_in_relation_columns() ->
     )
 
     assert result["numero_ssa"].tolist() == ["202605373.00"]
+
+
+def test_exact_identifier_search_ignores_missing_arrow_values() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": pd.Series(
+                ["202605373.00", pd.NA], dtype="string[pyarrow]"
+            ),
+            "derivada_de": pd.Series([pd.NA, ""], dtype="string[pyarrow]"),
+            "descricao_ssa": ["alvo", "ausente"],
+        }
+    )
+
+    result = app_logic.filter_dataframe(
+        df,
+        ["=202605373"],
+        ["numero_ssa", "derivada_de", "descricao_ssa"],
+    )
+
+    assert result["descricao_ssa"].tolist() == ["alvo"]
