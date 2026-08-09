@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - Quick executor-sector selector now shows `...` when more than one sector is active.
 - Existing active, column and advanced executor-sector filter synchronization remains unchanged.
 - Runtime and package metadata now identify stable release `4.47`.
+- `cleanup_ai_artifacts.ps1` now checks native `git rm` exit codes, records failures and reports when deletion could not be staged.
 
 ### Notes
 - No database schema, application filter-operator or layout change.

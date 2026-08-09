@@ -103,6 +103,23 @@ def test_windows_activation_avoids_dynamic_eval_and_silent_catches() -> None:
     assert silent_catch.search(direnv_common) is None
 
 
+def test_cleanup_ai_artifacts_reports_git_remove_failures() -> None:
+    script = _read_repo_text("scripts", "cleanup_ai_artifacts.ps1")
+    silent_catch = re.compile(r"catch\s*\{\s*(?:#[^\r\n]*\s*)?\}", re.MULTILINE)
+
+    assert silent_catch.search(script) is None
+    assert script.count("if ($LASTEXITCODE -ne 0)") == 2
+    assert script.count("Write-Warning $message") == 2
+    assert script.count("deletion was not staged") == 2
+    assert script.count("$gitRemoveFailures++") == 2
+    assert "if ($NoGit)" in script
+    assert "elseif ($gitRemoveFailures -gt 0)" in script
+    assert "git deletion(s) were not staged" in script
+    assert "Write-Host" not in script
+    assert "function Ensure-Dir" not in script
+    assert "function New-DirectoryIfMissing" not in script
+
+
 def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     script = _read_repo_text("scripts", "ci_quality_gates.sh")
 

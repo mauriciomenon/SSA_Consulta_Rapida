@@ -13,6 +13,7 @@ Release estavel de manutencao da familia 4.x.
 ## Estabilidade Windows
 
 - Scripts de ativacao e teste usam caminhos nativos Windows com tratamento consistente.
+- Utilitario de limpeza registra falhas de `git rm` e nao oculta mais erros em blocos `catch`.
 - Build de release exige clone nativo em `%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6`.
 - Pacotes PyInstaller continuam `onedir`, com CLI e GUI separados.
 - Quando incluido, banco runtime fica somente em `data\ssas.db`, fora de `_internal`.
