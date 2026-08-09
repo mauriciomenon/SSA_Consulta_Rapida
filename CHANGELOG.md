@@ -4,6 +4,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [v4.47] - 2026-08-09
+
+### Changed
+- Quick executor-sector selector now shows `...` when more than one sector is active.
+- Existing active, column and advanced executor-sector filter synchronization remains unchanged.
+- Runtime and package metadata now identify stable release `4.47`.
+
+### Notes
+- No database schema, application filter-operator or layout change.
+- This release consolidates the stable fixes introduced after `v4.45.2`, including the `v4.46` status-filter cycle.
+
+### Security
+- Updated locked `gitpython` from `3.1.57` to `3.1.58`, `python-multipart` from `0.0.28` to `0.0.31`, `setuptools` from `82.0.1` to `83.0.0` and `starlette` from `1.0.1` to `1.3.1`.
+- These are the minimum versions that clear the advisories reported by `pip-audit` in build, development and web dependency paths.
+
+### Validation
+- Full candidate suite completed with 2551 passed and 16 skipped; its only failure was a stale visual expectation, then the full affected GUI module passed with 550 passed and 1 skipped.
+- Release contracts, static checks and dependency audit passed before the clean Windows build gate.
+
+## [v4.46] - 2026-08-09
+
+### Changed
+- Quick SSA status buttons cycle through included, excluded (`!STATUS`) and neutral states.
+- Status-button state remains synchronized with active and advanced filter views.
+- Windows activation and test scripts received native path and portability hardening.
+
 ### Dependency update cycle - 2026-07-15
 - Created local checkpoint tag `v4.45.1` at commit `d8c4033c6828f1ecde05f4f3140f137ee43d496f` before the dependency update slice. The tag is not published.
 - Completed the dependency audit with `uv tree --outdated`, `pip-audit`, Safety, `pip check`, and `uv lock --check`.

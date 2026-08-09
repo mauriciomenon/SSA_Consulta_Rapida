@@ -2,6 +2,25 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
+## **RELEASE v4.47 - STABLE**
+
+**Data de Lancamento**: 9 de agosto de 2026
+**Tipo**: Stable maintenance release
+**Status**: Release estavel
+
+### **Principais entregas**
+- Atalhos de situacao alternam entre inclusao, exclusao (`!STATUS`) e estado neutro.
+- Filtros combinados aceitam estados positivos e negativos, como `SCA SPG !APG`.
+- Se mais de um setor executor estiver ativo, o seletor rapido mostra `...`.
+- Sincronizacao existente entre barra rapida, filtros ativos, filtros por coluna e painel avancado foi preservada.
+- Scripts Windows receberam correcoes de portabilidade e caminhos nativos.
+
+### **Escopo preservado**
+- Sem mudanca de schema, API das dependencias de runtime, operadores do core ou layout.
+- Locks de build/desenvolvimento/web atualizados para `gitpython 3.1.58`, `python-multipart 0.0.31`, `setuptools 83.0.0` e `starlette 1.3.1` apos auditoria de seguranca.
+- `v4.46` permanece como checkpoint anterior do ciclo tri-state.
+- Notas detalhadas: `docs/RELEASE_NOTES_v4.47.md`.
+
 ## **UPDATE 2026-04-09 - GUI STATE CONTRACT HARDENING**
 
 **Data de Registro**: Abril 2026
@@ -35,11 +54,11 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - `display_current_page(...)` continua concentrando responsabilidades demais.
 - O risco agudo dos call sites principais caiu, mas qualquer refatoracao nessa area segue devendo slice proprio e pequeno.
 
-## **RELEASE v4.45 - CURRENT LOCAL BASELINE (EM DESENVOLVIMENTO)**
+## **RELEASE v4.45 - HISTORICAL HARDENING BASELINE**
 
 **Data de Lancamento**: Julho 2026
 **Tipo**: Hardening PyQt6 refactor start
-**Status**: Baseline local em desenvolvimento
+**Status**: Baseline historico
 
 ### **Principais entregas (planejadas - ver plano detalhado)**
 - Baseline operacional promovido para `4.45` como inicio do ciclo de hardening PyQt6.
@@ -726,11 +745,14 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.44**: Baseline estavel local ativo
+- **v4.47**: Release estavel ativa
+- **v4.46**: Checkpoint anterior do ciclo tri-state
+- **v4.45**: Baseline historico de hardening
+- **v4.44**: Baseline local historico
 - **v4.43**: Baseline local historico
 - **v4.42**: Baseline local historico
 - **v4.37**: Baseline local historico
-- **v4.36**: Ultima tag publicada
+- **v4.36**: Snapshot historico publicado
 - **v4.31**: Suporte de compatibilidade em migracao
 - **Versoes anteriores**: Tratadas como historico
 
@@ -740,7 +762,7 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de referencia mais recente no baseline atual (`4.44`).
+Para melhor performance e estabilidade, recomenda-se utilizar a release estavel atual (`4.47`).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
 

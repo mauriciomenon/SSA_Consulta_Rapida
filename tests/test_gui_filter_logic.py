@@ -2162,7 +2162,7 @@ class TestGUIFilterLogic:
         assert not re.search(r"border\s*:\s*2px\s+solid", style_sheet)
         mel4_idx = combo.findData("MEL4")
         assert mel4_idx >= 0
-        assert str(combo.itemText(0)) == "Todos"
+        assert str(combo.itemText(0)) == "..."
         assert str(combo.itemText(mel4_idx)) == "MEL4"
         assert "Setor Executor:" not in str(combo.currentText() or "")
 

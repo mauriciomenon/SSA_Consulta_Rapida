@@ -1,21 +1,24 @@
-# INDEX de Documentacao (Baseline v4.45 local / v4.36 published)
+# INDEX de Documentacao (Release v4.47)
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-07-11 12:46 -0300)
+## Sync status (2026-08-09)
 
-1. Baseline ativo confirmado: `4.45` (em desenvolvimento; hardening PyQt6 refactor).
+1. Release estavel confirmada: `4.47`.
 2. Branch operacional: `dev`.
-3. Baseline local/tag: `v4.45`.
-4. Baseline local anterior: `v4.44` (historico, estavel).
-4. Release/tag publicada relevante: `v4.36`.
+3. Release/tag atual: `v4.47`.
+4. Tag anterior: `v4.46`.
 5. Estado Git atual:
    - mapa canonico: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub.
    - `dev` deve permanecer publicado em `origin/dev` e `bitbucket/dev`; `git pull` padrao usa `origin/dev`.
 6. Estado remoto:
    - GitLab e Bitbucket estao operacionais para fetch, pull e push.
    - HTTP 403 por conta suspensa afeta somente `gh`; PR, checks, tag e release no GitHub continuam bloqueados.
-7. Slices locais relevantes desde `v4.43`:
+7. Slices relevantes da release `v4.47`:
+   - `0f164b3a` `STABILITY_PATCH: cycle quick status filter states`
+   - `f7f71a48` `STABILITY_PATCH: harden Windows portability and scripts`
+   - `7200ce33` `UI_FIX: show ellipsis for multiple quick sectors`
+8. Historico anterior desde `v4.43`:
    - `445f1d25` `STABILITY_PATCH: fix validation gates for v4.44 baseline`
    - `acc299f8` `STABILITY_PATCH: fix ty validation gate`
    - `4ae43f05` `DOC_SYNC: promote local baseline to 4.44`
@@ -27,16 +30,17 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `c3874e49` `DOC_SYNC: record P2 runtime cleanup status`
    - `bdad722c` `STABILITY_PATCH: harden Windows build wrapper cleanup`
    - `63631e72` `STABILITY_PATCH: harden release_windows.ps1 pre-zip workspace`
-8. Estado validado local:
-   - `ruff check .`: OK (ultimo ciclo P2)
-   - `ty check`: OK (ultimo ciclo P2)
-   - release Windows contracts: 91 passed (subset release-related)
-   - H3/H4/H5/J4 fechados documentalmente; H7/J2/J5 medidos e deferidos sem patch runtime por ausencia de hotspot.
-9. Pendencias imediatas:
-   - desbloqueio GitHub antes de qualquer fetch/push
-   - smoke real Windows `release_windows.ps1` em host Win32NT
-   - DOC_SYNC/decisao separada para untracked `docs/handoffs/SKILLS_*`
-   - nao commitar `quality_gates_output.jsonl` sem pedido explicito
+9. Estado validado local:
+   - `ruff check .`, `ty check` e `py_compile`: OK
+   - contratos focados de release e multiplataforma: `122 passed, 6 skipped`
+   - suite completa: `2551 passed, 16 skipped`; a unica falha era uma expectativa visual antiga
+   - modulo corrigido revalidado por inteiro: `550 passed, 1 skipped`
+   - `pip-audit`: nenhuma vulnerabilidade conhecida apos os patches minimos de `gitpython`, `python-multipart`, `setuptools` e `starlette`
+   - `semgrep`: 0 achados bloqueantes; `bandit`: 0 achados medios ou altos
+10. Pendencias imediatas:
+   - nenhuma pendencia funcional bloqueante conhecida para `v4.47`
+   - espelhamento no GitHub permanece bloqueado por HTTP 403; GitLab e Bitbucket nao sao afetados
+   - publicacao so e valida quando o build limpo e os smokes reais Windows estiverem registrados no relatorio JSON
 
 ## Snapshot historico de abril/GUI
 
@@ -97,7 +101,7 @@ O bloco abaixo e contexto historico da frente GUI/preferencias de abril de 2026.
 
 ## Regras de leitura
 
-1. Baseline ativo de versao: `4.45` (em desenvolvimento). Baseline anterior estavel: `4.44`.
+1. Release ativa: `4.47`. Tag anterior: `v4.46`.
 2. Em conflito de informacao, prevalece:
    - `AGENTS.md` (raiz)
    - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
@@ -106,10 +110,11 @@ O bloco abaixo e contexto historico da frente GUI/preferencias de abril de 2026.
 ## Leitura recomendada (ordem)
 
 1. `README.md` (raiz do repositorio)
-2. `docs/HISTORICO_RELEASES.md`
-3. `docs/COMANDOS_RAPIDOS.md`
-4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
-5. `docs/TROUBLESHOOTING.md`
+2. `docs/RELEASE_NOTES_v4.47.md`
+3. `docs/HISTORICO_RELEASES.md`
+4. `docs/COMANDOS_RAPIDOS.md`
+5. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+6. `docs/TROUBLESHOOTING.md`
 
 ## Controle operacional
 

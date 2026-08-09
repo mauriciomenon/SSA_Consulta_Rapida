@@ -1,25 +1,24 @@
-# SSA Consulta Rapida v4.45
+# SSA Consulta Rapida v4.47
 
-Tag local da baseline atual: `v4.45` (em desenvolvimento; hardening PyQt6 refactor).
-Tag local anterior estavel: `v4.44`.
-Release/tag publicada mais recente no remoto `dev`: `v4.36`.
+Release estavel atual: `v4.47`.
+Tag anterior: `v4.46`.
+Publicacao: GitLab e Bitbucket a partir da branch `dev`.
 
-Plano de hardening ativo: [docs/HARDENING_PYQT6_V4_45_PLAN.md](docs/HARDENING_PYQT6_V4_45_PLAN.md)
+Notas da release: [docs/RELEASE_NOTES_v4.47.md](docs/RELEASE_NOTES_v4.47.md)
 
-## Current Truth (2026-07-11 12:46 -0300)
+## Current Truth (2026-08-09)
 
 - Estado operacional:
-  - metadata local ativa: `4.45`
-  - tag local da baseline atual: `v4.45`
-  - tag local anterior estavel: `v4.44`
-  - ultima tag publicada no remoto `dev`: `v4.36`
-  - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
-  - `4.45` e a baseline local ativa e estabilizada; a ultima tag publicada no GitHub permanece `v4.36`
+  - metadata ativa: `4.47`
+  - release estavel atual: `v4.47`
+  - tag anterior: `v4.46`
+  - branch `dev` inclui ciclo tri-state dos atalhos de situacao e indicador `...` para multiplos setores executores
   - mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub
   - `dev`, `origin/dev` e `bitbucket/dev` ficam sincronizados por politica de commit do projeto; `git pull` padrao usa `origin/dev`
   - o HTTP 403 por conta suspensa afeta somente `gh`; nao bloqueia GitLab nem Bitbucket
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
-  - validacao completa recente apos os fixes de gate: `2455 passed, 6 skipped, 2 warnings, 11 subtests passed`
+  - suite completa da candidata: `2551 passed, 16 skipped`; a unica falha era uma expectativa visual antiga, corrigida e revalidada no modulo inteiro com `550 passed, 1 skipped`
+  - `ruff`, `ty`, `py_compile`, contratos de release, validadores de configuracao/documentacao e auditoria final de dependencias estao verdes
   - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos
   - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
 - Contrato de update por SSA (resumo):
@@ -132,7 +131,17 @@ Plano de hardening ativo: [docs/HARDENING_PYQT6_V4_45_PLAN.md](docs/HARDENING_PY
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 
-## Baseline v4.45 (2026-07, em desenvolvimento)
+## Release v4.47 (2026-08, stable)
+
+### Destaques
+- Atalhos de situacao alternam entre inclusao, exclusao (`!STATUS`) e estado neutro.
+- Caixa rapida de setor executor mostra `...` quando mais de um setor esta ativo.
+- Lock de build/desenvolvimento/web usa as versoes seguras minimas de `gitpython`, `python-multipart`, `setuptools` e `starlette`; `pip-audit` nao reporta vulnerabilidades conhecidas.
+- Build oficial Windows AMD64 continua condicionado ao clone nativo, pacote PyInstaller `onedir`, banco externo unico e smoke funcional registrado no relatorio JSON.
+- Estado permanece sincronizado com filtros ativos, filtros por coluna e filtros avancados.
+- Portabilidade dos scripts Windows reforcada sem alterar runtime ou layout.
+
+## Baseline v4.45 (2026-07, historical)
 
 ### Destaques
 - Metadata local e docs ativos foram promovidos para `4.45` como inicio do ciclo de hardening PyQt6.
@@ -287,7 +296,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.45)
+### Documentacao tecnica atual (v4.47)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:

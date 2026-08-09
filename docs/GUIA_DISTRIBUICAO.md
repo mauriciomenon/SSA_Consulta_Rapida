@@ -1,16 +1,16 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH 2026-07-12 18h32
+## CURRENT TRUTH 2026-08-09
 
 - Branch fonte local: `dev`.
-- Baseline local ativo: `v4.45`; a estabilizacao local foi recuperada e validada sem criar tag ou release.
+- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
 - Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
 - PR #58 e PR #59: merged na linhagem historica acima; `dev` esta publicado em GitLab e Bitbucket.
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
 - Exemplos diretos: `.\release.ps1 -Yes` e `./release.sh`; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
 - Mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub. O HTTP 403 afeta somente `gh`.
-- Artefatos antigos v4.43 seguem historicos e nao devem ser usados para publicacao final.
-- Commits autorizados sao publicados em `origin/dev` e `bitbucket/dev`; PR, tag e release no GitHub aguardam desbloqueio de `gh`.
+- Artefatos anteriores a `v4.47` seguem historicos e nao devem ser usados para publicacao final.
+- Commits e tags autorizados sao publicados em `origin` e `bitbucket`; release primaria usa GitLab enquanto `gh` permanece bloqueado.
 
 ## HISTORICAL SNAPSHOT 2026-06-11 11h
 

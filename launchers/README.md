@@ -1,9 +1,9 @@
 # Sistema de Build - Launchers
 
-## CURRENT TRUTH (v4.44 local / v4.36 published)
+## CURRENT TRUTH (v4.47 stable)
 
 - Pipeline oficial de build: `launchers/build_multiplatform.py`.
-- Baseline local ativo: `v4.45`; ultima tag publicada no GitHub: `v4.36`.
+- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
 - `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente `gh` (GitHub) e publicacoes naquele provedor.
 - Plataformas ativas:
   - `windows_amd64`

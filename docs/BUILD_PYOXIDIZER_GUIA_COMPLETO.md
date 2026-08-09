@@ -1,9 +1,9 @@
 # Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
 
-## CURRENT TRUTH (4.44 local / v4.36 published)
+## CURRENT TRUTH (v4.47 stable)
 
-- Sync deste guia: `2026-07-06 09:45 -0300`.
-- Baseline local ativo: `v4.45`; ultima tag publicada no GitHub: `v4.36`.
+- Sync deste guia: `2026-08-09`.
+- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
 - `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
   - `windows_amd64`

@@ -1,9 +1,9 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (baseline v4.44 local / v4.36 published)
+## CURRENT TRUTH (v4.47 stable)
 
-- Sync deste guia: `2026-07-06 09:45 -0300`.
-- Baseline local ativo: `v4.45`; ultima tag publicada no GitHub: `v4.36`.
+- Sync deste guia: `2026-08-09`.
+- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
 - `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
 - Fluxo canonico Nuitka (sempre via uv wrappers):
   - Windows: `dev_env/build/build_nuitka.bat --silent`

@@ -2,18 +2,20 @@
 
 ## Baseline ativo
 
-- Versao de referencia: `4.45` (em desenvolvimento; baseline anterior estavel: `4.44`).
+- Versao de referencia: `4.47` (estavel; tag anterior: `v4.46`).
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
-- Plano de hardening ativo: `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
-- Current truth operacional 2026-07-11 12:46 -0300:
-  - metadata local ativa: `4.45`
-  - tag local da baseline atual: `v4.45`
-  - tag local anterior estavel: `v4.44`
-  - ultima tag publicada remota: `v4.36`
+- Notas atuais: `docs/RELEASE_NOTES_v4.47.md`.
+- Current truth operacional 2026-08-09:
+  - metadata ativa: `4.47`
+  - release/tag atual: `v4.47`
+  - tag anterior: `v4.46`
+  - publicacao operacional: GitLab e Bitbucket
   - mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub
   - `dev` e publicado em `origin/dev` e `bitbucket/dev`; `git pull` padrao usa GitLab
-  - HTTP 403 afeta somente `gh`; a estabilizacao v4.45 local foi concluida
+  - HTTP 403 afeta somente `gh`; nao bloqueia GitLab nem Bitbucket
+  - candidata validada com suite completa, modulo GUI afetado, contratos de release, `ruff`, `ty`, `py_compile`, `semgrep`, `bandit` e `pip-audit`
+  - build Windows oficial permanece condicionado ao relatorio JSON e aos smokes do executavel empacotado
 
 ## Historical snapshot
 

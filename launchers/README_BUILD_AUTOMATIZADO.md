@@ -1,14 +1,14 @@
 # README – PIPELINE DE BUILD AUTOMATIZADO (RASCUNHO)
 
-## CURRENT TRUTH 2026-07-06 10h16
+## CURRENT TRUTH 2026-08-09
 
 - Branch fonte local: `dev`.
-- Baseline local ativo: `v4.45`.
+- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
 - `origin` e GitLab, `bitbucket` e Bitbucket e `gh` e GitHub; `dev` esta publicado nos dois primeiros.
 - O HTTP 403 por conta suspensa afeta somente `gh`; fetch, pull e push em `origin`/`bitbucket` permanecem operacionais.
 - Artefatos antigos versionados sao ruido historico/local e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-- Proximo passo operacional apos P2 e desbloqueio remoto: comparar divergencia e so entao propor push/release.
+- Fluxo atual: validar, gerar artefatos novos, publicar `v4.47` em GitLab e espelhar tag no Bitbucket.
 
 ## HISTORICAL SNAPSHOT 2026-05-04 01h14
 
