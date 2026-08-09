@@ -15,8 +15,10 @@ import argparse
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import zipfile
+from contextlib import closing
 from pathlib import Path
 from typing import Optional
 
@@ -584,12 +586,33 @@ def _copy_local_db_asset(target_dir: Path, local_db_path: str) -> bool:
 
     local_db_target_dir = target_dir / PACKAGE_LOCAL_DB_DIR
     local_db_target_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(resolved_local_db, local_db_target_dir / resolved_local_db.name)
+    if not _snapshot_sqlite_database(
+        resolved_local_db, local_db_target_dir / resolved_local_db.name
+    ):
+        return False
     logger.info(
         "Banco local explicitamente escolhido copiado para %s",
         local_db_target_dir,
     )
     return True
+
+
+def _snapshot_sqlite_database(source: Path, target: Path) -> bool:
+    temporary = target.with_name(f"{target.name}.tmp")
+    temporary.unlink(missing_ok=True)
+    try:
+        source_uri = f"{source.resolve().as_uri()}?mode=ro"
+        with closing(sqlite3.connect(source_uri, uri=True, timeout=5)) as source_conn:
+            with closing(sqlite3.connect(temporary)) as target_conn:
+                source_conn.backup(target_conn)
+                if target_conn.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise sqlite3.DatabaseError("snapshot falhou no quick_check")
+        os.replace(temporary, target)
+        return True
+    except (OSError, sqlite3.Error) as exc:
+        temporary.unlink(missing_ok=True)
+        logger.error("Falha ao criar snapshot SQLite de '%s': %s", source, exc)
+        return False
 
 
 def _detect_primary_executable_name(package_dir: Path) -> Optional[str]:
@@ -1327,7 +1350,12 @@ def create_inno_setup_script(
         resolved_local_db = _resolve_local_db_asset(include_local_db)
         if resolved_local_db is None:
             return None
-        local_db_source_spec = _normalize_windows_path(str(resolved_local_db.resolve()))
+        installer_asset_dir = DIST_OUTPUT / "installer_assets"
+        installer_asset_dir.mkdir(parents=True, exist_ok=True)
+        installer_db = installer_asset_dir / resolved_local_db.name
+        if not _snapshot_sqlite_database(resolved_local_db, installer_db):
+            return None
+        local_db_source_spec = _normalize_windows_path(str(installer_db.resolve()))
         local_db_name = resolved_local_db.name
     sample_db_dirs_block, sample_db_files_block = _build_inno_sample_db_blocks(
         sample_db_source_spec,

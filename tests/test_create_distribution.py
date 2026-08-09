@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import sqlite3
 import sys
 import zipfile
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -784,7 +786,10 @@ def test_create_zip_package_includes_only_selected_local_db_when_option_enabled(
 
     (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
     selected_local_db = local_db_dir / "ssas.db"
-    selected_local_db.write_text("local db", encoding="utf-8")
+    with closing(sqlite3.connect(selected_local_db)) as conn:
+        conn.execute("CREATE TABLE probe(value TEXT)")
+        conn.execute("INSERT INTO probe(value) VALUES ('local db')")
+        conn.commit()
     (build_dir / "other.db").write_text("other db", encoding="utf-8")
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
@@ -1293,7 +1298,10 @@ def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled
     local_db_dir.mkdir(parents=True)
     (canonical_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
     selected_local_db = local_db_dir / "ssas.db"
-    selected_local_db.write_text("local db", encoding="utf-8")
+    with closing(sqlite3.connect(selected_local_db)) as conn:
+        conn.execute("CREATE TABLE probe(value TEXT)")
+        conn.execute("INSERT INTO probe(value) VALUES ('local db')")
+        conn.commit()
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
@@ -1319,7 +1327,9 @@ def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled
 
     assert iss_path is not None
     iss_content = iss_path.read_text(encoding="utf-8")
-    expected_db = str(selected_local_db.resolve()).replace("/", "\\")
+    expected_db = str(
+        (dist_output / "installer_assets" / "ssas.db").resolve()
+    ).replace("/", "\\")
     assert 'Name: "{userdocs}\\SSA Consulta Rapida\\BancoLocal"' in iss_content
     assert (
         f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoLocal"; DestName: "ssas.db"; Flags: ignoreversion'
