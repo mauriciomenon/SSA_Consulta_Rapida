@@ -3836,6 +3836,14 @@ class TestGUIFilterLogic:
         self.window.internal_to_display["justificativa"] = "Justificativa"
         self.window.internal_to_display["parciais"] = "Parciais"
         self.window.internal_to_display["situacao_da_parcial"] = "Situacao Parcial"
+        legacy_runtime_columns = {
+            "data_planilha",
+            "deviation_records",
+            "situation_of_deviation",
+            "partial_records",
+            "situation_of_partial",
+        }
+        self.window._non_null_cols_cache = set(legacy_runtime_columns)
 
         from gui.ssa import column_filter_panel
 
@@ -3863,6 +3871,7 @@ class TestGUIFilterLogic:
         assert "justificativa" not in menu_columns
         assert "parciais" not in menu_columns
         assert "situacao_da_parcial" not in menu_columns
+        assert legacy_runtime_columns.isdisjoint(menu_columns)
 
         created_actions.clear()
         self.window._active_column_filters = {"Data Cadastro": ""}
