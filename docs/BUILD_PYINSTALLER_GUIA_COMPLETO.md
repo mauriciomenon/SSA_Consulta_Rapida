@@ -6,7 +6,8 @@
 - Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
 - `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
 - Caminho operacional principal:
-  - build: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
+  - release Windows v4.47: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`
+  - build interno: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`
   - distribuicao: `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
 - Referencias a `build_pyinstaller.bat` e `builds/pyinstaller` neste arquivo sao historicas.
@@ -17,6 +18,7 @@
   - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer` gerou ZIP com sucesso
   - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller` gerou ZIP, mas installer falhou por ausencia de origem Windows/Inno no host atual
 - `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
+- Debian deve executar scripts `.sh` em clone Linux nativo; nao compartilhar checkout/venv com Windows.
 
 ## HISTORICAL SNAPSHOT NOTICE
 

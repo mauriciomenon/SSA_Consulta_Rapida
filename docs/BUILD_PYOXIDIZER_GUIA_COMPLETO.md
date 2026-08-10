@@ -7,10 +7,10 @@
 - `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
   - `windows_amd64`
-  - `debian_amd64` (via WSL)
+  - `debian_amd64` (clone Linux nativo)
 - Comandos canonicos (sempre via uv):
   - Windows: `dev_env/build/build_pyoxidizer.bat --silent`
-  - Debian/WSL: `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
+  - Debian em clone Linux nativo: `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
 - Artefatos finais:
   - `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
   - `builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida`

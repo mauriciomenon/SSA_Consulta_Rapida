@@ -1,10 +1,11 @@
 # Build 3x3 Runbook (Windows Linux macOS x PyInstaller Nuitka PyOxidizer)
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH 2026-08-09
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58 e PR #59: merged; usar base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
+- Release ativa: `v4.47`; tag anterior: `v4.46`.
 - Este runbook detalha execucao 3x3; nao deve duplicar a matriz completa de release.
+- Cada plataforma deve usar host/VM, clone e venv nativos. WSL fica restrito ao CodeRabbit em clone Linux proprio.
 
 ## Objetivo
 
@@ -18,9 +19,10 @@ Padrao reproduzivel para gerar e validar build nas 3 plataformas e 3 backends, c
 4. Garantir runtime dirs visiveis: `config`, `data`, `docs_entrada`, `docs_saida`, `exportacao`.
 5. Nao misturar shells:
    - Windows: PowerShell chama `.bat` com `.\` e caminhos `\`.
-   - Debian/WSL/Linux: shell POSIX chama `.sh` com `/`.
+   - Debian/Linux: shell POSIX chama `.sh` com `/` em clone Linux nativo.
    - macOS: shell POSIX chama `.sh` ou `uv` com `/`.
-6. Nao chamar `bash dev_env/...` no PowerShell e nao chamar `.\dev_env\...bat` no WSL/Linux/macOS.
+6. Nao chamar `bash dev_env/...` no PowerShell e nao chamar `.\dev_env\...bat` no Linux/macOS.
+7. Nao usar checkout em `/mnt/*`, executavel Windows ou venv Windows para build/teste Linux.
 
 ## Pre requisitos por host
 
@@ -51,7 +53,7 @@ Regra de uso no projeto:
 3. PyOxidizer Windows usa `rcedit` no script de build para aplicar icone e metadata.
 4. Nuitka Windows deve continuar usando recursos/versionamento no proprio fluxo de build.
 
-### Debian 13 via WSL
+### Debian 13 em host/VM Linux nativo
 
 1. `uv` instalado e funcional.
 2. Python 3.13 mais recente disponivel no uv.
@@ -74,7 +76,7 @@ sudo apt-get install -y patchelf build-essential
 # Windows
 set UV_PROJECT_ENVIRONMENT=.venv-win
 
-# Linux/WSL
+# Linux
 export UV_PROJECT_ENVIRONMENT=.venv-linux
 ```
 
@@ -128,7 +130,7 @@ Use este fluxo para release Debian AMD64. Ele roda somente em shell POSIX,
 chama somente wrappers `.sh`, valida workspace limpo, `build_info.json`,
 guia de migracao, conteudo do `.deb` e escreve relatorio com hashes.
 
-Local no Debian/WSL:
+Local no clone Debian nativo:
 
 ```bash
 bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y
@@ -286,7 +288,7 @@ uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
 
 1. Confirmar prerequisitos de empacotamento no host antes de iniciar o ciclo.
 2. Validar instalador `pyinstaller` e artefatos em `dist_packages/` no proprio host de release.
-3. No Debian/WSL, garantir `patchelf` presente antes do preflight do Nuitka.
+3. No host/VM Debian nativo, garantir `patchelf` presente antes do preflight do Nuitka.
 4. Tratar performance do build Nuitka Debian como rodada dedicada quando o host estiver sob carga.
 5. Nao versionar caminhos locais de host neste runbook.
 

@@ -14,8 +14,11 @@
   - mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub
   - `dev` e publicado em `origin/dev` e `bitbucket/dev`; `git pull` padrao usa GitLab
   - HTTP 403 afeta somente `gh`; nao bloqueia GitLab nem Bitbucket
-  - candidata validada com suite completa, modulo GUI afetado, contratos de release, `ruff`, `ty`, `py_compile`, `semgrep`, `bandit` e `pip-audit`
+  - grupos criticos de banco, importacao, release, filtros, nullable e cache validados no Windows nativo
+  - `uv lock --check` e `pip-audit` sem vulnerabilidade conhecida
+  - suite consolidada, scanners e build real ainda devem ser registrados antes da tag
   - build Windows oficial permanece condicionado ao relatorio JSON e aos smokes do executavel empacotado
+  - Debian usa clone Linux nativo; WSL fica restrito ao CodeRabbit em clone Linux proprio
 
 ## Historical snapshot
 

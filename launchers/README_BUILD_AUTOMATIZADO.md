@@ -9,6 +9,8 @@
 - Artefatos antigos versionados sao ruido historico/local e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
 - Fluxo atual: validar, gerar artefatos novos, publicar `v4.47` em GitLab e espelhar tag no Bitbucket.
+- Windows usa `release.ps1` em clone nativo; Debian/macOS usam `release.sh` em clones nativos dos respectivos hosts.
+- Nao compartilhar checkout ou venv entre Windows e WSL/Linux; WSL fica restrito ao CodeRabbit em clone Linux proprio.
 
 ## HISTORICAL SNAPSHOT 2026-05-04 01h14
 

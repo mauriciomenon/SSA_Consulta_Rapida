@@ -7,7 +7,9 @@
 - Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
 - PR #58 e PR #59: merged na linhagem historica acima; `dev` esta publicado em GitLab e Bitbucket.
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
-- Exemplos diretos: `.\release.ps1 -Yes` e `./release.sh`; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
+- Windows v4.47: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
+- Nao compartilhar checkout ou venv entre Windows e WSL/Linux. WSL e permitido somente para CodeRabbit em clone Linux proprio.
 - Mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub. O HTTP 403 afeta somente `gh`.
 - Artefatos anteriores a `v4.47` seguem historicos e nao devem ser usados para publicacao final.
 - Commits e tags autorizados sao publicados em `origin` e `bitbucket`; release primaria usa GitLab enquanto `gh` permanece bloqueado.
@@ -47,19 +49,13 @@
 Use estes comandos como entrada primaria. Os scripts em `dev_env/build/` sao
 implementacao interna e devem ser usados diretamente apenas para diagnostico.
 
-Windows AMD64, default Nuitka com instalador:
+Windows AMD64 v4.47, PyInstaller com banco runtime e instalador:
 
 ```powershell
-.\release.ps1 -Yes
+.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes
 ```
 
-Windows + Debian via WSL, default Nuitka e `.deb`:
-
-```powershell
-.\release.ps1 -Target all -Yes
-```
-
-Debian AMD64, default Nuitka e `.deb`:
+Debian AMD64 em host/VM e clone Linux nativos:
 
 ```bash
 ./release.sh
@@ -102,10 +98,10 @@ Dry-run macOS sem remoto Debian:
 - Backends de release operacional neste baseline: `pyinstaller`, `nuitka`, `pyoxidizer`.
 - `pytoexe`/`py2exe`: nao suportados neste repositorio (fora das choices dos scripts atuais).
 
-## Release Automatico Local
+## Release Automatico Local (historico)
 
-Use PowerShell no Windows para orquestrar Windows AMD64 e Debian AMD64 via WSL sem
-misturar sintaxe no terminal:
+O bloco abaixo preserva o fluxo antigo Windows + WSL para auditoria. Ele nao e permitido
+na release v4.47 e nao deve ser executado.
 
 ```powershell
 .\dev_env\build\release_local.ps1 -Backend all -DebianPackage all -Yes
@@ -123,10 +119,11 @@ Somente Windows:
 .\dev_env\build\release_windows.ps1 -Backend all -Yes
 ```
 
-Somente Debian AMD64 via WSL:
+Somente Debian AMD64 no clone Linux nativo:
 
-```powershell
-wsl -d Debian -- bash -lc 'cd <WSL-repo-path> && bash dev_env/build/release_debian.sh --backend all --package all -y'
+```bash
+cd "$HOME/gitlab/ssa_consulta_rapida_pyqt6"
+bash dev_env/build/release_debian.sh --backend all --package all -y
 ```
 
 Contrato do fluxo:
@@ -134,7 +131,7 @@ Contrato do fluxo:
 - `-DryRun`/`--dry-run` deve validar ambiente e plano sem build nem pacote.
 - `release_windows.ps1` nao chama Bash/WSL.
 - `release_debian.sh` nao chama PowerShell, `.bat` ou Inno Setup.
-- `release_local.ps1` apenas orquestra os dois scripts e nao contem logica de build.
+- `release_local.ps1` e legado e nao faz parte do fluxo permitido da v4.47.
 
 ## Validacao Operacional 2026-03-10 (host macOS arm64)
 

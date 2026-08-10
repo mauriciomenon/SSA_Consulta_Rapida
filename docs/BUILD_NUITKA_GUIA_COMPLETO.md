@@ -7,13 +7,13 @@
 - `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
 - Fluxo canonico Nuitka (sempre via uv wrappers):
   - Windows: `dev_env/build/build_nuitka.bat --silent`
-  - Debian/WSL: `bash dev_env/build/build_nuitka_debian.sh --silent`
+  - Debian em clone Linux nativo: `bash dev_env/build/build_nuitka_debian.sh --silent`
 - Artefatos finais:
   - Windows GUI: `builds/nuitka/windows_amd64/gui_entry.dist/*`
   - Windows CLI: `builds/nuitka/windows_amd64/cli_entry.dist/*`
   - Debian (quando toolchain do host estiver completo): `builds/nuitka/debian_amd64/*`
 - Pre-requisito Debian:
-  - instalar `patchelf` no WSL com `sudo apt-get update && sudo apt-get install -y patchelf`
+  - instalar `patchelf` no host/VM Linux com `sudo apt-get update && sudo apt-get install -y patchelf`
   - sem `patchelf`, o script falha no preflight por design.
 - Pipeline oficial de release continua PyInstaller para pacote default.
 - Nuitka permanece trilha opcional de hardening/performance.

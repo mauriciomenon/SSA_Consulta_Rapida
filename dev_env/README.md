@@ -1,6 +1,6 @@
 # Ambiente Python Compartilhado (dev_env)
 
-Este diretorio descreve o fluxo unificado de ambiente. A meta eh funcionar igual em PowerShell (Windows 11), bash/zsh (WSL Debian) e macOS, sem abandonar o fallback em `.venv` quando o pyenv nao estiver instalado.
+Este diretorio descreve o fluxo por host nativo. Windows 11 usa PowerShell; Linux e macOS usam bash/zsh em clones e venvs proprios, sem abandonar o fallback em `.venv` quando o pyenv nao estiver instalado. Nao compartilhar checkout ou venv entre Windows e WSL/Linux; WSL fica restrito ao CodeRabbit em clone Linux proprio.
 
 ## Visao geral
 - `.envrc` inicializa tudo: tenta pyenv + pyenv-virtualenv, garante a versao estavel (`3.13.12`, lida de `.python-version` se existir) e ativa o virtualenv `ssa_consulta_stable_<versao>`.
@@ -9,7 +9,7 @@ Este diretorio descreve o fluxo unificado de ambiente. A meta eh funcionar igual
 - O PATH recebe `scripts/` e `scripts_manutencao/`, alem de exportar `PYTHONUTF8=1` e `PYTHONDONTWRITEBYTECODE=1`.
 
 ## Como ativar
-### Linux/WSL/macOS (bash/zsh)
+### Linux/macOS (bash/zsh)
 1. Instale `direnv` e `pyenv`.
 2. Na raiz do repositorio: `direnv allow` (apenas quando `.envrc` mudar).
 3. Ao entrar na pasta, o prompt mostra `[env] python ...` com a versao ativa.

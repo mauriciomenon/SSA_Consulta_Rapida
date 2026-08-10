@@ -2,54 +2,63 @@
 
 Release estavel de manutencao da familia 4.x.
 
-## Destaques
+## Filtros e interface
 
 - Atalhos de situacao da barra superior alternam entre inclusao, exclusao e estado neutro.
 - Estado excluido usa o filtro existente `!STATUS`, sem novo operador ou mudanca no core.
 - Estados positivos e negativos podem ser combinados, por exemplo `SCA SPG !APG`.
-- Caixa rapida de setor executor mostra `...` quando mais de um setor esta ativo.
 - Barra rapida, lista de filtros, filtros por coluna e painel avancado permanecem sincronizados.
+- Caixa rapida de setor executor mostra `...` quando mais de um setor esta ativo, inclusive por filtro avancado.
+- Atualizacao apenas visual de filtros nao invalida mais a revisao dos dados; o cache de busca normalizada e reutilizado no DataFrame real.
+- Mascaras nullable de busca exata e faixas sao preenchidas antes das combinacoes booleanas.
 
-## Estabilidade Windows
+## Banco, importacao e recovery
 
-- Scripts de ativacao e teste usam caminhos nativos Windows com tratamento consistente.
-- Utilitario de limpeza registra falhas de `git rm` e nao oculta mais erros em blocos `catch`.
-- Smoke funcional fecha a conexao SQLite de verificacao antes de limpar o banco temporario no Windows.
-- Busca exata de SSA ignora valores ausentes nullable sem interromper o filtro.
-- Build de release exige clone nativo em `%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6`.
+- Reparacao valida a tabela SSA canonica e nao aceita coluna funcional renomeada como reparo bem-sucedido.
+- Recovery nao cria uma segunda tabela SSA nem descarta tabelas auxiliares ao reconstruir a base.
+- Snapshots e copias de build usam a API de backup SQLite, incluindo dados ainda presentes no WAL ativo.
+- Snapshot recente e reutilizado apenas depois de `PRAGMA quick_check`; snapshot corrompido e substituido.
+- Backups forenses de tentativas de recovery falhas possuem retencao limitada.
+- Escritas temporarias e rotacao de banco preservam transacao do chamador e fazem rollback coerente em falha.
+- Importacao com todas as linhas rejeitadas retorna classificacao deterministica, inclusive no worker de rescan.
+- Caminhos ativos e utilitarios de manutencao fecham conexoes SQLite tambem em excecao no Windows.
+
+## Release e isolamento de hosts
+
+- `release.ps1` aceita somente `-Target windows` e bloqueia ambiente WSL, checkout montado e venv de outro host antes de efeitos colaterais.
+- Debian deve usar `./release.sh` dentro de clone Linux nativo, sem compartilhar checkout ou venv com Windows.
+- WSL fica restrito ao CodeRabbit em clone Linux proprio; ele nao executa Python, uv, testes ou build.
+- Scripts Windows falham de forma fechada quando pre-condicoes, banco runtime, hash, smoke ou instalador obrigatorio nao sao validos.
 - Pacotes PyInstaller continuam `onedir`, com CLI e GUI separados.
-- Quando incluido, banco runtime fica somente em `data\ssas.db`, fora de `_internal`.
+- Quando incluido, o banco runtime fica somente em `data\ssas.db`, fora de `_internal`.
 - Pastas gravaveis externas permanecem `data`, `docs_entrada`, `docs_saida`, `exportacao`, `reports` e `logs`.
 
 ## Compatibilidade
 
 - Sem alteracao de schema de banco.
-- Sem alteracao da API das dependencias de runtime da aplicacao.
-- Locks transitiveis de build/dev/web atualizados para as primeiras versoes seguras: `gitpython 3.1.58`, `python-multipart 0.0.31`, `setuptools 83.0.0` e `starlette 1.3.1`.
+- Sem alteracao dos operadores ou da semantica central de filtros.
 - Sem alteracao de layout ou posicao dos controles.
-- Sem alteracao dos operadores de filtro existentes.
-
-## Commits principais
-
-- `0f164b3ab2c75d7aefe2d22d7d6650e12b527da3` - ciclo tri-state dos atalhos de situacao.
-- `f7f71a486b1d5f4d230637355f09ba8396597b13` - portabilidade Windows e scripts.
-- `7200ce339d9c61a62972a20d366e999e7a27cb32` - indicador `...` para multiplos setores.
+- Sem nova god class, mixin, wrapper ou helper de dominio.
+- Dependencias foram apenas auditadas nesta rodada; nao houve salto de versao sem vulnerabilidade reproduzida.
 
 ## Artefatos Windows AMD64
 
 - ZIP portatil CLI PyInstaller.
 - ZIP portatil GUI PyInstaller.
 - Instalador Inno Setup.
-- Relatorio JSON de release com hashes e resultado dos smokes.
+- Relatorio JSON de release com hashes, banco runtime e resultado dos smokes.
 
-Artefatos so podem ser publicados apos testes completos, smoke funcional do executavel empacotado, verificacao do banco runtime e validacao de seguranca.
+O comando canonico desta release e:
+
+```powershell
+.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes
+```
+
+Artefatos so podem ser publicados apos suite final, smoke funcional do executavel empacotado, verificacao do banco runtime, revisao independente e gates de seguranca.
 
 ## Validacao da candidata
 
-- Suite completa final: `2555 passed, 16 skipped`; os achados de expectativa visual e busca exata nullable foram corrigidos antes do build final.
-- Modulo GUI afetado apos a correcao da expectativa: `550 passed, 1 skipped`.
-- Contratos focados de release e multiplataforma: `122 passed, 6 skipped`.
-- `ruff`, `ty`, `py_compile`, validadores de configuracao e documentacao: OK.
-- `semgrep`: 0 achados bloqueantes; `bandit`: 0 achados medios ou altos.
-- `pip-audit`: nenhuma vulnerabilidade conhecida apos os patches minimos dos locks de build/dev/web.
-- O build publicado deve conter o relatorio JSON final, hashes e smokes do executavel real.
+- Grupos criticos de banco, importacao, build/release, filtros, nullable, cache e manutencao executados no Windows nativo sem falha.
+- Banco real validado com integridade SQLite, schema funcional, dados consistentes e nenhuma situacao desconhecida.
+- `uv lock --check` e `pip-audit` sem vulnerabilidade conhecida.
+- Resultado consolidado da suite final, scanners e build real sera registrado antes da tag.

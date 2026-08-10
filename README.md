@@ -17,10 +17,11 @@ Notas da release: [docs/RELEASE_NOTES_v4.47.md](docs/RELEASE_NOTES_v4.47.md)
   - `dev`, `origin/dev` e `bitbucket/dev` ficam sincronizados por politica de commit do projeto; `git pull` padrao usa `origin/dev`
   - o HTTP 403 por conta suspensa afeta somente `gh`; nao bloqueia GitLab nem Bitbucket
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
-  - suite completa da candidata: `2551 passed, 16 skipped`; a unica falha era uma expectativa visual antiga, corrigida e revalidada no modulo inteiro com `550 passed, 1 skipped`
-  - `ruff`, `ty`, `py_compile`, contratos de release, validadores de configuracao/documentacao e auditoria final de dependencias estao verdes
+  - grupos criticos de banco, importacao, release, filtros, nullable e cache estao verdes no Windows nativo
+  - `uv lock --check` e `pip-audit` nao reportam vulnerabilidade conhecida; suite consolidada, scanners e build real serao registrados antes da tag
+  - banco real passou integridade SQLite, schema funcional e consistencia de dados
   - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos
-  - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
+  - a v4.47 nao muda schema, operadores centrais de filtro, layout ou posicao de controles
 - Contrato de update por SSA (resumo):
   - `STE` e `SCA` no banco sao imutaveis para update
   - usa timestamp de snapshot (`data_planilha`/`data_arquivo_origem`/nome do arquivo) antes de olhar `data_cadastro`
@@ -136,10 +137,15 @@ Notas da release: [docs/RELEASE_NOTES_v4.47.md](docs/RELEASE_NOTES_v4.47.md)
 ### Destaques
 - Atalhos de situacao alternam entre inclusao, exclusao (`!STATUS`) e estado neutro.
 - Caixa rapida de setor executor mostra `...` quando mais de um setor esta ativo.
-- Lock de build/desenvolvimento/web usa as versoes seguras minimas de `gitpython`, `python-multipart`, `setuptools` e `starlette`; `pip-audit` nao reporta vulnerabilidades conhecidas.
+- Barra rapida, filtros ativos, filtros por coluna e painel avancado compartilham o mesmo estado aplicado.
+- Cache de busca normalizada permanece ativo entre atualizacoes apenas visuais e reduz reprocessamento de filtros.
+- Mascaras nullable de busca e faixa nao propagam `pd.NA` para combinacoes booleanas.
+- Recovery preserva tabela SSA canonica, colunas funcionais, tabelas auxiliares e dados presentes em WAL ativo.
+- Importacao com todas as linhas rejeitadas possui classificacao deterministica.
+- `pip-audit` nao reporta vulnerabilidades conhecidas no lock atual; nenhum salto de dependencia foi feito sem necessidade reproduzida.
 - Build oficial Windows AMD64 continua condicionado ao clone nativo, pacote PyInstaller `onedir`, banco externo unico e smoke funcional registrado no relatorio JSON.
-- Estado permanece sincronizado com filtros ativos, filtros por coluna e filtros avancados.
-- Portabilidade dos scripts Windows reforcada sem alterar runtime ou layout.
+- `release.ps1` e exclusivo do Windows; Debian usa clone Linux nativo e `release.sh`. WSL fica restrito ao CodeRabbit em clone proprio.
+- Sem mudanca de schema, operador central, layout ou posicao de controles.
 
 ## Baseline v4.45 (2026-07, historical)
 
@@ -244,10 +250,10 @@ uv sync
 uv run --python 3.13 main.py --gui
 
 # Validar plano sem compilar
-.\release.ps1 -DryRun -Yes
+.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -DryRun -Yes
 
 # Gerar executaveis, ZIP e instalador Windows AMD64
-.\release.ps1 -Yes
+.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes
 ```
 
 Saidas esperadas:
@@ -281,6 +287,7 @@ Saida esperada:
 
 Notas de release:
 - `release.ps1` e `release.sh` sao os wrappers publicos; scripts em `dev_env/build/` sao implementacao interna.
+- Cada wrapper deve rodar em clone e venv nativos do proprio host; nao compartilhar checkout Windows com WSL/Linux.
 - O build de release exige workspace limpo para evitar artefato stale.
 - O fluxo de release roda smoke funcional de importacao no executavel gerado e bloqueia falha antes de publicar artefato.
 

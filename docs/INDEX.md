@@ -18,6 +18,12 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `0f164b3a` `STABILITY_PATCH: cycle quick status filter states`
    - `f7f71a48` `STABILITY_PATCH: harden Windows portability and scripts`
    - `7200ce33` `UI_FIX: show ellipsis for multiple quick sectors`
+   - `21cbee93` `FILTER_PERF: activate normalized search cache`
+   - `b97cc46` `FILTER_FIX: keep quick state and search cache synchronized`
+   - `d6737252` `DB_FIX: validate snapshots and bound failed recovery forensics`
+   - `50f38b23` `BUILD_FIX: snapshot runtime data copies with active WAL`
+   - `56eacf1c` `BUILD_FIX: isolate native release harness and WAL hashes`
+   - `6b70c8d5` `DB_HYGIENE: close legacy maintenance connections`
 8. Historico anterior desde `v4.43`:
    - `445f1d25` `STABILITY_PATCH: fix validation gates for v4.44 baseline`
    - `acc299f8` `STABILITY_PATCH: fix ty validation gate`
@@ -32,15 +38,15 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `63631e72` `STABILITY_PATCH: harden release_windows.ps1 pre-zip workspace`
 9. Estado validado local:
    - `ruff check .`, `ty check` e `py_compile`: OK
-   - contratos focados de release e multiplataforma: `122 passed, 6 skipped`
-   - suite completa: `2551 passed, 16 skipped`; a unica falha era uma expectativa visual antiga
-   - modulo corrigido revalidado por inteiro: `550 passed, 1 skipped`
-   - `pip-audit`: nenhuma vulnerabilidade conhecida apos os patches minimos de `gitpython`, `python-multipart`, `setuptools` e `starlette`
-   - `semgrep`: 0 achados bloqueantes; `bandit`: 0 achados medios ou altos
+   - grupos criticos de banco, importacao, release, filtros, nullable e cache: OK
+   - banco real: integridade SQLite, schema funcional e dados consistentes
+   - `uv lock --check` e `pip-audit`: nenhuma vulnerabilidade conhecida
+   - suite final, scanners e build real: executar e registrar antes da tag
 10. Pendencias imediatas:
-   - nenhuma pendencia funcional bloqueante conhecida para `v4.47`
+   - nenhuma falha funcional conhecida nos grupos criticos da candidata `v4.47`
    - espelhamento no GitHub permanece bloqueado por HTTP 403; GitLab e Bitbucket nao sao afetados
    - publicacao so e valida quando o build limpo e os smokes reais Windows estiverem registrados no relatorio JSON
+   - CodeRabbit deve rodar somente depois do primeiro push, no clone Linux nativo WSL e sem Python/uv/testes
 
 ## Snapshot historico de abril/GUI
 

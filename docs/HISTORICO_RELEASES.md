@@ -12,12 +12,17 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - Atalhos de situacao alternam entre inclusao, exclusao (`!STATUS`) e estado neutro.
 - Filtros combinados aceitam estados positivos e negativos, como `SCA SPG !APG`.
 - Se mais de um setor executor estiver ativo, o seletor rapido mostra `...`.
-- Sincronizacao existente entre barra rapida, filtros ativos, filtros por coluna e painel avancado foi preservada.
-- Scripts Windows receberam correcoes de portabilidade e caminhos nativos.
+- Barra rapida, filtros ativos, filtros por coluna e painel avancado compartilham o estado aplicado.
+- Cache de busca foi ativado no DataFrame real e nao e invalidado por refresh apenas visual.
+- Mascaras pandas/Arrow nullable foram blindadas na busca exata e em faixas.
+- Recovery preserva tabela canonica, colunas funcionais, tabelas auxiliares e dados em WAL ativo.
+- Importacao totalmente rejeitada recebe classificacao deterministica.
+- Scripts Windows, snapshots SQLite e fechamento de conexoes receberam hardening de portabilidade.
 
 ### **Escopo preservado**
 - Sem mudanca de schema, API das dependencias de runtime, operadores do core ou layout.
-- Locks de build/desenvolvimento/web atualizados para `gitpython 3.1.58`, `python-multipart 0.0.31`, `setuptools 83.0.0` e `starlette 1.3.1` apos auditoria de seguranca.
+- `pip-audit` nao encontrou vulnerabilidade conhecida; nenhuma dependencia foi atualizada sem necessidade reproduzida nesta rodada.
+- Windows e Linux usam clones e venvs nativos separados; WSL fica restrito ao CodeRabbit em clone Linux proprio.
 - `v4.46` permanece como checkpoint anterior do ciclo tri-state.
 - Notas detalhadas: `docs/RELEASE_NOTES_v4.47.md`.
 

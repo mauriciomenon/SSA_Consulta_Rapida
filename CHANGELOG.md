@@ -8,7 +8,14 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - Quick executor-sector selector now shows `...` when more than one sector is active.
-- Existing active, column and advanced executor-sector filter synchronization remains unchanged.
+- Quick status include/exclude/neutral state now remains synchronized with active, column and advanced filters.
+- Search cache is active on the real GUI DataFrame and survives visual-only refreshes.
+- Nullable exact-search and range masks are normalized before boolean composition.
+- SQLite recovery preserves the canonical SSA table, functional columns and auxiliary tables.
+- Runtime/build snapshots use the SQLite backup API and include active WAL data.
+- Fully rejected imports now receive deterministic classification across direct and rescan paths.
+- Windows release orchestration is native-only; Linux release uses a native Linux clone.
+- SQLite connections in active and maintenance paths close on exceptional exits.
 - Runtime and package metadata now identify stable release `4.47`.
 - `cleanup_ai_artifacts.ps1` now checks native `git rm` exit codes, records failures and reports when deletion could not be staged.
 - Functional CLI smoke now closes its verification connection before removing the temporary Windows database.
@@ -17,14 +24,16 @@ All notable changes to this project are documented in this file.
 ### Notes
 - No database schema, application filter-operator or layout change.
 - This release consolidates the stable fixes introduced after `v4.45.2`, including the `v4.46` status-filter cycle.
+- No dependency jump was made without a reproduced security need.
 
 ### Security
 - Updated locked `gitpython` from `3.1.57` to `3.1.58`, `python-multipart` from `0.0.28` to `0.0.31`, `setuptools` from `82.0.1` to `83.0.0` and `starlette` from `1.0.1` to `1.3.1`.
 - These are the minimum versions that clear the advisories reported by `pip-audit` in build, development and web dependency paths.
 
 ### Validation
-- Final candidate suite completed with 2555 passed and 16 skipped after fixing the stale visual expectation and nullable exact-search regression found during hardening.
-- Release contracts, static checks and dependency audit passed before the clean Windows build gate.
+- Critical database, import, release, filter, nullable and cache groups passed on native Windows.
+- `uv lock --check` and `pip-audit` passed without a known vulnerability.
+- Consolidated final suite, scanners and real packaged smoke are recorded before tagging.
 
 ## [v4.46] - 2026-08-09
 

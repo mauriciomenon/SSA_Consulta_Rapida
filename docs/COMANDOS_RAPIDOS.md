@@ -93,19 +93,20 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-## Build silencioso (Windows e Debian)
+## Build silencioso por host nativo
 
 ```powershell
 # Windows
 dev_env\build\build_pyinstaller.bat --silent
 dev_env\build\build_nuitka_clean.bat --silent
 dev_env\build\build_pyoxidizer.bat --silent
+```
 
-# Debian via WSL
-$REPO_ROOT = "/mnt/c/caminho/para/SSA_Consulta_Rapida"
-wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_pyinstaller_debian.sh --silent"
-wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_nuitka_debian.sh --silent"
-wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_pyoxidizer_debian.sh --silent"
+```bash
+# Debian em clone Linux nativo
+bash dev_env/build/build_pyinstaller_debian.sh --silent
+bash dev_env/build/build_nuitka_debian.sh --silent
+bash dev_env/build/build_pyoxidizer_debian.sh --silent
 ```
 
 ## Notas
@@ -113,6 +114,6 @@ wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_pyoxidizer_debian.sh 
 1. Para fluxo operacional e handoff, usar o PR/conversa atual.
 2. Para troubleshooting geral, usar `docs/TROUBLESHOOTING.md`.
 3. Para troubleshooting de importacao, usar `docs/TROUBLESHOOTING_IMPORTACAO.md`.
-4. Antes dos comandos WSL acima, ajuste `$REPO_ROOT` para o caminho montado do repo no seu ambiente.
+4. Nao usar checkout em `/mnt/*` nem venv Windows para build/teste Linux. WSL fica restrito ao CodeRabbit em clone Linux proprio.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

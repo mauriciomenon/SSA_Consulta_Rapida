@@ -16,6 +16,9 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
   1. entrada publica por `release.ps1` no Windows e `release.sh` no Debian/macOS
   2. build por backend com scripts em `dev_env/build/`
   3. distribuicao/report com scripts em `dev_env/build/` e `scripts/create_distribution.py`
+- Cada plataforma usa clone, venv e processo nativos do proprio host. Nao usar checkout Windows montado no WSL.
+- WSL fica restrito ao CodeRabbit em clone Linux proprio e nao executa Python, uv, testes ou build.
+- Comando canonico da v4.47 no Windows: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
 - Fonte da matriz de release: `dev_env/build/release_targets.json`.
 - Matriz ativa:
   - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
