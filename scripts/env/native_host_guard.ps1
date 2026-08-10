@@ -86,7 +86,9 @@ function Assert-SsaWindowsVenv {
     if (-not (Test-SsaWindowsPeFile -Path $pythonPath)) {
         throw "[native-guard] BLOCKED: venv Python is not a Windows PE executable: $pythonPath"
     }
-    if (Test-Path -LiteralPath (Join-Path $VenvDir 'bin')) {
+    $posixBin = Join-Path $VenvDir 'bin'
+    if ((Test-Path -LiteralPath (Join-Path $posixBin 'activate')) -or
+        (Test-Path -LiteralPath (Join-Path $posixBin 'python'))) {
         throw "[native-guard] BLOCKED: POSIX bin directory found in Windows venv: $VenvDir"
     }
 }
