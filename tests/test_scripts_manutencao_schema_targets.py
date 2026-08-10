@@ -124,9 +124,7 @@ def test_analyze_db_integrity_duplicate_count_not_limited_to_top10(
     assert result["duplicate_count"] == 12
 
 
-def test_analyze_db_integrity_closes_connection_when_query_fails(
-    tmp_path, monkeypatch
-):
+def test_analyze_db_integrity_closes_connection_when_query_fails(tmp_path, monkeypatch):
     module = _load_module(
         Path(__file__).resolve().parents[1]
         / "scripts_manutencao"
@@ -157,6 +155,37 @@ def test_analyze_db_integrity_closes_connection_when_query_fails(
 
     with pytest.raises(sqlite3.DatabaseError, match="forced query failure"):
         module.verify_database_integrity()
+
+    assert len(connections) == 1
+    assert connections[0].closed is True
+
+
+def test_check_status_closes_connection_when_query_fails(tmp_path, monkeypatch):
+    module = _load_module(
+        Path(__file__).resolve().parents[1] / "scripts_manutencao" / "check_status.py",
+        "check_status_close_test",
+    )
+    real_connect = sqlite3.connect
+    connections = []
+
+    class TrackingConnection(sqlite3.Connection):
+        closed = False
+
+        def close(self):
+            self.closed = True
+            super().close()
+
+    def _connect(*_args, **kwargs):
+        connection = real_connect(
+            tmp_path / "failure.db", factory=TrackingConnection, **kwargs
+        )
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(module.sqlite3, "connect", _connect)
+
+    with pytest.raises(sqlite3.OperationalError, match="no such table"):
+        module.main()
 
     assert len(connections) == 1
     assert connections[0].closed is True
