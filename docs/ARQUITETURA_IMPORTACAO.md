@@ -101,13 +101,13 @@ Referencia completa:
 6. Escrita SSA nos dois utilitarios exige `--smart-upsert`; dry-run permanece
    somente leitura.
 
-## Fonte de verdade para operacao
+## CURRENT TRUTH
 
 - Estado operacional e decisoes de ciclo:
   - `README.md`
   - `docs/README.md`
 
-## Historico tecnico detalhado
+## HISTORICAL SNAPSHOT
 
 O conteudo detalhado legado desta arquitetura nao e mais publicado no repositorio.
 
