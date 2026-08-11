@@ -241,6 +241,9 @@ def test_backfill_rejects_missing_or_negative_rows_in_contract(tmp_path, monkeyp
     )
 
     assert negative_exit_code == 1
+    negative_report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert negative_report["summary"]["files_failed"] == 1
+    assert "row_count_before_invalid_filter" in negative_report["results"][0]["error"]
 
 
 def test_backfill_smart_upsert_confirms_events_and_source_metadata(
