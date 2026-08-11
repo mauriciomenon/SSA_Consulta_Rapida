@@ -806,7 +806,9 @@ O fluxo principal de SSA usa `extracao.extractor.extract_data_from_excel` em
 
 Contratos do fluxo principal:
 
-1. O mapeamento customizado e normalizado e validado; aliases ambiguos ou alvos
+1. `--mappings` compara o header somente com os aliases literais do JSON
+   fornecido, usando normalizacao mecanica de caixa, acentos e espacos. Nao
+   inventa sinonimos nem coalesce campos de negocio; aliases ambiguos ou alvos
    internos reservados encerram a extracao em erro.
 2. Linhas hierarquicas sem `numero_ssa` nao recebem forward-fill. Elas sao
    associadas ao pai comprovado e persistidas separadamente em
@@ -821,6 +823,17 @@ Contratos do fluxo principal:
 `utils/robust_importer.py` continua ativo para `read_report`, sincronizacao de
 derivadas e simulacao. Ele nao e o parser de escrita dos dois CLIs auxiliares de
 SSA.
+
+Contrato aprovado neste ciclo para `--mappings`: preservar a compatibilidade do
+CLI anterior ao encaminhar o arquivo customizado ao extractor canonico. O diff
+previsto ficou restrito a esse encaminhamento e ao lookup mecanico. Os termos
+afetados sao exatamente os nomes canonicos e aliases presentes no JSON escolhido
+em cada execucao; nenhum termo foi adicionado ao mapping default. Justificativa:
+um alias fornecido pelo operador deve continuar reconhecido apesar de variacao
+de caixa, acento ou espaco. Cobertura positiva:
+`test_extract_data_from_excel_uses_explicit_mapping_file`. Cobertura negativa:
+`test_extract_data_from_excel_preserves_unmapped_header_without_explicit_mapping`
+e `test_extract_data_from_excel_rejects_unsafe_explicit_mapping`.
 
 Documento tecnico detalhado: `docs/IMPORTACAO_ROBUSTA.md`.
 

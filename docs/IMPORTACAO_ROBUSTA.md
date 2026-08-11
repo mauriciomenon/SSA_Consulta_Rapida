@@ -19,7 +19,8 @@ deduplicacao por `numero_ssa` nao preservam continuacoes hierarquicas.
 1. Valida limites do XLSX e localiza as folhas elegiveis.
 2. Detecta o cabecalho e aplica `config/column_mappings.json`.
 3. No mapping default, compara aliases apos `strip`; com `--mappings` explicito,
-   normaliza caixa, acentos e espacos para o lookup.
+   compara somente o header e os aliases literais fornecidos, normalizando caixa,
+   acentos e espacos. Nao cria sinonimos nem coalesce campos de negocio.
 4. Em ambos os modos, rejeita aliases ambiguos apos normalizacao e alvos
    internos reservados.
 5. Normaliza `numero_ssa` e valida as colunas obrigatorias.
