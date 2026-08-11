@@ -813,8 +813,9 @@ Contratos do fluxo principal:
 2. Linhas hierarquicas sem `numero_ssa` nao recebem forward-fill. Elas sao
    associadas ao pai comprovado e persistidas separadamente em
    `ssa_event_records`.
-3. Linha sem identidade que ainda contenha payload nao e aceita pelos CLIs
-   auxiliares; a escrita falha fechada.
+3. Linha sem identidade que ainda contenha payload nao e aceita por nenhum
+   caller canonico. O core interrompe a rodada antes de metadata/upsert e os
+   CLIs auxiliares retornam erro.
 4. Escrita em tabela SSA exige `--smart-upsert`, com metrica que confirma todos
    os eventos capturados.
 5. `arquivo_origem`, `data_planilha` e `data_arquivo_origem` vem do arquivo

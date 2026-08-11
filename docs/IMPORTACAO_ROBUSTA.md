@@ -33,7 +33,7 @@ deduplicacao por `numero_ssa` nao preservam continuacoes hierarquicas.
 
 Nao existe forward-fill de `numero_ssa`. A associacao de uma continuacao depende
 de evidencia estrutural do grupo. Formato nao reconhecido com payload falha
-fechado nos CLIs auxiliares.
+fechado em todos os callers canonicos.
 
 ## Registros hierarquicos
 
@@ -59,9 +59,11 @@ O extractor informa, entre outras contagens:
 - `hierarchical_rows_captured`
 - `hierarchical_records_captured`
 
-`payload_removed > 0` bloqueia `scripts/import_excel_file.py` e marca o arquivo
-como falha no backfill. Um arquivo com linhas de entrada, mas nenhuma linha
-aceita, tambem nao produz sucesso falso, inclusive em dry-run.
+`payload_removed > 0` levanta `UNSAFE_INVALID_IDENTITY_PAYLOAD` no core antes de
+metadata, validacao ou upsert; o orquestrador interrompe a rodada sem promocao ou
+cache. `scripts/import_excel_file.py` retorna erro e o backfill marca o arquivo
+como falha. Um arquivo com linhas de entrada, mas nenhuma linha aceita, tambem
+nao produz sucesso falso, inclusive em dry-run.
 
 ## Metadata e recencia
 

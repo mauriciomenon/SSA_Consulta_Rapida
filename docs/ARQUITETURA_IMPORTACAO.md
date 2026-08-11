@@ -72,9 +72,10 @@ Os callers canonicos exigem que o smart upsert confirme a persistencia de todos
 os eventos.
 
 Linhas restantes sem identidade sao resumidas em
-`DataFrame.attrs["invalid_row_summary"]`. Os CLIs auxiliares bloqueiam a escrita
-quando `payload_removed > 0`; assim, formato desconhecido nao vira descarte
-silencioso.
+`DataFrame.attrs["invalid_row_summary"]`. Todo caller canonico bloqueia a escrita
+quando `payload_removed > 0`. No core principal, o erro interrompe a rodada sem
+promocao do candidato nem atualizacao de cache; assim, formato desconhecido nao
+vira descarte silencioso.
 
 ## Regras de escrita por linha
 

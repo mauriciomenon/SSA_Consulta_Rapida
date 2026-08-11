@@ -20,12 +20,17 @@ alt full rescan / incremental principal
         EXTRACT -> EXTRACT : capturar pais e continuacoes
         EXTRACT -> EXTRACT : resumir identidade invalida
         EXTRACT --> IMPORT : DataFrame (attrs: eventos/resumo)
-        IMPORT -> IMPORT : validar e registrar identidade invalida
-        IMPORT -> IMPORT : aplicar metadata do arquivo fisico
-        IMPORT -> UPSERT : pais + eventos
-        UPSERT -> DB : transacao unica
-        DB --> UPSERT : resultado de persistencia
-        UPSERT --> IMPORT : metricas de insert/update/eventos
+        alt payload_removed > 0
+            IMPORT --> APP : UNSAFE_INVALID_IDENTITY_PAYLOAD
+            APP --> Usuario : erro; sem promocao ou cache
+        else identidade segura
+            IMPORT -> IMPORT : validar e registrar identidade invalida
+            IMPORT -> IMPORT : aplicar metadata do arquivo fisico
+            IMPORT -> UPSERT : pais + eventos
+            UPSERT -> DB : transacao unica
+            DB --> UPSERT : resultado de persistencia
+            UPSERT --> IMPORT : metricas de insert/update/eventos
+        end
     end
 else CLI auxiliar
     ENTRY -> EXTRACT : extract_data_from_excel()

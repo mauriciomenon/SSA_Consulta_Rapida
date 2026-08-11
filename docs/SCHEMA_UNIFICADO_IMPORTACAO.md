@@ -70,7 +70,8 @@ exata.
 1. O extractor valida e aplica mappings estritos.
 2. Continuacoes hierarquicas sao capturadas antes do filtro de identidade.
 3. Linhas sem identidade restantes geram `invalid_row_summary`.
-4. Os CLIs auxiliares bloqueiam payload removido e escrita SSA sem smart upsert.
+4. Todo caller canonico bloqueia payload removido; os CLIs auxiliares tambem
+   bloqueiam escrita SSA sem smart upsert.
 5. O smart upsert persiste pai e eventos em uma transacao. Os callers canonicos
    passam `metrics_out` e exigem as contagens de insert, update e eventos.
 
