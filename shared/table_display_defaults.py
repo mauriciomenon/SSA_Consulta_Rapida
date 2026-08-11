@@ -14,6 +14,7 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "equipamento": "Equip.",
     "semana_cadastro": "Sem.\nCadastro",
     "data_cadastro": "Emitida Em",
+    "data_planilha": "Data da Planilha",
     "descricao_ssa": "Descrição da SSA",
     "setor_emissor": "Emissor",
     "setor_executor": "Executor",
