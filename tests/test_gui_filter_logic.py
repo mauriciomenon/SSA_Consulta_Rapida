@@ -3836,15 +3836,16 @@ class TestGUIFilterLogic:
         self.window.internal_to_display["justificativa"] = "Justificativa"
         self.window.internal_to_display["parciais"] = "Parciais"
         self.window.internal_to_display["situacao_da_parcial"] = "Situacao Parcial"
-        unreconciled_source_columns = {
-            "deviation_records",
-            "situation_of_deviation",
-            "partial_records",
-            "situation_of_partial",
+        english_source_columns = {
+            "deviation_records": "Deviation Records (EN)",
+            "situation_of_deviation": "Situation of Deviation (EN)",
+            "partial_records": "Partial Records (EN)",
+            "situation_of_partial": "Situation of Partial (EN)",
         }
+        original_expander = self.window._expand_column_alias_for_filter
         self.window._non_null_cols_cache = {
             "data_planilha",
-            *unreconciled_source_columns,
+            *english_source_columns,
         }
 
         from gui.ssa import column_filter_panel
@@ -3879,7 +3880,33 @@ class TestGUIFilterLogic:
             == "Data da Planilha"
         )
         assert "data_planilha" not in self.window._last_unmapped_alias_columns
-        assert unreconciled_source_columns.isdisjoint(menu_columns)
+        assert english_source_columns.keys() <= menu_columns
+        for column, label in english_source_columns.items():
+            assert self.window._resolve_column_display_name(column) == label
+            assert column not in self.window._last_unmapped_alias_columns
+
+        monkeypatch.setattr(
+            self.window,
+            "_expand_column_alias_for_filter",
+            original_expander,
+        )
+        created_actions.clear()
+        self.window._open_add_column_filter_menu()
+        action_labels = {action.data(): action.text for action in created_actions}
+        for column, label in english_source_columns.items():
+            assert action_labels[column] == label
+
+        created_actions.clear()
+        self.window._non_null_cols_cache = {"data_planilha"}
+        self.window._open_add_column_filter_menu()
+        menu_columns = {action.data() for action in created_actions}
+        assert english_source_columns.keys().isdisjoint(menu_columns)
+
+        created_actions.clear()
+        self.window._active_column_filters = {"situation_of_partial": ""}
+        self.window._open_add_column_filter_menu()
+        menu_columns = {action.data() for action in created_actions}
+        assert "situation_of_partial" in menu_columns
 
         created_actions.clear()
         self.window._active_column_filters = {"Data Cadastro": ""}
@@ -3890,6 +3917,25 @@ class TestGUIFilterLogic:
             action for action in created_actions if action.data() == "Data Cadastro"
         )
         assert active_action.checked is True
+
+    def test_column_filters_keep_english_fields_independent_from_portuguese(self):
+        frame = pd.DataFrame(
+            {
+                "numero_ssa": [1, 2, 3],
+                "deviation_records": ["EN_DEV", "OTHER", "EN_DEV"],
+                "numero_desvios": ["OTHER", "EN_DEV", "EN_DEV"],
+                "situation_of_partial": ["EN_PART", "EN_PART", "OTHER"],
+                "situacao_da_parcial": ["OTHER", "EN_PART", "EN_PART"],
+            }
+        )
+        self.window._active_column_filters = {
+            "deviation_records": "EN_DEV",
+            "situation_of_partial": "EN_PART",
+        }
+
+        filtered = self.window._apply_column_filters(frame)
+
+        assert filtered["numero_ssa"].tolist() == [1]
 
     def test_get_canonical_available_columns_keeps_active_filter_even_outside_non_null_cache(
         self,

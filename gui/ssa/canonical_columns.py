@@ -28,10 +28,6 @@ EXCLUDED_CANONICAL_UI_COLUMNS = {
     "data_limite",
     "status_execucao_prazo",
     "sistema_origem",
-    "deviation_records",
-    "situation_of_deviation",
-    "partial_records",
-    "situation_of_partial",
     "registros_espera",
     "num_reprobaciones",
     "situacao_espera",
@@ -60,6 +56,13 @@ LEGACY_INVALID_UI_COLUMNS = {
     "Número da SSA",
     "No SSA",
     "Data Cadastro",
+}
+
+DYNAMIC_RUNTIME_UI_COLUMNS = {
+    "deviation_records",
+    "situation_of_deviation",
+    "partial_records",
+    "situation_of_partial",
 }
 
 
@@ -139,7 +142,14 @@ def build_canonical_available_columns(inputs: CanonicalColumnInputs) -> list[str
     collect_mapped_keys(inputs.display_map)
 
     allowed_columns = _parse_allowed_columns(inputs.allowed_columns_text)
+    runtime_columns = set(inputs.non_null_columns)
     for col_name in mapped_columns:
+        if (
+            col_name in DYNAMIC_RUNTIME_UI_COLUMNS
+            and col_name not in runtime_columns
+            and col_name not in always_allow
+        ):
+            continue
         append_candidate(col_name, allow=(col_name in always_allow))
     for col_name in inputs.non_null_columns:
         append_candidate(col_name, allow=(col_name in always_allow))
