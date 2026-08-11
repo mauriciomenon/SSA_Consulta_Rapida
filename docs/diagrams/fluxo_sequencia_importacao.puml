@@ -1,77 +1,48 @@
 @startuml Fluxo_Importacao_Sequencia
 
 actor Usuario
-participant "main.py" as MAIN
-participant "app_logic.py\nrun_importer_logic" as APP
-participant "caching.py" as CACHE
+participant "main.py / CLI" as ENTRY
+participant "app_logic.py" as APP
+participant "import_single_file.py" as IMPORT
 participant "extractor.py" as EXTRACT
-participant "robust_importer.py" as ROBUST
-participant "database_optimized.py" as DB_OPT
-participant "SQLite" as DB
+participant "smart upsert" as UPSERT
+database "SQLite" as DB
 
-== Inicialização ==
-Usuario -> MAIN : python main.py --force-rescan
-MAIN -> MAIN : parse_args()
-MAIN -> MAIN : configure_logging()
-MAIN -> APP : run_importer_logic(
-    force_import=True
-)
+Usuario -> ENTRY : solicitar importacao
 
-== Descoberta de Arquivos ==
-APP -> APP : _resolve_import_targets()
-APP -> CACHE : get_files_to_process()
-CACHE -> CACHE : get_all_xlsx_files()
-CACHE --> APP : lista_arquivos[]
-
-== Loop de Processamento ==
-loop Para cada arquivo
-    APP -> APP : _import_single_file()
-    
-    == Extração ==
-    APP -> EXTRACT : extract_data_from_excel()
-    EXTRACT -> ROBUST : import_excel_robust()
-    
-    == Processamento Robusto ==
-    ROBUST -> ROBUST : pd.read_excel()
-    ROBUST -> ROBUST : Detectar header mesclado
-    ROBUST -> ROBUST : Mapear colunas (aliases)
-    ROBUST -> ROBUST : _canonicalize_header()
-    ROBUST -> ROBUST : Normalizar numero_ssa
-    ROBUST -> ROBUST : _parse_single_date()
-    ROBUST -> ROBUST : Coalescer colunas
-    ROBUST -> ROBUST : Deduplicar
-    ROBUST --> EXTRACT : DataFrame, stats
-    EXTRACT --> APP : DataFrame
-    
-    == Validação ==
-    APP -> APP : validate_dataframe_before_insert()
-    alt Dados inválidos
-        APP -> APP : Log warnings/errors
-        APP -> APP : Remover linhas inválidas
+alt full rescan / incremental principal
+    ENTRY -> APP : run_importer_logic()
+    APP -> APP : descobrir e ordenar arquivos
+    loop cada arquivo
+        APP -> IMPORT : import_single_file()
+        IMPORT -> EXTRACT : extract_data_from_excel()
+        EXTRACT -> EXTRACT : detectar header e aplicar mappings
+        EXTRACT -> EXTRACT : capturar pais e continuacoes
+        EXTRACT -> EXTRACT : resumir identidade invalida
+        EXTRACT --> IMPORT : DataFrame (attrs: eventos/resumo)
+        IMPORT -> IMPORT : validar e registrar identidade invalida
+        IMPORT -> IMPORT : aplicar metadata do arquivo fisico
+        IMPORT -> UPSERT : pais + eventos
+        UPSERT -> DB : transacao unica
+        DB --> UPSERT : resultado de persistencia
+        UPSERT --> IMPORT : metricas de insert/update/eventos
     end
-    
-    == Persistência Otimizada ==
-    APP -> DB_OPT : insert_dataframe_optimized()
-    DB_OPT -> DB_OPT : _normalize_ssa_storage_value()
-    DB_OPT -> DB_OPT : Configurar pragmas SQLite
-    note right
-      PRAGMA journal_mode=WAL
-      PRAGMA synchronous=NORMAL
-      PRAGMA cache_size=10000
-    end note
-    DB_OPT -> DB : INSERT OR REPLACE batch
-    DB --> DB_OPT : success
-    DB_OPT --> APP : True/False
+else CLI auxiliar
+    ENTRY -> EXTRACT : extract_data_from_excel()
+    EXTRACT --> ENTRY : DataFrame (attrs: eventos/resumo)
+    alt payload inseguro ou entrada toda rejeitada
+        ENTRY --> Usuario : exit code nao zero
+    else dry-run
+        ENTRY --> Usuario : relatorio sem escrita
+    else smart upsert ausente
+        ENTRY --> Usuario : exit code nao zero
+    else escrita segura
+        ENTRY -> UPSERT : pais + eventos
+        UPSERT -> DB : transacao unica
+        UPSERT --> ENTRY : metricas obrigatorias
+    end
 end
 
-== Sincronização de Derivadas ==
-APP -> APP : scan_derivadas_consistency()
-APP -> APP : sync_derivadas()
-
-== Finalização ==
-APP -> CACHE : update_import_cache()
-APP --> MAIN : db_updated=True
-MAIN -> MAIN : Iniciar GUI/CLI
-MAIN --> Usuario : Aplicação pronta
+ENTRY --> Usuario : resultado objetivo
 
 @enduml

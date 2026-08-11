@@ -1,131 +1,141 @@
-# Importacao Robusta de Planilhas SSA
+# Importacao de Planilhas SSA
 
-Este documento descreve o pipeline "a prova de bala" de ingestao de planilhas Excel (`.xlsx`) contendo registros de SSA.
+## Current truth
 
-## Objetivos Principais
+O caminho canonico de escrita de SSA usa
+`extracao.extractor.extract_data_from_excel`. Ele atende:
 
-- Aceitar variacoes de cabecalho (acentos, maiusculas, espacamento, quebras de linha, grafias alternativas).
-- Colapsar sinonimos em um unico nome canonico usando `config/column_mappings.json`.
-- Evitar duplicacao logica de colunas (coalescencia linha a linha quando multiplas colunas representam o mesmo campo).
-- Normalizar `numero_ssa` e descartar linhas sem valor valido (opcional).
-- Parsing resiliente de datas em varios formatos (ISO, dd/mm/yyyy, dd-mm-yyyy, serial Excel numerico).
-- Deduplicar registros pelo mesmo `numero_ssa` mantendo o mais recente (maior `data_cadastro`).
-- Evitar sobrescrever dados ja existentes com valores vazios durante upsert.
-- Gerar estatisticas detalhadas para auditoria.
+- `core/import_single_file.py`
+- `scripts/import_excel_file.py`
+- `scripts/migracao/backfill_reprocessar.py`
 
-## Componentes Envolvidos
+`utils/robust_importer.py` continua ativo, mas em outro contrato: `read_report`,
+sincronizacao de derivadas e simulacao. Ele nao deve substituir o extractor nos
+dois CLIs de SSA, pois o filtro historico de linhas sem identidade e a
+deduplicacao por `numero_ssa` nao preservam continuacoes hierarquicas.
 
-| Arquivo | Responsabilidade |
-|---------|------------------|
-| `utils/robust_importer.py` | Funcao `import_excel_robust` que implementa normalizacao e estatisticas. |
-| `config/column_mappings.json` | Mapeamento de sinonimos para nomes canonicos. |
-| `scripts/import_excel_file.py` | CLI para importacao (dry-run, reset, upsert inteligente). |
-| `armazenamento/database.py` | Logica de insercao e upsert preservando dados. |
-| `scripts/simulate_import_and_gui.py` | Integra import real + lotes sinteticos + teste de GUI offscreen. |
+## Pipeline canonico
 
-## Pipeline de Normalizacao
+1. Valida limites do XLSX e localiza as folhas elegiveis.
+2. Detecta o cabecalho e aplica `config/column_mappings.json`.
+3. No mapping default, compara aliases apos `strip`; com `--mappings` explicito,
+   normaliza caixa, acentos e espacos para o lookup.
+4. Em ambos os modos, rejeita aliases ambiguos apos normalizacao e alvos
+   internos reservados.
+5. Normaliza `numero_ssa` e valida as colunas obrigatorias.
+6. Captura grupos hierarquicos antes do filtro de identidade.
+7. Remove somente linhas restantes sem identidade e publica o resumo em
+   `DataFrame.attrs["invalid_row_summary"]`.
+8. Publica eventos em `DataFrame.attrs["ssa_event_records"]`.
+9. Aplica metadata do arquivo fisico e executa smart upsert de pais e eventos na
+   mesma transacao.
 
-1. **Leitura**: `pandas.read_excel` abre a planilha original.
-2. **Canonizacao de Cabecalhos**: para cada coluna:
-   - Remove quebras de linha e multiplos espacos.
-   - Normaliza acentuacao (NFKD) e converte para minusculas.
-   - Consulta `column_mappings.json` para resolver sinonimo → canonico.
-3. **Agrupamento de Colunas Semanticas**: colunas diferentes que apontam ao mesmo canonico sao agrupadas.
-4. **Coalescencia**: valores linha-a-linha: primeira coluna do grupo prevalece; valores vazios sao preenchidos por colunas alternativas subsequentes.
-5. **Normalizacao de `numero_ssa`**: digitos extraidos e validados (YYYY + 5 digitos). Linhas invalidas podem ser descartadas (opcao padrao).
-6. **Parsing Resiliente de Datas**: cada coluna de data candidata e convertida tentando:
-   - ISO direto (`YYYY-MM-DD...`) sem `dayfirst`.
-   - Formato dia/mes/ano (`dayfirst=True`).
-   - Tentativa final invertida (`dayfirst=False`).
-   - Numeros inteiros / floats tratados como serial Excel (origem `1899-12-30`).
-   - Resultado final em `YYYY-MM-DD HH:MM:SS` ou `None`.
-7. **Deduplicacao**: se existir `numero_ssa`, ordena por `numero_ssa` e data (desc) e mantem a primeira (mais recente); contabiliza descartes.
-8. **Estatisticas**: estrutura `ImportStats` registra linhas totais, linhas apos filtro, merges, falhas de data, duplicatas removidas, etc.
+Nao existe forward-fill de `numero_ssa`. A associacao de uma continuacao depende
+de evidencia estrutural do grupo. Formato nao reconhecido com payload falha
+fechado nos CLIs auxiliares.
 
-## Estrategia de Deduplicacao
+## Registros hierarquicos
 
-- Chave: `numero_ssa`.
-- Criterio de escolha: maior `data_cadastro` (datas nulas perdem para validas; entre nulas, mantem a primeira encontrada em ordem original).
-- Beneficio: evita crescer indefinidamente com versoes multiplas da mesma SSA.
+Cada evento persistido contem:
 
-## Regra de Merge no Upsert
+- `numero_ssa`
+- `record_type`, `record_order` e `record_label`
+- `payload_json`
+- `arquivo_origem`, `data_planilha` e `data_arquivo_origem`
+- `source_sheet` e `source_row`
 
-Arquivo: `armazenamento/database.py` funcao interna `_perform_upsert`.
+A chave de idempotencia inclui SSA, tipo, ordem e payload. Em empate de snapshot,
+a origem recebe desempate deterministico. O CLI confirma
+`ssa_event_records_processed == eventos capturados`; divergencia encerra a
+importacao em erro.
 
-Para cada `numero_ssa` ja existente:
-- Se `_should_update_existing` aprova (regra de data: nova data >= existente ou casos de ausencia conforme definido), entao procede.
-- Monta um registro mesclado coluna a coluna:
-  - Se valor novo e vazio (`None`, NaN ou string branca) mantem o valor antigo.
-  - Caso contrario substitui pelo novo.
-- Esse merge evita perda involuntaria de campos preenchidos anteriormente quando a nova fonte traz colunas parciais.
+## Identidade invalida
 
-## Interpretacao das Estatisticas (Exemplo)
+O extractor informa, entre outras contagens:
 
-```json
-{
-  "total_rows_in": 850,
-  "total_rows_out": 820,
-  "original_columns_count": 45,
-  "mapped_columns_count": 38,
-  "dropped_columns": [],
-  "merged_columns": { "situacao": ["Situacao", "Status" ] },
-  "date_parse_failures": { "data_cadastro": 12, "prazo_limite": 5 },
-  "duplicate_rows_dropped": 18,
-  "invalid_numero_ssa_rows": 12,
-  "file_path": "docs_entrada/Consulta SSA - 10-09-2025_0307PM (1).xlsx"
-}
+- `total_removed`
+- `payload_removed`
+- `hierarchical_rows_captured`
+- `hierarchical_records_captured`
+
+`payload_removed > 0` bloqueia `scripts/import_excel_file.py` e marca o arquivo
+como falha no backfill. Um arquivo com linhas de entrada, mas nenhuma linha
+aceita, tambem nao produz sucesso falso, inclusive em dry-run.
+
+## Metadata e recencia
+
+`arquivo_origem`, `data_planilha` e `data_arquivo_origem` sao derivados do
+arquivo fisico. Valores com esses nomes dentro da planilha nao podem rebaixar a
+recencia nem separar a proveniencia do pai e dos eventos.
+
+## Variantes de idioma
+
+Cabecalhos sem alias comprovado continuam como colunas dinamicas sanitizadas.
+Isso evita inventar equivalencia de negocio. Os campos DB
+`deviation_records`, `situation_of_deviation`, `partial_records` e
+`situation_of_partial` permanecem independentes dos campos PT; conflitos sao
+preservados, nao coalescidos.
+
+`data_planilha` e metadata operacional separada. Ela nao e alias de campo de
+desvio/parcial e nao e coluna legada.
+
+## CLI de arquivo unico
+
+Dry-run seguro:
+
+```bash
+uv run --python 3.13 scripts/import_excel_file.py \
+  --file "docs_entrada/arquivo.xlsx" \
+  --db data/ssas.db \
+  --dry-run
 ```
 
-Campo | Significado
-------|------------
-`total_rows_in` | Linhas lidas originalmente.
-`total_rows_out` | Linhas apos descartes/deduplicacao.
-`merged_columns` | Colunas sinonimas que foram coalescidas.
-`date_parse_failures` | Contagem de celulas que nao puderam ser interpretadas como data (mantidas como `None`).
-`duplicate_rows_dropped` | Quantos registros a mais com mesmo `numero_ssa` foram removidos.
-`invalid_numero_ssa_rows` | Linhas descartadas por `numero_ssa` invalido.
+Escrita SSA:
 
-## CLI de Importacao
-
-Uso rapido:
 ```bash
-python3 scripts/import_excel_file.py \
-  --file "docs_entrada/Consulta SSA - 10-09-2025_0307PM (1).xlsx" \
+uv run --python 3.13 scripts/import_excel_file.py \
+  --file "docs_entrada/arquivo.xlsx" \
   --db data/ssas.db \
   --table ssas \
-  --reset-db --smart-upsert --verbose
+  --smart-upsert
 ```
 
-- `--dry-run`: nao insere no banco, apenas exibe estatisticas.
-- `--reset-db`: recria o banco antes de inserir (aplica `schema.sql`).
-- `--smart-upsert`: habilita logica de preservacao + deduplicacao incremental.
+Contratos:
 
-## Integracao com Simulacao GUI
+- `--dry-run` extrai e valida sem escrever
+- tabela SSA exige `--smart-upsert`
+- evento hierarquico exige `--smart-upsert`
+- `--reset-db` e rejeitado antes de qualquer escrita
+- `--mappings` aceita arquivo customizado, com validacao estrita
 
-`simulate_import_and_gui.py` aceita `--excel` e `--import-real-once`:
-- Importa a planilha real antes de gerar lotes sinteticos.
-- Permite aquecer o banco e testar carregamento + filtragem na GUI.
+## Backfill
 
-## Boas Praticas & Extensoes Futuras
+```bash
+uv run --python 3.13 scripts/migracao/backfill_reprocessar.py \
+  --dir docs_entrada \
+  --db data/ssas.db \
+  --pattern "*.xlsx" \
+  --smart-upsert \
+  --dry-run
+```
 
-- Adicionar testes unitarios fabricando cenarios: sinonimos multiplos, datas malformadas, numeros seriais.
-- Gerar relatorio CSV de estatisticas historicas de import para auditoria.
-- Implementar verificacao opcional de colisao sem atualizacao (ex.: logar quando `_should_update_existing` recusa update).
-- Suporte a multiplos arquivos por lote (concat + pipeline unico).
-- Flag para permitir sobrescrever com vazio (politica inversa) em casos de limpeza intencional.
+Sem `--dry-run`, `--smart-upsert` e obrigatorio. `--reset-db` e rejeitado. Para
+recriar o banco, use o full rescan, que trabalha com banco candidato e promocao
+validada.
 
-## Limitacoes Atuais
+## Utilitario robust_importer
 
-- Datas sem ano explicito nao sao inferidas.
-- Campos textuais muito longos nao sao truncados no import (apenas no schema/DB se houver restricao posterior).
-- Nao ha ainda validacao cruzada entre campos (ex.: consistencia de semanas versus data).
+O utilitario antigo ainda oferece reheader, coalescencia, parsing de datas e
+deduplicacao para seus consumidores especificos. Seu `ImportStats` continua
+valido nesse caminho. Essas estatisticas nao descrevem o contrato do extractor
+canonico e nao devem ser usadas para justificar descarte de linhas SSA.
 
-## Resumo
+## Testes de contrato
 
-O pipeline garante ingestao resiliente e idempotente, reduzindo riscos de perda de dados e minimizando ruido causado por variacoes de planilhas fornecidas por diferentes setores.
+- `tests/test_extracao.py`
+- `tests/test_import_excel_file.py`
+- `tests/test_backfill_script.py`
+- `tests/test_upsert_behaviors.py`
+- `tests/test_db_reset_and_upsert.py`
 
----
-_Manter este documento atualizado sempre que a semantica de importacao ou upsert for alterada._
-
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
+<!-- DOC_SYNC_MAC: 2026-08-11 canonical hierarchy-safe import path -->

@@ -765,12 +765,12 @@ Filtro “5 opcoes” (implementado)
 - Ignora arquivos sem colunas obrigatorias (ex.: `numero_ssa`) com log
 - `KeyboardInterrupt` (Ctrl+C) cancela com rollback seguro
 
-### Schema Unificado & Migracao (2025-09)
+### Schema runtime e migracao
 
-Foi introduzido o `config/schema_unified.sql` como fonte de verdade unica. Ele consolida:
-1. Colunas de `schema.sql` (tabela `ssa_table`).
-2. Colunas de `schema_optimized.sql` (tabela `ssas`).
-3. Novas colunas recentes relacionadas a desvios e reprogramacoes.
+O runtime default inicializa o banco com `config/schema.sql`.
+`config/schema_unified.sql` permanece disponivel para fluxos que o selecionam
+explicitamente e para a migracao historica; ele nao e a fonte unica do runtime.
+Ambos usam `ssa_table` como tabela canonica e declaram `ssa_event_records`.
 
 Views de compatibilidade:
 - `ssas` → aponta para `ssa_table`.
@@ -792,35 +792,37 @@ Recomendado rodar antes de novas importacoes se o banco for anterior a unificaca
 Aliases adicionados suportados (exemplos de cabecalho de planilha → coluna canonica):
 - `Desvio` → `numero_desvios`
 - `Justificativa sem APR` → `justificativa`
-- `Reprogramacoes` → `num_reprogramacoes`
 - `Total Tempo TPE Executada` → `total_tempo_tpe_executada`
 
-Esses aliases estao em `config/column_mappings.json` e reforcados no fallback de `core/config_manager.py`.
+Esses aliases estao em `config/column_mappings.json`. No fluxo default, o
+lookup preserva acentos e caixa e aplica apenas `strip`; nao existe fallback
+semantico para grafias diferentes.
 
-### Heuristicas Novas de Cabecalho (robust_importer)
+### Caminhos de importacao atuais
 
-Problema resolvido: planilhas cujo titulo (ex.: “SSAs com Desvio na Programacao”) era interpretado como unico header, gerando apenas 1 coluna mapeada.
+O fluxo principal de SSA usa `extracao.extractor.extract_data_from_excel` em
+`core/import_single_file.py`, `scripts/import_excel_file.py` e
+`scripts/migracao/backfill_reprocessar.py`.
 
-Heuristicas introduzidas:
-1. Deteccao de header “mesclado” unico: se todas as colunas tem o mesmo nome ⇒ tenta reprocessar buscando linha real de cabecalho abaixo.
-2. Revarredura multi‐linha (linhas 0..9) escolhendo a que produz mais grupos canonicos de mapeamento.
-3. Reinterpretacao da primeira linha como header quando so ha 1 coluna original e a linha 0 tem diversidade textual suficiente.
+Contratos do fluxo principal:
 
-Resultados:
-- `mapped_columns_count` passou de 1 para 35 na planilha problematica.
-- Insercoes deixam de falhar por "column not found" gerada a partir de titulo da planilha.
+1. O mapeamento customizado e normalizado e validado; aliases ambiguos ou alvos
+   internos reservados encerram a extracao em erro.
+2. Linhas hierarquicas sem `numero_ssa` nao recebem forward-fill. Elas sao
+   associadas ao pai comprovado e persistidas separadamente em
+   `ssa_event_records`.
+3. Linha sem identidade que ainda contenha payload nao e aceita pelos CLIs
+   auxiliares; a escrita falha fechada.
+4. Escrita em tabela SSA exige `--smart-upsert`, com metrica que confirma todos
+   os eventos capturados.
+5. `arquivo_origem`, `data_planilha` e `data_arquivo_origem` vem do arquivo
+   fisico importado e nao de colunas eventualmente embutidas na planilha.
 
-Metricas adicionais (para diagnostico) agora expostas em `reports/last_import_stats.json` e via retorno da funcao:
-- `header_candidate_lines_considered`: quantas linhas foram avaliadas como possiveis cabecalhos (limitado por `SSA_MAX_HEADER_SCAN`, default 10)
-- `selected_header_line_index`: indice da linha escolhida quando reheader aplicado (ou null)
-- `alias_hits`: numero de vezes que um alias foi convertido para nome canonico
+`utils/robust_importer.py` continua ativo para `read_report`, sincronizacao de
+derivadas e simulacao. Ele nao e o parser de escrita dos dois CLIs auxiliares de
+SSA.
 
-Variaveis de ambiente de tuning:
-- `SSA_MAX_HEADER_SCAN`: ajusta o maximo de linhas iniciais avaliadas (ex.: `SSA_MAX_HEADER_SCAN=5 uv run --python $PY_RUNTIME main.py`)
-
-Teste sintetico: `tests/test_import_novas_colunas.py` garante presenca e persistencia das novas colunas.
-
-Documento tecnico detalhado: `docs/SCHEMA_UNIFICADO_IMPORTACAO.md` (inclui heuristicas do importador, checklist e fluxo de migracao).
+Documento tecnico detalhado: `docs/IMPORTACAO_ROBUSTA.md`.
 
 ### Fluxo recomendado de atualizacao
 1. Atualizar repositorio (`git pull`).
@@ -828,7 +830,7 @@ Documento tecnico detalhado: `docs/SCHEMA_UNIFICADO_IMPORTACAO.md` (inclui heuri
 3. (Opcional) Rodar teste sintetico: `pytest -q tests/test_import_novas_colunas.py`.
 4. Importar novas planilhas normalmente.
 
-### Backfill (futuro)
+### Backfill auxiliar
 Script disponivel: `scripts/migracao/backfill_reprocessar.py`
 
 Uso basico:
@@ -843,8 +845,10 @@ uv run --python $PY_RUNTIME main.py --acao backfill -- --dir docs_entrada --db d
 Opcoes principais:
 - `--since YYYY-MM-DD` filtra arquivos mais antigos
 - `--limit N` limita quantidade processada
-- `--reset-db` recria usando `schema_unified.sql`
+- `--reset-db` e rejeitado neste utilitario; recriacao pertence ao full rescan
+  com banco candidato e promocao validada
 - `--pattern "*.xlsx"` glob customizado
+- escrita exige `--smart-upsert`; `--dry-run` nao grava no banco
 
 Resultado: relatorio agregador + JSON detalhado em `reports/backfill_report_*.json`.
 Se `--report-path` for usado (disponivel no script e via integracao), o relatorio sera salvo exatamente no caminho indicado. Caso nenhum arquivo elegivel seja encontrado, um relatorio vazio e gerado (quando `--report-path` e fornecido) e a saida retorna codigo 0 com log informativo.

@@ -1,114 +1,104 @@
-# Schema Unificado & Importacao Robusta
+# Schema Unificado e Importacao
 
-> Documento tecnico de referencia (2025-09) sobre a consolidacao de schema e as heuristicas do importador.
+## Current truth
 
-## 1. Objetivos da Unificacao
-- Eliminar divergencia entre `schema.sql` (tabela `ssa_table`) e `schema_optimized.sql` (tabela `ssas`).
-- Reduzir falhas de insercao causadas por colunas esperadas ausentes.
-- Facilitar evolucao incremental (novas colunas adicionadas sem reconstrucao completa).
-- Manter compatibilidade com codigo/consultas legadas (views `ssas`, `ssa_chamados`).
+O schema canonico usa `ssa_table` e mantem `ssas` e `ssa_chamados` como nomes de
+compatibilidade. A importacao principal usa
+`extracao.extractor.extract_data_from_excel` e o smart upsert.
 
-## 2. Arquivo Oficial
-`config/schema_unified.sql` — superset consolidado. Principais caracteristicas:
-- Tabela canonica: `ssa_table`.
-- Views de compatibilidade: `ssas`, `ssa_chamados`.
-- Colunas novas integradas: `numero_desvios`, `num_reprogramacoes`, `justificativa`, `total_tempo_tpe_executada`, `total_tempo_tex_executada`, etc.
+## Arquivos de schema
 
-## 3. Migracao Incremental
-Script: `scripts/migracao/migrar_para_unificado.py`
+- `config/schema.sql`: schema runtime padrao.
+- `config/schema_unified.sql`: schema unificado mantido para fluxos que o
+  selecionam explicitamente.
+- `config/column_mappings.json`: aliases de cabecalho comprovados.
 
-### Funcionamento
-1. Le definicao da tabela no `schema_unified.sql`.
-2. Usa `PRAGMA table_info(ssa_table)` para listar colunas atuais.
-3. Identifica colunas ausentes → `ALTER TABLE ADD COLUMN` (tipo heuristico: `INTEGER` se nome indica contador/semana/numero; caso contrario `TEXT`).
-4. Gera backup em `data/ssas.db.backup_before_unified_<timestamp>`.
-5. Log de colunas incluidas em `logs/migracao_unificado_<timestamp>.log`.
+Novas equivalencias de negocio nao devem ser inferidas a partir do nome
+sanitizado de uma coluna DB. Um alias novo exige cabecalho de origem comprovado,
+teste positivo e teste negativo.
 
-### Execucao
-```
-python scripts/migracao/migrar_para_unificado.py --db data/ssas.db
-```
+## Tabelas principais
 
-### Seguranca
-- Nao remove colunas.
-- Nao renomeia nem altera tipos existentes.
-- Repetir o script quando quiser: se nao houver colunas faltantes, sai com mensagem “Nada a migrar.”
+### ssa_table
 
-## 4. Novos Mapeamentos de Coluna (Aliases)
-Arquivo: `config/column_mappings.json` (reforcado por defaults em `core/config_manager.py`).
+Armazena uma linha corrente por SSA. O smart upsert preserva valores existentes
+quando o snapshot novo traz vazio e aplica o contrato de recencia documentado em
+`docs/ARCH_DB_UPSERT.md`.
 
-| Cabecalho Planilha (exemplo)     | Coluna Canonica              |
-|----------------------------------|------------------------------|
-| Desvio                           | numero_desvios               |
-| Justificativa sem APR            | justificativa                |
-| Reprogramacoes                   | num_reprogramacoes           |
-| Total Tempo TPE Executada        | total_tempo_tpe_executada    |
-| (outros existentes)              | (mantidos)                   |
+`data_planilha` e metadata ativa de snapshot. Nao e coluna legada nem alias de
+campo de negocio.
 
-Adicao de novos aliases: basta editar `column_mappings.json` e (opcional) atualizar defaults. Recomenda-se rodar teste sintetico apos alterar.
+### ssa_event_records
 
-## 5. Importador Robusto (`utils/robust_importer.py`)
-### Problema Original
-Algumas planilhas traziam o titulo (“SSAs com Desvio na Programacao”) como header unico → somente 1 coluna mapeada (`mapped_columns_count=1`) e falhas de insert (`no column named ...`).
+Armazena ocorrencias hierarquicas de desvio, reprogramacao e execucao parcial
+que nao cabem em uma unica linha principal.
 
-### Heuristicas Introduzidas
-1. **Header mesclado unico**: se todos os nomes de coluna sao iguais e ha >5 colunas, tenta reprocessar usando outras linhas como header.
-2. **Revarredura multi‐linha**: testa linhas 0..9 como potenciais cabecalhos; escolhe a que produz maior numero de grupos canonicos (break antecipado se ≥5 grupos). 
-3. **Fallback cabecalho a partir da primeira linha de dados**: quando apenas 1 coluna existe e a primeira linha apresenta variedade textual (≥3 strings validas), reinterpreta linha 0 como header real.
-4. **Promocao explicita de `numero_ssa`**: se nenhum grupo canonico direto, procura aliases normalizados e forca inclusao.
+Colunas exigidas no schema:
 
-### Resultado
-- Planilha problematica passou de 1 para 35 colunas mapeadas.
-- Insercoes param de falhar por colunas inexistentes derivadas de titulos de folha.
+- identidade: `numero_ssa`
+- evento: `record_type`, `record_order`, `record_label`, `payload_json`
+- proveniencia: `arquivo_origem`, `data_planilha`, `data_arquivo_origem`
+- origem fisica: `source_sheet`, `source_row`
 
-### Estatisticas Exportadas
-Arquivo: `reports/last_import_stats.json`
-Campos relevantes: `original_columns_count`, `mapped_columns_count`, `dropped_columns`, `merged_columns`, `invalid_numero_ssa_rows`, etc.
+`data_planilha` e `data_arquivo_origem` aceitam `NULL` quando a origem nao
+oferece timestamp confiavel. Identidade, tipo, ordem, label, payload, nome do
+arquivo, folha e linha fisica sao `NOT NULL`.
 
-## 6. Variaveis de Ambiente
-| Variavel            | Efeito                                                         |
-|---------------------|----------------------------------------------------------------|
-| `SSA_IMPORT_DEBUG`  | Ativa logs DEBUG detalhados no importador.                     |
-| `SSA_CONFIG_DIR`    | Redireciona carregamento de JSONs de config (multi-env).       |
-| `SSA_EXTRA_DIRS`    | Diretorios adicionais criados no bootstrap inicial.           |
+A restricao unica usa
+`(numero_ssa, record_type, record_order, payload_json)`. O reset de uma tabela
+SSA valida colunas e executa um insert real sob SAVEPOINT antes de promover o
+banco candidato.
 
-## 7. Teste Sintetico de Novas Colunas
-Arquivo: `tests/test_import_novas_colunas.py`
-- Gera XLSX temporario com cabecalhos alias.
-- Executa importador para validar mapeamentos → verifica que colunas canonicas aparecem.
-- Insere em banco configurado com `schema_unified.sql` e checa persistencia de valores.
+## Colunas dinamicas e idiomas
 
-Execucao pontual:
-```
-pytest -q tests/test_import_novas_colunas.py
-```
+O upsert pode adicionar cabecalhos nao canonicos como colunas dinamicas
+sanitizadas. Os identificadores DB abaixo foram produzidos por imports EN reais
+e permanecem campos independentes:
 
-## 8. Fluxo Recomendado de Atualizacao
-1. `git pull` / obter versao recente.
-2. `python scripts/migracao/migrar_para_unificado.py --db data/ssas.db`
-3. (Opcional) `pytest -q tests/test_import_novas_colunas.py`
-4. Importar novas planilhas normalmente (CLI/GUI).
+- `deviation_records`
+- `situation_of_deviation`
+- `partial_records`
+- `situation_of_partial`
 
-## 9. Backfill (Planejado)
-Script futuro devera:
-- Reprocessar diretorio `docs_entrada/` aplicando importador robusto.
-- Usar smart upsert para adicionar valores de novas colunas onde antes estavam vazias.
-- Gerar relatorio de quantos registros foram enriquecidos.
+Eles nao sao apagados, ocultados como legados nem coalescidos automaticamente
+com os campos PT. A grafia humana do cabecalho bruto so pode virar alias quando
+o XLSX de origem estiver disponivel ou outra evidencia direta provar a forma
+exata.
 
-## 10. Boas Praticas Futuras
-- Ao adicionar coluna: incluir no `schema_unified.sql` e criar migracao incremental (se desejar imediata) ou esperar proxima execucao do script.
-- Para alias novo: atualizar `column_mappings.json`, rodar teste sintetico e commit.
-- Monitore `mapped_columns_count`; se cair drasticamente em planilha nova, ativar `SSA_IMPORT_DEBUG=1` e inspecionar `reports/last_import_stats.json`.
+## Extracao e persistencia
 
-## 11. Checklist de Manutencao Rapida
-- [ ] Schema unificado versionado? (`config/schema_unified.sql`)
-- [ ] Migracao executada recentemente? (logs em `logs/migracao_unificado_*.log`)
-- [ ] Teste sintetico passando? (`pytest -q tests/test_import_novas_colunas.py`)
-- [ ] Estatisticas recentes disponiveis? (`reports/last_import_stats.json`)
-- [ ] Aliases alinhados? (`config/column_mappings.json` + defaults)
+1. O extractor valida e aplica mappings estritos.
+2. Continuacoes hierarquicas sao capturadas antes do filtro de identidade.
+3. Linhas sem identidade restantes geram `invalid_row_summary`.
+4. Os CLIs auxiliares bloqueiam payload removido e escrita SSA sem smart upsert.
+5. O smart upsert persiste pai e eventos em uma transacao. Os callers canonicos
+   passam `metrics_out` e exigem as contagens de insert, update e eventos.
 
----
-Documento mantido; alteracoes futuras relevantes devem atualizar tambem o README (secao Schema Unificado & Migracao).
+`utils/robust_importer.py` permanece um utilitario para `read_report`, derivadas
+e simulacao. Ele nao e o parser de escrita dos CLIs auxiliares de SSA.
 
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+## Migracao incremental
 
+`scripts/migracao/migrar_para_unificado.py` adiciona colunas ausentes e cria
+backup antes da migracao. Ele nao recupera eventos historicos removidos de
+planilhas antigas.
+
+Para recriacao completa, use o full rescan. Os utilitarios
+`scripts/import_excel_file.py` e `scripts/migracao/backfill_reprocessar.py`
+rejeitam `--reset-db` porque nao promovem um banco completo de forma atomica.
+
+## Testes relacionados
+
+- `tests/test_extracao.py`
+- `tests/test_import_excel_file.py`
+- `tests/test_backfill_script.py`
+- `tests/test_upsert_behaviors.py`
+- `tests/test_db_reset_and_upsert.py`
+
+## Historical snapshot
+
+As heuristicas de reheader, coalescencia e `ImportStats` documentadas em 2025
+continuam pertencendo a `utils/robust_importer.py`. Elas nao representam o
+pipeline canonico atual de escrita SSA.
+
+<!-- DOC_SYNC_MAC: 2026-08-11 canonical schema and event records -->
