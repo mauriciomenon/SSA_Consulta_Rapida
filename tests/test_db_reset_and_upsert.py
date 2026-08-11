@@ -1,7 +1,10 @@
 import os
+from contextlib import contextmanager
 
 import pandas as pd
+import pytest
 
+from armazenamento import database as database_module
 from armazenamento.database import (
     ensure_indexes,
     get_db_connection,
@@ -14,6 +17,7 @@ from armazenamento.database_optimized import (
     disable_optimized_import,
     enable_optimized_import,
 )
+from shared.db_names import SSA_READ_REQUIRED_COLUMNS
 
 
 def _make_schema(tmpdir):
@@ -34,6 +38,31 @@ def _make_schema(tmpdir):
     return schema
 
 
+def _seed_canonical_parent_and_event(db_path):
+    with get_db_connection(db_path, write=True) as conn:
+        conn.execute(
+            "INSERT INTO ssa_table (numero_ssa, situacao) VALUES (?, ?)",
+            ("202401234", "OLD"),
+        )
+        conn.execute(
+            "INSERT INTO ssa_event_records "
+            "(numero_ssa, record_type, record_order, record_label, payload_json, "
+            "arquivo_origem, source_sheet, source_row) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "202401234",
+                "deviation_records",
+                2,
+                "Deviation #2",
+                '{"deviation_records":"Deviation #2"}',
+                "snapshot.xlsx",
+                "Sheet1",
+                3,
+            ),
+        )
+        conn.commit()
+
+
 def test_reset_database_file_mode(tmp_path):
     db_path = os.path.join(tmp_path, "x.sqlite")
     with get_db_connection(db_path) as conn:
@@ -46,64 +75,209 @@ def test_reset_database_file_mode(tmp_path):
 
 def test_reset_database_table_mode(tmp_path):
     db_path = os.path.join(tmp_path, "x.sqlite")
-    schema = _make_schema(tmp_path)
-    # Create and then reset
-    initialize_database(db_path, schema)
-    assert reset_database(db_path, mode="table", schema_path=schema) is True
-    # Table should exist
+    missing_schema = os.path.join(tmp_path, "missing.sql")
+    assert not os.path.exists(db_path)
+    assert reset_database(db_path, mode="table", schema_path=missing_schema) is False
+    assert not os.path.exists(db_path)
+    assert reset_database(db_path, mode="table") is True
     with get_db_connection(db_path) as conn:
-        cur = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='ssas'"
+        tables = {
+            str(row[0])
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+    assert {"ssa_table", "ssa_event_records"} <= tables
+
+
+def test_reset_database_table_mode_clears_hierarchical_events(tmp_path):
+    db_path = os.path.join(tmp_path, "x.sqlite")
+    initialize_database(db_path)
+    _seed_canonical_parent_and_event(db_path)
+
+    assert reset_database(db_path, mode="table") is True
+
+    with get_db_connection(db_path) as conn:
+        parent_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
+        event_count = conn.execute(
+            "SELECT COUNT(*) FROM ssa_event_records"
+        ).fetchone()[0]
+    assert (parent_count, event_count) == (0, 0)
+
+
+def test_reset_database_table_mode_preserves_original_on_invalid_schema(tmp_path):
+    db_path = os.path.join(tmp_path, "x.sqlite")
+    invalid_schema = os.path.join(tmp_path, "invalid.sql")
+    missing_schema = os.path.join(tmp_path, "missing.sql")
+    missing_events_schema = os.path.join(tmp_path, "missing_events.sql")
+    missing_target_schema = os.path.join(tmp_path, "missing_target.sql")
+    truncated_target_schema = os.path.join(tmp_path, "truncated_target.sql")
+    truncated_events_schema = os.path.join(tmp_path, "truncated_events.sql")
+    missing_event_unique_schema = os.path.join(tmp_path, "missing_event_unique.sql")
+    target_columns_sql = ", ".join(
+        f'"{column}" TEXT' for column in SSA_READ_REQUIRED_COLUMNS
+    )
+    event_columns_sql = """
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero_ssa TEXT NOT NULL,
+        record_type TEXT NOT NULL,
+        record_order INTEGER NOT NULL,
+        record_label TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        arquivo_origem TEXT NOT NULL,
+        data_planilha TEXT,
+        data_arquivo_origem TEXT,
+        source_sheet TEXT NOT NULL,
+        source_row INTEGER NOT NULL
+    """
+    with open(invalid_schema, "w", encoding="utf-8") as f:
+        f.write("THIS IS NOT VALID SQL;")
+    with open(missing_events_schema, "w", encoding="utf-8") as f:
+        f.write(f"CREATE TABLE ssa_table ({target_columns_sql});")
+    with open(missing_target_schema, "w", encoding="utf-8") as f:
+        f.write("CREATE TABLE unrelated (value TEXT);")
+    with open(truncated_target_schema, "w", encoding="utf-8") as f:
+        f.write(
+            "CREATE TABLE ssa_table (numero_ssa TEXT);"
+            f"CREATE TABLE ssa_event_records ({event_columns_sql}, "
+            "UNIQUE (numero_ssa, record_type, record_order, payload_json));"
         )
-        assert cur.fetchone() is not None
+    with open(truncated_events_schema, "w", encoding="utf-8") as f:
+        f.write(
+            f"CREATE TABLE ssa_table ({target_columns_sql});"
+            "CREATE TABLE ssa_event_records (numero_ssa TEXT);"
+        )
+    with open(missing_event_unique_schema, "w", encoding="utf-8") as f:
+        f.write(
+            f"CREATE TABLE ssa_table ({target_columns_sql});"
+            f"CREATE TABLE ssa_event_records ({event_columns_sql});"
+        )
+    initialize_database(db_path)
+    _seed_canonical_parent_and_event(db_path)
+    with open(db_path, "rb") as f:
+        original_bytes = f.read()
+
+    for schema_path in (
+        invalid_schema,
+        missing_schema,
+        missing_events_schema,
+        missing_target_schema,
+        truncated_target_schema,
+        truncated_events_schema,
+        missing_event_unique_schema,
+    ):
+        assert reset_database(db_path, mode="table", schema_path=schema_path) is False
+        with open(db_path, "rb") as f:
+            assert f.read() == original_bytes
+        with get_db_connection(db_path) as conn:
+            parent_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
+            event_count = conn.execute(
+                "SELECT COUNT(*) FROM ssa_event_records"
+            ).fetchone()[0]
+            quick_check = conn.execute("PRAGMA quick_check").fetchone()
+        assert (parent_count, event_count, quick_check) == (1, 1, ("ok",))
 
 
-def test_reset_database_table_mode_clears_existing_canonical_rows(tmp_path):
+@pytest.mark.parametrize("database_exists", [True, False])
+def test_reset_database_table_mode_handles_promotion_failure(
+    tmp_path,
+    monkeypatch,
+    database_exists,
+):
+    db_path = os.path.join(tmp_path, "x.sqlite")
+    if database_exists:
+        initialize_database(db_path)
+        _seed_canonical_parent_and_event(db_path)
+        with open(db_path, "rb") as f:
+            original_bytes = f.read()
+    original_get_db_connection = database_module.get_db_connection
+
+    @contextmanager
+    def fail_destination(path, *args, **kwargs):
+        with original_get_db_connection(path, *args, **kwargs) as conn:
+            if os.path.abspath(os.fspath(path)) == os.path.abspath(db_path) and kwargs.get(
+                "write"
+            ):
+                conn.close()
+            yield conn
+
+    monkeypatch.setattr(
+        database_module,
+        "get_db_connection",
+        fail_destination,
+    )
+
+    assert reset_database(db_path, mode="table") is False
+
+    if database_exists:
+        with open(db_path, "rb") as f:
+            assert f.read() == original_bytes
+        with original_get_db_connection(db_path) as conn:
+            counts = (
+                conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0],
+                conn.execute("SELECT COUNT(*) FROM ssa_event_records").fetchone()[0],
+                conn.execute("PRAGMA quick_check").fetchone(),
+            )
+        assert counts == (1, 1, ("ok",))
+    else:
+        assert not any(
+            os.path.exists(path)
+            for path in (db_path, f"{db_path}-wal", f"{db_path}-shm")
+        )
+
+
+def test_reset_database_custom_table_preserves_hierarchical_events(tmp_path):
     db_path = os.path.join(tmp_path, "x.sqlite")
     schema = os.path.join(tmp_path, "schema.sql")
     with open(schema, "w", encoding="utf-8") as f:
         f.write(
             """
-            CREATE TABLE IF NOT EXISTS ssa_table (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                numero_ssa TEXT,
-                situacao TEXT
-            );
+            CREATE TABLE IF NOT EXISTS custom_records (numero_ssa TEXT);
+            CREATE TABLE IF NOT EXISTS ssa_event_records (numero_ssa TEXT);
             """
         )
     initialize_database(db_path, schema)
-    with get_db_connection(db_path) as conn:
-        conn.execute(
-            "INSERT INTO ssa_table (numero_ssa, situacao) VALUES (?, ?)",
-            ("202401234", "OLD"),
-        )
+    with get_db_connection(db_path, write=True) as conn:
+        conn.execute("INSERT INTO custom_records VALUES ('202401234')")
+        conn.execute("INSERT INTO ssa_event_records VALUES ('202401234')")
         conn.commit()
 
-    assert reset_database(db_path, mode="table", schema_path=schema) is True
+    assert (
+        reset_database(
+            db_path,
+            mode="table",
+            _table_name="custom_records",
+            schema_path=schema,
+        )
+        is True
+    )
 
     with get_db_connection(db_path) as conn:
-        row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
-    assert row_count == 0
+        custom_count = conn.execute(
+            "SELECT COUNT(*) FROM custom_records"
+        ).fetchone()[0]
+        event_count = conn.execute(
+            "SELECT COUNT(*) FROM ssa_event_records"
+        ).fetchone()[0]
+    assert (custom_count, event_count) == (0, 1)
 
 
 def test_reset_database_table_mode_uses_explicit_table_name(tmp_path):
     db_path = os.path.join(tmp_path, "x.sqlite")
-    schema = _make_schema(tmp_path)
-    initialize_database(db_path, schema)
+    initialize_database(db_path)
     with get_db_connection(db_path) as conn:
         conn.execute(
-            "INSERT INTO ssas (numero_ssa, situacao) VALUES (?, ?)",
+            "INSERT INTO ssa_table (numero_ssa, situacao) VALUES (?, ?)",
             (202401234, "OLD"),
         )
         conn.commit()
 
     assert (
-        reset_database(db_path, mode="table", _table_name="ssas", schema_path=schema)
-        is True
+        reset_database(db_path, mode="table", _table_name="ssas") is True
     )
 
     with get_db_connection(db_path) as conn:
-        row_count = conn.execute("SELECT COUNT(*) FROM ssas").fetchone()[0]
+        row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
     assert row_count == 0
 
 

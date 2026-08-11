@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import sqlite3
+import tempfile
 import threading
 import time
 from contextlib import closing, contextmanager, nullcontext
@@ -817,7 +818,7 @@ def reset_database(
     """Reseta o banco de dados.
 
     - mode = 'file': remove o arquivo de banco por completo (se existir).
-    - mode = 'table': recria somente a tabela alvo usando o schema.
+    - mode = 'table': recria a tabela alvo e seus eventos em banco candidato.
     """
     try:
         if mode == "file":
@@ -833,14 +834,126 @@ def reset_database(
                     DEFAULT_SCHEMA_FILE  # usa padrao e resolucao em initialize_database
                 )
             with database_writer_lock(db_path):
-                if os.path.exists(db_path):
-                    with get_db_connection(db_path, write=True) as conn:
+                with tempfile.TemporaryDirectory(
+                    prefix="ssa_table_reset_"
+                ) as temp_dir:
+                    candidate_path = os.path.join(temp_dir, "candidate.sqlite")
+                    if os.path.exists(db_path):
+                        with (
+                            get_db_connection(db_path) as source,
+                            get_db_connection(candidate_path, write=True) as candidate,
+                        ):
+                            source.backup(candidate)
+                    with get_db_connection(candidate_path, write=True) as conn:
+                        if _is_ssa_target_alias(_table_name):
+                            conn.execute("DROP TABLE IF EXISTS ssa_event_records")
                         table_name = _resolve_target_table(conn, _table_name)
                         conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
                             f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}"
                         )
                         conn.commit()
-                initialize_database(db_path, schema_path)
+                    initialize_database(candidate_path, schema_path)
+                    with get_db_connection(candidate_path) as candidate:
+                        resolved_table = _resolve_target_table(candidate, _table_name)
+                        target_exists = candidate.execute(
+                            "SELECT 1 FROM sqlite_master "
+                            "WHERE type = 'table' AND lower(name) = lower(?)",
+                            (resolved_table,),
+                        ).fetchone()
+                        if target_exists is None:
+                            raise sqlite3.DatabaseError(
+                                "candidate reset did not recreate required tables"
+                            )
+                        if _is_ssa_target_alias(_table_name):
+                            target_columns = {
+                                str(row[1])
+                                for row in candidate.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
+                                    f"PRAGMA table_info({_quote_identifier(resolved_table)})"
+                                ).fetchall()
+                            }
+                            event_columns = {
+                                str(row[1])
+                                for row in candidate.execute(
+                                    "PRAGMA table_info(ssa_event_records)"
+                                ).fetchall()
+                            }
+                            required_event_columns = {
+                                "id",
+                                "numero_ssa",
+                                "record_type",
+                                "record_order",
+                                "record_label",
+                                "payload_json",
+                                "arquivo_origem",
+                                "data_planilha",
+                                "data_arquivo_origem",
+                                "source_sheet",
+                                "source_row",
+                            }
+                            if (
+                                set(SSA_READ_REQUIRED_COLUMNS) - target_columns
+                                or required_event_columns - event_columns
+                            ):
+                                raise sqlite3.DatabaseError(
+                                    "candidate reset schema is incomplete"
+                                )
+                            candidate.execute("SAVEPOINT validate_event_schema")
+                            try:
+                                _up._persist_ssa_event_records(  # noqa: SLF001
+                                    candidate,
+                                    [
+                                        {
+                                            "numero_ssa": "202699999",
+                                            "record_type": "schema_validation",
+                                            "record_order": 1,
+                                            "record_label": "Schema validation",
+                                            "payload_json": "{}",
+                                            "arquivo_origem": "schema_validation.xlsx",
+                                            "source_sheet": "Schema",
+                                            "source_row": 1,
+                                        }
+                                    ],
+                                    pd.DataFrame(),
+                                )
+                            finally:
+                                candidate.execute(
+                                    "ROLLBACK TO SAVEPOINT validate_event_schema"
+                                )
+                                candidate.execute("RELEASE SAVEPOINT validate_event_schema")
+                        if candidate.execute("PRAGMA quick_check").fetchone() != (
+                            "ok",
+                        ):
+                            raise sqlite3.DatabaseError(
+                                "candidate reset failed quick_check"
+                            )
+                        destination_created_here = False
+                        promotion_completed = False
+                        try:
+                            if not os.path.exists(db_path):
+                                destination_dir = os.path.dirname(db_path)
+                                if destination_dir:
+                                    os.makedirs(destination_dir, exist_ok=True)
+                                descriptor = os.open(
+                                    db_path,
+                                    os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                                    0o600,
+                                )
+                                destination_created_here = True
+                                os.close(descriptor)
+                            with get_db_connection(db_path, write=True) as destination:
+                                candidate.backup(destination)
+                            promotion_completed = True
+                        finally:
+                            if destination_created_here and not promotion_completed:
+                                for created_path in (
+                                    db_path,
+                                    f"{db_path}-wal",
+                                    f"{db_path}-shm",
+                                ):
+                                    try:
+                                        os.remove(created_path)
+                                    except FileNotFoundError:
+                                        pass
                 _clear_resolved_table_cache(db_path)
             return True
         logger.error(f"Modo de reset desconhecido: {mode}")
