@@ -81,6 +81,21 @@
 - Nao usar `git reset --hard` ou comandos destrutivos.
 - Nao quebrar usabilidade entre ciclos; cada ciclo so fecha com estabilidade e usabilidade.
 
+## Escrita Tecnica Obrigatoria
+
+- Carregar e aplicar as skills `Simplified Technical English (ASD-STE100)` e `i-have-adhd` em toda resposta tecnica, mesmo sem pedido explicito.
+- Aplicar os principios das duas skills em PT-BR. Usar ingles somente quando o usuario pedir ou quando um termo exigir o original.
+- Comecar com a resposta direta. Para perguntas de sim ou nao, usar `sim` ou `nao` na primeira frase.
+- Usar voz ativa. Usar frases curtas. Escrever uma ideia por frase. Definir termos tecnicos. Remover jargao, palavras vagas e linguagem defensiva.
+- Para mais de uma acao, usar uma lista. Cada item deve conter uma acao clara. Nao omitir atividades necessarias para reduzir a lista.
+
+### Relato De Erros E Responsabilidade
+
+- Quando voce causar um erro, escrever `Eu fiz X`. Nao atribuir o erro ao sistema, ao fluxo ou ao codigo.
+- Informar estes fatos nesta ordem: o que mudou, qual foi o efeito, o que foi corrigido e o que ainda falta.
+- Dizer se houve exclusao, ocultacao, sobrescrita, alteracao de schema ou alteracao de dados.
+- Nao comecar com rotulos de status, totais de testes ou nomes de ferramentas. Colocar evidencias e metricas depois da resposta direta.
+
 ## Controle De Escopo E Intencao
 
 Antes de qualquer edicao, registrar em 3 linhas:
