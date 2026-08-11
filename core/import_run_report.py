@@ -92,6 +92,8 @@ def _build_import_run_payload(
 ) -> Dict[str, Any]:
     total_rows_extracted = 0
     total_rows_removed_invalid_identity = 0
+    total_rows_captured_hierarchical = 0
+    total_event_records_processed = 0
     total_rows_ready_for_insert = 0
     total_rows_inserted = 0
     total_ssa_inserted = 0
@@ -114,6 +116,12 @@ def _build_import_run_payload(
         total_rows_extracted += int(counts.get("rows_extracted", 0) or 0)
         total_rows_removed_invalid_identity += int(
             counts.get("rows_removed_invalid_identity", 0) or 0
+        )
+        total_rows_captured_hierarchical += int(
+            counts.get("rows_captured_hierarchical", 0) or 0
+        )
+        total_event_records_processed += int(
+            counts.get("event_records_processed", 0) or 0
         )
         total_rows_ready_for_insert += int(counts.get("rows_ready_for_insert", 0) or 0)
         total_rows_inserted += int(counts.get("rows_inserted", 0) or 0)
@@ -175,6 +183,8 @@ def _build_import_run_payload(
             "ignored_legacy_excel_count": len(ignored_legacy_excel_files),
             "rows_extracted_total": total_rows_extracted,
             "rows_removed_invalid_identity_total": total_rows_removed_invalid_identity,
+            "rows_captured_hierarchical_total": total_rows_captured_hierarchical,
+            "event_records_processed_total": total_event_records_processed,
             "rows_ready_for_insert_total": total_rows_ready_for_insert,
             "rows_inserted_total": total_rows_inserted,
             "ssa_inserted_total": total_ssa_inserted,

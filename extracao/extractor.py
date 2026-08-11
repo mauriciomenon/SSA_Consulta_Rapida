@@ -28,6 +28,13 @@ MAX_IMPORT_BATCH_FILES = 64
 MAX_IMPORT_BATCH_BYTES = 1024 * 1024 * 1024
 MAX_XLSX_EXPANDED_BYTES = 1024 * 1024 * 1024
 _ZIP_BASED_EXCEL_SUFFIXES = frozenset({".xlsx", ".xlsm"})
+_SOURCE_SHEET_COLUMN = "__ssa_source_sheet"
+_SOURCE_ROW_COLUMN = "__ssa_source_row"
+_HIERARCHICAL_MARKER_COLUMNS = (
+    "numero_desvios",
+    "num_reprogramacoes",
+    "parciais",
+)
 
 
 class ExtractionError(Exception):
@@ -344,6 +351,129 @@ def _summarize_invalid_identity_rows(
     }
 
 
+def _capture_hierarchical_records(
+    frame: pd.DataFrame,
+) -> tuple[list[dict[str, Any]], set[Any], dict[str, int]]:
+    """Capture report events without flattening them into the one-row SSA table."""
+    required = {
+        "numero_ssa",
+        "descricao_ssa",
+        _SOURCE_SHEET_COLUMN,
+        _SOURCE_ROW_COLUMN,
+    }
+    if not required.issubset(frame.columns):
+        return [], set(), {}
+
+    def _present(series: pd.Series) -> pd.Series:
+        text = series.astype("string").str.strip()
+        return (
+            series.notna()
+            & text.ne("")
+            & ~text.str.casefold().isin({"<na>", "none", "nan", "null"})
+        )
+
+    numero_present = _present(frame["numero_ssa"])
+    descricao_present = _present(frame["descricao_ssa"])
+    sheet_values = frame[_SOURCE_SHEET_COLUMN]
+    parent_boundary = numero_present | descricao_present
+    group_number = parent_boundary.groupby(sheet_values, sort=False).cumsum()
+    parent_raw = (
+        frame["numero_ssa"]
+        .where(numero_present)
+        .groupby([sheet_values, group_number], sort=False)
+        .ffill()
+    )
+    parent_ssa = (
+        pd.to_numeric(parent_raw, errors="coerce").astype("Int64").astype("string")
+    )
+
+    records: list[dict[str, Any]] = []
+    captured_indices: set[Any] = set()
+    captured_by_type: dict[str, int] = {}
+    internal_columns = {_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN}
+    identity_columns = {"numero_ssa", "descricao_ssa"}
+
+    for marker_column in _HIERARCHICAL_MARKER_COLUMNS:
+        if marker_column not in frame.columns:
+            continue
+        marker_present = _present(frame[marker_column])
+        child_candidates = marker_present & ~numero_present & ~descricao_present
+        linked_children = child_candidates & parent_ssa.notna()
+        if not linked_children.any():
+            continue
+
+        captured_indices.update(frame.index[linked_children].tolist())
+        captured_by_type[marker_column] = int(linked_children.sum())
+        event_columns = [
+            column
+            for column in frame.columns
+            if column not in internal_columns | identity_columns
+            and _present(frame.loc[linked_children, column]).any()
+        ]
+        event_rows = marker_present & (
+            (numero_present & parent_ssa.notna()) | linked_children
+        )
+        event_order = (
+            frame.loc[event_rows]
+            .groupby(
+                [sheet_values.loc[event_rows], group_number.loc[event_rows]],
+                sort=False,
+            )
+            .cumcount()
+            + 1
+        )
+
+        event_index = frame.index[event_rows]
+        for start in range(0, len(event_index), 1000):
+            chunk_index = event_index[start : start + 1000]
+            payload_frame = frame.loc[chunk_index, event_columns].copy()
+            for column in event_columns:
+                if pd.api.types.is_object_dtype(
+                    payload_frame[column]
+                ) or pd.api.types.is_string_dtype(payload_frame[column]):
+                    text = payload_frame[column].astype("string").str.strip()
+                    payload_frame[column] = text.mask(
+                        text.str.casefold().isin({"", "<na>", "none", "nan", "null"}),
+                        pd.NA,
+                    )
+            payload_rows = payload_frame.to_json(
+                orient="records",
+                lines=True,
+                date_format="iso",
+                force_ascii=True,
+            ).splitlines()
+            metadata_rows = zip(
+                parent_ssa.loc[chunk_index].tolist(),
+                frame.loc[chunk_index, marker_column].tolist(),
+                frame.loc[chunk_index, _SOURCE_SHEET_COLUMN].tolist(),
+                frame.loc[chunk_index, _SOURCE_ROW_COLUMN].tolist(),
+                event_order.loc[chunk_index].tolist(),
+                payload_rows,
+                strict=True,
+            )
+            for (
+                numero_ssa,
+                label,
+                source_sheet,
+                source_row,
+                order,
+                payload_json,
+            ) in metadata_rows:
+                records.append(
+                    {
+                        "numero_ssa": str(numero_ssa),
+                        "record_type": marker_column,
+                        "record_order": int(order),
+                        "record_label": str(label).strip(),
+                        "payload_json": payload_json,
+                        "source_sheet": str(source_sheet),
+                        "source_row": int(source_row),
+                    }
+                )
+
+    return records, captured_indices, captured_by_type
+
+
 def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     """
     Converte colunas-chave para tipos de dados padronizados.
@@ -485,9 +615,10 @@ def extract_data_from_excel(
         normalized_column_mappings = {
             str(key).strip(): value for key, value in column_mappings.items()
         }
-        with open_validated_excel_source(file_path) as source_stream, pd.ExcelFile(
-            source_stream, engine="openpyxl"
-        ) as xl_file:
+        with (
+            open_validated_excel_source(file_path) as source_stream,
+            pd.ExcelFile(source_stream, engine="openpyxl") as xl_file,
+        ):
             for sheet_name in xl_file.sheet_names:
                 _check_cancel()
                 logger.debug(f"Processando planilha '{sheet_name}'...")
@@ -560,6 +691,22 @@ def extract_data_from_excel(
                     )
 
                     if not sheet_df.empty:
+                        reserved_names = {_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN}
+                        reserved_columns = {
+                            str(column)
+                            for column in sheet_df.columns
+                            if str(column) in reserved_names
+                        }
+                        if reserved_columns:
+                            raise ExtractionError(
+                                "Reserved internal columns found in source: "
+                                f"{sorted(reserved_columns)}",
+                                error_code="RESERVED_COLUMN_COLLISION",
+                            )
+                        sheet_df[_SOURCE_SHEET_COLUMN] = str(sheet_name)
+                        sheet_df[_SOURCE_ROW_COLUMN] = (
+                            sheet_df.index + header_row_idx + 2
+                        )
                         all_sheets_data.append(sheet_df)
                     else:
                         logger.debug(
@@ -586,7 +733,14 @@ def extract_data_from_excel(
 
         # Remove linhas completamente vazias
         initial_len = len(combined_df)
-        combined_df.dropna(how="all", inplace=True)
+        empty_row_mask = (
+            combined_df.drop(
+                columns=[_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN], errors="ignore"
+            )
+            .isna()
+            .all(axis=1)
+        )
+        combined_df = combined_df.loc[~empty_row_mask].copy()
         final_len = len(combined_df)
         early_empty_removed = initial_len - final_len
         if initial_len != final_len:
@@ -600,6 +754,9 @@ def extract_data_from_excel(
                 file_path,
             )
             return pd.DataFrame()
+
+        source_sheet = combined_df.pop(_SOURCE_SHEET_COLUMN)
+        source_row = combined_df.pop(_SOURCE_ROW_COLUMN)
 
         if not column_mappings:
             logger.warning(
@@ -726,6 +883,9 @@ def extract_data_from_excel(
             combined_df.columns,
         )
 
+        combined_df[_SOURCE_SHEET_COLUMN] = source_sheet.reindex(combined_df.index)
+        combined_df[_SOURCE_ROW_COLUMN] = source_row.reindex(combined_df.index)
+
         missing_required = MANDATORY_SCHEMA_COLUMNS.difference(set(combined_df.columns))
         if missing_required:
             missing_required_sorted = sorted(missing_required)
@@ -740,6 +900,14 @@ def extract_data_from_excel(
                 f"debug_phases={debug_phase_names}",
                 error_code="MISSING_REQUIRED_COLUMNS",
             )
+
+        event_records, captured_indices, captured_by_type = (
+            _capture_hierarchical_records(combined_df)
+        )
+        combined_df.drop(
+            columns=[_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN],
+            inplace=True,
+        )
 
         if "prazo_limite" in combined_df.columns:
             status_col = "status_execucao_prazo"
@@ -810,16 +978,35 @@ def extract_data_from_excel(
             descricao_series.notna() & (descricao_series != "")
         )
 
-        invalid_summary = _summarize_invalid_identity_rows(combined_df, ~valid_mask)
+        captured_mask = pd.Series(
+            combined_df.index.isin(captured_indices),
+            index=combined_df.index,
+            dtype=bool,
+        )
+        invalid_summary = _summarize_invalid_identity_rows(
+            combined_df, ~valid_mask & ~captured_mask
+        )
+        invalid_summary["hierarchical_rows_captured"] = len(captured_indices)
+        invalid_summary["hierarchical_records_captured"] = len(event_records)
+        invalid_summary["hierarchical_rows_by_type"] = captured_by_type
         if early_empty_removed > 0:
             invalid_summary["empty_removed"] += early_empty_removed
             invalid_summary["total_removed"] += early_empty_removed
             invalid_summary["empty_removed_pre_identity_filter"] = early_empty_removed
         combined_df = combined_df[valid_mask].copy().reset_index(drop=True)
         combined_df.attrs["invalid_row_summary"] = invalid_summary
+        combined_df.attrs["ssa_event_records"] = event_records
         combined_df.attrs["row_count_before_invalid_filter"] = (
             before_validation + early_empty_removed
         )
+
+        if captured_indices:
+            logger.info(
+                "Extracao - %s: preservadas %s continuacoes hierarquicas em %s registros de evento",
+                base_name,
+                len(captured_indices),
+                len(event_records),
+            )
 
         if invalid_summary.get("total_removed", 0) > 0:
             invalid_count = int(invalid_summary.get("total_removed", 0))

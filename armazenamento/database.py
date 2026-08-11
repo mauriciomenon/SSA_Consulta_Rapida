@@ -103,7 +103,9 @@ def _clear_resolved_table_cache(db_path: str | None = None) -> None:
             _resolved_table_cache.pop(key, None)
 
 
-def _store_resolved_table_cache(cache_key: tuple[str, str], resolved_table: str) -> None:
+def _store_resolved_table_cache(
+    cache_key: tuple[str, str], resolved_table: str
+) -> None:
     with _resolved_table_cache_lock:
         _resolved_table_cache[cache_key] = resolved_table
         while len(_resolved_table_cache) > _RESOLVED_TABLE_CACHE_MAX_ENTRIES:
@@ -269,9 +271,7 @@ def query_db(
                 if params:
                     raise ValueError("params require a custom SQL query")
                 resolved_table = _resolve_target_table(conn, table_name)
-                effective_query = _build_explicit_select_all_query(
-                    conn, resolved_table
-                )
+                effective_query = _build_explicit_select_all_query(conn, resolved_table)
             else:
                 _validate_read_only_query(effective_query)
 
@@ -301,7 +301,9 @@ def query_db(
                 dtype_backend="numpy_nullable",
             )
             if cancel_callback_error is not None:
-                raise RuntimeError("query_db cancel callback failed") from cancel_callback_error
+                raise RuntimeError(
+                    "query_db cancel callback failed"
+                ) from cancel_callback_error
             if cancel_requested:
                 raise InterruptedError("Database query cancelled")
         logger.debug(f"Consulta retornou {len(df)} linhas.")
@@ -316,7 +318,9 @@ def query_db(
                     cancel_callback_error.__traceback__,
                 ),
             )
-            raise RuntimeError("query_db cancel callback failed") from cancel_callback_error
+            raise RuntimeError(
+                "query_db cancel callback failed"
+            ) from cancel_callback_error
         if cancel_requested:
             logger.debug("query_db interrompida por cancelamento (SQLITE_INTERRUPT).")
             raise InterruptedError("Database query cancelled") from e
@@ -384,7 +388,9 @@ def _validate_read_only_query(query: str) -> None:
     if not normalized:
         raise ValueError("Custom SQL query must not be empty")
 
-    single_statement = normalized[:-1].rstrip() if normalized.endswith(";") else normalized
+    single_statement = (
+        normalized[:-1].rstrip() if normalized.endswith(";") else normalized
+    )
     guarded_statement = _strip_sql_literals_and_comments(single_statement)
     if ";" in guarded_statement:
         raise ValueError("Custom SQL query must be a single statement")
@@ -632,7 +638,9 @@ def count_table_rows(db_path: str, table_name: str) -> int:
     with get_db_connection(db_path) as conn:
         resolved_table_name = resolve_target_table(conn, table_name)
         query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-        row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        row = conn.execute(
+            query
+        ).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     return int(row[0] if row else 0)
 
 
@@ -653,7 +661,9 @@ def count_distinct_derivada_edges(
         ) AS db_edges
     """
     query = query_template.format(table_name=quoted_table_name)  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
-    row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    row = conn.execute(
+        query
+    ).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     return int(row[0] or 0) if row is not None else 0
 
 
@@ -1025,8 +1035,9 @@ def insert_dataframe_with_smart_upsert(
         )
         return False
 
-    # Dispatch: verificar se modo otimizado esta ativo
-    if _use_optimized_mode:
+    # Event records share the parent transaction, which the optimized path does not own.
+    has_event_records = bool(real_df.attrs.get("ssa_event_records"))
+    if _use_optimized_mode and not has_event_records:
         try:
             from .database_optimized import insert_dataframe_optimized
 
@@ -1039,20 +1050,22 @@ def insert_dataframe_with_smart_upsert(
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao otimizada: {e}")
             return False
-    else:
-        # Modo padrao
-        try:
-            # A implementacao de upsert aplica prepare_dataframe_for_upsert()
-            # internamente, incluindo whitelist e normalizacao canonica.
-            return _up.insert_dataframe_with_smart_upsert_impl(
-                real_df,
-                db_path,
-                table_name,
-                metrics_out=metrics_out,
-            )
-        except Exception as e:  # pragma: no cover
-            logger.error(f"Falha na insercao: {e}")
-            return False
+    if _use_optimized_mode and has_event_records:
+        logger.info(
+            "Modo padrao usado para persistir registros hierarquicos na transacao do pai"
+        )
+    try:
+        # A implementacao de upsert aplica prepare_dataframe_for_upsert()
+        # internamente, incluindo whitelist e normalizacao canonica.
+        return _up.insert_dataframe_with_smart_upsert_impl(
+            real_df,
+            db_path,
+            table_name,
+            metrics_out=metrics_out,
+        )
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Falha na insercao: {e}")
+        return False
 
 
 _normalize_numero_ssa_value = _numero_ssa_utils.normalize_numero_ssa_int_legacy_bridge

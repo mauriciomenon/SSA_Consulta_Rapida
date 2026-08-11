@@ -1,5 +1,6 @@
 # ruff: noqa: E402
 # tests/test_extracao.py
+import json
 import os
 import sys
 from zipfile import ZIP_STORED, ZipFile
@@ -255,6 +256,127 @@ def test_extract_data_from_excel_classifies_invalid_identity_rows(
         "Extracao concluida para 'invalid_identity_rows.xlsx': 1 linhas validas, 2 invalidos sem identidade"
         in caplog.text
     )
+
+
+@pytest.mark.parametrize(
+    ("marker_column", "labels"),
+    [
+        ("numero_desvios", ["Desvio #1", "Desvio #2", "Desvio #3"]),
+        (
+            "num_reprogramacoes",
+            ["Reprogramacao #1", "Reprogramacao #2", "Reprogramacao final"],
+        ),
+        ("parciais", ["Parcial #1", "Parcial #2", "Parcial #3"]),
+    ],
+)
+def test_extract_data_from_excel_captures_hierarchical_continuations(
+    tmp_path,
+    monkeypatch,
+    marker_column,
+    labels,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600101, None, None],
+            "descricao_ssa": ["SSA pai", None, None],
+            "data_cadastro": ["2026-01-01 10:00:00", None, None],
+            marker_column: labels,
+            "payload_evento": ["primeiro", "segundo", "terceiro"],
+        }
+    )
+    file_path = tmp_path / f"hierarchical_{marker_column}.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 1
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["total_removed"] == 0
+    assert summary["payload_removed"] == 0
+    assert summary["hierarchical_rows_captured"] == 2
+    assert summary["hierarchical_rows_by_type"] == {marker_column: 2}
+    records = extracted.attrs["ssa_event_records"]
+    assert [record["record_label"] for record in records] == labels
+    assert [record["record_order"] for record in records] == [1, 2, 3]
+    assert [record["source_row"] for record in records] == [2, 3, 4]
+    assert {record["numero_ssa"] for record in records} == {"202600101"}
+    assert json.loads(records[1]["payload_json"])["payload_evento"] == "segundo"
+
+
+def test_extract_data_from_excel_does_not_link_continuation_across_sheets(
+    tmp_path,
+    monkeypatch,
+):
+    parent = pd.DataFrame(
+        {
+            "numero_ssa": [202600102],
+            "descricao_ssa": ["SSA pai"],
+            "data_cadastro": ["2026-01-01 10:00:00"],
+            "numero_desvios": ["Desvio #1"],
+            "payload_evento": ["primeiro"],
+        }
+    )
+    orphan = pd.DataFrame(
+        {
+            "numero_ssa": [None],
+            "descricao_ssa": [None],
+            "data_cadastro": [None],
+            "numero_desvios": ["Desvio #2"],
+            "payload_evento": ["orfao"],
+        }
+    )
+    file_path = tmp_path / "hierarchical_cross_sheet.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        parent.to_excel(writer, sheet_name="parent", index=False)
+        orphan.to_excel(writer, sheet_name="orphan", index=False)
+    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 1
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["payload_removed"] == 1
+    assert summary["hierarchical_rows_captured"] == 0
+    assert extracted.attrs["ssa_event_records"] == []
+
+
+def test_extract_data_from_excel_does_not_link_past_description_only_parent(
+    tmp_path,
+    monkeypatch,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600103, None, None, None],
+            "descricao_ssa": ["SSA numerada", None, "SSA sem numero", None],
+            "data_cadastro": ["2026-01-01 10:00:00", None, None, None],
+            "numero_desvios": [
+                "Desvio #1",
+                "Desvio #2",
+                "Desvio #1",
+                "Desvio #2",
+            ],
+            "payload_evento": ["primeiro", "segundo", "novo pai", "orfao"],
+        }
+    )
+    file_path = tmp_path / "hierarchical_description_boundary.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 2
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["payload_removed"] == 1
+    assert summary["hierarchical_rows_captured"] == 1
+    records = extracted.attrs["ssa_event_records"]
+    assert [record["record_label"] for record in records] == [
+        "Desvio #1",
+        "Desvio #2",
+    ]
+    assert {record["numero_ssa"] for record in records} == {"202600103"}
 
 
 def test_extract_data_from_excel_preserves_empty_required_alias_until_normalization(

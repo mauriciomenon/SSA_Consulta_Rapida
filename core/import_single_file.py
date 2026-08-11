@@ -70,9 +70,7 @@ def _log_validation_violations(
         sample_txt = f" (ex.: {', '.join(sample)})" if sample else ""
         rule_txt = str(rule or "regra_desconhecida").replace("_", " ")
         default_prefix = (
-            "Erro de validacao"
-            if severity == "error"
-            else "Aviso de validacao"
+            "Erro de validacao" if severity == "error" else "Aviso de validacao"
         )
         rule_label = validation_rule_labels.get(
             rule,
@@ -80,13 +78,9 @@ def _log_validation_violations(
         )
         message = f"{rule_label} atingiu {count} linha(s){sample_txt}"
         if severity == "error":
-            logger.error(
-                "Validacao - %s: %s", os.path.basename(file_path), message
-            )
+            logger.error("Validacao - %s: %s", os.path.basename(file_path), message)
         else:
-            logger.warning(
-                "Validacao - %s: %s", os.path.basename(file_path), message
-            )
+            logger.warning("Validacao - %s: %s", os.path.basename(file_path), message)
 
 
 def _drop_required_invalid_rows(
@@ -136,14 +130,10 @@ def _add_source_metadata_columns(df: Any, file_path: str) -> Any:
         else None
     )
     file_dt_text = (
-        best_file_dt.strftime("%Y-%m-%d %H:%M:%S")
-        if best_file_dt is not None
-        else None
+        best_file_dt.strftime("%Y-%m-%d %H:%M:%S") if best_file_dt is not None else None
     )
     file_dt_iso = (
-        best_file_dt.isoformat(timespec="seconds")
-        if best_file_dt is not None
-        else None
+        best_file_dt.isoformat(timespec="seconds") if best_file_dt is not None else None
     )
     if "data_arquivo_origem" not in df.columns:
         df["data_arquivo_origem"] = file_dt_text
@@ -201,6 +191,12 @@ def import_single_file(
             if isinstance(invalid_row_summary_raw, dict)
             else {}
         )
+        event_records_raw = df.attrs.pop("ssa_event_records", [])
+        if not isinstance(event_records_raw, list):
+            raise ExtractionError(
+                f"Extractor retornou ssa_event_records invalido para '{file_path}'"
+            )
+        event_records = list(event_records_raw)
         row_count_before_invalid_filter_raw = df.attrs.get(
             "row_count_before_invalid_filter"
         )
@@ -216,6 +212,11 @@ def import_single_file(
             "rows_removed_invalid_identity": int(
                 invalid_row_summary.get("total_removed", 0)
             ),
+            "rows_captured_hierarchical": int(
+                invalid_row_summary.get("hierarchical_rows_captured", 0)
+            ),
+            "event_records_captured": len(event_records),
+            "event_records_processed": 0,
             "rows_ready_for_insert": 0,
             "rows_inserted": 0,
             "ssa_inserted": 0,
@@ -307,6 +308,7 @@ def import_single_file(
                     db_path, table_name, services.ensure_column_exists
                 )
             df = _add_source_metadata_columns(df, file_path)
+            df.attrs["ssa_event_records"] = event_records
 
             # Conta registros antes de inserir
             record_count = len(df)
@@ -336,6 +338,14 @@ def import_single_file(
                         f"({missing_text}) para {os.path.basename(file_path)}",
                         record_count=record_count,
                     )
+                processed_events = upsert_metrics.get("ssa_event_records_processed")
+                if event_records and processed_events != len(event_records):
+                    raise ImportMetricsContractError(
+                        "Upsert nao confirmou todos os registros hierarquicos para "
+                        f"{os.path.basename(file_path)}: esperado={len(event_records)}, "
+                        f"processado={processed_events!r}",
+                        record_count=record_count,
+                    )
             metrics["durations"]["insert_seconds"] = round(
                 time.perf_counter() - insertion_started, 3
             )
@@ -346,16 +356,21 @@ def import_single_file(
             metrics["counts"]["ssa_updated"] = int(
                 upsert_metrics.get("ssa_updated", 0) if success else 0
             )
+            metrics["counts"]["event_records_processed"] = int(
+                upsert_metrics.get("ssa_event_records_processed", 0) if success else 0
+            )
             if success:
                 counts = metrics.get("counts", {})
                 logger.info(
-                    "Resumo do arquivo '%s': extracao=%ss, validacao=%ss, insercao=%ss, linhas=%s, invalidos_sem_identidade=%s, prontas=%s",
+                    "Resumo do arquivo '%s': extracao=%ss, validacao=%ss, insercao=%ss, linhas=%s, invalidos_sem_identidade=%s, continuacoes=%s, eventos=%s, prontas=%s",
                     os.path.basename(file_path),
                     metrics["durations"].get("extraction_seconds", 0),
                     metrics["durations"].get("validation_seconds", 0),
                     metrics["durations"].get("insert_seconds", 0),
                     counts.get("rows_extracted", 0),
                     counts.get("rows_removed_invalid_identity", 0),
+                    counts.get("rows_captured_hierarchical", 0),
+                    counts.get("event_records_processed", 0),
                     counts.get("rows_ready_for_insert", 0),
                 )
                 logger.info(

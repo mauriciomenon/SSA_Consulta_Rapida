@@ -3,6 +3,7 @@ import os
 
 import pandas as pd
 
+from armazenamento import database, database_upsert_logic
 from armazenamento.database import (
     get_db_connection,
     initialize_database,
@@ -490,3 +491,152 @@ def test_should_update_existing_accepts_newer_data_planilha_even_with_older_data
         "data_planilha": "2026-03-28T12:00:00",
     }
     assert _should_update_existing(existing, incoming) is True
+
+
+def test_event_records_persist_for_terminal_ssa_without_overwriting_parent(tmp_path):
+    db_path = _init_db(tmp_path)
+    existing = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202601001",
+                "situacao": "STE",
+                "data_cadastro": "2026-01-01 10:00:00",
+                "descricao_ssa": "descricao preservada",
+                "setor_executor": "OLD",
+            }
+        ]
+    )
+    insert_dataframe_to_db(existing, db_path, "ssas")
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202601001",
+                "situacao": "STE",
+                "data_cadastro": "2026-01-01 10:00:00",
+                "descricao_ssa": "descricao que nao pode sobrescrever",
+                "setor_executor": "NEW",
+                "arquivo_origem": "reprogramacoes.xlsx",
+                "data_planilha": "2026-08-06T09:06:00",
+            }
+        ]
+    )
+    incoming.attrs["ssa_event_records"] = [
+        {
+            "numero_ssa": "202601001",
+            "record_type": "num_reprogramacoes",
+            "record_order": 1,
+            "record_label": "Reprogramacao #1",
+            "payload_json": '{"num_reprogramacoes":"Reprogramacao #1"}',
+            "source_sheet": "Sheet1",
+            "source_row": 2,
+        },
+        {
+            "numero_ssa": "202601001",
+            "record_type": "num_reprogramacoes",
+            "record_order": 2,
+            "record_label": "Reprogramacao #2",
+            "payload_json": '{"num_reprogramacoes":"Reprogramacao #2"}',
+            "source_sheet": "Sheet1",
+            "source_row": 3,
+        },
+    ]
+    metrics: dict[str, int] = {}
+
+    database.set_optimized_mode(True)
+    try:
+        assert (
+            insert_dataframe_with_smart_upsert(
+                incoming,
+                db_path,
+                "ssas",
+                metrics_out=metrics,
+            )
+            is True
+        )
+    finally:
+        database.set_optimized_mode(False)
+
+    assert metrics["ssa_event_records_processed"] == 2
+    assert len(incoming.attrs["ssa_event_records"]) == 2
+    parent = _fetch_all(db_path).iloc[0]
+    assert parent["descricao_ssa"] == "descricao preservada"
+    assert parent["setor_executor"] == "OLD"
+    with get_db_connection(db_path) as conn:
+        events = pd.read_sql_query(
+            "SELECT record_order, record_label, payload_json "
+            "FROM ssa_event_records ORDER BY record_order, payload_json",
+            conn,
+        )
+    assert events["record_label"].tolist() == [
+        "Reprogramacao #1",
+        "Reprogramacao #2",
+    ]
+
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    variant = incoming.copy()
+    variant.attrs["ssa_event_records"] = [
+        {
+            **incoming.attrs["ssa_event_records"][1],
+            "payload_json": '{"num_reprogramacoes":"Reprogramacao #2 corrigida"}',
+        }
+    ]
+    assert insert_dataframe_with_smart_upsert(variant, db_path, "ssas") is True
+    with get_db_connection(db_path) as conn:
+        event_count = conn.execute("SELECT COUNT(*) FROM ssa_event_records").fetchone()[
+            0
+        ]
+    assert event_count == 3
+
+
+def test_event_persistence_failure_rolls_back_parent_update(tmp_path, monkeypatch):
+    db_path = _init_db(tmp_path)
+    existing = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202601002",
+                "situacao": "ADM",
+                "data_cadastro": "2026-01-01 10:00:00",
+                "descricao_ssa": "antes",
+                "setor_executor": "OLD",
+            }
+        ]
+    )
+    insert_dataframe_to_db(existing, db_path, "ssas")
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202601002",
+                "situacao": "SEE",
+                "data_cadastro": "2026-01-02 10:00:00",
+                "descricao_ssa": "depois",
+                "setor_executor": "NEW",
+                "arquivo_origem": "parciais.xlsx",
+                "data_planilha": "2026-08-06T09:19:00",
+            }
+        ]
+    )
+    incoming.attrs["ssa_event_records"] = [
+        {
+            "numero_ssa": "202601002",
+            "record_type": "parciais",
+            "record_order": 1,
+            "record_label": "Parcial #1",
+            "payload_json": '{"parciais":"Parcial #1"}',
+            "source_sheet": "Sheet1",
+            "source_row": 2,
+        }
+    ]
+
+    def fail_event_persistence(*_args, **_kwargs):
+        raise RuntimeError("falha injetada em eventos")
+
+    monkeypatch.setattr(
+        database_upsert_logic,
+        "_persist_ssa_event_records",
+        fail_event_persistence,
+    )
+
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is False
+    parent = _fetch_all(db_path).iloc[0]
+    assert parent["descricao_ssa"] == "antes"
+    assert parent["setor_executor"] == "OLD"
