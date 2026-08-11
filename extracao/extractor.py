@@ -18,6 +18,7 @@ import pandas as pd
 from shared.column_mappings import load_column_mappings_integrity
 from shared.date_utils import parse_datetime_series_mixed
 from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
+from utils.file_metadata import best_datetime_for_file
 from utils.robust_importer import import_excel_robust
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,9 @@ _HIERARCHICAL_MARKER_COLUMNS = (
     "numero_desvios",
     "num_reprogramacoes",
     "parciais",
+)
+_HIERARCHICAL_SEQUENCE_RE = re.compile(
+    r"^(?P<stem>.+?\S)\s+#\s*(?P<order>[1-9]\d*)\s*$"
 )
 
 
@@ -353,6 +357,8 @@ def _summarize_invalid_identity_rows(
 
 def _capture_hierarchical_records(
     frame: pd.DataFrame,
+    *,
+    source_path: str,
 ) -> tuple[list[dict[str, Any]], set[Any], dict[str, int]]:
     """Capture report events without flattening them into the one-row SSA table."""
     required = {
@@ -363,6 +369,19 @@ def _capture_hierarchical_records(
     }
     if not required.issubset(frame.columns):
         return [], set(), {}
+
+    source_datetime = best_datetime_for_file(source_path)
+    arquivo_origem = os.path.basename(source_path) or source_path
+    data_planilha = (
+        source_datetime.isoformat(timespec="seconds")
+        if source_datetime is not None
+        else None
+    )
+    data_arquivo_origem = (
+        source_datetime.strftime("%Y-%m-%d %H:%M:%S")
+        if source_datetime is not None
+        else None
+    )
 
     def _present(series: pd.Series) -> pd.Series:
         text = series.astype("string").str.strip()
@@ -392,27 +411,153 @@ def _capture_hierarchical_records(
     captured_by_type: dict[str, int] = {}
     internal_columns = {_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN}
     identity_columns = {"numero_ssa", "descricao_ssa"}
+    identity_blank = ~numero_present & ~descricao_present
+    linked_identity_blank = identity_blank & parent_ssa.notna()
+    groupers = [sheet_values, group_number]
 
+    marker_masks: dict[Any, pd.Series] = {}
     for marker_column in _HIERARCHICAL_MARKER_COLUMNS:
         if marker_column not in frame.columns:
             continue
-        marker_present = _present(frame[marker_column])
-        child_candidates = marker_present & ~numero_present & ~descricao_present
-        linked_children = child_candidates & parent_ssa.notna()
-        if not linked_children.any():
-            continue
+        marker_text = frame[marker_column].astype("string").str.strip()
+        canonical_marker_present = _present(frame[marker_column])
+        textual_marker = marker_text.str.contains(r"[^\W\d_]", regex=True, na=False)
+        first_parent = (
+            marker_text.str.fullmatch(r".+?\S\s+#\s*1\s*", na=False)
+            & numero_present
+            & parent_ssa.notna()
+        )
+        textual_parent = (
+            canonical_marker_present
+            & textual_marker
+            & numero_present
+            & parent_ssa.notna()
+        )
+        textual_child = canonical_marker_present & textual_marker & linked_identity_blank
+        qualified_group = first_parent.groupby(groupers, sort=False).transform("any") | (
+            textual_parent.groupby(groupers, sort=False).transform("any")
+            & textual_child.groupby(groupers, sort=False).transform("any")
+        )
+        marker_masks[marker_column] = canonical_marker_present & qualified_group
 
-        captured_indices.update(frame.index[linked_children].tolist())
-        captured_by_type[marker_column] = int(linked_children.sum())
-        event_columns = [
-            column
-            for column in frame.columns
-            if column not in internal_columns | identity_columns
-            and _present(frame.loc[linked_children, column]).any()
-        ]
+    known_children = pd.Series(False, index=frame.index, dtype=bool)
+    for marker_present in marker_masks.values():
+        known_children |= marker_present & linked_identity_blank
+    remaining_linked = linked_identity_blank & ~known_children
+    if remaining_linked.any():
+        excluded_columns = internal_columns | identity_columns | set(
+            _HIERARCHICAL_MARKER_COLUMNS
+        )
+        structural_group_owner: dict[tuple[Any, Any], Any] = {}
+        for marker_column in frame.columns:
+            if marker_column in excluded_columns:
+                continue
+            child_text = (
+                frame.loc[remaining_linked, marker_column]
+                .astype("string")
+                .str.strip()
+            )
+            if child_text.empty or not child_text.str.contains("#", regex=False).any():
+                continue
+            child_sequence = child_text.str.extract(_HIERARCHICAL_SEQUENCE_RE)
+            child_order = pd.to_numeric(child_sequence["order"], errors="coerce")
+            if not child_order.eq(2).any():
+                continue
+
+            marker_text = frame[marker_column].astype("string").str.strip()
+            marker_sequence = marker_text.str.extract(_HIERARCHICAL_SEQUENCE_RE)
+            marker_order = pd.to_numeric(marker_sequence["order"], errors="coerce")
+            sequence_table = pd.DataFrame(
+                {
+                    "sheet": sheet_values,
+                    "group": group_number,
+                    "stem": marker_sequence["stem"].astype("string").str.casefold(),
+                    "order": marker_order,
+                },
+                index=frame.index,
+            )
+            parent_keys = set(
+                sequence_table.loc[
+                    numero_present & parent_ssa.notna() & marker_order.eq(1),
+                    ["sheet", "group", "stem"],
+                ].itertuples(index=False, name=None)
+            )
+            child_keys = set(
+                sequence_table.loc[
+                    remaining_linked & marker_order.eq(2),
+                    ["sheet", "group", "stem"],
+                ].itertuples(index=False, name=None)
+            )
+            qualified_keys = parent_keys & child_keys
+            if not qualified_keys:
+                continue
+            qualified_stems: dict[tuple[Any, Any], set[str]] = {}
+            for sheet, group, stem in qualified_keys:
+                qualified_stems.setdefault((sheet, group), set()).add(str(stem))
+            for group_key in qualified_stems:
+                previous_column = structural_group_owner.get(group_key)
+                if previous_column is not None and previous_column != marker_column:
+                    raise ExtractionError(
+                        "Ambiguous hierarchical marker columns "
+                        f"{previous_column!r} and {marker_column!r} in "
+                        f"sheet {group_key[0]!r}",
+                        error_code="AMBIGUOUS_HIERARCHICAL_MARKERS",
+                    )
+                structural_group_owner[group_key] = marker_column
+            marker_casefolded = marker_text.str.casefold()
+            numbered_rows: list[bool] = []
+            ambiguous_tail = False
+            for sheet, group, label, stem, order in zip(
+                sheet_values,
+                group_number,
+                marker_casefolded,
+                marker_sequence["stem"].astype("string").str.casefold(),
+                marker_order,
+                strict=True,
+            ):
+                group_stems = qualified_stems.get((sheet, group), ())
+                related = isinstance(label, str) and any(
+                    label == group_stem or label.startswith(f"{group_stem} ")
+                    for group_stem in group_stems
+                )
+                numbered = bool(pd.notna(order)) and (
+                    sheet,
+                    group,
+                    str(stem),
+                ) in qualified_keys
+                numbered_rows.append(numbered)
+                ambiguous_tail |= related and not numbered
+            if ambiguous_tail:
+                raise ExtractionError(
+                    f"Ambiguous unnumbered hierarchical tail in {marker_column!r}",
+                    error_code="AMBIGUOUS_HIERARCHICAL_TAIL",
+                )
+            marker_masks[marker_column] = _present(frame[marker_column]) & pd.Series(
+                numbered_rows,
+                index=frame.index,
+                dtype=bool,
+            )
+
+    for marker_column, marker_present in marker_masks.items():
+        linked_children = marker_present & linked_identity_blank
         event_rows = marker_present & (
             (numero_present & parent_ssa.notna()) | linked_children
         )
+        if not event_rows.any():
+            continue
+
+        captured_indices.update(frame.index[linked_children].tolist())
+        record_type = str(marker_column).strip()
+        if linked_children.any():
+            captured_by_type[record_type] = int(linked_children.sum())
+        event_columns = [marker_column]
+        if linked_children.any():
+            event_columns = [
+                column
+                for column in frame.columns
+                if column not in internal_columns | identity_columns
+                and _present(frame.loc[linked_children, column]).any()
+            ]
         event_order = (
             frame.loc[event_rows]
             .groupby(
@@ -462,10 +607,13 @@ def _capture_hierarchical_records(
                 records.append(
                     {
                         "numero_ssa": str(numero_ssa),
-                        "record_type": marker_column,
+                        "record_type": record_type,
                         "record_order": int(order),
                         "record_label": str(label).strip(),
                         "payload_json": payload_json,
+                        "arquivo_origem": arquivo_origem,
+                        "data_planilha": data_planilha,
+                        "data_arquivo_origem": data_arquivo_origem,
                         "source_sheet": str(source_sheet),
                         "source_row": int(source_row),
                     }
@@ -902,7 +1050,7 @@ def extract_data_from_excel(
             )
 
         event_records, captured_indices, captured_by_type = (
-            _capture_hierarchical_records(combined_df)
+            _capture_hierarchical_records(combined_df, source_path=file_path)
         )
         combined_df.drop(
             columns=[_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN],
@@ -1000,12 +1148,12 @@ def extract_data_from_excel(
             before_validation + early_empty_removed
         )
 
-        if captured_indices:
+        if event_records:
             logger.info(
-                "Extracao - %s: preservadas %s continuacoes hierarquicas em %s registros de evento",
+                "Extracao - %s: capturados %s registros hierarquicos (%s continuacoes)",
                 base_name,
-                len(captured_indices),
                 len(event_records),
+                len(captured_indices),
             )
 
         if invalid_summary.get("total_removed", 0) > 0:

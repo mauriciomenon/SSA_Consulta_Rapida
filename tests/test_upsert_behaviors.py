@@ -588,6 +588,85 @@ def test_event_records_persist_for_terminal_ssa_without_overwriting_parent(tmp_p
     assert event_count == 3
 
 
+def test_event_record_uses_per_record_recency_without_dataframe_metadata(tmp_path):
+    db_path = _init_db(tmp_path)
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202601003",
+                "situacao": "ADM",
+                "data_cadastro": "2026-01-01 10:00:00",
+                "descricao_ssa": "evento autocontido",
+                "setor_executor": "MEL1",
+            }
+        ]
+    )
+    event = {
+        "numero_ssa": "202601003",
+        "record_type": "Deviation Records",
+        "record_order": 1,
+        "record_label": "Deviation #1",
+        "payload_json": '{"Deviation Records":"Deviation #1"}',
+        "arquivo_origem": "deviation_06-08-2026_0912AM__1.xlsx",
+        "data_planilha": "2026-08-06T09:12:00",
+        "data_arquivo_origem": "2026-08-06 09:12:00",
+        "source_sheet": "Sheet1",
+        "source_row": 2,
+    }
+    incoming.attrs["ssa_event_records"] = [event]
+
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    incoming.attrs["ssa_event_records"] = [
+        {
+            **event,
+            "arquivo_origem": "deviation_06-08-2026_0912AM.xlsx",
+        }
+    ]
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    incoming.attrs["ssa_event_records"] = [event]
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    with get_db_connection(db_path) as conn:
+        origin_after_tie = conn.execute(
+            "SELECT arquivo_origem FROM ssa_event_records"
+        ).fetchone()[0]
+    assert origin_after_tie == "deviation_06-08-2026_0912AM.xlsx"
+
+    incoming.attrs["ssa_event_records"] = [
+        {
+            **event,
+            "arquivo_origem": "deviation_05-08-2026_0912AM.xlsx",
+            "data_planilha": "2026-08-05T09:12:00",
+            "data_arquivo_origem": "2026-08-05 09:12:00",
+        }
+    ]
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    with get_db_connection(db_path) as conn:
+        origin_after_older = conn.execute(
+            "SELECT arquivo_origem FROM ssa_event_records"
+        ).fetchone()[0]
+    assert origin_after_older == "deviation_06-08-2026_0912AM.xlsx"
+
+    incoming.attrs["ssa_event_records"] = [
+        {
+            **event,
+            "arquivo_origem": "deviation_07-08-2026_0912AM.xlsx",
+            "data_planilha": "2026-08-07T09:12:00",
+            "data_arquivo_origem": "2026-08-07 09:12:00",
+        }
+    ]
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    with get_db_connection(db_path) as conn:
+        event_source = conn.execute(
+            "SELECT arquivo_origem, data_planilha, data_arquivo_origem "
+            "FROM ssa_event_records"
+        ).fetchone()
+    assert event_source == (
+        "deviation_07-08-2026_0912AM.xlsx",
+        "2026-08-07T09:12:00",
+        "2026-08-07 09:12:00",
+    )
+
+
 def test_event_persistence_failure_rolls_back_parent_update(tmp_path, monkeypatch):
     db_path = _init_db(tmp_path)
     existing = pd.DataFrame(

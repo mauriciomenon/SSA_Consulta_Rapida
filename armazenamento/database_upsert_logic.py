@@ -752,8 +752,6 @@ def _persist_ssa_event_records(
     finally:
         if has_event_records_attr:
             source_frame.attrs["ssa_event_records"] = event_records_attr
-    if _is_empty_upsert_value(source_metadata["arquivo_origem"]):
-        raise ValueError("Hierarchical event records require arquivo_origem metadata")
 
     rows: list[tuple[Any, ...]] = []
     required_fields = {
@@ -784,6 +782,19 @@ def _persist_ssa_event_records(
         payload = json.loads(payload_json)
         if not isinstance(payload, dict):
             raise ValueError("Hierarchical event payload must be a JSON object")
+        arquivo_origem = record.get("arquivo_origem")
+        if _is_empty_upsert_value(arquivo_origem):
+            arquivo_origem = source_metadata["arquivo_origem"]
+        if _is_empty_upsert_value(arquivo_origem):
+            raise ValueError(
+                "Hierarchical event records require arquivo_origem metadata"
+            )
+        data_planilha = record.get("data_planilha")
+        if _is_empty_upsert_value(data_planilha):
+            data_planilha = source_metadata["data_planilha"]
+        data_arquivo_origem = record.get("data_arquivo_origem")
+        if _is_empty_upsert_value(data_arquivo_origem):
+            data_arquivo_origem = source_metadata["data_arquivo_origem"]
 
         rows.append(
             (
@@ -792,9 +803,9 @@ def _persist_ssa_event_records(
                 record_order,
                 str(record["record_label"]).strip(),
                 payload_json,
-                source_metadata["arquivo_origem"],
-                source_metadata["data_planilha"],
-                source_metadata["data_arquivo_origem"],
+                _coerce_sqlite_scalar(arquivo_origem),
+                _coerce_sqlite_scalar(data_planilha),
+                _coerce_sqlite_scalar(data_arquivo_origem),
                 str(record["source_sheet"]).strip(),
                 source_row,
             )
@@ -827,11 +838,15 @@ def _persist_ssa_event_records(
             data_arquivo_origem = excluded.data_arquivo_origem,
             source_sheet = excluded.source_sheet,
             source_row = excluded.source_row
-        WHERE ssa_event_records.data_planilha IS NULL
-           OR (
-               excluded.data_planilha IS NOT NULL
-               AND excluded.data_planilha >= ssa_event_records.data_planilha
-           )
+        WHERE excluded.data_planilha IS NOT NULL
+          AND (
+              ssa_event_records.data_planilha IS NULL
+              OR excluded.data_planilha > ssa_event_records.data_planilha
+              OR (
+                  excluded.data_planilha = ssa_event_records.data_planilha
+                  AND excluded.arquivo_origem < ssa_event_records.arquivo_origem
+              )
+          )
         """,
         rows,
     )
