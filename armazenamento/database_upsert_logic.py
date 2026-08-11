@@ -25,6 +25,7 @@ import os
 import re
 import sqlite3 as _sqlite3_typehint
 import sys
+from datetime import datetime
 from typing import Any, Mapping, cast
 
 import numpy as np
@@ -42,6 +43,7 @@ from .numero_ssa_utils import normalize_numero_ssa_storage
 logger = logging.getLogger(__name__)
 _INVALID_IDENTIFIER_CHARS_RE = re.compile(r"[^A-Za-z0-9_]+")
 _VALID_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_ISO_SNAPSHOT_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
 _VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
 _RUNTIME_STATE: dict[str, str | None] = {"short_circuit_policy": None}
 _SQLITE_IN_MAX_VARS = 900
@@ -787,11 +789,28 @@ def _persist_ssa_event_records(
             arquivo_origem = source_metadata["arquivo_origem"]
         if _is_empty_upsert_value(arquivo_origem):
             raise ValueError(
-                "Hierarchical event records require arquivo_origem metadata"
+                "Hierarchical event records require arquivo_origem metadata "
+                f"(numero_ssa={numero_ssa}, sheet={record['source_sheet']!r}, "
+                f"row={source_row})"
             )
         data_planilha = record.get("data_planilha")
         if _is_empty_upsert_value(data_planilha):
             data_planilha = source_metadata["data_planilha"]
+        if not _is_empty_upsert_value(data_planilha):
+            data_planilha = str(_coerce_sqlite_scalar(data_planilha)).strip()
+            try:
+                valid_snapshot_date = bool(
+                    _ISO_SNAPSHOT_DATETIME_RE.fullmatch(data_planilha)
+                ) and datetime.fromisoformat(data_planilha) is not None
+            except ValueError:
+                valid_snapshot_date = False
+            if not valid_snapshot_date:
+                raise ValueError(
+                    "Hierarchical event data_planilha must use "
+                    "YYYY-MM-DDTHH:MM:SS "
+                    f"(numero_ssa={numero_ssa}, sheet={record['source_sheet']!r}, "
+                    f"row={source_row}, value={data_planilha!r})"
+                )
         data_arquivo_origem = record.get("data_arquivo_origem")
         if _is_empty_upsert_value(data_arquivo_origem):
             data_arquivo_origem = source_metadata["data_arquivo_origem"]

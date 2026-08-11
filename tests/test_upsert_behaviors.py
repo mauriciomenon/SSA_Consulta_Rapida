@@ -629,6 +629,7 @@ def test_event_record_uses_per_record_recency_without_dataframe_metadata(tmp_pat
         origin_after_tie = conn.execute(
             "SELECT arquivo_origem FROM ssa_event_records"
         ).fetchone()[0]
+    # Equal timestamps keep the lexicographically smaller base filename.
     assert origin_after_tie == "deviation_06-08-2026_0912AM.xlsx"
 
     incoming.attrs["ssa_event_records"] = [
@@ -665,6 +666,80 @@ def test_event_record_uses_per_record_recency_without_dataframe_metadata(tmp_pat
         "2026-08-07T09:12:00",
         "2026-08-07 09:12:00",
     )
+
+    null_date_event = {
+        **event,
+        "record_order": 2,
+        "payload_json": '{"Deviation Records":"Deviation #2"}',
+        "arquivo_origem": "undated-first.xlsx",
+        "data_planilha": None,
+        "data_arquivo_origem": None,
+    }
+    incoming.attrs["ssa_event_records"] = [null_date_event]
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    incoming.attrs["ssa_event_records"] = [
+        {**null_date_event, "arquivo_origem": "undated-second.xlsx"}
+    ]
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    with get_db_connection(db_path) as conn:
+        undated_origin = conn.execute(
+            "SELECT arquivo_origem FROM ssa_event_records WHERE record_order = 2"
+        ).fetchone()[0]
+    assert undated_origin == "undated-first.xlsx"
+
+
+def test_event_record_rejects_missing_origin_and_ambiguous_snapshot_date(
+    tmp_path,
+    caplog,
+):
+    db_path = _init_db(tmp_path)
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202601004",
+                "situacao": "ADM",
+                "data_cadastro": "2026-01-01 10:00:00",
+                "descricao_ssa": "evento invalido",
+                "setor_executor": "MEL1",
+            }
+        ]
+    )
+    event = {
+        "numero_ssa": "202601004",
+        "record_type": "Deviation Records",
+        "record_order": 1,
+        "record_label": "Deviation #1",
+        "payload_json": '{"Deviation Records":"Deviation #1"}',
+        "source_sheet": "Sheet1",
+        "source_row": 2,
+    }
+
+    caplog.set_level(logging.ERROR)
+    incoming.attrs["ssa_event_records"] = [event]
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is False
+    assert "require arquivo_origem metadata" in caplog.text
+
+    caplog.clear()
+    incoming.attrs["ssa_event_records"] = [
+        {
+            **event,
+            "arquivo_origem": "ambiguous-date.xlsx",
+            "data_planilha": "2026-8-6 9:2:0",
+        }
+    ]
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is False
+    assert "data_planilha must use YYYY-MM-DDTHH:MM:SS" in caplog.text
+
+    caplog.clear()
+    metadata_incoming = incoming.assign(data_planilha="2026-8-6 9:2:0")
+    metadata_incoming.attrs["ssa_event_records"] = [
+        {**event, "arquivo_origem": "ambiguous-metadata-date.xlsx"}
+    ]
+    assert (
+        insert_dataframe_with_smart_upsert(metadata_incoming, db_path, "ssas") is False
+    )
+    assert "data_planilha must use YYYY-MM-DDTHH:MM:SS" in caplog.text
+    assert _fetch_all(db_path).empty
 
 
 def test_event_persistence_failure_rolls_back_parent_update(tmp_path, monkeypatch):

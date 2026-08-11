@@ -484,6 +484,7 @@ def test_extract_data_from_excel_captures_canonical_first_event_without_children
         ("numero_desvios", [1, 2]),
         ("Unknown Marker", ["Deviation #1", None]),
         ("Unknown Marker", ["Deviation #1", "Partial #2"]),
+        ("Unknown Marker", ["Deviation #1", "Deviation #3"]),
     ],
 )
 def test_extract_data_from_excel_rejects_unproved_hierarchy(

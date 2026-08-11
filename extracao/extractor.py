@@ -422,8 +422,10 @@ def _capture_hierarchical_records(
         marker_text = frame[marker_column].astype("string").str.strip()
         canonical_marker_present = _present(frame[marker_column])
         textual_marker = marker_text.str.contains(r"[^\W\d_]", regex=True, na=False)
+        canonical_sequence = marker_text.str.extract(_HIERARCHICAL_SEQUENCE_RE)
+        canonical_order = pd.to_numeric(canonical_sequence["order"], errors="coerce")
         first_parent = (
-            marker_text.str.fullmatch(r".+?\S\s+#\s*1\s*", na=False)
+            canonical_order.eq(1)
             & numero_present
             & parent_ssa.notna()
         )
@@ -452,10 +454,14 @@ def _capture_hierarchical_records(
         for marker_column in frame.columns:
             if marker_column in excluded_columns:
                 continue
+            marker_values = frame[marker_column]
+            if not (
+                pd.api.types.is_object_dtype(marker_values)
+                or pd.api.types.is_string_dtype(marker_values)
+            ):
+                continue
             child_text = (
-                frame.loc[remaining_linked, marker_column]
-                .astype("string")
-                .str.strip()
+                marker_values.loc[remaining_linked].astype("string").str.strip()
             )
             if child_text.empty or not child_text.str.contains("#", regex=False).any():
                 continue
@@ -548,10 +554,10 @@ def _capture_hierarchical_records(
 
         captured_indices.update(frame.index[linked_children].tolist())
         record_type = str(marker_column).strip()
-        if linked_children.any():
-            captured_by_type[record_type] = int(linked_children.sum())
+        has_linked_children = bool(linked_children.any())
         event_columns = [marker_column]
-        if linked_children.any():
+        if has_linked_children:
+            captured_by_type[record_type] = int(linked_children.sum())
             event_columns = [
                 column
                 for column in frame.columns
