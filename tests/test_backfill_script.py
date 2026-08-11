@@ -195,6 +195,41 @@ def test_backfill_rejects_payload_loss_even_in_dry_run(tmp_path, monkeypatch):
     assert data["results"][0]["extraction"]["payload_removed"] == 1
 
 
+def test_backfill_rejects_missing_rows_in_contract(tmp_path, monkeypatch):
+    from scripts.migracao import backfill_reprocessar
+
+    (tmp_path / "missing-row-count.xlsx").write_bytes(b"xlsx")
+    report_path = tmp_path / "missing_row_count_report.json"
+    extracted = pd.DataFrame({"numero_ssa": ["202600206"]})
+    extracted.attrs["invalid_row_summary"] = {"payload_removed": 0}
+    extracted.attrs["ssa_event_records"] = []
+    monkeypatch.setattr(
+        backfill_reprocessar,
+        "validate_excel_import_limits",
+        lambda _paths: 0,
+    )
+    monkeypatch.setattr(
+        backfill_reprocessar,
+        "extract_data_from_excel",
+        lambda *_args, **_kwargs: extracted,
+    )
+
+    exit_code = backfill_reprocessar.main(
+        [
+            "--dir",
+            str(tmp_path),
+            "--dry-run",
+            "--report-path",
+            str(report_path),
+        ]
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert exit_code == 1
+    assert report["summary"]["files_failed"] == 1
+    assert "row_count_before_invalid_filter" in report["results"][0]["error"]
+
+
 def test_backfill_smart_upsert_confirms_events_and_source_metadata(
     tmp_path,
     monkeypatch,
@@ -222,11 +257,10 @@ def test_backfill_smart_upsert_confirms_events_and_source_metadata(
         "extract_data_from_excel",
         lambda *_args, **_kwargs: extracted,
     )
+    captured = {}
 
     def _smart_upsert(frame, _db_path, _table, *, metrics_out):
-        assert frame["arquivo_origem"].tolist() == [source_file.name]
-        assert frame["data_planilha"].tolist() == ["2026-08-11T03:15:00"]
-        assert frame.attrs["ssa_event_records"] == [event]
+        captured["frame"] = frame
         metrics_out.update(
             {
                 "ssa_inserted": 1,
@@ -253,10 +287,55 @@ def test_backfill_smart_upsert_confirms_events_and_source_metadata(
     )
 
     assert exit_code == 0
+    persisted_frame = captured["frame"]
+    assert persisted_frame["arquivo_origem"].tolist() == [source_file.name]
+    assert persisted_frame["data_planilha"].tolist() == ["2026-08-11T03:15:00"]
+    assert persisted_frame.attrs["ssa_event_records"] == [event]
     data = json.loads(report_path.read_text())
     assert data["summary"]["total_inserted"] == 1
     assert data["summary"]["total_updated"] == 0
     assert data["summary"]["total_events_processed"] == 1
+
+
+def test_backfill_rejects_missing_upsert_metrics(tmp_path, monkeypatch):
+    from scripts.migracao import backfill_reprocessar
+
+    (tmp_path / "missing-metrics.xlsx").write_bytes(b"xlsx")
+    report_path = tmp_path / "missing_metrics_report.json"
+    extracted = pd.DataFrame({"numero_ssa": ["202600207"]})
+    extracted.attrs["row_count_before_invalid_filter"] = 1
+    extracted.attrs["invalid_row_summary"] = {"payload_removed": 0}
+    extracted.attrs["ssa_event_records"] = []
+    monkeypatch.setattr(
+        backfill_reprocessar,
+        "validate_excel_import_limits",
+        lambda _paths: 0,
+    )
+    monkeypatch.setattr(
+        backfill_reprocessar,
+        "extract_data_from_excel",
+        lambda *_args, **_kwargs: extracted,
+    )
+    monkeypatch.setattr(
+        backfill_reprocessar.database,
+        "insert_dataframe_with_smart_upsert",
+        lambda *_args, **_kwargs: True,
+    )
+
+    exit_code = backfill_reprocessar.main(
+        [
+            "--dir",
+            str(tmp_path),
+            "--smart-upsert",
+            "--report-path",
+            str(report_path),
+        ]
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert exit_code == 1
+    assert report["summary"]["total_inserted"] == 0
+    assert "metricas obrigatorias" in report["results"][0]["error"]
 
 
 def test_backfill_rejects_non_smart_write_before_extract(tmp_path, monkeypatch):
@@ -310,6 +389,8 @@ def test_backfill_persists_hierarchy_in_real_sqlite(tmp_path):
         ]
     )
 
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert exit_code == 0, report
     with sqlite3.connect(db_path) as conn:
         parent_count = conn.execute(
             "SELECT COUNT(*) FROM ssa_table WHERE numero_ssa = ?",
@@ -324,8 +405,6 @@ def test_backfill_persists_hierarchy_in_real_sqlite(tmp_path):
             "FROM ssa_table WHERE numero_ssa = ?",
             ("202699008",),
         ).fetchone()
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert exit_code == 0
     assert parent_count == 1
     assert event_count == 2
     assert metadata == (

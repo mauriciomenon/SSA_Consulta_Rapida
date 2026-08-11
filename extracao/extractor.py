@@ -20,7 +20,7 @@ from shared.column_mappings import load_column_mappings_integrity
 from shared.date_utils import parse_datetime_series_mixed
 from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.file_metadata import best_datetime_for_file
-from utils.robust_importer import _canonicalize_header, import_excel_robust
+from utils.robust_importer import canonicalize_header, import_excel_robust
 
 logger = logging.getLogger(__name__)
 TEMPO_EXCEDIDO_RE = re.compile(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", re.IGNORECASE)
@@ -199,14 +199,18 @@ def _load_column_mappings(
                 raise ValueError("expected {canonical_name: [aliases]} mapping")
         inverted_map: dict[str, str] = {}
         normalized_owners: dict[str, str] = {}
+        reserved_normalized = {
+            canonicalize_header(_SOURCE_SHEET_COLUMN),
+            canonicalize_header(_SOURCE_ROW_COLUMN),
+        }
         for canonical, aliases in mappings.items():
-            if canonical in {_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN}:
-                raise ExtractionError(
-                    f"Column mapping targets reserved internal name {canonical!r}",
-                    error_code="INVALID_COLUMN_MAPPINGS",
-                )
             for name in (canonical, *aliases):
-                normalized_name = _canonicalize_header(name)
+                normalized_name = canonicalize_header(name)
+                if normalized_name in reserved_normalized:
+                    raise ExtractionError(
+                        f"Column mapping declares reserved internal name {name!r}",
+                        error_code="INVALID_COLUMN_MAPPINGS",
+                    )
                 previous = normalized_owners.get(normalized_name)
                 if previous is not None and previous != canonical:
                     raise ExtractionError(
@@ -219,13 +223,20 @@ def _load_column_mappings(
                     normalized_name if mappings_path is not None else name.strip()
                 )
                 inverted_map[lookup_name] = canonical
+        mapping_source = (
+            "integridade"
+            if mappings_path is None
+            else f"arquivo explicito {os.fspath(mappings_path)!r}"
+        )
         logger.debug(
-            f"Mapeamento de colunas carregado com {len(inverted_map)} entradas (via integridade)."
+            "Mapeamento de colunas carregado com %s entradas (via %s).",
+            len(inverted_map),
+            mapping_source,
         )
         return inverted_map
     except ExtractionError:
         raise
-    except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
+    except (OSError, TypeError, ValueError) as e:
         if mappings_path is not None:
             raise ExtractionError(
                 f"Invalid column mappings file {os.fspath(mappings_path)!r}: {e}",
@@ -810,13 +821,9 @@ def extract_data_from_excel(
 
         _check_cancel()
         all_sheets_data = []
-        column_mappings = (
-            _load_column_mappings()
-            if mappings_path is None
-            else _load_column_mappings(mappings_path)
-        )
+        column_mappings = _load_column_mappings(mappings_path)
         normalize_header = (
-            _canonicalize_header if mappings_path is not None else str.strip
+            canonicalize_header if mappings_path is not None else str.strip
         )
         normalized_column_mappings = {
             normalize_header(str(key)): value for key, value in column_mappings.items()

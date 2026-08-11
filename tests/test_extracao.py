@@ -67,7 +67,7 @@ def setup_test_config(monkeypatch):
     }
 
     # Função interna que irá substituir a _load_column_mappings original
-    def mock_load_mappings():
+    def mock_load_mappings(_mappings_path=None):
         return {
             alias: canonical
             for canonical, aliases in test_mappings.items()
@@ -186,7 +186,10 @@ def test_extract_data_from_excel_empty_mapping_keeps_original_columns_and_fails_
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         df.to_excel(writer, index=False)
 
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
     with pytest.raises(ExtractionError) as excinfo:
         extract_data_from_excel(str(file_path))
 
@@ -229,7 +232,7 @@ def test_extract_data_from_excel_classifies_invalid_identity_rows(
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -288,7 +291,10 @@ def test_extract_data_from_excel_captures_hierarchical_continuations(
     file_path = tmp_path / f"hierarchical_{marker_column}_11-08-2026_0200AM.xlsx"
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     extracted = extract_data_from_excel(str(file_path))
 
@@ -353,7 +359,10 @@ def test_extract_data_from_excel_captures_structural_hierarchy_without_alias(
     file_path = tmp_path / f"structural_{marker_column.replace(' ', '_')}.xlsx"
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     extracted = extract_data_from_excel(str(file_path))
 
@@ -384,7 +393,10 @@ def test_extract_data_from_excel_does_not_capture_unrelated_structural_footer(
     file_path = tmp_path / "structural_footer.xlsx"
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     extracted = extract_data_from_excel(str(file_path))
 
@@ -412,7 +424,10 @@ def test_extract_data_from_excel_fails_on_ambiguous_structural_markers(
     file_path = tmp_path / "ambiguous_structural_markers.xlsx"
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     with pytest.raises(ExtractionError) as exc_info:
         extract_data_from_excel(str(file_path))
@@ -439,7 +454,10 @@ def test_extract_data_from_excel_fails_on_ambiguous_structural_tail(
     file_path = tmp_path / "ambiguous_structural_tail.xlsx"
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     with pytest.raises(ExtractionError) as exc_info:
         extract_data_from_excel(str(file_path))
@@ -463,7 +481,10 @@ def test_extract_data_from_excel_captures_canonical_first_event_without_children
     file_path = tmp_path / "canonical_first_event.xlsx"
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     extracted = extract_data_from_excel(str(file_path))
 
@@ -504,7 +525,10 @@ def test_extract_data_from_excel_rejects_unproved_hierarchy(
     file_path = tmp_path / "unproved_hierarchy.xlsx"
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     extracted = extract_data_from_excel(str(file_path))
 
@@ -526,7 +550,7 @@ def test_extract_data_from_excel_uses_explicit_mapping_file(tmp_path):
     mapping_path.write_text(
         json.dumps(
             {
-                "numero_ssa": ["Tícket"],
+                "numero_ssa": ["T\u00edcket"],
                 "descricao_ssa": ["Summary"],
                 "data_cadastro": ["Created"],
             }
@@ -558,7 +582,7 @@ def test_extract_data_from_excel_preserves_unmapped_header_without_explicit_mapp
     ).to_excel(file_path, index=False)
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "numero_ssa": "numero_ssa",
             "descricao_ssa": "descricao_ssa",
             "data_cadastro": "data_cadastro",
@@ -608,6 +632,18 @@ def test_extract_data_from_excel_rejects_invalid_explicit_mapping(tmp_path):
             "data_cadastro": ["Created"],
             "campo_a": ["Shared"],
             "campo_b": [" shared "],
+        },
+        {
+            "numero_ssa": ["Ticket"],
+            "descricao_ssa": ["Summary"],
+            "data_cadastro": ["Created"],
+            " __SSA_SOURCE_ROW ": ["Payload"],
+        },
+        {
+            "numero_ssa": ["Ticket"],
+            "descricao_ssa": ["Summary"],
+            "data_cadastro": ["Created"],
+            "payload": [" __SSA_SOURCE_SHEET "],
         },
     ],
 )
@@ -659,7 +695,10 @@ def test_extract_data_from_excel_does_not_link_continuation_across_sheets(
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         parent.to_excel(writer, sheet_name="parent", index=False)
         orphan.to_excel(writer, sheet_name="orphan", index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     extracted = extract_data_from_excel(str(file_path))
 
@@ -692,7 +731,10 @@ def test_extract_data_from_excel_does_not_link_past_description_only_parent(
     file_path = tmp_path / "hierarchical_description_boundary.xlsx"
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False)
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
 
     extracted = extract_data_from_excel(str(file_path))
 
@@ -726,7 +768,7 @@ def test_extract_data_from_excel_preserves_empty_required_alias_until_normalizat
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Nº SSA": "numero_ssa",
             "Descrição da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -756,7 +798,7 @@ def test_extract_data_from_excel_handles_duplicate_header_labels_without_ambigui
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -783,7 +825,7 @@ def test_extract_data_from_excel_drops_nan_header_columns_safely(tmp_path, monke
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -821,7 +863,7 @@ def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -881,7 +923,7 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -937,7 +979,7 @@ def test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex(
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -993,7 +1035,7 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",

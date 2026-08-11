@@ -14,6 +14,7 @@ def _extracted_frame(
     rows_in: int | None = None,
     payload_removed: int = 0,
     events: list[dict] | None = None,
+    hierarchical_rows_captured: int = 0,
 ) -> pd.DataFrame:
     frame = pd.DataFrame(data or {})
     event_records = list(events or [])
@@ -23,7 +24,7 @@ def _extracted_frame(
     frame.attrs["invalid_row_summary"] = {
         "total_removed": payload_removed,
         "payload_removed": payload_removed,
-        "hierarchical_rows_captured": max(0, len(event_records) - 1),
+        "hierarchical_rows_captured": hierarchical_rows_captured,
     }
     frame.attrs["ssa_event_records"] = event_records
     return frame
@@ -242,6 +243,7 @@ def test_import_excel_file_rejects_hierarchical_events_without_smart_upsert(
             {"numero_ssa": ["202699003"]},
             rows_in=2,
             events=[event],
+            hierarchical_rows_captured=1,
         ),
     )
     monkeypatch.setattr(
@@ -298,6 +300,7 @@ def test_import_excel_file_allows_hierarchical_dry_run_without_smart_upsert(
             {"numero_ssa": ["202699006"]},
             rows_in=2,
             events=[event],
+            hierarchical_rows_captured=1,
         ),
     )
     monkeypatch.setattr(
@@ -328,6 +331,25 @@ def test_import_excel_file_rejects_all_rows_removed_in_dry_run(
     result = import_excel_file.main(
         ["--file", str(source_file), "--dry-run", "--smart-upsert"]
     )
+
+    assert result == 4
+
+
+def test_import_excel_file_rejects_missing_rows_in_contract(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source_file = tmp_path / "missing-row-count.xlsx"
+    source_file.write_text("payload", encoding="utf-8")
+    extracted = _extracted_frame({"numero_ssa": ["202699010"]})
+    extracted.attrs.pop("row_count_before_invalid_filter")
+    monkeypatch.setattr(
+        import_excel_file,
+        "extract_data_from_excel",
+        lambda *_args, **_kwargs: extracted,
+    )
+
+    result = import_excel_file.main(["--file", str(source_file), "--dry-run"])
 
     assert result == 4
 
@@ -383,6 +405,32 @@ def test_import_excel_file_smart_upsert_confirms_events_and_source_metadata(
     assert result == 0
 
 
+def test_import_excel_file_rejects_missing_upsert_metrics(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source_file = tmp_path / "metrics_11-08-2026_0315AM.xlsx"
+    source_file.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(
+        import_excel_file,
+        "extract_data_from_excel",
+        lambda *_args, **_kwargs: _extracted_frame(
+            {"numero_ssa": ["202699011"]}
+        ),
+    )
+    monkeypatch.setattr(
+        import_excel_file.database,
+        "insert_dataframe_with_smart_upsert",
+        lambda *_args, **_kwargs: True,
+    )
+
+    result = import_excel_file.main(
+        ["--file", str(source_file), "--smart-upsert"]
+    )
+
+    assert result == 3
+
+
 def test_import_excel_file_persists_hierarchy_in_real_sqlite(tmp_path: Path) -> None:
     source_file = tmp_path / "hierarchical_11-08-2026_0320AM.xlsx"
     older_source_file = tmp_path / "hierarchical_05-08-2026_0320AM.xlsx"
@@ -432,6 +480,8 @@ def test_import_excel_file_persists_hierarchy_in_real_sqlite(tmp_path: Path) -> 
         ]
     )
 
+    assert newer_result == 0
+    assert older_result == 0
     with sqlite3.connect(db_path) as conn:
         parent = conn.execute(
             "SELECT descricao_ssa, arquivo_origem, data_planilha, "
@@ -442,8 +492,6 @@ def test_import_excel_file_persists_hierarchy_in_real_sqlite(tmp_path: Path) -> 
             "SELECT COUNT(*) FROM ssa_event_records WHERE numero_ssa = ?",
             ("202699007",),
         ).fetchone()[0]
-    assert newer_result == 0
-    assert older_result == 0
     assert parent == (
         "SSA pai",
         source_file.name,

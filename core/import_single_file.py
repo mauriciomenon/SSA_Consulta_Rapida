@@ -112,7 +112,7 @@ def _drop_required_invalid_rows(
     return df.drop(index=drop_indices), len(rows_to_drop)
 
 
-def _add_source_metadata_columns(df: Any, file_path: str) -> Any:
+def add_source_metadata_columns(df: Any, file_path: str) -> Any:
     basename = os.path.basename(file_path)
     best_file_dt = best_datetime_for_file(file_path)
     file_dt_text = (
@@ -288,7 +288,7 @@ def import_single_file(
                 ensure_source_metadata_columns(
                     db_path, table_name, services.ensure_column_exists
                 )
-            df = _add_source_metadata_columns(df, file_path)
+            df = add_source_metadata_columns(df, file_path)
             df.attrs["ssa_event_records"] = event_records
 
             # Conta registros antes de inserir

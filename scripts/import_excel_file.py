@@ -37,7 +37,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from armazenamento import database  # noqa: E402
-from core.import_single_file import _add_source_metadata_columns  # noqa: E402
+from core.import_single_file import add_source_metadata_columns  # noqa: E402
 from extracao.extractor import ExtractionError, extract_data_from_excel  # noqa: E402
 from shared.db_names import ALL_SSA_TABLE_NAMES  # noqa: E402
 
@@ -117,8 +117,17 @@ def main(argv: list[str]) -> int:
     if not isinstance(event_records, list):
         logger.error("Extractor retornou ssa_event_records invalido.")
         return 4
-    rows_in_raw = df.attrs.get("row_count_before_invalid_filter", len(df))
-    rows_in = int(rows_in_raw) if isinstance(rows_in_raw, int) else len(df)
+    rows_in_raw = df.attrs.get("row_count_before_invalid_filter")
+    if rows_in_raw is None and df.empty:
+        rows_in = 0
+    elif not isinstance(rows_in_raw, int) or isinstance(rows_in_raw, bool):
+        logger.error(
+            "Extractor retornou row_count_before_invalid_filter invalido: %r",
+            rows_in_raw,
+        )
+        return 4
+    else:
+        rows_in = rows_in_raw
     stats = {
         "total_rows_in": rows_in,
         "total_rows_out": len(df),
@@ -174,7 +183,7 @@ def main(argv: list[str]) -> int:
     success = True
     upsert_metrics: dict[str, int] = {}
     if args.smart_upsert:
-        df = _add_source_metadata_columns(df, args.file)
+        df = add_source_metadata_columns(df, args.file)
         df.attrs["ssa_event_records"] = event_records
         success = database.insert_dataframe_with_smart_upsert(
             df,
@@ -183,11 +192,25 @@ def main(argv: list[str]) -> int:
             metrics_out=upsert_metrics,
         )
     else:
+        # Tabelas customizadas preservam o schema definido pelo chamador.
         success = database.insert_dataframe_to_db(df, args.db, args.table)
 
     if not success:
         logger.error("Falha na inserção dos dados.")
         return 3
+
+    if args.smart_upsert:
+        missing_metrics = {
+            "ssa_inserted",
+            "ssa_updated",
+            "ssa_event_records_processed",
+        }.difference(upsert_metrics)
+        if missing_metrics:
+            logger.error(
+                "Upsert concluido sem metricas obrigatorias: %s.",
+                ", ".join(sorted(missing_metrics)),
+            )
+            return 3
 
     processed_events = upsert_metrics.get("ssa_event_records_processed", 0)
     if event_records and processed_events != len(event_records):

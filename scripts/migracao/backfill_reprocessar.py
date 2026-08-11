@@ -41,7 +41,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from armazenamento import database  # noqa: E402
-from core.import_single_file import _add_source_metadata_columns  # noqa: E402
+from core.import_single_file import add_source_metadata_columns  # noqa: E402
 from extracao.extractor import (  # noqa: E402
     ExtractionError,
     extract_data_from_excel,
@@ -231,8 +231,15 @@ def main(argv: List[str]) -> int:
             event_records = df.attrs.get("ssa_event_records", [])
             if not isinstance(event_records, list):
                 raise ExtractionError("Extractor retornou ssa_event_records invalido")
-            rows_in_raw = df.attrs.get("row_count_before_invalid_filter", len(df))
-            fr.rows_in = int(rows_in_raw) if isinstance(rows_in_raw, int) else len(df)
+            rows_in_raw = df.attrs.get("row_count_before_invalid_filter")
+            if rows_in_raw is None and df.empty:
+                fr.rows_in = 0
+            elif not isinstance(rows_in_raw, int) or isinstance(rows_in_raw, bool):
+                raise ExtractionError(
+                    "Extractor retornou row_count_before_invalid_filter invalido"
+                )
+            else:
+                fr.rows_in = rows_in_raw
             fr.rows_out = len(df)
             fr.mapped_cols = len(df.columns)
             fr.stats_raw = {
@@ -259,7 +266,7 @@ def main(argv: List[str]) -> int:
                     fr.success = True
                     fr.inserted = 0
                 else:
-                    df = _add_source_metadata_columns(df, str(path))
+                    df = add_source_metadata_columns(df, str(path))
                     df.attrs["ssa_event_records"] = event_records
                     upsert_metrics: dict[str, int] = {}
                     ok = database.insert_dataframe_with_smart_upsert(
@@ -270,17 +277,27 @@ def main(argv: List[str]) -> int:
                     )
                     fr.success = ok
                     if ok:
-                        processed_events = upsert_metrics.get(
-                            "ssa_event_records_processed", 0
-                        )
+                        missing_metrics = {
+                            "ssa_inserted",
+                            "ssa_updated",
+                            "ssa_event_records_processed",
+                        }.difference(upsert_metrics)
+                        if missing_metrics:
+                            raise RuntimeError(
+                                "Upsert concluido sem metricas obrigatorias: "
+                                + ", ".join(sorted(missing_metrics))
+                            )
+                        processed_events = upsert_metrics[
+                            "ssa_event_records_processed"
+                        ]
                         if event_records and processed_events != len(event_records):
                             raise RuntimeError(
                                 "Upsert nao confirmou todos os eventos: "
                                 f"esperado={len(event_records)}, "
                                 f"processado={processed_events}"
                             )
-                        fr.inserted = upsert_metrics.get("ssa_inserted", fr.rows_out)
-                        fr.updated = upsert_metrics.get("ssa_updated", 0)
+                        fr.inserted = upsert_metrics["ssa_inserted"]
+                        fr.updated = upsert_metrics["ssa_updated"]
                         fr.events_processed = processed_events
         except Exception as e:  # pragma: no cover
             fr.success = False
