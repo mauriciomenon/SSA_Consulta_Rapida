@@ -853,7 +853,7 @@ def reset_database(
                         )
                         conn.commit()
                     initialize_database(candidate_path, schema_path)
-                    with get_db_connection(candidate_path) as candidate:
+                    with get_db_connection(candidate_path, write=True) as candidate:
                         resolved_table = _resolve_target_table(candidate, _table_name)
                         target_exists = candidate.execute(
                             "SELECT 1 FROM sqlite_master "
@@ -953,7 +953,16 @@ def reset_database(
                                     try:
                                         os.remove(created_path)
                                     except FileNotFoundError:
-                                        pass
+                                        logger.debug(
+                                            "Arquivo de destino ausente na limpeza: %s",
+                                            created_path,
+                                        )
+                                    except OSError as cleanup_error:
+                                        logger.error(
+                                            "Falha ao remover arquivo de destino '%s': %s",
+                                            created_path,
+                                            cleanup_error,
+                                        )
                 _clear_resolved_table_cache(db_path)
             return True
         logger.error(f"Modo de reset desconhecido: {mode}")

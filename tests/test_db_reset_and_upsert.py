@@ -182,6 +182,7 @@ def test_reset_database_table_mode_preserves_original_on_invalid_schema(tmp_path
 def test_reset_database_table_mode_handles_promotion_failure(
     tmp_path,
     monkeypatch,
+    caplog,
     database_exists,
 ):
     db_path = os.path.join(tmp_path, "x.sqlite")
@@ -191,6 +192,18 @@ def test_reset_database_table_mode_handles_promotion_failure(
         with open(db_path, "rb") as f:
             original_bytes = f.read()
     original_get_db_connection = database_module.get_db_connection
+    cleanup_attempts = []
+    original_remove = os.remove
+
+    if not database_exists:
+
+        def track_failed_cleanup(path):
+            cleanup_attempts.append(os.fspath(path))
+            if os.fspath(path) == f"{db_path}-wal":
+                raise PermissionError("locked WAL")
+            original_remove(path)
+
+        monkeypatch.setattr(database_module.os, "remove", track_failed_cleanup)
 
     @contextmanager
     def fail_destination(path, *args, **kwargs):
@@ -224,6 +237,8 @@ def test_reset_database_table_mode_handles_promotion_failure(
             os.path.exists(path)
             for path in (db_path, f"{db_path}-wal", f"{db_path}-shm")
         )
+        assert cleanup_attempts == [db_path, f"{db_path}-wal", f"{db_path}-shm"]
+        assert "locked WAL" in caplog.text
 
 
 def test_reset_database_custom_table_preserves_hierarchical_events(tmp_path):
@@ -265,7 +280,7 @@ def test_reset_database_custom_table_preserves_hierarchical_events(tmp_path):
 def test_reset_database_table_mode_uses_explicit_table_name(tmp_path):
     db_path = os.path.join(tmp_path, "x.sqlite")
     initialize_database(db_path)
-    with get_db_connection(db_path) as conn:
+    with get_db_connection(db_path, write=True) as conn:
         conn.execute(
             "INSERT INTO ssa_table (numero_ssa, situacao) VALUES (?, ?)",
             (202401234, "OLD"),
