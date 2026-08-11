@@ -6,6 +6,7 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 `config/column_mappings.json` e converte tipos de dados fundamentais.
 """
 
+import json
 import logging
 import os
 import re
@@ -19,7 +20,7 @@ from shared.column_mappings import load_column_mappings_integrity
 from shared.date_utils import parse_datetime_series_mixed
 from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.file_metadata import best_datetime_for_file
-from utils.robust_importer import import_excel_robust
+from utils.robust_importer import _canonicalize_header, import_excel_robust
 
 logger = logging.getLogger(__name__)
 TEMPO_EXCEDIDO_RE = re.compile(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", re.IGNORECASE)
@@ -168,7 +169,9 @@ def open_validated_excel_source(
         ) from exc
 
 
-def _load_column_mappings() -> dict:
+def _load_column_mappings(
+    mappings_path: str | os.PathLike[str] | None = None,
+) -> dict:
     """
     Carrega o mapeamento de nomes de colunas a partir do arquivo JSON.
 
@@ -177,17 +180,57 @@ def _load_column_mappings() -> dict:
               Retorna um dicionário vazio se o arquivo não for encontrado.
     """
     try:
-        mappings = load_column_mappings_integrity()
-        inverted_map = {
-            alias: canonical
-            for canonical, aliases in mappings.items()
-            for alias in aliases
-        }
+        if mappings_path is None:
+            mappings = load_column_mappings_integrity()
+        else:
+            with open(mappings_path, "r", encoding="utf-8") as mapping_file:
+                mappings = json.load(mapping_file)
+            if (
+                not isinstance(mappings, dict)
+                or not mappings
+                or not all(
+                    isinstance(canonical, str)
+                    and canonical.strip()
+                    and isinstance(aliases, list)
+                    and all(isinstance(alias, str) for alias in aliases)
+                    for canonical, aliases in mappings.items()
+                )
+            ):
+                raise ValueError("expected {canonical_name: [aliases]} mapping")
+        inverted_map: dict[str, str] = {}
+        normalized_owners: dict[str, str] = {}
+        for canonical, aliases in mappings.items():
+            if canonical in {_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN}:
+                raise ExtractionError(
+                    f"Column mapping targets reserved internal name {canonical!r}",
+                    error_code="INVALID_COLUMN_MAPPINGS",
+                )
+            for name in (canonical, *aliases):
+                normalized_name = _canonicalize_header(name)
+                previous = normalized_owners.get(normalized_name)
+                if previous is not None and previous != canonical:
+                    raise ExtractionError(
+                        "Column mapping has ambiguous normalized name "
+                        f"{name!r}: {previous!r} and {canonical!r}",
+                        error_code="INVALID_COLUMN_MAPPINGS",
+                    )
+                normalized_owners[normalized_name] = canonical
+                lookup_name = (
+                    normalized_name if mappings_path is not None else name.strip()
+                )
+                inverted_map[lookup_name] = canonical
         logger.debug(
             f"Mapeamento de colunas carregado com {len(inverted_map)} entradas (via integridade)."
         )
         return inverted_map
-    except Exception as e:
+    except ExtractionError:
+        raise
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
+        if mappings_path is not None:
+            raise ExtractionError(
+                f"Invalid column mappings file {os.fspath(mappings_path)!r}: {e}",
+                error_code="INVALID_COLUMN_MAPPINGS",
+            ) from e
         logger.error(f"Falha ao carregar mapeamentos de coluna com integridade: {e}")
         return {}
 
@@ -736,6 +779,7 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
 def extract_data_from_excel(
     file_path: str,
     *,
+    mappings_path: str | os.PathLike[str] | None = None,
     should_cancel: Optional[Callable[[], bool]] = None,
     _debug_phases: Optional[dict[str, list[str]]] = None,
 ) -> pd.DataFrame:
@@ -744,6 +788,7 @@ def extract_data_from_excel(
 
     Args:
         file_path (str): Caminho completo para o arquivo Excel.
+        mappings_path: Mapeamento explicito; usa a configuracao canonica quando ausente.
         should_cancel (Optional[Callable[[], bool]]): Callback consultivo para
             interromper a extracao quando retornar True.
 
@@ -765,9 +810,16 @@ def extract_data_from_excel(
 
         _check_cancel()
         all_sheets_data = []
-        column_mappings = _load_column_mappings()
+        column_mappings = (
+            _load_column_mappings()
+            if mappings_path is None
+            else _load_column_mappings(mappings_path)
+        )
+        normalize_header = (
+            _canonicalize_header if mappings_path is not None else str.strip
+        )
         normalized_column_mappings = {
-            str(key).strip(): value for key, value in column_mappings.items()
+            normalize_header(str(key)): value for key, value in column_mappings.items()
         }
         with (
             open_validated_excel_source(file_path) as source_stream,
@@ -828,7 +880,7 @@ def extract_data_from_excel(
                             col_name = non_null_labels.iloc[0]
                         if pd.isna(col_name):
                             continue
-                        normalized_col_name = str(col_name).strip()
+                        normalized_col_name = normalize_header(str(col_name))
                         canonical_name = normalized_column_mappings.get(
                             normalized_col_name,
                             column_mappings.get(col_name, normalized_col_name),
@@ -922,7 +974,7 @@ def extract_data_from_excel(
         if column_mappings:
             rename_columns = {
                 col: normalized_column_mappings.get(
-                    str(col).strip(),
+                    normalize_header(str(col)),
                     column_mappings.get(col, str(col).strip()),
                 )
                 for col in combined_df.columns

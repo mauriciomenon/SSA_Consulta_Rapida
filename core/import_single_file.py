@@ -114,35 +114,16 @@ def _drop_required_invalid_rows(
 
 def _add_source_metadata_columns(df: Any, file_path: str) -> Any:
     basename = os.path.basename(file_path)
-    if "arquivo_origem" not in df.columns:
-        df["arquivo_origem"] = basename
-    else:
-        df["arquivo_origem"] = df["arquivo_origem"].fillna(basename)
-    needs_file_dt_text = "data_arquivo_origem" not in df.columns or bool(
-        df["data_arquivo_origem"].isna().any()
-    )
-    needs_file_dt_iso = "data_planilha" not in df.columns or bool(
-        df["data_planilha"].isna().any()
-    )
-    best_file_dt = (
-        best_datetime_for_file(file_path)
-        if needs_file_dt_text or needs_file_dt_iso
-        else None
-    )
+    best_file_dt = best_datetime_for_file(file_path)
     file_dt_text = (
         best_file_dt.strftime("%Y-%m-%d %H:%M:%S") if best_file_dt is not None else None
     )
     file_dt_iso = (
         best_file_dt.isoformat(timespec="seconds") if best_file_dt is not None else None
     )
-    if "data_arquivo_origem" not in df.columns:
-        df["data_arquivo_origem"] = file_dt_text
-    else:
-        df["data_arquivo_origem"] = df["data_arquivo_origem"].fillna(file_dt_text)
-    if "data_planilha" not in df.columns:
-        df["data_planilha"] = file_dt_iso
-    else:
-        df["data_planilha"] = df["data_planilha"].fillna(file_dt_iso)
+    df["arquivo_origem"] = basename
+    df["data_arquivo_origem"] = file_dt_text
+    df["data_planilha"] = file_dt_iso
     return df
 
 

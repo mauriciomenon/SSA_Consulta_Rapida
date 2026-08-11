@@ -511,6 +511,128 @@ def test_extract_data_from_excel_rejects_unproved_hierarchy(
     assert extracted.attrs["ssa_event_records"] == []
 
 
+def test_extract_data_from_excel_uses_explicit_mapping_file(tmp_path):
+    frame = pd.DataFrame(
+        {
+            "  ticket  ": [202600110],
+            "Summary": ["SSA com mapping customizado"],
+            "Created": ["2026-01-01 10:00:00"],
+        }
+    )
+    file_path = tmp_path / "custom_mapping.xlsx"
+    mapping_path = tmp_path / "mapping.json"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    mapping_path.write_text(
+        json.dumps(
+            {
+                "numero_ssa": ["Tícket"],
+                "descricao_ssa": ["Summary"],
+                "data_cadastro": ["Created"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    extracted = extract_data_from_excel(
+        str(file_path),
+        mappings_path=str(mapping_path),
+    )
+
+    assert extracted.loc[0, "numero_ssa"] == 202600110
+    assert extracted.loc[0, "descricao_ssa"] == "SSA com mapping customizado"
+
+
+def test_extract_data_from_excel_preserves_unmapped_header_without_explicit_mapping(
+    tmp_path,
+    monkeypatch,
+):
+    file_path = tmp_path / "unmapped_header.xlsx"
+    pd.DataFrame(
+        {
+            "numero_ssa": [202600113],
+            "descricao_ssa": ["SSA"],
+            "data_cadastro": ["2026-01-01 10:00:00"],
+            "Unmapped Payload": ["MUST_SURVIVE"],
+        }
+    ).to_excel(file_path, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "numero_ssa": "numero_ssa",
+            "descricao_ssa": "descricao_ssa",
+            "data_cadastro": "data_cadastro",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert extracted.loc[0, "Unmapped Payload"] == "MUST_SURVIVE"
+
+
+def test_extract_data_from_excel_rejects_invalid_explicit_mapping(tmp_path):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600111],
+            "descricao_ssa": ["SSA"],
+            "data_cadastro": ["2026-01-01 10:00:00"],
+        }
+    )
+    file_path = tmp_path / "invalid_mapping.xlsx"
+    mapping_path = tmp_path / "mapping.json"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    mapping_path.write_text('{"numero_ssa": "Ticket"}', encoding="utf-8")
+
+    with pytest.raises(ExtractionError) as exc_info:
+        extract_data_from_excel(
+            str(file_path),
+            mappings_path=str(mapping_path),
+        )
+
+    assert exc_info.value.error_code == "INVALID_COLUMN_MAPPINGS"
+
+
+@pytest.mark.parametrize(
+    "invalid_mapping",
+    [
+        {
+            "numero_ssa": ["Ticket"],
+            "descricao_ssa": ["Summary"],
+            "data_cadastro": ["Created"],
+            "__ssa_source_sheet": ["Payload"],
+        },
+        {
+            "numero_ssa": ["Ticket"],
+            "descricao_ssa": ["Summary"],
+            "data_cadastro": ["Created"],
+            "campo_a": ["Shared"],
+            "campo_b": [" shared "],
+        },
+    ],
+)
+def test_extract_data_from_excel_rejects_unsafe_explicit_mapping(
+    tmp_path,
+    invalid_mapping,
+):
+    file_path = tmp_path / "unsafe_mapping.xlsx"
+    mapping_path = tmp_path / "mapping.json"
+    pd.DataFrame(
+        {
+            "Ticket": [202600112],
+            "Summary": ["SSA"],
+            "Created": ["2026-01-01 10:00:00"],
+            "Payload": ["MUST_SURVIVE"],
+        }
+    ).to_excel(file_path, index=False)
+    mapping_path.write_text(json.dumps(invalid_mapping), encoding="utf-8")
+
+    with pytest.raises(ExtractionError) as exc_info:
+        extract_data_from_excel(str(file_path), mappings_path=str(mapping_path))
+
+    assert exc_info.value.error_code == "INVALID_COLUMN_MAPPINGS"
+
+
 def test_extract_data_from_excel_does_not_link_continuation_across_sheets(
     tmp_path,
     monkeypatch,

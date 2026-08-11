@@ -1,4 +1,4 @@
-"""Reprocessa (backfill) planilhas em um diretório usando o importador robusto e smart upsert.
+"""Reprocessa planilhas usando o extractor canonico e smart upsert.
 
 Uso:
   python scripts/migracao/backfill_reprocessar.py \
@@ -13,7 +13,7 @@ Características:
 - Suporta --since "2025-09-10" para ignorar arquivos mais antigos.
 - Mostra estatísticas agregadas e individuais (--verbose para detalhar cada import).
 - Em caso de erro de inserção de um arquivo, registra e prossegue (relatório final inclui falhas).
-- Usa sempre `config/schema_unified.sql` se --reset-db for passado.
+- Rejeita `--reset-db`; recriacao segura pertence ao full rescan.
 
 Limitações:
 - Não tenta detectar conflitos avançados além do smart upsert já implementado no módulo database.
@@ -41,10 +41,15 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from armazenamento import database  # noqa: E402
-from extracao.extractor import ExtractionError, validate_excel_import_limits  # noqa: E402
-from utils.robust_importer import import_excel_robust  # noqa: E402
+from core.import_single_file import _add_source_metadata_columns  # noqa: E402
+from extracao.extractor import (  # noqa: E402
+    ExtractionError,
+    extract_data_from_excel,
+    validate_excel_import_limits,
+)
 
 logger = logging.getLogger("backfill_reprocessar")
+DEFAULT_MAPPINGS_PATH = Path(PROJECT_ROOT) / "config" / "column_mappings.json"
 
 DATE_PATTERNS = [
     re.compile(r"(\d{2})-(\d{2})-(\d{4})"),  # DD-MM-YYYY
@@ -58,7 +63,9 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     p.add_argument("--db", default="data/ssas.db", help="Banco alvo")
     p.add_argument("--pattern", default="*.xlsx", help="Glob de seleção de arquivos")
     p.add_argument(
-        "--smart-upsert", action="store_true", help="Aplicar smart upsert (numero_ssa)"
+        "--smart-upsert",
+        action="store_true",
+        help="Aplicar smart upsert (obrigatorio para escrita)",
     )
     p.add_argument("--dry-run", action="store_true", help="Não insere no banco")
     p.add_argument(
@@ -71,12 +78,14 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         help="Considerar apenas arquivos >= data (YYYY-MM-DD)",
     )
     p.add_argument(
-        "--reset-db", action="store_true", help="Recria schema_unified antes de começar"
+        "--reset-db",
+        action="store_true",
+        help="Rejeitado neste utilitario; use o full rescan atomico",
     )
     p.add_argument("--verbose", action="store_true", help="Logs adicionais por arquivo")
     p.add_argument(
         "--mappings",
-        default="config/column_mappings.json",
+        default=str(DEFAULT_MAPPINGS_PATH),
         help="Arquivo de mapeamento de colunas",
     )
     p.add_argument(
@@ -118,6 +127,8 @@ class FileResult:
     error: str | None = None
     skipped: bool = False
     inserted: int = 0
+    updated: int = 0
+    events_processed: int = 0
     stats_raw: dict = field(default_factory=dict)
 
 
@@ -127,6 +138,20 @@ def main(argv: List[str]) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="[%(levelname)s] %(message)s",
     )
+
+    if args.reset_db:
+        logger.error(
+            "--reset-db foi desabilitado neste utilitario: use o full rescan "
+            "com banco candidato e promocao validada."
+        )
+        return 2
+
+    if not args.dry_run and not args.smart_upsert:
+        logger.error(
+            "Backfill com escrita exige --smart-upsert para evitar duplicidade em "
+            "reimportacoes."
+        )
+        return 2
 
     root = Path(args.dir)
     if not root.exists():
@@ -182,11 +207,6 @@ def main(argv: List[str]) -> int:
         logger.error("Lote XLSX rejeitado: %s", exc)
         return 2
 
-    if args.reset_db:
-        logger.info("Recriando schema unificado no banco: %s", args.db)
-        database.reset_database(args.db, mode="file")
-        database.initialize_database(args.db, "schema_unified.sql")
-
     logger.info(
         "Processando %d arquivos (limit=%s, since=%s)",
         len(selected),
@@ -201,15 +221,37 @@ def main(argv: List[str]) -> int:
         try:
             if args.verbose:
                 logger.info("[START] %s", path.name)
-            df, stats = import_excel_robust(
-                str(path),
-                mappings_path=args.mappings,
-                raise_on_error=True,
-            )
-            fr.rows_in = stats.get("total_rows_in", 0)
-            fr.rows_out = stats.get("total_rows_out", 0)
-            fr.mapped_cols = stats.get("mapped_columns_count", 0)
-            fr.stats_raw = stats
+            df = extract_data_from_excel(str(path), mappings_path=args.mappings)
+            invalid_summary_raw = df.attrs.get("invalid_row_summary")
+            if invalid_summary_raw is not None and not isinstance(
+                invalid_summary_raw, dict
+            ):
+                raise ExtractionError("Extractor retornou invalid_row_summary invalido")
+            invalid_summary = dict(invalid_summary_raw or {})
+            event_records = df.attrs.get("ssa_event_records", [])
+            if not isinstance(event_records, list):
+                raise ExtractionError("Extractor retornou ssa_event_records invalido")
+            rows_in_raw = df.attrs.get("row_count_before_invalid_filter", len(df))
+            fr.rows_in = int(rows_in_raw) if isinstance(rows_in_raw, int) else len(df)
+            fr.rows_out = len(df)
+            fr.mapped_cols = len(df.columns)
+            fr.stats_raw = {
+                "payload_removed": int(invalid_summary.get("payload_removed", 0)),
+                "hierarchical_rows_captured": int(
+                    invalid_summary.get("hierarchical_rows_captured", 0)
+                ),
+                "hierarchical_records_captured": len(event_records),
+            }
+            if fr.stats_raw["payload_removed"] > 0:
+                raise ExtractionError(
+                    "Linhas sem identidade ainda possuem payload; escrita bloqueada",
+                    error_code="UNSAFE_INVALID_IDENTITY_PAYLOAD",
+                )
+            if df.empty and fr.rows_in > 0:
+                raise ExtractionError(
+                    "Todas as linhas foram rejeitadas por identidade invalida",
+                    error_code="ALL_ROWS_REJECTED",
+                )
             if args.dry_run:
                 fr.success = True
             else:
@@ -217,15 +259,29 @@ def main(argv: List[str]) -> int:
                     fr.success = True
                     fr.inserted = 0
                 else:
-                    if args.smart_upsert:
-                        ok = database.insert_dataframe_with_smart_upsert(
-                            df, args.db, "ssa_table"
-                        )
-                    else:
-                        ok = database.insert_dataframe_to_db(df, args.db, "ssa_table")
+                    df = _add_source_metadata_columns(df, str(path))
+                    df.attrs["ssa_event_records"] = event_records
+                    upsert_metrics: dict[str, int] = {}
+                    ok = database.insert_dataframe_with_smart_upsert(
+                        df,
+                        args.db,
+                        "ssa_table",
+                        metrics_out=upsert_metrics,
+                    )
                     fr.success = ok
                     if ok:
-                        fr.inserted = fr.rows_out
+                        processed_events = upsert_metrics.get(
+                            "ssa_event_records_processed", 0
+                        )
+                        if event_records and processed_events != len(event_records):
+                            raise RuntimeError(
+                                "Upsert nao confirmou todos os eventos: "
+                                f"esperado={len(event_records)}, "
+                                f"processado={processed_events}"
+                            )
+                        fr.inserted = upsert_metrics.get("ssa_inserted", fr.rows_out)
+                        fr.updated = upsert_metrics.get("ssa_updated", 0)
+                        fr.events_processed = processed_events
         except Exception as e:  # pragma: no cover
             fr.success = False
             fr.error = str(e)
@@ -244,6 +300,8 @@ def main(argv: List[str]) -> int:
     total_in = sum(r.rows_in for r in results)
     total_out = sum(r.rows_out for r in results)
     total_inserted = sum(r.inserted for r in results)
+    total_updated = sum(r.updated for r in results)
+    total_events_processed = sum(r.events_processed for r in results)
     failures = [r for r in results if not r.success]
 
     summary = {
@@ -252,6 +310,8 @@ def main(argv: List[str]) -> int:
         "total_rows_in": total_in,
         "total_rows_out": total_out,
         "total_inserted": total_inserted,
+        "total_updated": total_updated,
+        "total_events_processed": total_events_processed,
         "avg_mapped_cols": round(sum(r.mapped_cols for r in results) / len(results), 2),
     }
     logger.info("Resumo Backfill: %s", json.dumps(summary, ensure_ascii=False))
@@ -279,6 +339,9 @@ def main(argv: List[str]) -> int:
                         "success": r.success,
                         "error": r.error,
                         "inserted": r.inserted,
+                        "updated": r.updated,
+                        "events_processed": r.events_processed,
+                        "extraction": r.stats_raw,
                     }
                     for r in results
                 ],
