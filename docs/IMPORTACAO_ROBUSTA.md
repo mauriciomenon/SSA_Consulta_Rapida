@@ -1,6 +1,6 @@
 # Importacao de Planilhas SSA
 
-## Current truth
+## CURRENT TRUTH
 
 O caminho canonico de escrita de SSA usa
 `extracao.extractor.extract_data_from_excel`. Ele atende:

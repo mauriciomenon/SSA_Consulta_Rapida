@@ -22,9 +22,8 @@ alt full rescan / incremental principal
         EXTRACT --> IMPORT : DataFrame (attrs: eventos/resumo)
         alt payload_removed > 0
             IMPORT --> APP : UNSAFE_INVALID_IDENTITY_PAYLOAD
-            APP --> Usuario : erro; sem promocao ou cache
             break rodada interrompida
-                APP --> ENTRY : resultado de erro
+                APP --> ENTRY : erro; sem promocao ou cache
             end
         else linhas de entrada > 0 e nenhuma linha aceita
             IMPORT --> APP : ALL_ROWS_REJECTED
