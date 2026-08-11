@@ -186,6 +186,7 @@ def import_single_file(
             if isinstance(row_count_before_invalid_filter_raw, int)
             else int(len(df))
         )
+        payload_removed = int(invalid_row_summary.get("payload_removed", 0) or 0)
         metrics["durations"] = {"extraction_seconds": round(extraction_duration, 3)}
         metrics["counts"] = {
             "rows_extracted": int(len(df)),
@@ -208,6 +209,22 @@ def import_single_file(
         if should_cancel and should_cancel():
             raise ExtractionError(
                 "operation cancelled", error_code="OPERATION_CANCELLED"
+            )
+        if payload_removed > 0:
+            payload_columns_raw = invalid_row_summary.get("payload_columns_sample")
+            payload_columns = (
+                payload_columns_raw if isinstance(payload_columns_raw, list) else []
+            )
+            payload_detail = (
+                f" (colunas: {', '.join(str(column) for column in payload_columns)})"
+                if payload_columns
+                else ""
+            )
+            raise ExtractionError(
+                "Importacao bloqueada para "
+                f"'{os.path.basename(file_path)}': {payload_removed} linha(s) sem "
+                f"identidade ainda possuem payload{payload_detail}",
+                error_code="UNSAFE_INVALID_IDENTITY_PAYLOAD",
             )
         if not df.empty:
             if should_cancel and should_cancel():

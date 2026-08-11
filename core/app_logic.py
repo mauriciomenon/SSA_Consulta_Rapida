@@ -821,7 +821,7 @@ def _process_file_with_resilience(
             table_name,
             should_cancel=should_cancel,
             _metrics_out=file_metrics,
-            metadata_columns_ready=True,
+            metadata_columns_ready=candidate_db_path is not None,
         )
         if success:
             normalized_record_count = int(record_count)
@@ -918,13 +918,22 @@ def _process_file_with_resilience(
         if error_code == "OPERATION_CANCELLED" and should_cancel:
             logger.info("Cancelamento solicitado; interrompendo importacao.")
             return FileProcessAction.CANCELLED
+        unsafe_identity_payload = error_code == "UNSAFE_INVALID_IDENTITY_PAYLOAD"
         if error_code in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"}:
             deterministic_failed_files.append(file_path)
-        logger.warning(
-            "Erro de extracao em '%s': %s. Pulando arquivo...", file_path, exc
-        )
+        if unsafe_identity_payload:
+            logger.error(
+                "Payload sem identidade em '%s': %s. Interrompendo importacao.",
+                file_path,
+                exc,
+            )
+        else:
+            logger.warning(
+                "Erro de extracao em '%s': %s. Pulando arquivo...", file_path, exc
+            )
         critical_errors.append(("extraction", file_path, str(exc)))
-        file_reports.append(
+        file_report = dict(file_metrics) if unsafe_identity_payload else {}
+        file_report.update(
             {
                 "file": base_name,
                 "status": "extraction_error",
@@ -932,6 +941,7 @@ def _process_file_with_resilience(
                 "error_code": error_code,
             }
         )
+        file_reports.append(file_report)
         emit_progress(
             "file_error",
             {
@@ -942,6 +952,8 @@ def _process_file_with_resilience(
                 in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"},
             },
         )
+        if unsafe_identity_payload:
+            raise
         return FileProcessAction.CONTINUE
     except ImportMetricsContractError as exc:
         logger.error(
@@ -1009,7 +1021,7 @@ def _process_regular_files_phase(
         and not _is_derivadas_sheet_file(file_path)
         for file_path in files_to_process
     )
-    if has_regular_import_candidate:
+    if candidate_db_path is not None and has_regular_import_candidate:
         ensure_source_metadata_columns(
             working_db_path,
             table_name,

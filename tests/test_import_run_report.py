@@ -1586,6 +1586,128 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     assert payload["paths"]["working_db_path"] == str(candidate_path)
 
 
+def test_full_rescan_unsafe_payload_stops_before_promotion_or_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    file_ok = docs_dir / "01_ok.xlsx"
+    file_bad = docs_dir / "02_bad.xlsx"
+    file_ok.write_text("ok", encoding="utf-8")
+    file_bad.write_text("bad", encoding="utf-8")
+    primary_db = data_dir / "test.db"
+    candidate_db = data_dir / "test.full_rescan_candidate.db"
+    _init_minimal_ssa_db(primary_db, "primary_old")
+    _init_minimal_ssa_db(candidate_db, "candidate_seed")
+    _allow_tmp_path(monkeypatch, tmp_path)
+
+    monkeypatch.setattr(
+        app_logic,
+        "_prepare_working_database_for_import",
+        lambda **kwargs: (str(candidate_db), str(candidate_db), {}),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_get_files_to_process",
+        lambda *args, **kwargs: [str(file_ok), str(file_bad)],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "ensure_source_metadata_columns",
+        lambda *args, **kwargs: None,
+    )
+
+    def _fake_import(file_path: str, *args, **kwargs) -> tuple[bool, int]:
+        if Path(file_path) == file_bad:
+            metrics_out = kwargs.get("_metrics_out")
+            assert isinstance(metrics_out, dict)
+            metrics_out.update(
+                {
+                    "counts": {
+                        "rows_extracted": 1,
+                        "rows_removed_invalid_identity": 1,
+                        "rows_captured_hierarchical": 0,
+                        "event_records_processed": 0,
+                        "rows_ready_for_insert": 0,
+                        "rows_inserted": 0,
+                        "ssa_inserted": 0,
+                        "ssa_updated": 0,
+                    },
+                    "invalid_identity": {
+                        "payload_removed": 1,
+                        "payload_columns_sample": ["payload_evento"],
+                    },
+                    "invalid_identity_tracked": True,
+                }
+            )
+            raise app_logic.ExtractionError(
+                "1 linha(s) sem identidade ainda possuem payload",
+                error_code="UNSAFE_INVALID_IDENTITY_PAYLOAD",
+            )
+        return _fake_success_result(kwargs, 1)
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _fake_import)
+    monkeypatch.setattr(
+        app_logic,
+        "_promote_full_rescan_candidate",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("unsafe candidate must not be promoted")
+        ),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("success cache must not be updated")
+        ),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_for_deterministic_failures",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("unsafe file must not enter deterministic cache")
+        ),
+    )
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        app_logic,
+        "_write_import_run_report",
+        lambda payload: captured.setdefault("payload", payload),
+    )
+
+    with pytest.raises(app_logic.ExtractionError) as exc_info:
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=True,
+        )
+
+    assert exc_info.value.error_code == "UNSAFE_INVALID_IDENTITY_PAYLOAD"
+    assert _read_descricao(primary_db) == "primary_old"
+    assert _read_descricao(candidate_db) == "candidate_seed"
+    payload = cast(dict[str, Any], captured["payload"])
+    assert payload["result"] is False
+    assert payload["status"] == "importer_error"
+    assert payload["counts"]["success_count"] == 1
+    assert payload["counts"]["deterministic_failure_count"] == 0
+    assert payload["counts"]["rows_extracted_total"] == 1
+    assert payload["counts"]["rows_removed_invalid_identity_total"] == 1
+    assert payload["file_reports"][-1]["invalid_identity"] == {
+        "payload_removed": 1,
+        "payload_columns_sample": ["payload_evento"],
+    }
+
+
 def test_run_importer_logic_full_rescan_success_promotes_candidate_at_end(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

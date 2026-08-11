@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import QApplication
 
 from utils.path_safety import reserve_unique_path  # noqa: E402
 from core import import_staging
+from core.import_errors import ExtractionError
 from core.import_staging import stage_external_import_files
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -691,21 +692,25 @@ class TestRescanWorkerIntegration:
             for line in signal_collector.output_lines
         )
 
-    def test_run_emits_error_on_exception(self, rescan_worker, signal_collector):
-        """Testa que run() emite error em exceção."""
+    def test_run_emits_error_on_unsafe_identity_payload(
+        self, rescan_worker, signal_collector
+    ):
+        """Unsafe identity payload must end as GUI error."""
         rescan_worker.error_line.connect(signal_collector.on_error)
         rescan_worker.finished_error.connect(signal_collector.on_finished_error)
 
-        # Mock run_importer_logic para levantar exceção
         with patch(
             "gui.workers.rescan_worker.run_importer_logic",
-            side_effect=Exception("Erro de teste"),
+            side_effect=ExtractionError(
+                "1 linha sem identidade ainda possui payload",
+                error_code="UNSAFE_INVALID_IDENTITY_PAYLOAD",
+            ),
         ):
             rescan_worker.run()
 
         assert signal_collector.finished_error is not None
         assert rescan_worker.last_outcome == "error"
-        assert "Erro de teste" in signal_collector.finished_error
+        assert "sem identidade ainda possui payload" in signal_collector.finished_error
         assert len(signal_collector.error_lines) > 0
 
     def test_run_emits_cancelled_when_stopped(self, rescan_worker, signal_collector):
