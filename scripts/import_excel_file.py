@@ -120,7 +120,11 @@ def main(argv: list[str]) -> int:
     rows_in_raw = df.attrs.get("row_count_before_invalid_filter")
     if rows_in_raw is None and df.empty:
         rows_in = 0
-    elif not isinstance(rows_in_raw, int) or isinstance(rows_in_raw, bool):
+    elif (
+        not isinstance(rows_in_raw, int)
+        or isinstance(rows_in_raw, bool)
+        or rows_in_raw < 0
+    ):
         logger.error(
             "Extractor retornou row_count_before_invalid_filter invalido: %r",
             rows_in_raw,

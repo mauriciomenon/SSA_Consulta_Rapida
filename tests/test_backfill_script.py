@@ -195,7 +195,7 @@ def test_backfill_rejects_payload_loss_even_in_dry_run(tmp_path, monkeypatch):
     assert data["results"][0]["extraction"]["payload_removed"] == 1
 
 
-def test_backfill_rejects_missing_rows_in_contract(tmp_path, monkeypatch):
+def test_backfill_rejects_missing_or_negative_rows_in_contract(tmp_path, monkeypatch):
     from scripts.migracao import backfill_reprocessar
 
     (tmp_path / "missing-row-count.xlsx").write_bytes(b"xlsx")
@@ -228,6 +228,19 @@ def test_backfill_rejects_missing_rows_in_contract(tmp_path, monkeypatch):
     assert exit_code == 1
     assert report["summary"]["files_failed"] == 1
     assert "row_count_before_invalid_filter" in report["results"][0]["error"]
+
+    extracted.attrs["row_count_before_invalid_filter"] = -1
+    negative_exit_code = backfill_reprocessar.main(
+        [
+            "--dir",
+            str(tmp_path),
+            "--dry-run",
+            "--report-path",
+            str(report_path),
+        ]
+    )
+
+    assert negative_exit_code == 1
 
 
 def test_backfill_smart_upsert_confirms_events_and_source_metadata(

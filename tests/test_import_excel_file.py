@@ -335,7 +335,7 @@ def test_import_excel_file_rejects_all_rows_removed_in_dry_run(
     assert result == 4
 
 
-def test_import_excel_file_rejects_missing_rows_in_contract(
+def test_import_excel_file_rejects_missing_or_negative_rows_in_contract(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -352,6 +352,10 @@ def test_import_excel_file_rejects_missing_rows_in_contract(
     result = import_excel_file.main(["--file", str(source_file), "--dry-run"])
 
     assert result == 4
+
+    extracted.attrs["row_count_before_invalid_filter"] = -1
+
+    assert import_excel_file.main(["--file", str(source_file), "--dry-run"]) == 4
 
 
 def test_import_excel_file_smart_upsert_confirms_events_and_source_metadata(
