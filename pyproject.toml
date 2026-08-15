@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = ["--ignore=tests/legacy_tests"]
+markers = [
+  "performance: performance tests",
+  "integration: integration tests",
+  "legacy: legacy tests",
+  "slow: slow tests",
+  "smoke: smoke tests",
+  "stress: stress tests",
+]
+
+[tool.codeflash]
+# All paths are relative to this pyproject.toml's directory.
+module-root = "."
+tests-root = "tests"
+formatter-cmds = ["ruff check --exit-zero --fix $file", "ruff format $file"]
+
+
+
+[project]
+name = "ssa-consulta-rapida"
+version = "4.46.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.3.3",
+    "openpyxl>=3.1.5",
+    "defusedxml>=0.7.1",
+    "pyqt6>=6.9.0",
+    "numpy>=2.2.6,<2.4.0; python_version < '3.11'",
+    "numpy>=2.4.2; python_version >= '3.11'",
+    "tabulate>=0.10.0",
+    "idna>=3.15",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.3",
+    "flake8>=7.3.0",
+    "isort>=5.13.2",
+    "black>=26.3.1",
+    "mypy>=2.1.0",
+    "pytest-cov>=7.1.0",
+    "pre-commit>=4.6.0",
+    "ruff>=0.15.15",
+    "ty>=0.0.42",
+    "pillow>=12.2.0",
+    "codeflash>=0.20.6",
+    "filelock>=3.20.3",
+    "virtualenv>=20.36.1",
+]
+build = [
+    "pyinstaller>=6.20.0",
+    "nuitka>=4.1.2",
+    "pillow>=12.2.0",
+    "cairosvg>=2.9.0",
+    "pywin32>=311; platform_system == 'Windows'",
+    "dmgbuild>=1.6.7; platform_system == 'Darwin'",
+    "patchelf>=0.17.2.4; platform_system == 'Linux'",
+]
+web = [
+    "streamlit>=1.58.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "flake8>=7.3.0",
+    "isort>=5.13.2",
+    "black>=26.3.1",
+    "mypy>=2.1.0",
+    "pytest-cov>=7.1.0",
+    "pre-commit>=4.6.0",
+    "ruff>=0.15.15",
+    "ty>=0.0.42",
+    "pillow>=12.2.0",
+    "codeflash>=0.20.6",
+    "filelock>=3.20.3",
+    "virtualenv>=20.36.1",
+]
