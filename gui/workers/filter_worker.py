@@ -65,7 +65,11 @@ class FilterWorker(QThread):
         cache: FilterCache | None = None,
     ):
         super().__init__()
-        self.df_completo = df_completo
+        self.df_completo = (
+            df_completo.copy(deep=False)
+            if isinstance(df_completo, pd.DataFrame)
+            else df_completo
+        )
         self.search_chunks = list(search_chunks or [])
         self.search_columns = (
             list(search_columns) if search_columns is not None else None
@@ -139,7 +143,7 @@ class FilterWorker(QThread):
                     should_cancel=self._is_cancelled,
                 )
             else:
-                df_filtrado = self.df_completo.copy(deep=True)
+                df_filtrado = self.df_completo
 
             if self._is_cancelled():
                 return
@@ -154,7 +158,19 @@ class FilterWorker(QThread):
 
             if self._is_cancelled():
                 return
-            self.filter_finished.emit(df_filtrado)
+            if search_chunks:
+                self.filter_finished.emit(df_filtrado)
+                return
+            cached_empty = self._worker_cache.get(
+                self.df_hash,
+                search_chunks,
+                self.default_mode,
+                cache_context=self.cache_context,
+            )
+            if cached_empty is not None:
+                self.filter_finished.emit(cached_empty)
+            elif isinstance(self.df_completo, pd.DataFrame):
+                self.filter_finished.emit(self.df_completo.copy(deep=True))
         except GeneralSearchCancelled:
             return
         except Exception as e:

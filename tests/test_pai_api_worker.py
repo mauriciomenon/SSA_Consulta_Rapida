@@ -13,6 +13,10 @@ from gui.workers import pai_api_worker
 from gui.workers.pai_api_worker import PaiApiRefreshWorker, PaiApiWorkerConfig
 
 
+def _enabled_options(settings: dict[str, Any]) -> Any:
+    return normalize_pai_api_options({"enabled": True, **settings})
+
+
 def test_pai_api_worker_refreshes_each_executor_sector(
     monkeypatch,
     tmp_path: Path,
@@ -37,7 +41,8 @@ def test_pai_api_worker_refreshes_each_executor_sector(
             normalized_rows=2,
         )
 
-    def _fake_import(request, preview, *, docs_dir, db_path):
+    def _fake_import(request, preview, *, docs_dir, db_path, should_cancel):
+        assert should_cancel() is False
         captured["import_calls"] = int(captured.get("import_calls", 0)) + 1
         captured["import_requests"].append(request)
         captured["preview"] = preview
@@ -75,7 +80,7 @@ def test_pai_api_worker_refreshes_each_executor_sector(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3", "MEL4", "MEL3"],
                     "sam_username": "sam.user",
@@ -160,7 +165,7 @@ def test_pai_api_worker_refreshes_executadas_without_ca_validation(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "data_scopes": ["executadas"],
@@ -229,7 +234,7 @@ def test_pai_api_worker_uses_custom_rest_base_url_for_ca_and_preview(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "base_url": "https://sam.internal/rest/SSA_API",
@@ -284,7 +289,7 @@ def test_pai_api_worker_keeps_scraper_scope_when_rest_ca_fails(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "data_scopes": ["consulta", "executadas"],
@@ -312,7 +317,7 @@ def test_pai_api_worker_rejects_executadas_without_username(tmp_path: Path) -> N
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "data_scopes": ["executadas"],
@@ -358,7 +363,7 @@ def test_pai_api_worker_refreshes_both_aprovacao_scopes(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
+            options=_enabled_options(
                 {
                     "executor_sectors": ["IEE3"],
                     "data_scopes": [
@@ -424,8 +429,9 @@ def test_pai_api_worker_continues_after_sector_failure(
             normalized_rows=1,
         )
 
-    def _fake_import(request, preview, *, docs_dir, db_path):
+    def _fake_import(request, preview, *, docs_dir, db_path, should_cancel):
         _ = preview, docs_dir, db_path
+        assert should_cancel() is False
         captured["import_requests"].append(request)
         return PaiImportResult(
             export=preview.export,
@@ -459,9 +465,7 @@ def test_pai_api_worker_continues_after_sector_failure(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options(
-                {"executor_sectors": ["IEE3", "MEL4"]}
-            ),
+            options=_enabled_options({"executor_sectors": ["IEE3", "MEL4"]}),
         )
     )
 
@@ -497,8 +501,9 @@ def test_pai_api_worker_waits_for_import_confirmation(
             normalized_rows=2,
         )
 
-    def _fake_import(request, preview, *, docs_dir, db_path):
+    def _fake_import(request, preview, *, docs_dir, db_path, should_cancel):
         _ = request, docs_dir, db_path
+        assert should_cancel() is False
         captured["import_calls"] += 1
         return PaiImportResult(
             export=preview.export,
@@ -532,7 +537,7 @@ def test_pai_api_worker_waits_for_import_confirmation(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
             confirm_before_import=True,
         )
     )
@@ -597,7 +602,7 @@ def test_pai_api_worker_cancel_confirmation_keeps_db_unchanged(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
             confirm_before_import=True,
         )
     )
@@ -661,7 +666,7 @@ def test_pai_api_worker_confirmation_timeout_emits_error(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
             confirm_before_import=True,
         )
     )
@@ -713,7 +718,7 @@ def test_pai_api_worker_does_not_import_when_all_sectors_fail(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
         )
     )
     worker.finished_error.connect(errors.append)
@@ -756,7 +761,7 @@ def test_pai_api_worker_reports_ca_failure_before_fetch_or_import(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
         )
     )
     worker.finished_error.connect(errors.append)
@@ -786,7 +791,7 @@ def test_pai_api_worker_records_unhandled_failure_in_summary(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
         )
     )
     worker.finished_error.connect(errors.append)
@@ -809,7 +814,7 @@ def test_pai_api_worker_records_preview_future_timeout(
             docs_dir=tmp_path / "docs",
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
-            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
         )
     )
     errors: list[str] = []
@@ -861,3 +866,168 @@ def test_pai_api_worker_emits_fallback_message_for_empty_exception(
 
     assert errors == ["RuntimeError"]
     assert worker.failures == ["RuntimeError"]
+
+
+def test_pai_api_worker_cancel_before_run_emits_nothing(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    calls = []
+    terminal_signals = []
+
+    monkeypatch.setattr(
+        pai_api_worker,
+        "run_pai_scrap_report_ca_export",
+        lambda _request: calls.append("ca"),
+    )
+    monkeypatch.setattr(
+        pai_api_worker,
+        "fetch_pai_xlsx_preview",
+        lambda *_args, **_kwargs: calls.append("fetch"),
+    )
+    monkeypatch.setattr(
+        pai_api_worker,
+        "import_prepared_pai_xlsx",
+        lambda *_args, **_kwargs: calls.append("import"),
+    )
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
+        )
+    )
+    worker.finished_success.connect(lambda: terminal_signals.append("success"))
+    worker.finished_error.connect(lambda _message: terminal_signals.append("error"))
+
+    worker.cancel()
+    worker.run()
+
+    assert calls == []
+    assert terminal_signals == []
+
+
+def test_pai_api_worker_cancel_after_preview_skips_import_and_terminal_signals(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    import_calls = []
+    terminal_signals = []
+
+    def _fake_fetch(request, *, docs_dir):
+        _ = request, docs_dir
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=tmp_path / "data.xlsx",
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=tmp_path / "import.xlsx",
+            normalized_rows=1,
+        )
+
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    monkeypatch.setattr(
+        pai_api_worker,
+        "import_prepared_pai_xlsx",
+        lambda *_args, **_kwargs: import_calls.append(True),
+    )
+    monkeypatch.setattr(
+        pai_api_worker,
+        "run_pai_scrap_report_ca_export",
+        lambda _request: PaiScrapReportCertificate(
+            command=("cert",),
+            scrap_report_root=tmp_path,
+            ca_file=tmp_path / "ca.pem",
+            manifest_path=tmp_path / "cert.json",
+            stdout="",
+            stderr="",
+        ),
+    )
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=_enabled_options({"executor_sectors": ["IEE3"]}),
+        )
+    )
+    worker.preview_ready.connect(lambda _preview: worker.cancel())
+    worker.finished_success.connect(lambda: terminal_signals.append("success"))
+    worker.finished_error.connect(lambda _message: terminal_signals.append("error"))
+
+    worker.run()
+
+    assert import_calls == []
+    assert terminal_signals == []
+
+
+def test_pai_api_worker_rejects_aggregate_preview_batch(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from extracao.extractor import ExtractionError
+
+    validated_paths: list[Path] = []
+    terminal_signals: list[str] = []
+
+    def _fake_fetch(request, *, docs_dir):
+        _ = request, docs_dir
+        import_path = tmp_path / "import.xlsx"
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=import_path,
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=import_path,
+            normalized_rows=1,
+        )
+
+    def _reject_batch(paths, **_kwargs):
+        validated_paths.extend(paths)
+        raise ExtractionError(
+            "lote acima do limite",
+            error_code="BATCH_FILE_LIMIT_EXCEEDED",
+        )
+
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    monkeypatch.setattr(
+        pai_api_worker,
+        "validate_excel_import_limits",
+        _reject_batch,
+    )
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=_enabled_options(
+                {
+                    "executor_sectors": ["IEE3", "MEL4"],
+                    "data_scopes": ["executadas"],
+                    "sam_username": "sam.user",
+                }
+            ),
+            fetch_only=True,
+        )
+    )
+    worker.finished_success.connect(lambda: terminal_signals.append("success"))
+    worker.finished_error.connect(lambda _message: terminal_signals.append("error"))
+
+    worker.run()
+
+    assert len(validated_paths) == 2
+    assert terminal_signals == ["error"]

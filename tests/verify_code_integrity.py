@@ -5,6 +5,7 @@ Script de verificacao de integridade de imports e chamadas cruzadas.
 """
 
 import inspect
+import importlib
 import os
 import sys
 
@@ -18,11 +19,14 @@ errors = []
 
 # 1. Verificar imports circulares
 try:
-    import core.app_logic
-    import gui.gui_ssa
-    import gui.helpers
-    import gui.mixins
-    import gui.workers
+    for module_name in (
+        "core.app_logic",
+        "gui.gui_ssa",
+        "gui.helpers",
+        "gui.mixins",
+        "gui.workers",
+    ):
+        importlib.import_module(module_name)
 
     print("OK Imports sem ciclos")
 except ImportError as e:

@@ -1,3 +1,4 @@
+import threading
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -109,6 +110,117 @@ def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
     assert data["gui_settings"]["theme"] == "gruvbox"
     assert indent == 2
     assert ensure_ascii is False
+
+
+def test_preferences_writer_snapshots_before_enqueue():
+    from gui.ssa.gui_preferences_persistence import PreferencesWriter
+
+    written: list[dict] = []
+    done = threading.Event()
+
+    def _write(data, *, retries):
+        written.append(data)
+        done.set()
+        return True
+
+    writer = PreferencesWriter(_write, debounce_seconds=0.05, retries=0)
+    gui_prefs = {
+        "gui_settings": {"theme": "light"},
+        "display_columns": ["numero_ssa"],
+    }
+
+    try:
+        assert writer.persist_async(gui_prefs) is True
+        gui_prefs["gui_settings"]["theme"] = "dark"
+        gui_prefs["display_columns"].append("situacao")
+        assert done.wait(1.0)
+    finally:
+        writer.shutdown(timeout=1.0)
+
+    assert written == [
+        {
+            "gui_settings": {"theme": "light"},
+            "display_columns": ["numero_ssa"],
+        }
+    ]
+
+
+def test_persist_gui_preferences_async_restarts_without_blocking_join(monkeypatch):
+    from gui.ssa import gui_preferences_persistence
+
+    captured: list[dict] = []
+
+    class _StoppedWriter:
+        @property
+        def is_stopped(self):
+            return True
+
+        @property
+        def is_terminated(self):
+            return True
+
+        def shutdown(self, *, timeout=None):
+            raise AssertionError("restart must not join the stopped writer")
+
+    class _NewWriter:
+        @property
+        def is_stopped(self):
+            return False
+
+        def persist_async(self, gui_prefs):
+            captured.append(gui_prefs)
+            return True
+
+    monkeypatch.setattr(
+        gui_preferences_persistence,
+        "_GUI_PREFERENCES_WRITER",
+        _StoppedWriter(),
+    )
+    monkeypatch.setattr(
+        gui_preferences_persistence,
+        "PreferencesWriter",
+        lambda *_args, **_kwargs: _NewWriter(),
+    )
+
+    assert gui_preferences_persistence.persist_gui_preferences_async({"theme": "dark"})
+    assert captured == [{"theme": "dark"}]
+
+
+def test_persist_gui_preferences_async_does_not_overlap_stopping_writer(monkeypatch):
+    from gui.ssa import gui_preferences_persistence
+
+    captured: list[dict] = []
+
+    class _StoppingWriter:
+        @property
+        def is_stopped(self):
+            return True
+
+        @property
+        def is_terminated(self):
+            return False
+
+        def persist_async(self, gui_prefs):
+            return False
+
+    def _new_writer(*_args, **_kwargs):
+        raise AssertionError("must not create a second writer before termination")
+
+    monkeypatch.setattr(
+        gui_preferences_persistence,
+        "_GUI_PREFERENCES_WRITER",
+        _StoppingWriter(),
+    )
+    monkeypatch.setattr(
+        gui_preferences_persistence,
+        "PreferencesWriter",
+        _new_writer,
+    )
+
+    assert not gui_preferences_persistence.persist_gui_preferences_async(
+        {"theme": "dark"}
+    )
+    assert captured == []
 
 
 def test_theme_dialog_accepting_current_default_does_not_write(monkeypatch):

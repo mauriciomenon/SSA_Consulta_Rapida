@@ -21,6 +21,7 @@ This repository separates blocking local/CI checks from external advisory servic
 - `.github/workflows/codeql.yml`: GitHub CodeQL security scan.
 - `.github/workflows/secret_scan.yml`: blocking workspace and PR diff secret scans; history scan is advisory and only runs on schedule/manual dispatch.
 - `.deepsource.toml`: local analyzer configuration only; it does not decide whether the GitHub App blocks a PR.
+- `.deepsec/`: local Vercel DeepSec workspace. It is ignored by Git; keep exported findings as local review input unless a dedicated DOC_SYNC commit is requested.
 
 ## Supply Chain Download Policy
 

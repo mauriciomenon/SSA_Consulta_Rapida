@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from armazenamento.database_lock import database_writer_lock
 from core.import_errors import DatabaseError
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,13 @@ def promote_full_rescan_candidate(
     candidate_db_path: str, primary_db_path: str
 ) -> Optional[str]:
     """Promote a validated full-rescan candidate DB into the primary path."""
+    with database_writer_lock(primary_db_path):
+        return _promote_full_rescan_candidate_locked(candidate_db_path, primary_db_path)
+
+
+def _promote_full_rescan_candidate_locked(
+    candidate_db_path: str, primary_db_path: str
+) -> Optional[str]:
     if not os.path.exists(candidate_db_path):
         raise DatabaseError(
             f"DB candidato ausente para promocao final: {candidate_db_path}"
@@ -61,6 +69,19 @@ def promote_full_rescan_candidate(
     try:
         replace_sqlite_file_with_retry(candidate_db_path, primary_db_path)
     except OSError as exc:
+        if backup_path and os.path.exists(backup_path):
+            try:
+                replace_sqlite_file_with_retry(backup_path, primary_db_path)
+                logger.error(
+                    "Promocao do DB candidato falhou; backup restaurado em: %s",
+                    os.path.basename(primary_db_path),
+                )
+            except OSError as restore_exc:
+                raise DatabaseError(
+                    "Falha ao promover DB candidato e ao restaurar backup "
+                    "para o caminho principal: "
+                    f"promocao={exc}; restauracao={restore_exc}"
+                ) from restore_exc
         raise DatabaseError(
             "Falha ao promover DB candidato para o caminho principal: "
             f"{exc}"
@@ -74,6 +95,11 @@ def promote_full_rescan_candidate(
 
 def rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
     """Rotate the current DB file to a timestamped backup and return the backup path."""
+    with database_writer_lock(db_path):
+        return _rotate_database_for_full_rescan_locked(db_path)
+
+
+def _rotate_database_for_full_rescan_locked(db_path: str) -> Optional[str]:
     if not os.path.exists(db_path):
         return None
     logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
@@ -93,10 +119,14 @@ def rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
         ),
         validation_error_prefix="Falha ao validar estado do WAL antes do full rescan",
     )
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_path = f"{db_path}.full_rescan_backup_{timestamp}"
+    primary_moved = False
+    moved_sidecars: list[tuple[str, str]] = []
+    placeholder_sidecars: list[str] = []
     try:
         replace_sqlite_file_with_retry(db_path, backup_path)
+        primary_moved = True
         logger.info(
             "Banco anterior movido para backup de full rescan: %s",
             os.path.basename(backup_path),
@@ -106,6 +136,7 @@ def rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
             sidecar_backup = f"{backup_path}{suffix}"
             if preexisting_sidecars.get(suffix) and os.path.exists(sidecar):
                 replace_sqlite_file_with_retry(sidecar, sidecar_backup)
+                moved_sidecars.append((sidecar, sidecar_backup))
                 logger.info(
                     "Arquivo auxiliar do banco movido para backup: %s",
                     os.path.basename(sidecar_backup),
@@ -113,14 +144,42 @@ def rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
                 continue
             if preexisting_sidecars.get(suffix):
                 Path(sidecar_backup).touch(exist_ok=True)
+                placeholder_sidecars.append(sidecar_backup)
                 logger.info(
                     "Arquivo auxiliar preexistente foi registrado vazio no backup "
                     "apos checkpoint consumir o sidecar: %s",
                     os.path.basename(sidecar_backup),
                 )
     except OSError as exc:
+        rollback_errors: list[str] = []
+        if primary_moved and os.path.exists(backup_path):
+            try:
+                replace_sqlite_file_with_retry(backup_path, db_path)
+            except OSError as rollback_exc:
+                rollback_errors.append(f"banco principal: {rollback_exc}")
+        for sidecar, sidecar_backup in reversed(moved_sidecars):
+            if not os.path.exists(sidecar_backup):
+                continue
+            try:
+                replace_sqlite_file_with_retry(sidecar_backup, sidecar)
+            except OSError as rollback_exc:
+                rollback_errors.append(
+                    f"sidecar {os.path.basename(sidecar)}: {rollback_exc}"
+                )
+        for placeholder_sidecar in placeholder_sidecars:
+            try:
+                Path(placeholder_sidecar).unlink(missing_ok=True)
+            except OSError as rollback_exc:
+                rollback_errors.append(
+                    f"placeholder {os.path.basename(placeholder_sidecar)}: {rollback_exc}"
+                )
+        rollback_detail = (
+            f" Rollback incompleto: {'; '.join(rollback_errors)}"
+            if rollback_errors
+            else " Banco e sidecars restaurados."
+        )
         raise DatabaseError(
-            f"Falha ao preparar banco limpo para full rescan: {exc}"
+            f"Falha ao preparar banco limpo para full rescan: {exc}.{rollback_detail}"
         ) from exc
     return backup_path
 

@@ -72,7 +72,7 @@ def test_maintenance_interval_guard(temp_db):
     sync_derivadas(temp_db)
 
     result = run_derivadas_maintenance(
-        temp_db, min_interval_seconds=3600, auto_heal=True
+        temp_db, min_interval_seconds=14400, auto_heal=True
     )
     assert result["ran"] is False
     assert result["reason"] == "interval_guard"
@@ -105,7 +105,7 @@ def test_maintenance_interval_guard_remains_read_only_under_write_lock(temp_db):
     started_at = time.perf_counter()
     try:
         result = run_derivadas_maintenance(
-            temp_db, min_interval_seconds=3600, auto_heal=True
+            temp_db, min_interval_seconds=14400, auto_heal=True
         )
         op_elapsed = time.perf_counter() - started_at
     finally:

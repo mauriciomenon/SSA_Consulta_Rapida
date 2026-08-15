@@ -38,7 +38,7 @@ def setup_app_menus(
 
     _add_file_menu(window, arquivo_menu, action_cls)
     _add_import_menu(window, importacao_menu, action_cls, project_root=project_root)
-    _add_database_menu(window, db_menu, action_cls)
+    _add_database_menu(window, db_menu, action_cls, project_root=project_root)
     _add_options_menu(
         window,
         opcoes_menu,
@@ -51,7 +51,13 @@ def setup_app_menus(
 
 
 def _add_file_menu(window: Any, arquivo_menu: Any, action_cls: Any) -> None:
-    _add_action(arquivo_menu, action_cls, window, "Exportar lista", window._export_current_list_txt)
+    _add_action(
+        arquivo_menu,
+        action_cls,
+        window,
+        "Exportar lista",
+        window._export_current_list_txt,
+    )
     _add_action(arquivo_menu, action_cls, window, "Sair", window.close)
 
 
@@ -69,36 +75,6 @@ def _add_import_menu(
         "Importar XLSX externo",
         window.import_external_excel_files,
     )
-    _add_action(importacao_menu, action_cls, window, "Atualizar Dados", window.rescan_diff_data)
-    _add_action(
-        importacao_menu,
-        action_cls,
-        window,
-        "Reescaneamento Completo",
-        window.rescan_full_data,
-    )
-    _add_action(
-        importacao_menu,
-        action_cls,
-        window,
-        "Abrir Pasta de Arquivos",
-        window.open_docs_folder,
-        status_tip=f"Pasta atual de entrada: {os.path.join(project_root, 'docs_entrada')}",
-    )
-    _add_action(
-        importacao_menu,
-        action_cls,
-        window,
-        "Abrir Pasta Arquivos Processados",
-        window.open_processadas_folder,
-    )
-    _add_action(
-        importacao_menu,
-        action_cls,
-        window,
-        "Abrir Pasta Arquivos Redundantes",
-        window.open_nosurvivor_folder,
-    )
     _add_action(
         importacao_menu,
         action_cls,
@@ -106,10 +82,22 @@ def _add_import_menu(
         "Consolidar arquivos de entrada",
         window.consolidate_input_files,
     )
+    advanced_menu = importacao_menu.addMenu("Avancado")
+    _add_folder_actions(
+        window,
+        advanced_menu,
+        action_cls,
+        project_root=project_root,
+    )
 
 
-def _add_database_menu(window: Any, db_menu: Any, action_cls: Any) -> None:
-    _add_action(db_menu, action_cls, window, "Reescanear", window.rescan_data)
+def _add_database_menu(
+    window: Any,
+    db_menu: Any,
+    action_cls: Any,
+    *,
+    project_root: str,
+) -> None:
     _add_action(
         db_menu,
         action_cls,
@@ -117,8 +105,70 @@ def _add_database_menu(window: Any, db_menu: Any, action_cls: Any) -> None:
         "Atualizar derivadas",
         window.update_derivadas_from_sources,
     )
-    _add_action(db_menu, action_cls, window, "Carregar outro DB", window.load_other_database)
+    _add_action(db_menu, action_cls, window, "Recarregar dados", window.load_data)
     _add_action(db_menu, action_cls, window, "Compactar DB", window.run_vacuum_analyze)
+    advanced_menu = db_menu.addMenu("Avancado")
+    _add_action(
+        advanced_menu,
+        action_cls,
+        window,
+        "Atualizar Dados",
+        window.rescan_diff_data,
+    )
+    _add_action(
+        advanced_menu,
+        action_cls,
+        window,
+        "Reescaneamento Completo",
+        window.rescan_full_data,
+    )
+    _add_action(advanced_menu, action_cls, window, "Reescanear", window.rescan_data)
+    _add_action(
+        advanced_menu,
+        action_cls,
+        window,
+        "Carregar outro DB",
+        window.load_other_database,
+    )
+    _add_folder_actions(
+        window,
+        advanced_menu,
+        action_cls,
+        project_root=project_root,
+    )
+
+
+def _add_folder_actions(
+    window: Any,
+    menu: Any,
+    action_cls: Any,
+    *,
+    project_root: str,
+) -> None:
+    _add_action(
+        menu,
+        action_cls,
+        window,
+        "Abrir Pasta de Arquivos",
+        window.open_docs_folder,
+        status_tip=(
+            f"Pasta atual de entrada: {os.path.join(project_root, 'docs_entrada')}"
+        ),
+    )
+    _add_action(
+        menu,
+        action_cls,
+        window,
+        "Abrir Pasta Arquivos Processados",
+        window.open_processadas_folder,
+    )
+    _add_action(
+        menu,
+        action_cls,
+        window,
+        "Abrir Pasta Arquivos Redundantes",
+        window.open_nosurvivor_folder,
+    )
 
 
 def _add_options_menu(
@@ -134,7 +184,7 @@ def _add_options_menu(
         opcoes_menu,
         action_cls,
         window,
-        "Abrir arquivo de opcoes",
+        "Preparar arquivo de opcoes",
         window.open_settings_file_with_backup,
     )
     _add_action(

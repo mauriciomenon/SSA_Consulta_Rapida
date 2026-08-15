@@ -25,10 +25,10 @@ def _resolve_cache_limit_bytes(env_name: str, default_mb: float) -> int | None:
         max_mb = float(raw)
     except ValueError:
         logger.warning("Invalid %s value: %r", env_name, raw)
-        return None
+        return int(default_mb * 1024 * 1024)
     if not math.isfinite(max_mb):
         logger.warning("Invalid %s non-finite value: %r", env_name, raw)
-        return None
+        return int(default_mb * 1024 * 1024)
     if max_mb <= 0:
         return None
     return int(max_mb * 1024 * 1024)
@@ -144,6 +144,13 @@ class FilterCache:
         entry_bytes = None
         if self._max_entry_bytes is not None or self._max_total_bytes is not None:
             entry_bytes = self._estimate_result_bytes(result)
+            if entry_bytes is None:
+                with self._lock:
+                    self._stats["skipped_large_entries"] += 1
+                logger.info(
+                    "FilterCache.put skipped entry with unknown byte size"
+                )
+                return
         if self._max_entry_bytes is not None:
             if entry_bytes is not None and entry_bytes > self._max_entry_bytes:
                 with self._lock:
@@ -157,8 +164,8 @@ class FilterCache:
         key = self._generate_key(
             df_hash, search_chunks, default_mode, cache_context=cache_context
         )
-        # Keep cache isolation without cloning the full data payload again.
-        result_copy = result.copy(deep=False)
+        result_copy = result.copy(deep=True)
+        result_copy.attrs = dict(getattr(result, "attrs", {}))
 
         with self._lock:
             # Remove entrada existente se houver
@@ -232,7 +239,7 @@ class FilterCache:
                 or row_count * max(len(result.columns), 1) <= 10_000
                 or shallow_bytes <= 8 * 1024 * 1024
             ):
-                return shallow_bytes
+                return int(result.memory_usage(index=True, deep=True).sum())
             sample_size = min(64, row_count)
             sampled_text_bytes = 0
             for column_name in result.columns:

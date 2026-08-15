@@ -72,6 +72,18 @@ def test_filter_cache_skips_large_entries_when_limit_is_set(monkeypatch):
     assert stats["max_entry_mb"] is not None
 
 
+def test_filter_cache_counts_deep_text_bytes_for_small_frames(monkeypatch):
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "0.001")
+    cache = FilterCache(max_size=2)
+    text_heavy_df = pd.DataFrame({"descricao_ssa": ["x" * 4096]})
+
+    cache.put("df_text", [["x"]], "contains", text_heavy_df)
+
+    stats = cache.get_stats()
+    assert stats["size"] == 0
+    assert stats["skipped_large_entries"] == 1
+
+
 def test_filter_cache_keeps_small_entries_when_limit_allows(monkeypatch):
     monkeypatch.setenv("SSA_CACHE_MAX_MB", "64")
     cache = FilterCache(max_size=2)
@@ -84,6 +96,41 @@ def test_filter_cache_keeps_small_entries_when_limit_allows(monkeypatch):
     assert cached is not None
     assert stats["skipped_large_entries"] == 0
     assert stats["hits"] >= 1
+
+
+def test_filter_cache_uses_default_limit_for_invalid_env(monkeypatch):
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "invalid")
+    cache = FilterCache(max_size=2)
+
+    stats = cache.get_stats()
+
+    assert stats["max_entry_mb"] == 64.0
+
+
+def test_filter_cache_unlimited_when_env_zero(monkeypatch):
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "0")
+    monkeypatch.setenv("SSA_CACHE_MAX_TOTAL_MB", "0")
+    cache = FilterCache(max_size=2)
+    large_df = pd.DataFrame({"descricao_ssa": ["x" * 4096, "y" * 4096]})
+
+    cache.put("df_large", [["x"]], "contains", large_df)
+
+    stats = cache.get_stats()
+    assert stats["size"] == 1
+    assert stats["max_entry_mb"] is None
+    assert stats["max_total_mb"] is None
+    assert stats["skipped_large_entries"] == 0
+
+
+def test_filter_cache_skips_entries_with_unknown_size(monkeypatch):
+    cache = FilterCache(max_size=2)
+    monkeypatch.setattr(cache, "_estimate_result_bytes", lambda _result: None)
+
+    cache.put("df_unknown", [["x"]], "contains", pd.DataFrame({"a": [1]}))
+
+    stats = cache.get_stats()
+    assert stats["size"] == 0
+    assert stats["skipped_large_entries"] == 1
 
 
 def test_filter_cache_shallow_copies_keep_cache_values_isolated():

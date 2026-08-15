@@ -15,8 +15,10 @@ import platform
 import plistlib
 import shlex
 import shutil
+import sqlite3
 import subprocess  # nosec B404
 import sys
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -458,13 +460,32 @@ VSVersionInfo(
             logger.error(f"Erro executando conversao de icones: {e}")
             return False
 
-    def build_executable(self, platform_name, app_type, python_exe, config):
+    def build_executable(
+        self, platform_name, app_type, python_exe, config, runtime_db=None
+    ):
         """Constroi executavel para tipo especifico (cli/gui)"""
         logger.info(f"Construindo {app_type.upper()} para {platform_name}")
 
         # Configuracao base
         app_config = config[f"{app_type}_config"]
         pyinstaller_args = config["pyinstaller_args"]
+        if pyinstaller_args.get("onefile", False) or not pyinstaller_args.get(
+            "onedir", False
+        ):
+            logger.error("Build de distribuicao exige modo onedir: %s", platform_name)
+            return False
+        if runtime_db is None and pyinstaller_args.get("include_local_data", False):
+            runtime_db = self.base_dir / "data" / "ssas.db"
+            logger.warning(
+                "include_local_data legado ativado; somente data/ssas.db sera "
+                "copiado externamente."
+            )
+        runtime_db_path = None
+        if runtime_db is not None:
+            runtime_db_path = Path(runtime_db).resolve()
+            if runtime_db_path.name != "ssas.db" or not runtime_db_path.is_file():
+                logger.error("Banco de runtime invalido ou ausente: %s", runtime_db_path)
+                return False
 
         # Comando base
         cmd = [
@@ -525,24 +546,30 @@ VSVersionInfo(
 
         # Dados adicionais
         config_path = self.base_dir / "config"
-        data_path = self.base_dir / "data"
         guide_path = self.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
         build_info_path = self._write_build_info_file("pyinstaller", platform_name)
         add_data_sep = ";" if platform_name.startswith("windows") else ":"
 
         if config_path.exists():
-            cmd.extend(["--add-data", f"{config_path}{add_data_sep}config"])
+            for config_file in sorted(config_path.rglob("*")):
+                if (
+                    not config_file.is_file()
+                    or "__pycache__" in config_file.parts
+                    or config_file.suffix.lower() in {".py", ".pyc"}
+                ):
+                    continue
+                config_destination = Path("config") / config_file.relative_to(
+                    config_path
+                ).parent
+                cmd.extend(
+                    [
+                        "--add-data",
+                        f"{config_file}{add_data_sep}{config_destination.as_posix()}",
+                    ]
+                )
         if guide_path.exists():
             cmd.extend(["--add-data", f"{guide_path}{add_data_sep}docs"])
         cmd.extend(["--add-data", f"{build_info_path}{add_data_sep}config"])
-        include_local_data = bool(pyinstaller_args.get("include_local_data", False))
-        if include_local_data and data_path.exists():
-            logger.warning(
-                "include_local_data ativado; data/ sera embedado no build. "
-                "Use apenas em ambiente controlado."
-            )
-            cmd.extend(["--add-data", f"{data_path}{add_data_sep}data"])
-
         # Argumentos adicionais
         for arg in app_config.get("additional_args", []):
             cmd.append(arg)
@@ -563,6 +590,65 @@ VSVersionInfo(
         )
 
         if result.returncode == 0:
+            bundle_root = self.dist_dir / platform_name / app_config["name"]
+            runtime_root = bundle_root
+            if platform_name == "macos_arm64" and app_config.get("windowed", False):
+                bundle_root = bundle_root.with_suffix(".app")
+                runtime_root = bundle_root / "Contents" / "MacOS"
+            if runtime_db_path is not None:
+                if not bundle_root.is_dir():
+                    logger.error("Bundle onedir nao encontrado: %s", bundle_root)
+                    return False
+                internal_sensitive = [
+                    path
+                    for path in bundle_root.rglob("*")
+                    if path.is_file()
+                    and "_internal" in path.parts
+                    and path.suffix.lower()
+                    in {".db", ".xls", ".xlsx", ".xlsm", ".ods"}
+                ]
+                if internal_sensitive:
+                    logger.error(
+                        "Bundle contem banco ou planilha em _internal: %s",
+                        ", ".join(str(path) for path in internal_sensitive),
+                    )
+                    return False
+                runtime_data = runtime_root / "data"
+                runtime_data.mkdir(parents=True, exist_ok=True)
+                runtime_db_target = runtime_data / "ssas.db"
+                runtime_db_temporary = runtime_data / "ssas.db.tmp"
+                runtime_db_temporary.unlink(missing_ok=True)
+                try:
+                    source_uri = f"{runtime_db_path.as_uri()}?mode=ro"
+                    with closing(
+                        sqlite3.connect(source_uri, uri=True, timeout=5)
+                    ) as source_conn:
+                        with closing(sqlite3.connect(runtime_db_temporary)) as target_conn:
+                            source_conn.backup(target_conn)
+                            if target_conn.execute("PRAGMA quick_check").fetchone() != (
+                                "ok",
+                            ):
+                                raise sqlite3.DatabaseError(
+                                    "snapshot do banco de runtime falhou no quick_check"
+                                )
+                    os.replace(runtime_db_temporary, runtime_db_target)
+                except (OSError, sqlite3.Error) as exc:
+                    runtime_db_temporary.unlink(missing_ok=True)
+                    logger.error("Falha ao criar snapshot do banco de runtime: %s", exc)
+                    return False
+                logger.info(
+                    "Banco operacional copiado externamente: %s",
+                    runtime_db_target,
+                )
+            for folder in (
+                runtime_root / "data" / "historico_backups",
+                runtime_root / "docs_entrada",
+                runtime_root / "docs_saida",
+                runtime_root / "logs",
+                runtime_root / "reports",
+                runtime_root / "exportacao",
+            ):
+                folder.mkdir(parents=True, exist_ok=True)
             logger.info(f"{app_type.upper()} construido com sucesso")
             return True
         else:
@@ -629,6 +715,25 @@ VSVersionInfo(
 
     def _sync_macos_gui_display_name(self, dist_dir, config=None, *, sign_bundle=False):
         """Atualiza CFBundleName e CFBundleDisplayName do app GUI no macOS."""
+        app_bundle = self._resolve_macos_gui_app_bundle_for_display_name(dist_dir, config)
+        if app_bundle is None:
+            return None
+
+        info_plist_path = app_bundle / "Contents" / "Info.plist"
+        if not info_plist_path.exists():
+            logger.error("Info.plist nao encontrado no bundle GUI: %s", info_plist_path)
+            return None
+
+        if not self._update_macos_info_plist_display_name(info_plist_path):
+            return None
+
+        if sign_bundle and platform.system() == "Darwin":
+            if not self._sign_macos_gui_app_bundle(app_bundle):
+                return None
+
+        return app_bundle
+
+    def _resolve_macos_gui_app_bundle_for_display_name(self, dist_dir, config=None):
         app_bundle = None
         gui_config = (config or {}).get("gui_config") or {}
         if isinstance(gui_config, dict):
@@ -654,18 +759,15 @@ VSVersionInfo(
                 dist_dir,
             )
             return None
+        return app_bundle
 
-        info_plist_path = app_bundle / "Contents" / "Info.plist"
-        if not info_plist_path.exists():
-            logger.error("Info.plist nao encontrado no bundle GUI: %s", info_plist_path)
-            return None
-
+    def _update_macos_info_plist_display_name(self, info_plist_path):
         try:
             with open(info_plist_path, "rb") as plist_file:
                 plist_data = plistlib.load(plist_file)
         except (OSError, plistlib.InvalidFileException, ValueError) as exc:
             logger.error("Falha ao ler Info.plist '%s': %s", info_plist_path, exc)
-            return None
+            return False
 
         plist_data["CFBundleName"] = self.APP_DISPLAY_NAME
         plist_data["CFBundleDisplayName"] = self.APP_DISPLAY_NAME
@@ -675,59 +777,60 @@ VSVersionInfo(
                 plistlib.dump(plist_data, plist_file)
         except OSError as exc:
             logger.error("Falha ao atualizar Info.plist '%s': %s", info_plist_path, exc)
-            return None
+            return False
 
         logger.info(
             "Nome de exibicao do bundle macOS atualizado para '%s'",
             self.APP_DISPLAY_NAME,
         )
-        if sign_bundle and platform.system() == "Darwin":
-            codesign_cmd = shutil.which("codesign")
-            if not codesign_cmd:
-                logger.error("codesign nao encontrado para validar bundle macOS")
-                return None
+        return True
 
-            codesign_identity = os.environ.get("MACOS_CODESIGN_IDENTITY") or "-"
-            sign_result = self._run_command(
-                [
-                    codesign_cmd,
-                    "--force",
-                    "--deep",
-                    "--sign",
-                    codesign_identity,
-                    str(app_bundle),
-                ],
-                timeout=300,
-                capture_output=True,
-                text=True,
-                cwd=str(self.base_dir),
+    def _sign_macos_gui_app_bundle(self, app_bundle):
+        codesign_cmd = shutil.which("codesign")
+        if not codesign_cmd:
+            logger.error("codesign nao encontrado para validar bundle macOS")
+            return False
+
+        codesign_identity = os.environ.get("MACOS_CODESIGN_IDENTITY") or "-"
+        sign_result = self._run_command(
+            [
+                codesign_cmd,
+                "--force",
+                "--deep",
+                "--sign",
+                codesign_identity,
+                str(app_bundle),
+            ],
+            timeout=300,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if sign_result.returncode != 0:
+            logger.error("Falha ao assinar bundle macOS: %s", sign_result.stderr.strip())
+            return False
+
+        verify_result = self._run_command(
+            [
+                codesign_cmd,
+                "--verify",
+                "--deep",
+                "--strict",
+                "--verbose=2",
+                str(app_bundle),
+            ],
+            timeout=300,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if verify_result.returncode != 0:
+            logger.error(
+                "Falha ao verificar assinatura do bundle macOS: %s",
+                (verify_result.stderr or verify_result.stdout).strip(),
             )
-            if sign_result.returncode != 0:
-                logger.error("Falha ao assinar bundle macOS: %s", sign_result.stderr.strip())
-                return None
-
-            verify_result = self._run_command(
-                [
-                    codesign_cmd,
-                    "--verify",
-                    "--deep",
-                    "--strict",
-                    "--verbose=2",
-                    str(app_bundle),
-                ],
-                timeout=300,
-                capture_output=True,
-                text=True,
-                cwd=str(self.base_dir),
-            )
-            if verify_result.returncode != 0:
-                logger.error(
-                    "Falha ao verificar assinatura do bundle macOS: %s",
-                    (verify_result.stderr or verify_result.stdout).strip(),
-                )
-                return None
-
-        return app_bundle
+            return False
+        return True
 
     def _create_macos_dmg(self, dist_dir, *, app_bundle=None):
         """Gera instalador DMG a partir do bundle .app da GUI."""
@@ -880,7 +983,9 @@ VSVersionInfo(
 
         return total
 
-    def build_platform(self, platform_name, apps=None, skip_venv=False):
+    def build_platform(
+        self, platform_name, apps=None, skip_venv=False, runtime_db=None
+    ):
         """Constroi executaveis para uma plataforma especifica"""
         if platform_name not in self.PLATFORMS:
             logger.error(f"Plataforma nao suportada: {platform_name}")
@@ -907,7 +1012,9 @@ VSVersionInfo(
         success = True
 
         for app_type in apps:
-            if not self.build_executable(platform_name, app_type, python_exe, config):
+            if not self.build_executable(
+                platform_name, app_type, python_exe, config, runtime_db=runtime_db
+            ):
                 success = False
 
         # Pos-processamento
@@ -931,13 +1038,10 @@ VSVersionInfo(
                 target_path.unlink()
             return True
 
-        # 1. Limpeza de diretorios de build/distribuicao
+        # 1. Limpeza de diretorios temporarios de build
         build_cleanup_dirs = [
             self.base_dir / "build",
-            self.base_dir / "builds",
-            self.base_dir / "dist_packages",
             self.launchers_dir / "dist_simple",
-            self.base_dir / "dist",
         ]
 
         for candidate in build_cleanup_dirs:
@@ -1369,6 +1473,12 @@ def main(argv=None):
     )
 
     parser.add_argument(
+        "--runtime-db",
+        type=Path,
+        help="Embedar exatamente um data/ssas.db no bundle onedir",
+    )
+
+    parser.add_argument(
         "--auto-cleanup",
         action="store_true",
         help="Executar limpeza automatica apos build bem-sucedido",
@@ -1472,7 +1582,12 @@ def main(argv=None):
     # Executar builds
     success = True
     for plat in platforms_to_build:
-        if not builder.build_platform(plat, args.apps, skip_venv=args.skip_venv):
+        if not builder.build_platform(
+            plat,
+            args.apps,
+            skip_venv=args.skip_venv,
+            runtime_db=args.runtime_db,
+        ):
             success = False
 
     if success:

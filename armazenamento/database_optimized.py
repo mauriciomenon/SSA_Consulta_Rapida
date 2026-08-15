@@ -29,13 +29,13 @@ from shared.date_utils import (
     format_datetime_series_for_storage,
     parse_datetime_series_mixed,
 )
-from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from utils.robust_logging import get_robust_logger
 
 from .database import (
     get_db_connection,
+    resolve_target_table,
 )  # Top-level import (safe - defined early in database.py)
-from .identifier_utils import is_valid_identifier
+from .identifier_utils import is_valid_identifier, quote_identifier as _quote_identifier
 from .numero_ssa_utils import normalize_numero_ssa_storage
 from .schema_manager import ensure_columns_exist
 
@@ -46,13 +46,6 @@ logger = get_robust_logger().get_logger(__name__, "core")
 SQLITE_MAX_VARIABLES = 999
 SQLITE_SAFETY_EXTRA_COLUMNS = 1
 SQLITE_DEFAULT_CHUNK_CAP = 500
-
-
-def _quote_identifier(identifier: str) -> str:
-    """Quote a validated SQL identifier."""
-    if not is_valid_identifier(identifier):
-        raise ValueError(f"Invalid SQL identifier: {identifier!r}")
-    return f'"{identifier}"'
 
 
 def _validate_canonical_storage_ids(work: pd.DataFrame) -> None:
@@ -118,39 +111,31 @@ def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP)
     return min(cap, max(1, SQLITE_MAX_VARIABLES // per_row_vars))
 
 
-def _resolve_physical_table(conn, table_name: str) -> str:
-    """Map legacy aliases to the canonical physical table when present."""
-    try:
-        normalized_name = str(table_name or "").strip().casefold()
-        if normalized_name == CANONICAL_SSA_TABLE.casefold() or normalized_name in {
-            alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
-        }:
-            cursor = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                (CANONICAL_SSA_TABLE,),
-            )
-            if cursor.fetchone():
-                return CANONICAL_SSA_TABLE
-        cursor = conn.execute(
-            "SELECT name, type FROM sqlite_master WHERE name=?",
-            (table_name,),
-        )
-        row = cursor.fetchone()
-        if (
-            row
-            and row[1] == "view"
-            and normalized_name
-            in {alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES}
-        ):
-            cursor2 = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                (CANONICAL_SSA_TABLE,),
-            )
-            if cursor2.fetchone():
-                return CANONICAL_SSA_TABLE
-    except Exception as exc:  # pragma: no cover
-        logger.debug("Falha ao resolver tabela fisica para %s: %s", table_name, exc)
-    return table_name
+def _insert_dataframe_rows(
+    conn: sqlite3.Connection,
+    target_table_sql: str,
+    frame: pd.DataFrame,
+) -> None:
+    """Insert DataFrame rows without letting pandas commit the transaction."""
+    if frame.empty:
+        return
+    columns = list(frame.columns)
+    for column in columns:
+        if not is_valid_identifier(column):
+            raise ValueError(f"Invalid SQL identifier for column: {column!r}")
+    quoted_columns = ", ".join(_quote_identifier(column) for column in columns)
+    placeholders = ", ".join("?" for _ in columns)
+    insert_sql = (
+        f"INSERT INTO {target_table_sql} ({quoted_columns}) "  # nosec B608
+        f"VALUES ({placeholders})"
+    )
+    chunk_size = sqlite_safe_chunksize(len(columns))
+    for offset in range(0, len(frame), chunk_size):
+        chunk = frame.iloc[offset : offset + chunk_size]
+        normalized = chunk[columns].astype("object").where(pd.notna(chunk[columns]), None)
+        params = list(normalized.itertuples(index=False, name=None))
+        if params:
+            conn.executemany(insert_sql, params)
 
 
 def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
@@ -357,6 +342,8 @@ def insert_dataframe_optimized(
     df: pd.DataFrame,
     db_path: str,
     table_name: str = "ssas",
+    *,
+    metrics_out: dict[str, int] | None = None,
 ) -> bool:
     """
     Versão OTIMIZADA da inserção de DataFrame com as seguintes melhorias:
@@ -375,6 +362,10 @@ def insert_dataframe_optimized(
     Returns:
         bool: True se sucesso, False se erro
     """
+    if metrics_out is not None:
+        metrics_out["ssa_inserted"] = 0
+        metrics_out["ssa_updated"] = 0
+
     if df is None or df.empty:
         logger.info("DataFrame vazio, nada para inserir")
         return True
@@ -404,8 +395,8 @@ def insert_dataframe_optimized(
             if col in work.columns:
                 work[col] = format_datetime_series_for_storage(work[col])
 
-        with get_db_connection(db_path) as conn:
-            target_table = _resolve_physical_table(conn, table_name)
+        with get_db_connection(db_path, write=True) as conn:
+            target_table = resolve_target_table(conn, table_name)
             if not is_valid_identifier(target_table):
                 raise ValueError(f"Invalid SQL identifier for table: {target_table!r}")
 
@@ -455,15 +446,7 @@ def insert_dataframe_optimized(
 
             # ===== INSERIR REGISTROS SEM SSA (APPEND SIMPLES) =====
             if not no_ssa.empty:
-                safe_chunksize = sqlite_safe_chunksize(len(no_ssa.columns))
-                # method='multi' ignora chunksize; usar chunksize seguro
-                no_ssa.to_sql(
-                    target_table,
-                    conn,
-                    if_exists="append",
-                    index=False,
-                    chunksize=safe_chunksize,
-                )
+                _insert_dataframe_rows(conn, target_table_sql, no_ssa)
                 total_inserted += len(no_ssa)
                 logger.info(f"[OK] Inseridos {len(no_ssa)} registros sem numero_ssa")
 
@@ -508,17 +491,11 @@ def insert_dataframe_optimized(
                 # ===== INSERÇÃO EM LOTE DE NOVOS REGISTROS =====
                 if to_insert:
                     insert_df = pd.DataFrame(to_insert)
-                    # Calcula chunksize dinamico centralizado para evitar limite de variaveis
                     safe_chunksize = sqlite_safe_chunksize(len(insert_df.columns))
-                    # method='multi' ignora chunksize; usar chunksize seguro
-                    insert_df.to_sql(
-                        target_table,
-                        conn,
-                        if_exists="append",
-                        index=False,
-                        chunksize=safe_chunksize,
-                    )
+                    _insert_dataframe_rows(conn, target_table_sql, insert_df)
                     total_inserted += len(insert_df)
+                    if metrics_out is not None:
+                        metrics_out["ssa_inserted"] += len(insert_df)
                     logger.info(
                         f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})"
                     )
@@ -600,6 +577,10 @@ def insert_dataframe_optimized(
                                     "Lookup incompleto no caminho delete+insert para SSAs: "
                                     f"{missing_existing_ssas[:5]}"
                                 )
+                            from .database_upsert_logic import (
+                                _merge_overwrite_with_incoming_non_empty,
+                            )
+
                             merged_rows: list[dict[str, object | None]] = []
                             update_columns_all = list(normalized_update_df.columns)
                             for row_values in normalized_update_df.itertuples(
@@ -609,11 +590,14 @@ def insert_dataframe_optimized(
                                 numero_ssa = update_row.get("numero_ssa")
                                 if numero_ssa is None:
                                     continue
-                                merged_row = existing_rows_by_ssa[
-                                    str(numero_ssa)
-                                ].copy()
-                                merged_row.update(update_row)
-                                merged_rows.append(merged_row)
+                                existing_row = pd.Series(
+                                    existing_rows_by_ssa[str(numero_ssa)]
+                                )
+                                merged_row = _merge_overwrite_with_incoming_non_empty(
+                                    existing_row,
+                                    pd.Series(update_row),
+                                )
+                                merged_rows.append(merged_row.to_dict())
 
                             if not merged_rows:
                                 logger.info(
@@ -633,39 +617,14 @@ def insert_dataframe_optimized(
                                     )
                                     conn.execute(delete_query, chunk_ssas)
 
-                                for col in insert_columns:
-                                    if not is_valid_identifier(col):
-                                        raise ValueError(
-                                            f"Invalid SQL identifier for column: {col!r}"
-                                        )
-                                quoted_columns = ", ".join(
-                                    [_quote_identifier(col) for col in insert_columns]
+                                _insert_dataframe_rows(
+                                    conn,
+                                    target_table_sql,
+                                    merged_df[insert_columns],
                                 )
-                                value_placeholders = ", ".join(
-                                    ["?"] * len(insert_columns)
-                                )
-                                insert_sql = (
-                                    f"INSERT INTO {target_table_sql} ({quoted_columns}) "  # nosec B608  # skipcq: BAN-B608
-                                    f"VALUES ({value_placeholders})"
-                                )
-                                insert_chunk_size = sqlite_safe_chunksize(
-                                    len(insert_columns)
-                                )
-                                for i in range(0, len(merged_df), insert_chunk_size):
-                                    chunk = merged_df.iloc[i : i + insert_chunk_size]
-                                    normalized_chunk = (
-                                        chunk[insert_columns]
-                                        .astype("object")
-                                        .where(pd.notna(chunk[insert_columns]), None)
-                                    )
-                                    params = list(
-                                        normalized_chunk.itertuples(
-                                            index=False, name=None
-                                        )
-                                    )
-                                    if params:
-                                        conn.executemany(insert_sql, params)
                                 total_inserted += len(update_df)
+                                if metrics_out is not None:
+                                    metrics_out["ssa_updated"] += len(merged_df)
                                 logger.info(
                                     "[OK] Atualizados %s registros existentes via delete+insert",
                                     len(update_df),

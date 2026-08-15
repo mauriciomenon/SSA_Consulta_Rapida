@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
-from core.import_database_rotation import rotate_preexisting_database_for_full_rescan
+import pytest
+
+from core.import_database_rotation import (
+    promote_full_rescan_candidate,
+    rotate_preexisting_database_for_full_rescan,
+)
+from core.import_errors import DatabaseError
 
 
 def _build_wal_db(db_path: Path) -> None:
@@ -18,6 +25,26 @@ def _build_wal_db(db_path: Path) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def _build_value_db(db_path: Path, value: str) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE ssa_table(id INTEGER PRIMARY KEY, value TEXT)")
+        conn.execute("INSERT INTO ssa_table(value) VALUES (?)", (value,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _read_value(db_path: Path) -> str:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute("SELECT value FROM ssa_table").fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    return str(row[0])
 
 
 def test_rotate_preexisting_database_for_full_rescan_without_external_lock(
@@ -70,3 +97,62 @@ def test_rotate_preexisting_database_for_full_rescan_moves_existing_sidecars(
     assert not shm_sidecar.exists()
     assert Path(f"{backup_path}-wal").exists()
     assert Path(f"{backup_path}-shm").exists()
+
+
+def test_promote_full_rescan_candidate_restores_primary_when_replace_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    primary_db = tmp_path / "ssas.db"
+    candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
+    _build_value_db(primary_db, "primary_old")
+    _build_value_db(candidate_db, "candidate_new")
+
+    def _replace_with_candidate_failure(source: str, target: str) -> None:
+        if Path(source) == candidate_db and Path(target) == primary_db:
+            raise PermissionError("simulated promotion failure")
+        os.replace(source, target)
+
+    monkeypatch.setattr(
+        "core.import_database_rotation.replace_sqlite_file_with_retry",
+        _replace_with_candidate_failure,
+    )
+
+    with pytest.raises(DatabaseError):
+        promote_full_rescan_candidate(str(candidate_db), str(primary_db))
+
+    assert primary_db.exists()
+    assert _read_value(primary_db) == "primary_old"
+    assert candidate_db.exists()
+    assert _read_value(candidate_db) == "candidate_new"
+
+
+def test_rotate_restores_primary_and_sidecars_when_sidecar_move_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    primary_db = tmp_path / "ssas.db"
+    _build_value_db(primary_db, "primary_old")
+    wal_sidecar = Path(f"{primary_db}-wal")
+    shm_sidecar = Path(f"{primary_db}-shm")
+    wal_sidecar.write_bytes(b"")
+    shm_sidecar.write_bytes(b"")
+
+    def _replace_with_shm_failure(source: str, target: str) -> None:
+        if source.endswith("-shm") and ".full_rescan_backup_" in target:
+            raise PermissionError("simulated sidecar failure")
+        os.replace(source, target)
+
+    monkeypatch.setattr(
+        "core.import_database_rotation.replace_sqlite_file_with_retry",
+        _replace_with_shm_failure,
+    )
+
+    with pytest.raises(DatabaseError, match="Banco e sidecars restaurados"):
+        rotate_preexisting_database_for_full_rescan(str(primary_db))
+
+    assert primary_db.exists()
+    assert _read_value(primary_db) == "primary_old"
+    assert wal_sidecar.exists()
+    assert shm_sidecar.exists()
+    assert not list(tmp_path.glob("ssas.db.full_rescan_backup_*"))

@@ -13,6 +13,45 @@
 - Recovery/hardening history is context only; public operational docs must stay minimal.
 - Stable behavior from previous golden/release-candidate cycles must be preserved.
 
+## Isolamento Obrigatorio De Host
+
+- No WSL, este repositorio so pode ser operado em `$HOME/gitlab_repo/ssa_consulta_rapida_pyqt6`, em filesystem Linux ext4.
+- `$HOME/gitlab` e symlink para o Windows e e proibido para Git, `uv`, Python, build, teste, lint ou scanner POSIX.
+- Ao trabalhar a partir do Windows, a unica invocacao manual permitida de `wsl.exe` e o CodeRabbit CLI, executado dentro do clone Linux proprio em `$HOME/gitlab_repo/ssa_consulta_rapida_pyqt6`.
+- CodeRabbit no WSL nunca pode receber caminho do checkout Windows, operar em `/mnt/*`, executar `uv`/Python/testes ou criar/modificar o `.venv` Windows.
+- Review de diff ainda nao publicado no Windows nao deve ser improvisado pelo WSL. Primeiro criar commit atomico, publicar o ref autorizado, atualizar o clone Linux com Git Linux nativo e entao executar CodeRabbit no clone Linux.
+- Fora dessa excecao do CodeRabbit, harness iniciado no Windows nao pode chamar WSL para Git, package manager, Python, build, teste, lint, scanner ou manipulacao de arquivos. Trabalho Linux deve iniciar e terminar no host e clone Linux proprios.
+- Qualquer caminho em `/mnt/*`, ferramenta `*.exe`, binario PE/MZ ou symlink resolvido para o Windows deve bloquear o harness antes do primeiro efeito colateral.
+- Toda chamada POSIX ao guard deve encerrar o fluxo em falha (`ssa_native_guard_tools ... || exit $?`); e proibido executar a ferramenta em uma linha posterior sem short-circuit.
+- O preflight de host e ferramentas deve ocorrer antes de `git status`, criacao de `.venv`, instalacao, limpeza, build ou teste.
+- `.venv` nunca pode ser copiada ou compartilhada entre Windows, WSL, Linux ou macOS. Ambiente existente incompleto ou de outro host deve falhar; e proibido usar `uv venv --clear` como autorrecuperacao.
+- Proibido executar `uv run`, `uv sync` ou `uv venv` diretamente antes do preflight. Aplicar `scripts/env/direnv_common.sh` ou usar entrypoint oficial que fixe `UV_PYTHON` e `UV_PROJECT_ENVIRONMENT`.
+- Operacoes Linux sao publicadas pelo clone Linux. Depois do push, o clone Windows e atualizado com `git.exe pull --ff-only origin dev` executado no Windows nativo.
+- Build e validacao Windows so podem ocorrer em `$env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6`, por ferramentas Windows nativas e fora de sessao WSL.
+- Ferramentas POSIX nunca podem chamar executaveis Windows, e ferramentas Windows nunca podem operar o clone Linux. Cada host usa seu clone, venv, Git e toolchain nativos.
+- Orquestracao Windows + Debian deve usar jobs independentes nos clones nativos de cada host. O agente no Windows nao pode usar WSL para build/teste Debian; a unica excecao WSL permanece o CodeRabbit no clone Linux proprio.
+- O mesmo isolamento se aplica ao repositorio C++ canonico `$HOME/gitlab_repo/ssa_consulta_rapida_cpp`.
+
+## Dados Operacionais Fora Do Git
+
+- O banco operacional Linux canonico fica em `$HOME/.ssaconsultarapida/data/ssas.db`; nunca versionar bancos ou copiar `.ssaconsultarapida` para dentro do Git.
+- Os clones Linux mantem apenas a estrutura local necessaria de `data`, `docs_entrada` e `docs_saida`; arquivos grandes permanecem fora do controle de versao.
+- Para o Python Linux, definir `SSA_DB_PATH=$HOME/.ssaconsultarapida/data/ssas.db` de forma explicita no comando de execucao.
+- Antes de transportar o banco, fechar Python e C++, confirmar ausencia de WAL/SHM, gerar snapshot pela API de backup do SQLite, validar `quick_check` e comparar SHA-256.
+- Nao executar Python e C++ como escritores simultaneos no mesmo banco sem teste explicito de concorrencia.
+
+## Contrato De Build E Distribuicao Local
+
+- Windows deve usar PowerShell nativo no clone `$env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6`; nunca gerar release Windows pelo WSL ou pelo clone Linux.
+- Comando canonico com banco atual: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- A entrega Windows deve gerar dois bundles PyInstaller `onedir` (CLI e GUI), ZIP portatil com pastas e instalador Inno. `onefile` e proibido.
+- `_internal` pode conter somente runtime e dependencias. DB, XLS e XLSX sao proibidos dentro de `_internal`.
+- Quando solicitado, cada bundle deve conter exatamente `data\ssas.db` ao lado do executavel. `docs_entrada`, `docs_saida`, `exportacao`, `config` e `data` permanecem pastas externas e gravaveis.
+- Primeiro startup frozen copia o DB externo para `%APPDATA%\SSA_Consulta_Rapida\data\ssas.db` somente quando o destino nao existe; nunca sobrescrever DB do usuario.
+- `SSA_RUNTIME_ROOT` pode selecionar outra pasta gravavel permitida, inclusive dentro do perfil do usuario. O runtime deve criar nela `data`, `docs_entrada`, `docs_saida`, `exportacao`, `reports` e `logs`.
+- Saidas locais ficam em `launchers\dist\windows_amd64`, `builds\pyinstaller\windows_amd64`, `builds\packages\windows_amd64` e `dist_packages`. Nunca adicionar executaveis, ZIPs, instaladores ou bancos ao Git.
+- Antes e depois do build, executar guardas nativas, testes de contrato, smoke funcional real do artefato e verificacao de hash do DB. Falha bloqueia entrega local.
+
 ## Objetivo
 
 - Estabilizar codigo.
@@ -41,6 +80,21 @@
 - Nao adicionar wrappers/mixins/helpers extras desnecessarios.
 - Nao usar `git reset --hard` ou comandos destrutivos.
 - Nao quebrar usabilidade entre ciclos; cada ciclo so fecha com estabilidade e usabilidade.
+
+## Escrita Tecnica Obrigatoria
+
+- Carregar e aplicar as skills `Simplified Technical English (ASD-STE100)` e `i-have-adhd` em toda resposta tecnica, mesmo sem pedido explicito.
+- Aplicar os principios das duas skills em PT-BR. Usar ingles somente quando o usuario pedir ou quando um termo exigir o original.
+- Comecar com a resposta direta. Para perguntas de sim ou nao, usar `sim` ou `nao` na primeira frase.
+- Usar voz ativa. Usar frases curtas. Escrever uma ideia por frase. Definir termos tecnicos. Remover jargao, palavras vagas e linguagem defensiva.
+- Para mais de uma acao, usar uma lista. Cada item deve conter uma acao clara. Nao omitir atividades necessarias para reduzir a lista.
+
+### Relato De Erros E Responsabilidade
+
+- Quando voce causar um erro, escrever `Eu fiz X`. Nao atribuir o erro ao sistema, ao fluxo ou ao codigo.
+- Informar estes fatos nesta ordem: o que mudou, qual foi o efeito, o que foi corrigido e o que ainda falta.
+- Dizer se houve exclusao, ocultacao, sobrescrita, alteracao de schema ou alteracao de dados.
+- Nao comecar com rotulos de status, totais de testes ou nomes de ferramentas. Colocar evidencias e metricas depois da resposta direta.
 
 ## Controle De Escopo E Intencao
 
@@ -116,6 +170,10 @@ Cada slice deve declarar:
 
 ## Politica De Git Operacional
 
+- Mapa canonico de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub.
+- Neste projeto, o pedido explicito `commitar` autoriza criar o commit e publicar a branch nos dois remotos operacionais: `origin` e `bitbucket`.
+- HTTP 403 ou conta suspensa no remote `gh` bloqueia somente GitHub; nao implica bloqueio de fetch, pull ou push em `origin`/`bitbucket`.
+- Antes do push duplo, confirmar fast-forward nos dois remotos; nunca usar force push sem autorizacao explicita.
 - Proibido rodar commits em paralelo (evitar `index.lock`).
 - Ao trocar de branch com arquivos locais:
   - criar stash nomeado com timestamp e motivo;
@@ -162,6 +220,7 @@ Cada slice deve declarar:
 ## Politica Para Ferramentas Auxiliares
 
 - Cada mudança deve ser validada com testes focados e ferramentas de análise antes de ser considerada completa, e cada teste deve ser projetado para pegar regressões reais, não apenas verificar que o código não quebre.
+- `.codewhale` e estado local pertencente ao CodeWhale. Nunca tratar como residuo, apagar, recriar ou editar sem pedido explicito; preservar mesmo quando estiver vazio ou ignorado pelo Git.
 - Se ferramenta auxiliar entrar em loop, contradizer pedido, ou sugerir acao fora de escopo:
   - informar o usuario imediatamente;
   - oferecer opcoes objetivas:
@@ -191,7 +250,8 @@ Cada slice deve declarar:
 
 - Busca ampla continua com `timeout 120s` por padrao.
 - Para ferramentas de review e scanner com latencia externa, usar orcamento maior:
-  - `kluster`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `clawpatch`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `coderabbit`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
   - `snyk`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
   - `semgrep`: ate `240s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
   - `bandit`: ate `240s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
@@ -205,7 +265,7 @@ Cada slice deve declarar:
   1. diagnostico atual
   2. slice em execucao
   3. validacao local
-  4. review externo (`kluster`/`snyk`/`semgrep`)
+  4. review externo (`clawpatch`/`coderabbit`/`semgrep`/`snyk`)
   5. commit
   6. push
   7. backlog/deferidos
@@ -217,9 +277,7 @@ Cada slice deve declarar:
 
 ## Tooling Rules Especificas
 
-- Qwen e ferramenta de apoio para tarefas repetitivas operacionais por slice.
-- Decisao tecnica final, review do patch e validacao final permanecem no agente principal.
-- Regras Kluster sao obrigatorias e NAO devem ser alteradas por este documento.
+- Qwen, clawpatch, coderabbit e scanners sao ferramentas auxiliares; decisao tecnica final, review do patch e validacao final permanecem no agente principal.
 
 
 ## Politicas Aprovadas Em Runtime E Performance GUI
@@ -306,127 +364,47 @@ Antes de publicar qualquer binario, instalador, DMG, DEB, ZIP ou asset de releas
 9. Qualquer excecao usada como fallback deve registrar causa clara; proibido `pass`, `suppress` ou fallback silencioso em fluxo de entrega.
 
 
-## Kluster Rules (Auto-generated)
-<kluster.ai mandaroty rules>
+## Review Rules
 
-## 1. Automatic Code Review (kluster_code_review_auto)
+### 1. Automatic Code Review
 
-### MANDATORY EXECUTION
-- WHEN TO RUN: Execute after ANY file creation, modification, or code change
-- New code generation
-- Existing code updates
-- File modifications or changes
-- File creation
-- Applied fixes
-- Applies to ALL file types, not just code files
-- ALWAYS execute regardless of size, complexity, or perceived risk level
-- ZERO EXCEPTIONS POLICY: NO change is too small or low-risk to skip verification
-- After any kluster_code_review_auto analysis, ALWAYS tell the user what issues were found and what you're about to fix BEFORE making any changes. Never fix silently, announce first, then fix.
+- WHEN TO RUN: execute after ANY file creation, modification, or code change.
+- Applies to all file types, not just code files.
+- Zero exceptions: no change is too small to skip verification.
+- Preferred tool order, adjusted to scope and availability:
+  1. `clawpatch` for local diff, staged diff, or file review.
+  2. `coderabbit` for PR/external review when a PR exists and the tool is authenticated.
+  3. `semgrep`, `bandit`, `detect-secrets`, `gitleaks`, `trufflehog`, `pip-audit`, `snyk`, and other local scanners matching the touched surface.
+- Review tools do not replace syntax checks, lint, type checks, tests, builds, or real smoke validation.
+- After any review tool reports issues, tell the user what was found and what will be fixed before editing again.
+- If a review tool is missing, not authenticated, or times out, declare the exact blocker and continue with equivalent available gates when safe.
 
-### KLUSTER PURPOSE CLARIFICATION
-- Kluster is NOT a traditional testing, syntax checking, or build verification tool
-- Do NOT use kluster as a substitute for or alongside classic testing tools (jest, pytest, etc.)
-- Do NOT use kluster as a syntax checker or linting replacement
-- Do NOT run builds, compile code, or execute applications before calling kluster
-- Kluster performs security, quality, and compliance verification on code changes
-- Call kluster immediately after file modification, NO prerequisites required
+### 2. Manual Code Review
 
-### STRICT COMPLIANCE
-Follow kluster_code_review_auto field descriptions exactly
+- Run manual review only when explicitly requested by the user.
+- Trigger phrases include: `review`, `verify this file`, `verify project`, `check for bugs`, `check security`, and similar requests.
+- Manual review findings must lead with bugs, risks, regressions, and missing tests, ordered by severity and tied to file/line evidence.
 
----
+### 3. Dependency Validation
 
-## 2. Manual Code Review (kluster_code_review_manual)
+- Run dependency validation before package management operations:
+  - Adding packages or libraries.
+  - Running package managers.
+  - Generating or updating package list files.
+- Prefer `pip-audit`, `snyk`, lockfile review, and package-manager native audit tools that match the stack.
 
-### WHEN TO RUN
-Only when explicitly requested by user
+### 4. Tool Action Items
 
-### TRIGGER PHRASES
-- verify with kluster
-- verify this file
-- verify project
-- check for bugs
-- check security
-- Similar manual verification requests
+- Always execute and strictly follow actionable todo items returned by review tools when they are in scope and technically valid.
+- If a tool suggests work outside scope, architecture churn, rollback, or ambiguous behavior, stop and ask the user before editing.
+- Complete accepted tool action items before running the same review gate again.
 
----
+### 5. End Of Session Review Summary
 
-## 3. Dependency Validation (kluster_dependency_check)
-
-### WHEN TO RUN
-Before package management operations:
-- Adding new packages or libraries
-- Running package managers (npm, gradle, pip, etc.)
-- Generating or updating package list files (package.json, requirements.txt, etc.)
-
----
-
-## 4. Chat ID Management
-
-### FIRST CALL
-- Do not include chat_id field for the very first kluster tool call in a conversation
-
-### SUBSEQUENT CALLS
-- MANDATORY: Always include chat_id field with the EXACT value returned by any previous kluster tool call
-- SESSION TRACKING: The chat_id maintains context across all kluster calls
-- CRITICAL: Missing chat_id on subsequent calls creates new isolated sessions instead of maintaining conversation context
-
-### IMPLEMENTATION
-- After receiving any kluster tool response, immediately note the chat_id value
-- Include this chat_id in ALL subsequent kluster tool calls
-- Never generate or modify the chat_id value, always use the exact returned value
-- APPLIES TO: all kluster tools (kluster_code_review_auto, kluster_code_review_manual, kluster_dependency_check)
-
----
-
-## 5. Agent Todo List Management
-
-### EXECUTION
-- Always execute and strictly follow agent_todo_list from any kluster tool response
-
-### COMPLETION
-- Do not stop until all items in agent_todo_list are completed
-
-### WORKFLOW
-- Complete all fixes from agent_todo_list before running kluster_code_review_auto again
-
-## 6. End of chat session - kluster summary
-- WHEN TO EXECUTE: MANDATORY at the end of ANY conversation where kluster tools were used, right before the final user-facing response, EXCEPT when Clarification Handling is active (see Clarification Handling section).
--  If any kluster response in the current turn contains CLARIFICATION actions, do NOT generate this summary, show the clarification prompt instead.
-- TRIGGER: If any kluster_code_review_auto, kluster_code_review_manual, or kluster_dependency_check tools were called during the conversation AND no CLARIFICATION actions are present in any response, ALWAYS generate this summary.
-- SCOPE: The summary MUST include ALL kluster tool calls made after the most recent user request, not just the last tool call. This includes the initial verification and ALL subsequent re-verifications after fixes.
-
-### KLUSTER SUMMARY STRUCTURE
-Generate short report capturing the COMPLETE verification journey from ALL kluster tool calls after the last user request:
-
-- kluster feedback: MUST summarize ALL issues found across ALL kluster tool calls (kluster_code_review_auto, kluster_code_review_manual, or kluster_dependency_check) after the last user request.
-- CRITICAL: Analyze ALL tool call results from the verification cycle, NOT just the final verification result
-- Example: If kluster found 3 issues initially, then 1 issue after fixes, then 0 issues, report total of 4 issues found (3 + 1)
- - Include:
-   - Total number of issues found across ALL verification runs since the last user request, grouped by severity in a structured format:
-     - Use bullet points or line breaks to clearly separate severity levels
-       - Reflect the complete verification journey (example: Initially found 3 issues, after fixes found 1 more issue, final verification clean)
-- For case when kluster returned includedExternalKnowledge data, include short summary from includedExternalKnowledge field on what knowledge sources were used during code review. This should be displayed at the END of the kluster
-- summary section, after all other sections, as a separate line formatted as: External knowledge used: [short summary of includedExternalKnowledge]
-
-- Issues found and fixed: Document summary of ALL changes applied to resolve issues found by kluster across the ENTIRE verification cycle since the last user request.
-- Do not include this section if NO issues were found in any verification run since the last user request
-- Include:
-  - What fixes were implemented following kluster tool recommendations, a short 1-2 lines summary covering ALL fixes since the last user request
-  - What would have happened without these fixes, how it could affect the application, show this as a separate paragraph/section, NOT as a bullet point within Issues found and fixed. Start this text from Impact Assessment:
-
-### Formatting requirements
-- Use markdown bold text with line breaks for title: kluster.ai Review Summary followed by a blank line
-- Use emoji and/or bullet points for better formatting
-- Always reflect the FULL journey of verification, not just the end state
-- Show progression when multiple verification cycles occurred (example: 3 issues -> 1 issue -> clean)
-
-### ENFORCEMENT
-- If you complete a conversation without providing this summary when kluster tools were used AND no clarifications were requested, you have violated this rule
-- Always check before final response: Did I use any kluster tools? If yes, did any response contain CLARIFICATION actions? If clarification is present, show ONLY the clarification prompt and do NOT generate the kluster summary,
-- these two are mutually exclusive. If no clarification, provide the verification summary covering ALL tool calls since the last user request.
-
-</kluster.ai mandaroty rules>
+- If review tools were used after the most recent user request, include a short final review summary.
+- The summary must cover all review runs in the current cycle, not only the last one.
+- Include total issues found by severity, fixes applied, unresolved blockers, and external knowledge used when a tool reports it.
+- If a tool was blocked or timed out, report it as blocked; never mark that gate clean.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
 
@@ -436,6 +414,7 @@ Generate short report capturing the COMPLETE verification journey from ALL klust
 - `brew`: `gitleaks`, `trufflehog`, `trivy`, `grype`, `sonar-scanner`, `kube-bench`, `kics`, `talisman`, `cppcheck`, `flawfinder`, `cbmc`, `shellcheck`, `bashate`, `golangci-lint`, `gosec`, `govulncheck`, `staticcheck`, `snyk-cli`,`vulture`, `lacework-cli`, 
 - `cargo`: `cargo-audit`, `cargo-deny`
 - `pnpm -g`: `eslint`, `@biomejs/biome`, `oxlint`, `jscpd`, `@socketsecurity/cli`
+- repo-local: DeepSec can live under `.deepsec/`; keep that directory ignored and rerun it with `pnpm deepsec scan`, `pnpm deepsec process`, and `pnpm deepsec export --format md-dir --out ./findings` from inside `.deepsec/`.
 
 ### Binarios E Mapeamentos
 

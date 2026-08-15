@@ -46,6 +46,7 @@ def test_sync_from_db_materializes_matrix_closure_summary(temp_db):
     assert report["closure_rows"] == 4
     assert report["summary_rows"] == 4
     assert report["reconciliation"]["db_vs_sheet_conflict_count"] == 0
+    assert report["reconciliation"]["source_distribution"] == {"1": 3}
 
     with sqlite3.connect(temp_db) as conn:
         matrix_active = conn.execute(
@@ -733,6 +734,28 @@ def test_schema_migration_handles_legacy_matrix_without_active_column(temp_db):
     assert row == (0, "Derivada da", 1)
 
 
+def test_derivadas_xlsx_limit_rejects_before_excel_open(tmp_path, monkeypatch):
+    from extracao.extractor import ExtractionError
+
+    source = tmp_path / "large.xlsx"
+    source.write_bytes(b"12345")
+    excel_opened = False
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    def _unexpected_excel_file(*_args, **_kwargs):
+        nonlocal excel_opened
+        excel_opened = True
+        raise AssertionError("ExcelFile must not run")
+
+    monkeypatch.setattr(derivadas_sync.pd, "ExcelFile", _unexpected_excel_file)
+
+    with pytest.raises(ValueError, match="excede o limite") as exc_info:
+        derivadas_sync._load_excel_frames(str(source))
+
+    assert isinstance(exc_info.value.__cause__, ExtractionError)
+    assert excel_opened is False
+
+
 def test_sync_succeeds_after_short_write_lock_contention(temp_db):
     _insert_ssa_rows(
         temp_db,
@@ -833,6 +856,73 @@ def test_sync_rejects_missing_sheet_file(temp_db, tmp_path: Path):
         assert "not found" in str(exc).lower()
     else:
         assert False, "sync_derivadas should fail for non-existing sheet_file"
+
+
+def test_sync_validates_sheet_file_path_before_read(temp_db, tmp_path: Path, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+    sheet_file = tmp_path / "blocked_derivadas.csv"
+    sheet_file.write_text("parent_ssa,child_ssa\n202500001,202500002\n", encoding="utf-8")
+
+    def _guard_path(path, *, purpose, expect_directory):
+        assert expect_directory is False
+        if "sheet file" in purpose:
+            raise PathSafetyError("blocked derivadas sheet")
+        return Path(path)
+
+    def _unexpected_read(*_args, **_kwargs):
+        raise AssertionError("sheet reader should not run before path validation")
+
+    monkeypatch.setattr(derivadas_sync, "ensure_path_is_allowed", _guard_path)
+    monkeypatch.setattr(derivadas_sync.pd, "read_csv", _unexpected_read)
+
+    with pytest.raises(PathSafetyError, match="blocked derivadas sheet"):
+        sync_derivadas(
+            temp_db,
+            include_db_source=False,
+            sheet_file=str(sheet_file),
+        )
+
+
+def test_sync_validates_sheet_files_paths_before_read(temp_db, tmp_path: Path, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+    allowed = tmp_path / "allowed_derivadas.csv"
+    blocked = tmp_path / "blocked_derivadas.csv"
+    for sheet_file in (allowed, blocked):
+        sheet_file.write_text(
+            "parent_ssa,child_ssa\n202500001,202500002\n",
+            encoding="utf-8",
+        )
+
+    def _guard_path(path, *, purpose, expect_directory):
+        assert expect_directory is False
+        if "sheet file" in purpose and Path(path).name == blocked.name:
+            raise PathSafetyError("blocked derivadas sheet list")
+        return Path(path)
+
+    def _unexpected_read(*_args, **_kwargs):
+        raise AssertionError("sheet reader should not run after a blocked sheet path")
+
+    monkeypatch.setattr(derivadas_sync, "ensure_path_is_allowed", _guard_path)
+    monkeypatch.setattr(derivadas_sync.pd, "read_csv", _unexpected_read)
+
+    with pytest.raises(PathSafetyError, match="blocked derivadas sheet list"):
+        sync_derivadas(
+            temp_db,
+            include_db_source=False,
+            sheet_files=[str(allowed), str(blocked)],
+        )
 
 
 def test_sync_rejects_corrupt_excel_sheet_file_with_clear_error(

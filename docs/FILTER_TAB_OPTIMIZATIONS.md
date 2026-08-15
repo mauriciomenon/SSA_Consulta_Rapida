@@ -1,6 +1,6 @@
 # Filter Tab Optimizations - January 2026
 
-Current release baseline reference: `v4.37`.
+Current release baseline reference: `v4.44`.
 Runtime command standard for validations: `uv run --python 3.13 ...` (fallback 3.12 -> 3.11 -> 3.10).
 
 ## v4.22 - Dynamic 4-Column Layout Algorithm (Current)
@@ -334,4 +334,3 @@ Eliminated ~30 lines duplicated block in `_refresh_responsavel_options` that rec
   - setar `SIMPLE_POPUP_TEXT_CLAMP = False` em `gui/ssa/gui_filters_advanced_ui.py`.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

@@ -144,6 +144,7 @@ class _BaseWorker:
         self.output_line = _Signal()
         self.error_line = _Signal()
         self.progress = _Signal()
+        self.batch_completed = _Signal()
         self.finished_success = _Signal()
         self.finished_error = _Signal()
         self.finished = _Signal()
@@ -397,7 +398,7 @@ def test_rescan_data_explicit_cancel_uses_specific_status_text(tmp_path):
 
     assert (
         window.status_label.text
-        == "Status: Cancelamento solicitado na importacao externa."
+        == "Status: Cancelamento solicitado na importacao."
     )
 
 
@@ -433,8 +434,53 @@ def test_rescan_data_explicit_success_without_updates_does_not_reload(tmp_path):
     assert window.load_calls == 0
     assert (
         window.status_label.text
-        == "Status: Importacao externa concluida sem alteracoes."
+        == "Status: Importacao concluida sem alteracoes."
     )
+
+
+def test_rescan_data_explicit_selected_file_reloads_even_when_outcome_is_no_changes(
+    tmp_path,
+):
+    class _WorkerWithExplicitFiles(_BaseWorker):
+        def __init__(
+            self,
+            _main_py_path: str,
+            _project_root: str,
+            explicit_files: tuple[str, ...] | None = None,
+        ):
+            super().__init__(_main_py_path, _project_root)
+            self.explicit_files = explicit_files
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerWithExplicitFiles,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+        reload_on_success=True,
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.last_outcome = "no_changes"
+    worker.finished_success.emit()
+
+    assert window.load_calls == 1
+    assert window.status_label.text == "Status: Carregando dados..."
 
 
 def test_rescan_data_explicit_success_with_updates_reloads_automatically(tmp_path):
@@ -468,6 +514,109 @@ def test_rescan_data_explicit_success_with_updates_reloads_automatically(tmp_pat
 
     assert window.load_calls == 1
     assert window.status_label.text == "Status: Carregando dados..."
+
+
+def test_rescan_data_reloads_once_per_completed_batch_without_final_duplicate(
+    tmp_path,
+):
+    class _WorkerWithExplicitFiles(_BaseWorker):
+        def __init__(
+            self,
+            _main_py_path: str,
+            _project_root: str,
+            explicit_files: tuple[str, ...] | None = None,
+        ):
+            super().__init__(_main_py_path, _project_root)
+            self.explicit_files = explicit_files
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerWithExplicitFiles,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+        reload_on_success=True,
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.batch_completed.emit(1, 3)
+    worker.batch_completed.emit(2, 3)
+    worker.batch_completed.emit(3, 3)
+    worker.last_outcome = "updated"
+    worker.finished_success.emit()
+
+    assert window.load_calls == 3
+
+
+def test_rescan_data_retries_final_reload_after_later_batch_reload_failure(tmp_path):
+    class _WindowWithSecondReloadFailure(_Window):
+        def __init__(self):
+            super().__init__()
+            self.load_attempts = 0
+
+        def load_data(self) -> None:
+            self.load_attempts += 1
+            if self.load_attempts == 2:
+                raise RuntimeError("reload failure")
+            super().load_data()
+
+    class _WorkerWithExplicitFiles(_BaseWorker):
+        def __init__(
+            self,
+            _main_py_path: str,
+            _project_root: str,
+            explicit_files: tuple[str, ...] | None = None,
+        ):
+            super().__init__(_main_py_path, _project_root)
+            self.explicit_files = explicit_files
+
+    project_root = _build_main_py(tmp_path)
+    window = _WindowWithSecondReloadFailure()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerWithExplicitFiles,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+        reload_on_success=True,
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.batch_completed.emit(1, 2)
+    worker.batch_completed.emit(2, 2)
+    worker.last_outcome = "updated"
+    worker.finished_success.emit()
+
+    assert window.load_attempts == 3
+    assert window.load_calls == 2
 
 
 def test_rescan_data_full_success_with_updates_reloads_automatically(tmp_path):
@@ -739,7 +888,7 @@ def test_classify_workers_for_ttl_expires_oldest_when_above_cap():
         is_running_fn=lambda _worker: True,
     )
 
-    assert running == ["w2", "w3"]
+    assert running == ["w1", "w2", "w3"]
     assert expired == ["w1"]
 
 
@@ -826,3 +975,56 @@ def test_prune_retired_rescan_workers_expires_oldest_when_above_cap(monkeypatch)
     assert newer in global_meta
     assert older not in global_meta
     assert older.stop_called is True
+    assert older.wait_calls == 0
+
+
+def test_prune_retains_overflow_rescan_worker_that_does_not_stop(monkeypatch):
+    class _Worker:
+        def __init__(self, name: str):
+            self.name = name
+            self.stop_called = False
+            self.quit_called = False
+
+        def isRunning(self):
+            return True
+
+        def stop(self):
+            self.stop_called = True
+
+        def quit(self):
+            self.quit_called = True
+
+    monkeypatch.setattr(ssa_gui_workers, "perf_counter", lambda: 120.0)
+    older = _Worker("older")
+    newer = _Worker("newer")
+    global_workers = [older, newer]
+    global_meta = {older: 100.0, newer: 110.0}
+
+    ssa_gui_workers.prune_retired_rescan_workers(
+        _Window(),
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=1,
+        retired_ttl_sec=60.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+    )
+
+    assert global_workers == [older, newer]
+    assert older in global_meta
+    assert older.stop_called is True
+    assert older.quit_called is True
+
+
+def test_filter_registry_keeps_running_workers_above_cap():
+    from gui.ssa.filter_worker_lifecycle import DeferredFilterWorkerRegistry
+
+    registry = DeferredFilterWorkerRegistry(max_workers=1)
+    first = object()
+    second = object()
+    registry.add(first)
+    registry.add(second)
+
+    registry.prune(lambda _worker: True)
+
+    assert registry.snapshot() == [first, second]

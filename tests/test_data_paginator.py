@@ -69,3 +69,17 @@ class TestDataPaginator:
         current = paginator.get_current_slice()
         assert list(current.columns) == ["numero_ssa", "situacao"]
         assert current.empty is True
+
+    def test_set_dataframe_can_update_without_emitting_page_changed(self):
+        df = pd.DataFrame({"numero_ssa": [1, 2, 3], "situacao": ["APL", "STE", "APV"]})
+        paginator = DataPaginator(df, page_size=2)
+        seen_pages = []
+        paginator.page_changed.connect(seen_pages.append)
+
+        updated_df = pd.DataFrame({"numero_ssa": [4, 5], "situacao": ["APL", "APV"]})
+        paginator.set_dataframe(updated_df, emit_page_changed=False)
+
+        assert seen_pages == []
+        assert paginator.current_page == 1
+        assert paginator.total_pages == 1
+        assert paginator.get_current_slice().equals(updated_df)

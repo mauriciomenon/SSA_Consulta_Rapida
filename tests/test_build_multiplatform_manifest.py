@@ -4,13 +4,25 @@ import json
 import plistlib
 import os
 import subprocess
+import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 
 import pytest
 
 from launchers.build_multiplatform import MultiPlatformBuilder
 from dev_env.build import write_build_info
+
+
+_MACOS_TOOL_PATHS = {
+    "codesign": "/usr/bin/codesign",
+    "hdiutil": "/usr/bin/hdiutil",
+}
+
+
+def _macos_tool_path(name):
+    return _MACOS_TOOL_PATHS.get(name)
 
 
 def test_load_version_rejects_missing_version_json(tmp_path: Path) -> None:
@@ -58,9 +70,10 @@ def test_command_stdout_logs_metadata_command_failure(monkeypatch):
 
 def test_build_info_payload_includes_toolchain_versions(monkeypatch):
     builder = MultiPlatformBuilder()
+    called_cmds: set[tuple[str, ...]] = set()
 
     outputs: dict[tuple[str, ...], str] = {
-        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "rev-parse", "HEAD"): "test-commit-id",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
@@ -68,8 +81,13 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
         ("rustc", "--version"): "rustc 1.90.0",
     }
 
-    def fake_run(cmd, cwd, require_success):  # noqa: ANN001, ARG001
-        return outputs.get(tuple(str(item) for item in cmd), "")
+    def fake_run(cmd, cwd, require_success):  # noqa: ANN001
+        _ = cwd, require_success
+        command = tuple(str(item) for item in cmd)
+        called_cmds.add(command)
+        if command not in outputs:
+            raise AssertionError(f"Unexpected command: {command}")
+        return outputs[command]
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
 
@@ -77,20 +95,34 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
     assert payload["rustc_version"] == "rustc 1.90.0"
+    assert set(outputs).issubset(called_cmds)
 
 
 def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     builder = MultiPlatformBuilder()
+    called_cmds: set[tuple[str, ...]] = set()
     outputs: dict[tuple[str, ...], str] = {
-        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "rev-parse", "HEAD"): "test-commit-id",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
         ("rustc", "--version"): "rustc 1.90.0",
     }
 
-    def fake_run(cmd, cwd, require_success):  # noqa: ANN001, ARG001
-        return outputs.get(tuple(str(item) for item in cmd), "")
+    def fake_run(cmd, cwd, require_success):  # noqa: ANN001
+        _ = cwd, require_success
+        command = tuple(str(item) for item in cmd)
+        called_cmds.add(command)
+        if command in {
+            ("cc", "--version"),
+            ("gcc", "--version"),
+            ("clang", "--version"),
+            ("cl",),
+        }:
+            return ""
+        if command not in outputs:
+            raise AssertionError(f"Unexpected command: {command}")
+        return outputs[command]
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
     monkeypatch.setenv("VCToolsVersion", "14.44.35207")
@@ -98,11 +130,13 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     payload = builder._build_info_payload("pyinstaller", "windows_amd64")
 
     assert payload["c_compiler_version"] == "MSVC 14.44.35207"
+    assert ("cc", "--version") in called_cmds
+    assert ("cc", "--version") not in outputs
 
 
 def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_path):
     outputs = {
-        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "rev-parse", "HEAD"): "test-commit-id",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
@@ -111,6 +145,7 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
     }
 
     def fake_run(args, cwd, require_success):  # noqa: ANN001, FBT001
+        _ = cwd, require_success
         return outputs.get(tuple(args), "")
 
     monkeypatch.setattr(write_build_info, "_run_output", fake_run)
@@ -119,7 +154,7 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
         tmp_path,
         "nuitka",
         "debian_amd64",
-        "4.37",
+        "4.44",
     )
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
@@ -191,13 +226,13 @@ def test_write_build_info_main_reports_output_write_errors(
             "--platform",
             "debian_amd64",
             "--app-version",
-            "4.37",
+            "4.44",
         ],
     )
     monkeypatch.setattr(
         write_build_info,
         "build_payload",
-        lambda *_args: {"app_version": "4.37"},
+        lambda *_args: {"app_version": "4.44"},
     )
 
     assert write_build_info.main() == 1
@@ -220,17 +255,17 @@ def test_write_build_info_main_writes_valid_json(monkeypatch, tmp_path) -> None:
             "--platform",
             "debian_amd64",
             "--app-version",
-            "4.37",
+            "4.44",
         ],
     )
     monkeypatch.setattr(
         write_build_info,
         "build_payload",
-        lambda *_args: {"app_version": "4.37"},
+        lambda *_args: {"app_version": "4.44"},
     )
 
     assert write_build_info.main() == 0
-    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.37"}
+    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.44"}
 
 
 def test_pyinstaller_build_info_write_logs_before_raising(monkeypatch) -> None:
@@ -272,12 +307,12 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     platform_dir = builder.dist_dir / "macos_arm64"
     platform_dir.mkdir(parents=True)
 
-    cli_dir = platform_dir / "SSA_CLI_v4.33_macos_arm64"
+    cli_dir = platform_dir / "SSA_CLI_v4.44_macos_arm64"
     cli_dir.mkdir()
-    (cli_dir / "SSA_CLI_v4.33_macos_arm64").write_bytes(b"cli-bin")
+    (cli_dir / "SSA_CLI_v4.44_macos_arm64").write_bytes(b"cli-bin")
 
-    gui_app = platform_dir / "SSA_GUI_v4.33_macos_arm64.app"
-    gui_app_bin = gui_app / "Contents" / "MacOS" / "SSA_GUI_v4.33_macos_arm64"
+    gui_app = platform_dir / "SSA_GUI_v4.44_macos_arm64.app"
+    gui_app_bin = gui_app / "Contents" / "MacOS" / "SSA_GUI_v4.44_macos_arm64"
     gui_app_bin.parent.mkdir(parents=True)
     gui_app_bin.write_bytes(b"gui-bin")
 
@@ -292,11 +327,11 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
 
     assert ".DS_Store" not in entries
     assert "build_manifest.json" not in entries
-    assert entries["SSA_CLI_v4.33_macos_arm64"]["kind"] == "directory"
-    assert entries["SSA_GUI_v4.33_macos_arm64.app"]["kind"] == "directory"
+    assert entries["SSA_CLI_v4.44_macos_arm64"]["kind"] == "directory"
+    assert entries["SSA_GUI_v4.44_macos_arm64.app"]["kind"] == "directory"
     assert entries["notes.txt"]["kind"] == "file"
     assert (
-        entries["SSA_GUI_v4.33_macos_arm64.app"]["path"]
+        entries["SSA_GUI_v4.44_macos_arm64.app"]["path"]
         .replace("\\", "/")
         .startswith("macos_arm64/")
     )
@@ -309,12 +344,22 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     builder.base_dir = tmp_path
     builder.launchers_dir = tmp_path / "launchers"
     builder.platforms_dir = builder.launchers_dir / "platforms"
+    builder.dist_dir = builder.launchers_dir / "dist"
 
     (builder.launchers_dir / "cli_entry.py").parent.mkdir(parents=True, exist_ok=True)
     (builder.launchers_dir / "cli_entry.py").write_text(
         "print('ok')\n", encoding="utf-8"
     )
     (builder.base_dir / "config").mkdir(parents=True, exist_ok=True)
+    (builder.base_dir / "config" / "settings.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    (builder.base_dir / "config" / "__init__.py").write_text(
+        "", encoding="utf-8"
+    )
+    config_cache = builder.base_dir / "config" / "__pycache__"
+    config_cache.mkdir()
+    (config_cache / "__init__.pyc").write_bytes(b"bytecode")
     (builder.base_dir / "docs").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md").write_text(
         "guide",
@@ -323,6 +368,13 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     (builder.base_dir / "resources").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "resources" / "app_icon.ico").write_bytes(b"ico")
     (builder.base_dir / "resources" / "app_icon.icns").write_bytes(b"icns")
+    runtime_db = builder.base_dir / "data" / "ssas.db"
+    runtime_db.parent.mkdir(parents=True)
+    source_conn = sqlite3.connect(runtime_db)
+    source_conn.execute("PRAGMA journal_mode=WAL")
+    source_conn.execute("CREATE TABLE build_probe(value TEXT)")
+    source_conn.execute("INSERT INTO build_probe(value) VALUES ('from_wal')")
+    source_conn.commit()
 
     captured_cmds = []
 
@@ -339,7 +391,8 @@ def test_build_executable_uses_platform_specific_add_data_separator(
 
     config = {
         "pyinstaller_args": {
-            "onefile": True,
+            "onefile": False,
+            "onedir": True,
             "exclude_modules": [],
             "hidden_imports": [],
         },
@@ -350,10 +403,19 @@ def test_build_executable_uses_platform_specific_add_data_separator(
             "additional_args": [],
         },
     }
+    windows_bundle = builder.dist_dir / "windows_amd64" / "SSA_CLI_test"
+    windows_bundle.mkdir(parents=True)
 
-    ok = builder.build_executable(
-        "windows_amd64", "cli", tmp_path / "python.exe", config
-    )
+    try:
+        ok = builder.build_executable(
+            "windows_amd64",
+            "cli",
+            tmp_path / "python.exe",
+            config,
+            runtime_db=runtime_db,
+        )
+    finally:
+        source_conn.close()
     assert ok is True
     assert captured_cmds, "subprocess.run nao foi chamado"
     windows_cmd = captured_cmds[-1]
@@ -371,6 +433,26 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         for idx, value in enumerate(windows_cmd)
         if idx > 0 and windows_cmd[idx - 1] == "--add-data"
     )
+    config_add_data = [
+        value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";config")
+    ]
+    assert any("settings.json" in value for value in config_add_data)
+    assert not any("__init__.py" in value or "__pycache__" in value for value in windows_cmd)
+    runtime_db_args = [
+        value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";data")
+    ]
+    assert runtime_db_args == []
+    bundled_db = windows_bundle / "data" / "ssas.db"
+    with closing(sqlite3.connect(bundled_db)) as bundled_conn:
+        assert bundled_conn.execute("SELECT value FROM build_probe").fetchone() == (
+            "from_wal",
+        )
+    assert not (windows_bundle / "_internal" / "data" / "ssas.db").exists()
+    assert (windows_bundle / "docs_entrada").is_dir()
     assert "--icon" in windows_cmd
     icon_value = windows_cmd[windows_cmd.index("--icon") + 1]
     assert icon_value.replace("\\", "/").endswith("resources/app_icon.ico")
@@ -436,10 +518,7 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -520,10 +599,7 @@ def test_post_process_macos_fails_when_codesign_verify_fails(
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -570,10 +646,7 @@ def test_post_process_macos_fails_when_hdiutil_returns_error(
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -617,10 +690,7 @@ def test_post_process_macos_allows_null_gui_config_name(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -666,10 +736,7 @@ def test_post_process_macos_uses_configured_codesign_identity(tmp_path, monkeypa
     monkeypatch.setenv("MACOS_CODESIGN_IDENTITY", "Developer ID Application: Example")
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -714,10 +781,7 @@ def test_post_process_macos_skips_codesign_when_sign_disabled(tmp_path, monkeypa
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -761,10 +825,7 @@ def test_post_process_macos_uses_configured_gui_bundle_name(tmp_path, monkeypatc
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: {
-            "codesign": "/usr/bin/codesign",
-            "hdiutil": "/usr/bin/hdiutil",
-        }.get(name),
+        _macos_tool_path,
     )
     monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
@@ -791,7 +852,7 @@ def test_post_process_macos_dmg_fails_when_gui_app_missing(tmp_path, monkeypatch
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None,
+        _macos_tool_path,
     )
     ok = builder.post_process(
         "macos_arm64", {"post_build": {"compress": False, "package": "dmg"}}
@@ -909,6 +970,46 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
     assert "launchers/dist_simple/gui/SSA_GUI.exe" in removed
     assert "build/artifact.pyc" in removed
     assert "builds/old.pyo" in removed
+
+
+def test_auto_cleanup_preserves_final_distribution_outputs(tmp_path):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.launchers_dir = tmp_path / "launchers"
+    builder.dist_dir = builder.launchers_dir / "dist"
+
+    build_dir = tmp_path / "build"
+    builds_dir = tmp_path / "builds"
+    packages_dir = builds_dir / "packages" / "windows_amd64"
+    dist_packages_dir = tmp_path / "dist_packages"
+    dist_dir = tmp_path / "dist"
+    dist_simple_dir = builder.launchers_dir / "dist_simple"
+    source_dir = tmp_path / "src"
+
+    for path in (
+        build_dir,
+        packages_dir,
+        dist_packages_dir,
+        dist_dir,
+        dist_simple_dir,
+        source_dir,
+    ):
+        path.mkdir(parents=True)
+    (packages_dir / "app.zip").write_text("zip", encoding="utf-8")
+    (dist_packages_dir / "installer.exe").write_text("exe", encoding="utf-8")
+    (dist_dir / "legacy.txt").write_text("legacy", encoding="utf-8")
+    (build_dir / "temp.txt").write_text("temp", encoding="utf-8")
+    (dist_simple_dir / "temp.exe").write_text("temp", encoding="utf-8")
+    (source_dir / "main.py").write_text("print('keep')", encoding="utf-8")
+
+    builder.cleanup_build_artifacts()
+
+    assert not build_dir.exists()
+    assert not dist_simple_dir.exists()
+    assert (packages_dir / "app.zip").exists()
+    assert (dist_packages_dir / "installer.exe").exists()
+    assert (dist_dir / "legacy.txt").exists()
+    assert (source_dir / "main.py").exists()
 
 
 def test_build_multiplatform_script_runs_without_explicit_pythonpath():

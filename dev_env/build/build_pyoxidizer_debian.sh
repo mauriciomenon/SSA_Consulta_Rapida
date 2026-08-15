@@ -16,10 +16,15 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 1
+ssa_native_guard_tools uv rm mkdir || exit 1
 LOG_DIR="${REPO_ROOT}/launchers/logs"
 LOG_FILE="${LOG_DIR}/build_pyoxidizer_debian_amd64.log"
 TARGET_BUILD_DIR="${REPO_ROOT}/builds/pyoxidizer/debian_amd64"
 PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"
+PYOXIDIZER_UV_PACKAGE="${SSA_PYOXIDIZER_UV_PACKAGE:-pyoxidizer==0.24.0}"
 
 mkdir -p "${LOG_DIR}"
 mkdir -p "${REPO_ROOT}/builds/pyoxidizer"
@@ -91,8 +96,20 @@ if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
   echo "Erro: falha ao gerar build_info.json para PyOxidizer debian_amd64" >&2
   exit 1
 fi
+PYOXIDIZER_CHECK_RETRIES=3
+for ((attempt = 1; attempt <= PYOXIDIZER_CHECK_RETRIES; attempt++)); do
+  if uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer --version >/dev/null 2>&1; then
+    break
+  fi
+  if [[ "${attempt}" == "${PYOXIDIZER_CHECK_RETRIES}" ]]; then
+    echo "Erro: PyOxidizer indisponivel via uv tool: ${PYOXIDIZER_UV_PACKAGE}" >&2
+    exit 1
+  fi
+  echo "Aviso: PyOxidizer indisponivel; nova tentativa ${attempt}/${PYOXIDIZER_CHECK_RETRIES}" >&2
+  sleep 2
+done
 PYOX_CMD=(
-  uv tool run --python 3.13 --from pyoxidizer pyoxidizer build
+  uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer build
   --release
   --var SSA_PROJECT_ROOT "${REPO_ROOT}"
   --path "${REPO_ROOT}"

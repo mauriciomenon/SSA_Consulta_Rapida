@@ -1,0 +1,58 @@
+stages:
+  - verify
+  - security
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+
+variables:
+  QT_QPA_PLATFORM: "offscreen"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+
+default:
+  image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+  interruptible: true
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .uv-cache/
+
+.python_setup:
+  before_script:
+    - apt-get update
+    - >-
+      apt-get install --yes --no-install-recommends
+      jq libdbus-1-3 libegl1 libfontconfig1 libgl1 libglib2.0-0 libopengl0
+      libxkbcommon-x11-0 libxcb-cursor0
+    - uv sync --frozen --extra dev
+    - export PATH="$CI_PROJECT_DIR/.venv/bin:$PATH"
+
+quality-gates:
+  stage: verify
+  extends: .python_setup
+  script:
+    - PYTHON="$CI_PROJECT_DIR/.venv/bin/python" bash scripts/ci_quality_gates.sh
+
+pytest-full:
+  stage: verify
+  extends: .python_setup
+  rules:
+    - when: manual
+  allow_failure: true
+  script:
+    - bash scripts/run_tests.sh
+
+secret-scan:
+  stage: security
+  image:
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1
+    entrypoint: [""]
+  before_script: []
+  cache: []
+  script:
+    - gitleaks dir . --redact --exit-code 1 --no-banner

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -27,11 +28,11 @@ PAI_API_FOCUSED_SECTORS = ("IEE3", "MEL4", "MEL3")
 PAI_API_DEFAULT_LIMIT = 200
 PAI_API_DEFAULT_NUMBER_OF_YEARS = 4
 PAI_API_DEFAULT_BASE_URL = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API"
-PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 10
+PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES = 30_000
+PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
 PAI_API_DEFAULT_SECRET_SERVICE_ENV = "PAI_API_DEFAULT_SECRET_SERVICE"  # nosec B105  # pragma: allowlist secret
 _PAI_API_DEFAULT_SECRET_SERVICE_VALUE = ".".join(("scrap_report", "sam"))
 PAI_API_DEFAULT_SECRET_SERVICE = _PAI_API_DEFAULT_SECRET_SERVICE_VALUE
-PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60
 PAI_API_MAX_LIMIT = 1000
 PAI_API_MAX_NUMBER_OF_YEARS = 10
 
@@ -125,7 +126,7 @@ def _has_scraper_data_scope(scopes: tuple[str, ...]) -> bool:
 def default_pai_api_settings() -> dict[str, Any]:
     default_secret_service = _default_secret_service()
     return {
-        PAI_API_ENABLED_KEY: True,
+        PAI_API_ENABLED_KEY: False,
         PAI_API_SCRAP_ENABLED_KEY: True,
         PAI_API_AUTO_REFRESH_ENABLED_KEY: False,
         PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: (
@@ -200,7 +201,7 @@ def normalize_pai_api_options(raw_settings: Mapping[str, Any] | None) -> PaiApiG
         missing_default=PAI_API_DEFAULT_DATA_SCOPES,
     )
     return PaiApiGuiOptions(
-        enabled=bool(settings.get(PAI_API_ENABLED_KEY, True)),
+        enabled=bool(settings.get(PAI_API_ENABLED_KEY, False)),
         scrap_report_enabled=bool(settings.get(PAI_API_SCRAP_ENABLED_KEY, True)),
         auto_refresh_enabled=bool(
             settings.get(PAI_API_AUTO_REFRESH_ENABLED_KEY, False)
@@ -277,6 +278,7 @@ def _normalize_ordered_values(
 def _normalize_extra_sectors(raw_values: object) -> tuple[str, ...]:
     if raw_values is None:
         return ()
+    values: Sequence[object]
     if isinstance(raw_values, str):
         values = raw_values.split(",")
     elif isinstance(raw_values, (list, tuple)):

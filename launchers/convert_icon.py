@@ -7,9 +7,10 @@ Usado no build dos executaveis multi-plataforma
 import importlib
 import io
 import os
-import subprocess
+import subprocess  # nosec B404
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 _robust_logging = importlib.import_module("utils.robust_logging")
 logger = _robust_logging.get_robust_logger().get_logger(__name__, "maintenance")
+_OPTIONAL_MODULE_ALLOWLIST = frozenset({"cairosvg", "PIL.Image"})
 
 
 def _get_project_root() -> Path:
@@ -27,6 +29,8 @@ def _get_project_root() -> Path:
 
 
 def _import_optional_module(module_name: str) -> Any | None:
+    if module_name not in _OPTIONAL_MODULE_ALLOWLIST:
+        raise ValueError(f"Unsupported optional module: {module_name!r}")
     if module_name == "cairosvg" and sys.platform == "darwin":
         library_search_paths = ["/opt/homebrew/lib", "/usr/local/lib", "/usr/lib"]
         candidates = [
@@ -57,7 +61,7 @@ RSVG_CONVERT = shutil.which("rsvg-convert")
 
 
 def _run_command(command: list[str]) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
+    return subprocess.run(  # nosec B603
         command,
         check=False,
         capture_output=True,
@@ -77,7 +81,7 @@ def _render_svg_to_png(svg_path: str, size: int) -> bytes:
             )
 
     if RSVG_CONVERT is None:
-        raise ImportError("cairosvg nao encontrado")
+        raise ImportError("cairosvg falhou e rsvg-convert nao foi encontrado")
 
     result = _run_command(
         [
@@ -110,17 +114,25 @@ def convert_svg_to_ico(
 
     # Converter SVG para cada resolucao para manter nitidez em todos os tamanhos.
     target_sizes = sorted(set(sizes), reverse=True)
+    if not target_sizes:
+        raise ValueError("sizes must not be empty")
     images = []
     for size in target_sizes:
         png_data = _render_svg_to_png(svg_path, size)
         images.append(image_module.open(io.BytesIO(png_data)))
 
-    images[0].save(
-        ico_path,
-        format="ICO",
-        sizes=[(size, size) for size in target_sizes],
-        append_images=images[1:],
-    )
+    try:
+        images[0].save(
+            ico_path,
+            format="ICO",
+            sizes=[(size, size) for size in target_sizes],
+            append_images=images[1:],
+        )
+    finally:
+        for image in images:
+            close = getattr(image, "close", None)
+            if callable(close):
+                close()
 
     logger.info("Icone ICO convertido: %s", ico_path)
 
@@ -134,12 +146,12 @@ def convert_svg_to_icns(svg_path, icns_path, sizes=None):  # noqa: ANN001,ANN201
 
     if sizes is None:
         sizes = [16, 32, 64, 128, 256, 512, 1024]
+    target_sizes = set(sizes)
+    if not target_sizes:
+        raise ValueError("sizes must not be empty")
 
     # No macOS, usar iconutil se disponivel
     try:
-        import subprocess
-        import tempfile
-
         # Criar diretorio temporario para iconset
         with tempfile.TemporaryDirectory() as temp_dir:
             iconset_dir = Path(temp_dir) / "icon.iconset"
@@ -158,43 +170,48 @@ def convert_svg_to_icns(svg_path, icns_path, sizes=None):  # noqa: ANN001,ANN201
                 (512, "icon_512x512.png"),
                 (1024, "icon_512x512@2x.png"),
             ]
-
-            max_size = max((size for size, _ in iconset_sizes), default=1024)
-            base_data = _render_svg_to_png(svg_path, max_size)
-            base_image = image_module.open(io.BytesIO(base_data))
+            iconset_sizes = [
+                (size, filename)
+                for size, filename in iconset_sizes
+                if size in target_sizes
+            ]
+            if not iconset_sizes:
+                raise ValueError("sizes must include at least one macOS icon size")
 
             for size, filename in iconset_sizes:
-                img = base_image.resize((size, size), image_module.Resampling.LANCZOS)
-                img.save(str(iconset_dir / filename), format="PNG")
+                png_data = _render_svg_to_png(svg_path, size)
+                img = image_module.open(io.BytesIO(png_data))
+                try:
+                    img.save(str(iconset_dir / filename), format="PNG")
+                finally:
+                    close = getattr(img, "close", None)
+                    if callable(close):
+                        close()
 
             # Usar iconutil para gerar ICNS
-            result = subprocess.run(
+            iconutil = shutil.which("iconutil")
+            if iconutil is None:
+                raise RuntimeError("iconutil nao encontrado")
+            result = _run_command(
                 [
-                    "iconutil",
+                    iconutil,
                     "-c",
                     "icns",
                     str(iconset_dir),
                     "-o",
                     str(icns_file_path),
                 ],
-                capture_output=True,
-                text=True,
             )
 
             if result.returncode == 0:
                 logger.info("Icone ICNS convertido: %s", icns_file_path)
                 return True
-            logger.error("Erro com iconutil: %s", result.stderr)
+            stderr = result.stderr.decode("utf-8", "replace") if result.stderr else ""
+            logger.error("Erro com iconutil: %s", stderr)
             return False
 
     except Exception as e:
-        logger.error("Fallback para conversao PIL: %s", e)
-        # Fallback: converter para PNG de alta resolucao
-        png_data = _render_svg_to_png(svg_path, 1024)
-        img = image_module.open(io.BytesIO(png_data))
-        fallback_png = icns_file_path.with_suffix(".png")
-        img.save(fallback_png, format="PNG")
-        logger.warning("Icone PNG criado como fallback: %s", fallback_png)
+        logger.error("Falha ao converter ICNS: %s", e)
         return False
 
 
@@ -236,8 +253,12 @@ def convert_all_icons():
 
     try:
         # macOS ICNS
-        icns_file = resources_dir / "app_icon.icns"
-        convert_svg_to_icns(svg_file, icns_file)
+        if sys.platform == "darwin":
+            icns_file = resources_dir / "app_icon.icns"
+            if not convert_svg_to_icns(svg_file, icns_file):
+                success = False
+        else:
+            logger.info("Pulando conversao ICNS fora do macOS")
     except Exception as e:
         logger.error("Erro convertendo ICNS: %s", e)
         success = False
@@ -253,11 +274,16 @@ def convert_all_icons():
     return success
 
 
-if __name__ == "__main__":
+def main() -> int:
     success = convert_all_icons()
     if not success:
         logger.error("ERRO: Nem todos os icones foram convertidos")
         if cairosvg is None:
             logger.error("Instale cairosvg: pip install cairosvg")
-    else:
-        logger.info("Todos os icones convertidos com sucesso")
+        return 1
+    logger.info("Todos os icones convertidos com sucesso")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

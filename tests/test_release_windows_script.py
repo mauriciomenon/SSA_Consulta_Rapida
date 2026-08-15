@@ -27,9 +27,11 @@ def test_release_windows_script_is_powershell_only_and_interactive() -> None:
     assert "param(" in script
     assert "ValidateSet" not in script
     assert "Read-Host" in script
+    assert "Write-Host" not in script
     assert "Assert-WindowsHost" in script
     assert "Assert-PowerShellHost" in script
     assert "[switch] $DryRun" in script
+    assert "[switch] $IncludeRuntimeDb" in script
     assert "bash " not in script
     assert "wsl " not in script
     assert ".sh" not in script
@@ -46,6 +48,10 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert_before(script, 'Assert-Tool "git"', "$repoRoot = Resolve-RepoRoot")
     assert_before(script, 'Assert-Tool "uv"', "$repoRoot = Resolve-RepoRoot")
     assert '($selectedBackends -contains "pyoxidizer")' in script
+    assert "SSA_PYOXIDIZER_UV_PACKAGE" in script
+    assert "pyoxidizer==0.24.0" in script
+    assert '"pyoxidizer",' in script
+    assert '"--version"' in script
     assert_before(
         script,
         "$selectedBackends = Get-SelectedBackends $Backend",
@@ -121,6 +127,20 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert '"--repo-root",' in script
 
 
+def test_release_windows_runtime_db_hash_compares_sqlite_snapshots_between_bundles() -> None:
+    script = _script_text()
+    runtime_body = section_between(
+        script,
+        "function Assert-RuntimeDatabase",
+        "function Invoke-DistributionPackage",
+    )
+
+    assert "$sourceHash" not in runtime_body
+    assert "$expectedRuntimeHash = $null" in runtime_body
+    assert "$expectedRuntimeHash = $runtimeHash['sha256']" in runtime_body
+    assert "Hash do banco de runtime diverge entre bundles" in runtime_body
+
+
 def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     script = _script_text()
     smoke_body = section_between(
@@ -194,7 +214,7 @@ def test_release_windows_backend_paths_are_grouped_expressions() -> None:
     backend_block = section_between(
         script,
         "function Get-BackendConfig",
-        "function Invoke-CheckedProcess",
+        "function Get-UserWorkspaceRelativeDirectory",
     )
 
     for line in backend_block.splitlines():
@@ -209,3 +229,129 @@ def test_release_windows_tests_use_guarded_string_positions() -> None:
     test_source = Path(__file__).read_text(encoding="utf-8")
 
     assert_no_unguarded_string_position_helpers(test_source)
+
+
+def test_release_windows_script_has_backend_cleanup_allowlist() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+
+    assert "function Get-BackendCleanupPath" in script
+    assert "function Invoke-BackendCleanup" in script
+    assert "Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version" in release_loop
+    assert_before(
+        release_loop,
+        "Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version",
+        "Invoke-CheckedProcess $repoRoot $config.build_script",
+    )
+    assert 'launchers\\dist\\windows_amd64' in script
+    assert 'builds\\pyinstaller\\windows_amd64' in script
+    assert "gui_entry.dist" in script
+    assert "cli_entry.build" in script
+    assert "cleanup_removed" in release_loop
+
+
+def test_release_windows_script_ensures_user_workspace_dirs_before_zip() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+
+    assert "function Get-UserWorkspaceRelativeDirectory" in script
+    assert "function Initialize-UserWorkspaceDirectory" in script
+    assert "docs_entrada" in script
+    assert "historico_backups" in script
+    assert "exportacao" in script
+    assert ".gitkeep" in script
+    assert "user_dirs_created" in release_loop
+    assert_before(
+        release_loop,
+        "Initialize-UserWorkspaceDirectory -RuntimeRoot $runtimeRoots",
+        "Write-BackendReleaseZips $config.release_zips",
+    )
+
+
+def test_release_windows_script_protects_runtime_before_zip() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+
+    assert "function Get-RuntimeBundleRoot" in script
+    assert "runtime_source_protection" in release_loop
+    assert_before(
+        release_loop,
+        "Get-RuntimeBundleRoot -Config $config",
+        "Initialize-UserWorkspaceDirectory -RuntimeRoot $runtimeRoots",
+    )
+    assert_before(
+        release_loop,
+        "Assert-SourceProtection $repoRoot $runtimeRoots",
+        "Write-BackendReleaseZips $config.release_zips",
+    )
+
+
+def test_release_windows_script_skips_zip_validation_when_package_is_skipped() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+
+    package_block = section_between(
+        release_loop,
+        "if (-not $SkipPackage) {",
+        "\n    }\n\n    $results += [ordered]@{",
+    )
+
+    assert "$zipRecords = @()" in release_loop
+    assert "$zipProtectionRecords = @()" in release_loop
+    assert "$hashRecords = @()" in release_loop
+    assert "Assert-ZipContents $zipPaths" in package_block
+    assert "Assert-SourceProtection $repoRoot $zipPaths" in package_block
+    assert "Get-ArtifactHash $zipPaths" in package_block
+
+
+def test_release_windows_requires_exact_runtime_database_in_bundles_and_zips() -> None:
+    script = _script_text()
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
+    runtime_check = section_between(
+        script,
+        "function Assert-RuntimeDatabase",
+        "function Invoke-DistributionPackage",
+    )
+    zip_check = section_between(
+        script,
+        "function Assert-ZipContents",
+        "function Assert-SourceProtection",
+    )
+
+    assert 'Join-Path $RepoRoot "data\\ssas.db"' in runtime_check
+    assert 'Join-Path $root "data\\ssas.db"' in runtime_check
+    assert '".xlsm"' in runtime_check
+    assert "Hash do banco de runtime diverge" in runtime_check
+    assert '$normalized -eq "data/ssas.db"' in zip_check
+    assert 'EndsWith("/data/ssas.db")' in zip_check
+    assert 'Contains("/_internal/")' in zip_check
+    assert "ComputeHash($runtimeStream)" in zip_check
+    assert "ZIP deve conter somente data/ssas.db externo" in zip_check
+    assert '"--with-runtime-db"' in release_loop
+    assert '"--include-runtime-db"' in script
+    assert "runtime_database = $runtimeDatabaseRecords" in release_loop
+    assert_before(
+        release_loop,
+        "Assert-RuntimeDatabase -RepoRoot $repoRoot -RuntimeRoot $runtimeRoots",
+        "Write-BackendReleaseZips $config.release_zips",
+    )

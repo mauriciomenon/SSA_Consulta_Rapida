@@ -83,8 +83,9 @@ def build_column_filters_panel(window) -> None:
 
 def open_add_column_filter_menu(window) -> None:
     menu = QMenu(window if isinstance(window, QWidget) else None)
-    columns = []
+    menu_actions = []
     candidates = []
+    active_filters = getattr(window, "_active_column_filters", None) or {}
     canonical_provider = getattr(window, "_get_canonical_available_columns", None)
     if callable(canonical_provider):
         try:
@@ -94,7 +95,7 @@ def open_add_column_filter_menu(window) -> None:
                 "Falha ao obter lista canonica de colunas para menu de filtros: %s",
                 exc,
             )
-    candidates.extend((window._active_column_filters or {}).keys())
+    candidates.extend(active_filters.keys())
 
     seen = set()
     try:
@@ -114,37 +115,52 @@ def open_add_column_filter_menu(window) -> None:
     for col in candidates:
         if not isinstance(col, str) or not col or col == "#" or col in seen:
             continue
-        if col in COMPATIBILITY_NULL_UI_COLUMNS:
+        is_active_filter = col in active_filters
+        if col in COMPATIBILITY_NULL_UI_COLUMNS and not is_active_filter:
             continue
-        if col in legacy_invalid_columns:
+        if col in legacy_invalid_columns and not is_active_filter:
             continue
         display = window._resolve_column_display_name(col)
-        if str(display).strip() == "No SSA" and col != "numero_ssa":
+        if (
+            str(display).strip() == "No SSA"
+            and col != "numero_ssa"
+            and not is_active_filter
+        ):
             continue
         seen.add(col)
         valid_cols.append(col)
 
     pinned = []
     pinned_seen = set()
+    valid_col_set = set(valid_cols)
     for col in getattr(window, "_current_display_columns", []) or []:
-        if col in valid_cols and col not in pinned_seen:
+        if col in valid_col_set and col not in pinned_seen:
             pinned.append(col)
             pinned_seen.add(col)
-    for col in window._active_column_filters.keys():
+    for col in active_filters.keys():
         if col in valid_cols and col not in pinned_seen:
             pinned.append(col)
             pinned_seen.add(col)
     remaining = [c for c in valid_cols if c not in pinned_seen]
-    remaining.sort(key=lambda c: window._expand_column_alias_for_filter(c).casefold())
+    display_labels: dict[str, str] = {}
+
+    def display_label_for(column: str) -> str:
+        display_label = display_labels.get(column)
+        if display_label is None:
+            display_label = _expand_column_alias_for_filter(window, column)
+            display_labels[column] = display_label
+        return display_label
+
+    remaining.sort(key=lambda c: display_label_for(c).casefold())
     ordered_cols = pinned + remaining
 
     label_counts = {}
     for col in ordered_cols:
-        display = window._expand_column_alias_for_filter(col)
+        display = display_label_for(col)
         key = str(display).strip().casefold()
         label_counts[key] = label_counts.get(key, 0) + 1
     for col in ordered_cols:
-        display = window._expand_column_alias_for_filter(col)
+        display = display_label_for(col)
         display_text = str(display)
         if label_counts.get(display_text.strip().casefold(), 0) > 1:
             display_text = f"{display_text} [{col}]"
@@ -152,20 +168,23 @@ def open_add_column_filter_menu(window) -> None:
         if action is None:
             continue
         action.setCheckable(True)
-        action.setChecked(col in window._active_column_filters)
+        action.setChecked(col in active_filters)
         action.setData(col)
-        columns.append(action)
-    if not columns:
+        menu_actions.append(action)
+    if not menu_actions:
         menu.deleteLater()
         return
     button = window.add_column_filter_btn
-    chosen = menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+    try:
+        chosen = menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+    finally:
+        menu.deleteLater()
     if chosen is None:
         return
     col_name = chosen.data()
     if not col_name:
         return
-    if col_name in window._active_column_filters:
+    if col_name in active_filters:
         window._deactivate_column_filter(col_name)
     else:
         window._activate_column_filter(col_name)

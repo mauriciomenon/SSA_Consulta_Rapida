@@ -8,7 +8,9 @@ from armazenamento.identifier_utils import is_valid_identifier
 
 SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SQLITE_OFFSET_WITHOUT_LIMIT = 9223372036854775807
-ALLOWED_ORDER_COLUMNS = {
+DERIVADAS_SUMMARY_TABLE = "ssa_derivada_summary"
+DERIVADAS_COUNT_COLUMN = "qtd_derivadas"
+DEFAULT_SELECT_COLUMNS = (
     "numero_ssa",
     "situacao",
     "data_cadastro",
@@ -24,7 +26,8 @@ ALLOWED_ORDER_COLUMNS = {
     "grau_prioridade_emissao",
     "grau_prioridade_planejamento",
     "derivada_de",
-}
+)
+ALLOWED_ORDER_COLUMNS = set(DEFAULT_SELECT_COLUMNS)
 
 
 def sanitize_identifier(value: str) -> str:
@@ -86,17 +89,65 @@ def normalize_order_by(order_by: str | None) -> str | None:
     return ", ".join(normalized_parts)
 
 
+def build_select_projection(
+    select_columns: tuple[str, ...] | None,
+    *,
+    source_alias: str | None = None,
+) -> str:
+    columns = select_columns or DEFAULT_SELECT_COLUMNS
+    normalized_columns = []
+    seen = set()
+    for raw_column in columns:
+        column = sanitize_identifier(raw_column)
+        if not column:
+            raise ValueError(f"Coluna SELECT invalida: {raw_column}")
+        if column in seen:
+            continue
+        quoted_column = quote_identifier(column)
+        if source_alias:
+            quoted_column = f"{quote_identifier(source_alias)}.{quoted_column}"
+        normalized_columns.append(quoted_column)
+        seen.add(column)
+    if not normalized_columns:
+        raise ValueError("Consulta SELECT sem colunas validas")
+    return ", ".join(normalized_columns)
+
+
 def build_select_query(
     *,
     target_table: str,
+    select_columns: tuple[str, ...] | None = None,
     order_by: str | None,
     limit: int | None,
     offset: int | None,
     default_sort_spec: tuple[dict, ...],
+    include_derivadas_count: bool = False,
+    derivadas_summary_available: bool = False,
 ) -> tuple[str, bool]:
     if not sanitize_identifier(target_table):
         raise ValueError("Tabela alvo invalida para DataLoaderWorker")
-    query = f"SELECT * FROM {quote_identifier(target_table)}"  # nosec B608
+    use_derivadas_summary = include_derivadas_count and derivadas_summary_available
+    source_alias = "ssa_source" if use_derivadas_summary else None
+    projection = build_select_projection(select_columns, source_alias=source_alias)
+    if include_derivadas_count:
+        if use_derivadas_summary:
+            projection += (
+                ', COALESCE("derivadas_summary"."descendants_count", 0) '
+                f"AS {quote_identifier(DERIVADAS_COUNT_COLUMN)}"
+            )
+        else:
+            projection += f", 0 AS {quote_identifier(DERIVADAS_COUNT_COLUMN)}"
+
+    query = f"SELECT {projection} FROM {quote_identifier(target_table)}"  # nosec B608
+    if source_alias is not None:
+        query += (
+            f" AS {quote_identifier(source_alias)} "
+            f"LEFT JOIN {quote_identifier(DERIVADAS_SUMMARY_TABLE)} "
+            f"AS {quote_identifier('derivadas_summary')} "
+            f"ON {quote_identifier('derivadas_summary')}.{quote_identifier('ssa')} = "
+            f"CAST({quote_identifier(source_alias)}."
+            f"{quote_identifier('numero_ssa')} AS TEXT)"
+        )
     already_sorted_for_ui = False
 
     order_clause = normalize_order_by(order_by)

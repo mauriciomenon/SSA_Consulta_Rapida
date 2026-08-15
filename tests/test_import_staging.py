@@ -38,6 +38,28 @@ def test_stage_external_import_files_accepts_only_backend_supported_formats(
     assert not (docs_dir / "entrada.xls").exists()
 
 
+def test_stage_external_import_files_preserves_global_progress_offset(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source_dir = tmp_path / "fontes"
+    source_dir.mkdir()
+    source = source_dir / "entrada.xlsx"
+    source.write_text("xlsx", encoding="utf-8")
+    output: list[str] = []
+
+    stage_external_import_files(
+        project_root=str(tmp_path),
+        source_files=(str(source),),
+        progress_offset=64,
+        progress_total=1359,
+        output_callback=output.append,
+    )
+
+    assert any("[STAGE 65/1359]" in line for line in output)
+
+
 def test_validate_external_source_path_accepts_explicit_selected_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -290,6 +312,78 @@ def test_stage_external_import_files_keeps_file_already_in_docs_dir(
     assert summary["unsupported"] == 0
     assert summary["staged"] == 1
     assert source.read_text(encoding="utf-8") == "payload"
+
+
+def test_stage_external_import_files_rejects_large_file_already_in_docs_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source = docs_dir / "large.xlsx"
+    source.write_bytes(b"12345")
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    with pytest.raises(ValueError, match="excede o limite"):
+        stage_external_import_files(
+            project_root=str(tmp_path),
+            source_files=(str(source),),
+        )
+
+
+def test_stage_external_import_files_removes_copied_file_rejected_after_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source_dir = tmp_path / "fontes"
+    source_dir.mkdir()
+    source = source_dir / "raced.xlsx"
+    source.write_bytes(b"x")
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    def _copy_larger_file(_source, destination):
+        Path(destination).write_bytes(b"12345")
+
+    monkeypatch.setattr(
+        import_staging,
+        "copy_source_without_execute_bit",
+        _copy_larger_file,
+    )
+
+    with pytest.raises(ValueError, match="excede o limite"):
+        stage_external_import_files(
+            project_root=str(tmp_path),
+            source_files=(str(source),),
+        )
+
+    assert not (docs_dir / "raced.xlsx").exists()
+
+
+def test_stage_external_import_files_removes_copied_expanded_zip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from zipfile import ZipFile
+
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source_dir = tmp_path / "fontes"
+    source_dir.mkdir()
+    source = source_dir / "expanded.xlsx"
+    with ZipFile(source, "w") as archive:
+        archive.writestr("one.xml", b"x" * 6)
+        archive.writestr("two.xml", b"x" * 6)
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_EXPANDED_BYTES", 10)
+
+    with pytest.raises(ValueError, match="descompactado"):
+        stage_external_import_files(
+            project_root=str(tmp_path),
+            source_files=(str(source),),
+        )
+
+    assert not (docs_dir / "expanded.xlsx").exists()
 
 
 def test_stage_external_import_files_reports_missing_source_as_failed(

@@ -19,16 +19,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Ensure-Dir($path) {
-  if (-not (Test-Path $path)) {
-    New-Item -ItemType Directory -Path $path -Force | Out-Null
-  }
-}
-
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Resolve-Path (Join-Path $scriptDir '..')
 $destRoot = Join-Path $root 'local_ai_private'
-Ensure-Dir $destRoot
+New-Item -ItemType Directory -Path $destRoot -Force | Out-Null
 
 $items = @(
   '.github/copilot-instructions.md',
@@ -63,6 +57,7 @@ $dirs = @(
 
 $logPath = Join-Path $destRoot 'MIGRATION_LOG.txt'
 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+$gitRemoveFailures = 0
 "[$timestamp] Starting AI/TODO artifacts migration" | Out-File -FilePath $logPath -Encoding utf8 -Append
 
 # Copy files then remove from repo
@@ -70,15 +65,23 @@ foreach ($rel in $items) {
   $src = Join-Path $root $rel
   if (Test-Path $src) {
     $dst = Join-Path $destRoot $rel
-    Ensure-Dir (Split-Path $dst -Parent)
+    New-Item -ItemType Directory -Path (Split-Path $dst -Parent) -Force | Out-Null
     Copy-Item -LiteralPath $src -Destination $dst -Force
     "  Copied: $rel -> local_ai_private" | Out-File -FilePath $logPath -Encoding utf8 -Append
 
     if (-not $NoGit) {
       try {
         Push-Location $root
-        & git rm -f -- $rel 2>$null | Out-Null
-      } catch { }
+        $gitOutput = @(& git rm -f -- $rel 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+          throw "git rm exited with code $LASTEXITCODE. $($gitOutput -join ' ')"
+        }
+      } catch {
+        $gitRemoveFailures++
+        $message = "git rm failed for '$rel': $($_.Exception.Message) Continuing with local removal; deletion was not staged."
+        "  WARNING: $message" | Out-File -FilePath $logPath -Encoding utf8 -Append
+        Write-Warning $message
+      }
       finally { Pop-Location }
     }
 
@@ -92,15 +95,23 @@ foreach ($drel in $dirs) {
   $dsrc = Join-Path $root $drel
   if (Test-Path $dsrc) {
     $ddst = Join-Path $destRoot $drel
-    Ensure-Dir (Split-Path $ddst -Parent)
+    New-Item -ItemType Directory -Path (Split-Path $ddst -Parent) -Force | Out-Null
     Copy-Item -LiteralPath $dsrc -Destination $ddst -Recurse -Force
     "  Copied dir: $drel -> local_ai_private" | Out-File -FilePath $logPath -Encoding utf8 -Append
 
     if (-not $NoGit) {
       try {
         Push-Location $root
-        & git rm -r -f -- $drel 2>$null | Out-Null
-      } catch { }
+        $gitOutput = @(& git rm -r -f -- $drel 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+          throw "git rm exited with code $LASTEXITCODE. $($gitOutput -join ' ')"
+        }
+      } catch {
+        $gitRemoveFailures++
+        $message = "git rm failed for '$drel': $($_.Exception.Message) Continuing with local removal; deletion was not staged."
+        "  WARNING: $message" | Out-File -FilePath $logPath -Encoding utf8 -Append
+        Write-Warning $message
+      }
       finally { Pop-Location }
     }
 
@@ -109,4 +120,10 @@ foreach ($drel in $dirs) {
 }
 
 "[$timestamp] Migration finished" | Out-File -FilePath $logPath -Encoding utf8 -Append
-Write-Host "[OK] AI/TODO artifacts moved to local_ai_private/ and removed from repo (staged deletions)."
+if ($NoGit) {
+  Write-Output "[OK] AI/TODO artifacts moved to local_ai_private/ and removed from repo. Git staging skipped (-NoGit)."
+} elseif ($gitRemoveFailures -gt 0) {
+  Write-Warning "[DONE] AI/TODO artifacts moved and removed locally; $gitRemoveFailures git deletion(s) were not staged. See $logPath."
+} else {
+  Write-Output "[OK] AI/TODO artifacts moved to local_ai_private/ and removed from repo (staged deletions)."
+}

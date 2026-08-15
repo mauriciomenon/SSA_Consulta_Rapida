@@ -46,6 +46,7 @@ def render_graph_svg_pixmap(
     graph_panel: Any,
     dependencies: SvgRenderDependencies,
     max_scale: float = 1.4,
+    resize_label: bool = True,
 ) -> bool:
     if not graph_svg:
         return False
@@ -73,12 +74,12 @@ def render_graph_svg_pixmap(
     )
     if cached_pixmap is not None:
         graph_label.setPixmap(cached_pixmap)
-        set_minimum_size = getattr(graph_label, "setMinimumSize", None)
-        if callable(set_minimum_size):
-            set_minimum_size(render_w, render_h)
-        resize = getattr(graph_label, "resize", None)
-        if callable(resize):
-            resize(render_w, render_h)
+        _apply_rendered_graph_size(
+            graph_label,
+            render_w,
+            render_h,
+            resize_label=resize_label,
+        )
         return True
     pixmap = dependencies.pixmap_cls(render_w, render_h)
     pixmap.fill(dependencies.qt_module.GlobalColor.transparent)
@@ -96,13 +97,26 @@ def render_graph_svg_pixmap(
         pixmap,
     )
     graph_label.setPixmap(pixmap)
+    _apply_rendered_graph_size(
+        graph_label,
+        render_w,
+        render_h,
+        resize_label=resize_label,
+    )
+    return True
+
+
+def _apply_rendered_graph_size(
+    graph_label: Any, render_w: int, render_h: int, *, resize_label: bool
+) -> None:
+    if not resize_label:
+        return
     set_minimum_size = getattr(graph_label, "setMinimumSize", None)
     if callable(set_minimum_size):
         set_minimum_size(render_w, render_h)
     resize = getattr(graph_label, "resize", None)
     if callable(resize):
         resize(render_w, render_h)
-    return True
 
 
 def _cached_svg_renderer(renderer_cls: type[Any], graph_cache_key: str) -> Any | None:
@@ -161,8 +175,19 @@ def _svg_cache_key(owner_cls: type[Any], graph_cache_key: str, *parts: int) -> s
     return f"{owner}:{graph_cache_key}:{suffix}"
 
 
-@dataclass(slots=True)
+@dataclass
 class DetailsGraphExportController:
+    __slots__ = (
+        "dialog",
+        "graph_widget",
+        "export_state",
+        "file_dialog_cls",
+        "message_box_cls",
+        "menu_cls",
+        "logger",
+        "__weakref__",
+    )
+
     dialog: Any
     graph_widget: Any
     export_state: MutableMapping[str, object]

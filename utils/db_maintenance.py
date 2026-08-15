@@ -13,6 +13,8 @@ import os
 import shutil
 import sqlite3
 import uuid
+from collections import Counter
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -20,6 +22,7 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 
 from shared.date_utils import parse_any_date
+from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from shared.numero_ssa import normalize_strict
 from utils.db_maintenance_report import render_database_analysis_report
 from utils.path_safety import ensure_path_is_allowed
@@ -53,14 +56,44 @@ LEGACY_CONCEPT_COLUMN_MAPPING = {
 }
 
 PENDING_MIGRATION_CONDITION = (
-    "({target} IS NULL OR {target} = '') "
-    "AND ({source} IS NOT NULL AND {source} != '')"
+    "({target} IS NULL OR TRIM(CAST({target} AS TEXT)) = '') "
+    "AND ({source} IS NOT NULL AND TRIM(CAST({source} AS TEXT)) != '')"
 )
 
 
 def _quote_sqlite_identifier(identifier: str) -> str:
     """Escapa identificador SQLite vindo do schema local."""
-    return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
+    safe_identifier = str(identifier)
+    if "\x00" in safe_identifier:
+        raise ValueError(f"Identificador SQLite invalido: {identifier!r}")
+    return f'"{safe_identifier.replace(chr(34), chr(34) * 2)}"'
+
+
+def _resolve_maintenance_table(
+    conn: sqlite3.Connection,
+    *,
+    require_table: bool = False,
+) -> str:
+    """Resolve an SSA table or read-only view for maintenance operations."""
+    candidate_names = (CANONICAL_SSA_TABLE, *LEGACY_SSA_TABLE_ALIASES)
+    placeholders = ", ".join("?" for _name in candidate_names)
+    rows = conn.execute(  # nosemgrep
+        f"SELECT name, type FROM sqlite_master WHERE name IN ({placeholders})",  # nosec B608
+        candidate_names,
+    ).fetchall()
+    objects = {str(name): str(object_type) for name, object_type in rows}
+    if objects.get(CANONICAL_SSA_TABLE) == "table":
+        return CANONICAL_SSA_TABLE
+    for alias in LEGACY_SSA_TABLE_ALIASES:
+        if objects.get(alias) == "table":
+            return alias
+    if not require_table:
+        if objects.get(CANONICAL_SSA_TABLE) == "view":
+            return CANONICAL_SSA_TABLE
+        for view_alias in LEGACY_SSA_TABLE_ALIASES:
+            if objects.get(view_alias) == "view":
+                return view_alias
+    raise DatabaseMaintenanceError("Tabela SSA nao encontrada para manutencao")
 
 
 class DatabaseMaintenanceError(Exception):
@@ -96,8 +129,8 @@ class DatabaseAnalyzer:
         backup_path = str(backup_dir_path / backup_filename)
 
         try:
-            with sqlite3.connect(self.db_path) as source_conn:
-                with sqlite3.connect(backup_path) as backup_conn:
+            with closing(sqlite3.connect(self.db_path)) as source_conn:
+                with closing(sqlite3.connect(backup_path)) as backup_conn:
                     source_conn.backup(backup_conn, pages=1000)
             try:
                 shutil.copystat(self.db_path, backup_path)
@@ -106,19 +139,25 @@ class DatabaseAnalyzer:
             logger.info(f"Backup criado: {backup_path}")
             return backup_path
         except Exception as e:
-            raise DatabaseMaintenanceError(f"Falha ao criar backup: {e}")
+            raise DatabaseMaintenanceError(f"Falha ao criar backup: {e}") from e
 
     def analyze_table_structure(self) -> Dict[str, Any]:
         """Analisa a estrutura da tabela identificando duplicacoes."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn:
                 cursor = conn.cursor()
+                table_name = _resolve_maintenance_table(conn)
+                quoted_table = _quote_sqlite_identifier(table_name)
 
                 # Obter informacoes das colunas
-                cursor.execute("PRAGMA table_info(ssas)")
+                cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                    f"PRAGMA table_info({quoted_table})"
+                )
                 columns_info = cursor.fetchall()
 
-                column_counts = self._count_populated_columns(cursor, columns_info)
+                column_counts = self._count_populated_columns(
+                    cursor, columns_info, quoted_table
+                )
 
                 # Identificar duplicacoes potenciais
                 duplicated_groups = self._identify_duplicate_columns(
@@ -133,12 +172,13 @@ class DatabaseAnalyzer:
                 }
 
         except Exception as e:
-            raise DatabaseMaintenanceError(f"Erro ao analisar estrutura: {e}")
+            raise DatabaseMaintenanceError(f"Erro ao analisar estrutura: {e}") from e
 
     def _count_populated_columns(
         self,
         cursor: sqlite3.Cursor,
         columns_info: List[Tuple],
+        quoted_table: str,
     ) -> Dict[str, int]:
         column_names = [col_info[1] for col_info in columns_info]
         if not column_names:
@@ -151,7 +191,9 @@ class DatabaseAnalyzer:
             )
             for col_name in column_names
         ]
-        cursor.execute(f"SELECT {', '.join(select_exprs)} FROM ssas")  # nosec B608
+        cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+            f"SELECT {', '.join(select_exprs)} FROM {quoted_table}"  # nosec B608
+        )
         counts = cursor.fetchone() or []
         return {
             col_name: int(count or 0)
@@ -189,39 +231,50 @@ class DatabaseAnalyzer:
 
         return groups
 
-    def _check_numero_ssa(self, df: pd.DataFrame, issues: Dict[str, Any]) -> str | None:
-        numero_cols = ["N\u00famero da SSA", "numero_ssa"]
+    def _coalesced_numero_series(
+        self,
+        df: pd.DataFrame,
+    ) -> tuple[pd.Series | None, str | None]:
+        numero_cols = LEGACY_CONCEPT_COLUMN_MAPPING["numero_ssa"]
+        target_col = numero_cols[-1]
         present_cols = [col for col in numero_cols if col in df.columns]
         if not present_cols:
-            return None
+            return None, None
 
-        numero_col = "numero_ssa" if "numero_ssa" in present_cols else present_cols[0]
+        numero_col = target_col if target_col in present_cols else present_cols[0]
         priority_cols = (
-            ["numero_ssa"] + [col for col in present_cols if col != "numero_ssa"]
-            if "numero_ssa" in present_cols
+            [target_col] + [col for col in present_cols if col != target_col]
+            if target_col in present_cols
             else present_cols
         )
-        numero_series = df[priority_cols].replace("", pd.NA).T.bfill().T.iloc[:, 0]
+        numero_values = df[priority_cols]
+        numero_series = numero_values.bfill(axis=1).iloc[:, 0]
+        return numero_series, numero_col
+
+    def _check_numero_ssa(
+        self,
+        df: pd.DataFrame,
+        issues: Dict[str, Any],
+    ) -> tuple[str | None, pd.Series | None]:
+        numero_series, numero_col = self._coalesced_numero_series(df)
+        if numero_series is None:
+            return None, None
+
         missing_numero = df[numero_series.isna()]
-        issues["missing_numero_ssa"] = missing_numero.index.tolist()
+        issues["missing_numero_ssa"].extend(missing_numero.index.tolist())
 
-        valid_numbers = numero_series.dropna()
-        duplicates = valid_numbers[valid_numbers.duplicated(keep=False)]
-        if not duplicates.empty:
-            issues["duplicate_numbers"] = duplicates.value_counts().to_dict()
-
-        return numero_col
+        return numero_col, numero_series
 
     def _check_missing_fields(self, df: pd.DataFrame, issues: Dict[str, Any]) -> None:
         for col in ["descricao_ssa"]:
             if col in df.columns:
-                missing_desc = df[df[col].isna() | (df[col] == "")]
-                issues["missing_descricao"] = missing_desc.index.tolist()
+                missing_desc = df[df[col].isna()]
+                issues["missing_descricao"].extend(missing_desc.index.tolist())
 
         for col in ["setor_emissor"]:
             if col in df.columns:
-                missing_emissor = df[df[col].isna() | (df[col] == "")]
-                issues["missing_area_emissora"] = missing_emissor.index.tolist()
+                missing_emissor = df[df[col].isna()]
+                issues["missing_area_emissora"].extend(missing_emissor.index.tolist())
 
         location_cols = [
             col
@@ -229,9 +282,9 @@ class DatabaseAnalyzer:
             if col in df.columns
         ]
         if location_cols:
-            location_values = df[location_cols].replace("", pd.NA)
+            location_values = df[location_cols]
             missing_loc = df[location_values.isna().all(axis=1)]
-            issues["missing_localizacao"] = missing_loc.index.tolist()
+            issues["missing_localizacao"].extend(missing_loc.index.tolist())
 
     def _check_invalid_dates(self, df: pd.DataFrame, issues: Dict[str, Any]) -> None:
         for col in ["data_cadastro"]:
@@ -245,7 +298,7 @@ class DatabaseAnalyzer:
                 invalid_dates = df[
                     parsed_dates.isna() & series.notna() & (series != "")
                 ]
-                issues["invalid_dates"] = invalid_dates.index.tolist()
+                issues["invalid_dates"].extend(invalid_dates.index.tolist())
 
     def _check_empty_records(
         self,
@@ -253,15 +306,25 @@ class DatabaseAnalyzer:
         issues: Dict[str, Any],
         numero_col: str | None,
     ) -> None:
-        essential_cols = (
-            [numero_col, "descricao_ssa", "setor_emissor"]
-            if numero_col
-            else ["descricao_ssa", "setor_emissor"]
+        numero_cols = [
+            col for col in LEGACY_CONCEPT_COLUMN_MAPPING["numero_ssa"] if col in df.columns
+        ]
+        essential_groups = []
+        if numero_cols:
+            essential_groups.append(numero_cols)
+        elif numero_col and numero_col in df.columns:
+            essential_groups.append([numero_col])
+        essential_groups.extend(
+            [col] for col in ["descricao_ssa", "setor_emissor"] if col in df.columns
         )
-        existing_essential = [col for col in essential_cols if col in df.columns]
-        if existing_essential:
-            empty_records = df[df[existing_essential].isna().all(axis=1)]
-            issues["empty_records"] = empty_records.index.tolist()
+        if not essential_groups:
+            return
+
+        group_missing_masks = []
+        for columns in essential_groups:
+            group_missing_masks.append(df[columns].isna().all(axis=1))
+        empty_mask = pd.concat(group_missing_masks, axis=1).all(axis=1)
+        issues["empty_records"].extend(df[empty_mask].index.tolist())
 
     def _build_sanity_summary(self, issues: Dict[str, Any]) -> Dict[str, int]:
         return {
@@ -289,22 +352,47 @@ class DatabaseAnalyzer:
         }
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                df = pd.read_sql_query("SELECT * FROM ssas", conn)
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                table_name = _resolve_maintenance_table(conn)
+                quoted_table = _quote_sqlite_identifier(table_name)
+                chunks = pd.read_sql_query(
+                    f"SELECT * FROM {quoted_table}",  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
+                    conn,
+                    chunksize=5000,
+                )
 
-                if df.empty:
+                total_records = 0
+                number_counts: Counter[str] = Counter()
+                for df in chunks:
+                    if df.empty:
+                        continue
+                    df.index = range(total_records, total_records + len(df))
+                    normalized_df = df.replace(r"^\s*$", pd.NA, regex=True)
+                    total_records += len(df)
+
+                    numero_col, numero_series = self._check_numero_ssa(
+                        normalized_df,
+                        issues,
+                    )
+                    if numero_series is not None:
+                        normalized_numbers = numero_series.map(normalize_strict).dropna()
+                        number_counts.update(
+                            str(value) for value in normalized_numbers
+                        )
+                    self._check_missing_fields(normalized_df, issues)
+                    self._check_invalid_dates(normalized_df, issues)
+                    self._check_empty_records(normalized_df, issues, numero_col)
+
+                if total_records == 0:
                     return {
                         "total_records": 0,
                         "issues": issues,
                         "summary": self._build_sanity_summary(issues),
                     }
 
-                total_records = len(df)
-
-                numero_col = self._check_numero_ssa(df, issues)
-                self._check_missing_fields(df, issues)
-                self._check_invalid_dates(df, issues)
-                self._check_empty_records(df, issues, numero_col)
+                issues["duplicate_numbers"] = {
+                    number: count for number, count in number_counts.items() if count > 1
+                }
 
                 return {
                     "total_records": total_records,
@@ -313,7 +401,9 @@ class DatabaseAnalyzer:
                 }
 
         except Exception as e:
-            raise DatabaseMaintenanceError(f"Erro na verificacao de sanidade: {e}")
+            raise DatabaseMaintenanceError(
+                f"Erro na verificacao de sanidade: {e}"
+            ) from e
 
 
 class DatabaseMigrator:
@@ -338,7 +428,9 @@ class DatabaseMigrator:
 
         migration_plan = []
 
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            table_name = _resolve_maintenance_table(conn, require_table=True)
+            quoted_table = _quote_sqlite_identifier(table_name)
             for concept, columns in duplicated_groups.items():
                 if len(columns) < 2:
                     continue
@@ -362,6 +454,7 @@ class DatabaseMigrator:
                     conn,
                     [source_col["name"] for source_col in migration_sources],
                     target_col["name"],
+                    quoted_table,
                 )
 
                 # Migrar somente de coluna legado para coluna normalizada.
@@ -399,6 +492,7 @@ class DatabaseMigrator:
         conn: sqlite3.Connection,
         sources: List[str],
         target: str,
+        quoted_table: str,
     ) -> Dict[str, int]:
         if not sources:
             return {}
@@ -421,8 +515,8 @@ class DatabaseMigrator:
                 ) AS pending_{index}
                 """
             )
-        row = conn.execute(
-            f"SELECT {', '.join(count_exprs)} FROM ssas"  # nosec B608
+        row = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+            f"SELECT {', '.join(count_exprs)} FROM {quoted_table}"  # nosec B608
         ).fetchone()
         if row is None:
             return {source: 0 for source in sources}
@@ -436,6 +530,7 @@ class DatabaseMigrator:
         target: str,
         quoted_source: str,
         quoted_target: str,
+        quoted_table: str,
         normalizer,
     ) -> Dict[str, Any]:
         select_cursor = conn.cursor()
@@ -446,7 +541,7 @@ class DatabaseMigrator:
         )
         select_query = (
             f"SELECT rowid, {quoted_source} "
-            f"FROM ssas WHERE {pending_condition}"  # nosec B608
+            f"FROM {quoted_table} WHERE {pending_condition}"  # nosec B608
         )
         select_cursor.execute(select_query)
         affected_rows = 0
@@ -464,7 +559,7 @@ class DatabaseMigrator:
                 updates.append((normalized, rowid))
             if updates:
                 update_cursor.executemany(
-                    f"UPDATE ssas SET {quoted_target} = ? WHERE rowid = ?",  # nosec B608
+                    f"UPDATE {quoted_table} SET {quoted_target} = ? WHERE rowid = ?",  # nosec B608
                     updates,
                 )
                 affected_rows += len(updates)
@@ -483,13 +578,14 @@ class DatabaseMigrator:
         target: str,
         quoted_source: str,
         quoted_target: str,
+        quoted_table: str,
     ) -> Dict[str, Any]:
         pending_condition = PENDING_MIGRATION_CONDITION.format(
             target=quoted_target,
             source=quoted_source,
         )
         update_query = (
-            f"UPDATE ssas SET {quoted_target} = {quoted_source} "
+            f"UPDATE {quoted_table} SET {quoted_target} = {quoted_source} "
             f"WHERE {pending_condition}"  # nosec B608
         )
         cursor.execute(update_query)
@@ -503,11 +599,15 @@ class DatabaseMigrator:
     def _execute_migration(self, migration_plan: List[Dict]) -> Dict[str, Any]:
         """Executa o plano de migracao no banco de dados."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn:
                 cursor = conn.cursor()
+                table_name = _resolve_maintenance_table(conn, require_table=True)
+                quoted_table = _quote_sqlite_identifier(table_name)
                 valid_columns = {
                     row[1]
-                    for row in cursor.execute("PRAGMA table_info(ssas)").fetchall()
+                    for row in cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                        f"PRAGMA table_info({quoted_table})"
+                    ).fetchall()
                 }
                 stats: Dict[str, Any] = {
                     "updated_rows": 0,
@@ -526,7 +626,7 @@ class DatabaseMigrator:
                     target = migration["target"]
                     if source not in valid_columns or target not in valid_columns:
                         raise ValueError(
-                            f"Coluna de migracao ausente em ssas: {source!r} -> {target!r}"
+                            f"Coluna de migracao ausente em {table_name}: {source!r} -> {target!r}"
                         )
                     quoted_source = _quote_sqlite_identifier(source)
                     quoted_target = _quote_sqlite_identifier(target)
@@ -541,6 +641,7 @@ class DatabaseMigrator:
                             target=target,
                             quoted_source=quoted_source,
                             quoted_target=quoted_target,
+                            quoted_table=quoted_table,
                         )
                     else:
                         normalizer, skipped_counter = normalizer_config
@@ -550,6 +651,7 @@ class DatabaseMigrator:
                             target=target,
                             quoted_source=quoted_source,
                             quoted_target=quoted_target,
+                            quoted_table=quoted_table,
                             normalizer=normalizer,
                         )
 
@@ -580,7 +682,7 @@ class DatabaseMigrator:
                 return stats
 
         except Exception as e:
-            raise DatabaseMaintenanceError(f"Erro durante migracao: {e}")
+            raise DatabaseMaintenanceError(f"Erro durante migracao: {e}") from e
 
 
 class DatabaseMaintenanceReportService:
@@ -617,7 +719,7 @@ class DatabaseMaintenanceReportService:
             return output_file
         except Exception as e:
             logger.exception("Falha ao gerar relatorio de manutencao")
-            raise DatabaseMaintenanceError(f"Erro ao gerar relatorio: {e}")
+            raise DatabaseMaintenanceError(f"Erro ao gerar relatorio: {e}") from e
 
 
 def main():

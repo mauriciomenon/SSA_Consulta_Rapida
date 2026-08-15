@@ -48,7 +48,7 @@ die() {
 repo_root() {
   local script_dir
   script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-  cd -- "${script_dir}" && git rev-parse --show-toplevel
+  printf '%s\n' "${script_dir}"
 }
 
 detect_target() {
@@ -207,6 +207,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 ROOT="$(repo_root)"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$ROOT" || exit 1
+ssa_native_guard_tools git uv || exit 1
 TARGET="$(normalize_target "${TARGET}")"
 
 printf '[release] target=%s\n' "${TARGET}"
@@ -227,6 +231,7 @@ case "${TARGET}" in
     fi
     if [[ -n "${SSH_HOST}" || -n "${SSH_REPO}" ]]; then
       run_debian_release "${ROOT}"
+      run_debian_arm64_release "${ROOT}"
     elif [[ "$(uname -s)" == "Linux" ]]; then
       case "$(uname -m)" in
         aarch64 | arm64) run_debian_arm64_release "${ROOT}" ;;
@@ -234,7 +239,7 @@ case "${TARGET}" in
         *) die "arquitetura Linux nao suportada por release.sh: $(uname -m)" ;;
       esac
     elif [[ "${ALLOW_MISSING_REMOTE}" == "1" ]]; then
-      printf '[release] Debian remoto pulado: informe --ssh-host e --ssh-repo para gerar em VM.\n'
+      printf '[release] Debian amd64/arm64 remoto pulado: informe --ssh-host e --ssh-repo para gerar em VM.\n'
     else
       die "Debian remoto indisponivel. Use --ssh-host/--ssh-repo ou --allow-missing-remote."
     fi

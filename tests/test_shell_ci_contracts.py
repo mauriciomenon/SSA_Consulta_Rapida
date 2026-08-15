@@ -12,6 +12,10 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+NATIVE_POSIX_ONLY = pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="POSIX harness intentionally blocks Windows filesystems; use PowerShell",
+)
 
 
 def _test_env(**overrides: str) -> dict[str, str]:
@@ -87,14 +91,98 @@ def test_direnv_common_shell_and_powershell_share_stable_version() -> None:
     assert 'else { "3.13.12" }' in direnv_common_ps1
 
 
+def test_windows_activation_avoids_dynamic_eval_and_silent_catches() -> None:
+    activate_repo = _read_repo_text("dev_env", "activate_repo.ps1")
+    direnv_common = _read_repo_text("scripts", "env", "direnv_common.ps1")
+
+    assert "Invoke-Expression" not in activate_repo
+    assert "pyenv init -" not in activate_repo
+    assert "pyenv virtualenv-init -" not in activate_repo
+    silent_catch = re.compile(r"catch\s*\{\s*(?:#[^\r\n]*\s*)?\}", re.MULTILINE)
+    assert silent_catch.search(activate_repo) is None
+    assert silent_catch.search(direnv_common) is None
+
+
+def test_cleanup_ai_artifacts_reports_git_remove_failures() -> None:
+    script = _read_repo_text("scripts", "cleanup_ai_artifacts.ps1")
+    silent_catch = re.compile(r"catch\s*\{\s*(?:#[^\r\n]*\s*)?\}", re.MULTILINE)
+
+    assert silent_catch.search(script) is None
+    assert script.count("if ($LASTEXITCODE -ne 0)") == 2
+    assert script.count("Write-Warning $message") == 2
+    assert script.count("deletion was not staged") == 2
+    assert script.count("$gitRemoveFailures++") == 2
+    assert "if ($NoGit)" in script
+    assert "elseif ($gitRemoveFailures -gt 0)" in script
+    assert "git deletion(s) were not staged" in script
+    assert "Write-Host" not in script
+    assert "function Ensure-Dir" not in script
+    assert "function New-DirectoryIfMissing" not in script
+
+
 def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     script = _read_repo_text("scripts", "ci_quality_gates.sh")
 
     assert "run_quality_gates.py $GATES_ARGS" not in script
-    assert "read -r -a GATES_ARGS_ARRAY" in script
+    assert "read -r -a GATES_ARGS_ARRAY" not in script
+    assert "shlex.split" in script
+    assert "eval" not in script
     assert '"${GATES_ARGS_ARRAY[@]}"' in script
 
 
+@NATIVE_POSIX_ONLY
+def test_ci_quality_gates_parses_gate_args_with_quotes(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None, "bash must be available for shell contract tests"
+
+    capture = tmp_path / "argv.txt"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_python = fake_bin / "python"
+    fake_python.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "if [[ \"${1:-}\" == \"-c\" ]]; then\n"
+        "  exec \"$REAL_PYTHON\" \"$@\"\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == \"scripts/run_quality_gates.py\" ]]; then\n"
+        "  printf '%s\\n' \"${@:2}\" > \"$QUALITY_GATES_CAPTURE\"\n"
+        "  printf '{\"overall_status\":\"ok\"}\\n'\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == \"-m\" && \"${2:-}\" == \"pytest\" ]]; then\n"
+        "  exit 0\n"
+        "fi\n"
+        "printf 'unexpected python invocation: %s\\n' \"$*\" >&2\n"
+        "exit 99\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    result = subprocess.run(
+        [bash, str(PROJECT_ROOT / "scripts" / "ci_quality_gates.sh")],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=_test_env(
+            PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+            GATES_ARGS='--skip "check docs" --label "cache manager"',
+            REAL_PYTHON=sys.executable,
+            QUALITY_GATES_CAPTURE=str(capture),
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert capture.read_text(encoding="utf-8").splitlines() == [
+        "--skip",
+        "check docs",
+        "--label",
+        "cache manager",
+    ]
+
+
+@NATIVE_POSIX_ONLY
 def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -171,6 +259,29 @@ def test_minimal_ci_runs_for_any_workflow_change() -> None:
     assert "|^scripts/|^dev_env/build/" in workflow
 
 
+def test_minimal_ci_isolates_gui_other_pytest_files() -> None:
+    workflow = _read_repo_text(".github", "workflows", "minimal-ci.yml")
+
+    assert 'if [ "${PYTEST_GROUP}" = "gui-other" ]; then' in workflow
+    assert 'for target in "${targets[@]}"; do' in workflow
+    assert (
+        'pytest -q --timeout=45 --timeout-method=thread '
+        '--durations=20 --durations-min=1 "${target}"'
+    ) in workflow
+    assert (
+        'uv run --python 3.13 pytest -q --timeout=45 --timeout-method=thread '
+        '--durations=20 --durations-min=1 "${target}"'
+    ) in workflow
+    assert (
+        'pytest -q --timeout=45 --timeout-method=thread '
+        '--durations=20 --durations-min=1 "${targets[@]}"'
+    ) in workflow
+    assert (
+        'uv run --python 3.13 pytest -q --timeout=45 --timeout-method=thread '
+        '--durations=20 --durations-min=1 "${targets[@]}"'
+    ) in workflow
+
+
 def test_dependabot_ignores_platform_requirement_snapshots() -> None:
     config = _read_repo_text(".github", "dependabot.yml")
     template = _read_repo_text(".github", "dependabot-template.yml")
@@ -205,7 +316,8 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert "origin/${{ github.base_ref }}" not in workflow
     assert "BASE_REF: ${{ github.base_ref }}" not in workflow
     assert "BASE_SHA: ${{ github.event.pull_request.base.sha }}" in workflow
-    assert 'bash scripts/security/scan_secrets.sh pr-diff "$BASE_SHA"' in workflow
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" pr-diff "$BASE_SHA"' in workflow
+    assert 'git archive "$BASE_SHA" scripts/security/scan_secrets.sh' in workflow
     assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
     assert 'git fetch origin "$BASE_REF" || true' not in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' not in workflow
@@ -225,15 +337,40 @@ def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
     assert "Invoke-Expression" not in script
 
 
+def test_setup_env_scripts_require_explicit_verified_remote_pyenv_install() -> None:
+    shell_script = _read_repo_text("scripts", "env", "setup_env.sh")
+    powershell_script = _read_repo_text("scripts", "env", "setup_env.ps1")
+
+    assert "curl https://pyenv.run | bash" not in shell_script
+    assert "wget -O- https://pyenv.run | bash" not in shell_script
+    assert "SSA_ALLOW_REMOTE_PYENV_INSTALL" in shell_script
+    assert "SSA_PYENV_INSTALLER_SHA256" in shell_script
+    assert "SSA_CONFIRM_REMOVE_PYENV" in shell_script
+    assert "sha256sum" in shell_script
+    assert "shasum -a 256" in shell_script
+    assert "IFS= read -r python_version" in shell_script
+    assert "SSA_PYTHON_STABLE_VERSION" in shell_script
+
+    assert "[switch]$AllowRemotePyenvInstall" in powershell_script
+    assert "[string]$PyenvInstallerSha256" in powershell_script
+    assert "SSA_ALLOW_REMOTE_PYENV_INSTALL" in powershell_script
+    assert "SSA_CONFIRM_REMOVE_PYENV" in powershell_script
+    assert "Get-FileHash -Algorithm SHA256" in powershell_script
+    assert "SSA_PYTHON_STABLE_VERSION" in powershell_script
+    assert "& \"$env:TEMP\\install-pyenv-win.ps1\"" not in powershell_script
+
+
 def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
     assert "branches: [main, dev]" in workflow
-    assert "continue-on-error: true" not in workflow
-    assert "bash scripts/security/scan_secrets.sh workspace" in workflow
-    assert "bash scripts/security/scan_secrets.sh history" in workflow
+    assert "timeout-minutes: 30" in workflow
+    assert workflow.count("continue-on-error: true") == 1
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" workspace' in workflow
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" history' in workflow
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -270,6 +407,7 @@ def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
     assert "TEST_SECRET_1234" not in dirty_result.stderr
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_blocks_untracked_git_workspace_matches(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     git = shutil.which("git")
@@ -318,6 +456,7 @@ def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -
     assert 'SECRET_SCAN_HISTORY_MAX_COUNT:-200' in script
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_treats_dash_prefixed_pattern_as_data(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -337,6 +476,7 @@ def test_secret_scan_script_treats_dash_prefixed_pattern_as_data(tmp_path: Path)
     assert result.returncode == 0, result.stderr
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_valid_pattern_without_match_succeeds(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -378,10 +518,11 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert workflow.count("github.event.issue.pull_request") == 3
     assert "anomalyco/opencode/github@" not in workflow
     assert 'default: "true"' in local_action
-    assert "GITHUB_TOKEN: ${{ github.token }}" in local_action
+    assert "REVIEW_GITHUB_TOKEN: ${{ github.token }}" in local_action
     assert "opencode github run" not in local_action
     assert "python scripts/ci/opencode_pr_review.py" in local_action
-    assert "GH_TOKEN: ${{ github.token }}" in local_action
+    assert "\n        GITHUB_TOKEN: ${{ github.token }}" not in local_action
+    assert "\n        GH_TOKEN: ${{ github.token }}" not in local_action
     assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
     assert "actions/cache@v4" not in local_action
     assert "npm install" not in local_action
@@ -424,6 +565,35 @@ def test_github_actions_do_not_install_python_or_npm_packages_dynamically() -> N
         for pattern in forbidden_patterns:
             if re.search(pattern, text):
                 findings.append(f"{relative_path}: {pattern}")
+
+    assert findings == []
+
+
+def test_github_workflow_external_actions_are_pinned_by_sha() -> None:
+    checked_paths = [
+        ".github/workflows/codeql.yml",
+        ".github/workflows/dependency-review.yml",
+        ".github/workflows/minimal-ci.yml",
+        ".github/workflows/opencode.yml",
+        ".github/workflows/release-windows.yml",
+        ".github/workflows/secret_scan.yml",
+    ]
+    uses_reference = re.compile(r"^\s*uses:\s+([^#\s]+)")
+
+    findings: list[str] = []
+    for relative_path in checked_paths:
+        for line_number, line in enumerate(
+            _read_repo_text(*relative_path.split("/")).splitlines(),
+            start=1,
+        ):
+            match = uses_reference.search(line)
+            if match is None:
+                continue
+            reference = match.group(1)
+            if reference.startswith("./"):
+                continue
+            if not re.search(r"@[0-9a-f]{40}$", reference):
+                findings.append(f"{relative_path}:{line_number}: {line.strip()}")
 
     assert findings == []
 
@@ -526,6 +696,81 @@ def test_opencode_review_script_adds_lfs_note() -> None:
     prompt = module.build_prompt("base", "version https://git-lfs.github.com/spec/v1")
 
     assert "manual review" in prompt
+
+
+def test_opencode_review_script_rejects_unsafe_cli_arguments() -> None:
+    module = _load_opencode_review_module()
+
+    assert module.require_cli_option_value("MODEL", "github-copilot/gpt-4.1") == (
+        "github-copilot/gpt-4.1"
+    )
+    assert module.require_prompt_argument("Review this PR") == "Review this PR"
+
+    with pytest.raises(RuntimeError, match="MODEL"):
+        module.require_cli_option_value("MODEL", "--help")
+    with pytest.raises(RuntimeError, match="AGENT"):
+        module.require_cli_option_value("AGENT", "plan mode")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument(" --model attacker")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("bad\x00prompt")
+    with pytest.raises(RuntimeError, match="MODEL"):
+        module.require_cli_option_value("MODEL", "")
+    with pytest.raises(RuntimeError, match="AGENT"):
+        module.require_cli_option_value("AGENT", "   ")
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("")
+
+
+def test_opencode_review_script_rejects_fork_pr(monkeypatch) -> None:
+    module = _load_opencode_review_module()
+
+    def fake_run_capture(command, *, timeout=None, env=None):
+        assert command[:3] == ["gh", "pr", "view"]
+        return '{"headRepository":{"nameWithOwner":"attacker/fork"}}'
+
+    monkeypatch.setattr(module, "run_capture", fake_run_capture)
+
+    with pytest.raises(RuntimeError, match="untrusted PR diff"):
+        module.ensure_trusted_pr_source(123, "mauriciomenon/SSA_Consulta_Rapida")
+
+
+def test_opencode_review_script_sanitizes_opencode_environment(monkeypatch) -> None:
+    module = _load_opencode_review_module()
+    opencode_key = "OPENCODE_API_KEY"
+    qwen_key = "QWEN_API_KEY"
+    zai_key = "ZAI_API_KEY"
+    zhipu_key = "ZHIPU_API_KEY"
+    monkeypatch.setenv("GITHUB_TOKEN", "dummy-github-token")
+    monkeypatch.setenv("GH_TOKEN", "dummy-gh-token")
+    monkeypatch.setenv("REVIEW_GITHUB_TOKEN", "dummy-review-token")
+    monkeypatch.setenv(opencode_key, "dummy-opencode-key")
+    monkeypatch.setenv(qwen_key, "dummy-qwen-key")
+    monkeypatch.setenv(zai_key, "dummy-zai-key")
+    monkeypatch.setenv(zhipu_key, "dummy-zhipu-key")
+    monkeypatch.setenv("MODEL_PROVIDER_VALUE", "fake-provider-value")
+
+    env = module.opencode_env("qwen-cloud-coding-plan/qwen3-coder-plus")
+
+    assert "GITHUB_TOKEN" not in env
+    assert "GH_TOKEN" not in env
+    assert "REVIEW_GITHUB_TOKEN" not in env
+    assert "MODEL_PROVIDER_VALUE" not in env
+    assert env[qwen_key] == os.environ[qwen_key]
+    assert opencode_key not in env
+    assert zai_key not in env
+    assert zhipu_key not in env
+    assert module.opencode_env("zai-coding-plan/glm-4.7") == {
+        **{
+            name: value
+            for name in module.OPENCODE_BASE_ENV_NAMES
+            if (value := os.environ.get(name)) is not None
+        },
+        zai_key: os.environ[zai_key],
+        zhipu_key: os.environ[zhipu_key],
+    }
+    with pytest.raises(RuntimeError, match="PROMPT"):
+        module.require_prompt_argument("   ")
 
 
 def test_codeql_precheck_runs_advanced_when_default_setup_is_unverified() -> None:

@@ -1,17 +1,27 @@
-# SSA Consulta Rapida v4.37
+# SSA Consulta Rapida v4.47
 
-Release/tag publicada mais recente na branch `dev`: `v4.36`.
+Release estavel atual: `v4.47`.
+Tag anterior: `v4.46`.
+Publicacao: GitLab e Bitbucket a partir da branch `dev`.
 
-## Current Truth (2026-04-11 23:00 -0300)
+Notas da release: [docs/RELEASE_NOTES_v4.47.md](docs/RELEASE_NOTES_v4.47.md)
+
+## Current Truth (2026-08-09)
 
 - Estado operacional:
-  - metadata local ativa: `4.37`
-  - ultima tag publicada em `dev`: `v4.36`
-  - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
-  - `4.37` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada permanece `v4.36`
+  - metadata ativa: `4.47`
+  - release estavel atual: `v4.47`
+  - tag anterior: `v4.46`
+  - branch `dev` inclui ciclo tri-state dos atalhos de situacao e indicador `...` para multiplos setores executores
+  - mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub
+  - `dev`, `origin/dev` e `bitbucket/dev` ficam sincronizados por politica de commit do projeto; `git pull` padrao usa `origin/dev`
+  - o HTTP 403 por conta suspensa afeta somente `gh`; nao bloqueia GitLab nem Bitbucket
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
+  - grupos criticos de banco, importacao, release, filtros, nullable e cache estao verdes no Windows nativo
+  - `uv lock --check` e `pip-audit` nao reportam vulnerabilidade conhecida; suite consolidada, scanners e build real serao registrados antes da tag
+  - banco real passou integridade SQLite, schema funcional e consistencia de dados
   - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos
-  - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
+  - a v4.47 nao muda schema, operadores centrais de filtro, layout ou posicao de controles
 - Contrato de update por SSA (resumo):
   - `STE` e `SCA` no banco sao imutaveis para update
   - usa timestamp de snapshot (`data_planilha`/`data_arquivo_origem`/nome do arquivo) antes de olhar `data_cadastro`
@@ -106,7 +116,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
 ## Historical Snapshot (2026-03-23 19:01 -0300)
 
-- Baseline ativo mantido em `v4.33` (snapshot historico, nao corrente).
+- Snapshot historico preservado; nao representa o baseline ativo.
 - Commits mais recentes relevantes para o estado daquele fechamento:
   - `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
   - `25c64c58` `STABILITY_PATCH: close residual nullable filter paths`
@@ -122,7 +132,44 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 
-## Baseline v4.37 (2026-04)
+## Release v4.47 (2026-08, stable)
+
+### Destaques
+- Atalhos de situacao alternam entre inclusao, exclusao (`!STATUS`) e estado neutro.
+- Caixa rapida de setor executor mostra `...` quando mais de um setor esta ativo.
+- Barra rapida, filtros ativos, filtros por coluna e painel avancado compartilham o mesmo estado aplicado.
+- Cache de busca normalizada permanece ativo entre atualizacoes apenas visuais e reduz reprocessamento de filtros.
+- Mascaras nullable de busca e faixa nao propagam `pd.NA` para combinacoes booleanas.
+- Recovery preserva tabela SSA canonica, colunas funcionais, tabelas auxiliares e dados presentes em WAL ativo.
+- Importacao com todas as linhas rejeitadas possui classificacao deterministica.
+- `pip-audit` nao reporta vulnerabilidades conhecidas no lock atual; nenhum salto de dependencia foi feito sem necessidade reproduzida.
+- Build oficial Windows AMD64 continua condicionado ao clone nativo, pacote PyInstaller `onedir`, banco externo unico e smoke funcional registrado no relatorio JSON.
+- `release.ps1` e exclusivo do Windows; Debian usa clone Linux nativo e `release.sh`. WSL fica restrito ao CodeRabbit em clone proprio.
+- Sem mudanca de schema, operador central, layout ou posicao de controles.
+
+## Baseline v4.45 (2026-07, historical)
+
+### Destaques
+- Metadata local e docs ativos foram promovidos para `4.45` como inicio do ciclo de hardening PyQt6.
+- A tag local `v4.45` marca o inicio do refactor; `v4.44` permanece como baseline estavel anterior.
+- Plano detalhado: `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
+- A ultima tag publicada remota continua sendo `v4.36` ate existir ciclo de release remoto explicitamente aprovado.
+
+## Baseline v4.44 (2026-07, historical)
+
+### Destaques
+- Metadata local e docs ativos foram promovidos para `4.44`.
+- A tag local `v4.44` marca a baseline apos os fixes de validacao dos gates locais.
+- A ultima tag publicada remota continua sendo `v4.36` ate existir ciclo de release remoto explicitamente aprovado.
+
+## Baseline v4.43 (2026-06, historical)
+
+### Destaques
+- Metadata local, docs ativos e expectativas de empacotamento foram promovidos para `4.43`.
+- A tag local `v4.43` marca a baseline imediatamente anterior aos slices funcionais de filtros/cache/GUI.
+- A ultima tag publicada remota continua sendo `v4.36` ate existir ciclo de release remoto explicitamente aprovado.
+
+## Baseline v4.42 (2026-04, historical)
 
 ### Destaques
 - Nullable dtypes no readback agora estao estabilizados sem regressao visual:
@@ -139,7 +186,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
 - README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Baseline de documentacao atualizado para 4.37.
+- Baseline de documentacao atualizado para 4.42.
 - Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
@@ -203,10 +250,10 @@ uv sync
 uv run --python 3.13 main.py --gui
 
 # Validar plano sem compilar
-.\release.ps1 -DryRun -Yes
+.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -DryRun -Yes
 
 # Gerar executaveis, ZIP e instalador Windows AMD64
-.\release.ps1 -Yes
+.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes
 ```
 
 Saidas esperadas:
@@ -240,6 +287,7 @@ Saida esperada:
 
 Notas de release:
 - `release.ps1` e `release.sh` sao os wrappers publicos; scripts em `dev_env/build/` sao implementacao interna.
+- Cada wrapper deve rodar em clone e venv nativos do proprio host; nao compartilhar checkout Windows com WSL/Linux.
 - O build de release exige workspace limpo para evitar artefato stale.
 - O fluxo de release roda smoke funcional de importacao no executavel gerado e bloqueia falha antes de publicar artefato.
 
@@ -255,7 +303,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.37)
+### Documentacao tecnica atual (v4.47)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:
@@ -717,12 +765,12 @@ Filtro “5 opcoes” (implementado)
 - Ignora arquivos sem colunas obrigatorias (ex.: `numero_ssa`) com log
 - `KeyboardInterrupt` (Ctrl+C) cancela com rollback seguro
 
-### Schema Unificado & Migracao (2025-09)
+### Schema runtime e migracao
 
-Foi introduzido o `config/schema_unified.sql` como fonte de verdade unica. Ele consolida:
-1. Colunas de `schema.sql` (tabela `ssa_table`).
-2. Colunas de `schema_optimized.sql` (tabela `ssas`).
-3. Novas colunas recentes relacionadas a desvios e reprogramacoes.
+O runtime default inicializa o banco com `config/schema.sql`.
+`config/schema_unified.sql` permanece disponivel para fluxos que o selecionam
+explicitamente e para a migracao historica; ele nao e a fonte unica do runtime.
+Ambos usam `ssa_table` como tabela canonica e declaram `ssa_event_records`.
 
 Views de compatibilidade:
 - `ssas` → aponta para `ssa_table`.
@@ -744,35 +792,51 @@ Recomendado rodar antes de novas importacoes se o banco for anterior a unificaca
 Aliases adicionados suportados (exemplos de cabecalho de planilha → coluna canonica):
 - `Desvio` → `numero_desvios`
 - `Justificativa sem APR` → `justificativa`
-- `Reprogramacoes` → `num_reprogramacoes`
 - `Total Tempo TPE Executada` → `total_tempo_tpe_executada`
 
-Esses aliases estao em `config/column_mappings.json` e reforcados no fallback de `core/config_manager.py`.
+Esses aliases estao em `config/column_mappings.json`. No fluxo default, o
+lookup preserva acentos e caixa e aplica apenas `strip`; nao existe fallback
+semantico para grafias diferentes.
 
-### Heuristicas Novas de Cabecalho (robust_importer)
+### Caminhos de importacao atuais
 
-Problema resolvido: planilhas cujo titulo (ex.: “SSAs com Desvio na Programacao”) era interpretado como unico header, gerando apenas 1 coluna mapeada.
+O fluxo principal de SSA usa `extracao.extractor.extract_data_from_excel` em
+`core/import_single_file.py`, `scripts/import_excel_file.py` e
+`scripts/migracao/backfill_reprocessar.py`.
 
-Heuristicas introduzidas:
-1. Deteccao de header “mesclado” unico: se todas as colunas tem o mesmo nome ⇒ tenta reprocessar buscando linha real de cabecalho abaixo.
-2. Revarredura multi‐linha (linhas 0..9) escolhendo a que produz mais grupos canonicos de mapeamento.
-3. Reinterpretacao da primeira linha como header quando so ha 1 coluna original e a linha 0 tem diversidade textual suficiente.
+Contratos do fluxo principal:
 
-Resultados:
-- `mapped_columns_count` passou de 1 para 35 na planilha problematica.
-- Insercoes deixam de falhar por "column not found" gerada a partir de titulo da planilha.
+1. `--mappings` compara o header somente com os aliases literais do JSON
+   fornecido, usando normalizacao mecanica de caixa, acentos e espacos. Nao
+   inventa sinonimos nem coalesce campos de negocio; aliases ambiguos ou alvos
+   internos reservados encerram a extracao em erro.
+2. Linhas hierarquicas sem `numero_ssa` nao recebem forward-fill. Elas sao
+   associadas ao pai comprovado e persistidas separadamente em
+   `ssa_event_records`.
+3. Linha sem identidade que ainda contenha payload nao e aceita por nenhum
+   caller canonico. O core interrompe a rodada antes de metadata/upsert e os
+   CLIs auxiliares retornam erro.
+4. Escrita em tabela SSA exige `--smart-upsert`, com metrica que confirma todos
+   os eventos capturados.
+5. `arquivo_origem`, `data_planilha` e `data_arquivo_origem` vem do arquivo
+   fisico importado e nao de colunas eventualmente embutidas na planilha.
 
-Metricas adicionais (para diagnostico) agora expostas em `reports/last_import_stats.json` e via retorno da funcao:
-- `header_candidate_lines_considered`: quantas linhas foram avaliadas como possiveis cabecalhos (limitado por `SSA_MAX_HEADER_SCAN`, default 10)
-- `selected_header_line_index`: indice da linha escolhida quando reheader aplicado (ou null)
-- `alias_hits`: numero de vezes que um alias foi convertido para nome canonico
+`utils/robust_importer.py` continua ativo para `read_report`, sincronizacao de
+derivadas e simulacao. Ele nao e o parser de escrita dos dois CLIs auxiliares de
+SSA.
 
-Variaveis de ambiente de tuning:
-- `SSA_MAX_HEADER_SCAN`: ajusta o maximo de linhas iniciais avaliadas (ex.: `SSA_MAX_HEADER_SCAN=5 uv run --python $PY_RUNTIME main.py`)
+Contrato aprovado neste ciclo para `--mappings`: preservar a compatibilidade do
+CLI anterior ao encaminhar o arquivo customizado ao extractor canonico. O diff
+previsto ficou restrito a esse encaminhamento e ao lookup mecanico. Os termos
+afetados sao exatamente os nomes canonicos e aliases presentes no JSON escolhido
+em cada execucao; nenhum termo foi adicionado ao mapping default. Justificativa:
+um alias fornecido pelo operador deve continuar reconhecido apesar de variacao
+de caixa, acento ou espaco. Cobertura positiva:
+`test_extract_data_from_excel_uses_explicit_mapping_file`. Cobertura negativa:
+`test_extract_data_from_excel_preserves_unmapped_header_without_explicit_mapping`
+e `test_extract_data_from_excel_rejects_unsafe_explicit_mapping`.
 
-Teste sintetico: `tests/test_import_novas_colunas.py` garante presenca e persistencia das novas colunas.
-
-Documento tecnico detalhado: `docs/SCHEMA_UNIFICADO_IMPORTACAO.md` (inclui heuristicas do importador, checklist e fluxo de migracao).
+Documento tecnico detalhado: `docs/IMPORTACAO_ROBUSTA.md`.
 
 ### Fluxo recomendado de atualizacao
 1. Atualizar repositorio (`git pull`).
@@ -780,7 +844,7 @@ Documento tecnico detalhado: `docs/SCHEMA_UNIFICADO_IMPORTACAO.md` (inclui heuri
 3. (Opcional) Rodar teste sintetico: `pytest -q tests/test_import_novas_colunas.py`.
 4. Importar novas planilhas normalmente.
 
-### Backfill (futuro)
+### Backfill auxiliar
 Script disponivel: `scripts/migracao/backfill_reprocessar.py`
 
 Uso basico:
@@ -795,8 +859,10 @@ uv run --python $PY_RUNTIME main.py --acao backfill -- --dir docs_entrada --db d
 Opcoes principais:
 - `--since YYYY-MM-DD` filtra arquivos mais antigos
 - `--limit N` limita quantidade processada
-- `--reset-db` recria usando `schema_unified.sql`
+- `--reset-db` e rejeitado neste utilitario; recriacao pertence ao full rescan
+  com banco candidato e promocao validada
 - `--pattern "*.xlsx"` glob customizado
+- escrita exige `--smart-upsert`; `--dry-run` nao grava no banco
 
 Resultado: relatorio agregador + JSON detalhado em `reports/backfill_report_*.json`.
 Se `--report-path` for usado (disponivel no script e via integracao), o relatorio sera salvo exatamente no caminho indicado. Caso nenhum arquivo elegivel seja encontrado, um relatorio vazio e gerado (quando `--report-path` e fornecido) e a saida retorna codigo 0 com log informativo.

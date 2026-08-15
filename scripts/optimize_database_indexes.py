@@ -3,6 +3,7 @@
 
 import os
 import sqlite3
+from contextlib import closing
 
 
 def check_database_indexes():
@@ -16,7 +17,7 @@ def check_database_indexes():
     print("INFO Verificando índices no banco de dados...")
     print("=" * 50)
 
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         # Verificar índices existentes
         cursor = conn.execute("""
             SELECT name, sql 
@@ -99,7 +100,7 @@ def add_performance_indexes():
     ]
 
     created_count = 0
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         for index_name, sql in additional_indexes:
             try:
                 conn.execute(sql)
@@ -127,7 +128,7 @@ def analyze_query_performance():
     test_queries = [
         (
             "Busca por número SSA",
-            "SELECT * FROM ssas WHERE numero_ssa = '2025001' LIMIT 1",
+            "SELECT numero_ssa FROM ssas WHERE numero_ssa = '2025001' LIMIT 1",
         ),
         (
             "Filtro por situação",
@@ -143,7 +144,7 @@ def analyze_query_performance():
         ),
     ]
 
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         # Habilitar análise de query
         conn.execute("PRAGMA query_planner = ON")
 

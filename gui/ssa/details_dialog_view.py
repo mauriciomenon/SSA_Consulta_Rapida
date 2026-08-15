@@ -39,7 +39,6 @@ def build_details_dialog_widgets(window, target: str, *, svg_render_deps):
     from PyQt6.QtWidgets import (
         QDialog,
         QGridLayout,
-        QLabel,
         QPushButton,
         QSplitter,
         QTextBrowser,
@@ -67,7 +66,10 @@ def build_details_dialog_widgets(window, target: str, *, svg_render_deps):
     tree_graph_label = None
     tree_graph_text_browser = None
     if svg_render_deps is not None:
-        tree_graph_label = QLabel(dialog)
+        from gui.ssa.main_window_bottom_section import DerivadasGraphLabel
+
+        tree_graph_label = DerivadasGraphLabel(window)
+        tree_graph_label.setParent(dialog)
         tree_graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tree_graph_label.setStyleSheet("border:none; background:transparent;")
         tree_graph_label.setMinimumHeight(DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT)
@@ -82,7 +84,10 @@ def build_details_dialog_widgets(window, target: str, *, svg_render_deps):
     tree_graph_panel_layout.setContentsMargins(0, 0, 0, 0)
     tree_graph_panel_layout.setSpacing(0)
     tree_graph_panel_layout.addWidget(
-        tree_graph_browser, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter
+        tree_graph_browser,
+        0,
+        0,
+        alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
     )
     export_button = QToolButton(tree_graph_panel)
     export_button.setText("Exportar")

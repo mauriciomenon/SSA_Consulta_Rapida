@@ -1,9 +1,10 @@
 # Build Tooling Lessons Learned (PyInstaller/Nuitka/PyOxidizer)
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH 2026-08-09
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58 e PR #59: merged; usar base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
+- Release ativa: `v4.47`; tag anterior: `v4.46`.
+- Cada plataforma usa clone e venv nativos. WSL fica restrito ao CodeRabbit em clone Linux proprio.
 - Este documento registra aprendizados; nao deve duplicar a matriz completa de release.
 
 ## HISTORICAL SNAPSHOT (4.37 local / v4.36 published)

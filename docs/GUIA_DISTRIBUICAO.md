@@ -1,13 +1,30 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH 2026-08-09
+
+- Branch fonte local: `dev`.
+- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
+- Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
+- PR #58 e PR #59: merged na linhagem historica acima; `dev` esta publicado em GitLab e Bitbucket.
+- Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
+- Windows v4.47: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
+- Nao compartilhar checkout ou venv entre Windows e WSL/Linux. WSL e permitido somente para CodeRabbit em clone Linux proprio.
+- Mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub. O HTTP 403 afeta somente `gh`.
+- Artefatos anteriores a `v4.47` seguem historicos e nao devem ser usados para publicacao final.
+- Commits e tags autorizados sao publicados em `origin` e `bitbucket`; release primaria usa GitLab enquanto `gh` permanece bloqueado.
+
+## HISTORICAL SNAPSHOT 2026-06-11 11h
 
 - Branch fonte: `dev`.
 - Branch destino: `main`.
 - Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
 - PR #58 e PR #59: merged; `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados antes de qualquer rebuild.
-- Artefatos v4.37 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
+- Artefatos v4.43 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
+  - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
+  - Debian AMD64/ARM64: `pyinstaller`, `nuitka`, `pyoxidizer` + `deb`, `appimage`, `tar`; `pyoxidizer/appimage` nao e suportado.
+  - macOS ARM64: `pyinstaller` + `dmg`.
 - Interface operacional primaria:
   - Windows: `release.ps1`.
   - Debian/macOS: `release.sh`.
@@ -15,31 +32,30 @@
   - Local Windows + WSL: `dev_env/build/release_local.ps1`.
   - Windows AMD64: `dev_env/build/release_windows.ps1`.
   - Debian AMD64: `dev_env/build/release_debian.sh`.
+  - Debian ARM64: `dev_env/build/release_debian_arm64.sh`.
+  - macOS ARM64: `release.sh` -> `launchers/build_multiplatform.py`.
 - Dry-run previamente validado para os orquestradores; depois do merge PR #58, o proximo ciclo deve rodar dry-run novamente antes de build real.
 - Protecao de codigo:
   - Nuitka e o backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
+  - PyOxidizer usa `pyoxidizer==0.24.0` por padrao via `uv tool run`, com override explicito por `SSA_PYOXIDIZER_UV_PACKAGE`.
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.37.
+- `setup_env.sh` e `setup_env.ps1` nao executam instalador remoto de pyenv sem opt-in e SHA256 explicitos.
+- `dev_env/setup_msvc_path.ps1` e diagnostico/sessao; nao altera PATH permanente do usuario por padrao.
+- Proximo passo operacional historico: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.43.
 
 ## Comandos Simples De Release
 
 Use estes comandos como entrada primaria. Os scripts em `dev_env/build/` sao
 implementacao interna e devem ser usados diretamente apenas para diagnostico.
 
-Windows AMD64, default Nuitka com instalador:
+Windows AMD64 v4.47, PyInstaller com banco runtime e instalador:
 
 ```powershell
-.\release.ps1 -Yes
+.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes
 ```
 
-Windows + Debian via WSL, default Nuitka e `.deb`:
-
-```powershell
-.\release.ps1 -Target all -Yes
-```
-
-Debian AMD64, default Nuitka e `.deb`:
+Debian AMD64 em host/VM e clone Linux nativos:
 
 ```bash
 ./release.sh
@@ -57,6 +73,18 @@ VM/host Debian remoto:
 ./release.sh --target debian --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --yes
 ```
 
+macOS local + Debian AMD64/ARM64 remoto:
+
+```bash
+./release.sh --target all --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --yes
+```
+
+Dry-run macOS sem remoto Debian:
+
+```bash
+./release.sh --target all --dry-run --allow-missing-remote
+```
+
 ## HISTORICAL SNAPSHOT (4.37 local automation)
 
 - Sync deste guia: `2026-05-01 13:20 -0300`.
@@ -70,10 +98,10 @@ VM/host Debian remoto:
 - Backends de release operacional neste baseline: `pyinstaller`, `nuitka`, `pyoxidizer`.
 - `pytoexe`/`py2exe`: nao suportados neste repositorio (fora das choices dos scripts atuais).
 
-## Release Automatico Local
+## Release Automatico Local (historico)
 
-Use PowerShell no Windows para orquestrar Windows AMD64 e Debian AMD64 via WSL sem
-misturar sintaxe no terminal:
+O bloco abaixo preserva o fluxo antigo Windows + WSL para auditoria. Ele nao e permitido
+na release v4.47 e nao deve ser executado.
 
 ```powershell
 .\dev_env\build\release_local.ps1 -Backend all -DebianPackage all -Yes
@@ -91,10 +119,11 @@ Somente Windows:
 .\dev_env\build\release_windows.ps1 -Backend all -Yes
 ```
 
-Somente Debian AMD64 via WSL:
+Somente Debian AMD64 no clone Linux nativo:
 
-```powershell
-wsl -d Debian -- bash -lc 'cd <WSL-repo-path> && bash dev_env/build/release_debian.sh --backend all --package all -y'
+```bash
+cd "$HOME/gitlab/ssa_consulta_rapida_pyqt6"
+bash dev_env/build/release_debian.sh --backend all --package all -y
 ```
 
 Contrato do fluxo:
@@ -102,7 +131,7 @@ Contrato do fluxo:
 - `-DryRun`/`--dry-run` deve validar ambiente e plano sem build nem pacote.
 - `release_windows.ps1` nao chama Bash/WSL.
 - `release_debian.sh` nao chama PowerShell, `.bat` ou Inno Setup.
-- `release_local.ps1` apenas orquestra os dois scripts e nao contem logica de build.
+- `release_local.ps1` e legado e nao faz parte do fluxo permitido da v4.47.
 
 ## Validacao Operacional 2026-03-10 (host macOS arm64)
 
@@ -131,8 +160,8 @@ Este guia descreve como gerar pacotes para distribuicao em Windows, macOS e Debi
 usando o fluxo canonico atual.
 
 Nota Debian:
-- no baseline atual, Debian usa pacote ZIP canonico.
-- `.deb` e AppImage ficam como etapa manual de release por arquitetura.
+- no baseline atual, Debian usa `.deb` como pacote padrao no wrapper de release.
+- AppImage e tar continuam disponiveis por arquitetura quando suportados pela matriz.
 - scripts disponiveis para AMD64 e ARM64 ficam em `dev_env/build/package_debian_*`.
 
 ## Build Canonico
@@ -211,8 +240,9 @@ uv run --python 3.13 scripts/create_distribution.py --build-system pyoxidizer --
 ```
 
 Importante:
-- `nuitka` e `pyoxidizer` estao mantidos como trilha experimental neste ciclo.
-- Para release operacional, usar PyInstaller como padrao.
+- Para Windows/Debian protegido, usar Nuitka como padrao.
+- Para macOS ARM64, usar PyInstaller + DMG.
+- `pyoxidizer` permanece opcional e deve passar protecao de fonte antes de qualquer publicacao.
 
 ### 4) Criar .deb e AppImage Debian manualmente
 
@@ -315,7 +345,7 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 - `reports`
 - `exportacao`
 
-Politica operacional (v4.37+):
+Politica operacional (v4.43+):
 - build canonico nao embeda `data/` por padrao.
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
   - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
@@ -333,7 +363,7 @@ Politica operacional (v4.37+):
 Texto sugerido:
 
 ```text
-SSA Consulta Rapida v4.37
+SSA Consulta Rapida v4.43
 
 INSTALACAO
 1. Baixe o arquivo ZIP.

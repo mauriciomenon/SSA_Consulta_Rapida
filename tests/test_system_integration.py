@@ -42,7 +42,10 @@ def test_validate_local_open_target_rejects_symlink_escape(tmp_path):
     target = blocked / "file.txt"
     target.write_text("x", encoding="utf-8")
     symlink = allowed / "linked.txt"
-    symlink.symlink_to(target)
+    try:
+        symlink.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
 
     with pytest.raises(ValueError, match="fora da base permitida"):
         system_integration.validate_local_open_target(
@@ -118,6 +121,12 @@ def test_open_allowed_url_requires_https_and_allowed_host():
         qurl_cls=_Url,
         logger=_Logger,
     )
+    assert system_integration.open_allowed_url(
+        "https://apps.itaipu.gov.br/SAM_SMA_Reports/Reports.aspx",
+        qdesktopservices=_Desktop,
+        qurl_cls=_Url,
+        logger=_Logger,
+    )
     assert not system_integration.open_allowed_url(
         "https://example.com/SAM_SMA/",
         qdesktopservices=_Desktop,
@@ -130,4 +139,7 @@ def test_open_allowed_url_requires_https_and_allowed_host():
         qurl_cls=_Url,
         logger=_Logger,
     )
-    assert opened == ["https://osprd.itaipu/SAM_SMA/"]
+    assert opened == [
+        "https://osprd.itaipu/SAM_SMA/",
+        "https://apps.itaipu.gov.br/SAM_SMA_Reports/Reports.aspx",
+    ]

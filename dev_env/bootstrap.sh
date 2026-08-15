@@ -2,6 +2,10 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${PROJECT_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$PROJECT_ROOT" || exit 1
+ssa_native_guard_tools git || exit 1
 cd "$PROJECT_ROOT"
 
 export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"

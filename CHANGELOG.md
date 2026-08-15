@@ -2,10 +2,152 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased] - 2026-04-15
+## [Unreleased]
+
+## [v4.47] - 2026-08-09
 
 ### Changed
-- Local top on `dev` after baseline `4.37`:
+- Quick executor-sector selector now shows `...` when more than one sector is active.
+- Quick status include/exclude/neutral state now remains synchronized with active, column and advanced filters.
+- Search cache is active on the real GUI DataFrame and survives visual-only refreshes.
+- Nullable exact-search and range masks are normalized before boolean composition.
+- SQLite recovery preserves the canonical SSA table, functional columns and auxiliary tables.
+- Runtime/build snapshots use the SQLite backup API and include active WAL data.
+- Fully rejected imports now receive deterministic classification across direct and rescan paths.
+- Windows release orchestration is native-only; Linux release uses a native Linux clone.
+- SQLite connections in active and maintenance paths close on exceptional exits.
+- Runtime and package metadata now identify stable release `4.47`.
+- `cleanup_ai_artifacts.ps1` now checks native `git rm` exit codes, records failures and reports when deletion could not be staged.
+- Functional CLI smoke now closes its verification connection before removing the temporary Windows database.
+- Exact SSA search now treats nullable Arrow values as non-matches instead of aborting the filter.
+
+### Notes
+- No database schema, application filter-operator or layout change.
+- This release consolidates the stable fixes introduced after `v4.45.2`, including the `v4.46` status-filter cycle.
+- No dependency jump was made without a reproduced security need.
+
+### Security
+- Updated locked `gitpython` from `3.1.57` to `3.1.58`, `python-multipart` from `0.0.28` to `0.0.31`, `setuptools` from `82.0.1` to `83.0.0` and `starlette` from `1.0.1` to `1.3.1`.
+- These are the minimum versions that clear the advisories reported by `pip-audit` in build, development and web dependency paths.
+
+### Validation
+- Critical database, import, release, filter, nullable and cache groups passed on native Windows.
+- `uv lock --check` and `pip-audit` passed without a known vulnerability.
+- Consolidated final suite, scanners and real packaged smoke are recorded before tagging.
+
+## [v4.46] - 2026-08-09
+
+### Changed
+- Quick SSA status buttons cycle through included, excluded (`!STATUS`) and neutral states.
+- Status-button state remains synchronized with active and advanced filter views.
+- Windows activation and test scripts received native path and portability hardening.
+
+### Dependency update cycle - 2026-07-15
+- Created local checkpoint tag `v4.45.1` at commit `d8c4033c6828f1ecde05f4f3140f137ee43d496f` before the dependency update slice. The tag is not published.
+- Completed the dependency audit with `uv tree --outdated`, `pip-audit`, Safety, `pip check`, and `uv lock --check`.
+- Current `uv.lock` contains PyPI artifact URLs only. Future lock regeneration must isolate the private Safety index configured outside the lock.
+- The audit found 69 distinct update candidates across runtime, build, development, web, and transitive dependencies. Updates will be applied in controlled slices, excluding major or high-risk pre-1.0 jumps.
+- Clawpatch was not allowed to include the dirty tree; its fallback broad review was interrupted and produced no applied changes. Vulture findings remain ignored as false positives.
+- Completed the first controlled lock slice in commit `afcc46da32874d93c7a6ecb8f263f35a04c34aae` (`STABILITY_PATCH: update selected dependency lock`, 2026-07-15 12:26:56 -0300). Direct updates cover `idna`, PyQt6, Nuitka, PyInstaller, Black, Filelock, Isort, Mypy, Pytest, Ruff, and Virtualenv.
+- Mypy and Virtualenv required the transitive updates `ast-serialize 0.6.0`, `librt 0.13.0`, `pyinstaller-hooks-contrib 2026.6`, and `python-discovery 1.4.4`. Click `8.4.2` and Pillow `12.3.0` are also present from the previous authorized lock update.
+- Full validation passed: `2526 passed, 6 skipped, 2 warnings, 11 subtests passed`; all lock, type, lint, package integrity, security, import, PyInstaller, and Nuitka checks passed.
+- Remaining major, high-risk pre-1.0, and Streamlit-discrepancy candidates remain deferred.
+
+## [v4.45] - 2026-07-11 - HARDENING PYQT6 (ESTABILIZACAO RECUPERADA)
+
+### Recovery and stabilization - 2026-07-12
+- Archived and removed the interrupted, uncommitted Cycle 4 mixin/XLSX patch before applying any forward fix.
+- Kept Theme/Event/Display mixin extraction deferred; event, resize, theme and headless behavior remain in the stable implementation.
+- Window close now remains refused until every owned or retired worker has actually stopped; native Qt deletion is classified without forced termination.
+- PaiApi cancellation is terminal through staging and SQLite import, with ownership retained until native thread completion and no success signal after cancel.
+- SQLite progress cancellation is classified with `SQLITE_INTERRUPT=9`; DataLoader distinguishes expected cancellation from callback or startup failures.
+- AdvancedOptions rejects stale generations and does not rebuild controls while a user selection is waiting for the apply timer.
+- Derivadas completion is exactly once, including timeout followed by a late result.
+- XLSX limits are canonical across extractor, staging, PAI, robust importer, Derivadas, CLI and trusted full rescan: 64 external files, 128 MiB per file, 1 GiB per batch and 1 GiB expanded ZIP content per file.
+- Details refresh uses a bounded fingerprint sample when a data revision token is available, while preserving the exact full hash path without a token.
+- Global filter clear now synchronizes quick status buttons; silent fallback failures in touched runtime paths are logged.
+- Dead-code review removed only the obsolete Derivadas lock allocation; Qt callbacks, slots, eventFilter, resize and dynamic theme binding were retained.
+
+### Changed
+- Promoted local baseline to `4.45` as start of hardening PyQt6 refactor cycle.
+- Synchronized runtime metadata in `VERSION`, `config/version.json`, `pyproject.toml` and `uv.lock`.
+- Detailed plan attached at `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
+
+### P0 - Critical races fixed (4 HOTFIX_BLOCKER commits)
+- `97c70fee` Explicit shutdown() prevents QThread destroyed warning and PaiApi use-after-free.
+- `77da4621` SQLite progress_handler cancellation makes long queries interruptible.
+- `33ab54a4` PaiApiRefreshWorker cancel() + cleanup stops ThreadPoolExecutor and subprocesses on close.
+- `32688ed4` Advanced filter options computation moved off GUI thread (was blocking event loop).
+
+### P1 - Performance/cancel/dedup (6 STABILITY_PATCH + 1 HOTFIX_BLOCKER)
+- `f7be4429` ListExportWorker cancellable on shutdown.
+- `1753b897` FilterWorker snapshots df_completo (shallow copy) to prevent pandas data race.
+- `161f6355` busy_timeout=5000 on read connections prevents database locked under schema changes.
+- `a415a9df` Unified 5 duplicate _quote_identifier copies into shared identifier_utils.quote_identifier.
+- `cf6ee9d4` XLSX import limits enforced (64 files, 128 MiB each, 1 GiB batch).
+- `28773ef3` Fixed derivadas_sync timeout-vs-delivery race (late results no longer lost).
+
+### P2 - Cleanup (5 commits)
+- `5f0f52b6` Removed 10 confirmed dead files (1119 lines deleted).
+- `389cb892` Removed dead rescan_button widget.
+- `76f4c025` Removed 4 empty debug placeholders from tests/.
+- `02d1e22c` Documented retrocompat shims as removal candidates.
+- `ae55f60c` Narrowed except Exception to RuntimeError/AttributeError in shutdown paths.
+- `33dc6837` Replaced silent except pass in PaiApi cancel with logged RuntimeError (bandit B110).
+
+### P3 - God Class decomposition - DEFERRED
+- Extraction of Theme/Event/Display mixins degenerated into local patchwork
+  (8+ module-global dependencies per mixin). Deferred by user decision.
+- See `docs/HARDENING_PYQT6_V4_45_PLAN.md` Ciclo 4 section for future approaches.
+
+### Deferred items (with technical justification)
+- Slice 2.5/2.6 (unify SSA normalization / date parsing): 3 sources have different
+  contracts (storage strict vs display compat). Requires product decision.
+- Slice 3.3 (consolidate v1/v2 scripts): v1 referenced by test_stream_log_wrapper_guards.
+- Slice 3.4 (unify Qt stubs): qt_stubs.py and headless_qt_stubs.py are complementary,
+  not duplicates. Broad refactor of 7+ modules.
+- Full except Exception triage (770 occurrences): only critical paths narrowed.
+
+### Validation
+- `ruff check .`: All checks passed.
+- `ty check`: All checks passed (on touched files).
+- `semgrep` p/python + p/owasp-top-ten: 0 findings on 15 touched files.
+- `bandit`: 0 issues on touched files (1 B110 fixed).
+- Focused pytest: 1000+ tests passed across database, GUI, PaiApi, filter, derivadas suites.
+- XLSX focused validation: 137 tests passed; trusted preflight scanned 1767 files / 538283881 bytes in 0.378 s with no material RSS increase.
+- AdvancedOptions/Derivadas caller validation: 588 tests passed and 1 skipped.
+- Real GUI smoke loaded 96028 rows and validated pagination, simple/advanced filters, clear, details, links, Derivadas graph, theme, resize and native close.
+- Five-run medians after the GUI performance fix: render 0.278 s, simple filter 0.238 s, advanced filter 0.238 s, details 0.011 s; RSS improved by about 29 MiB.
+- `pip-audit`, gitleaks and verified-only trufflehog: no vulnerabilities or verified leaks.
+- Preserved `v4.36` as the latest published remote tag.
+
+## [v4.44] - 2026-07-06
+
+### Changed
+- Promoted local active baseline to `4.44`.
+- Synchronized runtime metadata in `VERSION`, `config/version.json`, `pyproject.toml` and `uv.lock`.
+- Fixed local validation gates for the v4.44 baseline:
+  - `scripts/run_tests.sh` no longer depends on Bash `mapfile`, preserving macOS system Bash compatibility.
+  - `tests/test_gui_stability.py` now accepts official `data_cadastro` header variants.
+- Preserved `v4.36` as the latest published remote tag.
+
+### Validation
+- `bash -n scripts/run_tests.sh`
+- `shellcheck scripts/run_tests.sh`
+- `ruff check .`
+- `pytest -q tests`: `2455 passed, 6 skipped, 2 warnings, 11 subtests passed`
+
+## [v4.43+ local] - 2026-06-27
+
+### Changed
+- Local top on `dev` after baseline `4.43`:
+  - Advanced filter option refresh now skips the cache helper entirely on clean cache hits, while dirty refresh still recomputes values.
+  - Filter worker cancel/race coverage now includes a real `QThread` cancel while `apply_general_search_terms()` is running.
+  - Advanced filter mask failures now keep the displayed dataframe and `filtered_status_label` count in sync instead of showing `0 de 0 SSAs`.
+  - Runtime metadata, packaging test expectations and active documentation now point to `4.43`.
+  - Persistent saved filters materialize visible advanced filter selections before deduplication.
+  - Deleted Qt `FilterWorker` shutdown is treated as benign cleanup instead of a warning.
+  - Previous local-top notes after `4.37` remain historical context below.
   - SSA detail popup keeps lower derivadas/relacionadas area with more usable height.
   - fallback graph without DB now includes the direct parent, avoiding incomplete local hierarchy rendering.
   - local detail navigation keeps `ssa:` clicks in the details context without rewriting global search text.
@@ -20,7 +162,18 @@ All notable changes to this project are documented in this file.
   - importacao explicita por arquivo
 - GUI agora recarrega os dados automaticamente apos alteracao valida do banco em importacao ou reescaneamento.
 
+### Deferred
+- Deep-copy reduction in filter caches remains deferred because current contracts require mutation isolation for cached and returned dataframes.
+- Derivadas tree vectorization remains deferred: the tested vectorized attempt was slower than the existing `itertuples()` path on the local 50k-row benchmark.
+- `has_post_search_filters` naming/semantics remains deferred because current tests intentionally distinguish terminal-only refresh from general-search sort deferral.
+
 ### Validation
+- Filtros/cache/GUI validation on the local `v4.43+` cycle:
+  - `tests/test_scenario_filter_refresh_mixin_qt.py`: `8 passed`
+  - `tests/test_contract_filter_worker_cancel_race.py`: `6 passed`
+  - advanced options cache/dirty suite: `41 passed`
+  - performance smoke: `4 passed, 1 deselected`
+  - combined non-performance slice smoke: `17 passed, 4 deselected`
 - Runtime visual checks executed with programmatic PyQt rendering:
   - popup details
   - derivadas/relacionadas graph
@@ -30,6 +183,23 @@ All notable changes to this project are documented in this file.
   - `ruff`
   - `ty`
   - focused `pytest` on GUI detail navigation, popup graph, and import-trigger contracts
+
+## [v4.43] - 2026-06-27
+
+### Changed
+- Promoted local active baseline to `4.43`.
+- Synchronized runtime metadata in `VERSION`, `config/version.json`, `pyproject.toml` and `uv.lock`.
+- Aligned active docs and packaging-related tests to versioned names `v4.43`.
+- Reserved local tag `v4.43` before functional GUI/filter/cache stabilization slices.
+
+## [v4.42] - 2026-06-11
+
+### Changed
+- Promoted local active baseline to `4.42`.
+- Synchronized runtime metadata in `VERSION`, `config/version.json` and `pyproject.toml`.
+- Aligned active docs and packaging-related tests to versioned names `v4.42`.
+- Saved filters now capture pending advanced UI selections before duplicate detection.
+- Filter worker shutdown no longer logs benign deleted Qt wrapper errors as warnings.
 
 ## [v4.37] - 2026-04-01
 

@@ -91,6 +91,8 @@ def stage_external_import_files(
     project_root: str | os.PathLike[str],
     docs_dir: str | os.PathLike[str] | None = None,
     source_files: Sequence[str | os.PathLike[str]],
+    progress_offset: int = 0,
+    progress_total: int | None = None,
     should_cancel: CancelCallback | None = None,
     output_callback: LineCallback | None = None,
     error_callback: LineCallback | None = None,
@@ -106,12 +108,28 @@ def stage_external_import_files(
     )
     docs_path.mkdir(parents=True, exist_ok=True)
 
+    from extracao.extractor import ExtractionError, validate_excel_import_limits
+
+    try:
+        validate_excel_import_limits(
+            source_files,
+            inspect_archives=False,
+            ignore_unavailable=True,
+        )
+    except ExtractionError as exc:
+        raise ValueError(str(exc)) from exc
+
     reserved_paths = {
         os.path.abspath(str(path)) for path in docs_path.iterdir() if path.is_file()
     }
     summary = empty_external_staging_summary()
     staged_files: list[str] = []
+    copied_staged_files: list[str] = []
     total_sources = len(source_files)
+    normalized_progress_offset = max(int(progress_offset), 0)
+    normalized_progress_total = max(
+        int(progress_total or total_sources), total_sources
+    )
     explicit_allowed_files = _normalize_explicit_allowed_files(source_files)
 
     for index, raw_source in enumerate(tuple(source_files), start=1):
@@ -121,7 +139,12 @@ def stage_external_import_files(
         if not source:
             summary["skipped"] += 1
             continue
-        _emit_stage_prepare(output_callback, source=source, index=index, total=total_sources)
+        _emit_stage_prepare(
+            output_callback,
+            source=source,
+            index=normalized_progress_offset + index,
+            total=normalized_progress_total,
+        )
         try:
             validated_source = validate_external_source_path(
                 source,
@@ -154,8 +177,23 @@ def stage_external_import_files(
             if cancelled:
                 break
             if staged_file:
+                try:
+                    validate_excel_import_limits(
+                        (staged_file,),
+                        reject_invalid_archives=False,
+                    )
+                except ExtractionError as exc:
+                    if was_copied:
+                        _remove_destination(
+                            Path(staged_file),
+                            error_callback=error_callback,
+                            context="apos rejeicao por limite",
+                            ignore_missing=True,
+                        )
+                    raise ValueError(str(exc)) from exc
                 staged_files.append(staged_file)
                 if was_copied:
+                    copied_staged_files.append(staged_file)
                     summary["copied"] += 1
                 else:
                     summary["already_staged"] += 1
@@ -165,6 +203,18 @@ def stage_external_import_files(
                 error_callback,
                 f"Falha ao copiar arquivo externo '{validated_source}': {exc}",
             )
+
+    try:
+        validate_excel_import_limits(staged_files, inspect_archives=False)
+    except ExtractionError as exc:
+        for copied_file in copied_staged_files:
+            _remove_destination(
+                Path(copied_file),
+                error_callback=error_callback,
+                context="apos rejeicao do lote",
+                ignore_missing=True,
+            )
+        raise ValueError(str(exc)) from exc
 
     summary["staged"] = len(staged_files)
     _emit_stage_summary(output_callback, summary)

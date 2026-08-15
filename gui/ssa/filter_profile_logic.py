@@ -235,7 +235,9 @@ def _normalize_any_filter_groups(
     for group in any_section:
         if not isinstance(group, dict):
             continue
-        raw_columns = group.get("columns") if isinstance(group.get("columns"), list) else []
+        raw_columns: list[Any] = (
+            group.get("columns") if isinstance(group.get("columns"), list) else []
+        )
         group_columns = tuple(
             normalized
             for column in raw_columns

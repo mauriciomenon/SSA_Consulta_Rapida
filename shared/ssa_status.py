@@ -30,6 +30,17 @@ SSA_STATUS_DESCRIPTIONS = {
     "STE": "Servico Terminado",
 }
 
+SSA_STATUS_CODES = frozenset(SSA_STATUS_DESCRIPTIONS) | {"ALE", "ASL", "SCC"}
+SSA_ACCEPTED_STATUS_VALUES = SSA_STATUS_CODES | {
+    "ABERTA",
+    "ABERTO",
+    "EM ANDAMENTO",
+    "EM_ANALISE",
+    "EM_EXECUCAO",
+    "EXECUTADA",
+    "FECHADA",
+}
+
 
 def get_status_code(value) -> str:
     text = str(value or "").strip()

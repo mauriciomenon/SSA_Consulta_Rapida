@@ -102,12 +102,16 @@ def import_prepared_pai_xlsx(
     stage_files: StageFunction = stage_external_import_files,
     import_files: ImportFunction = import_explicit_files_to_database,
     count_rows: RowCountFunction = count_imported_ssa_rows,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> PaiImportResult:
+    if should_cancel is not None and should_cancel():
+        raise InterruptedError("PAI import cancelled before staging")
     rows_before_import = count_rows(db_path)
     staged_files, summary = stage_files(
         project_root=request.project_root,
         docs_dir=docs_dir,
         source_files=(str(preview.import_xlsx_path),),
+        should_cancel=should_cancel,
     )
     if not staged_files:
         return PaiImportResult(
@@ -122,12 +126,17 @@ def import_prepared_pai_xlsx(
             rows_after_import=None,
             xlsx_summary=preview.xlsx_summary,
         )
+    if should_cancel is not None and should_cancel():
+        raise InterruptedError("PAI import cancelled before database import")
     imported = import_files(
         staged_files,
         docs_dir=str(docs_dir),
         db_path=str(db_path),
         raise_on_error=False,
+        should_cancel=should_cancel,
     )
+    if should_cancel is not None and should_cancel():
+        raise InterruptedError("PAI import cancelled during database import")
     rows_after_import = count_rows(db_path)
     return PaiImportResult(
         export=preview.export,
@@ -152,8 +161,13 @@ def fetch_and_import_pai_xlsx(
     stage_files: StageFunction = stage_external_import_files,
     import_files: ImportFunction = import_explicit_files_to_database,
     count_rows: RowCountFunction = count_imported_ssa_rows,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> PaiImportResult:
+    if should_cancel is not None and should_cancel():
+        raise InterruptedError("PAI import cancelled before fetch")
     preview = _fetch_and_normalize_pai_xlsx(request, docs_dir=docs_dir)
+    if should_cancel is not None and should_cancel():
+        raise InterruptedError("PAI import cancelled after fetch")
     if fetch_only:
         return preview_only_pai_import_result(preview)
 
@@ -165,6 +179,7 @@ def fetch_and_import_pai_xlsx(
         stage_files=stage_files,
         import_files=import_files,
         count_rows=count_rows,
+        should_cancel=should_cancel,
     )
 
 

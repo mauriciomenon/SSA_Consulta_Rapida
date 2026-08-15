@@ -41,100 +41,10 @@ class ReleaseReportError(RuntimeError):
 
 SCORECARD_FILE = pathlib.Path(__file__).with_name("backend_scorecards.json")
 TARGETS_FILE = pathlib.Path(__file__).with_name("release_targets.json")
-DEFAULT_TARGETS: dict[str, Any] = {
-    "schema_version": 1,
-    "backends": [
-        {
-            "name": "pyinstaller",
-            "order": 1,
-            "windows_amd64": True,
-            "debian_amd64": True,
-            "debian_arm64": True,
-        },
-        {
-            "name": "nuitka",
-            "order": 2,
-            "windows_amd64": True,
-            "debian_amd64": True,
-            "debian_arm64": True,
-        },
-        {
-            "name": "pyoxidizer",
-            "order": 3,
-            "windows_amd64": True,
-            "debian_amd64": True,
-            "debian_arm64": True,
-        },
-    ],
-    "packages": [
-        {"name": "deb", "order": 1, "debian_amd64": True, "debian_arm64": True},
-        {
-            "name": "appimage",
-            "order": 2,
-            "debian_amd64": True,
-            "debian_arm64": True,
-        },
-        {"name": "tar", "order": 3, "debian_amd64": True, "debian_arm64": True},
-        {"name": "zip", "order": 4, "windows_amd64": True},
-    ],
-    "unsupported_pairs": [
-        {
-            "platform": "debian_amd64",
-            "backend": "pyoxidizer",
-            "package": "appimage",
-            "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais.",
-        },
-        {
-            "platform": "debian_arm64",
-            "backend": "pyoxidizer",
-            "package": "appimage",
-            "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais.",
-        }
-    ],
-    "asset_name_templates": {
-        "debian_amd64": {
-            "deb": "ssa-consulta-rapida-{backend}-amd64_{app_version}_amd64.deb",
-            "appimage": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.AppImage",
-            "tar_split": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}_{app}.tar.gz",
-            "tar_single": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.tar.gz",
-        },
-        "debian_arm64": {
-            "deb": "ssa-consulta-rapida-{backend}-arm64_{app_version}_arm64.deb",
-            "appimage": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.AppImage",
-            "tar_split": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}_{app}.tar.gz",
-            "tar_single": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.tar.gz",
-        },
-    },
-}
-DEFAULT_SCORECARDS: dict[str, dict[str, object]] = {
-    "nuitka": {
-        "easy_user_dirs_score": 4,
-        "note": "Melhor protecao do codigo protegido por compilacao nativa; build mais lento.",
-        "package_size_score": 3,
-        "protected_release": True,
-        "security_score": 4,
-        "source_protection_score": 4,
-    },
-    "pyinstaller": {
-        "easy_user_dirs_score": 5,
-        "note": "Alta compatibilidade; nao e artefato protegido sem obfuscation.",
-        "package_size_score": 4,
-        "protected_release": False,
-        "security_score": 2,
-        "source_protection_score": 2,
-    },
-    "pyoxidizer": {
-        "easy_user_dirs_score": 3,
-        "note": "Empacotamento forte, mas requer embedding sem fonte Python exposta.",
-        "package_size_score": 2,
-        "protected_release": False,
-        "security_score": 3,
-        "source_protection_score": 3,
-    },
-}
 PACKAGE_ASSET_SUFFIXES: dict[str, tuple[str, ...]] = {
     "appimage": (".AppImage",),
     "deb": (".deb",),
+    "dmg": (".dmg",),
     "tar": (".tar.gz",),
     "zip": (".zip", ".exe", ".msi"),
 }
@@ -142,29 +52,16 @@ PACKAGE_ASSET_SUFFIXES: dict[str, tuple[str, ...]] = {
 
 @functools.lru_cache(maxsize=1)
 def _load_scorecards() -> dict[str, dict[str, object]]:
-    try:
-        payload = json.loads(SCORECARD_FILE.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        logger.warning(
-            "Falha ao carregar %s; usando defaults: %s",
-            SCORECARD_FILE,
-            exc,
-        )
-        return DEFAULT_SCORECARDS
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning(
-            "Falha ao carregar %s; usando defaults: %s",
-            SCORECARD_FILE,
-            exc,
-        )
-        return DEFAULT_SCORECARDS
+    payload = _read_json(SCORECARD_FILE)
     if not isinstance(payload, dict):
-        logger.warning("%s invalido; usando defaults.", SCORECARD_FILE)
-        return DEFAULT_SCORECARDS
+        raise ReleaseReportError(f"{SCORECARD_FILE} invalido")
+    for backend, scorecard in payload.items():
+        if not isinstance(backend, str) or not isinstance(scorecard, dict):
+            raise ReleaseReportError(f"{SCORECARD_FILE} contem scorecard invalido")
     return payload
 
 
-def _read_json(path: pathlib.Path) -> dict[str, Any]:
+def _read_json(path: pathlib.Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -195,6 +92,18 @@ def _target_records(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
     return sorted(checked, key=lambda item: int(item["order"]))
 
 
+def _platform_names(*groups: list[dict[str, Any]]) -> set[str]:
+    names: set[str] = set()
+    for records in groups:
+        for record in records:
+            names.update(
+                key
+                for key, enabled in record.items()
+                if key not in {"name", "order"} and enabled is True
+            )
+    return names
+
+
 def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
     if payload.get("schema_version") != 1:
         raise ReleaseReportError(f"schema_version invalido em {TARGETS_FILE}")
@@ -202,6 +111,17 @@ def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
     packages = _target_records(payload, "packages")
     backend_names = {str(item["name"]) for item in backends}
     package_names = {str(item["name"]) for item in packages}
+    platform_names = _platform_names(backends, packages)
+    _validate_unsupported_pairs(payload, backend_names, package_names, platform_names)
+    _validate_asset_name_templates(payload, platform_names)
+
+
+def _validate_unsupported_pairs(
+    payload: dict[str, Any],
+    backend_names: set[str],
+    package_names: set[str],
+    platform_names: set[str],
+) -> None:
     unsupported_pairs = payload.get("unsupported_pairs", [])
     if not isinstance(unsupported_pairs, list):
         raise ReleaseReportError(f"unsupported_pairs invalido em {TARGETS_FILE}")
@@ -220,13 +140,35 @@ def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
             raise ReleaseReportError(
                 f"unsupported_pairs exige platform e reason em {TARGETS_FILE}"
             )
+        if platform_name not in platform_names:
+            raise ReleaseReportError(
+                f"unsupported_pairs referencia platform desconhecido em {TARGETS_FILE}"
+            )
+
+
+def _required_asset_template_keys(platform_packages: list[str]) -> list[str]:
+    required_keys = [package for package in platform_packages if package != "tar"]
+    if "tar" in platform_packages:
+        required_keys.extend(["tar_split", "tar_single"])
+    return required_keys
+
+
+def _validate_asset_name_templates(
+    payload: dict[str, Any],
+    platform_names: set[str],
+) -> None:
     templates = payload.get("asset_name_templates", {})
     if templates and not isinstance(templates, dict):
         raise ReleaseReportError(f"asset_name_templates invalido em {TARGETS_FILE}")
     for platform_name, platform_templates in templates.items():
         if not isinstance(platform_name, str) or not isinstance(platform_templates, dict):
             raise ReleaseReportError(f"asset_name_templates contem item invalido em {TARGETS_FILE}")
-        for key in ("deb", "appimage", "tar_split", "tar_single"):
+        if platform_name not in platform_names:
+            raise ReleaseReportError(
+                f"asset_name_templates referencia platform desconhecido em {TARGETS_FILE}"
+            )
+        platform_packages = _enabled_target_names(payload, "packages", platform_name)
+        for key in _required_asset_template_keys(platform_packages):
             value = platform_templates.get(key)
             if not isinstance(value, str) or not value:
                 raise ReleaseReportError(
@@ -235,17 +177,10 @@ def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
 
 
 def _load_release_targets() -> dict[str, Any]:
-    try:
-        payload = _read_json(TARGETS_FILE)
-        _validate_release_targets_payload(payload)
-    except ReleaseReportError as exc:
-        logger.warning(
-            "Falha ao carregar %s; usando defaults: %s",
-            TARGETS_FILE,
-            exc,
-        )
-        payload = DEFAULT_TARGETS
-        _validate_release_targets_payload(payload)
+    payload = _read_json(TARGETS_FILE)
+    if not isinstance(payload, dict):
+        raise ReleaseReportError(f"{TARGETS_FILE} invalido: raiz JSON deve ser objeto")
+    _validate_release_targets_payload(payload)
     return payload
 
 
@@ -424,12 +359,35 @@ def _expected_debian_asset_names(
     return names
 
 
+def _expected_macos_asset_names(
+    backends: list[str],
+    packages: list[str],
+    app_version: str,
+    platform_name: str = "macos_arm64",
+) -> set[str]:
+    templates = _load_release_targets().get("asset_name_templates", {}).get(platform_name, {})
+    if not isinstance(templates, dict) or not templates:
+        templates = {
+            "dmg": "SSA_Consulta_Rapida_v{app_version}_{platform_name}.dmg",
+        }
+    names: set[str] = set()
+    if "pyinstaller" in backends and "dmg" in packages:
+        names.add(
+            templates["dmg"].format(
+                app_version=app_version,
+                backend="pyinstaller",
+                platform_name=platform_name,
+            )
+        )
+    return names
+
+
 def _expected_asset_names(
     platform_name: str,
     backends: list[str],
     packages: list[str],
     app_version: str,
-) -> set[str] | None:
+) -> set[str]:
     if platform_name == "debian_amd64":
         return _expected_debian_asset_names(
             backends,
@@ -446,7 +404,14 @@ def _expected_asset_names(
             "debian_arm64",
             "arm64",
         )
-    return None
+    if platform_name == "macos_arm64":
+        return _expected_macos_asset_names(
+            backends,
+            packages,
+            app_version,
+            "macos_arm64",
+        )
+    raise ReleaseReportError(f"platform desconhecido no report: {platform_name}")
 
 
 def cmd_print_app_version(args: argparse.Namespace) -> int:
@@ -533,7 +498,7 @@ def write_report(args: argparse.Namespace) -> int:
         path
         for path in sorted(package_dir.iterdir())
         if path.is_file() and path.name.lower().endswith(asset_suffixes)
-        and (expected_asset_names is None or path.name in expected_asset_names)
+        and path.name in expected_asset_names
     ]
     if asset_paths:
         workers = min(4, len(asset_paths))

@@ -3226,7 +3226,11 @@ if REAL_RUNTIME and not raw_df.empty:
     with tab_export:
         st.subheader("Exportacao")
         export_left, export_right = st.columns([2.2, 1.8])
-        csv_data = view_df.to_csv(index=False).encode("utf-8")
+        from exportacao.exporter import sanitize_spreadsheet_cell
+        from exportacao.exporter import sanitize_spreadsheet_dataframe
+
+        safe_csv_df = sanitize_spreadsheet_dataframe(view_df)
+        csv_data = safe_csv_df.to_csv(index=False).encode("utf-8")
         with export_left:
             st.caption("Arquivos")
             st.download_button(
@@ -3264,7 +3268,7 @@ if REAL_RUNTIME and not raw_df.empty:
                         cell = ws.cell(
                             row=1,
                             column=col_num,
-                            value=rename_map.get(col_name, col_name),
+                            value=sanitize_spreadsheet_cell(rename_map.get(col_name, col_name)),
                         )
                         cell.font = Font(bold=True)
                         cell.fill = PatternFill(
@@ -3274,7 +3278,11 @@ if REAL_RUNTIME and not raw_df.empty:
                         view_df.itertuples(index=False), 2
                     ):
                         for col_num, value in enumerate(row_data, 1):
-                            ws.cell(row=row_num, column=col_num, value=value)
+                            ws.cell(
+                                row=row_num,
+                                column=col_num,
+                                value=sanitize_spreadsheet_cell(value),
+                            )
                     wb.save(buffer)
                     buffer.seek(0)
                     st.download_button(

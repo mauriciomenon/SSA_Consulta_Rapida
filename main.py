@@ -31,7 +31,7 @@ patch_pyoxidizer_pandas()
 # Suppress pandas FutureWarnings about chained assignment
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-logger: logging.Logger
+logger = logging.getLogger("ssa")
 # Logger level will be set by argument parsing - do not hardcode DEBUG
 _logging_configured = False
 _console_logging_level = logging.WARNING

@@ -76,8 +76,8 @@ class RescanProgressDialog(QDialog):
         layout.addWidget(self.output_text)
 
         # Error section
-        error_label = QLabel("Erros e Avisos:")
-        error_label.setStyleSheet("font-weight: bold; color: red;")
+        error_label = QLabel("Erros e avisos:")
+        error_label.setStyleSheet("font-weight: bold;")
         layout.addWidget(error_label)
 
         self.error_text = QTextEdit()
@@ -132,7 +132,22 @@ class RescanProgressDialog(QDialog):
             return
         percentage = max(0, min(100, int(percentage)))
         self.progress_bar.setValue(percentage)
-        self.status_label.setText(message)
+        status_message = str(message or "")
+        self.status_label.setText(status_message)
+        progress_detail = ""
+        for token in status_message.split():
+            candidate = token.strip(".,:;()")
+            if candidate.count("/") != 1:
+                continue
+            current, total = candidate.split("/", 1)
+            if current.isdigit() and total.isdigit():
+                progress_detail = f"{current}/{total}"
+                break
+        if not self._finished:
+            title = f"{self._operation_label} em andamento"
+            if progress_detail:
+                title = f"{title} - {progress_detail}"
+            self.setWindowTitle(title)
 
     def set_finished(self, success: bool, message: str = ""):
         """Mark process as finished."""

@@ -24,16 +24,73 @@ permissions:
   pull-requests: write
 
 jobs:
+  precheck-dependency-review:
+    runs-on: ubuntu-latest
+    outputs:
+      run_dependency_review: ${{ steps.detect.outputs.run_dependency_review }}
+      reason: ${{ steps.detect.outputs.reason }}
+    steps:
+      - name: Detect Dependency Review support
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          API_URL="${GITHUB_API_URL}/repos/${REPO}"
+          HTTP_CODE="$(curl -sS --connect-timeout 5 --max-time 10 -o repo.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}")"
+
+          RUN_DEPENDENCY_REVIEW="false"
+          REASON="dependency_review_unavailable"
+          if [ "${HTTP_CODE}" = "200" ]; then
+            IS_PRIVATE="$(jq -r 'if has("private") then .private else true end' repo.json)"
+            ADVANCED_SECURITY="$(jq -r '.security_and_analysis.advanced_security.status // "unavailable"' repo.json)"
+            if [ "${IS_PRIVATE}" != "true" ] || [ "${ADVANCED_SECURITY}" = "enabled" ]; then
+              RUN_DEPENDENCY_REVIEW="true"
+              REASON="dependency_review_supported"
+            else
+              REASON="private_repo_without_github_advanced_security"
+            fi
+          else
+            if [ -z "${HTTP_CODE}" ]; then
+              HTTP_CODE="000"
+            fi
+            echo "Dependency Review support probe failed: HTTP ${HTTP_CODE}" >&2
+            exit 1
+          fi
+
+          echo "run_dependency_review=${RUN_DEPENDENCY_REVIEW}" >> "${GITHUB_OUTPUT}"
+          echo "reason=${REASON}" >> "${GITHUB_OUTPUT}"
+
   dependency-review:
+    needs: precheck-dependency-review
+    if: ${{ needs.precheck-dependency-review.outputs.run_dependency_review == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout repository'
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: 'Dependency Review'
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         # Commonly enabled options, see https://github.com/actions/dependency-review-action#configuration-options for all available options.
         with:
           comment-summary-in-pr: always
-        #   fail-on-severity: moderate
+          fail-on-severity: moderate
         #   deny-licenses: GPL-1.0-or-later, LGPL-2.0-or-later
         #   retry-on-snapshot-warnings: true
+
+  dependency-review-skip-note:
+    needs: precheck-dependency-review
+    if: ${{ needs.precheck-dependency-review.outputs.run_dependency_review != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report Dependency Review skip
+        env:
+          DEPENDENCY_REVIEW_SKIP_REASON: ${{ needs.precheck-dependency-review.outputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "Dependency Review skipped."
+          echo "Reason: ${DEPENDENCY_REVIEW_SKIP_REASON}"

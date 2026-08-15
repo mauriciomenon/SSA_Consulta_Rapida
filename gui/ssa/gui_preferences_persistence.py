@@ -47,6 +47,7 @@ class PreferencesWriter:
         self._lock = threading.Lock()
         self._queue: queue.Queue[dict[Any, Any] | None] = queue.Queue()
         self._stopped = False
+        self._terminated = threading.Event()
         self._thread = threading.Thread(
             target=self._run,
             name="ssa-gui-prefs-writer",
@@ -59,7 +60,7 @@ class PreferencesWriter:
         with self._lock:
             if self._stopped:
                 return False
-            self._queue.put(gui_prefs)
+            self._queue.put(_snapshot_preferences(gui_prefs))
             return True
 
     @property
@@ -67,24 +68,31 @@ class PreferencesWriter:
         with self._lock:
             return self._stopped
 
+    @property
+    def is_terminated(self) -> bool:
+        return self._terminated.is_set()
+
     def _run(self) -> None:
-        while True:
-            prefs_snapshot = self._queue.get()
-            if prefs_snapshot is None:
-                self._queue.task_done()
-                return
-            try:
-                prefs_snapshot, stop_after_write = self._drain_latest_snapshot(
-                    prefs_snapshot
-                )
-                self._write_func(
-                    _snapshot_preferences(prefs_snapshot),
-                    retries=self._retries,
-                )
-            finally:
-                self._queue.task_done()
-            if stop_after_write:
-                return
+        try:
+            while True:
+                prefs_snapshot = self._queue.get()
+                if prefs_snapshot is None:
+                    self._queue.task_done()
+                    return
+                try:
+                    prefs_snapshot, stop_after_write = self._drain_latest_snapshot(
+                        prefs_snapshot
+                    )
+                    self._write_func(
+                        prefs_snapshot,
+                        retries=self._retries,
+                    )
+                finally:
+                    self._queue.task_done()
+                if stop_after_write:
+                    return
+        finally:
+            self._terminated.set()
 
     def _drain_latest_snapshot(
         self, prefs_snapshot: dict[str, Any]
@@ -138,20 +146,15 @@ _GUI_PREFERENCES_WRITER = PreferencesWriter(persist_gui_preferences, retries=1)
 
 def _get_gui_preferences_writer() -> PreferencesWriter:
     global _GUI_PREFERENCES_WRITER
-    writer_to_shutdown: PreferencesWriter | None = None
     with _GUI_PREFERENCES_WRITER_LOCK:
         if not _GUI_PREFERENCES_WRITER.is_stopped:
             return _GUI_PREFERENCES_WRITER
-        writer_to_shutdown = _GUI_PREFERENCES_WRITER
-
-    writer_to_shutdown.shutdown(timeout=None)
-
-    with _GUI_PREFERENCES_WRITER_LOCK:
-        if _GUI_PREFERENCES_WRITER is writer_to_shutdown:
-            _GUI_PREFERENCES_WRITER = PreferencesWriter(
-                persist_gui_preferences,
-                retries=1,
-            )
+        if not _GUI_PREFERENCES_WRITER.is_terminated:
+            return _GUI_PREFERENCES_WRITER
+        _GUI_PREFERENCES_WRITER = PreferencesWriter(
+            persist_gui_preferences,
+            retries=1,
+        )
         return _GUI_PREFERENCES_WRITER
 
 

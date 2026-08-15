@@ -10,9 +10,9 @@ class AdvancedFilterPanelParts:
     fields: dict
     controls: dict
     main_grid: Any
-    action_box: Any
-    apply_btn: Any
-    clear_btn: Any
+    action_box: Any | None
+    apply_btn: Any | None
+    clear_btn: Any | None
     controls_scroll: Any
 
 
@@ -22,10 +22,10 @@ class AdvancedFilterPanelState:
     main_grid: Any
     grid_widgets: dict[str, Any]
     grid_order: tuple[str, ...]
-    apply_btn: Any
-    clear_btn: Any
+    apply_btn: Any | None
+    clear_btn: Any | None
     metric_controls: tuple[Any, ...]
-    action_widget: Any
+    action_widget: Any | None
     controls_scroll: Any
     action_btn_dims: tuple[int, int] | None = None
     grid_cols: int | None = None

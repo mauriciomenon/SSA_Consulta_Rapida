@@ -1,19 +1,23 @@
 import warnings
 
 import pandas as pd
+import pytest
 
 from gui.ssa import gui_filters_advanced_logic as adv_logic
 from gui.ssa import gui_filters_advanced_state_reader as adv_state_reader
 from gui.ssa import gui_filters_advanced_ui as adv_ui
 from gui.ssa.filter_domain_rules import (
+    ADVANCED_FILTER_VISUAL_COLUMN_MAP,
     build_responsavel_sector_counts_by_column,
     build_responsavel_sector_counts,
+    generate_responsavel_sector_filter_cache_signature,
     order_responsavel_values,
     subset_by_sector_filters,
 )
 from gui.ssa.gui_filters_advanced_logic import (
     _apply_advanced_filters,
     _compute_years_from_data_cadastro,
+    _mask_any,
 )
 from gui.ssa.gui_filters_responsavel_state import (
     ResponsavelMaterializationState,
@@ -153,6 +157,30 @@ def test_subset_by_sector_filters_applies_include_and_exclude_once():
     assert filtered["numero_ssa"].tolist() == ["4"]
 
 
+def test_responsavel_sector_signature_tracks_in_place_sector_mutation():
+    df = pd.DataFrame(
+        {
+            "solicitante": ["Ana", "Bia"],
+            "setor_executor": ["IEE1", "MEL4"],
+            "setor_emissor": ["", ""],
+        }
+    )
+
+    before = generate_responsavel_sector_filter_cache_signature(
+        df,
+        data_load_token=None,
+        executor_include=["IEE1"],
+    )
+    df.loc[0, "setor_executor"] = "IEE2"
+    after = generate_responsavel_sector_filter_cache_signature(
+        df,
+        data_load_token=None,
+        executor_include=["IEE1"],
+    )
+
+    assert after != before
+
+
 def test_resolve_year_selection_sets_keeps_legacy_exclude_out_of_include():
     include, exclude = adv_state_reader.resolve_year_selection_sets(
         {"ano_execucao": 2025, "ano_execucao_exclude": True},
@@ -234,6 +262,17 @@ def test_apply_advanced_filters_applies_solicitante_filter_key():
     assert filtered["solicitante"].tolist() == ["Alice"]
 
 
+def test_mask_any_raises_context_instead_of_returning_false():
+    class BrokenMask:
+        def any(self):
+            raise ValueError("mask backend failed")
+
+    with pytest.raises(RuntimeError, match="after reprogramacoes") as excinfo:
+        _mask_any(BrokenMask(), "after reprogramacoes")
+
+    assert isinstance(excinfo.value.__cause__, ValueError)
+
+
 def test_apply_advanced_filters_accepts_legacy_solicitante_key_alias():
     window = _DummyWindow({"responsavel_solicitante": ["Alice"]})
     df = pd.DataFrame(
@@ -258,7 +297,45 @@ def test_has_active_advanced_filters_detects_reprogramacoes_filter():
         "num_reprogramacoes_mode": "eq",
         "num_reprogramacoes_values": ["2"],
     }
+
     assert adv_ui._has_active_advanced_filters(None, data) is True
+
+
+def test_derivadas_tree_keeps_first_parent_for_duplicate_child(caplog):
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202600101", "202600101"],
+            "derivada_de": ["202600001", "202600002"],
+        }
+    )
+    state = adv_logic.AdvancedFilterState(_DummyWindow({}))
+
+    mae_filhas, filha_mae = adv_logic._build_derivadas_tree_core(
+        df,
+        "numero_ssa",
+        "derivada_de",
+        state,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+    )
+
+    assert filha_mae["202600101"] == "202600001"
+    assert mae_filhas["202600001"] == ["202600101"]
+    assert "202600002" not in mae_filhas
+    assert "Duplicate derivada child 202600101" in caplog.text
+
+
+def test_normalize_derivada_relation_series_preserves_index_and_invalid_tokens():
+    series = pd.Series(
+        ["202600101", None, pd.NA, "nan", "202600101.0", "101"],
+        index=[10, 20, 30, 40, 50, 60],
+        dtype="object",
+    )
+
+    normalized = adv_logic._normalize_derivada_relation_series(series)
+
+    assert normalized.index.tolist() == [10, 20, 30, 40, 50, 60]
+    assert normalized.tolist() == ["202600101", "", "", "", "", "101"]
 
 
 def test_apply_advanced_filters_emissao_week_keys_filter_cadastro_week_column():
@@ -280,6 +357,38 @@ def test_apply_advanced_filters_emissao_week_keys_filter_cadastro_week_column():
         notice_callback=None,
     )
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500002"]
+
+
+@pytest.mark.parametrize("dtype", ["Int64", "string[pyarrow]"])
+def test_excluded_week_range_keeps_nullable_rows(dtype):
+    if dtype == "string[pyarrow]":
+        pytest.importorskip("pyarrow")
+        values = ["202501", None, "202503"]
+    else:
+        values = [202501, None, 202503]
+    window = _DummyWindow(
+        {
+            "semana_emissao_inicio": 202501,
+            "semana_emissao_fim": 202502,
+            "semana_emissao_exclude": True,
+        }
+    )
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "semana_cadastro": pd.Series(values, dtype=dtype),
+        }
+    )
+
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+
+    assert filtered["numero_ssa"].tolist() == ["202500002", "202500003"]
 
 
 def test_apply_advanced_filters_applies_priority_filter_with_grau_columns():
@@ -318,6 +427,22 @@ def test_apply_advanced_filters_applies_ano_execucao_from_semana_executada():
         notice_callback=None,
     )
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500003"]
+
+
+def test_advanced_execution_filters_map_to_semana_executada_visually():
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["ano_execucao"] == ("semana_executada",)
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["ano_execucao_values"] == (
+        "semana_executada",
+    )
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["ano_execucao_exclude_values"] == (
+        "semana_executada",
+    )
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["semana_execucao_inicio"] == (
+        "semana_executada",
+    )
+    assert ADVANCED_FILTER_VISUAL_COLUMN_MAP["semana_execucao_fim"] == (
+        "semana_executada",
+    )
 
 
 def test_apply_advanced_filters_supports_legacy_ano_emissao_key():

@@ -1,5 +1,12 @@
 # CHANGELOG DE IMPLEMENTACOES
 
+## 2026-08-09 - Release v4.47 (filtros, cache e integridade)
+- Barra rapida de situacao alterna inclusao, exclusao (`!STATUS`) e estado neutro sem novo operador.
+- Estado visual fica sincronizado com filtros ativos, por coluna e avancados; multiplos setores exibem `...`.
+- Cache normalizado atua no DataFrame real e sobrevive a refresh apenas visual.
+- Mascaras nullable, recovery canonico, WAL ativo, classificacao de importacao e conexoes SQLite foram endurecidos.
+- Release Windows e Linux usa harness, clone e venv nativos separados; WSL fica restrito ao CodeRabbit.
+
 ## 2026-03-02 - Release v4.29 (tema geral + legibilidade)
 - Baseline de release patch atualizado:
   - `VERSION` para `4.29`
@@ -68,4 +75,3 @@
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

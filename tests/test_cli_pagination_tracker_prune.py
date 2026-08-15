@@ -61,3 +61,49 @@ def test_pagination_state_survives_dataframe_copy_via_attrs_key():
 
     df_copy = df.copy()
     assert cli._next_page_for(df_copy) == 3
+
+
+def test_next_page_for_missing_next_page_restarts_from_first_page():
+    cli.CLI_PAGINATION_TRACKER.clear()
+    df = pd.DataFrame({"numero_ssa": ["202500001"]})
+    cli._update_pagination_state(
+        df,
+        {
+            "total_pages": 5,
+            "rendered_pages": 2,
+            "page_size": 20,
+        },
+    )
+
+    assert cli._next_page_for(df) == 0
+
+
+def test_last_rendered_page_for_missing_rendered_pages_restarts_from_first_page():
+    cli.CLI_PAGINATION_TRACKER.clear()
+    df = pd.DataFrame({"numero_ssa": ["202500001"]})
+    cli._update_pagination_state(
+        df,
+        {
+            "next_page": None,
+            "total_pages": 5,
+            "page_size": 20,
+        },
+    )
+
+    assert cli._last_rendered_page_for(df) == 0
+
+
+def test_last_rendered_page_for_finished_state_uses_rendered_page_count():
+    cli.CLI_PAGINATION_TRACKER.clear()
+    df = pd.DataFrame({"numero_ssa": ["202500001"]})
+    cli._update_pagination_state(
+        df,
+        {
+            "next_page": None,
+            "total_pages": 5,
+            "rendered_pages": 2,
+            "page_size": 20,
+        },
+    )
+
+    assert cli._last_rendered_page_for(df) == 3

@@ -2,6 +2,30 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
+## **RELEASE v4.47 - STABLE**
+
+**Data de Lancamento**: 9 de agosto de 2026
+**Tipo**: Stable maintenance release
+**Status**: Release estavel
+
+### **Principais entregas**
+- Atalhos de situacao alternam entre inclusao, exclusao (`!STATUS`) e estado neutro.
+- Filtros combinados aceitam estados positivos e negativos, como `SCA SPG !APG`.
+- Se mais de um setor executor estiver ativo, o seletor rapido mostra `...`.
+- Barra rapida, filtros ativos, filtros por coluna e painel avancado compartilham o estado aplicado.
+- Cache de busca foi ativado no DataFrame real e nao e invalidado por refresh apenas visual.
+- Mascaras pandas/Arrow nullable foram blindadas na busca exata e em faixas.
+- Recovery preserva tabela canonica, colunas funcionais, tabelas auxiliares e dados em WAL ativo.
+- Importacao totalmente rejeitada recebe classificacao deterministica.
+- Scripts Windows, snapshots SQLite e fechamento de conexoes receberam hardening de portabilidade.
+
+### **Escopo preservado**
+- Sem mudanca de schema, API das dependencias de runtime, operadores do core ou layout.
+- `pip-audit` nao encontrou vulnerabilidade conhecida; nenhuma dependencia foi atualizada sem necessidade reproduzida nesta rodada.
+- Windows e Linux usam clones e venvs nativos separados; WSL fica restrito ao CodeRabbit em clone Linux proprio.
+- `v4.46` permanece como checkpoint anterior do ciclo tri-state.
+- Notas detalhadas: `docs/RELEASE_NOTES_v4.47.md`.
+
 ## **UPDATE 2026-04-09 - GUI STATE CONTRACT HARDENING**
 
 **Data de Registro**: Abril 2026
@@ -35,7 +59,59 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - `display_current_page(...)` continua concentrando responsabilidades demais.
 - O risco agudo dos call sites principais caiu, mas qualquer refatoracao nessa area segue devendo slice proprio e pequeno.
 
-## **RELEASE v4.37 - CURRENT LOCAL BASELINE**
+## **RELEASE v4.45 - HISTORICAL HARDENING BASELINE**
+
+**Data de Lancamento**: Julho 2026
+**Tipo**: Hardening PyQt6 refactor start
+**Status**: Baseline historico
+
+### **Principais entregas (planejadas - ver plano detalhado)**
+- Baseline operacional promovido para `4.45` como inicio do ciclo de hardening PyQt6.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
+- Plano detalhado anexado em `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
+- Escopo planejado: races criticas de shutdown/cancelamento/bloqueio (P0), performance/dedup (P1), limpeza (P2), decomposicao da God Class SSAMainWindow em mixins (P3).
+- Ultima tag/release GitHub publicada permanece `v4.36`.
+
+## **RELEASE v4.44 - HISTORICAL LOCAL BASELINE**
+
+**Data de Lancamento**: Julho 2026
+**Tipo**: Local validation baseline and release alignment
+**Status**: Baseline local historico estavel
+
+### **Principais entregas**
+- Baseline operacional promovido para `4.44`.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
+- Fixes de validacao incorporados antes da tag local:
+  - `scripts/run_tests.sh` compativel com Bash antigo do macOS.
+  - teste de estabilidade GUI alinhado as variantes oficiais de `data_cadastro`.
+- Ultima tag/release GitHub publicada permanece `v4.36`.
+
+## **RELEASE v4.43 - HISTORICAL LOCAL BASELINE**
+
+**Data de Lancamento**: Junho 2026
+**Tipo**: Stabilization baseline and release alignment
+**Status**: Baseline local historico
+
+### **Principais entregas**
+- Baseline operacional promovido para `4.43`.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
+- Documentacao operacional e testes de empacotamento alinhados aos nomes versionados `v4.43`.
+- Tag local `v4.43` reservada antes dos slices funcionais de filtros/cache/GUI.
+
+## **RELEASE v4.42 - HISTORICAL LOCAL BASELINE**
+
+**Data de Lancamento**: Junho 2026
+**Tipo**: Stabilization baseline and release alignment
+**Status**: Baseline local historico
+
+### **Principais entregas**
+- Baseline operacional promovido para `4.42`.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json` e `pyproject.toml`.
+- Filtros persistentes preservam imediatamente selecoes avancadas visiveis antes de salvar.
+- Encerramento benigno de `FilterWorker` ja deletado deixa de poluir log como warning.
+- Documentacao operacional e testes de empacotamento alinhados aos nomes versionados `v4.42`.
+
+## **RELEASE v4.37 - HISTORICAL LOCAL BASELINE**
 
 **Data de Lancamento**: Abril 2026
 **Tipo**: Stabilization baseline and release alignment
@@ -674,8 +750,14 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.37**: Baseline estavel local ativo
-- **v4.36**: Ultima tag publicada
+- **v4.47**: Release estavel ativa
+- **v4.46**: Checkpoint anterior do ciclo tri-state
+- **v4.45**: Baseline historico de hardening
+- **v4.44**: Baseline local historico
+- **v4.43**: Baseline local historico
+- **v4.42**: Baseline local historico
+- **v4.37**: Baseline local historico
+- **v4.36**: Snapshot historico publicado
 - **v4.31**: Suporte de compatibilidade em migracao
 - **Versoes anteriores**: Tratadas como historico
 
@@ -685,7 +767,7 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de referencia mais recente no baseline atual (`4.37`).
+Para melhor performance e estabilidade, recomenda-se utilizar a release estavel atual (`4.47`).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
 

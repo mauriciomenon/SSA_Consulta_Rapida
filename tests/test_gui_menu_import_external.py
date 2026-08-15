@@ -165,10 +165,12 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Ajuda" in window._menu_bar.menus
     assert "SAM API" in window._menu_bar.menus["Opcoes"].submenus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 2
-    assert len(window._menu_bar.menus["Importacao"].actions) == 7
-    assert len(window._menu_bar.menus["Database"].actions) == 4
+    assert len(window._menu_bar.menus["Importacao"].actions) == 2
+    assert len(window._menu_bar.menus["Database"].actions) == 3
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert len(window._menu_bar.menus["Ajuda"].actions) == 2
+    assert "Avancado" in window._menu_bar.menus["Importacao"].submenus
+    assert "Avancado" in window._menu_bar.menus["Database"].submenus
 
     arquivo_labels = [
         getattr(action, "_text", "")
@@ -197,21 +199,39 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     ]
     assert importacao_labels == [
         "Importar XLSX externo",
-        "Atualizar Dados",
-        "Reescaneamento Completo",
-        "Abrir Pasta de Arquivos",
-        "Abrir Pasta Arquivos Processados",
-        "Abrir Pasta Arquivos Redundantes",
         "Consolidar arquivos de entrada",
     ]
     assert database_labels == [
-        "Reescanear",
         "Atualizar derivadas",
-        "Carregar outro DB",
+        "Recarregar dados",
         "Compactar DB",
     ]
+    importacao_advanced_labels = [
+        getattr(action, "_text", "")
+        for action in window._menu_bar.menus["Importacao"].submenus[
+            "Avancado"
+        ].actions
+    ]
+    database_advanced_labels = [
+        getattr(action, "_text", "")
+        for action in window._menu_bar.menus["Database"].submenus["Avancado"].actions
+    ]
+    assert importacao_advanced_labels == [
+        "Abrir Pasta de Arquivos",
+        "Abrir Pasta Arquivos Processados",
+        "Abrir Pasta Arquivos Redundantes",
+    ]
+    assert database_advanced_labels == [
+        "Atualizar Dados",
+        "Reescaneamento Completo",
+        "Reescanear",
+        "Carregar outro DB",
+        "Abrir Pasta de Arquivos",
+        "Abrir Pasta Arquivos Processados",
+        "Abrir Pasta Arquivos Redundantes",
+    ]
     assert opcoes_labels == [
-        "Abrir arquivo de opcoes",
+        "Preparar arquivo de opcoes",
         "Restaurar opcoes padrao",
         "Limpar Filtros",
         "Selecionar Tema",
@@ -266,6 +286,12 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     monkeypatch.setattr(
         gui_ssa.QMessageBox, "information", lambda *_args, **_kwargs: None
     )
+    warnings: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "warning",
+        lambda *args, **_kwargs: warnings.append(args),
+    )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
         gui_ssa.ssa_gui_workers,
@@ -298,6 +324,8 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert captured["kwargs"]["reload_on_success"] is True
     assert captured["kwargs"]["operation_kind"] == "import"
     assert window.status_label.text == ""
+    assert len(warnings) == 1
+    assert "outra.xls" in str(warnings[0])
 
 
 def test_import_external_excel_files_accepts_selected_file_outside_project(
@@ -424,6 +452,12 @@ def test_import_external_excel_files_filters_invalid_and_unsupported_before_queu
             "Arquivos Excel",
         ),
     )
+    warnings: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "warning",
+        lambda *args, **_kwargs: warnings.append(args),
+    )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
         gui_ssa.ssa_gui_workers,
@@ -442,6 +476,8 @@ def test_import_external_excel_files_filters_invalid_and_unsupported_before_queu
     assert result["unsupported"] == 1
     assert result["staged"] == 1
     assert list(captured["kwargs"]["source_files"]) == [str(ok_file)]
+    assert len(warnings) == 1
+    assert "nota.txt" in str(warnings[0])
 
 
 def test_open_settings_file_with_backup_creates_backup(
@@ -452,22 +488,11 @@ def test_open_settings_file_with_backup_creates_backup(
     settings_path = settings_dir / "settings.json"
     settings_path.write_text('{"x":1}', encoding="utf-8")
 
-    monkeypatch.setattr(gui_ssa, "QT_AVAILABLE", True)
+    open_calls = []
     monkeypatch.setattr(
-        gui_ssa,
-        "QUrl",
-        type("DummyQUrl", (), {"fromLocalFile": staticmethod(lambda path: path)}),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        gui_ssa,
-        "QDesktopServices",
-        type(
-            "DummyDesktopServices",
-            (),
-            {"openUrl": staticmethod(lambda *_args, **_kwargs: True)},
-        ),
-        raising=False,
+        gui_ssa.ssa_system_controller,
+        "open_local_path",
+        lambda *args, **kwargs: open_calls.append((args, kwargs)) or True,
     )
 
     class _Window:
@@ -481,17 +506,18 @@ def test_open_settings_file_with_backup_creates_backup(
     result = gui_ssa.SSAMainWindow.open_settings_file_with_backup(cast(Any, window))
 
     backups = list(settings_dir.glob("settings.json.bak_*"))
-    assert result["opened"] is True
+    assert result["opened"] is False
     assert result["backup_created"] is True
     assert len(backups) == 1
-    assert "editor externo" in window.status_label.text
+    assert "editor nao aberto" in window.status_label.text
 
     result_second = gui_ssa.SSAMainWindow.open_settings_file_with_backup(
         cast(Any, window)
     )
     backups_after_second = list(settings_dir.glob("settings.json.bak_*"))
-    assert result_second["opened"] is True
+    assert result_second["opened"] is False
     assert len(backups_after_second) == 2
+    assert open_calls == []
 
 
 def test_reset_settings_to_defaults_overwrites_user_file(

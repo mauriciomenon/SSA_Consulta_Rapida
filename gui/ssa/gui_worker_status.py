@@ -10,16 +10,16 @@ def success_status_text(is_explicit_import: bool, outcome: RescanOutcome) -> str
     if not is_explicit_import:
         return "Status: Reescaneamento concluido."
     if outcome == RescanOutcome.UPDATED:
-        return "Status: Importacao externa concluida."
+        return "Status: Importacao concluida."
     if outcome == RescanOutcome.REJECTIONS_ONLY:
-        return "Status: Importacao externa concluida com rejeicoes de regra."
+        return "Status: Importacao concluida com rejeicoes de regra."
     if outcome == RescanOutcome.NO_CHANGES:
-        return "Status: Importacao externa concluida sem alteracoes."
+        return "Status: Importacao concluida sem alteracoes."
     if outcome == RescanOutcome.CANCELLED:
-        return "Status: Importacao externa cancelada."
+        return "Status: Importacao cancelada."
     if outcome == RescanOutcome.ERROR:
-        return "Status: Importacao externa falhou. Consulte os detalhes."
-    return "Status: Importacao externa concluida com resultado desconhecido."
+        return "Status: Importacao falhou. Consulte os detalhes."
+    return "Status: Importacao concluida com resultado desconhecido."
 
 
 def consolidation_status_text(outcome: RescanOutcome) -> str:
@@ -38,7 +38,7 @@ def cancel_request_status_text(
         )
     if is_explicit_import:
         return (
-            "Status: Cancelamento solicitado na importacao externa.",
+            "Status: Cancelamento solicitado na importacao.",
             "explicit_import.cancel.requested",
         )
     return (
@@ -57,7 +57,7 @@ def already_running_status_text(
         )
     if is_explicit_import:
         return (
-            "Status: Importacao externa ja em andamento.",
+            "Status: Importacao ja em andamento.",
             "explicit_import.already_running",
         )
     return (

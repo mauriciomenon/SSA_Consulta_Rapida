@@ -15,6 +15,20 @@ from core import import_postprocess
 from core import import_run_report
 
 
+def _fake_success_result(kwargs: dict[str, Any], records: int) -> tuple[bool, int]:
+    metrics_out = kwargs.get("_metrics_out")
+    assert isinstance(metrics_out, dict)
+    metrics_out.update(
+        {
+            "counts": {
+                "ssa_inserted": int(records),
+                "ssa_updated": 0,
+            }
+        }
+    )
+    return True, records
+
+
 def _get_project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -359,7 +373,9 @@ def test_run_importer_logic_explicit_files_bypass_discovery_and_process_only_tar
     monkeypatch.setattr(
         app_logic,
         "_import_single_file",
-        lambda file_path, *args, **kwargs: (seen.append(str(file_path)) or True, 1),
+        lambda file_path, *args, **kwargs: (
+            seen.append(str(file_path)) or _fake_success_result(kwargs, 1)
+        ),
     )
     monkeypatch.setattr(
         app_logic,
@@ -411,7 +427,7 @@ def test_run_importer_logic_writes_report_on_success(
     monkeypatch.setattr(
         app_logic,
         "_import_single_file",
-        lambda *args, **kwargs: (True, 1),
+        lambda *args, **kwargs: _fake_success_result(kwargs, 1),
     )
     monkeypatch.setattr(
         app_logic,
@@ -475,7 +491,7 @@ def test_run_importer_logic_diff_processes_only_new_files_after_cache_update(
 
     def _import_first(file_path: str, *args, **kwargs) -> tuple[bool, int]:
         first_seen.append(Path(file_path).name)
-        return True, 1
+        return _fake_success_result(kwargs, 1)
 
     monkeypatch.setattr(app_logic, "_import_single_file", _import_first)
     assert (
@@ -495,7 +511,7 @@ def test_run_importer_logic_diff_processes_only_new_files_after_cache_update(
 
     def _import_second(file_path: str, *args, **kwargs) -> tuple[bool, int]:
         second_seen.append(Path(file_path).name)
-        return True, 1
+        return _fake_success_result(kwargs, 1)
 
     monkeypatch.setattr(app_logic, "_import_single_file", _import_second)
     assert (
@@ -1029,6 +1045,8 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
                         "rows_removed_required_validation": 1,
                         "rows_ready_for_insert": 7,
                         "rows_inserted": 7,
+                        "ssa_inserted": 2,
+                        "ssa_updated": 5,
                     },
                     "invalid_identity_tracked": True,
                     "invalid_identity": {
@@ -1059,12 +1077,16 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
 
     monkeypatch.setattr(app_logic, "_write_import_run_report", _fake_write)
 
+    progress_events: list[tuple[str, dict[str, Any]]] = []
     updated = app_logic.run_importer_logic(
         docs_dir=str(docs_dir),
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
         force_import=False,
+        progress_callback=lambda event, data: progress_events.append(
+            (event, dict(data))
+        ),
     )
 
     assert updated is True
@@ -1073,6 +1095,17 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
     assert payload["counts"]["rows_removed_invalid_identity_total"] == 2
     assert payload["counts"]["rows_ready_for_insert_total"] == 7
     assert payload["counts"]["rows_inserted_total"] == 7
+    assert payload["counts"]["ssa_inserted_total"] == 2
+    assert payload["counts"]["ssa_updated_total"] == 5
+    file_success = next(
+        data for event, data in progress_events if event == "file_success"
+    )
+    assert file_success == {
+        "filename": "ok.xlsx",
+        "records": 7,
+        "ssa_inserted": 2,
+        "ssa_updated": 5,
+    }
     assert payload["durations"]["sum_file_extraction_seconds"] == 0.123
     assert payload["durations"]["sum_file_validation_seconds"] == 0.045
     assert payload["durations"]["sum_file_insert_seconds"] == 0.067
@@ -1096,6 +1129,8 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
                 "rows_removed_required_validation": 1,
                 "rows_ready_for_insert": 7,
                 "rows_inserted": 7,
+                "ssa_inserted": 2,
+                "ssa_updated": 5,
             },
             "invalid_identity_tracked": True,
             "invalid_identity": {
@@ -1149,8 +1184,8 @@ def test_run_importer_logic_moves_processed_files_and_updates_cache_paths(
         file_path: str, db_path: str, *args, **kwargs
     ) -> tuple[bool, int]:
         if Path(file_path).name == "empty.xlsx":
-            return True, 0
-        return True, 5
+            return _fake_success_result(kwargs, 0)
+        return _fake_success_result(kwargs, 5)
 
     monkeypatch.setattr(app_logic, "_import_single_file", _fake_import_single_file)
     monkeypatch.setattr(
@@ -1236,7 +1271,7 @@ def test_run_importer_logic_full_rescan_disables_postprocess_move(
     monkeypatch.setattr(
         app_logic,
         "_import_single_file",
-        lambda *args, **kwargs: (True, 1),
+        lambda *args, **kwargs: _fake_success_result(kwargs, 1),
     )
     monkeypatch.setattr(
         app_logic,
@@ -1321,7 +1356,7 @@ def test_run_importer_logic_full_rescan_enforces_subdir_policy_and_upsert_policy
     monkeypatch.setattr(
         app_logic,
         "_import_single_file",
-        lambda *args, **kwargs: (True, 1),
+        lambda *args, **kwargs: _fake_success_result(kwargs, 1),
     )
     monkeypatch.setattr(
         app_logic,
@@ -1465,9 +1500,13 @@ def test_write_import_run_report_uses_runtime_root_logs(
     assert Path(report_path).is_file()
 
 
+@pytest.mark.parametrize(
+    "error_code", ["MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"]
+)
 def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    error_code: str,
 ) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
@@ -1515,7 +1554,7 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
         app_logic,
         "_import_single_file",
         lambda *args, **kwargs: (_ for _ in ()).throw(
-            app_logic.ExtractionError("boom", error_code="MISSING_REQUIRED_COLUMNS")
+            app_logic.ExtractionError("boom", error_code=error_code)
         ),
     )
 
@@ -1545,6 +1584,128 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     assert candidate_path.exists()
     assert payload["paths"]["candidate_preserved"] is True
     assert payload["paths"]["working_db_path"] == str(candidate_path)
+
+
+def test_full_rescan_unsafe_payload_stops_before_promotion_or_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    file_ok = docs_dir / "01_ok.xlsx"
+    file_bad = docs_dir / "02_bad.xlsx"
+    file_ok.write_text("ok", encoding="utf-8")
+    file_bad.write_text("bad", encoding="utf-8")
+    primary_db = data_dir / "test.db"
+    candidate_db = data_dir / "test.full_rescan_candidate.db"
+    _init_minimal_ssa_db(primary_db, "primary_old")
+    _init_minimal_ssa_db(candidate_db, "candidate_seed")
+    _allow_tmp_path(monkeypatch, tmp_path)
+
+    monkeypatch.setattr(
+        app_logic,
+        "_prepare_working_database_for_import",
+        lambda **kwargs: (str(candidate_db), str(candidate_db), {}),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_get_files_to_process",
+        lambda *args, **kwargs: [str(file_ok), str(file_bad)],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "ensure_source_metadata_columns",
+        lambda *args, **kwargs: None,
+    )
+
+    def _fake_import(file_path: str, *args, **kwargs) -> tuple[bool, int]:
+        if Path(file_path) == file_bad:
+            metrics_out = kwargs.get("_metrics_out")
+            assert isinstance(metrics_out, dict)
+            metrics_out.update(
+                {
+                    "counts": {
+                        "rows_extracted": 1,
+                        "rows_removed_invalid_identity": 1,
+                        "rows_captured_hierarchical": 0,
+                        "event_records_processed": 0,
+                        "rows_ready_for_insert": 0,
+                        "rows_inserted": 0,
+                        "ssa_inserted": 0,
+                        "ssa_updated": 0,
+                    },
+                    "invalid_identity": {
+                        "payload_removed": 1,
+                        "payload_columns_sample": ["payload_evento"],
+                    },
+                    "invalid_identity_tracked": True,
+                }
+            )
+            raise app_logic.ExtractionError(
+                "1 linha(s) sem identidade ainda possuem payload",
+                error_code="UNSAFE_INVALID_IDENTITY_PAYLOAD",
+            )
+        return _fake_success_result(kwargs, 1)
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _fake_import)
+    monkeypatch.setattr(
+        app_logic,
+        "_promote_full_rescan_candidate",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("unsafe candidate must not be promoted")
+        ),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("success cache must not be updated")
+        ),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_for_deterministic_failures",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("unsafe file must not enter deterministic cache")
+        ),
+    )
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        app_logic,
+        "_write_import_run_report",
+        lambda payload: captured.setdefault("payload", payload),
+    )
+
+    with pytest.raises(app_logic.ExtractionError) as exc_info:
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=True,
+        )
+
+    assert exc_info.value.error_code == "UNSAFE_INVALID_IDENTITY_PAYLOAD"
+    assert _read_descricao(primary_db) == "primary_old"
+    assert _read_descricao(candidate_db) == "candidate_seed"
+    payload = cast(dict[str, Any], captured["payload"])
+    assert payload["result"] is False
+    assert payload["status"] == "importer_error"
+    assert payload["counts"]["success_count"] == 1
+    assert payload["counts"]["deterministic_failure_count"] == 0
+    assert payload["counts"]["rows_extracted_total"] == 1
+    assert payload["counts"]["rows_removed_invalid_identity_total"] == 1
+    assert payload["file_reports"][-1]["invalid_identity"] == {
+        "payload_removed": 1,
+        "payload_columns_sample": ["payload_evento"],
+    }
 
 
 def test_run_importer_logic_full_rescan_success_promotes_candidate_at_end(
@@ -1615,7 +1776,7 @@ def test_run_importer_logic_full_rescan_success_promotes_candidate_at_end(
             conn.commit()
         finally:
             conn.close()
-        return True, 1
+        return _fake_success_result(kwargs, 1)
 
     monkeypatch.setattr(app_logic, "_import_single_file", _fake_import_single_file)
     monkeypatch.setattr(

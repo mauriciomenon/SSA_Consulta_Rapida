@@ -1,14 +1,16 @@
 # Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
 
-## CURRENT TRUTH (4.37 local / v4.36 published)
+## CURRENT TRUTH (v4.47 stable)
 
-- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Sync deste guia: `2026-08-09`.
+- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
+- `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
   - `windows_amd64`
-  - `debian_amd64` (via WSL)
+  - `debian_amd64` (clone Linux nativo)
 - Comandos canonicos (sempre via uv):
   - Windows: `dev_env/build/build_pyoxidizer.bat --silent`
-  - Debian/WSL: `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
+  - Debian em clone Linux nativo: `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
 - Artefatos finais:
   - `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
   - `builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida`
@@ -26,11 +28,11 @@
 ## HISTORICAL SNAPSHOT NOTICE
 
 Este documento foi mantido para contexto tecnico.
-Nao usar como runbook primario de release em v4.33.
+Nao usar como runbook primario de release.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.11.0
+**Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (NAO MSYS2)
 
@@ -114,7 +116,7 @@ Evite PyOxidizer quando:
 ### Python
 
 ```
-Versao: 3.13.7 (para desenvolvimento)
+Versao: 3.13.12 (para desenvolvimento)
          3.10.9 (embedado pelo PyOxidizer)
 Gerenciador: pyenv-win (recomendado)
 Localizacao: C:\Users\menon\.pyenv\pyenv-win\
@@ -125,7 +127,7 @@ Localizacao: C:\Users\menon\.pyenv\pyenv-win\
 **Verificacao**:
 ```bash
 python --version
-# Saida: Python 3.13.7 (ou outra versao)
+# Saida: Python 3.13.12 (ou outra versao)
 # OK! PyOxidizer usa seu proprio Python
 ```
 
@@ -485,7 +487,7 @@ def make_msi(exe):
     return exe.to_wix_msi_builder(
         "SSA_Consulta_Rapida",
         "SSA Consulta Rapida",
-        "4.11.0",
+        "4.43",
         "SSA"
     )
 
@@ -816,7 +818,7 @@ Remove symbols de debug, reduz exe de 5 MB para 3.4 MB.
 
 ### 4. Python 3.10 vs 3.13
 
-PyOxidizer usa Python 3.10.9 (nao 3.13.7 do sistema):
+PyOxidizer usa Python 3.10.9 (nao 3.13.12 do sistema):
 
 **Vantagens Python 3.10**:
 - Binarios menores
@@ -1047,7 +1049,7 @@ def make_msi(exe):
     return exe.to_wix_msi_builder(
         "SSA_Consulta_Rapida",
         "SSA Consulta Rapida",
-        "4.11.0",  # Versao aqui
+        "4.43",  # Versao aqui
         "SSA"
     )
 ```
@@ -1100,7 +1102,7 @@ Estrutura permite updates so do exe:
 
 ```
 builds/pyoxidizer/
-|-- SSA_Consulta_Rapida.exe      # 3.4 MB (update v4.11.1)
+|-- SSA_Consulta_Rapida.exe      # 3.4 MB (update v4.43)
 |-- lib/                          # 340 MB (nao muda)
 ```
 
@@ -1225,7 +1227,7 @@ Requer:
 | Build Time | 3 min* | 2 min |
 | Startup | Muito rapido | Rapido |
 | Complexidade | Alta | Baixa |
-| Python Version | 3.10.9 fixo | 3.13.7 |
+| Python Version | 3.10.9 fixo | 3.13.12 |
 | Debugging | Dificil | Facil |
 | Reproducibilidade | Alta | Media |
 
@@ -1469,4 +1471,3 @@ parser = argparse.ArgumentParser(
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

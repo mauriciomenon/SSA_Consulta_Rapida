@@ -306,15 +306,21 @@ def _provision_default_config_file(
         os.makedirs(os.path.dirname(target_file) or cfg_dir, exist_ok=True)
         default_content = _default_payload_for_config_target(target_file)
         if default_content is None:
-            logger.warning(
-                "Arquivo de exemplo '%s' não encontrado para '%s'.",
+            message = (
+                f"arquivo de exemplo '{example_path}' nao encontrado para "
+                f"'{target_file}' e nao ha payload padrao registrado"
+            )
+            logger.error(
+                "Arquivo de exemplo '%s' nao encontrado para '%s' e sem payload padrao.",
                 example_path,
                 target_file,
             )
-            return
+            raise ConfigProvisionError(message)
         _atomic_write_json_file(target_file, default_content, indent=2, ensure_ascii=False)
         logger.info("Arquivo padrão gerado: %s", target_file)
         return
+    except ConfigProvisionError:
+        raise
     except Exception as e:
         logger.error("Falha ao gerar arquivo padrão '%s': %s", target_file, e)
         raise ConfigProvisionError(

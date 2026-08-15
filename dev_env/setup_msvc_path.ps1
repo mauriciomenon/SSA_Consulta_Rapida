@@ -1,75 +1,71 @@
-# Script para adicionar MSVC ao PATH permanente do usuario
-# Execute como: powershell -ExecutionPolicy Bypass -File setup_msvc_path.ps1
-
-Write-Host "Configurando PATH permanente para MSVC..." -ForegroundColor Cyan
-
-# Caminhos do MSVC e ferramentas
-$msvcVersion = "14.44.35207"
-$vsPath = "C:\Program Files\Microsoft Visual Studio\2022\Community"
-
-$pathsToAdd = @(
-    "$vsPath\VC\Tools\MSVC\$msvcVersion\bin\Hostx64\x64",
-    "$vsPath\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja",
-    "$vsPath\Common7\IDE",
-    "$vsPath\MSBuild\Current\Bin"
+param(
+    [switch]$ApplyToCurrentSession
 )
 
-# Windows Kits (find latest version)
-$kitsPath = "C:\Program Files (x86)\Windows Kits\10\bin"
-if (Test-Path $kitsPath) {
-    $latestKit = Get-ChildItem $kitsPath | Where-Object { $_.PSIsContainer } | Sort-Object Name -Descending | Select-Object -First 1
-    if ($latestKit) {
-        $pathsToAdd += "$($latestKit.FullName)\x64"
-        Write-Host "Windows Kit encontrado: $($latestKit.Name)" -ForegroundColor Green
-    }
+$ErrorActionPreference = "Stop"
+
+function Write-Info {
+    param([string]$Message)
+    Write-Output "[msvc] $Message"
 }
 
-# Get current user PATH
-$currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-$pathArray = $currentPath -split ";"
-
-# Check each path
-$added = @()
-foreach ($path in $pathsToAdd) {
-    if (Test-Path $path) {
-        if ($pathArray -notcontains $path) {
-            Write-Host "Adicionando: $path" -ForegroundColor Green
-            $pathArray = @($path) + $pathArray  # Add at beginning to take precedence
-            $added += $path
-        } else {
-            Write-Host "Ja existe: $path" -ForegroundColor Yellow
+function Find-VcVars64 {
+    $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path -LiteralPath $vswhere) {
+        $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($installPath)) {
+            $candidate = Join-Path $installPath "VC\Auxiliary\Build\vcvars64.bat"
+            if (Test-Path -LiteralPath $candidate) {
+                return $candidate
+            }
         }
-    } else {
-        Write-Host "Caminho nao existe: $path" -ForegroundColor Red
+    }
+
+    foreach ($version in @("18", "2022", "17", "16")) {
+        foreach ($edition in @("BuildTools", "Community", "Professional", "Enterprise")) {
+            foreach ($root in @("C:\Program Files\Microsoft Visual Studio", "C:\Program Files (x86)\Microsoft Visual Studio")) {
+                $candidate = Join-Path $root "$version\$edition\VC\Auxiliary\Build\vcvars64.bat"
+                if (Test-Path -LiteralPath $candidate) {
+                    return $candidate
+                }
+            }
+        }
+    }
+    return $null
+}
+
+function Import-VcVarsIntoCurrentSession {
+    param([Parameter(Mandatory = $true)] [string]$VcVarsPath)
+
+    $environmentLines = & cmd.exe /d /s /c "`"$VcVarsPath`" >nul && set"
+    if ($LASTEXITCODE -ne 0) {
+        throw "vcvars64.bat failed: $VcVarsPath"
+    }
+    foreach ($line in $environmentLines) {
+        $separator = $line.IndexOf("=")
+        if ($separator -le 0) {
+            continue
+        }
+        $name = $line.Substring(0, $separator)
+        $value = $line.Substring($separator + 1)
+        Set-Item -Path "Env:$name" -Value $value
     }
 }
 
-if ($added.Count -gt 0) {
-    # Update PATH
-    $newPath = ($pathArray | Where-Object { $_ -ne "" }) -join ";"
-    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+Write-Info "MSVC diagnostic mode. This script does not modify the user PATH."
+$vcvars = Find-VcVars64
+if ([string]::IsNullOrWhiteSpace($vcvars)) {
+    Write-Error "vcvars64.bat not found. Install Visual Studio Build Tools with the C++ workload."
+    exit 1
+}
 
-    Write-Host "`nPATH atualizado com sucesso!" -ForegroundColor Green
-    Write-Host "Caminhos adicionados:" -ForegroundColor Cyan
-    $added | ForEach-Object { Write-Host "  - $_" }
-
-    Write-Host "`nIMPORTANTE: Feche e reabra todos os terminais para aplicar as mudancas." -ForegroundColor Yellow
-    Write-Host "`nPara testar, execute em novo terminal:" -ForegroundColor Cyan
-    Write-Host "  link.exe" -ForegroundColor White
-    Write-Host "  cl.exe" -ForegroundColor White
-
+Write-Info "vcvars64.bat: $vcvars"
+if ($ApplyToCurrentSession) {
+    Import-VcVarsIntoCurrentSession -VcVarsPath $vcvars
+    Write-Info "MSVC variables imported into the current PowerShell session only."
+    Write-Info "cl.exe: $((Get-Command cl.exe -ErrorAction SilentlyContinue).Source)"
+    Write-Info "link.exe: $((Get-Command link.exe -ErrorAction SilentlyContinue).Source)"
 } else {
-    Write-Host "`nNenhuma mudanca necessaria. PATH ja configurado." -ForegroundColor Green
+    Write-Info "To import MSVC variables into this shell, rerun with -ApplyToCurrentSession."
+    Write-Info "Build scripts use vswhere/vcvars64.bat directly and do not require permanent PATH edits."
 }
-
-# Show current link.exe locations
-Write-Host "`nLocalizacoes de link.exe no sistema:" -ForegroundColor Cyan
-$env:Path -split ";" | ForEach-Object {
-    $linkPath = Join-Path $_ "link.exe"
-    if (Test-Path $linkPath) {
-        Write-Host "  - $linkPath" -ForegroundColor White
-    }
-}
-
-Write-Host "`nPressione qualquer tecla para sair..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

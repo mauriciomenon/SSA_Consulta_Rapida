@@ -8,7 +8,7 @@ function Write-EnvLog {
     Write-Host "[env] $Message"
 }
 
-function Sanitize-ForName {
+function ConvertTo-EnvNameSegment {
     param([string]$Value)
     if (-not $Value) { return 'python' }
     $result = $Value.ToLowerInvariant()
@@ -31,10 +31,15 @@ function Invoke-Python {
     throw "Python interpreter not found on PATH"
 }
 
-$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if (-not $repoRoot) {
     $repoRoot = (Get-Location).Path
 }
+$guardScript = Join-Path $repoRoot 'scripts\env\native_host_guard.ps1'
+. $guardScript
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv')
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv_ft')
 
 $requestedVariant = if ($Variant) {
     $Variant
@@ -46,7 +51,7 @@ $requestedVariant = if ($Variant) {
     'stable'
 }
 
-$stableVersion = if ($env:SSA_PYTHON_STABLE_VERSION) { $env:SSA_PYTHON_STABLE_VERSION } else { '3.13.7' }
+$stableVersion = if ($env:SSA_PYTHON_STABLE_VERSION) { $env:SSA_PYTHON_STABLE_VERSION } else { '3.13.12' }
 $ftVersion = if ($env:SSA_PYTHON_FT_VERSION) { $env:SSA_PYTHON_FT_VERSION } else { '3.14-dev' }
 
 switch ($requestedVariant.ToLowerInvariant()) {
@@ -67,7 +72,7 @@ switch ($requestedVariant.ToLowerInvariant()) {
     }
 }
 
-$pyenvEnvName = "ssa_consulta_{0}_{1}" -f ($variant -replace '-', '_'), (Sanitize-ForName -Value $targetVersion)
+$pyenvEnvName = "ssa_consulta_{0}_{1}" -f ($variant -replace '-', '_'), (ConvertTo-EnvNameSegment -Value $targetVersion)
 $envSource = $null
 
 $pyenv = Get-Command pyenv -ErrorAction SilentlyContinue
@@ -76,17 +81,15 @@ $pyenvHasVirtualenv = $false
 if ($pyenv) {
     $pyenvAvailable = $true
     try {
-        $init = (pyenv init -) 2>$null
-        if ($init) { Invoke-Expression $init }
-    } catch {}
-    try {
         $commands = pyenv commands
+        if ($LASTEXITCODE -ne 0) {
+            throw "pyenv commands failed with exit code $LASTEXITCODE"
+        }
         if ($commands -match '(?m)^virtualenv$') {
             $pyenvHasVirtualenv = $true
-            $virt = (pyenv virtualenv-init -) 2>$null
-            if ($virt) { Invoke-Expression $virt }
         }
     } catch {
+        Write-EnvLog "warn: pyenv inspection failed; using local venv fallback ($_)"
         $pyenvAvailable = $false
     }
 }
@@ -94,24 +97,42 @@ if ($pyenv) {
 if ($pyenvAvailable) {
     try {
         $versions = (pyenv versions --bare) 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "pyenv versions failed with exit code $LASTEXITCODE"
+        }
         $versionList = @()
         if ($versions) { $versionList = $versions -split "`n" }
         if (-not ($versionList -contains $targetVersion)) {
             Write-EnvLog "pyenv: installing Python $targetVersion (first run may take a while)"
             pyenv install $targetVersion | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv install failed with exit code $LASTEXITCODE"
+            }
         }
         if ($pyenvHasVirtualenv) {
             $venvs = (pyenv virtualenvs --bare) 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv virtualenvs failed with exit code $LASTEXITCODE"
+            }
             $venvList = @()
             if ($venvs) { $venvList = $venvs -split "`n" }
             if (-not ($venvList -contains $pyenvEnvName)) {
                 Write-EnvLog "pyenv: creating virtualenv $pyenvEnvName"
                 pyenv virtualenv $targetVersion $pyenvEnvName | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    throw "pyenv virtualenv failed with exit code $LASTEXITCODE"
+                }
             }
             pyenv activate $pyenvEnvName | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv activate failed with exit code $LASTEXITCODE"
+            }
             $envSource = "pyenv-virtualenv:$pyenvEnvName"
         } else {
             pyenv shell $targetVersion | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv shell failed with exit code $LASTEXITCODE"
+            }
             $envSource = "pyenv:$targetVersion"
         }
     } catch {

@@ -43,8 +43,9 @@ class DerivadasSyncState:
         self.table_name = ""
 
     def mark_finished(self) -> None:
+        thread = self.thread
         self.running = False
-        self.thread = None
+        self.thread = thread if _thread_alive(thread) else None
         self.pending_result = None
         self.phase_status = ""
         self.table_name = ""
@@ -188,7 +189,7 @@ def _begin_derivadas_sync(
     sync_state_callback: Callable[[], None] | None,
 ) -> dict[str, Any] | None:
     with sync_lock:
-        if state.running:
+        if state.running or _thread_alive(state.thread):
             _set_status_label(
                 ui, state, "Status: Atualizacao de derivadas ja em andamento."
             )
@@ -250,17 +251,26 @@ def _start_async_derivadas_sync(
             )
         except Exception as exc:
             result = {"ok": False, "error": str(exc)}
+        current_thread = threading.current_thread()
         with sync_lock:
             if state.running:
                 state.pending_result = result
-        _sync_state(sync_state_callback)
+            if not state.running and (
+                state.thread is current_thread or not _thread_alive(state.thread)
+            ):
+                state.thread = None
 
     def _poll_delivery() -> None:
         if not _window_alive(ui.message_parent, sip_module):
             _clear_abandoned_derivadas_sync(state, sync_lock, sync_state_callback)
             return
+        shutting_down = bool(
+            getattr(ui.message_parent, "_is_shutting_down", False)
+        )
         pending: dict[str, Any] | None
         with sync_lock:
+            if not state.running:
+                return
             phase_status = str(state.phase_status or "")
             pending = state.pending_result
             if pending is not None:
@@ -270,21 +280,27 @@ def _start_async_derivadas_sync(
         if pending is None:
             if monotonic() - started > DERIVADAS_SYNC_TIMEOUT_SEC:
                 with sync_lock:
+                    if not state.running:
+                        return
                     pending = state.pending_result
                     if pending is not None:
                         state.pending_result = None
                     state.mark_finished()
                 _sync_state(sync_state_callback)
                 result = pending or {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
-                finalize_result(ui.message_parent, result)
+                if not shutting_down:
+                    finalize_result(ui.message_parent, result)
                 return
             if state.running:
                 qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
             return
         with sync_lock:
+            if not state.running:
+                return
             state.mark_finished()
         _sync_state(sync_state_callback)
-        finalize_result(ui.message_parent, pending)
+        if not shutting_down:
+            finalize_result(ui.message_parent, pending)
 
     worker = thread_factory(target=_work, daemon=True)
     with sync_lock:
@@ -410,6 +426,13 @@ def _ensure_derivadas_sync_lock(state: DerivadasSyncState) -> threading.Lock:
         sync_lock = threading.Lock()
         state.lock = sync_lock
     return sync_lock
+
+
+def _thread_alive(thread: threading.Thread | None) -> bool:
+    if thread is None:
+        return False
+    is_alive = getattr(thread, "is_alive", None)
+    return bool(callable(is_alive) and is_alive())
 
 
 def _set_derivadas_sync_started(state: DerivadasSyncState) -> None:

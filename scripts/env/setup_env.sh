@@ -7,6 +7,16 @@ set -euo pipefail
 VARIANT="${SSA_PYTHON_VARIANT:-stable}"
 SKIP_PYENV="${SSA_SKIP_PYENV:-0}"
 FORCE="${FORCE:-0}"
+ALLOW_REMOTE_PYENV_INSTALL="${SSA_ALLOW_REMOTE_PYENV_INSTALL:-0}"
+PYENV_INSTALLER_SHA256="${SSA_PYENV_INSTALLER_SHA256:-}"
+CONFIRM_REMOVE_PYENV="${SSA_CONFIRM_REMOVE_PYENV:-0}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${repo_root}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$repo_root" || exit 1
+ssa_native_guard_tools uv || exit 1
+ssa_native_guard_venv "$repo_root/.venv" || exit 1
+ssa_native_guard_venv "$repo_root/.venv_ft" || exit 1
 
 env_log() {
     printf '\033[36m[setup]\033[0m %s\n' "$*"
@@ -16,12 +26,66 @@ test_pyenv_installed() {
     command -v pyenv >/dev/null 2>&1
 }
 
+sha256_file() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    else
+        shasum -a 256 "$1" | awk '{print $1}'
+    fi
+}
+
+install_pyenv_from_verified_installer() {
+    local installer_path actual_hash expected_hash
+
+    if [[ "$ALLOW_REMOTE_PYENV_INSTALL" != "1" ]]; then
+        env_log "Remote pyenv install disabled."
+        env_log "Install pyenv manually or set SSA_ALLOW_REMOTE_PYENV_INSTALL=1 with SSA_PYENV_INSTALLER_SHA256."
+        return 1
+    fi
+    if [[ -z "$PYENV_INSTALLER_SHA256" ]]; then
+        env_log "SSA_PYENV_INSTALLER_SHA256 is required for remote pyenv install."
+        env_log "Manual install: download https://pyenv.run, verify it, then run with bash."
+        return 1
+    fi
+
+    if ! installer_path="$(mktemp "${TMPDIR:-/tmp}/pyenv-installer.XXXXXX")"; then
+        env_log "Failed to create temporary file for pyenv installer."
+        return 1
+    fi
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL https://pyenv.run -o "$installer_path"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q https://pyenv.run -O "$installer_path"
+    else
+        env_log "curl or wget is required to download pyenv installer."
+        rm -f "$installer_path"
+        return 1
+    fi
+
+    actual_hash="$(sha256_file "$installer_path" | tr '[:upper:]' '[:lower:]')"
+    expected_hash="$(printf '%s' "$PYENV_INSTALLER_SHA256" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$actual_hash" != "$expected_hash" ]]; then
+        env_log "pyenv installer SHA256 mismatch. expected=$expected_hash actual=$actual_hash"
+        rm -f "$installer_path"
+        return 1
+    fi
+    if ! bash "$installer_path"; then
+        rm -f "$installer_path"
+        return 1
+    fi
+    rm -f "$installer_path"
+}
+
 install_pyenv() {
-    env_log "pyenv não encontrado. Instalando..."
+    env_log "pyenv not found. Preparing install..."
     
     if [[ -d "$HOME/.pyenv" ]]; then
         if [[ "$FORCE" == "1" ]]; then
-            env_log "Removendo instalação existente..."
+            if [[ "$CONFIRM_REMOVE_PYENV" != "1" ]]; then
+                env_log "FORCE=1 requires SSA_CONFIRM_REMOVE_PYENV=1 before removing $HOME/.pyenv"
+                return 1
+            fi
+            env_log "Removing existing pyenv directory..."
             rm -rf "$HOME/.pyenv"
         else
             env_log "pyenv já existe em $HOME/.pyenv mas não está no PATH"
@@ -30,13 +94,8 @@ install_pyenv() {
         fi
     fi
     
-    # Instalar via pyenv-installer
-    if command -v curl >/dev/null 2>&1; then
-        curl https://pyenv.run | bash
-    elif command -v wget >/dev/null 2>&1; then
-        wget -O- https://pyenv.run | bash
-    else
-        env_log "curl ou wget necessário para instalar pyenv"
+    if ! install_pyenv_from_verified_installer; then
+        env_log "pyenv install was not completed."
         return 1
     fi
     
@@ -67,15 +126,16 @@ if [[ "$SKIP_PYENV" != "1" ]]; then
 fi
 
 # Determinar versão
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python_version_file="$repo_root/.python-version"
 
 if [[ -f "$python_version_file" ]]; then
-    python_version=$(cat "$python_version_file" | tr -d '\r' | tr -d '\n')
+    IFS= read -r python_version < "$python_version_file"
+    python_version="${python_version%$'\r'}"
     env_log "Versão Python no .python-version: $python_version"
 else
-    python_version="3.13.9"
-    env_log "Criando .python-version com $python_version"
+    python_version="${SSA_PYTHON_STABLE_VERSION:-3.13.12}"
+    env_log ".python-version ausente; criando com $python_version"
+    env_log "Override: set SSA_PYTHON_STABLE_VERSION before running this setup."
     echo "$python_version" > "$python_version_file"
 fi
 

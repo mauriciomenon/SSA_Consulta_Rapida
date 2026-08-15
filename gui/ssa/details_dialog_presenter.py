@@ -68,6 +68,7 @@ class DetailsDialogPresenter:
         self._svg_render_deps = None
         self._render_cache: dict[str, DetailsDialogRenderPayload] = {}
         self._last_graph_render_key: tuple[str, int, int] | None = None
+        self._widgets: Any | None = None
 
     def open(self) -> None:
         try:
@@ -89,6 +90,8 @@ class DetailsDialogPresenter:
         widgets = build_details_dialog_widgets(
             self.window, self.target, svg_render_deps=self._svg_render_deps
         )
+        self._widgets = widgets
+        setattr(widgets.dialog, "_ssa_details_dialog_presenter", self)
         self._style = self.callbacks.resolve_style(self.window, QPalette)
         export_controller = DetailsGraphExportController(
             dialog=widgets.dialog,
@@ -124,7 +127,7 @@ class DetailsDialogPresenter:
                     widgets, self._svg_render_deps
                 ),
             )
-        widgets.dialog.exec()
+        self._show_dialog(widgets.dialog)
 
     def _connect_actions(self, *, widgets, export_controller, qt_cls) -> None:
         widgets.details_browser.anchorClicked.connect(
@@ -313,21 +316,85 @@ class DetailsDialogPresenter:
             graph_label=widgets.tree_graph_label,
             graph_panel=widgets.tree_graph_panel,
             dependencies=svg_render_deps,
+            resize_label=False,
         )
         if rendered:
             self._last_graph_render_key = key
+            set_svg_markup = getattr(widgets.tree_graph_label, "set_graph_svg_markup", None)
+            if callable(set_svg_markup):
+                set_svg_markup(graph_svg)
+            refresh_hitboxes = getattr(widgets.tree_graph_label, "_refresh_hitboxes_from_svg", None)
+            if callable(refresh_hitboxes):
+                refresh_hitboxes()
         else:
             self._last_graph_render_key = None
+            clear_svg_markup = getattr(
+                widgets.tree_graph_label, "clear_graph_svg_markup", None
+            )
+            if callable(clear_svg_markup):
+                clear_svg_markup()
+            set_hitboxes = getattr(widgets.tree_graph_label, "set_ssa_hitboxes", None)
+            if callable(set_hitboxes):
+                set_hitboxes([])
+            widgets.tree_graph_label.clear()
         return rendered
 
     def _refresh_graph_after_resize(self, widgets, svg_render_deps) -> None:
         if self.export_state["svg"]:
             self._render_graph_pixmap(widgets, svg_render_deps)
 
+    def refresh_after_theme(self) -> None:
+        if self._widgets is None:
+            return
+        self._style = self.callbacks.resolve_style(self.window, self._palette_cls())
+        self._render_cache.clear()
+        self._last_graph_render_key = None
+        self._render_target(
+            widgets=self._widgets,
+            style=self._style,
+            svg_render_deps=self._svg_render_deps,
+            ssa_target=self.current_target["ssa"],
+        )
+
+    def _show_dialog(self, dialog) -> None:
+        qt_cls = self._qt_cls()
+        dialog.setModal(False)
+        dialog.setWindowModality(qt_cls.WindowModality.NonModal)
+        dialog.setAttribute(qt_cls.WidgetAttribute.WA_DeleteOnClose, True)
+        open_dialogs = getattr(self.window, "_open_details_dialogs", None)
+        if not isinstance(open_dialogs, list):
+            open_dialogs = []
+            setattr(self.window, "_open_details_dialogs", open_dialogs)
+        open_dialogs.append(dialog)
+        dialog.destroyed.connect(lambda _obj=None: self._forget_dialog(dialog))
+        dialog.show()
+
+    def _forget_dialog(self, dialog) -> None:
+        open_dialogs = getattr(self.window, "_open_details_dialogs", None)
+        if isinstance(open_dialogs, list):
+            try:
+                open_dialogs.remove(dialog)
+            except ValueError:
+                self.callbacks.logger.debug("Details dialog was already forgotten")
+        try:
+            if getattr(dialog, "_ssa_details_dialog_presenter", None) is self:
+                delattr(dialog, "_ssa_details_dialog_presenter")
+        except (AttributeError, RuntimeError):
+            self.callbacks.logger.debug("Details dialog back-reference was unavailable")
+        try:
+            widgets_dialog = getattr(self._widgets, "dialog", None)
+        except RuntimeError:
+            widgets_dialog = dialog
+        if widgets_dialog is dialog:
+            self._widgets = None
+            self._last_graph_render_key = None
+            self._render_cache.clear()
+
     def _handle_anchor(self, widgets, url) -> None:
         try:
             href = url.toString()
-        except Exception:
+        except Exception as exc:
+            self.callbacks.logger.warning("Failed to parse details dialog anchor: %s", exc)
             return
         if not href:
             return
@@ -362,9 +429,17 @@ class DetailsDialogPresenter:
                 ssa_target=self.target,
                 resolved_series=self.series,
             )
+            return
+        self.callbacks.logger.warning("Unknown details dialog anchor action: %s", action)
 
     @staticmethod
     def _palette_cls():
         from PyQt6.QtGui import QPalette
 
         return QPalette
+
+    @staticmethod
+    def _qt_cls():
+        from PyQt6.QtCore import Qt
+
+        return Qt

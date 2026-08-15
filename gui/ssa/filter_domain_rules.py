@@ -14,14 +14,25 @@ MACRO_BAIXAR_FILTER_KEY = "ssas_para_baixar"
 MACRO_BAIXAR_STATUS_EXCLUSIONS = ("SAD", "SCA", "SES", "STE")
 MACRO_BAIXAR_DERIVADA_SELECTION = ("all_ste",)
 SECTOR_EXECUTOR_PRIORITY = (
+    "IEE3",
     "IEE1",
     "IEE2",
-    "IEE3",
     "IEE4",
     "MEL1",
     "MEL2",
     "MEL3",
     "MEL4",
+)
+SECTOR_EXECUTOR_PRIORITY_INDEX = {
+    sector: index for index, sector in enumerate(SECTOR_EXECUTOR_PRIORITY)
+}
+RESPONSAVEL_SECTOR_SIGNATURE_COLUMNS = (
+    "setor_executor",
+    "setor_emissor",
+    "solicitante",
+    "responsavel_solicitante",
+    "responsavel_programacao",
+    "responsavel_execucao",
 )
 
 
@@ -40,8 +51,8 @@ def exclude_terminal_status_rows(df: pd.DataFrame) -> pd.DataFrame:
 def collect_nonempty_column_values(df: pd.DataFrame, column: str) -> list[str]:
     if not isinstance(df, pd.DataFrame) or df.empty or column not in df.columns:
         return []
-    series = normalize_nonempty_string_series(df[column].dropna())
-    return series[series != ""].astype(str).tolist()
+    series = normalize_nonempty_string_series(df[column])
+    return series[series != ""].tolist()
 
 
 def dedupe_nonempty_strings(values: Iterable[Any] | None) -> list[str]:
@@ -74,7 +85,7 @@ def known_division_rank(div: str) -> int:
 def sector_sort_key(
     sector: str,
     sector_to_div: Mapping[str, str] | None = None,
-) -> tuple[int, str, str]:
+) -> tuple[int, int, str, str]:
     value = str(sector or "").strip()
     sector_to_div = sector_to_div or {}
     div = (
@@ -84,7 +95,11 @@ def sector_sort_key(
         or ""
     )
     div_text = str(div)
+    priority_rank = SECTOR_EXECUTOR_PRIORITY_INDEX.get(value.upper())
+    if priority_rank is None:
+        priority_rank = len(SECTOR_EXECUTOR_PRIORITY)
     return (
+        priority_rank,
         known_division_rank(div_text.upper()),
         div_text.casefold(),
         value.casefold(),
@@ -263,9 +278,7 @@ def order_responsavel_values(
         decorated_meta.append(
             (
                 (
-                    known_division_rank(str(div)),
-                    div.casefold(),
-                    sector.casefold(),
+                    *sector_sort_key(sector, sector_to_div),
                     person.casefold(),
                 ),
                 person,
@@ -338,20 +351,19 @@ def generate_responsavel_sector_filter_cache_signature(
 
 
 def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
-    # Fallback for callers without a data version token; structure-level only.
     try:
-        first_index = df.index[0] if len(df.index) else None
-        last_index = df.index[-1] if len(df.index) else None
-        return hash(
-            (
-                len(df),
-                first_index,
-                last_index,
-                tuple(str(column) for column in df.columns),
-            )
+        columns = [
+            column
+            for column in RESPONSAVEL_SECTOR_SIGNATURE_COLUMNS
+            if column in df.columns
+        ]
+        frame = df.loc[:, columns] if columns else df
+        data_hash = int(
+            pd.util.hash_pandas_object(frame, index=True).sum()
         )
+        return hash((data_hash, len(df), tuple(str(column) for column in df.columns)))
     except Exception:
-        return hash(len(df))
+        return hash((len(df), tuple(str(column) for column in df.columns)))
 
 
 def filter_responsavel_frame_by_sector_selection(
@@ -414,13 +426,14 @@ ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "ano_emissao": ("data_cadastro",),
     "ano_emissao_values": ("data_cadastro",),
     "ano_emissao_exclude_values": ("data_cadastro",),
-    "ano_execucao": ("data_programada",),
-    "ano_execucao_values": ("data_programada",),
-    "ano_execucao_exclude_values": ("data_programada",),
+    "ano_execucao": ("semana_executada",),
+    "ano_execucao_values": ("semana_executada",),
+    "ano_execucao_exclude_values": ("semana_executada",),
+    "num_reprogramacoes_values": ("num_reprogramacoes",),
     "semana_emissao_inicio": ("semana_cadastro",),
     "semana_emissao_fim": ("semana_cadastro",),
-    "semana_execucao_inicio": ("semana_programada",),
-    "semana_execucao_fim": ("semana_programada",),
+    "semana_execucao_inicio": ("semana_executada",),
+    "semana_execucao_fim": ("semana_executada",),
     "derivada_include_values": ("derivada_de",),
     "derivada_has": ("derivada_de",),
     "derivada_all_ste": ("derivada_de",),

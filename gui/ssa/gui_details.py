@@ -22,7 +22,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.dataframe_fingerprint import build_dataframe_filter_hash
+from core.dataframe_fingerprint import (
+    build_dataframe_filter_hash,
+    sample_dataframe_for_fingerprint,
+)
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
@@ -579,6 +582,7 @@ def _get_details_frame_fingerprint(window, df) -> str:
         data_revision,
         tuple(getattr(df, "shape", (0, 0))),
         tuple(str(column) for column in getattr(df, "columns", [])),
+        build_dataframe_filter_hash(sample_dataframe_for_fingerprint(df)),
     )
     cache = getattr(window, "_details_frame_fingerprint_cache", None)
     if not isinstance(cache, dict):
@@ -1050,11 +1054,8 @@ def _close_current_derivadas_context(window) -> None:
 
 
 def _handle_derivadas_context_graph_click(window, watched: Any, target: str) -> None:
-    source_ssa = None
-    context_state = getattr(window, "_details_context_state", None)
-    if isinstance(context_state, dict) and watched is context_state.get("graph_label"):
-        source_ssa = str(context_state.get("current_ssa") or "") or None
-    _open_derivadas_context_panel(window, target, source_ssa=source_ssa)
+    _ = watched
+    _open_details_dialog_for_ssa(window, target)
 
 
 def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
@@ -1112,7 +1113,7 @@ def _ensure_derivadas_context_runtime(window) -> dict[str, Any] | None:
     graph_label.setTextFormat(Qt.TextFormat.RichText)
     graph_label.setStyleSheet("border:none; background:transparent;")
     graph_label.setFixedHeight(360)
-    graph_label.setToolTip("Clique em uma SSA do grafo para abrir no contexto")
+    graph_label.setToolTip("Clique abre detalhes")
     graph_label.setSizePolicy(
         QSizePolicy.Policy.Expanding,
         QSizePolicy.Policy.Fixed,
@@ -1437,6 +1438,36 @@ def refresh_main_details_derivadas_panel(window) -> None:
         series,
         font_family=getattr(window, "_details_current_derivadas_font_family", None),
     )
+
+
+def refresh_derivadas_views_after_theme(window) -> None:
+    refresh_main_details_derivadas_panel(window)
+    context_state = getattr(window, "_details_context_state", None)
+    if isinstance(context_state, dict):
+        current_ssa = str(context_state.get("current_ssa") or "")
+        if current_ssa:
+            entry_index = _get_derivadas_context_entry_index(context_state, current_ssa)
+            if entry_index >= 0:
+                try:
+                    _render_derivadas_context_entry(window, context_state, entry_index)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to refresh derivadas context entry after theme: %s",
+                        exc,
+                    )
+    open_dialogs = getattr(window, "_open_details_dialogs", None)
+    if not isinstance(open_dialogs, list):
+        return
+    for dialog in list(open_dialogs):
+        try:
+            presenter = getattr(dialog, "_ssa_details_dialog_presenter", None)
+            refresher = getattr(presenter, "refresh_after_theme", None)
+            if callable(refresher):
+                refresher()
+        except RuntimeError as exc:
+            logger.debug("Derivadas details dialog is no longer accessible: %s", exc)
+        except Exception as exc:
+            logger.warning("Failed to refresh derivadas details dialog after theme: %s", exc)
 
 
 def _get_derivadas_for_ssa(window, numero_ssa):
@@ -2303,14 +2334,11 @@ def _apply_details_dialog_geometry(window, dialog, details_tab_splitter) -> None
             max(int(window_height * 0.72), DERIVADAS_DIALOG_MIN_HEIGHT),
             safe_height,
         )
-    dialog.setMinimumSize(
-        min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width),
-        min(DERIVADAS_DIALOG_MIN_HEIGHT, safe_height),
-    )
-    dialog.setMaximumSize(safe_width, safe_height)
     current_size = dialog.sizeHint()
-    target_width = min(max(current_size.width(), DERIVADAS_DIALOG_MIN_WIDTH), safe_width)
+    target_width = min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width)
     target_height = desired_height
+    dialog.setMinimumSize(target_width, target_height)
+    dialog.setMaximumSize(target_width, target_height)
     if target_width != current_size.width() or target_height != current_size.height():
         dialog.resize(target_width, target_height)
     bottom_height = min(

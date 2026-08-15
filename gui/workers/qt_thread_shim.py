@@ -15,7 +15,7 @@ except Exception:
 
     class _SignalInstance:
         def __init__(self) -> None:
-            self._slots = []
+            self._slots: list[Any] = []
             self._lock = threading.RLock()
 
         def connect(self, slot, *_args, **_kwargs):
@@ -63,8 +63,9 @@ except Exception:
                 finally:
                     self._running = False
 
-            self._thread = threading.Thread(target=_target, daemon=True)
-            self._thread.start()
+            thread = threading.Thread(target=_target, daemon=True)
+            self._thread = thread
+            thread.start()
 
         def run(self) -> None:
             return None

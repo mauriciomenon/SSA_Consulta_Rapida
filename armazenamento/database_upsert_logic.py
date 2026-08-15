@@ -19,11 +19,13 @@ DO NOT add top-level imports from database.py - use lazy imports only.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
 import sqlite3 as _sqlite3_typehint
 import sys
+from datetime import datetime
 from typing import Any, Mapping, cast
 
 import numpy as np
@@ -33,6 +35,7 @@ from shared.date_utils import parse_any_date
 from shared.db_names import CANONICAL_SSA_TABLE
 from utils.file_metadata import parse_datetime_from_filename
 
+from .identifier_utils import quote_identifier as _quote_identifier
 from .numero_ssa_utils import normalize_numero_ssa_storage
 
 # Lazy imports from database.py to avoid circular dependency (see line 303)
@@ -40,10 +43,27 @@ from .numero_ssa_utils import normalize_numero_ssa_storage
 logger = logging.getLogger(__name__)
 _INVALID_IDENTIFIER_CHARS_RE = re.compile(r"[^A-Za-z0-9_]+")
 _VALID_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_ISO_SNAPSHOT_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
 _VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
 _RUNTIME_STATE: dict[str, str | None] = {"short_circuit_policy": None}
 _SQLITE_IN_MAX_VARS = 900
 _TEXTUAL_NULL_SENTINELS = {"", "<na>", "none", "nan", "null", "n/a", "-"}
+_SSA_EVENT_RECORDS_DDL = """
+CREATE TABLE IF NOT EXISTS ssa_event_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero_ssa TEXT NOT NULL,
+    record_type TEXT NOT NULL,
+    record_order INTEGER NOT NULL CHECK (record_order > 0),
+    record_label TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    arquivo_origem TEXT NOT NULL,
+    data_planilha TEXT,
+    data_arquivo_origem TEXT,
+    source_sheet TEXT NOT NULL,
+    source_row INTEGER NOT NULL CHECK (source_row > 0),
+    UNIQUE (numero_ssa, record_type, record_order, payload_json)
+)
+"""
 _SITUACAO_RANK = {
     # Waiting/planning states
     "AAD": 10,
@@ -166,11 +186,12 @@ def _sanitize_dynamic_column_name(
     return candidate
 
 
-def _quote_identifier(name: str) -> str:
-    safe_name = str(name or "").strip()
-    if _VALID_IDENTIFIER_RE.fullmatch(safe_name) is None:
-        raise ValueError(f"Invalid SQL identifier: {name!r}")
-    return f'"{safe_name}"'
+def _build_table_projection(conn: Any, quoted_table_name: str) -> str:
+    rows = conn.execute(f"PRAGMA table_info({quoted_table_name})").fetchall()  # nosec B608
+    columns = [str(row[1]) for row in rows if len(row) > 1 and row[1]]
+    if not columns:
+        raise ValueError(f"No columns found for table: {quoted_table_name}")
+    return ", ".join(_quote_identifier(column) for column in columns)
 
 
 def _coerce_sqlite_scalar(value: Any) -> Any:
@@ -574,7 +595,9 @@ def _is_empty_upsert_value(val: Any) -> bool:
         if pd.isna(val):
             return True
     except (TypeError, ValueError, AttributeError):  # pragma: no cover
-        return isinstance(val, str) and val.strip().casefold() in _TEXTUAL_NULL_SENTINELS
+        return (
+            isinstance(val, str) and val.strip().casefold() in _TEXTUAL_NULL_SENTINELS
+        )
     if isinstance(val, str) and val.strip().casefold() in _TEXTUAL_NULL_SENTINELS:
         return True
     return False
@@ -657,9 +680,11 @@ def _merge_overwrite_with_incoming_non_empty(
 ) -> pd.Series:
     incoming = new_row.reindex(existing_row.index, fill_value=None)
     empty_mask = incoming.apply(
-        lambda value: pd.isna(value)
-        or value in (None, "")
-        or (isinstance(value, str) and value.strip() == "")
+        lambda value: (
+            pd.isna(value)
+            or value in (None, "")
+            or (isinstance(value, str) and value.strip() == "")
+        )
     )
     merged = existing_row.where(empty_mask, incoming)
     for col in new_row.index:
@@ -704,6 +729,147 @@ def _log_setor_executor_change_if_needed(
         incoming_text,
         incoming_row.get("data_cadastro"),
     )
+
+
+def _persist_ssa_event_records(
+    conn: Any,
+    records: list[dict[str, Any]],
+    source_frame: pd.DataFrame,
+) -> int:
+    if not records:
+        return 0
+
+    source_metadata: dict[str, Any] = {}
+    has_event_records_attr = "ssa_event_records" in source_frame.attrs
+    event_records_attr = source_frame.attrs.pop("ssa_event_records", None)
+    try:
+        for column in ("arquivo_origem", "data_planilha", "data_arquivo_origem"):
+            source_metadata[column] = None
+            if column not in source_frame.columns:
+                continue
+            for value in source_frame[column].tolist():
+                if not _is_empty_upsert_value(value):
+                    source_metadata[column] = _coerce_sqlite_scalar(value)
+                    break
+    finally:
+        if has_event_records_attr:
+            source_frame.attrs["ssa_event_records"] = event_records_attr
+
+    rows: list[tuple[Any, ...]] = []
+    required_fields = {
+        "numero_ssa",
+        "record_type",
+        "record_order",
+        "record_label",
+        "payload_json",
+        "source_sheet",
+        "source_row",
+    }
+    for record in records:
+        missing_fields = required_fields.difference(record)
+        if missing_fields:
+            raise ValueError(
+                f"Hierarchical event record is missing fields: {sorted(missing_fields)}"
+            )
+        numero_ssa = normalize_numero_ssa_storage(record["numero_ssa"])
+        if numero_ssa is None:
+            raise ValueError(
+                f"Invalid numero_ssa in hierarchical event record: {record['numero_ssa']!r}"
+            )
+        record_order = int(record["record_order"])
+        source_row = int(record["source_row"])
+        if record_order <= 0 or source_row <= 0:
+            raise ValueError("Hierarchical event order and source row must be positive")
+        payload_json = str(record["payload_json"])
+        payload = json.loads(payload_json)
+        if not isinstance(payload, dict):
+            raise ValueError("Hierarchical event payload must be a JSON object")
+        arquivo_origem = record.get("arquivo_origem")
+        if _is_empty_upsert_value(arquivo_origem):
+            arquivo_origem = source_metadata["arquivo_origem"]
+        if _is_empty_upsert_value(arquivo_origem):
+            raise ValueError(
+                "Hierarchical event records require arquivo_origem metadata "
+                f"(numero_ssa={numero_ssa}, sheet={record['source_sheet']!r}, "
+                f"row={source_row})"
+            )
+        data_planilha = record.get("data_planilha")
+        if _is_empty_upsert_value(data_planilha):
+            data_planilha = source_metadata["data_planilha"]
+        if not _is_empty_upsert_value(data_planilha):
+            data_planilha = str(_coerce_sqlite_scalar(data_planilha)).strip()
+            try:
+                valid_snapshot_date = bool(
+                    _ISO_SNAPSHOT_DATETIME_RE.fullmatch(data_planilha)
+                ) and datetime.fromisoformat(data_planilha) is not None
+            except ValueError:
+                valid_snapshot_date = False
+            if not valid_snapshot_date:
+                raise ValueError(
+                    "Hierarchical event data_planilha must use "
+                    "YYYY-MM-DDTHH:MM:SS "
+                    f"(numero_ssa={numero_ssa}, sheet={record['source_sheet']!r}, "
+                    f"row={source_row}, value={data_planilha!r})"
+                )
+        data_arquivo_origem = record.get("data_arquivo_origem")
+        if _is_empty_upsert_value(data_arquivo_origem):
+            data_arquivo_origem = source_metadata["data_arquivo_origem"]
+
+        rows.append(
+            (
+                numero_ssa,
+                str(record["record_type"]).strip(),
+                record_order,
+                str(record["record_label"]).strip(),
+                payload_json,
+                _coerce_sqlite_scalar(arquivo_origem),
+                _coerce_sqlite_scalar(data_planilha),
+                _coerce_sqlite_scalar(data_arquivo_origem),
+                str(record["source_sheet"]).strip(),
+                source_row,
+            )
+        )
+
+    conn.execute(_SSA_EVENT_RECORDS_DDL)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ssa_event_records_lookup "
+        "ON ssa_event_records (numero_ssa, record_type, record_order)"
+    )
+    conn.executemany(
+        """
+        INSERT INTO ssa_event_records (
+            numero_ssa,
+            record_type,
+            record_order,
+            record_label,
+            payload_json,
+            arquivo_origem,
+            data_planilha,
+            data_arquivo_origem,
+            source_sheet,
+            source_row
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (numero_ssa, record_type, record_order, payload_json)
+        DO UPDATE SET
+            record_label = excluded.record_label,
+            arquivo_origem = excluded.arquivo_origem,
+            data_planilha = excluded.data_planilha,
+            data_arquivo_origem = excluded.data_arquivo_origem,
+            source_sheet = excluded.source_sheet,
+            source_row = excluded.source_row
+        WHERE excluded.data_planilha IS NOT NULL
+          AND (
+              ssa_event_records.data_planilha IS NULL
+              OR excluded.data_planilha > ssa_event_records.data_planilha
+              OR (
+                  excluded.data_planilha = ssa_event_records.data_planilha
+                  AND excluded.arquivo_origem < ssa_event_records.arquivo_origem
+              )
+          )
+        """,
+        rows,
+    )
+    return len(rows)
 
 
 def _persist_upsert_chunk(
@@ -852,11 +1018,12 @@ def _load_existing_chunk_caches(
     if not chunk_num_ssa:
         return pd.DataFrame(), {}, {}
     existing_parts: list[pd.DataFrame] = []
+    projection = _build_table_projection(conn, quoted_table_name)
     for start in range(0, len(chunk_num_ssa), _SQLITE_IN_MAX_VARS):
         query_ids = chunk_num_ssa[start : start + _SQLITE_IN_MAX_VARS]
         placeholders = ", ".join(["?"] * len(query_ids))
         part = pd.read_sql_query(
-            f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",  # nosec B608
+            f"SELECT {projection} FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",  # nosec B608
             conn,
             params=query_ids,
         )
@@ -994,7 +1161,12 @@ def _collect_chunk_upsert_delta(
 
 
 def _perform_upsert(
-    has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int | None = None
+    has_ssa: pd.DataFrame,
+    table_name: str,
+    conn,
+    *,
+    chunk_size: int | None = None,
+    metrics_out: dict[str, int] | None = None,
 ) -> int:
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
     effective_policy = _resolve_short_circuit_policy()
@@ -1007,6 +1179,8 @@ def _perform_upsert(
         else _resolve_upsert_chunk_size(len(has_ssa))
     )
     total_upserted = 0
+    inserted_keys: set[str] = set()
+    updated_keys: set[str] = set()
     quoted_table_name = _quote_identifier(table_name)
     _begin_transaction_if_needed(conn, context="_perform_upsert")
     logger.debug(
@@ -1042,6 +1216,11 @@ def _perform_upsert(
         if existing_chunk.empty and len(chunk_num_ssa) == len(chunk):
             _append_dataframe_rows(conn, table_name, chunk)
             total_upserted += len(chunk)
+            inserted_keys.update(
+                cache_key
+                for numero_ssa in chunk_num_ssa
+                if (cache_key := _upsert_cache_key(numero_ssa)) is not None
+            )
             logger.info(
                 "Fast-path append de %s registros com numero_ssa unicos e ausentes no banco",
                 len(chunk),
@@ -1063,8 +1242,19 @@ def _perform_upsert(
             date_columns=date_columns,
         )
         total_upserted += changed_rows
+        persisted_keys = set(rows_to_persist)
+        chunk_updated_keys = {
+            cache_key
+            for numero_ssa in delete_keys
+            if (cache_key := _upsert_cache_key(numero_ssa)) is not None
+        }
+        updated_keys.update(chunk_updated_keys - inserted_keys)
+        inserted_keys.update(persisted_keys - chunk_updated_keys)
         if rows_to_persist or delete_keys:
             _persist_upsert_chunk(conn, table_name, rows_to_persist, delete_keys)
+    if metrics_out is not None:
+        metrics_out["ssa_inserted"] = len(inserted_keys)
+        metrics_out["ssa_updated"] = len(updated_keys)
     return total_upserted
 
 
@@ -1091,7 +1281,9 @@ def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
     ]
     for c in date_columns:
         if c in work_local.columns:
-            work_local[c] = work_local[c].map(lambda value, col=c: _safe_parse_any_date(value, col))
+            work_local[c] = work_local[c].map(
+                lambda value, col=c: _safe_parse_any_date(value, col)
+            )
     return work_local
 
 
@@ -1115,18 +1307,38 @@ def apply_column_whitelist(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def insert_dataframe_with_smart_upsert_impl(
-    df: pd.DataFrame, db_path: str | Any, table_name: str
+    df: pd.DataFrame,
+    db_path: str | Any,
+    table_name: str,
+    *,
+    metrics_out: dict[str, int] | None = None,
 ) -> bool:
-    work = prepare_dataframe_for_upsert(df)
+    has_event_records_attr = "ssa_event_records" in df.attrs
+    event_records_raw = df.attrs.pop("ssa_event_records", [])
+    if not isinstance(event_records_raw, list):
+        if has_event_records_attr:
+            df.attrs["ssa_event_records"] = event_records_raw
+        raise TypeError("ssa_event_records DataFrame attr must be a list")
+    event_records = event_records_raw
+    try:
+        work = prepare_dataframe_for_upsert(df)
+    finally:
+        if has_event_records_attr:
+            df.attrs["ssa_event_records"] = event_records_raw
+    if metrics_out is not None:
+        metrics_out["ssa_inserted"] = 0
+        metrics_out["ssa_updated"] = 0
+        metrics_out["ssa_event_records_processed"] = 0
     from . import database as _db_mod  # lazy import evita circularidade
 
     conn: Any = None
     conn_cm = None
+    external_savepoint_started = False
     if hasattr(db_path, "cursor"):  # conexão externa
         conn = cast(Any, db_path)
         close_after = False
     else:
-        conn_cm = _db_mod.get_db_connection(db_path)
+        conn_cm = _db_mod.get_db_connection(db_path, write=True)
         conn = cast(Any, conn_cm.__enter__())
         close_after = True
     try:
@@ -1138,6 +1350,11 @@ def insert_dataframe_with_smart_upsert_impl(
         )
         table_exists = table_name in existing_tables
         if not table_exists:
+            if not close_after:
+                raise RuntimeError(
+                    "Tabela alvo ausente em conexao externa; inicialize o schema "
+                    "antes do upsert para preservar a transacao do chamador."
+                )
             logger.warning(
                 "Tabela alvo '%s' ausente. Aplicando bootstrap de schema canonico antes do upsert.",
                 table_name,
@@ -1158,6 +1375,12 @@ def insert_dataframe_with_smart_upsert_impl(
                     table_name,
                 )
                 return False
+        if not close_after:
+            _begin_transaction_if_needed(
+                conn, context="insert_dataframe_with_smart_upsert_impl"
+            )
+            conn.execute("SAVEPOINT ssa_smart_upsert")
+            external_savepoint_started = True
         if table_name != CANONICAL_SSA_TABLE:
             logger.warning(
                 "Upsert com tabela nao canonica resolvida para '%s'.",
@@ -1188,9 +1411,10 @@ def insert_dataframe_with_smart_upsert_impl(
         else:
             has_ssa = work[work["numero_ssa"].notna()].copy()
             no_ssa = work[work["numero_ssa"].isna()].copy()
-        _begin_transaction_if_needed(
-            conn, context="insert_dataframe_with_smart_upsert_impl"
-        )
+        if close_after:
+            _begin_transaction_if_needed(
+                conn, context="insert_dataframe_with_smart_upsert_impl"
+            )
         if not no_ssa.empty:
             # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
             chunk_size = (
@@ -1206,14 +1430,40 @@ def insert_dataframe_with_smart_upsert_impl(
             _append_dataframe_rows(conn, table_name, no_ssa, chunk_size=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
         if not has_ssa.empty:
-            inserted = _perform_upsert(has_ssa, table_name, conn)
+            inserted = _perform_upsert(
+                has_ssa,
+                table_name,
+                conn,
+                metrics_out=metrics_out,
+            )
             logger.info("Processados %s registros com numero_ssa via upsert", inserted)
-        conn.commit()
+        if event_records:
+            processed_events = _persist_ssa_event_records(conn, event_records, df)
+            if metrics_out is not None:
+                metrics_out["ssa_event_records_processed"] = processed_events
+            logger.info(
+                "Processados %s registros hierarquicos em ssa_event_records",
+                processed_events,
+            )
+        if external_savepoint_started:
+            conn.execute("RELEASE SAVEPOINT ssa_smart_upsert")
+            external_savepoint_started = False
+        else:
+            conn.commit()
         logger.info("Inserção completada com sucesso")
         return True
     except Exception:
-        if (
-            conn is not None
+        if external_savepoint_started:
+            try:
+                conn.execute("ROLLBACK TO SAVEPOINT ssa_smart_upsert")
+                conn.execute("RELEASE SAVEPOINT ssa_smart_upsert")
+            except Exception as rollback_exc:
+                logger.warning(
+                    "Falha no rollback do savepoint de upsert: %s", rollback_exc
+                )
+        elif (
+            close_after
+            and conn is not None
             and hasattr(conn, "in_transaction")
             and bool(conn.in_transaction)
         ):

@@ -811,6 +811,10 @@ run_local_release() {
 main() {
   parse_args "$@"
   REPO_ROOT="$(repo_root)"
+  # shellcheck disable=SC1091
+  source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+  ssa_native_guard_repo "$REPO_ROOT" || exit 1
+  ssa_native_guard_tools uv git || exit 1
   assert_tool uv
   load_release_target_cache
   resolve_release_options

@@ -537,7 +537,7 @@ class CacheManager:
     def export_cache_for_debugging(self) -> Dict[str, Any]:
         """Exporta estado do cache para debugging."""
         with self._lock:
-            export_data = {
+            export_data: dict[str, Any] = {
                 "timestamp": datetime.now().isoformat(),
                 "stats": self.get_cache_stats(),
                 "caches": {},

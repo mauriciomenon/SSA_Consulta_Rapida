@@ -2,15 +2,37 @@
 
 ## Baseline ativo
 
-- Versao de referencia: `4.37`.
+- Versao de referencia: `4.47` (estavel; tag anterior: `v4.46`).
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
-- Current truth operacional 2026-05-04 01h14:
-  - `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados; base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`
-  - PR #58 e PR #59 merged
-  - artefatos v4.37 anteriores a este HEAD seguem stale
-  - proximo passo: rebuild Windows AMD64 e Debian AMD64 antes de atualizar release v4.37
-- Current truth sincronizado com commits anteriores desta frente:
+- Notas atuais: `docs/RELEASE_NOTES_v4.47.md`.
+- Current truth operacional 2026-08-09:
+  - metadata ativa: `4.47`
+  - release/tag atual: `v4.47`
+  - tag anterior: `v4.46`
+  - publicacao operacional: GitLab e Bitbucket
+  - mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub
+  - `dev` e publicado em `origin/dev` e `bitbucket/dev`; `git pull` padrao usa GitLab
+  - HTTP 403 afeta somente `gh`; nao bloqueia GitLab nem Bitbucket
+  - grupos criticos de banco, importacao, release, filtros, nullable e cache validados no Windows nativo
+  - `uv lock --check` e `pip-audit` sem vulnerabilidade conhecida
+  - suite consolidada, scanners e build real ainda devem ser registrados antes da tag
+  - build Windows oficial permanece condicionado ao relatorio JSON e aos smokes do executavel empacotado
+  - Debian usa clone Linux nativo; WSL fica restrito ao CodeRabbit em clone Linux proprio
+
+## Historical snapshot
+
+- Snapshot operacional 2026-06-27 15h56:
+  - metadata local ativa: `4.43`
+  - tag local da baseline entao atual: `v4.43`
+  - ultima tag publicada remota: `v4.36`
+  - proximo passo funcional era iniciar os slices de filtros/cache/GUI sem misturar com DOC_SYNC
+- Snapshot operacional anterior 2026-05-04 01h14:
+  - `main`, `dev`, `origin/main` e `origin/dev` deveriam estar sincronizados; base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`
+  - PR #58 e PR #59 estavam merged
+  - artefatos v4.43 anteriores a este HEAD seguiam stale
+  - proximo passo era rebuild Windows AMD64 e Debian AMD64 antes de atualizar release v4.43
+- Snapshot sincronizado com commits anteriores desta frente:
   - `tests/test_gui_filter_logic.py` deixou de depender de globais compartilhados entre testes para aposentadoria/limpeza de workers
   - o harness agora tira snapshot e restaura o estado global de lifecycle em `setup_method`/`teardown_method`
   - a pendencia correspondente saiu do backlog ativo como item de correcao

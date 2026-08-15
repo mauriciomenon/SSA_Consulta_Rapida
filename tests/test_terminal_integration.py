@@ -58,15 +58,25 @@ def _load_json_or_jsonc(path: str) -> dict:
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
+        json5_error: Exception | None = None
         if json5 is not None:
             try:
                 return json5.loads(raw)
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001
+                json5_error = exc
         # VS Code settings can be JSONC (line comments + block comments + trailing commas).
         cleaned = _strip_jsonc_comments(raw)
         cleaned = _strip_jsonc_trailing_commas(cleaned)
-        return json.loads(cleaned)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as exc:
+            if json5_error is not None:
+                raise json.JSONDecodeError(
+                    f"{exc.msg}; json5 fallback failed: {json5_error}",
+                    exc.doc,
+                    exc.pos,
+                ) from json5_error
+            raise
 
 
 def _strip_jsonc_comments(raw: str) -> str:
@@ -230,9 +240,8 @@ def test_pwsh_path_discovered_and_exists():
             if os.path.exists(c):
                 exists_any = True
                 break
-        except Exception:
-            # ignore odd paths
-            pass
+        except OSError as exc:
+            checked[-1] = f"{c} ({exc.__class__.__name__})"
 
     if which_pwsh:
         exists_any = True
@@ -294,7 +303,7 @@ def test_spawn_shell_and_invoke_python():
             "Write-Output 'ok'; exit 0",
         ]
 
-    proc = _try_spawn(cmd_echo, timeout=5)
+    proc = _try_spawn(cmd_echo, timeout=SHELL_ECHO_TIMEOUT)
     assert proc.returncode == 0, (
         f"Shell retornou código {proc.returncode}; stderr: {proc.stderr}"
     )

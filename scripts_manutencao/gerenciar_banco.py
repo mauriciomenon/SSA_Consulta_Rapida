@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -31,18 +32,34 @@ def reset_database(db_path="data/ssas.db"):
     # Remove o arquivo do banco se existir
     if os.path.exists(db_path):
         # Faz backup antes de remover
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         backup_path = f"{db_path}.backup_before_reset_{timestamp}"
-        shutil.copy2(db_path, backup_path)
+        source_path = Path(db_path).resolve()
+        try:
+            with closing(
+                sqlite3.connect(f"{source_path.as_uri()}?mode=ro", uri=True)
+            ) as source_conn:
+                with closing(sqlite3.connect(backup_path)) as backup_conn:
+                    source_conn.backup(backup_conn)
+                    if backup_conn.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                        raise sqlite3.DatabaseError("backup falhou no quick_check")
+        except (OSError, sqlite3.Error):
+            Path(backup_path).unlink(missing_ok=True)
+            raise
         print(f" Backup criado: {backup_path}")
 
-        os.remove(db_path)
+        for database_file in (
+            Path(db_path),
+            Path(f"{db_path}-wal"),
+            Path(f"{db_path}-shm"),
+        ):
+            database_file.unlink(missing_ok=True)
         print(f" Arquivo do banco removido: {db_path}")
 
     # Cria o banco usando o schema oficial
     schema_path = os.path.join(os.path.dirname(__file__), "..", "config", "schema.sql")
 
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         # Lê e executa o schema oficial
         if os.path.exists(schema_path):
             with open(schema_path, "r", encoding="utf-8") as f:
@@ -287,10 +304,10 @@ def main():
                     print(" Operao cancelada")
                 break
             elif choice == "2":
-                days = input(
+                days_text = input(
                     "Manter backups dos ltimos quantos dias? (padro: 7): "
                 ).strip()
-                days = int(days) if days.isdigit() else 7
+                days = int(days_text) if days_text.isdigit() else 7
                 clean_old_backups(days_to_keep=days)
                 break
             elif choice == "3":

@@ -6,7 +6,7 @@ from functools import partial
 from typing import Any, cast
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QFrame,
     QCheckBox,
@@ -52,8 +52,10 @@ def _apply_toolbar_compact_font(window: Any, widget: Any) -> None:
         logger.debug("Falha ao aplicar fonte compacta da barra superior: %s", exc)
 
 
-def _quick_situacao_button_style(window: Any, *, selected: bool) -> str:
-    roles = get_theme_roles(str(getattr(window, "_current_theme", "gruvbox") or "gruvbox"))
+def _quick_situacao_button_style(window: Any, *, state: int) -> str:
+    roles = dict(getattr(window, "_current_theme_roles", {}) or {})
+    if not roles:
+        roles = get_theme_roles(str(getattr(window, "_current_theme", "gruvbox") or "gruvbox"))
     panel_bg = pick_css_color(
         roles.get("panel_bg"),
         roles.get("summary_frame_bg"),
@@ -77,20 +79,52 @@ def _quick_situacao_button_style(window: Any, *, selected: bool) -> str:
         roles.get("input_border_focus"),
         fallback="#a46ff5",
     )
-    accent_soft = pick_css_color(
-        roles.get("accent_soft"),
-        roles.get("summary_frame_bg"),
-        fallback="#5c477c",
+    accent_strong = pick_css_color(
+        roles.get("input_border_focus"),
+        roles.get("accent"),
+        fallback=accent,
     )
-    if selected:
+    muted = pick_css_color(
+        roles.get("support_text_color"),
+        roles.get("input_placeholder"),
+        roles.get("panel_border"),
+        fallback="#8b909b",
+    )
+    readable_text = {}
+    for key, background in (("selected", accent), ("excluded", muted)):
+        color = QColor(background)
+        channels = (color.redF(), color.greenF(), color.blueF())
+        linear = tuple(
+            channel / 12.92
+            if channel <= 0.04045
+            else ((channel + 0.055) / 1.055) ** 2.4
+            for channel in channels
+        )
+        luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+        readable_text[key] = "#000000" if luminance >= 0.179 else "#ffffff"
+    if state == 1:
         return (
             "QPushButton {"
-            f"color:{panel_text};"
-            f"background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 {accent}, stop:1 {accent_soft});"
-            f"border:1px solid {accent};"
+            f"color:{readable_text['selected']};"
+            f"background:{accent};"
+            f"border:1px solid {accent_strong};"
             "border-radius:4px;"
-            "padding:0px 3px;"
-            "font-weight:800;"
+            "padding:0px 2px;"
+            "font-weight:500;"
+            "}"
+            "QPushButton:hover {"
+            f"border:1px solid {accent_strong};"
+            "}"
+        )
+    if state == 2:
+        return (
+            "QPushButton {"
+            f"color:{readable_text['excluded']};"
+            f"background:{muted};"
+            f"border:1px solid {panel_border};"
+            "border-radius:4px;"
+            "padding:0px 2px;"
+            "font-weight:500;"
             "}"
             "QPushButton:hover {"
             f"border:1px solid {accent};"
@@ -107,6 +141,55 @@ def _quick_situacao_button_style(window: Any, *, selected: bool) -> str:
         "}"
         "QPushButton:hover {"
         f"border:1px solid {accent};"
+        "}"
+    )
+
+
+def _quick_setor_executor_combo_style(window: Any) -> str:
+    roles = dict(getattr(window, "_current_theme_roles", {}) or {})
+    if not roles:
+        roles = get_theme_roles(str(getattr(window, "_current_theme", "gruvbox") or "gruvbox"))
+    panel_bg = pick_css_color(
+        roles.get("input_bg"),
+        roles.get("panel_bg"),
+        fallback="#2b2f3c",
+    )
+    panel_text = pick_css_color(
+        roles.get("input_text"),
+        roles.get("panel_text"),
+        fallback="#e6e7ee",
+    )
+    panel_border = pick_css_color(
+        roles.get("input_border"),
+        roles.get("panel_border"),
+        fallback="#666b84",
+    )
+    focus_border = pick_css_color(
+        roles.get("input_border_focus"),
+        roles.get("panel_border"),
+        roles.get("input_border"),
+        fallback=panel_border,
+    )
+    return (
+        "QComboBox {"
+        f"color:{panel_text};"
+        f"background:{panel_bg};"
+        f"border:1px solid {panel_border};"
+        "border-radius:3px;"
+        "padding:0px 3px;"
+        "combobox-popup: 0;"
+        "}"
+        "QComboBox:hover,QComboBox:focus {"
+        f"border:1px solid {focus_border};"
+        "}"
+        "QComboBox::drop-down {"
+        f"border-left:1px solid {panel_border};"
+        "width:14px;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        f"color:{panel_text};"
+        f"background:{panel_bg};"
+        f"selection-background-color:{focus_border};"
         "}"
     )
 
@@ -469,7 +552,7 @@ def build_pagination_filter_bar(
     pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
     quick_situacao_label = QLabel("")
     quick_situacao_label.setToolTip(
-        "Filtro rapido por situacao. Cada botao liga ou desliga uma situacao."
+        "Clique para incluir; clique novamente para excluir; terceiro clique remove."
     )
     quick_situacao_label.setVisible(False)
     quick_situacao_widget = QWidget()
@@ -505,7 +588,7 @@ def build_pagination_filter_bar(
 
     quick_situacao_box = _build_quick_filter_box("quickSituacaoBox")
     quick_situacao_box.setToolTip(
-        "Situacoes aplicadas junto com os demais filtros."
+        "Clique para incluir; clique novamente para excluir; terceiro clique remove."
     )
     quick_situacao_box_layout = QHBoxLayout(cast(Any, quick_situacao_box))
     quick_situacao_box_layout.setContentsMargins(2, 1, 2, 1)
@@ -530,6 +613,7 @@ def build_pagination_filter_bar(
         cast(Any, QSizePolicy.Policy.Fixed),
         cast(Any, QSizePolicy.Policy.Fixed),
     )
+    quick_setor_executor_box.setMaximumWidth(186)
 
     pagination_filters_layout.addWidget(cast(Any, quick_situacao_box), 1)
     pagination_filters_layout.addSpacing(4)
@@ -579,20 +663,19 @@ def _build_quick_filter_box(object_name: str) -> QFrame:
 
 def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[str, Any]:
     value_getter = getattr(window, "_collect_quick_situacao_values", None)
-    selected_getter = getattr(window, "_resolve_quick_situacao_selected_values", None)
+    state_getter = getattr(window, "_resolve_quick_situacao_states", None)
     values = value_getter() if callable(value_getter) else []
-    selected_values = set(selected_getter(values) if callable(selected_getter) else [])
+    states = state_getter(values) if callable(state_getter) else {}
     buttons: dict[str, QPushButton] = {}
     existing_buttons = getattr(window, "quick_situacao_buttons", None)
-    can_reuse = (
+    if (
         isinstance(existing_buttons, dict)
         and list(existing_buttons.keys()) == values
         and layout.count() == len(values)
-    )
-    if can_reuse:
+    ):
         for value in values:
             button = existing_buttons[value]
-            _sync_quick_situacao_button(window, button, value, selected_values)
+            _sync_quick_situacao_button(window, button, value, states)
             buttons[value] = button
     else:
         while layout.count():
@@ -602,7 +685,7 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
                 widget.deleteLater()
         for value in values:
             button = QPushButton(value)
-            button.setCheckable(True)
+            button.setCheckable(False)
             _set_fixed_height(window, button, 20, f"filtro rapido situacao {value}")
             try:
                 button.setMinimumWidth(24)
@@ -623,10 +706,10 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
                         button.setFont(font)
             except Exception as exc:
                 logger.debug("Falha ao reduzir fonte do botao de situacao %s: %s", value, exc)
-            toggle_handler = getattr(window, "_on_quick_situacao_toggled", None)
-            if callable(toggle_handler):
-                button.toggled.connect(partial(toggle_handler, value))
-            _sync_quick_situacao_button(window, button, value, selected_values)
+            click_handler = getattr(window, "_on_quick_situacao_clicked", None)
+            if callable(click_handler):
+                button.clicked.connect(partial(click_handler, value))
+            _sync_quick_situacao_button(window, button, value, states)
             layout.addWidget(cast(Any, button))
             buttons[value] = button
     widget = layout.parentWidget()
@@ -640,16 +723,22 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
 
 
 def _sync_quick_situacao_button(
-    window: Any, button: QPushButton, value: str, selected_values: set[str]
+    window: Any, button: QPushButton, value: str, states: dict[str, int]
 ) -> None:
     was_blocked = button.blockSignals(True)
     try:
-        button.setChecked(value in selected_values)
-        button.setToolTip(f"Liga ou desliga o filtro de situacao {value}.")
+        state = int(states.get(value, 0))
+        button.setProperty("quick_situacao_state", state)
+        if state == 1:
+            button.setToolTip(f"Incluindo {value} - clicar exclui")
+        elif state == 2:
+            button.setToolTip(f"Excluindo {value} - clicar remove")
+        else:
+            button.setToolTip(f"Filtrar situacao {value}")
         button.setStyleSheet(
             _quick_situacao_button_style(
                 window,
-                selected=value in selected_values,
+                state=state,
             )
         )
     except Exception as exc:
@@ -678,7 +767,7 @@ def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
             adjust_policy = getattr(QComboBox.SizeAdjustPolicy, "AdjustToContents", None)
         if adjust_policy is not None:
             combo.setSizeAdjustPolicy(cast(Any, adjust_policy))
-        combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        combo.setStyleSheet(_quick_setor_executor_combo_style(window))
         combo_view = combo.view()
         if combo_view is not None:
             scroll_policy = getattr(

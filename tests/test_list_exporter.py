@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+from pathlib import Path
+from threading import Event
+
 import pandas as pd
 import pytest
+from PyQt6.QtTest import QSignalSpy
 
 from gui.ssa import list_export_controller
-from gui.ssa.list_exporter import resolve_export_columns, write_current_list_tsv
+from gui.ssa.list_exporter import (
+    ListExportResult,
+    resolve_export_columns,
+    write_current_list_tsv,
+)
+from gui.workers.list_export_worker import ListExportWorker
 
 
 def test_resolve_export_columns_prefers_visible_columns_in_dataframe_order_request():
@@ -68,6 +77,7 @@ def test_export_controller_uses_stable_dataframe_snapshot(tmp_path):
     dataframe = pd.DataFrame({"numero_ssa": [202600001], "situacao": ["ASE"]})
     out_path = tmp_path / "lista.txt"
     state = list_export_controller.ListExportState()
+    state_during_custom_signal = []
 
     class _Window:
         def __init__(self) -> None:
@@ -117,6 +127,7 @@ def test_export_controller_uses_stable_dataframe_snapshot(tmp_path):
                 self.path,
             )
             self.export_finished.emit(result)
+            state_during_custom_signal.append(state.running)
             self.finished.emit()
 
     window = _Window()
@@ -129,7 +140,39 @@ def test_export_controller_uses_stable_dataframe_snapshot(tmp_path):
     )
 
     assert state.running is False
+    assert state.worker is None
+    assert state_during_custom_signal == [True]
     assert out_path.read_text(encoding="utf-8").splitlines() == [
         "numero_ssa\tsituacao",
         "202600001\tASE",
     ]
+
+
+def test_list_export_cancel_does_not_publish_final_file(tmp_path, monkeypatch):
+    output = tmp_path / "lista.tsv"
+    output.write_text("original\n", encoding="utf-8")
+    started = Event()
+    release = Event()
+
+    def _blocking_write(_dataframe, _columns, path):
+        started.set()
+        assert release.wait(2.0)
+        Path(path).write_text("replacement\n", encoding="utf-8")
+        return ListExportResult(path=str(path), rows=1, columns=1)
+
+    monkeypatch.setattr(
+        "gui.workers.list_export_worker.write_current_list_tsv",
+        _blocking_write,
+    )
+    worker = ListExportWorker(pd.DataFrame({"numero_ssa": [1]}), [], str(output))
+    success_spy = QSignalSpy(worker.export_finished)
+
+    worker.start()
+    assert started.wait(1.0)
+    worker.cancel()
+    release.set()
+    assert worker.wait(2000)
+
+    assert len(success_spy) == 0
+    assert output.read_text(encoding="utf-8") == "original\n"
+    assert list(tmp_path.glob(".lista.tsv.*.tmp")) == []

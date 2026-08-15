@@ -65,7 +65,7 @@ def test_convert_svg_to_ico_uses_sizes_on_single_base_image(monkeypatch):
     monkeypatch.setattr(convert_icon, "cairosvg", _FakeCairosvg)
     monkeypatch.setattr(convert_icon, "_import_optional_module", _fake_import)
 
-    convert_icon.convert_svg_to_ico("icon.svg", "/tmp/icon.ico", sizes=[16, 32, 64])
+    convert_icon.convert_svg_to_ico("icon.svg", "icon.ico", sizes=[16, 32, 64])
 
     assert save_calls, "save nao foi chamado"
     kwargs = save_calls[0]["kwargs"]
@@ -118,7 +118,7 @@ def test_convert_svg_to_ico_uses_rsvg_when_cairosvg_unavailable(monkeypatch):
     monkeypatch.setattr(convert_icon, "_run_command", _fake_run_command)
     monkeypatch.setattr(convert_icon, "RSVG_CONVERT", "rsvg-convert")
 
-    convert_icon.convert_svg_to_ico("icon.svg", "/tmp/icon.ico", sizes=[16])
+    convert_icon.convert_svg_to_ico("icon.svg", "icon.ico", sizes=[16])
 
     assert command_calls, "rsvg-convert nao foi chamado"
     assert command_calls[0][0] == "rsvg-convert"
@@ -128,3 +128,91 @@ def test_convert_svg_to_ico_uses_rsvg_when_cairosvg_unavailable(monkeypatch):
         "--height=16",
     ]
     assert save_calls
+
+
+def test_convert_svg_to_ico_raises_when_rsvg_fails(monkeypatch):
+    def _fake_import(module_name):
+        if module_name == "PIL.Image":
+            return SimpleNamespace(open=lambda _data: object())
+        return None
+
+    def _fake_run_command(_command):
+        return SimpleNamespace(returncode=1, stdout=b"", stderr=b"conversion failed")
+
+    monkeypatch.setattr(convert_icon, "cairosvg", None)
+    monkeypatch.setattr(convert_icon, "_import_optional_module", _fake_import)
+    monkeypatch.setattr(convert_icon, "_run_command", _fake_run_command)
+    monkeypatch.setattr(convert_icon, "RSVG_CONVERT", "rsvg-convert")
+
+    with pytest.raises(RuntimeError, match="conversion failed"):
+        convert_icon.convert_svg_to_ico("icon.svg", "icon.ico", sizes=[16])
+
+
+def test_import_optional_module_rejects_unexpected_module() -> None:
+    with pytest.raises(ValueError, match="Unsupported optional module"):
+        convert_icon._import_optional_module("os")
+
+
+def test_convert_svg_to_ico_rejects_empty_sizes(monkeypatch) -> None:
+    monkeypatch.setattr(convert_icon, "_require_pillow_image", lambda: object())
+
+    with pytest.raises(ValueError, match="sizes must not be empty"):
+        convert_icon.convert_svg_to_ico("icon.svg", "icon.ico", sizes=[])
+
+
+def test_convert_svg_to_icns_uses_requested_sizes_and_closes_images(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    rendered_sizes: list[int] = []
+    saved_names: list[str] = []
+    closed_count = 0
+    command_calls: list[list[str]] = []
+
+    class _FakeImage:
+        def save(self, path, **_kwargs):
+            saved_names.append(Path(path).name)
+
+        def close(self):
+            nonlocal closed_count
+            closed_count += 1
+
+    fake_image_module = SimpleNamespace(open=lambda _data: _FakeImage())
+
+    def _fake_render(_svg_path, size):
+        rendered_sizes.append(size)
+        return b"png-bytes"
+
+    def _fake_run_command(command):
+        command_calls.append(command)
+        return SimpleNamespace(returncode=0, stderr=b"")
+
+    monkeypatch.setattr(convert_icon, "_require_pillow_image", lambda: fake_image_module)
+    monkeypatch.setattr(convert_icon, "_render_svg_to_png", _fake_render)
+    monkeypatch.setattr(convert_icon.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(convert_icon, "_run_command", _fake_run_command)
+
+    result = convert_icon.convert_svg_to_icns(
+        "icon.svg",
+        tmp_path / "icon.icns",
+        sizes=[16, 32],
+    )
+
+    assert result is True
+    assert rendered_sizes == [16, 32, 32]
+    assert saved_names == ["icon_16x16.png", "icon_16x16@2x.png", "icon_32x32.png"]
+    assert closed_count == 3
+    assert command_calls[0][0] == "/usr/bin/iconutil"
+
+
+def test_convert_icon_main_returns_failure_status(monkeypatch) -> None:
+    monkeypatch.setattr(convert_icon, "convert_all_icons", lambda: False)
+    monkeypatch.setattr(convert_icon, "cairosvg", object())
+
+    assert convert_icon.main() == 1
+
+
+def test_convert_icon_main_returns_success_status(monkeypatch) -> None:
+    monkeypatch.setattr(convert_icon, "convert_all_icons", lambda: True)
+
+    assert convert_icon.main() == 0

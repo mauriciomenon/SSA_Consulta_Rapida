@@ -49,7 +49,11 @@ except ImportError:
 
 # Imports do core
 from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_MARKER_ATTR
-from core.search_filter_constants import FILTER_SEARCH_SIGNATURE_CACHE_ATTR
+from core.search_filter_constants import (
+    FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+    FILTER_SOURCE_REVISION_ATTR,
+    FILTER_SOURCE_TOKEN_ATTR,
+)
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.search_filter import apply_general_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
@@ -123,6 +127,7 @@ from gui.ssa.filter_summary_removal import (
     SummaryRemovalPlan,
     build_summary_removal_plan,
 )
+from gui.ssa.gui_filters_advanced_logic import AdvancedFilterMaskError
 from gui.ssa import filter_search_undo_controller as search_undo_controller
 from gui.ssa.filter_state_utils import copy_filter_mapping as _copy_filter_mapping
 from utils.robust_logging import get_robust_logger
@@ -547,12 +552,29 @@ class FilterGUISSAMixin:
         self._clear_all_filters_global()
         self._maybe_offer_hard_reset_after_repeated_clear_click()
 
+    def _stamp_filter_source_attrs(self, source: pd.DataFrame) -> str:
+        revision_marker = (
+            getattr(self, "_data_uuid", None),
+            int(getattr(self, "_data_revision", 0) or 0),
+        )
+        attrs = dict(getattr(source, "attrs", {}) or {})
+        source_token = attrs.get(FILTER_SOURCE_TOKEN_ATTR)
+        if attrs.get(FILTER_SOURCE_REVISION_ATTR) != revision_marker or not source_token:
+            source_token = repr(
+                ("gui-filter-source", revision_marker, id(source))
+            )
+            attrs[FILTER_SOURCE_REVISION_ATTR] = revision_marker
+            attrs[FILTER_SOURCE_TOKEN_ATTR] = source_token
+            source.attrs = attrs
+        return str(source_token)
+
     def _get_filter_source_dataframe(
         self, source: pd.DataFrame | None = None
     ) -> pd.DataFrame:
         """Retorna a fonte de busca preservando cache seguro entre requests."""
         source = self.df_completo if source is None else source
         try:
+            self._stamp_filter_source_attrs(source)
             source_attrs = getattr(source, "attrs", {})
         except Exception as exc:
             logger.debug(
@@ -568,6 +590,8 @@ class FilterGUISSAMixin:
             FILTER_SEARCH_MARKER_ATTR,
             FILTER_SEARCH_CACHE_ATTR,
             FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+            FILTER_SOURCE_REVISION_ATTR,
+            FILTER_SOURCE_TOKEN_ATTR,
             "ssa_preprocessed_for_gui",
             "ssa_non_null_cols",
         }
@@ -598,23 +622,12 @@ class FilterGUISSAMixin:
 
     def _build_filter_worker_df_token(self, source: pd.DataFrame) -> str:
         shape = tuple(getattr(source, "shape", (0, 0)))
-        revision = getattr(self, "_data_revision", None)
-        data_uuid = getattr(self, "_data_uuid", None)
-        cached = getattr(self, "_filter_worker_df_token_cache", None)
-        if isinstance(cached, tuple) and len(cached) == 4:
-            cached_source_id, cached_shape, cached_revision, cached_token = cached
-            if (
-                cached_source_id == id(source)
-                and cached_shape == shape
-                and cached_revision == (revision, data_uuid)
-            ):
-                return str(cached_token)
+        source_token = self._stamp_filter_source_attrs(source)
         columns = tuple(str(column) for column in getattr(source, "columns", ()))
-        token = repr(
-            ("gui-filter-source", id(source), shape, columns, revision, data_uuid)
+        dtypes = tuple(str(dtype) for dtype in getattr(source, "dtypes", ()))
+        return repr(
+            ("gui-filter-source", source_token, shape, columns, dtypes)
         )
-        self._filter_worker_df_token_cache = (id(source), shape, (revision, data_uuid), token)
-        return token
 
     def _reset_repeated_clear_click_tracking(self) -> None:
         self._clear_filter_click_count = 0
@@ -750,6 +763,8 @@ class FilterGUISSAMixin:
         general_search_columns: list[str],
         request_id: int,
     ) -> None:
+        if bool(getattr(self, "_is_shutting_down", False)):
+            return
         filter_cache_context = self._build_filter_cache_context()
         worker = FilterWorker(
             filter_source,
@@ -887,8 +902,30 @@ class FilterGUISSAMixin:
                 "table_widget indisponivel no inicio de on_filter_finished; ignorando resultado."
             )
             return
+        has_post_search_filters = True
         try:
-            if not df_filtrado.empty and "numero_ssa" in df_filtrado.columns:
+            (
+                has_column_filters,
+                has_advanced_filters,
+                has_excluded_terminal_status,
+            ) = self._filter_refresh_flags()
+            has_post_search_filters = self._compute_has_post_search_filters(
+                has_column_filters=has_column_filters,
+                has_advanced_filters=has_advanced_filters,
+                has_excluded_terminal_status=has_excluded_terminal_status,
+                for_sort_defer=True,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Falha ao avaliar pos-filtros antes do sort de busca geral: %s",
+                exc,
+            )
+        try:
+            if (
+                not has_post_search_filters
+                and not df_filtrado.empty
+                and "numero_ssa" in df_filtrado.columns
+            ):
                 df_filtrado = df_filtrado.sort_values(
                     "numero_ssa", ascending=False
                 )
@@ -897,11 +934,21 @@ class FilterGUISSAMixin:
             logger.warning(
                 "Falha ao ordenar numero_ssa no fim do filtro geral: %s", exc
             )
-        # Atualiza baseline do resultado da busca global
+        previous_search_baseline = self._df_last_search_filtered
+        # Atualiza baseline do resultado da busca global para o refresh pos-busca
         self._df_last_search_filtered = df_filtrado
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
-        self._refresh_after_filter_change()
+        refresh_completed = self._refresh_after_filter_change(
+            commit_pending_search=False
+        )
+        if not refresh_completed:
+            self._df_last_search_filtered = previous_search_baseline
+            self._sync_clear_filter_button_state()
+            self._apply_search_display()
+            self._apply_filter_result_width_safety("filter_finished", deferred=True)
+            self._consume_pending_jump_to_ssa(effective_request_id)
+            return
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
         search_text = ""
         current_search_request_id = getattr(
@@ -1365,21 +1412,39 @@ class FilterGUISSAMixin:
     def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
         theme = getattr(self, "_current_theme", "") or "dark"
         roles = get_theme_roles(theme)
-        label_color = roles.get("support_text_color") or roles.get("label_color")
+        label_color = (
+            roles.get("panel_text") or roles.get("label_color") or "palette(text)"
+        )
         if label_widget is not None:
             label_widget.setStyleSheet(f"color:{label_color};")
         if input_widget is not None:
-            input_text = roles.get("input_text")
-            input_bg = roles.get("input_bg")
-            input_border = roles.get("input_border")
-            input_focus = roles.get("input_border_focus") or roles.get("accent")
-            input_placeholder = roles.get("input_placeholder")
-            style = (
-                f"QLineEdit {{ font-size:11px; color:{input_text}; background:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
-                f"QLineEdit::placeholder {{ color:{input_placeholder}; }}\n"
-                f"QLineEdit:focus {{ border:1px solid {input_focus}; }}\n"
+            input_text = (
+                roles.get("input_text") or roles.get("panel_text") or "palette(text)"
             )
-            input_widget.setStyleSheet(style)
+            input_bg = roles.get("panel_bg") or roles.get("input_bg") or "palette(base)"
+            input_border = (
+                roles.get("input_border") or roles.get("panel_border") or "palette(mid)"
+            )
+            input_focus = (
+                roles.get("input_border_focus") or roles.get("accent") or input_border
+            )
+            input_placeholder = (
+                roles.get("input_placeholder") or roles.get("muted_text") or label_color
+            )
+            try:
+                input_widget.setObjectName("columnFilterInput")
+            except RuntimeError as exc:
+                logger.debug("Filtro de coluna destruido ao nomear input: %s", exc)
+                return
+            style = (
+                f"QLineEdit#columnFilterInput {{ font-size:11px; color:{input_text}; background-color:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
+                f"QLineEdit#columnFilterInput::placeholder {{ color:{input_placeholder}; }}\n"
+                f"QLineEdit#columnFilterInput:focus {{ border:1px solid {input_focus}; }}\n"
+            )
+            try:
+                input_widget.setStyleSheet(style)
+            except RuntimeError as exc:
+                logger.debug("Filtro de coluna destruido ao aplicar estilo: %s", exc)
 
     def _resolve_status_totals(
         self,
@@ -1647,6 +1712,7 @@ class FilterGUISSAMixin:
                 "Falha ao sincronizar UI de filtros avancados em clear_all_filters_global: %s",
                 exc,
             )
+        self._refresh_quick_situacao_buttons()
 
         # Restaura linhas ocultas e limpa Filtro OU dedicado (exibição)
         try:
@@ -1750,6 +1816,7 @@ class FilterGUISSAMixin:
     def _render_filter_reset_baseline(self) -> None:
         """Render the full dataset after a full filter reset through one path."""
         self.df_exibido = self.df_completo
+        self._last_table_render_signature = None
         try:
             self.paginator.current_page = 1
         except Exception as exc:
@@ -2305,22 +2372,25 @@ class FilterGUISSAMixin:
         self._build_column_filters_panel()
 
     def _filter_refresh_has_general_search(self) -> bool:
-        try:
-            for widget in self._iter_search_inputs():
-                if widget.text().strip():
-                    return True
-        except Exception as exc:
-            logger.debug("Falha ao ler campos de busca no refresh de filtros: %s", exc)
         active_search_display = str(
             getattr(self, "_active_filter_search_display", "") or ""
         ).strip()
-        pending_search_display = str(
-            getattr(self, "_pending_search_display", "") or ""
-        ).strip()
-        return bool(active_search_display or pending_search_display)
+        if not active_search_display:
+            return False
+        try:
+            live_search_texts = [
+                str(widget.text() or "").strip()
+                for widget in self._iter_search_inputs()
+            ]
+        except Exception as exc:
+            logger.debug("Falha ao ler campos de busca no refresh de filtros: %s", exc)
+            return True
+        if not live_search_texts:
+            return True
+        return all(text == active_search_display for text in live_search_texts)
 
     def _filter_refresh_base_dataframe(self, has_general_search: bool) -> pd.DataFrame:
-        if has_general_search or not self._df_last_search_filtered.empty:
+        if has_general_search:
             return self._df_last_search_filtered
         return self.df_completo
 
@@ -2338,6 +2408,29 @@ class FilterGUISSAMixin:
             bool(getattr(self, "_exclude_ste_sca", False)),
         )
 
+    def _compute_has_post_search_filters(
+        self,
+        *,
+        has_column_filters: bool,
+        has_advanced_filters: bool,
+        has_excluded_terminal_status: bool,
+        for_sort_defer: bool,
+    ) -> bool:
+        """Return whether post-search filter stages should affect the current gate.
+
+        Contract:
+        - for_sort_defer=True (on_filter_finished pre-sort gate): includes terminal
+          exclusion because refresh applies STE/SCA without column/advanced stages;
+          pre-sort must defer when terminal-only is active.
+        - for_sort_defer=False (refresh pipeline gate): excludes terminal exclusion;
+          terminal is handled separately via has_excluded_terminal_status in the
+          pipeline cache path (see _apply_filter_refresh_filters_and_update_cache).
+        """
+        base = has_column_filters or has_advanced_filters
+        if for_sort_defer:
+            return base or has_excluded_terminal_status
+        return base
+
     def _apply_filter_refresh_filters_and_update_cache(
         self,
         filtered: pd.DataFrame,
@@ -2347,7 +2440,7 @@ class FilterGUISSAMixin:
         measure_timing,
     ) -> pd.DataFrame:
         cache_key = None
-        if has_post_search_filters:
+        if has_post_search_filters or has_excluded_terminal_status:
             cache_context = self._build_filter_cache_context()
             cache_key = (
                 getattr(self, "_data_revision", None),
@@ -2368,7 +2461,6 @@ class FilterGUISSAMixin:
             apply_advanced_filters=getattr(self, "_apply_advanced_filters", None),
             apply_column_filters=self._apply_column_filters,
             measure_timing=measure_timing,
-            logger=logger,
         )
         if cache_update is not None:
             self._filter_refresh_result_cache = cache_update
@@ -2417,13 +2509,6 @@ class FilterGUISSAMixin:
         return filtered
 
     def _bump_filter_refresh_revision(self) -> None:
-        try:
-            if hasattr(self, "_bump_data_revision"):
-                self._bump_data_revision("filter_refresh")
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar data revision em refresh de filtros: %s", exc
-            )
         try:
             if hasattr(self, "_ensure_data_revision"):
                 self._ensure_data_revision()
@@ -2533,19 +2618,22 @@ class FilterGUISSAMixin:
             )
             update_details_if_current()
 
-    def _finish_filter_refresh_ui(self, measure_timing) -> None:
+    def _finish_filter_refresh_ui(
+        self, measure_timing, *, skip_status_update: bool = False
+    ) -> None:
         measure_timing("status_indicator", self._update_col_filter_indicator)
         try:
             measure_timing("summary", self._update_filters_summary)
         except Exception as exc:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
         self._sync_clear_filter_button_state()
-        try:
-            measure_timing("status", self._set_filtered_count_status)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar status de total filtrado no refresh: %s", exc
-            )
+        if not skip_status_update:
+            try:
+                measure_timing("status", self._set_filtered_count_status)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao atualizar status de total filtrado no refresh: %s", exc
+                )
         try:
             sync_combo = getattr(
                 self, "_sync_quick_setor_executor_combo_from_filters", None
@@ -2590,11 +2678,29 @@ class FilterGUISSAMixin:
             filtered_rows,
         )
 
-    def _refresh_after_filter_change(self):
-        """Reaplica filtros de coluna, atualiza tabela e indicadores."""
+    def _refresh_after_filter_change(
+        self, *, commit_pending_search: bool = True
+    ) -> bool:
+        """Reaplica filtros de coluna, atualiza tabela e indicadores.
+
+        Returns:
+            False when advanced filter mask evaluation fails and the visible
+            dataframe was preserved; True when refresh completed normally.
+        """
         timer = FilterRefreshTimer()
         current_details_ssa = getattr(self, "_details_current_ssa", None)
-        has_general_search = self._filter_refresh_has_general_search()
+        active_search_display = str(
+            getattr(self, "_active_filter_search_display", "") or ""
+        ).strip()
+        current_search_text = self._current_general_search_text()
+        if commit_pending_search and current_search_text != active_search_display:
+            self.initiate_filtering()
+            return True
+        has_general_search = (
+            self._filter_refresh_has_general_search()
+            if commit_pending_search
+            else bool(active_search_display)
+        )
         base = self._filter_refresh_base_dataframe(has_general_search)
         filtered = base
         (
@@ -2602,25 +2708,33 @@ class FilterGUISSAMixin:
             has_advanced_filters,
             has_excluded_terminal_status,
         ) = self._filter_refresh_flags()
-        has_post_search_filters = (
-            has_column_filters
-            or has_advanced_filters
-            or has_excluded_terminal_status
-        )
-        if has_post_search_filters:
-            undo_state = getattr(self, "_last_filter_state", None)
-            applied_search_text = str(
-                getattr(self, "_active_filter_search_display", "") or ""
-            )
-            if isinstance(undo_state, dict) and applied_search_text:
-                undo_state["search_text"] = applied_search_text
-                undo_state["pending_search_display"] = applied_search_text
-        filtered = self._apply_filter_refresh_filters_and_update_cache(
-            filtered,
-            has_post_search_filters=has_post_search_filters,
+        has_post_search_filters = self._compute_has_post_search_filters(
+            has_column_filters=has_column_filters,
+            has_advanced_filters=has_advanced_filters,
             has_excluded_terminal_status=has_excluded_terminal_status,
-            measure_timing=timer.measure,
+            for_sort_defer=False,
         )
+        try:
+            filtered = self._apply_filter_refresh_filters_and_update_cache(
+                filtered,
+                has_post_search_filters=has_post_search_filters,
+                has_excluded_terminal_status=has_excluded_terminal_status,
+                measure_timing=timer.measure,
+            )
+        except AdvancedFilterMaskError as exc:
+            from gui.ssa.gui_filters_advanced_ui import (
+                _sync_status_after_advanced_filter_failure,
+            )
+
+            logger.warning(
+                "Falha ao aplicar filtros avancados no refresh pos-busca: %s",
+                exc,
+            )
+            _sync_status_after_advanced_filter_failure(self)
+            self._finish_filter_refresh_ui(
+                timer.measure, skip_status_update=True
+            )
+            return False
         filtered = self._sort_filter_refresh_result(
             filtered,
             has_general_search=has_general_search,
@@ -2632,7 +2746,10 @@ class FilterGUISSAMixin:
         self.df_exibido = filtered
         self._bump_filter_refresh_revision()
         timer.measure(
-            "paginate", lambda: self.paginator.set_dataframe(self.df_exibido)
+            "paginate",
+            lambda: self.paginator.set_dataframe(
+                self.df_exibido, emit_page_changed=False
+            ),
         )
         self._render_filter_refresh_page(current_details_ssa, timer.measure)
         self._finish_filter_refresh_ui(timer.measure)
@@ -2642,6 +2759,7 @@ class FilterGUISSAMixin:
             base=base,
             filtered=filtered,
         )
+        return True
 
     def _build_filter_cache_context(self) -> str:
         """Gera contexto deterministico do estado efetivo de filtros para o cache."""

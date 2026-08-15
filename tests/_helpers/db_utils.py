@@ -8,10 +8,13 @@ assertions for row counts.
 from __future__ import annotations
 
 import os
+import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
+
+from armazenamento.identifier_utils import quote_identifier as _quote_identifier
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = PROJECT_ROOT / "config"
@@ -27,23 +30,31 @@ def create_temp_db(schema_path: str | os.PathLike | None = None) -> tuple[str, s
     """
     tmp_dir = tempfile.mkdtemp(prefix="ssa_db_test_")
     db_path = os.path.join(tmp_dir, "test.db")
-    schema_to_use = Path(schema_path) if schema_path else DEFAULT_SCHEMA
-    if not schema_to_use.exists():
-        raise FileNotFoundError(f"Schema file not found: {schema_to_use}")
-    sql = Path(schema_to_use).read_text(encoding="utf-8")
-    conn = sqlite3.connect(db_path)
     try:
-        conn.executescript(sql)
-        conn.commit()
-    finally:
-        conn.close()
+        schema_to_use = Path(schema_path) if schema_path else DEFAULT_SCHEMA
+        if not schema_to_use.exists():
+            raise FileNotFoundError(f"Schema file not found: {schema_to_use}")
+        sql = Path(schema_to_use).read_text(encoding="utf-8")
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.executescript(sql)
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
     return db_path, tmp_dir
 
 
 def fetch_all(db_path: str, table: str) -> list[tuple]:
+    table_name = _quote_identifier(table)
     conn = sqlite3.connect(db_path)
     try:
-        cur = conn.execute(f"SELECT * FROM {table}")  # table trusted in tests
+        # SQL identifiers cannot be bound as parameters; _quote_identifier validates
+        # the table name against a strict allowlist before interpolation.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        cur = conn.execute(f"SELECT * FROM {table_name}")
         return list(cur.fetchall())
     finally:
         conn.close()
@@ -63,11 +74,12 @@ def insert_raw_rows(
     conn = sqlite3.connect(db_path)
     try:
         column_names = list(columns)
-        col_list = ",".join(column_names)
+        table_name = _quote_identifier(table)
+        col_list = ",".join(_quote_identifier(column) for column in column_names)
         placeholders = ",".join(["?"] * len(column_names))
-        normalized_rows = [tuple(row) for row in rows]
         conn.executemany(
-            f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})", normalized_rows
+            f"INSERT INTO {table_name} ({col_list}) VALUES ({placeholders})",
+            (tuple(row) for row in rows),
         )
         conn.commit()
     finally:

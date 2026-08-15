@@ -131,24 +131,22 @@ def analisar_implementacoes_misturadas():
 
     print("INFO ANALISANDO CONFIGURAÇÕES...")
 
-    config_structures = {}
+    config_structures: dict[str, tuple[set[str], str, int]] = {}
     for config_file in config_files:
         if os.path.exists(config_file):
             try:
                 with open(config_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                config_structures[config_file] = {
-                    "keys": set(data.keys()) if isinstance(data, dict) else set(),
-                    "type": type(data).__name__,
-                    "size": len(data) if hasattr(data, "__len__") else 0,
-                }
-            except Exception:
-                pass
+                keys = {str(key) for key in data} if isinstance(data, dict) else set()
+                size = len(data) if hasattr(data, "__len__") else 0
+                config_structures[config_file] = (keys, type(data).__name__, size)
+            except Exception as exc:
+                warnings.append(f"CONFIG: failed to read {config_file}: {exc}")
 
     # Detectar chaves duplicadas entre arquivos
     all_keys = {}
-    for file, info in config_structures.items():
-        for key in info["keys"]:
+    for file, (keys, _data_type, _size) in config_structures.items():
+        for key in keys:
             if key not in all_keys:
                 all_keys[key] = []
             all_keys[key].append(file)

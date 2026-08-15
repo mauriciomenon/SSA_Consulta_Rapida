@@ -1,5 +1,14 @@
 # CHANGELOG_IMPLEMENTACOES
 
+## v4.47 - STABLE MAINTENANCE RELEASE (2026-08-09)
+
+- Ciclo tri-state de situacao sincronizado entre barra rapida, filtros ativos, por coluna e avancados.
+- Indicador `...` no seletor rapido quando multiplos setores estao ativos.
+- Cache de busca normalizada integrado ao DataFrame real sem invalidacao por refresh visual.
+- Hardening de mascaras nullable, recovery canonico, snapshots com WAL ativo e importacao totalmente rejeitada.
+- Fechamento de conexoes SQLite em excecao e isolamento nativo dos harnesses Windows/Linux.
+- Sem mudanca de schema, operador central ou layout.
+
 ## v4.37 - STABILIZATION BASELINE PLUS CURRENT LOCAL TOP (2026-04-01)
 
 ### Baseline `v4.37`

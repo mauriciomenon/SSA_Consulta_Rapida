@@ -84,7 +84,7 @@ class PaiApiWindowPort(Protocol):
     def pai_api_refresh_context(self) -> PaiApiRefreshContext: ...
     def set_pai_api_status(self, text: str) -> None: ...
     def active_pai_api_worker(self) -> PaiApiWorkerPort | None: ...
-    def set_active_pai_api_worker(self, worker: PaiApiWorkerPort | None) -> None: ...
+    def set_active_pai_api_worker(self, worker: PaiApiWorkerPort | None) -> bool: ...
     def active_pai_api_timer(self) -> PaiApiTimerPort | None: ...
     def set_active_pai_api_timer(self, timer: PaiApiTimerPort | None) -> None: ...
     def reload_pai_api_data(self) -> None: ...
@@ -215,7 +215,8 @@ def start_pai_api_refresh(
     reset_for_start = getattr(worker, "reset_for_start", None)
     if callable(reset_for_start):
         reset_for_start()
-    window.set_active_pai_api_worker(worker)
+    if not window.set_active_pai_api_worker(worker):
+        return False
     _connect_worker(
         window,
         worker,
@@ -295,6 +296,7 @@ def _connect_worker(
         )
     )
     worker.finished_error.connect(partial(_finish_error, window, worker))
+    worker.finished.connect(partial(_release_worker, window, worker))
 
 
 def _run_auto_refresh_timeout(
@@ -356,18 +358,14 @@ def _finish_success(
     reload_after_success: bool,
 ) -> None:
     partial_status = _worker_partial_status(worker)
-    try:
-        if _worker_import_skipped(worker):
-            window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
-            return
-        if reload_after_success:
-            window.set_pai_api_status(partial_status or STATUS_API_RELOAD)
-            window.reload_pai_api_data()
-            return
+    if _worker_import_skipped(worker):
         window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
-    finally:
-        if window.active_pai_api_worker() is worker:
-            window.set_active_pai_api_worker(None)
+        return
+    if reload_after_success:
+        window.set_pai_api_status(partial_status or STATUS_API_RELOAD)
+        window.reload_pai_api_data()
+        return
+    window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
 
 
 def _finish_error(
@@ -375,13 +373,20 @@ def _finish_error(
     worker: Any,
     message: str,
 ) -> None:
-    if window.active_pai_api_worker() is worker:
-        window.set_active_pai_api_worker(None)
     short_message = _short_error_message(message)
     logger.warning("Falha na SAM API: %s", short_message)
     if short_message != message:
         logger.debug("Falha detalhada na SAM API: %s", message)
     window.set_pai_api_status(f"Status: Falha na SAM API: {short_message}")
+
+
+def _release_worker(
+    window: PaiApiWindowPort,
+    worker: Any,
+    *_args: Any,
+) -> None:
+    if window.active_pai_api_worker() is worker:
+        window.set_active_pai_api_worker(None)
 
 
 def _worker_is_running(worker: Any) -> bool:

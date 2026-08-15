@@ -12,6 +12,12 @@ set -euo pipefail
 GATES_ARGS=${GATES_ARGS:-}
 PY=${PYTHON:-python}
 GATES_ARGS_ARRAY=()
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 2
+ssa_native_guard_tools "$PY" || exit 2
+cd "$REPO_ROOT"
 
 if ! command -v "$PY" >/dev/null 2>&1; then
   echo "Python nao encontrado" >&2
@@ -19,7 +25,11 @@ if ! command -v "$PY" >/dev/null 2>&1; then
 fi
 
 if [ -n "$GATES_ARGS" ]; then
-  read -r -a GATES_ARGS_ARRAY <<< "$GATES_ARGS"
+  while IFS= read -r arg; do
+    GATES_ARGS_ARRAY+=("$arg")
+  done < <(
+    "$PY" -c 'import os, shlex; print(*shlex.split(os.environ["GATES_ARGS"]), sep="\n")'
+  )
 fi
 
 set +e

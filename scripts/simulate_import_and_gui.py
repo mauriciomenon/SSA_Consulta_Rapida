@@ -19,7 +19,7 @@ import argparse
 import os
 import sqlite3
 import time
-from contextlib import suppress
+from contextlib import closing, suppress
 from pathlib import Path
 
 import pandas as pd
@@ -123,7 +123,7 @@ def main():
             # Condição opcional: só importar se vazio
             do_import = True
             if args.import_real_once:
-                with sqlite3.connect(args.db) as _c:
+                with closing(sqlite3.connect(args.db)) as _c:
                     cur = _c.execute("SELECT COUNT(*) FROM ssa_table")
                     current = cur.fetchone()[0]
                     if current > 0:
@@ -148,7 +148,7 @@ def main():
         simulate_gui_cycle(args.db)
 
     # Verificação rápida: conta linhas
-    with sqlite3.connect(args.db) as conn:
+    with closing(sqlite3.connect(args.db)) as conn:
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM ssa_table")
         total = cur.fetchone()[0]

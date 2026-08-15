@@ -10,6 +10,7 @@ from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
     PAI_API_DATA_SCOPES_KEY,
     PAI_API_ENABLED_KEY,
+    PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES,
     PAI_API_SECTORS_KEY,
     PAI_API_SETTINGS_KEY,
 )
@@ -66,6 +67,7 @@ class _Window:
         self.reload_count = 0
         self.confirm_count = 0
         self.last_decision_request: Any | None = None
+        self.accept_workers = True
 
     def pai_api_preferences(self) -> dict[str, Any]:
         return self.preferences
@@ -81,8 +83,11 @@ class _Window:
     def active_pai_api_worker(self) -> Any:
         return self.worker
 
-    def set_active_pai_api_worker(self, worker: Any | None) -> None:
+    def set_active_pai_api_worker(self, worker: Any | None) -> bool:
+        if worker is not None and not self.accept_workers:
+            return False
         self.worker = worker
+        return True
 
     def active_pai_api_timer(self) -> Any:
         return self.timer
@@ -114,6 +119,7 @@ class _Worker:
         self.import_decision_required = _Signal()
         self.finished_success = _Signal()
         self.finished_error = _Signal()
+        self.finished = _Signal()
         self.started = False
         self.import_decision: bool | None = None
 
@@ -130,6 +136,32 @@ class _Worker:
 class _WorkerWithEmptySummary(_Worker):
     def summary(self) -> None:
         return None
+
+
+def test_refresh_does_not_start_worker_when_ownership_is_rejected(
+    tmp_path: Path,
+) -> None:
+    created_workers = []
+
+    class _RejectedWorker(_Worker):
+        def __init__(self, config: Any) -> None:
+            super().__init__(config)
+            created_workers.append(self)
+
+    window = _Window()
+    window.accept_workers = False
+    preferences = _preferences(auto_enabled=False)
+
+    assert not pai_api_controller.start_pai_api_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        worker_cls=_RejectedWorker,
+    )
+
+    assert window.worker is None
+    assert len(created_workers) == 1
+    assert created_workers[0].started is False
 
 
 @pytest.fixture(autouse=True)
@@ -161,7 +193,7 @@ def test_auto_refresh_timer_starts_when_enabled(tmp_path: Path) -> None:
 
     assert window.timer is not None
     timer = window.timer
-    assert timer.interval == 10 * 60 * 1000
+    assert timer.interval == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES * 60 * 1000
     assert timer.isActive() is True
 
 
@@ -190,7 +222,7 @@ def test_auto_refresh_timeout_starts_worker_without_reload_prompt(tmp_path: Path
     assert window.reload_count == 1
 
 
-def test_finish_success_clears_worker_when_summary_is_none(tmp_path: Path) -> None:
+def test_finish_success_retains_worker_until_native_finished(tmp_path: Path) -> None:
     window = _Window()
     preferences = _preferences(auto_enabled=False)
     window.preferences = preferences
@@ -208,6 +240,8 @@ def test_finish_success_clears_worker_when_summary_is_none(tmp_path: Path) -> No
     worker = window.worker
     worker.finished_success.emit()
 
+    assert window.worker is worker
+    worker.finished.emit()
     assert window.worker is None
     assert window.reload_count == 1
 
@@ -335,6 +369,7 @@ def test_set_auto_refresh_enabled_persists_even_without_timer(tmp_path: Path) ->
 def test_set_boolean_option_rolls_back_when_persist_fails(tmp_path: Path) -> None:
     window = _Window()
     preferences = _preferences(auto_enabled=False)
+    preferences["gui_settings"][PAI_API_SETTINGS_KEY].pop(PAI_API_ENABLED_KEY, None)
     window.preferences = preferences
     window.context = _context(tmp_path)
     window.persist_result = False
@@ -428,7 +463,7 @@ def test_pai_api_error_status_is_short() -> None:
 
     pai_api_controller._finish_error(window, worker, long_error)
 
-    assert window.worker is None
+    assert window.worker is worker
     assert len(window.statuses[-1]) <= 120
     assert window.statuses[-1].endswith("...")
 
@@ -475,6 +510,7 @@ def _preferences(*, auto_enabled: bool) -> dict[str, Any]:
     return {
         "gui_settings": {
             PAI_API_SETTINGS_KEY: {
+                PAI_API_ENABLED_KEY: True,
                 PAI_API_AUTO_REFRESH_ENABLED_KEY: auto_enabled,
                 PAI_API_SECTORS_KEY: ["IEE3"],
             }

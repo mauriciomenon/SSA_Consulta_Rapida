@@ -5,6 +5,7 @@ import importlib.util
 import pytest
 
 from launchers.build_complete import _get_project_root
+from tests.release_script_assertions import section_between
 
 
 PROJECT_ROOT = _get_project_root()
@@ -49,9 +50,9 @@ def test_launcher_version_info_uses_explicit_version_fallback(tmp_path) -> None:
     version_file = tmp_path / "config" / "version.json"
     version_file.parent.mkdir()
     version_file.write_text("{}", encoding="utf-8")
-    (tmp_path / "VERSION").write_text("4.37", encoding="utf-8")
+    (tmp_path / "VERSION").write_text("4.44", encoding="utf-8")
 
-    assert module.get_current_version() == "4.37"
+    assert module.get_current_version() == "4.44"
 
 
 def test_launcher_version_info_does_not_return_implicit_zero_version(tmp_path) -> None:
@@ -130,6 +131,9 @@ def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
             encoding="utf-8"
         )
         assert 'PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"' in script
+        assert 'PYOXIDIZER_UV_PACKAGE="${SSA_PYOXIDIZER_UV_PACKAGE:-pyoxidizer==0.24.0}"' in script
+        assert 'uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer --version' in script
+        assert '--from pyoxidizer pyoxidizer build' not in script
         assert '--var SSA_PROJECT_ROOT "${REPO_ROOT}"' in script
         assert '--path "${REPO_ROOT}"' in script
         assert 'BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"' in script
@@ -202,6 +206,9 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert 'set "MSVC_LINK="' in pyoxidizer_script
     assert "if not defined MSVC_LINK" in pyoxidizer_script
     assert "where link.exe" in pyoxidizer_script
+    assert 'set "PYOXIDIZER_UV_PACKAGE=pyoxidizer==0.24.0"' in pyoxidizer_script
+    assert 'uv tool run --python 3.13 --from "%PYOXIDIZER_UV_PACKAGE%" pyoxidizer --version' in pyoxidizer_script
+    assert "--from pyoxidizer pyoxidizer build" not in pyoxidizer_script
     assert 'set "APP_VERSION=%%A"' in pyoxidizer_script
     assert "version_short ausente" in pyoxidizer_script
     assert 'if not defined APP_VERSION set "APP_VERSION=0.0"' not in pyoxidizer_script
@@ -222,6 +229,106 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
     assert "--build-system pyoxidizer" in pyoxidizer_script
     assert "--platform windows_amd64" in pyoxidizer_script
+
+
+def test_pyinstaller_windows_checks_clean_errorlevel() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--platform windows_amd64 --clean" in script
+    assert "if errorlevel 1 (" in script
+    assert "Limpeza PyInstaller falhou." in script
+    clean_block = section_between(
+        script,
+        "--platform windows_amd64 --clean",
+        "--platform windows_amd64 --apps cli gui",
+    )
+    assert "if errorlevel 1 (" in clean_block
+
+
+def test_pyinstaller_windows_embeds_only_explicit_runtime_database() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--with-runtime-db" in script
+    assert '--runtime-db "%REPO_ROOT%\\data\\ssas.db"' in script
+    assert "copy_data_to_builds.py" not in script
+    assert "--allow-local-data" not in script
+
+
+def test_nuitka_windows_cleanup_and_canonical_dist_names() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_clean.bat").read_text(
+        encoding="utf-8"
+    )
+    post_build_block = section_between(
+        script,
+        'if "%WITH_LOCAL_DATA%"=="1" (',
+        "echo Build Nuitka concluido com sucesso.",
+    )
+
+    assert "gui_entry.dist" in script
+    assert "cli_entry.dist" in script
+    assert "gui_entry.build" in script
+    assert "cli_entry.build" in script
+    assert "ren " in script
+    assert (
+        'if not exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\gui_entry.dist" '
+        'if exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\SSA_GUI_v%APP_VERSION%_windows_amd64.dist"'
+        in script
+    )
+    assert (
+        'if not exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\cli_entry.dist" '
+        'if exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\SSA_CLI_v%APP_VERSION%_windows_amd64.dist"'
+        in script
+    )
+    assert 'rmdir /s /q "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\gui_entry.dist"' not in post_build_block
+    assert 'rmdir /s /q "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\cli_entry.dist"' not in post_build_block
+    assert "gui_entry.dist canonico" in script
+    assert "cli_entry.dist canonico" in script
+
+
+def test_setup_msvc_path_is_session_only_diagnostic() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "setup_msvc_path.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "[switch]$ApplyToCurrentSession" in script
+    assert "vswhere.exe" in script
+    assert "vcvars64.bat" in script
+    assert "Import-VcVarsIntoCurrentSession" in script
+    assert "This script does not modify the user PATH" in script
+    assert "[Environment]::SetEnvironmentVariable" not in script
+    assert 'Set-Item -Path "Env:$name"' in script
+
+
+def test_windows_launchers_use_repo_relative_paths_and_distinct_modes() -> None:
+    cli_cmd = (PROJECT_ROOT / "launchers" / "SSA_Consulta_Rapida_3.10_CLI.cmd").read_text(
+        encoding="utf-8"
+    )
+    gui_cmd = (PROJECT_ROOT / "launchers" / "SSA_Consulta_Rapida_3.10_GUI.cmd").read_text(
+        encoding="utf-8"
+    )
+    package_cli = (
+        PROJECT_ROOT / "launchers" / "launcher_ssa_consulta_rapida_cli.bat"
+    ).read_text(encoding="utf-8")
+    package_gui = (
+        PROJECT_ROOT / "launchers" / "launcher_ssa_consulta_rapida_gui.bat"
+    ).read_text(encoding="utf-8")
+
+    for script in (cli_cmd, gui_cmd, package_cli, package_gui):
+        assert "C:\\Users\\menon" not in script
+        assert 'for %%I in ("%~dp0..") do set "ROOT=%%~fI"' in script
+
+    assert '"%PYEXE%" main.py %*' in cli_cmd
+    assert "--gui" not in cli_cmd
+    assert '"%PYEXE%" main.py --gui %*' in gui_cmd
+    assert '"%EXE%" %*' in package_cli
+    assert "--gui" not in package_cli
+    assert 'start "PyInstaller GUI" "%EXE%" --gui %*' in package_gui
+    assert "builds\\pyinstaller\\windows_amd64\\SSA_Consulta_Rapida.exe" in package_cli
+    assert "builds\\pyinstaller\\windows_amd64\\SSA_Consulta_Rapida.exe" in package_gui
 
 
 def test_pyoxidizer_debian_runtime_includes_version_json() -> None:

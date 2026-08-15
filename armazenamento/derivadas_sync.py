@@ -32,6 +32,7 @@ from armazenamento.derivadas_schema import (
     scan_derivadas_read_schema_readiness,
 )
 from armazenamento.identifier_utils import is_valid_identifier
+from extracao.extractor import open_validated_excel_source
 from shared.numero_ssa import normalize_strict
 from utils.path_safety import ensure_path_is_allowed
 
@@ -221,7 +222,14 @@ def _normalize_sheet_file_path(value: Any) -> str:
     normalized = str(value).strip()
     if not normalized:
         return ""
-    return os.path.abspath(os.path.expanduser(normalized))
+    expanded = os.path.abspath(os.path.expanduser(normalized))
+    return str(
+        ensure_path_is_allowed(
+            expanded,
+            purpose="sync derivadas sheet file",
+            expect_directory=False,
+        )
+    )
 
 
 def _sheet_stats_has_parse_evidence(stats: dict[str, Any] | None) -> bool:
@@ -358,7 +366,9 @@ def _load_excel_frames(
     try:
         frames: list[pd.DataFrame] = []
         parse_errors: list[tuple[str, Exception]] = []
-        with pd.ExcelFile(sheet_file) as workbook:
+        with open_validated_excel_source(sheet_file) as source_stream, pd.ExcelFile(
+            source_stream
+        ) as workbook:
             target_sheets = [sheet_name] if sheet_name else list(workbook.sheet_names)
             for target_sheet in target_sheets:
                 try:
@@ -974,8 +984,8 @@ def _build_summary_rows(
 
 def _fetch_all_ssa(conn: sqlite3.Connection, table_name: str) -> set[str]:
     safe_table = _validate_table_name(table_name)
-    rows = conn.execute(
-        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'  # nosec B608  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    rows = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'  # nosec B608
     ).fetchall()
     out: set[str] = set()
     for row in rows:
@@ -1004,7 +1014,10 @@ def _analyze_reconciliation(
     matrix_edges: list[MatrixEdge],
     source_edges: list[SourceEdge],
 ) -> dict[str, Any]:
-    pair_edges = [(edge.parent_ssa, edge.child_ssa) for edge in matrix_edges]
+    pair_edges = [
+        (matrix_edge.parent_ssa, matrix_edge.child_ssa)
+        for matrix_edge in matrix_edges
+    ]
 
     child_parents = _build_child_parent_map(pair_edges)
     multiparent_children = {
@@ -1022,11 +1035,11 @@ def _analyze_reconciliation(
 
     db_parents: dict[str, set[str]] = defaultdict(set)
     sheet_parents: dict[str, set[str]] = defaultdict(set)
-    for edge in source_edges:
-        if edge.source_name == SOURCE_DB_FIELD:
-            db_parents[edge.child_ssa].add(edge.parent_ssa)
-        elif edge.source_name == SOURCE_SHEET_DERIVADAS:
-            sheet_parents[edge.child_ssa].add(edge.parent_ssa)
+    for source_edge in source_edges:
+        if source_edge.source_name == SOURCE_DB_FIELD:
+            db_parents[source_edge.child_ssa].add(source_edge.parent_ssa)
+        elif source_edge.source_name == SOURCE_SHEET_DERIVADAS:
+            sheet_parents[source_edge.child_ssa].add(source_edge.parent_ssa)
 
     db_vs_sheet_conflicts: dict[str, dict[str, list[str]]] = {}
     for child in sorted(set(db_parents).intersection(sheet_parents)):
@@ -1040,8 +1053,8 @@ def _analyze_reconciliation(
         }
 
     source_distribution: dict[str, int] = defaultdict(int)
-    for edge in matrix_edges:
-        source_distribution[str(edge.source_flags)] += 1
+    for matrix_edge in matrix_edges:
+        source_distribution[str(matrix_edge.source_flags)] += 1
 
     cycle_nodes = _cycle_nodes_scc(pair_edges)
     return {
@@ -1546,7 +1559,7 @@ def sync_derivadas(
         )
     )
 
-    with get_db_connection(safe_db_path) as conn:
+    with get_db_connection(safe_db_path, write=True) as conn:
         _configure_derivadas_connection(conn)
         db_source_table_exists = _table_exists(conn, table_name=table_name)
 
@@ -2062,7 +2075,7 @@ def run_derivadas_maintenance(
     db_path: str,
     table_name: str = "ssa_table",
     *,
-    min_interval_seconds: int = 3600,
+    min_interval_seconds: int = 14400,
     auto_heal: bool = True,
     full_rebuild: bool = False,
     actor: str | None = None,

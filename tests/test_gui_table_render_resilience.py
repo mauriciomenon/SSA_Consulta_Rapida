@@ -14,6 +14,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+from PyQt6.QtCore import QEvent  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
@@ -109,15 +110,16 @@ class TestGUITableRenderResilience:
 
     def teardown_method(self):
         self._load_patch.stop()
+        filter_worker_registry = self.window._filter_worker_registry
+        filter_worker_registry.clear()
         self.window.close()
+        self.window.deleteLater()
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        QApplication.processEvents()
         try:
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.clear()
         except Exception:
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = []
-        try:
-            self.window._filter_worker_registry.clear()
-        except Exception:
-            self.window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
 
     def test_display_current_page_continues_when_first_cell_item_creation_fails(self):
         from gui.ssa import gui_table

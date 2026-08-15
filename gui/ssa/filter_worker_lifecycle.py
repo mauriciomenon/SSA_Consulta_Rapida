@@ -54,8 +54,6 @@ class DeferredFilterWorkerRegistry:
         for worker_id, worker in list(self._workers.items()):
             if not is_running(worker):
                 self._workers.pop(worker_id, None)
-        while len(self._workers) > self.max_workers:
-            self._workers.popitem(last=False)
 
 
 class FilterWorkerLifecycle:
@@ -232,6 +230,9 @@ class FilterWorkerLifecycle:
                 worker.quit()
             return bool(hasattr(worker, "isRunning") and worker.isRunning())
         except Exception as exc:
+            if _is_deleted_qt_object_error(exc):
+                self.registry.remove(worker)
+                return False
             self.logger.warning(
                 "Falha ao solicitar encerramento do worker de filtro: %s", exc
             )

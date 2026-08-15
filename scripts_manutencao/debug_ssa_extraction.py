@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from extracao.extractor import open_validated_excel_source
+
 
 def debug_ssa_extraction():
     """Debug da extração de SSA do Excel."""
@@ -27,7 +29,8 @@ def debug_ssa_extraction():
     try:
         # 1. Ler sem qualquer processamento
         print("\n1. LEITURA BRUTA (sem processamento):")
-        df_raw = pd.read_excel(arquivo_teste, header=1, dtype=str)
+        with open_validated_excel_source(arquivo_teste) as source_stream:
+            df_raw = pd.read_excel(source_stream, header=1, dtype=str)
 
         # Procurar coluna SSA
         ssa_cols = [
@@ -51,7 +54,8 @@ def debug_ssa_extraction():
 
         # 2. Ler como números
         print("\n2. LEITURA COMO NÚMEROS:")
-        df_num = pd.read_excel(arquivo_teste, header=1)
+        with open_validated_excel_source(arquivo_teste) as source_stream:
+            df_num = pd.read_excel(source_stream, header=1)
 
         if ssa_cols and ssa_cols[0] in df_num.columns:
             col_ssa = ssa_cols[0]

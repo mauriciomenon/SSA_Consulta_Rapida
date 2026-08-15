@@ -6,20 +6,40 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 `config/column_mappings.json` e converte tipos de dados fundamentais.
 """
 
+import json
 import logging
 import os
 import re
-from typing import Any, Callable, Dict, Optional
+from contextlib import contextmanager
+from typing import Any, BinaryIO, Callable, Dict, Iterable, Iterator, Optional
+from zipfile import BadZipFile, ZipFile
 
 import pandas as pd
 
 from shared.column_mappings import load_column_mappings_integrity
 from shared.date_utils import parse_datetime_series_mixed
 from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
-from utils.robust_importer import import_excel_robust
+from utils.file_metadata import best_datetime_for_file
+from utils.robust_importer import canonicalize_header, import_excel_robust
 
 logger = logging.getLogger(__name__)
 TEMPO_EXCEDIDO_RE = re.compile(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", re.IGNORECASE)
+
+MAX_XLSX_FILE_BYTES = 128 * 1024 * 1024
+MAX_IMPORT_BATCH_FILES = 64
+MAX_IMPORT_BATCH_BYTES = 1024 * 1024 * 1024
+MAX_XLSX_EXPANDED_BYTES = 1024 * 1024 * 1024
+_ZIP_BASED_EXCEL_SUFFIXES = frozenset({".xlsx", ".xlsm"})
+_SOURCE_SHEET_COLUMN = "__ssa_source_sheet"
+_SOURCE_ROW_COLUMN = "__ssa_source_row"
+_HIERARCHICAL_MARKER_COLUMNS = (
+    "numero_desvios",
+    "num_reprogramacoes",
+    "parciais",
+)
+_HIERARCHICAL_SEQUENCE_RE = re.compile(
+    r"^(?P<stem>.+?\S)\s+#\s*(?P<order>[1-9]\d*)\s*$"
+)
 
 
 class ExtractionError(Exception):
@@ -30,7 +50,128 @@ class ExtractionError(Exception):
         self.error_code = error_code
 
 
-def _load_column_mappings() -> dict:
+def validate_excel_import_limits(
+    file_paths: Iterable[str | os.PathLike[str] | BinaryIO],
+    *,
+    inspect_archives: bool = True,
+    ignore_unavailable: bool = False,
+    enforce_batch_file_limit: bool = True,
+    reject_invalid_archives: bool = True,
+) -> int:
+    """Validate file, batch, and declared expanded XLSX sizes."""
+    sources = tuple(file_paths)
+    if enforce_batch_file_limit and len(sources) > MAX_IMPORT_BATCH_FILES:
+        raise ExtractionError(
+            f"Lote de importacao excede o limite de {MAX_IMPORT_BATCH_FILES} arquivos "
+            f"(recebido: {len(sources)}).",
+            error_code="BATCH_FILE_LIMIT_EXCEEDED",
+        )
+
+    total_batch_bytes = 0
+    for source in sources:
+        owns_stream = isinstance(source, (str, os.PathLike))
+        file_path = (
+            os.fspath(source)
+            if owns_stream
+            else str(getattr(source, "name", "<stream>"))
+        )
+        base_name = os.path.basename(file_path) or file_path
+        try:
+            stream = open(file_path, "rb") if owns_stream else source
+        except OSError as exc:
+            if ignore_unavailable:
+                continue
+            raise ExtractionError(
+                f"Nao foi possivel abrir '{base_name}' para validacao: {exc}",
+                error_code="FILE_SIZE_CHECK_FAILED",
+            ) from exc
+
+        try:
+            original_position = stream.tell()
+            try:
+                file_size = os.fstat(stream.fileno()).st_size
+            except (AttributeError, OSError):
+                try:
+                    stream.seek(0, os.SEEK_END)
+                    file_size = stream.tell()
+                except (AttributeError, OSError) as exc:
+                    if ignore_unavailable:
+                        continue
+                    raise ExtractionError(
+                        f"Nao foi possivel verificar o tamanho de '{base_name}': {exc}",
+                        error_code="FILE_SIZE_CHECK_FAILED",
+                    ) from exc
+
+            if file_size > MAX_XLSX_FILE_BYTES:
+                raise ExtractionError(
+                    f"Arquivo '{base_name}' excede o limite de "
+                    f"{MAX_XLSX_FILE_BYTES // (1024 * 1024)} MiB "
+                    f"(tamanho: {file_size // (1024 * 1024)} MiB).",
+                    error_code="FILE_TOO_LARGE",
+                )
+
+            total_batch_bytes += file_size
+            if total_batch_bytes > MAX_IMPORT_BATCH_BYTES:
+                raise ExtractionError(
+                    "Lote de importacao excede o limite de "
+                    f"{MAX_IMPORT_BATCH_BYTES // (1024 * 1024 * 1024)} GiB "
+                    f"(total: {total_batch_bytes // (1024 * 1024 * 1024)} GiB).",
+                    error_code="BATCH_SIZE_LIMIT_EXCEEDED",
+                )
+
+            suffix = os.path.splitext(file_path)[1].casefold()
+            if inspect_archives and suffix in _ZIP_BASED_EXCEL_SUFFIXES:
+                try:
+                    stream.seek(0)
+                    expanded_bytes = 0
+                    with ZipFile(stream) as archive:
+                        for member in archive.infolist():
+                            expanded_bytes += member.file_size
+                            if expanded_bytes > MAX_XLSX_EXPANDED_BYTES:
+                                raise ExtractionError(
+                                    f"Arquivo '{base_name}' excede o limite descompactado de "
+                                    f"{MAX_XLSX_EXPANDED_BYTES // (1024 * 1024 * 1024)} GiB.",
+                                    error_code="XLSX_EXPANDED_TOO_LARGE",
+                                )
+                except ExtractionError:
+                    raise
+                except (BadZipFile, OSError) as exc:
+                    if reject_invalid_archives:
+                        raise ExtractionError(
+                            f"Arquivo '{base_name}' nao e um XLSX valido: {exc}",
+                            error_code="INVALID_XLSX_ARCHIVE",
+                        ) from exc
+        finally:
+            if owns_stream:
+                stream.close()
+            else:
+                stream.seek(original_position)
+
+    return total_batch_bytes
+
+
+@contextmanager
+def open_validated_excel_source(
+    file_path: str | os.PathLike[str],
+) -> Iterator[BinaryIO]:
+    """Open, validate, and yield the same stream consumed by the parser."""
+    try:
+        with open(file_path, "rb") as source_stream:
+            validate_excel_import_limits((source_stream,))
+            yield source_stream
+    except ExtractionError:
+        raise
+    except OSError as exc:
+        base_name = os.path.basename(os.fspath(file_path)) or os.fspath(file_path)
+        raise ExtractionError(
+            f"Nao foi possivel abrir '{base_name}' para leitura: {exc}",
+            error_code="FILE_SIZE_CHECK_FAILED",
+        ) from exc
+
+
+def _load_column_mappings(
+    mappings_path: str | os.PathLike[str] | None = None,
+) -> dict:
     """
     Carrega o mapeamento de nomes de colunas a partir do arquivo JSON.
 
@@ -39,17 +180,68 @@ def _load_column_mappings() -> dict:
               Retorna um dicionário vazio se o arquivo não for encontrado.
     """
     try:
-        mappings = load_column_mappings_integrity()
-        inverted_map = {
-            alias: canonical
-            for canonical, aliases in mappings.items()
-            for alias in aliases
+        if mappings_path is None:
+            mappings = load_column_mappings_integrity()
+        else:
+            with open(mappings_path, "r", encoding="utf-8") as mapping_file:
+                mappings = json.load(mapping_file)
+            if (
+                not isinstance(mappings, dict)
+                or not mappings
+                or not all(
+                    isinstance(canonical, str)
+                    and canonical.strip()
+                    and isinstance(aliases, list)
+                    and all(isinstance(alias, str) for alias in aliases)
+                    for canonical, aliases in mappings.items()
+                )
+            ):
+                raise ValueError("expected {canonical_name: [aliases]} mapping")
+        inverted_map: dict[str, str] = {}
+        normalized_owners: dict[str, str] = {}
+        reserved_normalized = {
+            canonicalize_header(_SOURCE_SHEET_COLUMN),
+            canonicalize_header(_SOURCE_ROW_COLUMN),
         }
+        for canonical, aliases in mappings.items():
+            for name in (canonical, *aliases):
+                normalized_name = canonicalize_header(name)
+                if normalized_name in reserved_normalized:
+                    raise ExtractionError(
+                        f"Column mapping declares reserved internal name {name!r}",
+                        error_code="INVALID_COLUMN_MAPPINGS",
+                    )
+                previous = normalized_owners.get(normalized_name)
+                if previous is not None and previous != canonical:
+                    raise ExtractionError(
+                        "Column mapping has ambiguous normalized name "
+                        f"{name!r}: {previous!r} and {canonical!r}",
+                        error_code="INVALID_COLUMN_MAPPINGS",
+                    )
+                normalized_owners[normalized_name] = canonical
+                lookup_name = (
+                    normalized_name if mappings_path is not None else name.strip()
+                )
+                inverted_map[lookup_name] = canonical
+        mapping_source = (
+            "integridade"
+            if mappings_path is None
+            else f"arquivo explicito {os.fspath(mappings_path)!r}"
+        )
         logger.debug(
-            f"Mapeamento de colunas carregado com {len(inverted_map)} entradas (via integridade)."
+            "Mapeamento de colunas carregado com %s entradas (via %s).",
+            len(inverted_map),
+            mapping_source,
         )
         return inverted_map
-    except Exception as e:
+    except ExtractionError:
+        raise
+    except (OSError, TypeError, ValueError) as e:
+        if mappings_path is not None:
+            raise ExtractionError(
+                f"Invalid column mappings file {os.fspath(mappings_path)!r}: {e}",
+                error_code="INVALID_COLUMN_MAPPINGS",
+            ) from e
         logger.error(f"Falha ao carregar mapeamentos de coluna com integridade: {e}")
         return {}
 
@@ -217,6 +409,279 @@ def _summarize_invalid_identity_rows(
     }
 
 
+def _capture_hierarchical_records(
+    frame: pd.DataFrame,
+    *,
+    source_path: str,
+) -> tuple[list[dict[str, Any]], set[Any], dict[str, int]]:
+    """Capture report events without flattening them into the one-row SSA table."""
+    required = {
+        "numero_ssa",
+        "descricao_ssa",
+        _SOURCE_SHEET_COLUMN,
+        _SOURCE_ROW_COLUMN,
+    }
+    if not required.issubset(frame.columns):
+        return [], set(), {}
+
+    source_datetime = best_datetime_for_file(source_path)
+    arquivo_origem = os.path.basename(source_path) or source_path
+    data_planilha = (
+        source_datetime.isoformat(timespec="seconds")
+        if source_datetime is not None
+        else None
+    )
+    data_arquivo_origem = (
+        source_datetime.strftime("%Y-%m-%d %H:%M:%S")
+        if source_datetime is not None
+        else None
+    )
+
+    def _present(series: pd.Series) -> pd.Series:
+        text = series.astype("string").str.strip()
+        return (
+            series.notna()
+            & text.ne("")
+            & ~text.str.casefold().isin({"<na>", "none", "nan", "null"})
+        )
+
+    numero_present = _present(frame["numero_ssa"])
+    descricao_present = _present(frame["descricao_ssa"])
+    sheet_values = frame[_SOURCE_SHEET_COLUMN]
+    parent_boundary = numero_present | descricao_present
+    group_number = parent_boundary.groupby(sheet_values, sort=False).cumsum()
+    parent_raw = (
+        frame["numero_ssa"]
+        .where(numero_present)
+        .groupby([sheet_values, group_number], sort=False)
+        .ffill()
+    )
+    parent_ssa = (
+        pd.to_numeric(parent_raw, errors="coerce").astype("Int64").astype("string")
+    )
+
+    records: list[dict[str, Any]] = []
+    captured_indices: set[Any] = set()
+    captured_by_type: dict[str, int] = {}
+    internal_columns = {_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN}
+    identity_columns = {"numero_ssa", "descricao_ssa"}
+    identity_blank = ~numero_present & ~descricao_present
+    linked_identity_blank = identity_blank & parent_ssa.notna()
+    groupers = [sheet_values, group_number]
+
+    marker_masks: dict[Any, pd.Series] = {}
+    for marker_column in _HIERARCHICAL_MARKER_COLUMNS:
+        if marker_column not in frame.columns:
+            continue
+        marker_text = frame[marker_column].astype("string").str.strip()
+        canonical_marker_present = _present(frame[marker_column])
+        textual_marker = marker_text.str.contains(r"[^\W\d_]", regex=True, na=False)
+        canonical_sequence = marker_text.str.extract(_HIERARCHICAL_SEQUENCE_RE)
+        canonical_order = pd.to_numeric(canonical_sequence["order"], errors="coerce")
+        first_parent = (
+            canonical_order.eq(1)
+            & numero_present
+            & parent_ssa.notna()
+        )
+        textual_parent = (
+            canonical_marker_present
+            & textual_marker
+            & numero_present
+            & parent_ssa.notna()
+        )
+        textual_child = canonical_marker_present & textual_marker & linked_identity_blank
+        qualified_group = first_parent.groupby(groupers, sort=False).transform("any") | (
+            textual_parent.groupby(groupers, sort=False).transform("any")
+            & textual_child.groupby(groupers, sort=False).transform("any")
+        )
+        marker_masks[marker_column] = canonical_marker_present & qualified_group
+
+    known_children = pd.Series(False, index=frame.index, dtype=bool)
+    for marker_present in marker_masks.values():
+        known_children |= marker_present & linked_identity_blank
+    remaining_linked = linked_identity_blank & ~known_children
+    if remaining_linked.any():
+        excluded_columns = internal_columns | identity_columns | set(
+            _HIERARCHICAL_MARKER_COLUMNS
+        )
+        structural_group_owner: dict[tuple[Any, Any], Any] = {}
+        for marker_column in frame.columns:
+            if marker_column in excluded_columns:
+                continue
+            marker_values = frame[marker_column]
+            if not (
+                pd.api.types.is_object_dtype(marker_values)
+                or pd.api.types.is_string_dtype(marker_values)
+            ):
+                continue
+            child_text = (
+                marker_values.loc[remaining_linked].astype("string").str.strip()
+            )
+            if child_text.empty or not child_text.str.contains("#", regex=False).any():
+                continue
+            child_sequence = child_text.str.extract(_HIERARCHICAL_SEQUENCE_RE)
+            child_order = pd.to_numeric(child_sequence["order"], errors="coerce")
+            if not child_order.eq(2).any():
+                continue
+
+            marker_text = frame[marker_column].astype("string").str.strip()
+            marker_sequence = marker_text.str.extract(_HIERARCHICAL_SEQUENCE_RE)
+            marker_order = pd.to_numeric(marker_sequence["order"], errors="coerce")
+            sequence_table = pd.DataFrame(
+                {
+                    "sheet": sheet_values,
+                    "group": group_number,
+                    "stem": marker_sequence["stem"].astype("string").str.casefold(),
+                    "order": marker_order,
+                },
+                index=frame.index,
+            )
+            parent_keys = set(
+                sequence_table.loc[
+                    numero_present & parent_ssa.notna() & marker_order.eq(1),
+                    ["sheet", "group", "stem"],
+                ].itertuples(index=False, name=None)
+            )
+            child_keys = set(
+                sequence_table.loc[
+                    remaining_linked & marker_order.eq(2),
+                    ["sheet", "group", "stem"],
+                ].itertuples(index=False, name=None)
+            )
+            qualified_keys = parent_keys & child_keys
+            if not qualified_keys:
+                continue
+            qualified_stems: dict[tuple[Any, Any], set[str]] = {}
+            for sheet, group, stem in qualified_keys:
+                qualified_stems.setdefault((sheet, group), set()).add(str(stem))
+            for group_key in qualified_stems:
+                previous_column = structural_group_owner.get(group_key)
+                if previous_column is not None and previous_column != marker_column:
+                    raise ExtractionError(
+                        "Ambiguous hierarchical marker columns "
+                        f"{previous_column!r} and {marker_column!r} in "
+                        f"sheet {group_key[0]!r}",
+                        error_code="AMBIGUOUS_HIERARCHICAL_MARKERS",
+                    )
+                structural_group_owner[group_key] = marker_column
+            marker_casefolded = marker_text.str.casefold()
+            numbered_rows: list[bool] = []
+            ambiguous_tail = False
+            for sheet, group, label, stem, order in zip(
+                sheet_values,
+                group_number,
+                marker_casefolded,
+                marker_sequence["stem"].astype("string").str.casefold(),
+                marker_order,
+                strict=True,
+            ):
+                group_stems = qualified_stems.get((sheet, group), ())
+                related = isinstance(label, str) and any(
+                    label == group_stem or label.startswith(f"{group_stem} ")
+                    for group_stem in group_stems
+                )
+                numbered = bool(pd.notna(order)) and (
+                    sheet,
+                    group,
+                    str(stem),
+                ) in qualified_keys
+                numbered_rows.append(numbered)
+                ambiguous_tail |= related and not numbered
+            if ambiguous_tail:
+                raise ExtractionError(
+                    f"Ambiguous unnumbered hierarchical tail in {marker_column!r}",
+                    error_code="AMBIGUOUS_HIERARCHICAL_TAIL",
+                )
+            marker_masks[marker_column] = _present(frame[marker_column]) & pd.Series(
+                numbered_rows,
+                index=frame.index,
+                dtype=bool,
+            )
+
+    for marker_column, marker_present in marker_masks.items():
+        linked_children = marker_present & linked_identity_blank
+        event_rows = marker_present & (
+            (numero_present & parent_ssa.notna()) | linked_children
+        )
+        if not event_rows.any():
+            continue
+
+        captured_indices.update(frame.index[linked_children].tolist())
+        record_type = str(marker_column).strip()
+        has_linked_children = bool(linked_children.any())
+        event_columns = [marker_column]
+        if has_linked_children:
+            captured_by_type[record_type] = int(linked_children.sum())
+            event_columns = [
+                column
+                for column in frame.columns
+                if column not in internal_columns | identity_columns
+                and _present(frame.loc[linked_children, column]).any()
+            ]
+        event_order = (
+            frame.loc[event_rows]
+            .groupby(
+                [sheet_values.loc[event_rows], group_number.loc[event_rows]],
+                sort=False,
+            )
+            .cumcount()
+            + 1
+        )
+
+        event_index = frame.index[event_rows]
+        for start in range(0, len(event_index), 1000):
+            chunk_index = event_index[start : start + 1000]
+            payload_frame = frame.loc[chunk_index, event_columns].copy()
+            for column in event_columns:
+                if pd.api.types.is_object_dtype(
+                    payload_frame[column]
+                ) or pd.api.types.is_string_dtype(payload_frame[column]):
+                    text = payload_frame[column].astype("string").str.strip()
+                    payload_frame[column] = text.mask(
+                        text.str.casefold().isin({"", "<na>", "none", "nan", "null"}),
+                        pd.NA,
+                    )
+            payload_rows = payload_frame.to_json(
+                orient="records",
+                lines=True,
+                date_format="iso",
+                force_ascii=True,
+            ).splitlines()
+            metadata_rows = zip(
+                parent_ssa.loc[chunk_index].tolist(),
+                frame.loc[chunk_index, marker_column].tolist(),
+                frame.loc[chunk_index, _SOURCE_SHEET_COLUMN].tolist(),
+                frame.loc[chunk_index, _SOURCE_ROW_COLUMN].tolist(),
+                event_order.loc[chunk_index].tolist(),
+                payload_rows,
+                strict=True,
+            )
+            for (
+                numero_ssa,
+                label,
+                source_sheet,
+                source_row,
+                order,
+                payload_json,
+            ) in metadata_rows:
+                records.append(
+                    {
+                        "numero_ssa": str(numero_ssa),
+                        "record_type": record_type,
+                        "record_order": int(order),
+                        "record_label": str(label).strip(),
+                        "payload_json": payload_json,
+                        "arquivo_origem": arquivo_origem,
+                        "data_planilha": data_planilha,
+                        "data_arquivo_origem": data_arquivo_origem,
+                        "source_sheet": str(source_sheet),
+                        "source_row": int(source_row),
+                    }
+                )
+
+    return records, captured_indices, captured_by_type
+
+
 def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     """
     Converte colunas-chave para tipos de dados padronizados.
@@ -325,6 +790,7 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
 def extract_data_from_excel(
     file_path: str,
     *,
+    mappings_path: str | os.PathLike[str] | None = None,
     should_cancel: Optional[Callable[[], bool]] = None,
     _debug_phases: Optional[dict[str, list[str]]] = None,
 ) -> pd.DataFrame:
@@ -333,6 +799,7 @@ def extract_data_from_excel(
 
     Args:
         file_path (str): Caminho completo para o arquivo Excel.
+        mappings_path: Mapeamento explicito; usa a configuracao canonica quando ausente.
         should_cancel (Optional[Callable[[], bool]]): Callback consultivo para
             interromper a extracao quando retornar True.
 
@@ -354,11 +821,17 @@ def extract_data_from_excel(
 
         _check_cancel()
         all_sheets_data = []
-        column_mappings = _load_column_mappings()
+        column_mappings = _load_column_mappings(mappings_path)
+        normalize_header = (
+            canonicalize_header if mappings_path is not None else str.strip
+        )
         normalized_column_mappings = {
-            str(key).strip(): value for key, value in column_mappings.items()
+            normalize_header(str(key)): value for key, value in column_mappings.items()
         }
-        with pd.ExcelFile(file_path, engine="openpyxl") as xl_file:
+        with (
+            open_validated_excel_source(file_path) as source_stream,
+            pd.ExcelFile(source_stream, engine="openpyxl") as xl_file,
+        ):
             for sheet_name in xl_file.sheet_names:
                 _check_cancel()
                 logger.debug(f"Processando planilha '{sheet_name}'...")
@@ -414,7 +887,7 @@ def extract_data_from_excel(
                             col_name = non_null_labels.iloc[0]
                         if pd.isna(col_name):
                             continue
-                        normalized_col_name = str(col_name).strip()
+                        normalized_col_name = normalize_header(str(col_name))
                         canonical_name = normalized_column_mappings.get(
                             normalized_col_name,
                             column_mappings.get(col_name, normalized_col_name),
@@ -431,6 +904,22 @@ def extract_data_from_excel(
                     )
 
                     if not sheet_df.empty:
+                        reserved_names = {_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN}
+                        reserved_columns = {
+                            str(column)
+                            for column in sheet_df.columns
+                            if str(column) in reserved_names
+                        }
+                        if reserved_columns:
+                            raise ExtractionError(
+                                "Reserved internal columns found in source: "
+                                f"{sorted(reserved_columns)}",
+                                error_code="RESERVED_COLUMN_COLLISION",
+                            )
+                        sheet_df[_SOURCE_SHEET_COLUMN] = str(sheet_name)
+                        sheet_df[_SOURCE_ROW_COLUMN] = (
+                            sheet_df.index + header_row_idx + 2
+                        )
                         all_sheets_data.append(sheet_df)
                     else:
                         logger.debug(
@@ -457,7 +946,14 @@ def extract_data_from_excel(
 
         # Remove linhas completamente vazias
         initial_len = len(combined_df)
-        combined_df.dropna(how="all", inplace=True)
+        empty_row_mask = (
+            combined_df.drop(
+                columns=[_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN], errors="ignore"
+            )
+            .isna()
+            .all(axis=1)
+        )
+        combined_df = combined_df.loc[~empty_row_mask].copy()
         final_len = len(combined_df)
         early_empty_removed = initial_len - final_len
         if initial_len != final_len:
@@ -472,6 +968,9 @@ def extract_data_from_excel(
             )
             return pd.DataFrame()
 
+        source_sheet = combined_df.pop(_SOURCE_SHEET_COLUMN)
+        source_row = combined_df.pop(_SOURCE_ROW_COLUMN)
+
         if not column_mappings:
             logger.warning(
                 "Mapeamento de colunas vazio; mantendo nomes originais para '%s'.",
@@ -482,7 +981,7 @@ def extract_data_from_excel(
         if column_mappings:
             rename_columns = {
                 col: normalized_column_mappings.get(
-                    str(col).strip(),
+                    normalize_header(str(col)),
                     column_mappings.get(col, str(col).strip()),
                 )
                 for col in combined_df.columns
@@ -597,6 +1096,9 @@ def extract_data_from_excel(
             combined_df.columns,
         )
 
+        combined_df[_SOURCE_SHEET_COLUMN] = source_sheet.reindex(combined_df.index)
+        combined_df[_SOURCE_ROW_COLUMN] = source_row.reindex(combined_df.index)
+
         missing_required = MANDATORY_SCHEMA_COLUMNS.difference(set(combined_df.columns))
         if missing_required:
             missing_required_sorted = sorted(missing_required)
@@ -611,6 +1113,14 @@ def extract_data_from_excel(
                 f"debug_phases={debug_phase_names}",
                 error_code="MISSING_REQUIRED_COLUMNS",
             )
+
+        event_records, captured_indices, captured_by_type = (
+            _capture_hierarchical_records(combined_df, source_path=file_path)
+        )
+        combined_df.drop(
+            columns=[_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN],
+            inplace=True,
+        )
 
         if "prazo_limite" in combined_df.columns:
             status_col = "status_execucao_prazo"
@@ -681,16 +1191,35 @@ def extract_data_from_excel(
             descricao_series.notna() & (descricao_series != "")
         )
 
-        invalid_summary = _summarize_invalid_identity_rows(combined_df, ~valid_mask)
+        captured_mask = pd.Series(
+            combined_df.index.isin(captured_indices),
+            index=combined_df.index,
+            dtype=bool,
+        )
+        invalid_summary = _summarize_invalid_identity_rows(
+            combined_df, ~valid_mask & ~captured_mask
+        )
+        invalid_summary["hierarchical_rows_captured"] = len(captured_indices)
+        invalid_summary["hierarchical_records_captured"] = len(event_records)
+        invalid_summary["hierarchical_rows_by_type"] = captured_by_type
         if early_empty_removed > 0:
             invalid_summary["empty_removed"] += early_empty_removed
             invalid_summary["total_removed"] += early_empty_removed
             invalid_summary["empty_removed_pre_identity_filter"] = early_empty_removed
         combined_df = combined_df[valid_mask].copy().reset_index(drop=True)
         combined_df.attrs["invalid_row_summary"] = invalid_summary
+        combined_df.attrs["ssa_event_records"] = event_records
         combined_df.attrs["row_count_before_invalid_filter"] = (
             before_validation + early_empty_removed
         )
+
+        if event_records:
+            logger.info(
+                "Extracao - %s: capturados %s registros hierarquicos (%s continuacoes)",
+                base_name,
+                len(event_records),
+                len(captured_indices),
+            )
 
         if invalid_summary.get("total_removed", 0) > 0:
             invalid_count = int(invalid_summary.get("total_removed", 0))

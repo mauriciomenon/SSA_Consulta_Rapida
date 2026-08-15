@@ -248,14 +248,18 @@ class TestGUIStability(unittest.TestCase):
         descricao_execucao_labels = set(
             COLUMN_HEADER_LABEL_VARIANTS["descricao_execucao"].values()
         )
-        colunas_obrigatorias = ["Numero SSA", "Cadastro"]
-        for coluna in colunas_obrigatorias:
-            self.assertIn(
-                coluna,
-                headers,
-                f"Coluna obrigatoria '{coluna}' nao encontrada. Headers: {headers}",
-            )
-            print(f"  OK Coluna '{coluna}' presente")
+        numero_ssa_labels = set(COLUMN_HEADER_LABEL_VARIANTS["numero_ssa"].values())
+        self.assertTrue(
+            numero_ssa_labels.intersection(headers),
+            f"Coluna obrigatoria 'numero_ssa' nao encontrada. Headers: {headers}",
+        )
+        print("  OK Coluna 'numero_ssa' presente")
+        cadastro_labels = set(COLUMN_HEADER_LABEL_VARIANTS["data_cadastro"].values())
+        self.assertTrue(
+            cadastro_labels.intersection(headers),
+            f"Coluna obrigatoria 'data_cadastro' nao encontrada. Headers: {headers}",
+        )
+        print("  OK Coluna 'data_cadastro' presente")
         self.assertIn("descricao_execucao", self.window._current_display_columns)
         self.assertTrue(
             descricao_execucao_labels.intersection(headers),

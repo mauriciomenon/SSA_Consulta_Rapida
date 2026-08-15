@@ -92,20 +92,42 @@ def _build_import_run_payload(
 ) -> Dict[str, Any]:
     total_rows_extracted = 0
     total_rows_removed_invalid_identity = 0
+    total_rows_captured_hierarchical = 0
+    total_event_records_processed = 0
     total_rows_ready_for_insert = 0
     total_rows_inserted = 0
+    total_ssa_inserted = 0
+    total_ssa_updated = 0
     total_extraction_seconds = 0.0
     total_validation_seconds = 0.0
     total_insert_seconds = 0.0
     for entry in file_reports:
-        counts = entry.get("counts") or {}
+        counts_value = entry.get("counts")
+        counts = counts_value if isinstance(counts_value, dict) else {}
+        if entry.get("status") == "success" and not {
+            "ssa_inserted",
+            "ssa_updated",
+        }.issubset(counts):
+            filename = str(entry.get("file") or "arquivo desconhecido")
+            raise ValueError(
+                f"Relatorio de sucesso sem metricas SSA obrigatorias: {filename}"
+            )
         durations = entry.get("durations") or {}
         total_rows_extracted += int(counts.get("rows_extracted", 0) or 0)
         total_rows_removed_invalid_identity += int(
             counts.get("rows_removed_invalid_identity", 0) or 0
         )
+        total_rows_captured_hierarchical += int(
+            counts.get("rows_captured_hierarchical", 0) or 0
+        )
+        total_event_records_processed += int(
+            counts.get("event_records_processed", 0) or 0
+        )
         total_rows_ready_for_insert += int(counts.get("rows_ready_for_insert", 0) or 0)
         total_rows_inserted += int(counts.get("rows_inserted", 0) or 0)
+        if entry.get("status") == "success":
+            total_ssa_inserted += int(counts["ssa_inserted"])
+            total_ssa_updated += int(counts["ssa_updated"])
         total_extraction_seconds += float(durations.get("extraction_seconds", 0) or 0)
         total_validation_seconds += float(durations.get("validation_seconds", 0) or 0)
         total_insert_seconds += float(durations.get("insert_seconds", 0) or 0)
@@ -161,8 +183,12 @@ def _build_import_run_payload(
             "ignored_legacy_excel_count": len(ignored_legacy_excel_files),
             "rows_extracted_total": total_rows_extracted,
             "rows_removed_invalid_identity_total": total_rows_removed_invalid_identity,
+            "rows_captured_hierarchical_total": total_rows_captured_hierarchical,
+            "event_records_processed_total": total_event_records_processed,
             "rows_ready_for_insert_total": total_rows_ready_for_insert,
             "rows_inserted_total": total_rows_inserted,
+            "ssa_inserted_total": total_ssa_inserted,
+            "ssa_updated_total": total_ssa_updated,
         },
         "files": {
             "candidates": [os.path.basename(p) for p in files_to_process],

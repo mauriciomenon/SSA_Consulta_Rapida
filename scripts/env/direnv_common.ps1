@@ -1,16 +1,21 @@
 # Shared environment bootstrap for SSA_Consulta_Rapida (PowerShell version)
 # Compatible with direnv_common.sh logic but adapted for Windows PowerShell
 
+# Validate the native host before honoring recursion guards or touching an environment.
+$ssaRepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+. (Join-Path $PSScriptRoot 'native_host_guard.ps1')
+Assert-SsaWindowsHost -RepoRoot $ssaRepoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $ssaRepoRoot '.venv')
+Assert-SsaWindowsVenv -VenvDir (Join-Path $ssaRepoRoot '.venv_ft')
+
 # Prevent recursive sourcing
 if (${env:SSA_ENV_COMMON_SOURCED}) {
     return 0
 }
 $env:SSA_ENV_COMMON_SOURCED = "1"
 
-# Set repository root
-if (-not $env:SSA_ENV_REPO_ROOT) {
-    $env:SSA_ENV_REPO_ROOT = (Get-Location).Path
-}
+# Set repository root from this script, never from the caller's working directory.
+$env:SSA_ENV_REPO_ROOT = $ssaRepoRoot
 
 # Python version configuration
 if (-not $env:SSA_PYTHON_STABLE_VERSION) {
@@ -30,7 +35,7 @@ if ($env:SSA_ENV__STABLE_FROM_ENV -eq 0 -and (Test-Path "$env:SSA_ENV_REPO_ROOT\
             $env:SSA_PYTHON_STABLE_VERSION = $env:SSA_ENV__FILE_VERSION
         }
     } catch {
-        # Ignore errors reading file
+        Write-Verbose "Failed to read .python-version: $_"
     }
 }
 Remove-Variable -Name SSA_ENV__STABLE_FROM_ENV -ErrorAction SilentlyContinue
@@ -77,6 +82,9 @@ function ssa_env__determine_variant {
     }
 
     if ($env:SSA_VENV_DIR_OVERRIDE) {
+        if ($env:SSA_VENV_DIR_OVERRIDE -notmatch '^\.venv[_A-Za-z0-9.-]*$') {
+            throw 'SSA_VENV_DIR_OVERRIDE must be a .venv name inside the repository'
+        }
         $env:SSA_ENV_VENV_DIR = $env:SSA_VENV_DIR_OVERRIDE
     }
 
@@ -108,6 +116,9 @@ function ssa_env__init_pyenv {
         # Check if virtualenv command is available
         try {
             $null = pyenv commands 2>$null | Select-String "virtualenv"
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv commands failed with exit code $LASTEXITCODE"
+            }
             $env:SSA_ENV_PYENV_HAS_VIRTUALENV = "1"
         } catch {
             $env:SSA_ENV_PYENV_HAS_VIRTUALENV = "0"
@@ -132,14 +143,16 @@ function ssa_env__ensure_pyenv_env {
     # Check if version is installed
     try {
         $installedVersions = pyenv versions --bare 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            ssa_env__log "error: pyenv versions failed"
+            return $false
+        }
         if ($installedVersions -notcontains $version) {
             ssa_env__log "pyenv: installing Python $version (first run may take a while)"
+            pyenv install $version
             if ($LASTEXITCODE -ne 0) {
-                pyenv install $version
-                if ($LASTEXITCODE -ne 0) {
-                    ssa_env__log "error: pyenv install $version failed"
-                    return $false
-                }
+                ssa_env__log "error: pyenv install $version failed"
+                return $false
             }
         }
     } catch {
@@ -151,6 +164,10 @@ function ssa_env__ensure_pyenv_env {
         # Create/activate virtualenv
         try {
             $virtualenvs = pyenv virtualenvs --bare 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                ssa_env__log "error: pyenv virtualenvs failed"
+                return $false
+            }
             if ($virtualenvs -notcontains $envName) {
                 ssa_env__log "pyenv: creating virtualenv $envName"
                 pyenv virtualenv $version $envName
@@ -177,7 +194,15 @@ function ssa_env__ensure_pyenv_env {
             pyenv local $version 2>$null
             if ($LASTEXITCODE -eq 0) {
                 # Ensure no session override remains
-                try { pyenv shell --unset 2>$null } catch {}
+                try {
+                    pyenv shell --unset 2>$null
+                    if ($LASTEXITCODE -ne 0) {
+                        ssa_env__log "error: pyenv shell --unset failed"
+                        return $false
+                    }
+                } catch {
+                    Write-Verbose "Failed to clear pyenv shell override: $_"
+                }
                 Remove-Item Env:PYENV_VERSION -ErrorAction SilentlyContinue
                 # Let pyenv manage version via .python-version
                 $env:SSA_ENV_SOURCE = "pyenv-local"
@@ -195,7 +220,8 @@ function ssa_env__ensure_pyenv_env {
 }
 
 function ssa_env__activate_local_venv {
-    $dir = $env:SSA_ENV_VENV_DIR
+    $dir = Join-Path $env:SSA_ENV_REPO_ROOT $env:SSA_ENV_VENV_DIR
+    Assert-SsaWindowsVenv -VenvDir $dir
     $pythonCmd = if ($env:SSA_ENV_FALLBACK_PYTHON) { $env:SSA_ENV_FALLBACK_PYTHON } else { "python3" }
 
     try {
@@ -265,7 +291,7 @@ function ssa_env__ensure_venv_pip {
             return $true
         }
     } catch {
-        # continue to ensurepip bootstrap
+        Write-Verbose "Initial pip probe failed; trying ensurepip: $_"
     }
 
     ssa_env__log "venv: pip missing in $dir; bootstrapping with ensurepip"
@@ -286,7 +312,7 @@ function ssa_env__ensure_venv_pip {
             return $true
         }
     } catch {
-        # continue to final error
+        Write-Verbose "Final pip probe failed: $_"
     }
 
     ssa_env__log "error: pip still unavailable in $dir after ensurepip"
@@ -344,6 +370,8 @@ function ssa_env_apply {
     }
 
     ssa_env__determine_variant
+    $env:UV_PYTHON = $env:SSA_ENV_PY_VERSION
+    $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:SSA_ENV_REPO_ROOT $env:SSA_ENV_VENV_DIR
     $usedPyenv = $false
 
     if (ssa_env__init_pyenv) {

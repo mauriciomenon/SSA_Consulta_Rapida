@@ -70,11 +70,13 @@ def _normalize_derivada_relation_series(raw_series: pd.Series) -> pd.Series:
         normalized_uniques = [
             normalize_numero_ssa_relation(value) or "" for value in uniques
         ]
-        resolved = [""] * len(series_obj)
-        for index, code in enumerate(codes):
-            if code >= 0:
-                resolved[index] = normalized_uniques[code]
-        return pd.Series(resolved, index=series_obj.index, dtype="object")
+        lookup = pd.Series(
+            normalized_uniques,
+            index=pd.RangeIndex(len(normalized_uniques)),
+            dtype="object",
+        )
+        resolved = pd.Series(codes, index=series_obj.index).map(lookup)
+        return resolved.fillna("").astype("object")
     except Exception:
         return raw_series.map(lambda value: normalize_numero_ssa_relation(value) or "")
 
@@ -97,14 +99,17 @@ def _maybe_reset_adv_caches(state: AdvancedFilterState, cache_token: int) -> Non
     setattr(window, "_adv_cache_token", cache_token)
 
 
+class AdvancedFilterMaskError(RuntimeError):
+    """Raised when advanced filter mask.any() evaluation fails."""
+
+
 def _mask_any(mask, context: str) -> bool:
     try:
         return bool(mask.any())
     except Exception as exc:
-        logger.debug(
-            "Failed to evaluate advanced filter mask.any() %s: %s", context, exc
-        )
-        return False
+        raise AdvancedFilterMaskError(
+            f"Failed to evaluate advanced filter mask.any() {context}"
+        ) from exc
 
 
 class _IncludeExcludeSeriesCache:
@@ -494,6 +499,7 @@ def _apply_week_range_filters(
                 range_mask &= nums.ge(int(start_val))
             if end_val is not None and not pd.isna(end_val):
                 range_mask &= nums.le(int(end_val))
+            range_mask = range_mask.fillna(False).astype(bool)
             if filters.get(exclude_key):
                 mask &= ~range_mask
             else:
@@ -616,14 +622,29 @@ def _build_derivadas_tree_core(
         return mae_filhas, filha_mae
 
     try:
-        filha_mae = dict(zip(pairs["numero"], pairs["derivada"]))
+        for numero, derivada in pairs[["numero", "derivada"]].itertuples(
+            index=False,
+            name=None,
+        ):
+            numero_key = str(numero)
+            derivada_key = str(derivada)
+            previous = filha_mae.get(numero_key)
+            if previous is not None and previous != derivada_key:
+                logger.warning(
+                    "Duplicate derivada child %s has conflicting parents %s and %s; "
+                    "keeping first parent",
+                    numero_key,
+                    previous,
+                    derivada_key,
+                )
+                continue
+            filha_mae.setdefault(numero_key, derivada_key)
     except Exception:
         filha_mae = {}
 
     try:
-        grouped = pairs.groupby("derivada")["numero"].unique()
-        for mae, filhas in grouped.items():
-            mae_filhas_set[mae] = set(filhas)
+        for numero, derivada in filha_mae.items():
+            mae_filhas_set.setdefault(derivada, set()).add(numero)
     except Exception:
         mae_filhas_set = {}
 

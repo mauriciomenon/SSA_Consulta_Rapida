@@ -49,6 +49,7 @@ from core.import_errors import (  # noqa: E402
     DatabaseSchemaError,
     DatabaseSpaceError,
     ExtractionError,
+    ImportMetricsContractError,
     ImporterError,
 )
 from core.import_formats import (  # noqa: E402
@@ -820,21 +821,36 @@ def _process_file_with_resilience(
             table_name,
             should_cancel=should_cancel,
             _metrics_out=file_metrics,
-            metadata_columns_ready=True,
+            metadata_columns_ready=candidate_db_path is not None,
         )
-        if file_metrics:
-            file_metrics["status"] = "success" if success else "no_rows"
-            file_reports.append(file_metrics)
         if success:
             normalized_record_count = int(record_count)
+            counts = file_metrics.get("counts")
+            if not isinstance(counts, dict) or not {
+                "ssa_inserted",
+                "ssa_updated",
+            }.issubset(counts):
+                raise ValueError(
+                    f"Metricas SSA ausentes no resultado de {base_name}"
+                )
+            file_metrics["status"] = "success"
+            file_reports.append(file_metrics)
             successfully_processed_files.append(file_path)
             successful_regular_files_with_records.append(
                 (file_path, normalized_record_count)
             )
             emit_progress(
                 "file_success",
-                {"filename": base_name, "records": normalized_record_count},
+                {
+                    "filename": base_name,
+                    "records": normalized_record_count,
+                    "ssa_inserted": int(counts["ssa_inserted"]),
+                    "ssa_updated": int(counts["ssa_updated"]),
+                },
             )
+        elif file_metrics:
+            file_metrics["status"] = "no_rows"
+            file_reports.append(file_metrics)
         return FileProcessAction.CONTINUE
     except DatabaseConnectionError as exc:
         logger.error(
@@ -902,18 +918,61 @@ def _process_file_with_resilience(
         if error_code == "OPERATION_CANCELLED" and should_cancel:
             logger.info("Cancelamento solicitado; interrompendo importacao.")
             return FileProcessAction.CANCELLED
-        if error_code == "MISSING_REQUIRED_COLUMNS":
+        unsafe_identity_payload = error_code == "UNSAFE_INVALID_IDENTITY_PAYLOAD"
+        if error_code in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"}:
             deterministic_failed_files.append(file_path)
-        logger.warning(
-            "Erro de extracao em '%s': %s. Pulando arquivo...", file_path, exc
-        )
+        if unsafe_identity_payload:
+            logger.error(
+                "Payload sem identidade em '%s': %s. Interrompendo importacao.",
+                file_path,
+                exc,
+            )
+        else:
+            logger.warning(
+                "Erro de extracao em '%s': %s. Pulando arquivo...", file_path, exc
+            )
         critical_errors.append(("extraction", file_path, str(exc)))
-        file_reports.append(
+        file_report = dict(file_metrics) if unsafe_identity_payload else {}
+        file_report.update(
             {
                 "file": base_name,
                 "status": "extraction_error",
                 "error": str(exc),
                 "error_code": error_code,
+            }
+        )
+        file_reports.append(file_report)
+        emit_progress(
+            "file_error",
+            {
+                "filename": base_name,
+                "error": str(exc),
+                "error_code": error_code,
+                "deterministic": error_code
+                in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"},
+            },
+        )
+        if unsafe_identity_payload:
+            raise
+        return FileProcessAction.CONTINUE
+    except ImportMetricsContractError as exc:
+        logger.error(
+            "Falha no contrato de metricas apos gravacao de '%s': %s",
+            file_path,
+            exc,
+        )
+        normalized_record_count = int(exc.record_count)
+        successfully_processed_files.append(file_path)
+        successful_regular_files_with_records.append(
+            (file_path, normalized_record_count)
+        )
+        critical_errors.append(("metrics_contract", file_path, str(exc)))
+        file_reports.append(
+            {
+                "file": base_name,
+                "status": "metrics_contract_error",
+                "records": normalized_record_count,
+                "error": str(exc),
             }
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
@@ -962,7 +1021,7 @@ def _process_regular_files_phase(
         and not _is_derivadas_sheet_file(file_path)
         for file_path in files_to_process
     )
-    if has_regular_import_candidate:
+    if candidate_db_path is not None and has_regular_import_candidate:
         ensure_source_metadata_columns(
             working_db_path,
             table_name,
@@ -1876,6 +1935,19 @@ def run_importer_logic(
         discovery_settings = cast(Dict[str, Any], work_items["discovery_settings"])
         files_to_process = cast(List[str], work_items["files_to_process"])
         derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
+        import_batch_files = list(
+            dict.fromkeys([*files_to_process, *derivadas_sheet_files])
+        )
+        trusted_full_rescan = bool(force_import and explicit_files is None)
+        try:
+            extractor.validate_excel_import_limits(
+                import_batch_files,
+                enforce_batch_file_limit=not trusted_full_rescan,
+                ignore_unavailable=True,
+                reject_invalid_archives=False,
+            )
+        except extractor.ExtractionError as exc:
+            raise ImporterError(str(exc)) from exc
         move_processed_after_import = bool(work_items["move_processed_after_import"])
         db_only_derivadas_sync = False
         auto_derivadas_sync_enabled = True
@@ -2097,9 +2169,12 @@ def import_explicit_files_to_database(
     docs_dir: str = "docs_entrada",
     db_path: str = "data/ssas.db",
     raise_on_error: bool = False,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> bool:
     """Import explicit supported files already staged under docs_dir into the database."""
     try:
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Importacao explicita cancelada antes do preflight")
         safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
         explicit_resolved = _resolve_explicit_import_files(
             file_paths,
@@ -2110,6 +2185,8 @@ def import_explicit_files_to_database(
                 "Nenhum arquivo explicito valido foi fornecido para importacao."
             )
             return False
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Importacao explicita cancelada antes do importer")
         data_dir = safe_db_path.parent
         db_name = safe_db_path.name
         os.makedirs(data_dir, exist_ok=True)
@@ -2119,6 +2196,7 @@ def import_explicit_files_to_database(
             db_name=db_name,
             table_name="ssa_table",
             force_import=False,
+            should_cancel=should_cancel,
             explicit_files=explicit_resolved,
         )
     except PathSafetyError as e:
