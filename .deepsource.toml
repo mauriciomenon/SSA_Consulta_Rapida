@@ -1,0 +1,17 @@
+version = 1
+
+# DeepSource is installed as a GitHub App and runs checks on PRs targeting `dev`.
+# This config exists to prevent noisy/unstable failures when the App is enabled.
+exclude_patterns = [
+  "build/**",
+  "dist/**",
+  "**/__pycache__/**",
+  "dev_env/streamlit_app.py",
+]
+
+[[analyzers]]
+name = "python"
+enabled = true
+
+  [analyzers.meta]
+  runtime_version = "3.x.x"

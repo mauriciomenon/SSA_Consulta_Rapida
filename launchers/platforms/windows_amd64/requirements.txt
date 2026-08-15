@@ -1,0 +1,21 @@
+# Requirements otimizados para Windows AMD64 (minimos)
+
+# Runtime
+pandas>=2.3.3
+openpyxl>=3.1.5
+defusedxml>=0.7.1
+idna>=3.15
+numpy>=2.2.6,<2.4.0 ; python_version < "3.11"
+numpy>=2.4.2 ; python_version >= "3.11"
+PyQt6>=6.9.0
+tabulate>=0.10.0
+
+# Build (sem compressao UPX)
+pyinstaller>=6.20.0
+pillow>=12.2.0
+cairosvg>=2.9.0
+
+# Para compressao UPX opcional use tambem: requirements_windows_build.txt
+
+# Windows especifico
+pywin32>=311 ; platform_system=="Windows"

@@ -1,0 +1,72 @@
+name: opencode GitHub Action
+description: Run opencode in GitHub Actions workflows with pinned nested actions.
+
+inputs:
+  model:
+    description: Model to use.
+    required: true
+  agent:
+    description: Agent to use.
+    required: false
+  share:
+    description: Share the opencode session.
+    required: false
+  prompt:
+    description: Custom prompt to override the default prompt.
+    required: false
+  use_github_token:
+    description: Use GITHUB_TOKEN directly instead of OpenCode App token exchange.
+    required: false
+    default: "true"
+  mentions:
+    description: Comma-separated list of trigger phrases.
+    required: false
+  variant:
+    description: Model variant for provider-specific reasoning effort.
+    required: false
+  oidc_base_url:
+    description: Base URL for OIDC token exchange API.
+    required: false
+  opencode_version:
+    description: Pinned opencode-ai npm package version to install.
+    required: false
+    default: "1.14.33"
+
+runs:
+  using: composite
+  steps:
+    - name: Cache opencode
+      id: cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.opencode/npm
+        key: opencode-${{ runner.os }}-${{ runner.arch }}-${{ inputs.opencode_version }}
+
+    - name: Skip dynamic opencode install
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::error::Dynamic npm package installation is disabled for this repository. Preload the opencode cache before enabling this review."
+        exit 1
+
+    - name: Add opencode to PATH
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: echo "$HOME/.opencode/npm/bin" >> "${GITHUB_PATH}"
+
+    - name: Run opencode review
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      id: run_opencode
+      run: python scripts/ci/opencode_pr_review.py
+      env:
+        MODEL: ${{ inputs.model }}
+        AGENT: ${{ inputs.agent }}
+        SHARE: ${{ inputs.share }}
+        PROMPT: ${{ inputs.prompt }}
+        USE_GITHUB_TOKEN: ${{ inputs.use_github_token }}
+        REVIEW_GITHUB_TOKEN: ${{ github.token }}
+        MENTIONS: ${{ inputs.mentions }}
+        VARIANT: ${{ inputs.variant }}
+        OIDC_BASE_URL: ${{ inputs.oidc_base_url }}
