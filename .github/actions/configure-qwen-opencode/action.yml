@@ -1,0 +1,50 @@
+name: Configure Qwen opencode provider
+description: Write the opencode provider config for Qwen Coding Plan.
+
+runs:
+  using: composite
+  steps:
+    - name: Write Qwen provider config
+      shell: bash
+      env:
+        QWEN_API_KEY: ${{ env.QWEN_API_KEY }}
+      run: |
+        set -euo pipefail
+        umask 077
+        mkdir -p "${HOME}/.config/opencode"
+        python - <<'PY'
+        import json
+        import os
+        from pathlib import Path
+
+        api_key = os.environ["QWEN_API_KEY"]
+        config = {
+            "$schema": "https://opencode.ai/config.json",
+            "provider": {
+                "qwen-cloud-coding-plan": {
+                    "npm": "@ai-sdk/anthropic",
+                    "name": "Qwen Cloud Coding Plan",
+                    "options": {
+                        "baseURL": "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1",
+                        "apiKey": api_key,
+                    },
+                    "models": {
+                        "qwen3-coder-plus": {
+                            "name": "Qwen3 Coder Plus",
+                            "modalities": {
+                                "input": ["text"],
+                                "output": ["text"],
+                            },
+                            "limit": {
+                                "context": 1000000,
+                                "output": 65536,
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        target = Path.home() / ".config" / "opencode" / "opencode.json"
+        target.write_text(json.dumps(config, indent=2), encoding="utf-8")
+        PY
+        chmod 600 "${HOME}/.config/opencode/opencode.json"

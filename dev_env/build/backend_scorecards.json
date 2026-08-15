@@ -1,0 +1,26 @@
+{
+  "nuitka": {
+    "easy_user_dirs_score": 4,
+    "note": "Melhor protecao do codigo protegido por compilacao nativa; build mais lento.",
+    "package_size_score": 3,
+    "protected_release": true,
+    "security_score": 4,
+    "source_protection_score": 4
+  },
+  "pyinstaller": {
+    "easy_user_dirs_score": 5,
+    "note": "Alta compatibilidade; nao e artefato protegido sem obfuscation.",
+    "package_size_score": 4,
+    "protected_release": false,
+    "security_score": 2,
+    "source_protection_score": 2
+  },
+  "pyoxidizer": {
+    "easy_user_dirs_score": 3,
+    "note": "Empacotamento forte, mas requer embedding sem fonte Python exposta.",
+    "package_size_score": 2,
+    "protected_release": false,
+    "security_score": 3,
+    "source_protection_score": 3
+  }
+}

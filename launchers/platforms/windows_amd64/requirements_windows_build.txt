@@ -1,0 +1,2 @@
+# Dependencias Python opcionais de build Windows.
+# UPX e um binario externo; instale pelo gerenciador do sistema, nao via pip.
