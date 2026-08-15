@@ -1,0 +1,15 @@
+* text=auto eol=lf
+.gitattributes text eol=lf
+*.sh text eol=lf
+*.bash text eol=lf
+.envrc text eol=lf
+*.py text eol=lf
+*.bzl text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

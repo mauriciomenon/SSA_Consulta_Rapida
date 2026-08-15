@@ -1,0 +1,45 @@
+{
+  "platform": "debian_amd64",
+  "pyinstaller_args": {
+    "onefile": false,
+    "onedir": true,
+    "optimize": 2,
+    "strip": true,
+    "upx_dir": null,
+    "exclude_modules": [
+      "tkinter",
+      "test",
+      "unittest"
+    ],
+    "hidden_imports": [
+      "pandas._libs.tslibs.base",
+      "pandas._libs.tslibs.nattype",
+      "openpyxl.descriptors.serialisable"
+    ]
+  },
+  "cli_config": {
+    "console": true,
+    "icon": "resources/app_icon.png",
+    "name": "SSA_CLI_v{version}_debian_amd64",
+    "additional_args": [
+      "--distpath=launchers/dist/debian_amd64",
+      "--workpath=launchers/platforms/debian_amd64/temp",
+      "--specpath=launchers/platforms/debian_amd64"
+    ]
+  },
+  "gui_config": {
+    "windowed": true,
+    "icon": "resources/app_icon.png",
+    "name": "SSA_GUI_v{version}_debian_amd64",
+    "additional_args": [
+      "--distpath=launchers/dist/debian_amd64",
+      "--workpath=launchers/platforms/debian_amd64/temp",
+      "--specpath=launchers/platforms/debian_amd64"
+    ]
+  },
+  "post_build": {
+    "compress": true,
+    "sign": false,
+    "package": "zip"
+  }
+}
