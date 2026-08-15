@@ -1,0 +1,111 @@
+# gui/ssa/gui_filters_advanced_layout.py
+# Relation: calculates advanced-filter grid placement without touching Qt widgets.
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+LAYOUT_MIN_VALID_WIDTH = 1
+LAYOUT_GRID_MIN_COLS = 1
+LAYOUT_GRID_MAX_COLS = 4
+LAYOUT_GRID_PREF_COLS = 4
+LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
+LAYOUT_ADV_PANEL_MAX_HEIGHT = 285
+LAYOUT_ADV_CONTROL_HEIGHT = 20
+LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 32
+LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 36
+
+
+@dataclass(frozen=True, slots=True)
+class AdvancedGridLayoutPlan:
+    cols: int
+    rows: int
+    scroll_height: int
+    vertical_spacing: int
+    vertical_margin: int
+    layout_mode: str
+
+
+@dataclass(frozen=True, slots=True)
+class AdvancedGridLayoutConstraints:
+    min_cols: int
+    max_cols: int
+    preferred_cols: int
+    field_box_min_height: int
+    field_box_max_height: int
+    max_scroll_height: int
+
+
+@dataclass(frozen=True, slots=True)
+class AdvancedGridLayoutMetrics:
+    effective_width: int
+    cell_min_width: int
+    spacing: int
+    horizontal_padding: int
+    vertical_spacing: int
+    vertical_padding: int
+
+
+def build_advanced_grid_layout_plan(
+    *,
+    visible_count: int,
+    metrics: AdvancedGridLayoutMetrics,
+    constraints: AdvancedGridLayoutConstraints,
+) -> AdvancedGridLayoutPlan | None:
+    if visible_count <= 0 or metrics.effective_width <= 0:
+        return None
+    available_for_cells = max(
+        0,
+        int(metrics.effective_width) - int(metrics.horizontal_padding),
+    )
+    max_try_cols = max(1, min(int(constraints.max_cols), int(visible_count)))
+    preferred_cols = max(1, min(int(constraints.preferred_cols), max_try_cols))
+    candidate_order = list(range(preferred_cols, 0, -1))
+    if max_try_cols > preferred_cols:
+        candidate_order = (
+            list(range(max_try_cols, preferred_cols - 1, -1)) + candidate_order
+        )
+    cols = 1
+    for candidate_cols in candidate_order:
+        required_width = (candidate_cols * metrics.cell_min_width) + max(
+            0, candidate_cols - 1
+        ) * metrics.spacing
+        if required_width <= available_for_cells:
+            cols = candidate_cols
+            break
+    cols = max(int(constraints.min_cols), cols)
+    cols = max(1, min(cols, int(visible_count)))
+    rows = max(1, (int(visible_count) + cols - 1) // cols)
+    content_h = (
+        rows * int(constraints.field_box_max_height)
+        + max(0, rows - 1) * max(0, int(metrics.vertical_spacing))
+        + int(metrics.vertical_padding)
+    )
+    min_content_h = int(metrics.vertical_padding) + int(
+        constraints.field_box_min_height
+    )
+    content_h = max(content_h, min_content_h)
+    min_scroll_height = max(60, min_content_h)
+    scroll_height = max(min_scroll_height, int(constraints.max_scroll_height))
+    base_vertical_spacing = max(0, int(metrics.vertical_spacing))
+    vertical_spacing = base_vertical_spacing
+    vertical_margin = 0
+    gaps = max(0, rows - 1)
+    if gaps > 0:
+        slack = max(0, scroll_height - content_h)
+        max_vertical_spacing = 32 if rows <= 4 else base_vertical_spacing
+        extra_per_gap = min(
+            max(0, max_vertical_spacing - base_vertical_spacing),
+            slack // gaps,
+        )
+        vertical_spacing = base_vertical_spacing + extra_per_gap
+        slack -= extra_per_gap * gaps
+        vertical_margin = max(0, slack // 2)
+    return AdvancedGridLayoutPlan(
+        cols=cols,
+        rows=rows,
+        scroll_height=scroll_height,
+        vertical_spacing=vertical_spacing,
+        vertical_margin=vertical_margin,
+        layout_mode=f"cols_{cols}",
+    )

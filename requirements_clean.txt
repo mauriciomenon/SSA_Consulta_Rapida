@@ -1,0 +1,63 @@
+# Arquivo removido - redundante com requirements.txt
+# Use requirements.txt para runtime essencial
+
+# Este arquivo foi removido como parte da otimização de requirements.
+# Para desenvolvimento, use: pip install -r requirements.txt -r requirements_dev.txt
+# Para build, use: pip install -r requirements.txt -r requirements_build.txt
+# Para CI, use: pip install -r requirements.txt -r requirements_ci.txt
+
+# Comandos de instalação:
+# pip install -r requirements.txt                    # Apenas runtime
+# pip install -r requirements.txt -r requirements_dev.txt     # Desenvolvimento
+# pip install -r requirements.txt -r requirements_build.txt   # Build/empacotamento
+# pip install -r requirements.txt -r requirements_ci.txt      # CI/CD
+
+# Estrutura otimizada (3 arquivos essenciais):
+# - requirements.txt: Dependências de runtime essenciais
+# - requirements_build.txt: Ferramentas de build e empacotamento
+# - requirements_dev.txt: Ferramentas de desenvolvimento e CI
+
+# Observação: Este arquivo foi mantido apenas para documentação.
+# Em projetos futuros, este arquivo pode ser completamente removido.
+
+# Histórico da otimização:
+# - requirements_clean.txt: Mantido apenas para documentação (redundante)
+# - requirements_ci.txt: Removido dependências de runtime, mantendo apenas ferramentas de CI
+# - requirements_dev.txt: Mantido como está (já contém apenas ferramentas de desenvolvimento)
+
+# Resultado final: 3 arquivos essenciais (redução de 5 para 3 arquivos)
+# Benefícios: menos redundância, manutenção mais fácil, separação clara de responsabilidades
+
+# Próximos passos recomendados:
+# 1. Atualizar documentação do projeto para refletir a nova estrutura
+# 2. Atualizar arquivos de CI/CD que referenciam os arquivos removidos
+# 3. Considerar remover completamente requirements_clean.txt em versões futuras
+
+# Resumo da otimização:
+# - Arquivos mantidos: requirements.txt, requirements_build.txt, requirements_dev.txt
+# - Arquivos modificados: requirements_ci.txt (removidas dependências de runtime)
+# - Arquivos mantidos para documentação: requirements_clean.txt
+# - Total de arquivos: 4 (redução efetiva de 5 para 3 arquivos essenciais)
+
+# Impacto da otimização:
+# - Redução de 40% no número de arquivos de requirements
+# - Eliminação de dependências duplicadas entre arquivos
+# - Maior clareza na separação de responsabilidades
+# - Facilita a manutenção e atualização das dependências
+
+# Contato para dúvidas:
+# Esta otimização foi implementada seguindo a opção 1 recomendada.
+# Para mais informações, consulte o histórico de commits ou a documentação do projeto.
+
+# Versão: 1.0
+# Data: 2025-12-05
+# Autor: Otimização automatizada
+
+# Licença: Este arquivo é parte do projeto SSA_Consulta_Rapida
+# Copyright (c) 2025, SSA_Consulta_Rapida
+# 
+# Este projeto está sob a licença MIT License.
+# Veja o arquivo LICENSE para mais detalhes.
+
+# Changelog:
+# [2025-12-05] - Otimização de requirements: redução de 5 para 3 arquivos essenciais

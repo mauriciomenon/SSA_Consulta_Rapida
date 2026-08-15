@@ -1,0 +1,48 @@
+{
+  "display_columns": [
+    "numero_ssa",
+    "cadastro",
+    "prioridade",
+    "situacao", 
+    "derivada_de",
+    "localizacao_codigo",
+    "semana_cadastro",
+    "data_cadastro",
+    "descricao_ssa",
+    "setor_executor",
+    "setor_emissor",
+    "solicitante",
+    "semana_programada",
+    "descricao_execucao"
+  ],
+  "hidden_columns": [
+    "descricao_localizacao",
+    "equipamento", 
+    "origem",
+    "servico_origem",
+    "execucao_simples",
+    "grau_prioridade_emissao"
+  ],
+  "column_display_names": {
+  "numero_ssa": "Número SSA",
+    "Número da SSA": "Numero SSA",
+    "situacao": "Situacao", 
+    "derivada_de": "Derivada de",
+    "localizacao_codigo": "Localizacao",
+    "semana_cadastro": "Cadastro",
+    "Semana de Cadastro": "Cadastro",
+  "data_cadastro": "Cadastro",
+  "Data Cadastro": "Cadastro",
+    "descricao_ssa": "Descricao da SSA",
+    "setor_executor": "Executor",
+    "setor_emissor": "Emissor",
+    "solicitante": "Solicitante",
+    "semana_programada": "Sem. Prog.",
+  "descricao_execucao": "Descrição Execução",
+    "Descrição Execução": "Descrição Execução"
+  },
+  "column_widths": {},
+  "stretch_columns": ["descricao_ssa"],
+  "version": "1.0.1",
+  "description": "Configurações específicas da GUI PoC - NÃO AFETAR CLI"
+}
