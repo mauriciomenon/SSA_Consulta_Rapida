@@ -1,0 +1,48 @@
+{
+  "platform": "macos_arm64",
+  "pyinstaller_args": {
+    "onedir": true,
+    "optimize": 2,
+    "strip": true,
+    "upx_dir": null,
+    "exclude_modules": [
+      "tkinter",
+      "test",
+      "unittest"
+    ],
+    "hidden_imports": [
+      "pandas._libs.tslibs.base",
+      "pandas._libs.tslibs.nattype",
+      "openpyxl.descriptors.serialisable",
+      "secrets",
+      "hashlib",
+      "uuid",
+      "datetime"
+    ]
+  },
+  "cli_config": {
+    "console": true,
+    "icon": "resources/app_icon.icns",
+    "name": "SSA_CLI_v{version}_macos_arm64",
+    "additional_args": [
+      "--distpath=launchers/dist/macos_arm64",
+      "--workpath=launchers/platforms/macos_arm64/temp",
+      "--specpath=launchers/platforms/macos_arm64"
+    ]
+  },
+  "gui_config": {
+    "windowed": true,
+    "icon": "resources/app_icon.icns", 
+    "name": "SSA_GUI_v{version}_macos_arm64",
+    "additional_args": [
+      "--distpath=launchers/dist/macos_arm64",
+      "--workpath=launchers/platforms/macos_arm64/temp",
+      "--specpath=launchers/platforms/macos_arm64"
+    ]
+  },
+  "post_build": {
+    "compress": false,
+    "sign": true,
+    "package": "dmg"
+  }
+}

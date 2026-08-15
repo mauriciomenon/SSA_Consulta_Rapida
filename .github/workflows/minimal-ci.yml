@@ -1,0 +1,151 @@
+name: minimal-ci
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+jobs:
+  quality-gates:
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect quality gate scope
+        id: changed-scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            BASE_SHA="${PR_BASE_SHA}"
+          else
+            BASE_SHA="${BEFORE_SHA}"
+          fi
+          if [ -z "${BASE_SHA}" ] || [ "$BASE_SHA" = "$ZERO_SHA" ]; then
+            git ls-files > .changed_quality_scope
+          elif ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "Base SHA ${BASE_SHA} is not available after history rewrite; using full tracked file scope."
+            git ls-files > .changed_quality_scope
+          else
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > .changed_quality_scope
+          fi
+          : > .changed_python_files
+          while IFS= read -r file_path; do
+            case "$file_path" in
+              *.py)
+                if [ ! -f "$file_path" ]; then
+                  continue
+                fi
+                printf '%s\n' "$file_path" >> .changed_python_files
+                ;;
+            esac
+          done < .changed_quality_scope
+          if [ -s .changed_python_files ] || grep -Eq '^pyproject\.toml$|^requirements[^/]*\.txt$|^uv\.lock$|^\.github/workflows/[^/]+\.ya?ml$|^scripts/|^dev_env/build/' .changed_quality_scope; then
+            echo "run_python=true" >> "$GITHUB_OUTPUT"
+            echo "Python or CI config changes detected."
+            if [ -s .changed_python_files ]; then
+              echo "Changed Python files:"
+              cat .changed_python_files
+            else
+              echo "No changed Python files detected for scoped static checks."
+            fi
+          else
+            echo "run_python=false" >> "$GITHUB_OUTPUT"
+            echo "No Python or CI config changes detected; required status will pass without expensive gates."
+          fi
+
+      - name: Setup Python
+        if: steps.changed-scope.outputs.run_python == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        if: steps.changed-scope.outputs.run_python == 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - name: Install EGL graphics dependency
+        if: steps.changed-scope.outputs.run_python == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libegl1
+
+      - name: Sync dev dependencies
+        if: steps.changed-scope.outputs.run_python == 'true'
+        run: |
+          set -euo pipefail
+          uv sync --extra dev
+
+      - name: Py compile changed Python paths
+        if: steps.changed-scope.outputs.run_python == 'true'
+        run: |
+          set -euo pipefail
+          uv run --python 3.13 python - <<'PY'
+          from pathlib import Path
+          import py_compile
+
+          files_path = Path(".changed_python_files")
+          files = [line.strip() for line in files_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+          if not files:
+              print("No changed Python files to compile.")
+          else:
+              for file_path in files:
+                  py_compile.compile(file_path, doraise=True)
+          PY
+
+      - name: Ruff (changed files)
+        if: steps.changed-scope.outputs.run_python == 'true'
+        run: |
+          set -euo pipefail
+          mapfile -t files < .changed_python_files
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed Python files for Ruff."
+          else
+            uv run --python 3.13 ruff check "${files[@]}"
+          fi
+
+      - name: Ty (changed files)
+        if: steps.changed-scope.outputs.run_python == 'true'
+        run: |
+          set -euo pipefail
+          mapfile -t files < .changed_python_files
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed Python files for Ty."
+          else
+            uv run --python 3.13 ty check "${files[@]}"
+          fi
+
+      - name: Pytest suite
+        if: steps.changed-scope.outputs.run_python == 'true'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set -euo pipefail
+          uv run --python 3.13 pytest -q tests

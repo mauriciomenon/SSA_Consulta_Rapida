@@ -1,0 +1,17 @@
+# SSA Consulta Rapida - Dependencias de Runtime
+# Dependencias diretas apenas. Pip/uv resolve sub-dependencias automaticamente.
+# Para desenvolvimento: pip install -e ".[dev]" ou uv pip install -e ".[dev]"
+# Para build: pip install -e ".[build]" ou uv pip install -e ".[build]"
+
+# Interface grafica (GUI)
+PyQt6>=6.9.0
+
+# Manipulacao de dados e Excel
+pandas>=2.3.3
+openpyxl>=3.1.5
+defusedxml>=0.7.1
+numpy>=2.2.6,<2.4.0 ; python_version < "3.11"
+numpy>=2.4.2 ; python_version >= "3.11"
+
+# Exibicao em tabela no CLI
+tabulate>=0.10.0

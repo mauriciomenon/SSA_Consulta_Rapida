@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# BLOCK large blobs before push to avoid GitHub hard limit violations.
+set -euo pipefail
+export LC_ALL=C
+export LANG=C
+
+MAX_MB="${GIT_MAX_BLOB_MB:-95}"
+if [[ ! "$MAX_MB" =~ ^[0-9]+$ ]]; then
+  MAX_MB=95
+fi
+MAX_BYTES=$((MAX_MB * 1024 * 1024))
+
+info(){
+  if [[ ${GIT_HOOKS_VERBOSE:-0} -eq 1 ]]; then
+    echo "[pre-push-size] $1" >&2
+  fi
+}
+
+refs=()
+zero_sha="0000000000000000000000000000000000000000"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  _=("$local_ref" "$remote_ref")
+  if [[ -z "${local_sha:-}" ]]; then
+    continue
+  fi
+  if [[ "$local_sha" == "$zero_sha" ]]; then
+    continue
+  fi
+  if [[ "${remote_sha:-}" == "$zero_sha" || -z "${remote_sha:-}" ]]; then
+    refs+=("$local_sha")
+  else
+    refs+=("${remote_sha}..${local_sha}")
+  fi
+done
+
+if [[ ${#refs[@]} -eq 0 ]]; then
+  info "Nenhum range de push para validar."
+  exit 0
+fi
+
+tmp_objects="$(mktemp)"
+tmp_revlist="$(mktemp)"
+trap 'rm -f "$tmp_objects" "$tmp_revlist"' EXIT
+
+: > "$tmp_revlist"
+for rev_range in "${refs[@]}"; do
+  if ! git rev-list --objects "$rev_range" >> "$tmp_revlist" 2>/dev/null; then
+    info "Ignorando range invalido no pre-push: $rev_range"
+  fi
+done
+
+if [[ ! -s "$tmp_revlist" ]]; then
+  info "Nenhum objeto novo identificado."
+  exit 0
+fi
+
+awk '
+  NF > 0 {
+    oid = $1
+    $1 = ""
+    sub(/^ /, "", $0)
+    if (!(oid in seen)) {
+      seen[oid] = $0
+      print oid "\t" $0
+    }
+  }
+' "$tmp_revlist" | sed '/^[[:space:]]*$/d' > "$tmp_objects"
+
+if [[ ! -s "$tmp_objects" ]]; then
+  info "Nenhum objeto novo identificado."
+  exit 0
+fi
+
+found=0
+batch_format=$'%(objectname)\t%(objecttype)\t%(objectsize)\t%(rest)'
+while IFS=$'\t' read -r oid otype osize opath; do
+  if [[ "$otype" != "blob" ]]; then
+    continue
+  fi
+  if (( osize >= MAX_BYTES )); then
+    found=1
+    size_mb="$(awk -v n="$osize" 'BEGIN { printf "%.2f", n/1024/1024 }')"
+    echo "[pre-push-size][BLOCK] Blob grande detectado: ${opath:-<sem-caminho>} (${size_mb} MB, oid=$oid)" >&2
+  fi
+done < <(git cat-file --batch-check="$batch_format" < "$tmp_objects")
+
+if [[ $found -eq 1 ]]; then
+  cat <<EOF >&2
+================ BLOQUEADO ================
+Foram detectados blobs >= ${MAX_MB} MB no push.
+GitHub rejeita objetos muito grandes; reduza os arquivos e refaça o commit.
+Override de emergencia (nao recomendado):
+  GIT_ALLOW_LARGE_PUSH=1 git push ...
+===========================================
+EOF
+  if [[ ${GIT_ALLOW_LARGE_PUSH:-0} -eq 1 ]]; then
+    echo "[pre-push-size] Override inseguro aceito por GIT_ALLOW_LARGE_PUSH=1." >&2
+    exit 0
+  fi
+  exit 1
+fi
+
+exit 0

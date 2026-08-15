@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# SECRET SCAN HOOK MARKER
+set -euo pipefail
+export LC_ALL=C
+export LANG=C
+
+TOKEN_REGEXES=(
+  'sk-[A-Za-z0-9]{24,}'
+  'hf_[A-Za-z0-9]{24,}'
+)
+
+ALLOW_VALUES=(
+  ""
+  "REDACTED"
+  "CHANGE_ME"
+  "TODO"
+  "<PLACEHOLDER>"
+  "PLACEHOLDER"
+  '""'
+  "''"
+)
+
+MIN_LEN=12
+MAX_MB="${GIT_MAX_BLOB_MB:-95}"
+if [[ ! "$MAX_MB" =~ ^[0-9]+$ ]]; then
+  MAX_MB=95
+fi
+MAX_BYTES=$((MAX_MB * 1024 * 1024))
+
+err(){ echo "[secret-scan][BLOCK] $1" >&2; }
+info(){
+  if [[ ${GIT_HOOKS_VERBOSE:-0} -eq 1 ]]; then
+    echo "[secret-scan] $1" >&2
+  fi
+  return 0
+}
+
+# 0) Arquivos staged grandes (limite GitHub / politicas de release)
+large_found=0
+while IFS= read -r staged_path; do
+  [[ -z "${staged_path:-}" ]] && continue
+  staged_ref=":$staged_path"
+  if ! file_size="$(git cat-file -s "$staged_ref" 2>/dev/null | tr -d '[:space:]')"; then
+    continue
+  fi
+  if (( file_size >= MAX_BYTES )); then
+    large_found=1
+    size_mb="$(awk -v n="$file_size" 'BEGIN { printf "%.2f", n/1024/1024 }')"
+    err "Arquivo staged muito grande: $staged_path (${size_mb} MB)"
+  fi
+done < <(git diff --cached --name-only --diff-filter=AM)
+
+if [[ $large_found -eq 1 ]]; then
+  cat <<EOF >&2
+================ BLOQUEADO ================
+Arquivo staged >= ${MAX_MB} MB detectado.
+Remova do commit ou use estrategia de distribuicao fora do git.
+===========================================
+EOF
+  exit 1
+fi
+
+DIFF=$(git diff --cached --unified=0 --no-color || true)
+[[ -z $DIFF ]] && exit 0
+
+ADDED=$(
+  printf '%s\n' "$DIFF" \
+    | awk '/^\+/ && $0 !~ /^\+\+\+/ && $0 !~ /^\+Binary files / {sub(/^\+/, "", $0); print}' \
+    || true
+)
+[[ -z $ADDED ]] && exit 0
+
+FOUND=0
+
+# Tokens diretos
+for rgx in "${TOKEN_REGEXES[@]}"; do
+  if printf '%s\n' "$ADDED" | grep -E -q "$rgx"; then
+    err "Token suspeito: $rgx"
+    FOUND=1
+  else
+    info "OK token: $rgx"
+  fi
+done
+
+# Linhas com API_KEY=
+api_key_candidates=$(printf '%s\n' "$ADDED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' || true)
+if [[ -n "${api_key_candidates// }" ]]; then
+  while IFS= read -r line; do
+    [[ -z "${line// }" ]] && continue
+    val_part="${line#*=}"
+    val_part="$(printf '%s' "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    val_clean="$(printf '%s' "$val_part" | sed -E "s/^['\"]//; s/['\"]$//")"
+    val_clean="${val_clean//$'\r'/}"
+
+    for av in "${ALLOW_VALUES[@]}"; do
+      if [[ "$val_clean" == "$av" ]]; then
+        info "PLACEHOLDER permitido: $line"
+        continue 2
+      fi
+    done
+
+    if [[ -z "$val_clean" ]]; then
+      info "Vazio permitido: $line"
+      continue
+    fi
+
+    if (( ${#val_clean} < MIN_LEN )); then
+      info "Curto permitido: $line"
+      continue
+    fi
+
+    err "Valor potencial de API_KEY (redacted)"
+    FOUND=1
+  done <<< "$api_key_candidates"
+fi
+
+if [[ $FOUND -eq 1 ]]; then
+  cat <<'EOT' >&2
+================ BLOQUEADO ================
+Possível segredo real.
+Use placeholders (REDACTED / CHANGE_ME) ou .envrc.
+Override (risco): GIT_ALLOW_INSECURE_COMMIT=1 git commit ...
+===========================================
+EOT
+  [[ ${GIT_ALLOW_INSECURE_COMMIT:-0} -eq 1 ]] || exit 1
+  echo "[secret-scan] Override inseguro aceito." >&2
+fi
+
+exit 0

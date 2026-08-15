@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "description": "Default settings for SSA Consulta Rapida",
+  "display_settings": {
+    "column_visibility": {},
+    "column_widths": {
+      "#": 4,
+      "Nº SSA": 9,
+      "Loc.": 10,
+      "Emi.": 6,
+      "Exe.": 6
+    },
+    "max_auto_scroll_pages": 3
+  },
+  "user_preferences": {
+    "auto_scroll_to_end": false,
+    "filter_mode_default": "contains"
+  },
+  "default_filters": [],
+  "import_settings": {
+    "include_processadas_in_full_rescan": true,
+    "processadas_subdir": "processadas",
+    "ignore_nosurvivor_in_full_rescan": true,
+    "nosurvivor_subdir": "nosurvivor",
+    "move_processed_after_import": false,
+    "route_zero_survivor_to_nosurvivor": true,
+    "upsert_short_circuit_policy": "consulta_only"
+  }
+}

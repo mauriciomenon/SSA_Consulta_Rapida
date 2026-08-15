@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "backends": [
+    {
+      "name": "pyinstaller",
+      "order": 1,
+      "windows_amd64": true,
+      "debian_amd64": true,
+      "debian_arm64": true
+    },
+    {
+      "name": "nuitka",
+      "order": 2,
+      "windows_amd64": true,
+      "debian_amd64": true,
+      "debian_arm64": true
+    },
+    {
+      "name": "pyoxidizer",
+      "order": 3,
+      "windows_amd64": true,
+      "debian_amd64": true,
+      "debian_arm64": true
+    }
+  ],
+  "packages": [
+    {
+      "name": "deb",
+      "order": 1,
+      "debian_amd64": true,
+      "debian_arm64": true
+    },
+    {
+      "name": "appimage",
+      "order": 2,
+      "debian_amd64": true,
+      "debian_arm64": true
+    },
+    {
+      "name": "tar",
+      "order": 3,
+      "debian_amd64": true,
+      "debian_arm64": true
+    },
+    {
+      "name": "zip",
+      "order": 4,
+      "windows_amd64": true
+    }
+  ],
+  "unsupported_pairs": [
+    {
+      "platform": "debian_amd64",
+      "backend": "pyoxidizer",
+      "package": "appimage",
+      "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais."
+    },
+    {
+      "platform": "debian_arm64",
+      "backend": "pyoxidizer",
+      "package": "appimage",
+      "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais."
+    }
+  ],
+  "asset_name_templates": {
+    "debian_amd64": {
+      "deb": "ssa-consulta-rapida-{backend}-amd64_{app_version}_amd64.deb",
+      "appimage": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.AppImage",
+      "tar_split": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}_{app}.tar.gz",
+      "tar_single": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.tar.gz"
+    },
+    "debian_arm64": {
+      "deb": "ssa-consulta-rapida-{backend}-arm64_{app_version}_arm64.deb",
+      "appimage": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.AppImage",
+      "tar_split": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}_{app}.tar.gz",
+      "tar_single": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.tar.gz"
+    }
+  }
+}
