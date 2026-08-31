@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from core import app_logic
 
@@ -67,6 +68,7 @@ def test_exact_identifier_search_accepts_float_artifact_in_relation_columns() ->
 
 
 def test_exact_identifier_search_ignores_missing_arrow_values() -> None:
+    pytest.importorskip("pyarrow")
     df = pd.DataFrame(
         {
             "numero_ssa": pd.Series(

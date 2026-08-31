@@ -5,11 +5,16 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  workflow_dispatch:
 
 permissions:
   contents: read
   actions: read
   pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality-gates:
@@ -109,7 +114,7 @@ jobs:
         if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
-          uv sync --extra dev
+          uv sync --frozen --extra dev
 
       - name: Py compile changed Python paths
         if: steps.changed-scope.outputs.run_python == 'true'
@@ -168,17 +173,24 @@ jobs:
               for file_path in Path("tests").iterdir()
               if file_path.is_file()
               and (file_path.name.startswith("test_") or file_path.name.endswith("_test.py"))
+              and file_path.name not in {"gui_poc_smoke_test.py", "main_test.py"}
           )
 
-          def bucket(file_name: str) -> str:
+          def bucket(file_path: Path) -> str:
+              file_name = file_path.name
               if file_name == "test_gui_filter_logic.py":
                   return "gui-filter"
-              if file_name.startswith("test_gui_") or file_name in {
-                  "test_filter_gui_signal_connect.py",
-                  "test_main_gui_fallback.py",
-                  "test_mixin_integration.py",
-                  "test_rescan_progress_dialog.py",
-              }:
+              if (
+                  file_name.startswith("test_gui_")
+                  or file_name.endswith("_qt.py")
+                  or "PyQt6" in file_path.read_text(encoding="utf-8", errors="ignore")
+                  or file_name in {
+                      "test_filter_gui_signal_connect.py",
+                      "test_main_gui_fallback.py",
+                      "test_mixin_integration.py",
+                      "test_rescan_progress_dialog.py",
+                  }
+              ):
                   return "gui-other"
               if file_name.startswith(
                   (
@@ -214,7 +226,7 @@ jobs:
                   return "cli-release"
               return "core"
 
-          targets = [str(file_path) for file_path in test_files if bucket(file_path.name) == group]
+          targets = [str(file_path) for file_path in test_files if bucket(file_path) == group]
           if not targets:
               raise SystemExit(f"No pytest targets selected for {group}")
           Path(".pytest_targets").write_text("\n".join(targets) + "\n", encoding="utf-8")
