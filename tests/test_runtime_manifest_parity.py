@@ -1,8 +1,10 @@
-"""Gate: runtime manifests must not drift from pyproject direct dependencies.
+"""Coverage gate: runtime dependency lists must not drift from pyproject.
 
-Regression for REL-01: `armazenamento/database_lock.py` imports `filelock`,
-`pyproject.toml` declares it, but the runtime manifests omitted it - the
-frozen release venv failed to import the database module.
+This checks NAME COVERAGE (every direct runtime dependency of
+pyproject.toml must appear in each manifest), not version parity. The
+explicit floor assertions below (filelock) exist because
+armazenamento/database_lock.py imports it and REL-01 shipped a frozen
+venv without it.
 """
 
 import re
@@ -69,3 +71,12 @@ def test_filelock_present_everywhere():
     assert "filelock" in _manifest_names(RUNTIME_MANIFESTS[0])
     for manifest in RUNTIME_MANIFESTS[1:]:
         assert "filelock" in _manifest_names(manifest), manifest
+
+
+def test_filelock_version_floor_pinned_in_every_manifest():
+    pattern = re.compile(r"^\s*filelock>=3\.20\.3\s*$")
+    for manifest in RUNTIME_MANIFESTS:
+        lines = manifest.read_text(encoding="utf-8").splitlines()
+        assert any(
+            pattern.match(line) for line in lines
+        ), f"{manifest} must pin filelock>=3.20.3"
