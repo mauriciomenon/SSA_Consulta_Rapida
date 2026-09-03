@@ -379,13 +379,17 @@ def _build_render_marker_sample(
             row_indexes = list(range(len(display_df)))
         else:
             row_indexes = sorted({0, len(display_df) // 2, len(display_df) - 1})
-        marker_df = display_df.iloc[row_indexes][marker_columns].fillna("")
+        marker_df = (
+            display_df.iloc[row_indexes][marker_columns]
+            .astype("string")
+            .fillna("")
+        )
         return tuple(
             tuple(str(value) for value in row_values)
             for row_values in marker_df.itertuples(index=False, name=None)
         )
     except Exception as exc:
-        logger.debug(
+        logger.warning(
             "Falha ao construir amostra de marcadores da renderizacao: %s", exc
         )
         return tuple()
