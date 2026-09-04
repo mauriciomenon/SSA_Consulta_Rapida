@@ -37,13 +37,14 @@ OUT=$("$PY" scripts/run_quality_gates.py "${GATES_ARGS_ARRAY[@]}" 2>&1)
 CODE=$?
 set -e
 
-echo "$OUT" | tail -n 1 > quality_gates_output.jsonl
+QUALITY_GATES_JSONL="${QUALITY_GATES_JSONL:-quality_gates_output.jsonl}"
+echo "$OUT" | tail -n 1 > "$QUALITY_GATES_JSONL"
 
 STATUS="error"
 if [ $CODE -eq 0 ] || [ $CODE -eq 1 ]; then
   # tentar extrair
-  if jq -e .overall_status >/dev/null 2>&1 < quality_gates_output.jsonl; then
-    STATUS=$(jq -r .overall_status < quality_gates_output.jsonl)
+  if jq -e .overall_status >/dev/null 2>&1 < "$QUALITY_GATES_JSONL"; then
+    STATUS=$(jq -r .overall_status < "$QUALITY_GATES_JSONL")
   fi
 fi
 

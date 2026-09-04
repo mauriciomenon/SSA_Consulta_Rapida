@@ -170,6 +170,7 @@ def test_ci_quality_gates_parses_gate_args_with_quotes(tmp_path: Path) -> None:
             GATES_ARGS='--skip "check docs" --label "cache manager"',
             REAL_PYTHON=sys.executable,
             QUALITY_GATES_CAPTURE=str(capture),
+            QUALITY_GATES_JSONL=str(tmp_path / "quality_gates_output.jsonl"),
         ),
     )
 
