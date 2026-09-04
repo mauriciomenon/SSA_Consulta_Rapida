@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 from PyQt6.QtWidgets import QApplication
@@ -90,10 +91,64 @@ def _rss_mb() -> float:
     return usage.ru_maxrss / 1024
 
 
+def _current_rss_mb() -> float:
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        class ProcessMemoryCountersCurrent(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(ProcessMemoryCountersCurrent),
+            wintypes.DWORD,
+        ]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+
+        counters = ProcessMemoryCountersCurrent()
+        counters.cb = ctypes.sizeof(counters)
+        process = kernel32.GetCurrentProcess()
+        if not psapi.GetProcessMemoryInfo(
+            process, ctypes.byref(counters), counters.cb
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return counters.WorkingSetSize / (1024 * 1024)
+
+    if sys.platform == "linux":
+        statm = Path("/proc/self/statm").read_text(encoding="utf-8").split()
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        return int(statm[1]) * page_size / (1024 * 1024)
+
+    import subprocess
+
+    rss_kb = subprocess.run(
+        ["ps", "-o", "rss=", "-p", str(os.getpid())],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    return int(rss_kb) / 1024
+
+
 @pytest.mark.performance
 class TestScenarioGUIFilterSmokeBudget(GUIFilterScenarioHarness):
     def test_filter_refresh_smoke_stays_within_rss_budget(self):
-        rss_before = _rss_mb()
+        rss_before = _current_rss_mb()
         cycles = int(os.environ.get("SSA_GUI_SMOKE_CYCLES", "8"))
 
         for idx in range(cycles):
@@ -102,13 +157,14 @@ class TestScenarioGUIFilterSmokeBudget(GUIFilterScenarioHarness):
             self.window._refresh_after_filter_change()
             QApplication.processEvents()
 
-        rss_after = _rss_mb()
+        rss_after = _current_rss_mb()
         delta = rss_after - rss_before
         limit_mb = float(os.environ.get("SSA_GUI_SMOKE_RSS_LIMIT_MB", "256"))
 
         assert delta < limit_mb, (
             f"RSS delta {delta:.1f}MB exceeded budget {limit_mb:.1f}MB "
-            f"(before={rss_before:.1f} after={rss_after:.1f})"
+            f"(before={rss_before:.1f} after={rss_after:.1f} "
+            f"peak_diagnostic={_rss_mb():.1f})"
         )
 
     def test_filter_refresh_smoke_records_ms_per_stage(self, monkeypatch):
@@ -147,7 +203,7 @@ class TestScenarioGUIFilterSmokeBudget(GUIFilterScenarioHarness):
         self.window._df_last_search_filtered = large_df.copy()
         self.window.paginator.set_dataframe(large_df.copy())
 
-        rss_before = _rss_mb()
+        rss_before = _current_rss_mb()
         cycles = int(os.environ.get("SSA_GUI_SMOKE_LARGE_CYCLES", "3"))
         captured_timings: list[dict] = []
         original_log = self.window._log_filter_refresh_timings
@@ -166,13 +222,14 @@ class TestScenarioGUIFilterSmokeBudget(GUIFilterScenarioHarness):
             self.window._refresh_after_filter_change()
             QApplication.processEvents()
 
-        rss_after = _rss_mb()
+        rss_after = _current_rss_mb()
         delta = rss_after - rss_before
         limit_mb = float(os.environ.get("SSA_GUI_SMOKE_LARGE_RSS_LIMIT_MB", "512"))
 
         assert delta < limit_mb, (
             f"Large-df RSS delta {delta:.1f}MB exceeded budget {limit_mb:.1f}MB "
-            f"(before={rss_before:.1f} after={rss_after:.1f})"
+            f"(before={rss_before:.1f} after={rss_after:.1f} "
+            f"peak_diagnostic={_rss_mb():.1f})"
         )
         assert captured_timings
         last_timings = captured_timings[-1]
