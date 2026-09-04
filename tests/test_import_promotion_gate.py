@@ -24,8 +24,6 @@ from core import import_outcome  # noqa: E402
 from core.app_logic import FileProcessAction  # noqa: E402
 from core.app_logic import run_importer_logic  # noqa: E402
 
-TABLE = "ssa_table"
-
 
 def make_xlsx(path: Path, numero: str) -> None:
     pd.DataFrame(
@@ -41,7 +39,9 @@ def ssas(db_path: Path) -> list[str]:
     with sqlite3.connect(str(db_path)) as conn:
         return [
             r[0]
-            for r in conn.execute(f"SELECT numero_ssa FROM {TABLE} ORDER BY numero_ssa")  # nosec B608
+            for r in conn.execute(
+                "SELECT numero_ssa FROM ssa_table ORDER BY numero_ssa"
+            )
         ]
 
 
