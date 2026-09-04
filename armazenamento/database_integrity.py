@@ -10,7 +10,7 @@ import time
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Tuple
 
 from shared.db_names import (
     ALL_SSA_TABLE_NAMES,
@@ -489,26 +489,42 @@ def verify_database_integrity(
     return report
 
 
+def ensure_database_integrity(
+    db_path: str,
+    schema_file: str = "schema.sql",
+    table_name: str = CANONICAL_SSA_TABLE,
+) -> Tuple[bool, Dict[str, Any]]:
+    """Garante integridade com um unico check pesado no caminho feliz.
+
+    Retorna ``(ok, report)`` onde ``report`` e o ultimo
+    ``verify_database_integrity`` executado. Um novo check pesado roda
+    apenas quando o banco mudou (criacao, restauracao de snapshot ou
+    reparo conservador).
+    """
+    with database_writer_lock(db_path):
+        return _repair_database_if_needed_locked(db_path, schema_file, table_name)
+
+
 def repair_database_if_needed(
     db_path: str,
     schema_file: str = "schema.sql",
     table_name: str = CANONICAL_SSA_TABLE,
 ) -> bool:
-    with database_writer_lock(db_path):
-        return _repair_database_if_needed_locked(db_path, schema_file, table_name)
+    ok, _report = ensure_database_integrity(db_path, schema_file, table_name)
+    return ok
 
 
 def _repair_database_if_needed_locked(
     db_path: str,
     schema_file: str,
     table_name: str,
-) -> bool:
+) -> Tuple[bool, Dict[str, Any]]:
     logger.info("Iniciando verificacao conservadora do banco de dados...")
     try:
         report = verify_database_integrity(db_path, table_name)
         if report["is_valid"] and not report["missing_optional_columns"]:
             _create_integrity_snapshot(db_path)
-            return True
+            return True, report
 
         if report["needs_creation"]:
             logger.info("Banco ausente em bootstrap; criacao inicial sera executada")
@@ -518,33 +534,34 @@ def _repair_database_if_needed_locked(
             final_report = verify_database_integrity(db_path, table_name)
             if final_report["is_valid"]:
                 _create_integrity_snapshot(db_path, force=True)
-                return True
+                return True, final_report
             logger.error("Schema criado falhou na validacao: %s", final_report["issues"])
-            return False
+            return False, final_report
 
         sqlite_integrity_ok = bool(
             report.get("sqlite_integrity_ok", report.get("data_consistent", False))
         )
         if not sqlite_integrity_ok:
             if _restore_latest_valid_snapshot(db_path, table_name):
-                return True
+                final_report = verify_database_integrity(db_path, table_name)
+                return bool(final_report["is_valid"]), final_report
             logger.error("Banco corrompido sem snapshot valido para restauracao")
-            return False
+            return False, report
 
         if not report["table_exists"]:
             logger.error("Tabela SSA fisica ausente; reparo automatico foi bloqueado")
-            return False
+            return False, report
 
         missing_required = list(report["missing_required_columns"])
         missing_optional = list(report["missing_optional_columns"])
         if not missing_required and not missing_optional:
             logger.error("Inconsistencia de dados exige reimportacao, nao reparo automatico")
-            return False
+            return False, report
 
         snapshot = _create_integrity_snapshot(db_path, force=True)
         if snapshot is None:
             logger.error("Reparo bloqueado porque o snapshot preventivo falhou")
-            return False
+            return False, report
 
         from .database import get_db_connection
 
@@ -554,7 +571,7 @@ def _repair_database_if_needed_locked(
                 "Colunas obrigatorias ausentes exigem migracao explicita: %s",
                 missing_required,
             )
-            return False
+            return False, report
 
         with get_db_connection(db_path, write=True) as conn:
             quoted_table = _quote_identifier(resolved_table)
@@ -568,7 +585,7 @@ def _repair_database_if_needed_locked(
                 logger.error(
                     "Coluna situacao ausente sem coluna legada status para migracao segura"
                 )
-                return False
+                return False, report
             conn.execute("BEGIN IMMEDIATE")
             if missing_required:
                 conn.execute(
@@ -587,10 +604,10 @@ def _repair_database_if_needed_locked(
         final_report = verify_database_integrity(db_path, table_name)
         if not final_report["is_valid"]:
             logger.error("Reparo conservador falhou: %s", final_report["issues"])
-            return False
+            return False, final_report
         _create_integrity_snapshot(db_path, force=True)
         logger.info("Reparo conservador concluido com sucesso")
-        return True
+        return True, final_report
     except (OSError, sqlite3.Error, ValueError) as exc:
         logger.error("Erro durante tentativa de reparo: %s", exc)
-        return False
+        return False, {"is_valid": False, "issues": [f"Erro durante reparo: {exc}"]}
