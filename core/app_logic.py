@@ -56,6 +56,7 @@ from core.import_formats import (  # noqa: E402
     SUPPORTED_IMPORT_SUFFIXES,
     supported_import_suffixes_text,
 )
+from core import import_outcome  # noqa: E402
 from core.import_database_rotation import (  # noqa: E402
     build_full_rescan_candidate_path as _build_full_rescan_candidate_path,
     promote_full_rescan_candidate as _promote_full_rescan_candidate,
@@ -1910,6 +1911,24 @@ def run_importer_logic(
         report_path = _write_import_run_report(payload)
         if report_path:
             logger.info("Resumo JSON da importacao gravado em '%s'", report_path)
+        import_outcome.record_import_outcome(
+            import_outcome.build_import_outcome(
+                raw_status=status,
+                legacy_result=result,
+                run_id=run_id,
+                reason=reason,
+                primary_db_path=primary_db_path,
+                working_db_path=working_db_path,
+                candidate_db_path=candidate_db_path,
+                promoted_backup_path=promoted_backup_path,
+                total_candidates=len(files_to_process),
+                processed_file_count=len(successfully_processed_files),
+                deterministic_failure_count=len(deterministic_failed_files),
+                blocking_error_count=len(critical_errors),
+                integrity_report=integrity_report,
+                report_path=report_path,
+            )
+        )
         return result
 
     try:
