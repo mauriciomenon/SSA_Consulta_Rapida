@@ -1,0 +1,8 @@
+pre-commit:
+  commands:
+    ruff:
+      glob: "*.py"
+      run: uv run ruff check {staged_files}
+    py-compile:
+      glob: "*.py"
+      run: uv run python -m py_compile {staged_files}
