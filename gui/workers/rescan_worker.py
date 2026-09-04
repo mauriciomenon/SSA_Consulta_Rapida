@@ -210,6 +210,7 @@ class RescanWorker(QThread):
         self._last_processed_files = 0
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
+        self._last_import_outcome = None
         self._last_runtime_error_detail = ""
         self._batch_file_offset = 0
         self._batch_index = 1
@@ -464,6 +465,8 @@ class RescanWorker(QThread):
         return True, summary
 
     def _run_import_operation(self) -> bool:
+        from core import import_outcome
+
         project_root_path = Path(self.project_root).expanduser().resolve()
         docs_dir = str(project_root_path / "docs_entrada")
         data_dir = str(project_root_path / "data")
@@ -476,7 +479,8 @@ class RescanWorker(QThread):
             db_parent = str(db_path.parent)
             if db_parent not in extra_allowed_roots:
                 extra_allowed_roots.append(db_parent)
-        return run_importer_logic(
+        outcome_before = import_outcome.get_last_import_outcome()
+        result = run_importer_logic(
             docs_dir=docs_dir,
             data_dir=data_dir,
             db_name=db_name,
@@ -487,6 +491,11 @@ class RescanWorker(QThread):
             should_cancel=lambda: self._should_stop,
             progress_callback=self._progress_callback,
         )
+        outcome_after = import_outcome.get_last_import_outcome()
+        self._last_import_outcome = (
+            outcome_after if outcome_after is not outcome_before else None
+        )
+        return result
 
     def _count_database_rows(self) -> int | None:
         db_path = self.db_path or str(
@@ -675,11 +684,38 @@ class RescanWorker(QThread):
                 self.finished_error.emit("Processo cancelado pelo usuario")
                 return
 
+            outcome = self._last_import_outcome
+            outcome_status = getattr(outcome, "status", None)
+            if (
+                outcome_status is not None
+                and getattr(outcome_status, "value", "") == "import_busy"
+            ):
+                self.last_outcome = RescanOutcome.ERROR
+                self.progress.emit(100, "Importador ocupado")
+                self.output_line.emit("")
+                self.output_line.emit(
+                    "=== Importacao Nao Executada (Importador Ocupado) ==="
+                )
+                self.output_line.emit(
+                    "Outra rodada de importacao em andamento; nada foi alterado."
+                )
+                self.finished_error.emit(
+                    "Importador ocupado: outra rodada em andamento"
+                )
+                return
+
             if success:
+                database_changed_raw = getattr(
+                    outcome, "primary_database_changed", None
+                )
+                if database_changed_raw is None:
+                    database_changed = self._last_processed_files > 0
+                else:
+                    database_changed = database_changed_raw
                 self._finish_success(
                     (
                         RescanOutcome.UPDATED
-                        if self._last_processed_files > 0
+                        if database_changed
                         else RescanOutcome.NO_CHANGES
                     ),
                     "=== Operacao Concluida ===",

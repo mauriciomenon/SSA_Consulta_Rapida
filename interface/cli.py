@@ -25,6 +25,7 @@ sys.path.insert(0, project_root)
 
 # Importações relativas
 from armazenamento.database import get_ssa_query, query_db
+from core import import_outcome
 from core.app_logic import filter_dataframe, parse_search_terms, run_importer_logic
 from core.config_manager import (
     load_display_mappings_integrity,
@@ -767,8 +768,15 @@ def _handle_rescan(
     root_logger.addHandler(handler)
 
     try:
+        _outcome_before = import_outcome.get_last_import_outcome()
         updated = run_importer_logic(
             force_import=True, progress_callback=progress_callback
+        )
+        _outcome_after = import_outcome.get_last_import_outcome()
+        outcome = (
+            _outcome_after
+            if _outcome_after is not _outcome_before
+            else None
         )
         summary_parts = []
         if summary_counts["invalid_removed"]:
@@ -798,7 +806,11 @@ def _handle_rescan(
         else:
             print(summary_line)
 
-        if updated:
+        if outcome is not None and outcome.status is import_outcome.ImportStatus.BUSY:
+            print("Importador ocupado: outra rodada em andamento. Nada foi alterado.")
+        elif (
+            outcome.primary_database_changed if outcome is not None else updated
+        ):
             print("Base de dados atualizada. Recarregando...")
             initial_df_rescan, initial_filter_terms_rescan = _get_initial_state(
                 db_path, table_name, settings
@@ -815,6 +827,14 @@ def _handle_rescan(
                 print_cache,
                 initial_filter_terms_rescan,
                 start_page=0,
+            )
+        elif (
+            outcome is not None
+            and outcome.status
+            is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY
+        ):
+            print(
+                "Arquivos rejeitados por regra deterministica; banco inalterado."
             )
         else:
             print("Nenhuma alteração detectada durante o rescan.")

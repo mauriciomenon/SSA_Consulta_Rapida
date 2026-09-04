@@ -128,6 +128,9 @@ def import_prepared_pai_xlsx(
         )
     if should_cancel is not None and should_cancel():
         raise InterruptedError("PAI import cancelled before database import")
+    from core import import_outcome as _import_outcome
+
+    _outcome_before = _import_outcome.get_last_import_outcome()
     imported = import_files(
         staged_files,
         docs_dir=str(docs_dir),
@@ -135,16 +138,27 @@ def import_prepared_pai_xlsx(
         raise_on_error=False,
         should_cancel=should_cancel,
     )
+    _outcome_after = _import_outcome.get_last_import_outcome()
+    _outcome = (
+        _outcome_after
+        if _outcome_after is not _outcome_before
+        else None
+    )
     if should_cancel is not None and should_cancel():
         raise InterruptedError("PAI import cancelled during database import")
     rows_after_import = count_rows(db_path)
+    imported_flag = (
+        _outcome.primary_database_changed
+        if _outcome is not None
+        else bool(imported)
+    )
     return PaiImportResult(
         export=preview.export,
         mode="import",
         import_xlsx_path=preview.import_xlsx_path,
         staged_files=tuple(staged_files),
         staging_summary=summary,
-        imported=bool(imported),
+        imported=imported_flag,
         normalized_rows=preview.normalized_rows,
         rows_before_import=rows_before_import,
         rows_after_import=rows_after_import,

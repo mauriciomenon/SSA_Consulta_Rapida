@@ -3398,17 +3398,44 @@ if REAL_RUNTIME and not raw_df.empty:
                     op_db = str(source_state.get("db_path", db_path))
                     op_docs = str(source_state.get("docs_dir", docs_dir))
                     try:
+                        from core import import_outcome as _import_outcome
+
+                        _outcome_before = _import_outcome.get_last_import_outcome()
                         ok = import_files_to_database(
                             docs_dir=op_docs,
                             db_path=op_db,
                             force_import=bool(run_reimport),
                             raise_on_error=True,
                         )
+                        _outcome_after = _import_outcome.get_last_import_outcome()
+                        outcome = (
+                            _outcome_after
+                            if _outcome_after is not _outcome_before
+                            else None
+                        )
                         if hasattr(load_dataframe, "clear"):
                             load_dataframe.clear()
                         filter_cache.clear()
                         _clear_recent_api_snapshot()
-                        if ok:
+                        status = getattr(outcome, "status", None)
+                        status_value = getattr(status, "value", "")
+                        if outcome is not None and outcome.primary_database_changed:
+                            st.success("Importacao concluida.")
+                        elif status_value == "deterministic_rejections_only":
+                            st.info(
+                                "Arquivos rejeitados por regra deterministica; banco inalterado."
+                            )
+                        elif status_value == "import_busy":
+                            st.warning(
+                                "Importador ocupado: outra rodada em andamento; nada foi alterado."
+                            )
+                        elif outcome is not None and _import_outcome.is_blocking_status(
+                            status
+                        ):
+                            st.error(
+                                f"Importacao terminou com status bloqueante ({status_value})."
+                            )
+                        elif ok:
                             st.success("Importacao concluida.")
                         else:
                             st.info("Nenhum arquivo novo processado.")

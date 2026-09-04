@@ -46,6 +46,21 @@ _PRIMARY_CHANGING_STATUSES = frozenset(
     }
 )
 
+_NON_BLOCKING_STATUSES = frozenset(
+    {
+        ImportStatus.UPDATED,
+        ImportStatus.DERIVADAS_MATERIALIZED,
+        ImportStatus.NO_CHANGES,
+        ImportStatus.DETERMINISTIC_REJECTIONS_ONLY,
+    }
+)
+
+
+def is_blocking_status(status: ImportStatus) -> bool:
+    """Exit-code/semantic classification: non-blocking statuses mean the run
+    ended in a controlled state that needs no operator action (exit 0)."""
+    return status not in _NON_BLOCKING_STATUSES
+
 
 @dataclass(frozen=True, slots=True)
 class ImportOutcome:

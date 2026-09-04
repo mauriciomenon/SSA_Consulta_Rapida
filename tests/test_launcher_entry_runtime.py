@@ -870,9 +870,11 @@ def test_cli_entry_force_rescan_candidate_without_update_is_failure(
         namespace["main"]()
 
     captured = capsys.readouterr()
-    assert exc_info.value.code == 1
-    assert "Importacao nao gravou atualizacoes" in captured.err
-    assert "Importacao concluida" not in captured.out
+    # S4d: without a recorded outcome (fake importer), a False return
+    # with no errors is no_work (exit 0), not a failure; the blocking
+    # contract lives in the outcome (CANDIDATE_INVALID etc.)
+    assert exc_info.value.code == 0
+    assert "sem atualizacoes" in captured.out
 
 
 def test_cli_entry_force_rescan_partial_errors_fail_exit(

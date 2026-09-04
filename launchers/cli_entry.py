@@ -94,9 +94,11 @@ def _execute_import_and_report(
     logger: Any,
 ) -> ImportExecutionStats:
     from core.import_progress import ImportProgressSummary
+    from core import import_outcome
 
     summary = ImportProgressSummary()
 
+    _outcome_before = import_outcome.get_last_import_outcome()
     updated = run_importer_logic(
         docs_dir=docs_dir,
         data_dir=data_dir,
@@ -104,7 +106,22 @@ def _execute_import_and_report(
         extra_allowed_roots=[runtime_base],
         progress_callback=summary.capture,
     )
+    _outcome_after = import_outcome.get_last_import_outcome()
     has_errors = bool(summary.errors)
+    outcome = (
+        _outcome_after
+        if _outcome_after is not _outcome_before
+        else None
+    )
+    if outcome is not None:
+        status = outcome.status
+    else:
+        status = (
+            import_outcome.ImportStatus.UPDATED
+            if updated
+            else import_outcome.ImportStatus.NO_CHANGES
+        )
+    blocking = import_outcome.is_blocking_status(status)
     stats = ImportExecutionStats(
         exit_code=1,
         status="failed",
@@ -113,8 +130,24 @@ def _execute_import_and_report(
         processed_files=summary.processed_files,
         error_count=len(summary.errors),
     )
+    if blocking:
+        message = (
+            "ERRO: Importacao terminou com status bloqueante "
+            f"({status.value}). Consulte os logs da aplicacao.\n"
+        )
+        logger.error(
+            "Importacao bloqueante. status=%s resultado=%r total=%s processados=%s erros=%s",
+            status.value,
+            updated,
+            summary.total_candidates,
+            summary.processed_files,
+            len(summary.errors),
+        )
+        sys.stderr.write(message)
+        stats["status"] = "blocked"
+        return stats
     if updated and not has_errors:
-        logger.info("Importacao concluida. resultado=%r", updated)
+        logger.info("Importacao concluida. resultado=%r status=%s", updated, status.value)
         sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
         stats["exit_code"] = 0
         stats["status"] = "success"
@@ -134,28 +167,25 @@ def _execute_import_and_report(
         stats["status"] = "partial_error"
         return stats
 
-    observed_candidate_work = (
-        summary.total_candidates > 0 or summary.processed_files > 0
-    )
-    if not observed_candidate_work and not has_errors:
-        message = f"Importacao concluida sem atualizacoes. resultado={updated!r}"
-        logger.info(message)
-        sys.stdout.write(f"{message}\n")
-        stats["exit_code"] = 0
-        stats["status"] = "no_work"
+    if not updated and has_errors:
+        logger.error(
+            "Importacao nao gravou atualizacoes. resultado=%r total=%s processados=%s erros=%s",
+            updated,
+            summary.total_candidates,
+            summary.processed_files,
+            len(summary.errors),
+        )
+        sys.stderr.write(
+            "ERRO: Importacao nao gravou atualizacoes para arquivos candidatos. "
+            "Consulte os logs da aplicacao.\n"
+        )
         return stats
 
-    logger.error(
-        "Importacao nao gravou atualizacoes. resultado=%r total=%s processados=%s erros=%s",
-        updated,
-        summary.total_candidates,
-        summary.processed_files,
-        len(summary.errors),
-    )
-    sys.stderr.write(
-        "ERRO: Importacao nao gravou atualizacoes para arquivos candidatos. "
-        "Consulte os logs da aplicacao.\n"
-    )
+    message = f"Importacao concluida sem atualizacoes. resultado={updated!r} status={status.value}"
+    logger.info(message)
+    sys.stdout.write(f"{message}\n")
+    stats["exit_code"] = 0
+    stats["status"] = "no_work"
     return stats
 
 

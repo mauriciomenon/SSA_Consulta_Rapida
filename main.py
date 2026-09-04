@@ -446,6 +446,7 @@ def _log_import_failure_context() -> None:
 
 
 def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
+    from core import import_outcome
     if not getattr(args, "force_rescan", False):
         logger.info(
             "Importacao automatica no startup desativada. "
@@ -473,7 +474,14 @@ def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
         use_optimized,
     )
     try:
+        _outcome_before = import_outcome.get_last_import_outcome()
         db_updated = run_importer_logic(force_import=force_import)
+        _outcome_after = import_outcome.get_last_import_outcome()
+        outcome = (
+            _outcome_after
+            if _outcome_after is not _outcome_before
+            else None
+        )
         logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
     except (RuntimeError, OSError, TypeError, ValueError, AttributeError) as exc:
         if use_optimized and force_import:
@@ -490,15 +498,26 @@ def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
     finally:
         _disable_optimized_import(optimized_module)
 
-    if db_updated:
+    if outcome is not None:
+        if outcome.status is import_outcome.ImportStatus.BUSY:
+            logger.info(
+                "Importador ocupado: outra rodada em andamento; nada foi alterado."
+            )
+        elif outcome.primary_database_changed:
+            logger.info("Banco de dados atualizado com sucesso.")
+            logger.debug(
+                "Banco de dados foi atualizado. Verifique se os dados estao acessiveis."
+            )
+        elif outcome.status is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY:
+            logger.info(
+                "Arquivos candidatos rejeitados por regra deterministica; banco inalterado."
+            )
+        else:
+            logger.info("Nenhum novo ou modificado relatorio encontrado.")
+    elif db_updated:
         logger.info("Banco de dados atualizado com sucesso.")
-        logger.debug("Banco de dados foi atualizado. Verifique se os dados estao acessiveis.")
     else:
         logger.info("Nenhum novo ou modificado relatorio encontrado.")
-        logger.debug("Nenhum novo relatorio encontrado. Isso pode ser normal ou indicar problemas.")
-        logger.debug(
-            "Verifique se ha arquivos Excel na pasta de entrada e se eles contem dados validos."
-        )
     return db_updated
 
 
