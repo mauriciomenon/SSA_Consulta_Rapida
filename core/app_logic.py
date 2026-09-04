@@ -730,6 +730,34 @@ def _has_only_deterministic_rejections(
     return regular_deterministic_error_paths == regular_candidate_set
 
 
+def _has_blocking_candidate_errors(
+    *,
+    files_to_process: List[str],
+    critical_errors: List[tuple[str, str, str]],
+) -> bool:
+    """Return True when a regular candidate produced a non-deterministic error.
+
+    The deterministic set matches _has_only_deterministic_rejections
+    (extraction, validation, database_generic). Any other error type on a
+    regular candidate file (connection, corruption, space, schema_failed,
+    unexpected, ...) makes the full-rescan candidate incomplete and must
+    block promotion.
+    """
+    regular_candidate_set = {
+        file_path
+        for file_path in files_to_process
+        if not os.path.basename(file_path).startswith("~$")
+        and not _is_derivadas_sheet_file(file_path)
+    }
+    if not regular_candidate_set:
+        return False
+    deterministic_error_types = {"extraction", "validation", "database_generic"}
+    return any(
+        file_path in regular_candidate_set and error_type not in deterministic_error_types
+        for error_type, file_path, _message in critical_errors
+    )
+
+
 def _load_import_discovery_settings() -> Dict[str, Any]:
     """Load import discovery flags from settings.json with safe defaults."""
     allowed_upsert_policies = {"consulta_only", "no_short", "all_short"}
@@ -1514,6 +1542,35 @@ def _finalize_import_run_outcome(
             "result": True,
             "status": "deterministic_rejections_only",
             "reason": "all_candidates_rejected_by_deterministic_rules",
+            "integrity_report": {},
+            "promoted_backup_path": None,
+            "working_db_path": working_db_path,
+        }
+
+    if candidate_db_path is not None and _has_blocking_candidate_errors(
+        files_to_process=files_to_process,
+        critical_errors=critical_errors,
+    ):
+        blocking_types = sorted(
+            {
+                error_type
+                for error_type, file_path, _message in critical_errors
+                if not os.path.basename(file_path).startswith("~$")
+                and not _is_derivadas_sheet_file(file_path)
+                and error_type
+                not in {"extraction", "validation", "database_generic"}
+            }
+        )
+        logger.error(
+            "Promocao do candidato bloqueada: erro(s) nao deterministico(s) %s. "
+            "DB principal preservado; candidato mantido para evidencia: %s",
+            blocking_types,
+            candidate_db_path,
+        )
+        return {
+            "result": False,
+            "status": "candidate_incomplete",
+            "reason": "blocking_errors_present",
             "integrity_report": {},
             "promoted_backup_path": None,
             "working_db_path": working_db_path,
