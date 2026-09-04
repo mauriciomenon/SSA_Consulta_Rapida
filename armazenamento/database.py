@@ -1238,3 +1238,14 @@ def repair_database_if_needed(
     from . import database_integrity as _int
 
     return _int.repair_database_if_needed(db_path, schema_file, table_name)
+
+
+def ensure_database_integrity(
+    db_path: str,
+    schema_file: str = "schema.sql",
+    table_name: str = CANONICAL_SSA_TABLE,
+) -> tuple[bool, dict]:
+    """Retorna (ok, report) com um unico check pesado no caminho feliz."""
+    from . import database_integrity as _int
+
+    return _int.ensure_database_integrity(db_path, schema_file, table_name)

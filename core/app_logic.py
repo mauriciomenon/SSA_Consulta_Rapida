@@ -1340,13 +1340,15 @@ def _prepare_working_database_for_import(
                     f"Falha ao inicializar DB candidato de full rescan: {working_db_path}"
                 )
 
-    if not database.repair_database_if_needed(working_db_path, table_name=table_name):
+    db_ok, integrity_report = database.ensure_database_integrity(
+        working_db_path, table_name=table_name
+    )
+    if not db_ok:
         logger.error(
             "Falha critica: nao foi possivel garantir integridade do banco de dados"
         )
         raise DatabaseCorruptionError("Banco de dados inacessivel ou corrompido")
 
-    integrity_report = database.verify_database_integrity(working_db_path, table_name)
     if not integrity_report["is_valid"]:
         issues = integrity_report["issues"]
         if not integrity_report["database_accessible"]:
