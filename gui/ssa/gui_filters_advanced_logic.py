@@ -336,6 +336,11 @@ def _apply_reprogramacoes_filter(
         values = filters.get("num_reprogramacoes_values")
         if mode and values:
             vals = [int(v) for v in values if str(v).isdigit()]
+            if vals and "num_reprogramacoes" not in df.columns:
+                raise AdvancedFilterMaskError(
+                    "reprogramacoes filter is active but 'num_reprogramacoes' "
+                    "is missing from the dataframe"
+                )
             if vals and "num_reprogramacoes" in df.columns:
                 nums = (
                     pd.to_numeric(df["num_reprogramacoes"], errors="coerce")
@@ -451,6 +456,11 @@ def _apply_year_emissao_filter(
                 raise AdvancedFilterMaskError(
                     f"failed to apply ano emissao filter from semana_cadastro: {exc}"
                 ) from exc
+        else:
+            raise AdvancedFilterMaskError(
+                "ano emissao filter is active but neither 'data_cadastro' nor "
+                "'semana_cadastro' exists in the dataframe"
+            )
 
     return mask, notice
 
@@ -477,6 +487,11 @@ def _apply_year_execucao_filter(
         execucao_inc = _to_int_set([filters.get("ano_execucao")])
 
     if execucao_inc or execucao_exc:
+        if "semana_executada" not in df.columns:
+            raise AdvancedFilterMaskError(
+                "ano execucao filter is active but 'semana_executada' is "
+                "missing from the dataframe"
+            )
         if "semana_executada" in df.columns:
             try:
                 nums = pd.to_numeric(df["semana_executada"], errors="coerce").astype(
@@ -716,7 +731,17 @@ def _apply_derivada_filter(
         if derivada_has:
             return mask, "derivada_empty"
 
-    if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
+    if derivada_has or derivada_all_ste:
+        if "numero_ssa" not in df.columns:
+            raise AdvancedFilterMaskError(
+                "derivada filter is active but 'numero_ssa' is missing from "
+                "the dataframe"
+            )
+        if derivada_all_ste and "situacao" not in df.columns:
+            raise AdvancedFilterMaskError(
+                "derivada_all_ste filter requires 'situacao' but it is missing "
+                "from the dataframe"
+            )
         origins = set()
         if derivada_all_ste and "situacao" in df.columns:
             cache = state.get_cache("_adv_values_cache")
@@ -819,6 +844,12 @@ def _apply_advanced_filters(
     )
     _emit_notice(notice_callback, notice)
 
-    if mask.all():
+    try:
+        all_rows_pass = bool(mask.all())
+    except Exception as exc:
+        raise AdvancedFilterMaskError(
+            f"failed to evaluate advanced filter mask.all() final: {exc}"
+        ) from exc
+    if all_rows_pass:
         return df
     return df[mask]

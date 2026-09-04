@@ -1568,15 +1568,17 @@ def _sync_status_after_advanced_filter_failure(self) -> None:
     )
 
 
-def _refresh_after_advanced_filters_apply(self) -> str | None:
+def _refresh_after_advanced_filters_apply(self) -> tuple[str | None, bool]:
     notice_box = {"value": None}
 
     def _capture_notice(value):
         notice_box["value"] = value
 
     setattr(self, "_adv_notice_callback", _capture_notice)
+    completed = False
     try:
         refresh_completed = self._refresh_after_filter_change()
+        completed = bool(refresh_completed)
         if not refresh_completed:
             _sync_status_after_advanced_filter_failure(self)
     except Exception as exc:
@@ -1585,7 +1587,7 @@ def _refresh_after_advanced_filters_apply(self) -> str | None:
         )
     finally:
         setattr(self, "_adv_notice_callback", None)
-    return notice_box["value"]
+    return notice_box["value"], completed
 
 
 def _show_advanced_filter_notice(self, notice: str | None) -> None:
@@ -1629,6 +1631,10 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
             logger.warning(
                 "Falha ao salvar estado antes de aplicar filtros avancados: %s", exc
             )
+    previous_column_filters = dict(
+        getattr(self, "_active_column_filters", None) or {}
+    )
+    previous_advanced_active = bool(getattr(self, "_advanced_filters_active", False))
     data = _read_advanced_filters_from_ui(self, previous_filters)
     self._advanced_filters = data
     _sync_quick_executor_from_advanced_filters(self, previous_filters, data)
@@ -1661,7 +1667,66 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         logger.debug("Falha ao sincronizar botao x de filtros avancados: %s", exc)
     if store_only:
         return
-    notice = _refresh_after_advanced_filters_apply(self)
+    notice, refresh_completed = _refresh_after_advanced_filters_apply(self)
+    if not refresh_completed:
+        self._advanced_filters = previous_filters
+        self._advanced_filters_active = previous_advanced_active
+        self._active_column_filters = previous_column_filters
+        self._filter_cache_context_dirty = True
+        try:
+            sync_executor_ui = getattr(
+                self, "_sync_advanced_executor_ui_from_active_filter", None
+            )
+            if callable(sync_executor_ui):
+                sync_executor_ui()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar UI de executor apos falha de filtros avancados: %s",
+                exc,
+            )
+        try:
+            sync_combo = getattr(
+                self, "_sync_quick_setor_executor_combo_from_filters", None
+            )
+            if callable(sync_combo):
+                sync_combo()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar combo de executor apos falha de filtros avancados: %s",
+                exc,
+            )
+        try:
+            refresh_quick_situacao = getattr(
+                self, "_refresh_quick_situacao_buttons", None
+            )
+            if callable(refresh_quick_situacao):
+                refresh_quick_situacao()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar botoes de situacao apos falha de filtros avancados: %s",
+                exc,
+            )
+        try:
+            sync_clear_btn = getattr(
+                self, "_sync_selection_filters_clear_button", None
+            )
+            if callable(sync_clear_btn):
+                sync_clear_btn()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar botao de limpar selecao apos falha: %s", exc
+            )
+        try:
+            self._update_filters_summary()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao atualizar resumo apos restauracao de filtros avancados: %s",
+                exc,
+            )
+        logger.warning(
+            "Refresh de filtros avancados falhou; estado de filtros restaurado ao "
+            "anterior e resultado exibido preservado"
+        )
     _show_advanced_filter_notice(self, notice)
 
 
