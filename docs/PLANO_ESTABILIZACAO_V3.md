@@ -65,8 +65,15 @@ Baseline; REL-01 confirmado; GUI-07 confirmado (amostra 3 linhas >100 vs page_si
 - GUI-07 amostra 3 linhas >100 (`gui_table.py:378-381`) com page_size 500 (`data_paginator.py:9`).
 - GUI-08 chave do worker com pos-filtros (`filter_cache_context.py`).
 
+## C.1-bis IMP REPRODUZIDOS EM RUNTIME (2026-09-04; scripts /tmp/repro_imp01.py, imp02, imp05, imp07; workspaces /tmp; repo intacto)
+- IMP-01 REPRODUZIDO: full rescan com 1 arquivo ok + 1 erro NAO-deterministico ("unexpected", `app_logic.py:994`) promove o candidato (`:1521` gate = `successfully_processed_files` nao vazio; `_has_only_deterministic_rejections` so aplica quando NADA teve sucesso); SSA antes importada pelo arquivo falho SUMIU do primario ativo; `result=True/status=updated`. Perda de dados real.
+- IMP-02 REPRODUZIDO (simulacao deterministica na janela): escrita concorrente de diff commitada no primary imediatamente antes da promocao e rotacionada ao backup (`import_database_rotation.py:38-70`); ativo final sem a linha do diff; linha preservada so no backup. Sem re-base do delta.
+- IMP-04 REPRODUZIDO (duas direcoes): `run_importer_logic` devolve True para `deterministic_rejections_only` (sem update; docstring diz True=atualizado) E devolveu False numa rodada diff que MUDOU o banco (evidencia colhida no repro do IMP-07). Dez pontos de return mapeados na conversa.
+- IMP-05 REPRODUZIDO: mesmo lote (mesma SSA, mesma data, STE depois ADM): canonical mantem STE; optimized mantem ADM (`database_optimized.py:63-101` keep-last pre-upsert vs `database_upsert_logic.py:1110-1160` reducer sequencial). DBs divergem por caminho.
+- IMP-07 REPRODUZIDO: modo diff importou arquivo existente SOMENTE em `processadas/` (`app_logic.py:747-756` le flags `*_in_full_rescan` sem depender de force_import; `utils/caching.py:319-348` varre processadas; defaults True em `config_defaults.py:95/97`).
+
 ## C.2 Alegados - repro obrigatoria antes do patch
-IMP-01/02/03/04/05/07 (importador), GUI-01/03/04/05/06/09/10 (estado/callbacks), MEM-01..04, REL-03/04/05, QA-01..04.
+IMP-03 (schema parcial; repro no slice S5a), GUI-01/03/04/05/06/09/10 (estado/callbacks), MEM-01..04, REL-03/04/05, QA-01..04.
 
 ## C.3 Recusas/ajustes
 Documento paralelo como plano (contratos entram nos slices); S8 condicionado (CORRIGIDO: agora obrigatorio, ver D); teto arbitrario de colunas (recusado); ruff massivo (recusado).
@@ -191,7 +198,9 @@ Importacao/banco: T-IMP-01..07 e T-DB-01..05 (v2, mantidos; T-DB-03 inclui IMP-0
 PLACAR (v3.1, atualizado 2026-09-04):
 - COMMITS LOCAIS (12, sem push): `76d1f131` marker; `64442bf2`+`04ed2b44` S1 filelock; `f49e3488` S2-parcial; `6225d37e` S2 complemento transacional; `585d881c`+`da41080c` S11a; `d295d198` DOC_SYNC plano; `bab88e37` GATE lefthook pre-commit (ruff+py_compile nos staged; nunca mais commit com gate vermelho); `918dbb2f` S11c Bash 3.2 (tr nas 2 ocorrencias; contratos shell 42/42, as 5 falhas pre-existentes resolvidas); `d3587960` S11b RSS corrente (WorkingSetSize/statm/ps; pico vira diagnostico; ambos os gates de performance verdes).
 - FECHADO: REN-01; S1; S2 COMPLETO; laudo 318; S0; S11a; S11b; S11c; gate de commit permanente; CI/CD SSH; verificacao GUI real em tela.
-- PROXIMO: repros IMP-01/02/04/05/07 (levantamento sem edicao); depois S4a-e, S5, S6-S9, S10. S12-INTEGRIDADE FECHADO 2026-09-04 em 3 commits: `c640e8a9` (ensure_database_integrity -> (ok, report); wrapper bool; re-verify so quando o DB muda), `7b3c2bd6` (facade + full rescan usa ensure UMA vez, sem o verify duplicado de app_logic:1343/1349), `5a30e8de` (testes de contrato: 1 check no caminho feliz, 2 no bootstrap, wrapper bool, caminho do rescan sem verify direto).
+- S12-INTEGRIDADE FECHADO 2026-09-04 em 3 commits: `c640e8a9` (ensure_database_integrity -> (ok, report); wrapper bool; re-verify so quando o DB muda), `7b3c2bd6` (facade + full rescan usa ensure UMA vez, sem o verify duplicado de app_logic:1343/1349), `5a30e8de` (testes de contrato).
+- REPROS IMP FECHADOS 2026-09-04 (C.1-bis): IMP-01/02/04/05/07 REPRODUZIDOS em runtime; IMP-03 adiado ao S5a.
+- PROXIMO: S4a ImportOutcome (pre-requisito de repros CUMPRIDO); depois S4b-e, S5, S6-S9, S10.
 - VERIFICACAO GUI REAL 2026-09-03 22:3x (app com os 4 commits, banco 99.152 SSAs): busca svp repinta (row1 202612584); paginacao pagina 2 renderiza pagina de mesmo tamanho com conteudo novo; situacao STE aplica (2-31 resultados, tudo STE) e remocao pelo chip de resumo com dialog de confirmacao restaura; week-range Emissao >=202636 aplica (`2 de 99152`, chip `Sem Emis`, linhas 202636) e limpeza restaura 1507; log da sessao SEM warnings de fail-closed (as 4 ocorrencias existentes sao de 12:53, codigo pre-S2, guard `_mask_any` legacy ja tratado com warning + df preservado). LIMITACAO helper: selecao de item em popup de QComboBox (chip superior e multiselecao do painel) nao automatizavel por AXPress/teclado (bundle_id nulo); cliques nativos roteiam para overlay do ZCode. Caminhos cobertos por 21+164 testes de executor/avancados.
 - S2-PARCIAL MANTIDO (decisao do usuario 2026-09-03): commit `f49e3488` (fail-closed das excessoes + testes) permanece como BASE; a complementacao transacional (itens 1-5) entra como commit seguinte apos aprovacao do contrato; NAO reverter.
 - AGUARDA: decisao DOC_SYNC deste plano; `publicar` quando ordenado; S11a antes de S4a.
