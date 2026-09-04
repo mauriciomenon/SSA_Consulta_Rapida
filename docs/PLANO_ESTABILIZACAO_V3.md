@@ -188,9 +188,10 @@ Importacao/banco: T-IMP-01..07 e T-DB-01..05 (v2, mantidos; T-DB-03 inclui IMP-0
 - Fora do ciclo: Windows arm64, Artix/Arch, profiles, SAM automatico, roadmap 4.9.x/5.0.
 - Veredito 007 vigente: BLOQUEADO PARCIAL para main enquanto S2 (contrato transacional), promotion gate (S4b) e cadeia locked (S10) estiverem incompletos.
 
-PLACAR (v3.1, atualizado 2026-09-03 23:5x):
-- COMMITS LOCAIS (7, sem push): `76d1f131` marker; `64442bf2`+`04ed2b44` S1 filelock; `f49e3488` S2-parcial; `6225d37e` S2 complemento transacional (11+164+41 verdes, semgrep 0); `585d881c` S11a-1 perf reports; `da41080c` S11a-2 quality jsonl.
-- FECHADO: REN-01; S1; S2 COMPLETO (base + transacional); laudo 318; S0; S11a (2 reais corrigidos, 3o era falso positivo); CI/CD SSH; verificacao GUI real em tela.
+PLACAR (v3.1, atualizado 2026-09-04):
+- COMMITS LOCAIS (12, sem push): `76d1f131` marker; `64442bf2`+`04ed2b44` S1 filelock; `f49e3488` S2-parcial; `6225d37e` S2 complemento transacional; `585d881c`+`da41080c` S11a; `d295d198` DOC_SYNC plano; `bab88e37` GATE lefthook pre-commit (ruff+py_compile nos staged; nunca mais commit com gate vermelho); `918dbb2f` S11c Bash 3.2 (tr nas 2 ocorrencias; contratos shell 42/42, as 5 falhas pre-existentes resolvidas); `d3587960` S11b RSS corrente (WorkingSetSize/statm/ps; pico vira diagnostico; ambos os gates de performance verdes).
+- FECHADO: REN-01; S1; S2 COMPLETO; laudo 318; S0; S11a; S11b; S11c; gate de commit permanente; CI/CD SSH; verificacao GUI real em tela.
+- PROXIMO: S4a (outcome) com repros IMP-01/02/04/05/07 antes; depois S4b-e, S5, S6-S9, S10.
 - VERIFICACAO GUI REAL 2026-09-03 22:3x (app com os 4 commits, banco 99.152 SSAs): busca svp repinta (row1 202612584); paginacao pagina 2 renderiza pagina de mesmo tamanho com conteudo novo; situacao STE aplica (2-31 resultados, tudo STE) e remocao pelo chip de resumo com dialog de confirmacao restaura; week-range Emissao >=202636 aplica (`2 de 99152`, chip `Sem Emis`, linhas 202636) e limpeza restaura 1507; log da sessao SEM warnings de fail-closed (as 4 ocorrencias existentes sao de 12:53, codigo pre-S2, guard `_mask_any` legacy ja tratado com warning + df preservado). LIMITACAO helper: selecao de item em popup de QComboBox (chip superior e multiselecao do painel) nao automatizavel por AXPress/teclado (bundle_id nulo); cliques nativos roteiam para overlay do ZCode. Caminhos cobertos por 21+164 testes de executor/avancados.
 - S2-PARCIAL MANTIDO (decisao do usuario 2026-09-03): commit `f49e3488` (fail-closed das excessoes + testes) permanece como BASE; a complementacao transacional (itens 1-5) entra como commit seguinte apos aprovacao do contrato; NAO reverter.
 - AGUARDA: decisao DOC_SYNC deste plano; `publicar` quando ordenado; S11a antes de S4a.
