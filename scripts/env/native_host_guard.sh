@@ -51,7 +51,8 @@ ssa_native_guard_repo() {
   if [[ -r /proc/sys/kernel/osrelease ]]; then
     IFS= read -r os_release < /proc/sys/kernel/osrelease || true
   fi
-  if [[ "${os_release,,}" == *microsoft* ]]; then
+  os_release_lower=$(printf '%s' "${os_release:-}" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+  if [[ "$os_release_lower" == *microsoft* ]]; then
     [[ "$resolved_root" == "$expected_wsl_root" ]] || {
       ssa_native_guard_fail "clone WSL invalido: $resolved_root; esperado: $expected_wsl_root"
       return 1
@@ -98,7 +99,8 @@ ssa_native_guard_tool() {
     ssa_native_guard_fail "nao foi possivel resolver a ferramenta: $path"
     return 1
   }
-  case "${resolved,,}" in
+  resolved_lower=$(printf '%s' "$resolved" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+  case "$resolved_lower" in
     /mnt/*|"${windows_link_root}"/*|*.exe|[a-z]:*)
       ssa_native_guard_fail "ferramenta Windows proibida no POSIX: $name -> $resolved"
       return 1
