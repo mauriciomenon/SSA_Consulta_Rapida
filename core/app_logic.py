@@ -1430,8 +1430,21 @@ def _resolve_import_work_items(
     move_processed_after_import = bool(
         discovery_settings.get("move_processed_after_import", False)
     )
+    nosurvivor_subdir = str(discovery_settings.get("nosurvivor_subdir", "nosurvivor"))
+    if not force_import:
+        if include_processadas:
+            logger.info(
+                "Politica ativa: include_processadas_in_full_rescan nao se aplica ao modo diff."
+            )
+            include_processadas = False
+        if nosurvivor_subdir in ignore_subdirs:
+            logger.info(
+                "Politica ativa: ignore_nosurvivor_in_full_rescan nao se aplica ao modo diff."
+            )
+            ignore_subdirs = [
+                subdir for subdir in ignore_subdirs if subdir != nosurvivor_subdir
+            ]
     if force_import:
-        nosurvivor_subdir = str(discovery_settings.get("nosurvivor_subdir", "nosurvivor"))
         if nosurvivor_subdir not in ignore_subdirs:
             logger.warning(
                 "Politica ativa: ignore_nosurvivor_in_full_rescan foi forcado no full rescan."
