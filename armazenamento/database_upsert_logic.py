@@ -385,13 +385,10 @@ def _sync_dynamic_columns_and_schema(
         )
         if not is_valid_identifier(col):
             raise ValueError(f"Invalid SQL identifier for column: {col}")
-        if isinstance(db_path, str):
-            db_module.ensure_column_exists(db_path, table_name, col, sql_type)
-        else:
-            conn.execute(
-                f"ALTER TABLE {_quote_identifier(table_name)} "
-                f"ADD COLUMN {_quote_identifier(col)} {sql_type}"
-            )
+        conn.execute(
+            f"ALTER TABLE {_quote_identifier(table_name)} "
+            f"ADD COLUMN {_quote_identifier(col)} {sql_type}"
+        )
     return final_work
 
 
@@ -1375,12 +1372,11 @@ def insert_dataframe_with_smart_upsert_impl(
                     table_name,
                 )
                 return False
-        if not close_after:
-            _begin_transaction_if_needed(
-                conn, context="insert_dataframe_with_smart_upsert_impl"
-            )
-            conn.execute("SAVEPOINT ssa_smart_upsert")
-            external_savepoint_started = True
+        _begin_transaction_if_needed(
+            conn, context="insert_dataframe_with_smart_upsert_impl"
+        )
+        conn.execute("SAVEPOINT ssa_smart_upsert")
+        external_savepoint_started = True
         if table_name != CANONICAL_SSA_TABLE:
             logger.warning(
                 "Upsert com tabela nao canonica resolvida para '%s'.",
@@ -1411,10 +1407,6 @@ def insert_dataframe_with_smart_upsert_impl(
         else:
             has_ssa = work[work["numero_ssa"].notna()].copy()
             no_ssa = work[work["numero_ssa"].isna()].copy()
-        if close_after:
-            _begin_transaction_if_needed(
-                conn, context="insert_dataframe_with_smart_upsert_impl"
-            )
         if not no_ssa.empty:
             # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
             chunk_size = (
@@ -1448,7 +1440,7 @@ def insert_dataframe_with_smart_upsert_impl(
         if external_savepoint_started:
             conn.execute("RELEASE SAVEPOINT ssa_smart_upsert")
             external_savepoint_started = False
-        else:
+        if close_after:
             conn.commit()
         logger.info("Inserção completada com sucesso")
         return True
