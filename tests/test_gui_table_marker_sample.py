@@ -80,10 +80,10 @@ class TestRenderMarkerSample:
         changed.loc[0, "descricao_ssa"] = "Outro texto"
         assert gui_table._build_render_marker_sample(changed) != marker
 
-    def test_marker_samples_first_mid_last_for_large_frames(self):
+    def test_marker_covers_all_rows_for_large_frames(self):
         frame = _nullable_frame(120, ["IEE3"] * 120)
         marker = gui_table._build_render_marker_sample(frame)
-        assert len(marker) == 3
+        assert len(marker) == 120, "S8: marker covers ALL rows, not a sample"
 
 
 class TestEqualSizedPageRender:
