@@ -146,12 +146,21 @@ def _execute_import_and_report(
         sys.stderr.write(message)
         stats["status"] = "blocked"
         return stats
-    if updated and not has_errors:
-        logger.info("Importacao concluida. resultado=%r status=%s", updated, status.value)
-        sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
-        stats["exit_code"] = 0
-        stats["status"] = "success"
-        return stats
+    if not blocking:
+        if updated and not has_errors:
+            logger.info("Importacao concluida. resultado=%r status=%s", updated, status.value)
+            sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
+            stats["exit_code"] = 0
+            stats["status"] = "success"
+            return stats
+        if not updated and not has_errors:
+            message = f"Importacao concluida sem atualizacoes. resultado={updated!r} status={status.value}"
+            logger.info(message)
+            sys.stdout.write(f"{message}\n")
+            stats["exit_code"] = 0
+            stats["status"] = "no_work"
+            return stats
+
     if updated and has_errors:
         logger.error(
             "Importacao parcial com erros. resultado=%r total=%s processados=%s erros=%s",
@@ -181,11 +190,6 @@ def _execute_import_and_report(
         )
         return stats
 
-    message = f"Importacao concluida sem atualizacoes. resultado={updated!r} status={status.value}"
-    logger.info(message)
-    sys.stdout.write(f"{message}\n")
-    stats["exit_code"] = 0
-    stats["status"] = "no_work"
     return stats
 
 

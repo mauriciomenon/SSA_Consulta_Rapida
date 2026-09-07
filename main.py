@@ -505,8 +505,11 @@ def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
             )
         elif outcome.primary_database_changed:
             logger.info("Banco de dados atualizado com sucesso.")
-            logger.debug(
-                "Banco de dados foi atualizado. Verifique se os dados estao acessiveis."
+        elif import_outcome.is_blocking_status(outcome.status):
+            logger.warning(
+                "Importacao terminou com status bloqueante (%s): %s",
+                outcome.status.value,
+                outcome.reason,
             )
         elif outcome.status is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY:
             logger.info(

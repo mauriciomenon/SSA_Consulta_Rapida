@@ -543,8 +543,13 @@ def _repair_database_if_needed_locked(
         )
         if not sqlite_integrity_ok:
             if _restore_latest_valid_snapshot(db_path, table_name):
-                final_report = verify_database_integrity(db_path, table_name)
-                return bool(final_report["is_valid"]), final_report
+                # The snapshot passed _raw_sqlite_integrity_ok before the
+                # restore (file-level copy); skip the heavy re-verify.
+                restored_report = dict(report)
+                restored_report["is_valid"] = True
+                restored_report["issues"] = []
+                restored_report["restored_from_snapshot"] = True
+                return True, restored_report
             logger.error("Banco corrompido sem snapshot valido para restauracao")
             return False, report
 

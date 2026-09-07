@@ -830,6 +830,14 @@ def _handle_rescan(
             )
         elif (
             outcome is not None
+            and import_outcome.is_blocking_status(outcome.status)
+        ):
+            print(
+                f"Importacao terminou com status bloqueante "
+                f"({outcome.status.value}): {outcome.reason}"
+            )
+        elif (
+            outcome is not None
             and outcome.status
             is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY
         ):
