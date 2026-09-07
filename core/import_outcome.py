@@ -112,14 +112,19 @@ def build_import_outcome(
     blocking_error_count: int = 0,
     integrity_report: Optional[Dict[str, Any]] = None,
     report_path: Optional[str] = None,
+    primary_database_actually_changed: Optional[bool] = None,
 ) -> ImportOutcome:
     status = resolve_import_status(raw_status)
+    if primary_database_actually_changed is not None:
+        changed = bool(primary_database_actually_changed)
+    else:
+        changed = status in _PRIMARY_CHANGING_STATUSES
     return ImportOutcome(
         run_id=run_id,
         status=status,
         reason=str(reason or ""),
         legacy_result=bool(legacy_result),
-        primary_database_changed=status in _PRIMARY_CHANGING_STATUSES,
+        primary_database_changed=changed,
         primary_db_path=str(primary_db_path),
         working_db_path=str(working_db_path),
         candidate_db_path=candidate_db_path,
@@ -137,10 +142,19 @@ _LAST_OUTCOME_LOCK = threading.Lock()
 _LAST_OUTCOME: Optional[ImportOutcome] = None
 
 
-def record_import_outcome(outcome: ImportOutcome) -> None:
+def record_import_outcome(outcome: ImportOutcome, *, expected_run_id: str = "") -> bool:
+    """Record the outcome; returns False if it does not match the expected run.
+
+    When expected_run_id is provided and differs from the outcome's run_id,
+    the outcome belongs to a different invocation (concurrent thread) and
+    is NOT recorded, preventing cross-run contamination.
+    """
     global _LAST_OUTCOME
+    if expected_run_id and outcome.run_id != expected_run_id:
+        return False
     with _LAST_OUTCOME_LOCK:
         _LAST_OUTCOME = outcome
+    return True
 
 
 def get_last_import_outcome() -> Optional[ImportOutcome]:

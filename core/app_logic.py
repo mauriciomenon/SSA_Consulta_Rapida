@@ -734,18 +734,25 @@ def _has_only_deterministic_rejections(
     return regular_deterministic_error_paths == regular_candidate_set
 
 
+_DETERMINISTIC_ERROR_CODES = frozenset(
+    {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"}
+)
+
+
 def _has_blocking_candidate_errors(
     *,
     files_to_process: List[str],
     critical_errors: List[tuple[str, str, str]],
+    file_reports: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Return True when a regular candidate produced a non-deterministic error.
 
-    The deterministic set matches _has_only_deterministic_rejections
-    (extraction, validation, database_generic). Any other error type on a
-    regular candidate file (connection, corruption, space, schema_failed,
-    unexpected, ...) makes the full-rescan candidate incomplete and must
-    block promotion.
+    The deterministic whitelist is closed: only extraction errors with
+    error_code in {MISSING_REQUIRED_COLUMNS, ALL_ROWS_REJECTED} count as
+    deterministic rejections. Any other error on a regular candidate
+    (including extraction errors like MISSING_FILE, connection, corruption,
+    space, schema_failed, unexpected, ...) makes the candidate incomplete
+    and must block promotion.
     """
     regular_candidate_set = {
         file_path
@@ -755,11 +762,24 @@ def _has_blocking_candidate_errors(
     }
     if not regular_candidate_set:
         return False
-    deterministic_error_types = {"extraction", "validation", "database_generic"}
-    return any(
-        file_path in regular_candidate_set and error_type not in deterministic_error_types
-        for error_type, file_path, _message in critical_errors
-    )
+    deterministic_codes_by_file: Dict[str, str] = {}
+    for report in file_reports or []:
+        if not isinstance(report, dict):
+            continue
+        error_code = str(report.get("error_code") or "").strip()
+        report_file = str(report.get("file") or "").strip()
+        if error_code in _DETERMINISTIC_ERROR_CODES and report_file:
+            deterministic_codes_by_file[os.path.basename(report_file)] = error_code
+    for error_type, file_path, _message in critical_errors:
+        if file_path not in regular_candidate_set:
+            continue
+        if (
+            error_type == "extraction"
+            and os.path.basename(file_path) in deterministic_codes_by_file
+        ):
+            continue
+        return True
+    return False
 
 
 def _load_import_discovery_settings() -> Dict[str, Any]:
@@ -1499,6 +1519,7 @@ def _finalize_import_run_outcome(
     successful_regular_files_with_records: List[tuple[str, int]],
     deterministic_failed_files: List[str],
     critical_errors: List[tuple[str, str, str]],
+    file_reports: List[Dict[str, Any]],
     files_to_process: List[str],
     sync_materialized: bool,
     candidate_db_path: Optional[str],
@@ -1567,6 +1588,7 @@ def _finalize_import_run_outcome(
     if candidate_db_path is not None and _has_blocking_candidate_errors(
         files_to_process=files_to_process,
         critical_errors=critical_errors,
+        file_reports=file_reports,
     ):
         blocking_types = sorted(
             {
@@ -1985,6 +2007,13 @@ def run_importer_logic(
         report_path = _write_import_run_report(payload)
         if report_path:
             logger.info("Resumo JSON da importacao gravado em '%s'", report_path)
+        actually_changed = bool(
+            promoted_backup_path  # full rescan promoted
+            or (
+                candidate_db_path is None  # diff mode (no candidate)
+                and successfully_processed_files  # files committed to primary
+            )
+        )
         import_outcome.record_import_outcome(
             import_outcome.build_import_outcome(
                 raw_status=status,
@@ -2001,6 +2030,7 @@ def run_importer_logic(
                 blocking_error_count=len(critical_errors),
                 integrity_report=integrity_report,
                 report_path=report_path,
+                primary_database_actually_changed=actually_changed,
             )
         )
         return result
@@ -2184,6 +2214,7 @@ def run_importer_logic(
                 successful_regular_files_with_records=successful_regular_files_with_records,
                 deterministic_failed_files=deterministic_failed_files,
                 critical_errors=critical_errors,
+                file_reports=file_reports,
                 files_to_process=files_to_process,
                 sync_materialized=sync_materialized,
                 candidate_db_path=candidate_db_path,
