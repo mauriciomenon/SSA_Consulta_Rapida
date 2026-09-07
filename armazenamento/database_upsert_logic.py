@@ -504,11 +504,22 @@ def _should_update_existing(
                     if new_rank < existing_rank:
                         return False
                 return bool(n_val >= e_val)
-            except Exception:  # pragma: no cover
-                return True
+            except (TypeError, ValueError, OverflowError):
+                # Parse failures on temporal fields block the update to
+                # avoid overwriting a valid record with an unparseable one.
+                logger.warning(
+                    "Bloqueando update por falha de parse temporal: "
+                    "new=%r existing=%r",
+                    {k: new_row.get(k) for k in ("data_cadastro",)},
+                    {k: existing_row.get(k) for k in ("data_cadastro",)},
+                )
+                return False
         return True
-    except Exception:  # pragma: no cover
-        return True
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.warning(
+            "Bloqueando update por erro inesperado no comparador: %s", exc
+        )
+        return False
 
 
 def _resolve_upsert_config() -> tuple[dict[str, int], list[str], list[str]]:

@@ -63,7 +63,16 @@ def _validate_canonical_storage_ids(work: pd.DataFrame) -> None:
 def _deduplicate_ssa_rows(
     df: pd.DataFrame, *, already_normalized: bool = False
 ) -> pd.DataFrame:
-    """Keep only one row per numero_ssa, prioritizing the newest data_cadastro when available."""
+    """Keep only one row per numero_ssa using the canonical reducer.
+
+    Sorts by data_cadastro ascending (same as the canonical sequential
+    reducer), then for each duplicate group applies _should_update_existing
+    so terminal states (STE, SCA) and snapshot-based precedence match the
+    canonical importer. The surviving row is the one the canonical path
+    would leave in the database.
+    """
+    from .database_upsert_logic import _should_update_existing
+
     if "numero_ssa" not in df.columns or df.empty:
         return df
     if already_normalized:
@@ -77,15 +86,14 @@ def _deduplicate_ssa_rows(
     valid_mask = normalized_ssa.notna()
     if not bool(valid_mask.any()):
         return df.iloc[0:0].copy()
-    if bool(normalized_ssa[valid_mask].is_unique):
-        dedup_df = df.loc[valid_mask].copy()
-        dedup_df["numero_ssa"] = normalized_ssa.loc[valid_mask]
-        return dedup_df
-
     dedup_df = df.loc[valid_mask].copy()
     dedup_df["numero_ssa"] = normalized_ssa.loc[valid_mask]
     if dedup_df.empty:
         return dedup_df
+    if bool(dedup_df["numero_ssa"].is_unique):
+        return dedup_df
+
+    # Sort ascending so the canonical reducer sees rows in the same order
     if "data_cadastro" in dedup_df.columns:
         try:
             parsed = parse_datetime_series_mixed(dedup_df["data_cadastro"])
@@ -97,8 +105,28 @@ def _deduplicate_ssa_rows(
             dedup_df = dedup_df.drop(columns=["__sort_date"], errors="ignore")
         except Exception as exc:
             logger.debug("Falha ao ordenar deduplicacao por data_cadastro: %s", exc)
-    dedup_df = dedup_df.drop_duplicates(subset=["numero_ssa"], keep="last")
-    return dedup_df
+
+    # Apply the canonical reducer per duplicate group
+    keep_indices: list[int] = []
+    seen: dict[str, pd.Series] = {}
+    for idx, row in dedup_df.iterrows():
+        ssa = str(row["numero_ssa"])
+        existing = seen.get(ssa)
+        if existing is None:
+            keep_indices.append(idx)
+            seen[ssa] = row
+        elif _should_update_existing(existing, row):
+            # New row wins; replace the kept index for this SSA
+            prev_idx = next(
+                (i for i in keep_indices if str(dedup_df.loc[i, "numero_ssa"]) == ssa),
+                None,
+            )
+            if prev_idx is not None:
+                keep_indices.remove(prev_idx)
+            keep_indices.append(idx)
+            seen[ssa] = row
+        # else: existing wins, do not add the new row
+    return dedup_df.loc[sorted(keep_indices)].copy()
 
 
 def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP) -> int:
