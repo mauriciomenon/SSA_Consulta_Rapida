@@ -743,16 +743,15 @@ def _has_blocking_candidate_errors(
     *,
     files_to_process: List[str],
     critical_errors: List[tuple[str, str, str]],
+    deterministic_failed_files: Optional[List[str]] = None,
     file_reports: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Return True when a regular candidate produced a non-deterministic error.
 
-    The deterministic whitelist is closed: only extraction errors with
-    error_code in {MISSING_REQUIRED_COLUMNS, ALL_ROWS_REJECTED} count as
-    deterministic rejections. Any other error on a regular candidate
-    (including extraction errors like MISSING_FILE, connection, corruption,
-    space, schema_failed, unexpected, ...) makes the candidate incomplete
-    and must block promotion.
+    The whitelist is the deterministic_failed_files list (full paths,
+    populated only for MISSING_REQUIRED_COLUMNS/ALL_ROWS_REJECTED at
+    app_logic._process_file_with_resilience). Any critical error on a
+    regular candidate NOT in that list blocks promotion.
     """
     regular_candidate_set = {
         file_path
@@ -762,21 +761,11 @@ def _has_blocking_candidate_errors(
     }
     if not regular_candidate_set:
         return False
-    deterministic_codes_by_file: Dict[str, str] = {}
-    for report in file_reports or []:
-        if not isinstance(report, dict):
-            continue
-        error_code = str(report.get("error_code") or "").strip()
-        report_file = str(report.get("file") or "").strip()
-        if error_code in _DETERMINISTIC_ERROR_CODES and report_file:
-            deterministic_codes_by_file[os.path.basename(report_file)] = error_code
+    deterministic_set = set(deterministic_failed_files or [])
     for error_type, file_path, _message in critical_errors:
         if file_path not in regular_candidate_set:
             continue
-        if (
-            error_type == "extraction"
-            and os.path.basename(file_path) in deterministic_codes_by_file
-        ):
+        if file_path in deterministic_set:
             continue
         return True
     return False
@@ -1588,7 +1577,7 @@ def _finalize_import_run_outcome(
     if candidate_db_path is not None and _has_blocking_candidate_errors(
         files_to_process=files_to_process,
         critical_errors=critical_errors,
-        file_reports=file_reports,
+        deterministic_failed_files=deterministic_failed_files,
     ):
         blocking_types = sorted(
             {
@@ -2008,10 +1997,14 @@ def run_importer_logic(
         if report_path:
             logger.info("Resumo JSON da importacao gravado em '%s'", report_path)
         actually_changed = bool(
-            promoted_backup_path  # full rescan promoted
+            promoted_backup_path  # full rescan promoted (backup exists)
+            or promoted_backup_path == ""  # promoted but no backup path recorded
             or (
                 candidate_db_path is None  # diff mode (no candidate)
-                and successfully_processed_files  # files committed to primary
+                and (
+                    successfully_processed_files  # files committed to primary
+                    or sync_materialized  # db-only derivadas sync wrote
+                )
             )
         )
         import_outcome.record_import_outcome(

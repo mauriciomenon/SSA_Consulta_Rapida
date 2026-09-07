@@ -34,21 +34,19 @@ def outcome_for(
 
 
 class TestPromotionGateWhitelist:
-    """Fix #1: only MISSING_REQUIRED_COLUMNS / ALL_ROWS_REJECTED are deterministic."""
+    """Fix #1: only files in deterministic_failed_files are non-blocking."""
 
     def test_extraction_with_deterministic_code_passes(self):
         from core.app_logic import _has_blocking_candidate_errors
 
         files = ["/docs/a.xlsx", "/docs/b.xlsx"]
         errors = [("extraction", "/docs/b.xlsx", "bad columns")]
-        reports = [
-            {"file": "b.xlsx", "error_code": "MISSING_REQUIRED_COLUMNS"}
-        ]
+        det_files = ["/docs/b.xlsx"]  # full path in deterministic list
         assert (
             _has_blocking_candidate_errors(
                 files_to_process=files,
                 critical_errors=errors,
-                file_reports=reports,
+                deterministic_failed_files=det_files,
             )
             is False
         )
@@ -58,19 +56,17 @@ class TestPromotionGateWhitelist:
 
         files = ["/docs/a.xlsx", "/docs/b.xlsx"]
         errors = [("extraction", "/docs/b.xlsx", "file not found")]
-        reports = [
-            {"file": "b.xlsx", "error_code": "MISSING_FILE"}
-        ]
+        det_files = []  # MISSING_FILE is not deterministic
         assert (
             _has_blocking_candidate_errors(
                 files_to_process=files,
                 critical_errors=errors,
-                file_reports=reports,
+                deterministic_failed_files=det_files,
             )
             is True
         )
 
-    def test_unexpected_type_blocks_regardless_of_reports(self):
+    def test_unexpected_type_blocks_regardless_of_det_list(self):
         from core.app_logic import _has_blocking_candidate_errors
 
         files = ["/docs/a.xlsx", "/docs/b.xlsx"]
@@ -79,7 +75,26 @@ class TestPromotionGateWhitelist:
             _has_blocking_candidate_errors(
                 files_to_process=files,
                 critical_errors=errors,
-                file_reports=[],
+                deterministic_failed_files=[],
+            )
+            is True
+        )
+
+    def test_full_path_no_basename_collision(self):
+        """Two files with same basename in different dirs don't cross-match."""
+        from core.app_logic import _has_blocking_candidate_errors
+
+        files = ["/docs/a.xlsx", "/docs/processadas/a.xlsx"]
+        errors = [
+            ("extraction", "/docs/a.xlsx", "missing file"),
+        ]
+        # Only the processadas copy is deterministic; the root copy is MISSING_FILE
+        det_files = ["/docs/processadas/a.xlsx"]
+        assert (
+            _has_blocking_candidate_errors(
+                files_to_process=files,
+                critical_errors=errors,
+                deterministic_failed_files=det_files,
             )
             is True
         )

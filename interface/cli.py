@@ -809,6 +809,16 @@ def _handle_rescan(
         if outcome is not None and outcome.status is import_outcome.ImportStatus.BUSY:
             print("Importador ocupado: outra rodada em andamento. Nada foi alterado.")
         elif (
+            outcome is not None
+            and import_outcome.is_blocking_status(outcome.status)
+        ):
+            print(
+                f"Importacao terminou com status bloqueante "
+                f"({outcome.status.value}): {outcome.reason}"
+            )
+            if outcome.primary_database_changed:
+                print("AVISO: o banco foi alterado; recarregue os dados.")
+        elif (
             outcome.primary_database_changed if outcome is not None else updated
         ):
             print("Base de dados atualizada. Recarregando...")
@@ -827,14 +837,6 @@ def _handle_rescan(
                 print_cache,
                 initial_filter_terms_rescan,
                 start_page=0,
-            )
-        elif (
-            outcome is not None
-            and import_outcome.is_blocking_status(outcome.status)
-        ):
-            print(
-                f"Importacao terminou com status bloqueante "
-                f"({outcome.status.value}): {outcome.reason}"
             )
         elif (
             outcome is not None

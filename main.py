@@ -503,14 +503,19 @@ def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
             logger.info(
                 "Importador ocupado: outra rodada em andamento; nada foi alterado."
             )
-        elif outcome.primary_database_changed:
-            logger.info("Banco de dados atualizado com sucesso.")
         elif import_outcome.is_blocking_status(outcome.status):
             logger.warning(
                 "Importacao terminou com status bloqueante (%s): %s",
                 outcome.status.value,
                 outcome.reason,
             )
+            if outcome.primary_database_changed:
+                logger.warning(
+                    "AVISO: o banco foi alterado nesta rodada apesar do status "
+                    "bloqueante; recarregue os dados."
+                )
+        elif outcome.primary_database_changed:
+            logger.info("Banco de dados atualizado com sucesso.")
         elif outcome.status is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY:
             logger.info(
                 "Arquivos candidatos rejeitados por regra deterministica; banco inalterado."
