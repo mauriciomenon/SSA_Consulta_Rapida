@@ -13,8 +13,8 @@ from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
-DEFAULT_CACHE_MAX_ENTRY_MB = 64.0
-DEFAULT_CACHE_MAX_TOTAL_MB = 256.0
+DEFAULT_CACHE_MAX_ENTRY_MB = 16.0
+DEFAULT_CACHE_MAX_TOTAL_MB = 16.0
 
 
 def _resolve_cache_limit_bytes(env_name: str, default_mb: float) -> int | None:

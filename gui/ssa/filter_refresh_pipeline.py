@@ -10,6 +10,16 @@ import pandas as pd
 from gui.ssa.filter_domain_rules import exclude_terminal_status_rows
 
 
+_REFRESH_CACHE_MAX_BYTES = 8 * 1024 * 1024  # 8 MiB
+
+
+def _frame_estimated_bytes(frame: pd.DataFrame) -> int:
+    try:
+        return int(frame.memory_usage(deep=True).sum())
+    except Exception:
+        return _REFRESH_CACHE_MAX_BYTES + 1  # unknown = skip
+
+
 @dataclass(frozen=True)
 class FilterRefreshLastResult:
     key: tuple
@@ -52,12 +62,15 @@ def apply_filter_refresh_pipeline(
     if (
         has_post_search_filters or has_excluded_terminal_status
     ) and cache_key is not None:
-        return filtered, FilterRefreshLastResult(
-            cache_key,
-            has_post_search_filters,
-            has_excluded_terminal_status,
-            _copy_refresh_frame(filtered),
-        )
+        if _frame_estimated_bytes(filtered) <= _REFRESH_CACHE_MAX_BYTES:
+            return filtered, FilterRefreshLastResult(
+                cache_key,
+                has_post_search_filters,
+                has_excluded_terminal_status,
+                _copy_refresh_frame(filtered),
+            )
+        # Entry above budget: return the filtered frame without caching
+        return filtered, None
     return filtered, None
 
 
