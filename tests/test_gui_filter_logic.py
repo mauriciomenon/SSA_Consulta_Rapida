@@ -141,6 +141,22 @@ class _RetiredWorkerGlobalsSnapshot(TypedDict):
 class TestGUIFilterLogic:
     """Valida filtros com perfis OR e exclusões complementares."""
 
+    def test_filter_clear_preserves_named_data_cache_until_revision(self):
+        manager = self.window.cache_manager
+        series = pd.Series(["123"])
+        manager.cache_value("ssa_norm", "stable-data", series)
+        self.window.clear_filter_cache()
+        pd.testing.assert_series_equal(manager.get_cached_value("ssa_norm", "stable-data"), series)
+        self.window._bump_data_revision("data_reload")
+        assert manager.get_cached_value("ssa_norm", "stable-data") is None
+
+    def test_global_clear_and_hard_reset_preserve_named_dataset_cache(self):
+        manager = self.window.cache_manager
+        for reset in (self.window._clear_all_filters_global, self.window._hard_reset_filters_state):
+            manager.cache_value("ssa_norm", "stable-data", pd.Series(["123"]))
+            reset()
+            assert manager.get_cached_value("ssa_norm", "stable-data") is not None
+
     @classmethod
     def setup_class(cls):
         cls.app = QApplication.instance() or QApplication([])

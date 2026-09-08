@@ -171,12 +171,16 @@ def _prune_forensic_backups(db_path: str) -> None:
                 )
 
 
-def _restore_latest_valid_snapshot(db_path: str, table_name: str) -> bool:
+def _restore_latest_valid_snapshot(
+    db_path: str, table_name: str, *, report_out: Dict[str, Any] | None = None
+) -> bool:
     with database_writer_lock(db_path):
-        return _restore_latest_valid_snapshot_locked(db_path, table_name)
+        return _restore_latest_valid_snapshot_locked(db_path, table_name, report_out=report_out)
 
 
-def _restore_latest_valid_snapshot_locked(db_path: str, table_name: str) -> bool:
+def _restore_latest_valid_snapshot_locked(
+    db_path: str, table_name: str, *, report_out: Dict[str, Any] | None = None
+) -> bool:
     db = Path(db_path).resolve()
     backup_dir = db.parent / "historico_backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -217,6 +221,8 @@ def _restore_latest_valid_snapshot_locked(db_path: str, table_name: str) -> bool
 
         final_report = verify_database_integrity(str(db), table_name)
         if final_report["is_valid"]:
+            if report_out is not None:
+                report_out.update(final_report)
             _prune_forensic_backups(db_path)
             logger.warning(
                 "Banco restaurado do ultimo snapshot valido; original preservado em: %s",
@@ -542,15 +548,8 @@ def _repair_database_if_needed_locked(
             report.get("sqlite_integrity_ok", report.get("data_consistent", False))
         )
         if not sqlite_integrity_ok:
-            if _restore_latest_valid_snapshot(db_path, table_name):
-                # The snapshot passed _raw_sqlite_integrity_ok before the
-                # restore (file-level copy); skip the heavy re-verify.
-                # Reset stale corruption indicators from the pre-restore report.
-                restored_report = dict(report)
-                restored_report["is_valid"] = True
-                restored_report["issues"] = []
-                restored_report["sqlite_integrity_ok"] = True
-                restored_report["data_consistent"] = True
+            restored_report: Dict[str, Any] = {}
+            if _restore_latest_valid_snapshot(db_path, table_name, report_out=restored_report):
                 restored_report["restored_from_snapshot"] = True
                 return True, restored_report
             logger.error("Banco corrompido sem snapshot valido para restauracao")

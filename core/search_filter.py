@@ -27,8 +27,9 @@ from core.regex_safety import safe_regex_contains
 logger = logging.getLogger(__name__)
 _NORMALIZED_SEARCH_CACHE_LOCK = threading.Lock()
 _NORMALIZED_SEARCH_CACHE_MAX_ENTRIES = 1
-_NORMALIZED_SEARCH_CACHE_MAX_BYTES = 256 * 1024 * 1024
+_NORMALIZED_SEARCH_CACHE_MAX_BYTES = 64 * 1024 * 1024
 _NORMALIZED_SEARCH_CACHE: OrderedDict[tuple[Any, ...], dict[str, Any]] = OrderedDict()
+_NORMALIZED_SEARCH_CACHE_GENERATION = 0
 
 class GeneralSearchCancelled(Exception):
     """Internal cancellation signal for background general-search execution."""
@@ -168,6 +169,7 @@ def _build_normalized_column_cache(
         tuple(str(df[column].dtype) for column in available_search_cols),
     )
     with _NORMALIZED_SEARCH_CACHE_LOCK:
+        cache_generation = _NORMALIZED_SEARCH_CACHE_GENERATION
         cached = _NORMALIZED_SEARCH_CACHE.get(cache_key)
         if (
             isinstance(cached, dict)
@@ -185,6 +187,8 @@ def _build_normalized_column_cache(
     if estimated_bytes > _NORMALIZED_SEARCH_CACHE_MAX_BYTES:
         return normalized_columns
     with _NORMALIZED_SEARCH_CACHE_LOCK:
+        if cache_generation != _NORMALIZED_SEARCH_CACHE_GENERATION:
+            return normalized_columns
         cached = _NORMALIZED_SEARCH_CACHE.get(cache_key)
         if (
             isinstance(cached, dict)
@@ -489,19 +493,14 @@ def _candidate_series(series: pd.Series, candidate_index: pd.Index) -> pd.Series
 
 
 def _estimate_normalized_cache_bytes(normalized_columns: dict[str, pd.Series]) -> int:
-    total_bytes = 0
-    for series in normalized_columns.values():
-        row_count = len(series.index)
-        if row_count == 0:
-            continue
-        sample_size = min(row_count, 1024)
-        sample = series.iloc[:sample_size]
-        shallow_bytes = int(series.memory_usage(index=False, deep=False))
-        average_chars = float(sample.str.len().fillna(0).mean())
-        if pd.isna(average_chars):
-            average_chars = 0.0
-        total_bytes += shallow_bytes + int(average_chars * row_count)
-    return total_bytes
+    try:
+        return sum(
+            int(series.memory_usage(index=True, deep=True))
+            for series in normalized_columns.values()
+        )
+    except Exception as exc:
+        logger.warning("Normalized search cache size unavailable; skipping retention: %s", exc)
+        return _NORMALIZED_SEARCH_CACHE_MAX_BYTES + 1
 
 
 def _column_match_mask(

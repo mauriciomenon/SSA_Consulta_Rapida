@@ -29,6 +29,7 @@ class CacheManager:
             max_entries: Numero maximo de entradas por categoria interna de cache
         """
         self.max_entries = max_entries
+        self.max_dataframe_bytes = 8 * 1024 * 1024
         self._caches: Dict[str, Dict[str, Any]] = {
             "widths": {},  # Cache de larguras computadas
             "dataframes": {},  # Cache de DataFrames formatados
@@ -193,9 +194,28 @@ class CacheManager:
             df_hash: Hash do DataFrame original
             formatted_df: DataFrame formatado
         """
-        # Cria copia para evitar modificacoes externas
-        df_copy = formatted_df.copy()
-        self._put_in_cache("dataframes", df_hash, df_copy)
+        logger = get_robust_logger().get_logger(__name__, "core")
+        with self._lock:
+            cache = self._caches["dataframes"]
+            try:
+                entry_bytes = int(formatted_df.memory_usage(deep=True).sum())
+                if entry_bytes > self.max_dataframe_bytes:
+                    return
+                sizes = {
+                    key: int(frame.memory_usage(deep=True).sum())
+                    for key, frame in cache.items() if key != df_hash
+                }
+            except (TypeError, ValueError, OverflowError, RuntimeError, AttributeError) as exc:
+                logger.warning("Formatted cache size unavailable; entry not retained: %s", exc)
+                return
+            retained_bytes = sum(sizes.values())
+            while cache and retained_bytes + entry_bytes > self.max_dataframe_bytes:
+                previous_count = len(cache)
+                self._evict_oldest("dataframes")
+                if len(cache) >= previous_count:
+                    raise RuntimeError("Formatted cache eviction did not remove an entry")
+                retained_bytes = sum(size for key, size in sizes.items() if key in cache)
+            self._put_in_cache("dataframes", df_hash, formatted_df.copy())
 
     def get_cached_config(self, config_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -376,34 +396,30 @@ class CacheManager:
     @staticmethod
     def _estimate_cache_items_memory(items: List[tuple[str, Any]]) -> int:
         memory_estimate = 0
-        max_stats_depth = 2
-        max_stats_items = 2048
         seen: set[int] = set()
-        visited_items = 0
         for _cache_key, value in items:
-            stack = [(value, 0)]
+            stack = [value]
             while stack:
-                if visited_items >= max_stats_items:
-                    break
-                item, depth = stack.pop()
+                item = stack.pop()
                 item_id = id(item)
                 if item_id in seen:
                     continue
                 seen.add(item_id)
-                visited_items += 1
-
                 if isinstance(item, pd.DataFrame):
-                    memory_estimate += int(item.memory_usage(deep=False).sum())
+                    memory_estimate += int(item.memory_usage(deep=True).sum())
+                    continue
+                if isinstance(item, (pd.Series, pd.Index)):
+                    memory_estimate += int(item.memory_usage(deep=True))
                     continue
 
                 memory_estimate += sys.getsizeof(item)
-                if depth >= max_stats_depth:
-                    continue
                 if isinstance(item, dict):
-                    stack.extend((child, depth + 1) for child in item.keys())
-                    stack.extend((child, depth + 1) for child in item.values())
+                    stack.extend(item.keys())
+                    stack.extend(item.values())
                 elif isinstance(item, (list, tuple, set, frozenset)):
-                    stack.extend((child, depth + 1) for child in item)
+                    stack.extend(item)
+                elif hasattr(item, "__dict__"):
+                    stack.append(vars(item))
 
         return memory_estimate
 

@@ -5,9 +5,12 @@ from __future__ import annotations
 from typing import Any, Callable
 
 import pandas as pd
+from utils.robust_logging import get_robust_logger
 
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 MAX_SORT_CACHE_ROWS = 120_000
+MAX_SORT_CACHE_BYTES = 8 * 1024 * 1024
 PLAIN_TEXT_SORT_COLUMNS = frozenset(
     {
         "descricao_ssa",
@@ -264,6 +267,12 @@ def _build_sort_cache(
     column_name: str | None = None,
 ) -> dict[str, Any]:
     if source_len > MAX_SORT_CACHE_ROWS:
+        return empty_sort_cache(column_name=column_name)
+    try:
+        if int(keys_df.memory_usage(deep=True).sum()) > MAX_SORT_CACHE_BYTES // 2:
+            return empty_sort_cache(column_name=column_name)
+    except Exception as exc:
+        logger.warning("Sort cache size unavailable; entry not retained: %s", exc)
         return empty_sort_cache(column_name=column_name)
     payload = empty_sort_cache(column_name=column_name)
     payload.update(

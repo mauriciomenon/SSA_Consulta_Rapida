@@ -74,6 +74,7 @@ from gui.ssa.column_filter_runtime import (
 )
 from gui.ssa.column_filter_engine import ColumnFilterCaches
 from gui.ssa.column_filter_engine import apply_column_filters as apply_column_filters
+from gui.ssa.gui_filters_advanced_state import ADV_FILTER_CACHE_ATTRS
 from gui.ssa.column_filter_panel import (
     build_column_filters_panel,
     open_add_column_filter_menu,
@@ -765,13 +766,12 @@ class FilterGUISSAMixin:
     ) -> None:
         if bool(getattr(self, "_is_shutting_down", False)):
             return
-        filter_cache_context = self._build_filter_cache_context()
         worker = FilterWorker(
             filter_source,
             search_chunks,
             search_columns=general_search_columns,
             default_mode=default_mode,
-            cache_context=filter_cache_context,
+            cache_context="",
             df_hash=self._build_filter_worker_df_token(filter_source),
         )
         self.filter_thread = worker
@@ -818,13 +818,19 @@ class FilterGUISSAMixin:
         previous_search_text = str(
             getattr(self, "_active_filter_search_display", "") or ""
         )
+        self._safe_store_last_filter_state(
+            "initiate_filtering",
+            search_text_override=previous_search_text,
+            pending_search_display_override=previous_search_text,
+        )
 
         # Blank search: synchronous, no worker, no deep copy (S6)
         if not search_text.strip():
+            self._abort_active_filtering("initiate_filtering_blank")
             self._active_filter_search_display = ""
+            self._active_filter_search_request_id = None
             self._pending_search_display = ""
             self._df_last_search_filtered = self.df_completo
-            self._filter_ui_state().set_idle()
             self._sync_clear_filter_button_state()
             refresh_ok = self._refresh_after_filter_change(
                 commit_pending_search=False
@@ -833,11 +839,6 @@ class FilterGUISSAMixin:
                 self._df_last_search_filtered = self.df_completo
             return
 
-        self._safe_store_last_filter_state(
-            "initiate_filtering",
-            search_text_override=previous_search_text,
-            pending_search_display_override=previous_search_text,
-        )
         try:
             self._debounce_timer.stop()
         except Exception as exc:
@@ -1302,15 +1303,33 @@ class FilterGUISSAMixin:
 
     def clear_filter_cache(self):
         """Limpa o cache de filtros."""
-        # Usa logger e verifica disponibilidade do FilterWorker e cache
         if FilterWorker is not None:
-            try:
-                FilterWorker.clear_shared_cache()
-                logger.debug("Cache de filtros limpo")
-            except Exception as e:  # pragma: no cover
-                logger.debug("Falha ao limpar cache de filtros: %s", e)
-        else:
-            logger.debug("FilterWorker indisponivel; cache nao limpo")
+            FilterWorker.clear_shared_cache()
+        for attr in (*ADV_FILTER_CACHE_ATTRS,
+                     "_column_filter_series_cache", "_column_filter_casefold_cache",
+                     "_column_filter_mask_cache", "_column_filter_date_parsed_cache",
+                     "_column_filter_date_cache", "_column_filter_frame_tokens"):
+            cache = getattr(self, attr, None)
+            if isinstance(cache, dict):
+                cache.clear()
+        self._filter_refresh_result_cache = None
+        self._column_filter_series_cache_revision = None
+        self._column_filter_date_cache_scope = None
+        cache_manager = getattr(self, "cache_manager", None)
+        if cache_manager is not None:
+            formatted_cache = getattr(cache_manager, "_formatted_cache", None)
+            if isinstance(formatted_cache, dict):
+                formatted_cache.clear()
+            else:
+                cache_manager.invalidate_cache("dataframes")
+        refresher = getattr(self, "_responsavel_options_refresher", None)
+        if refresher is not None:
+            for cache in (refresher.cache.filtered, refresher.cache.rank,
+                          refresher.cache.values, refresher.cache.frame_tokens):
+                cache.clear()
+        self._reset_num_reprogramacoes_sort_cache()
+        self._reset_mixed_text_sort_cache()
+        logger.debug("Filter caches cleared")
 
     # --- Slots e Handlers ---
 
@@ -1830,6 +1849,7 @@ class FilterGUISSAMixin:
 
     def _render_filter_reset_baseline(self) -> None:
         """Render the full dataset after a full filter reset through one path."""
+        self.clear_filter_cache()
         self.df_exibido = self.df_completo
         self._last_table_render_signature = None
         try:
@@ -2477,8 +2497,7 @@ class FilterGUISSAMixin:
             apply_column_filters=self._apply_column_filters,
             measure_timing=measure_timing,
         )
-        if cache_update is not None:
-            self._filter_refresh_result_cache = cache_update
+        self._filter_refresh_result_cache = cache_update
         return filtered
 
     def _sort_filter_refresh_result(

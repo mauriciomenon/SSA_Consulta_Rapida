@@ -89,7 +89,7 @@ def bulk_parse_dates(values: Iterable) -> list[str | None]:
         lambda item: isinstance(item, (int, float)) and not isinstance(item, bool)
     )
     parsed_input = series.mask(numeric_mask)
-    parsed = parse_datetime_series_mixed(parsed_input)
+    parsed = pd.to_datetime(parse_datetime_series_mixed(parsed_input), errors="coerce")
     if bool(numeric_mask.any()):
         numeric_values = pd.to_numeric(series.loc[numeric_mask], errors="coerce")
         positive_values = numeric_values[numeric_values > 0]

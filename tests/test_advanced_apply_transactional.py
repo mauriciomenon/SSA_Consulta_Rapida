@@ -36,6 +36,10 @@ class TestAdvancedApplyTransactional:
         cls.app = QApplication.instance() or QApplication([])
 
     def setup_method(self):
+        self._retired_workers_patch = patch.object(
+            gui_ssa, "GLOBAL_RETIRED_DATA_LOADER_WORKERS", []
+        )
+        self._retired_workers_patch.start()
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
@@ -46,17 +50,16 @@ class TestAdvancedApplyTransactional:
         self.window._active_column_filters["setor_executor"] = "IEE3"
 
     def teardown_method(self):
-        self._load_patch.stop()
-        worker_registry = self.window._filter_worker_registry
-        worker_registry.clear()
-        self.window.close()
-        self.window.deleteLater()
-        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        QApplication.processEvents()
         try:
-            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.clear()
-        except Exception:
-            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = []
+            worker_registry = self.window._filter_worker_registry
+            worker_registry.clear()
+            self.window.close()
+            self.window.deleteLater()
+            QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            QApplication.processEvents()
+        finally:
+            self._load_patch.stop()
+            self._retired_workers_patch.stop()
 
     def test_apply_restores_state_when_refresh_fails(self, monkeypatch):
         window = self.window

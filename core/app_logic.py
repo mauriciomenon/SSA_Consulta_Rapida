@@ -734,17 +734,11 @@ def _has_only_deterministic_rejections(
     return regular_deterministic_error_paths == regular_candidate_set
 
 
-_DETERMINISTIC_ERROR_CODES = frozenset(
-    {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"}
-)
-
-
 def _has_blocking_candidate_errors(
     *,
     files_to_process: List[str],
     critical_errors: List[tuple[str, str, str]],
     deterministic_failed_files: Optional[List[str]] = None,
-    file_reports: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Return True when a regular candidate produced a non-deterministic error.
 
@@ -762,7 +756,7 @@ def _has_blocking_candidate_errors(
     if not regular_candidate_set:
         return False
     deterministic_set = set(deterministic_failed_files or [])
-    for error_type, file_path, _message in critical_errors:
+    for _error_type, file_path, _message in critical_errors:
         if file_path not in regular_candidate_set:
             continue
         if file_path in deterministic_set:
@@ -1585,8 +1579,8 @@ def _finalize_import_run_outcome(
                 for error_type, file_path, _message in critical_errors
                 if not os.path.basename(file_path).startswith("~$")
                 and not _is_derivadas_sheet_file(file_path)
-                and error_type
-                not in {"extraction", "validation", "database_generic"}
+                and file_path in files_to_process
+                and file_path not in deterministic_failed_files
             }
         )
         logger.error(
@@ -2002,7 +1996,8 @@ def run_importer_logic(
             or (
                 candidate_db_path is None  # diff mode (no candidate)
                 and (
-                    successfully_processed_files  # files committed to primary
+                    integrity_report.get("restored_from_snapshot", False)
+                    or successfully_processed_files  # files committed to primary
                     or sync_materialized  # db-only derivadas sync wrote
                 )
             )

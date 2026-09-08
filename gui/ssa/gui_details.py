@@ -411,8 +411,8 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
             data_uuid,
         )
         cached = cast(Any, cache_get)("details_df_ssa_index", cache_key)
-    if isinstance(cached, Mapping) and cached:
-        return cached
+    if isinstance(cached, pd.Series) and not cached.empty:
+        return DetailsSeriesIndex(df, cached)
 
     lookup: Mapping[str, pd.Series] = {}
     normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
@@ -423,12 +423,10 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
         first_values = normalized_text_series.iloc[first_positions]
         if first_values.empty:
             return lookup
-        row_positions = {
-            str(normalized): int(position)
-            for normalized, position in zip(
-                first_values.to_list(), first_positions, strict=True
-            )
-        }
+        row_positions = pd.Series(
+            first_positions, index=first_values.to_numpy(copy=False), dtype="int64"
+        )
+        row_positions.index.get_loc(first_values.iloc[0])
         lookup = DetailsSeriesIndex(df, row_positions)
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
@@ -437,7 +435,7 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
         cast(Any, cache_put)(
             "details_df_ssa_index",
             cache_key,
-            lookup,
+            row_positions,
             max_entries=8,
         )
     return lookup

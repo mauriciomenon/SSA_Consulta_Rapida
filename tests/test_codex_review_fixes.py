@@ -4,12 +4,13 @@ Fix #1: promotion gate whitelist is closed by error_code (not error_type).
 Fix #3: launcher exit code governed by outcome status, not event errors.
 Fix #4: primary_database_changed reflects actual writes (diff can commit
 files and then fail derivadas sync with the database already changed).
-Fix #6: snapshot restore skips the heavy re-verify (snapshot was
-pre-validated by quick_check).
+Snapshot restore coverage uses real databases in test_database_integrity_ensure.
 """
 
 import os
 import sys
+
+import pytest
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
@@ -17,6 +18,11 @@ if project_root not in sys.path:
 
 from core import import_outcome  # noqa: E402
 from core.import_outcome import ImportStatus  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolated_import_outcome(monkeypatch):
+    monkeypatch.setattr(import_outcome._OUTCOME_CONTEXT, "outcome", None, raising=False)
 
 
 def outcome_for(
@@ -104,48 +110,34 @@ class TestLauncherExitCode:
     """Fix #3: non-blocking outcome overrides event errors."""
 
     def test_rejections_only_with_errors_exits_0(self):
+        import logging
+
         from launchers import cli_entry
-
-        class FakeLogger:
-            def info(self, *a, **k):
-                pass
-
-            def error(self, *a, **k):
-                pass
 
         outcome = outcome_for(ImportStatus.DETERMINISTIC_REJECTIONS_ONLY)
         sentinel_old = outcome_for(ImportStatus.NO_CHANGES)
-        calls = {"count": 0}
+        import_outcome.record_import_outcome(sentinel_old)
 
-        def fake_get():
-            calls["count"] += 1
-            return sentinel_old if calls["count"] <= 1 else outcome
+        def rejected_import(**kwargs):
+            capture = kwargs["progress_callback"]
+            capture("start", {"total": 1})
+            capture("file_error", {"error": "rejection event"})
+            import_outcome.record_import_outcome(outcome)
+            return True
 
-        original_get = import_outcome.get_last_import_outcome
-        import_outcome.get_last_import_outcome = fake_get
-        try:
-
-            class FakeSummary:
-                total_candidates = 1
-                processed_files = 0
-                errors = ["rejection event"]
-
-                def capture(self, *a, **k):
-                    pass
-
-            stats = cli_entry._execute_import_and_report(
-                lambda **kwargs: True,
-                docs_dir="docs",
-                data_dir="data",
-                runtime_base="base",
-                logger=FakeLogger(),
-            )
-        finally:
-            import_outcome.get_last_import_outcome = original_get
+        stats = cli_entry._execute_import_and_report(
+            rejected_import,
+            docs_dir="docs",
+            data_dir="data",
+            runtime_base="base",
+            logger=logging.getLogger(__name__),
+        )
 
         assert stats["exit_code"] == 0, (
             "DETERMINISTIC_REJECTIONS_ONLY with event errors must exit 0"
         )
+        assert stats["error_count"] == 1
+        assert stats["total_candidates"] == 1
 
 
 class TestPrimaryDatabaseChangedOverride:
@@ -170,44 +162,6 @@ class TestPrimaryDatabaseChangedOverride:
             # no override: falls back to status-based
         )
         assert outcome.primary_database_changed is False
-
-
-class TestSnapshotRestoreSkipsHeavyVerify:
-    """Fix #6: restore path returns a pre-validated report."""
-
-    def test_ensure_returns_report_with_restored_flag(self):
-        from armazenamento.database_integrity import (
-            ensure_database_integrity,
-        )
-        from armazenamento import database_integrity
-
-        original_restore = database_integrity._restore_latest_valid_snapshot
-        original_verify = database_integrity.verify_database_integrity
-        verify_calls = {"count": 0}
-
-        def fake_restore(db_path, table_name):
-            return True  # snapshot restored successfully
-
-        def counting_verify(db_path, table_name):
-            verify_calls["count"] += 1
-            return original_verify(db_path, table_name)
-
-        database_integrity._restore_latest_valid_snapshot = fake_restore
-        database_integrity.verify_database_integrity = counting_verify
-        try:
-            ok, report = ensure_database_integrity(
-                "/nonexistent/path.db",
-                "schema.sql",
-                "ssa_table",
-            )
-        finally:
-            database_integrity._restore_latest_valid_snapshot = original_restore
-            database_integrity.verify_database_integrity = original_verify
-
-        # verify was called once (initial), not twice (initial + post-restore)
-        assert verify_calls["count"] == 1, (
-            "restore path must not re-run the heavy verify"
-        )
 
 
 class TestRecordOutcomeRunIdGuard:

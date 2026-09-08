@@ -146,6 +146,19 @@ def _execute_import_and_report(
         sys.stderr.write(message)
         stats["status"] = "blocked"
         return stats
+    if outcome is not None:
+        changed = outcome.primary_database_changed
+        stats["exit_code"] = 0
+        stats["status"] = (
+            "no_work" if status == import_outcome.ImportStatus.NO_CHANGES else "success"
+        )
+        message = (
+            f"Importacao concluida. status={status.value} "
+            f"banco_alterado={changed} rejeicoes={len(summary.errors)}"
+        )
+        logger.info(message)
+        sys.stdout.write(f"{message}\n")
+        return stats
     if not blocking:
         if updated and not has_errors:
             logger.info("Importacao concluida. resultado=%r status=%s", updated, status.value)

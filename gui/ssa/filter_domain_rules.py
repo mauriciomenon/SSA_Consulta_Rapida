@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from typing import Any
+from uuid import uuid4
 
 import pandas as pd
 
@@ -354,7 +355,7 @@ def generate_responsavel_sector_filter_cache_signature(
     )
 
 
-def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
+def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int | str:
     try:
         columns = [
             column
@@ -368,9 +369,9 @@ def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
         return hash((data_hash, len(df), tuple(str(column) for column in df.columns)))
     except Exception as exc:
         logger.warning(
-            "Falha ao computar hash do DataFrame (risco de cache stale): %s", exc
+            "Falha ao computar hash do DataFrame; cache invalidado: %s", exc
         )
-        return hash((len(df), tuple(str(column) for column in df.columns)))
+        return uuid4().hex
 
 
 def filter_responsavel_frame_by_sector_selection(

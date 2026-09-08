@@ -11,9 +11,9 @@ DETAILS_SERIES_INDEX_CACHE_MAX_ENTRIES = 128
 
 
 class DetailsSeriesIndex(Mapping[str, pd.Series]):
-    def __init__(self, df: pd.DataFrame, row_positions: Mapping[str, int]) -> None:
+    def __init__(self, df: pd.DataFrame, row_positions: Mapping[str, int] | pd.Series) -> None:
         self._df = df
-        self._row_positions = dict(row_positions)
+        self._row_positions = pd.Series(row_positions, dtype="int64", copy=True)
         self._series_cache: dict[str, pd.Series] = {}
 
     def __getitem__(self, key: str) -> pd.Series:
@@ -27,7 +27,7 @@ class DetailsSeriesIndex(Mapping[str, pd.Series]):
         return series
 
     def __iter__(self) -> Iterator[str]:
-        return iter(self._row_positions)
+        return iter(self._row_positions.index)
 
     def __len__(self) -> int:
         return len(self._row_positions)
@@ -39,4 +39,5 @@ class DetailsSeriesIndex(Mapping[str, pd.Series]):
         return self[key]
 
     def get_position(self, key: str) -> int | None:
-        return self._row_positions.get(key)
+        position = self._row_positions.get(key)
+        return int(position) if position is not None else None

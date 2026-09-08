@@ -232,31 +232,10 @@ class FilterCache:
 
     def _estimate_result_bytes(self, result: pd.DataFrame) -> int | None:
         try:
-            shallow_bytes = int(result.memory_usage(index=True, deep=False).sum())
-            row_count = len(result.index)
-            if (
-                row_count == 0
-                or row_count * max(len(result.columns), 1) <= 10_000
-                or shallow_bytes <= 8 * 1024 * 1024
-            ):
-                return int(result.memory_usage(index=True, deep=True).sum())
-            sample_size = min(64, row_count)
-            sampled_text_bytes = 0
-            for column_name in result.columns:
-                series = result[column_name]
-                if not (
-                    pd.api.types.is_string_dtype(series.dtype)
-                    or pd.api.types.is_object_dtype(series.dtype)
-                ):
-                    continue
-                sample = series.iloc[:sample_size]
-                sample_bytes = int(sample.memory_usage(index=False, deep=True))
-                avg_bytes = sample_bytes / float(sample_size)
-                sampled_text_bytes += int(avg_bytes * row_count)
-            return shallow_bytes + sampled_text_bytes
+            return int(result.memory_usage(index=True, deep=True).sum())
         except Exception as exc:
             logger.warning(
-                "FilterCache.put falhou ao medir tamanho da entrada; ignorando limite (erro=%s)",
+                "FilterCache.put falhou ao medir tamanho; entrada nao retida (erro=%s)",
                 exc,
             )
             return None

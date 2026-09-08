@@ -19,6 +19,7 @@ fragile - if get_db_connection moves lower in database.py, circular import will 
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import time
 from typing import Iterator
@@ -26,8 +27,7 @@ from typing import Iterator
 import pandas as pd
 
 from shared.date_utils import (
-    format_datetime_series_for_storage,
-    parse_datetime_series_mixed,
+    bulk_parse_dates,
 )
 from utils.robust_logging import get_robust_logger
 
@@ -58,75 +58,6 @@ def _validate_canonical_storage_ids(work: pd.DataFrame) -> None:
             raise ValueError(
                 f"Non-canonical value detected in {col}; decimal artifact is not allowed"
             )
-
-
-def _deduplicate_ssa_rows(
-    df: pd.DataFrame, *, already_normalized: bool = False
-) -> pd.DataFrame:
-    """Keep only one row per numero_ssa using the canonical reducer.
-
-    Sorts by data_cadastro ascending (same as the canonical sequential
-    reducer), then for each duplicate group applies _should_update_existing
-    so terminal states (STE, SCA) and snapshot-based precedence match the
-    canonical importer. The surviving row is the one the canonical path
-    would leave in the database.
-    """
-    from .database_upsert_logic import _should_update_existing
-
-    if "numero_ssa" not in df.columns or df.empty:
-        return df
-    if already_normalized:
-        normalized_ssa = (
-            df["numero_ssa"]
-            .astype("object")
-            .map(lambda v: None if v is None else (str(v).strip() or None))
-        )
-    else:
-        normalized_ssa = df["numero_ssa"].map(normalize_numero_ssa_storage)
-    valid_mask = normalized_ssa.notna()
-    if not bool(valid_mask.any()):
-        return df.iloc[0:0].copy()
-    dedup_df = df.loc[valid_mask].copy()
-    dedup_df["numero_ssa"] = normalized_ssa.loc[valid_mask]
-    if dedup_df.empty:
-        return dedup_df
-    if bool(dedup_df["numero_ssa"].is_unique):
-        return dedup_df
-
-    # Sort ascending so the canonical reducer sees rows in the same order
-    if "data_cadastro" in dedup_df.columns:
-        try:
-            parsed = parse_datetime_series_mixed(dedup_df["data_cadastro"])
-            dedup_df = dedup_df.assign(__sort_date=parsed).sort_values(
-                "__sort_date",
-                ascending=True,
-                na_position="first",
-            )
-            dedup_df = dedup_df.drop(columns=["__sort_date"], errors="ignore")
-        except Exception as exc:
-            logger.debug("Falha ao ordenar deduplicacao por data_cadastro: %s", exc)
-
-    # Apply the canonical reducer per duplicate group
-    keep_indices: list[int] = []
-    seen: dict[str, pd.Series] = {}
-    for idx, row in dedup_df.iterrows():
-        ssa = str(row["numero_ssa"])
-        existing = seen.get(ssa)
-        if existing is None:
-            keep_indices.append(idx)
-            seen[ssa] = row
-        elif _should_update_existing(existing, row):
-            # New row wins; replace the kept index for this SSA
-            prev_idx = next(
-                (i for i in keep_indices if str(dedup_df.loc[i, "numero_ssa"]) == ssa),
-                None,
-            )
-            if prev_idx is not None:
-                keep_indices.remove(prev_idx)
-            keep_indices.append(idx)
-            seen[ssa] = row
-        # else: existing wins, do not add the new row
-    return dedup_df.loc[sorted(keep_indices)].copy()
 
 
 def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP) -> int:
@@ -404,33 +335,21 @@ def insert_dataframe_optimized(
     conn: sqlite3.Connection | None = None
 
     try:
-        from .database_upsert_logic import prepare_dataframe_for_storage
+        from .database_upsert_logic import UPSERT_DATE_COLUMNS, prepare_dataframe_for_storage
 
         work = prepare_dataframe_for_storage(df, normalize_derivada=True)
 
         # Normalize SSA identifiers in storage path to avoid persisting decimal artifacts.
         _validate_canonical_storage_ids(work)
 
-        # Converter datas de forma mais eficiente (vetorizada)
-        date_columns = [
-            "data_cadastro",
-            "prazo_limite",
-            "data_limite",
-            "desde",
-            "desde_1",
-        ]
-        for col in date_columns:
+        for col in UPSERT_DATE_COLUMNS:
             if col in work.columns:
-                work[col] = format_datetime_series_for_storage(work[col])
+                work[col] = bulk_parse_dates(work[col])
 
         with get_db_connection(db_path, write=True) as conn:
             target_table = resolve_target_table(conn, table_name)
             if not is_valid_identifier(target_table):
                 raise ValueError(f"Invalid SQL identifier for table: {target_table!r}")
-
-            # ensure_columns_exist commits on schema changes, so run it before the
-            # explicit batch transaction to keep the import body atomic.
-            ensure_columns_exist(conn, target_table, work)
 
             # ===== CONFIGURAÇÕES DE PERFORMANCE SQLITE =====
             logger.info("FIX APLICANDO OTIMIZAÇÕES SQLITE")
@@ -442,6 +361,7 @@ def insert_dataframe_optimized(
             conn.execute("PRAGMA temp_store=MEMORY")  # Operações temporárias em RAM
             conn.execute("PRAGMA mmap_size=268435456")  # Memory-mapped I/O (256MB)
             conn.execute("BEGIN IMMEDIATE")
+            ensure_columns_exist(conn, target_table, work)
 
             # LOG: Verificar configurações aplicadas
             cur = conn.cursor()
@@ -479,8 +399,16 @@ def insert_dataframe_optimized(
                 logger.info(f"[OK] Inseridos {len(no_ssa)} registros sem numero_ssa")
 
             # ===== ESTRATÉGIA OTIMIZADA PARA REGISTROS COM SSA =====
-            if not has_ssa.empty:
-                has_ssa = _deduplicate_ssa_rows(has_ssa, already_normalized=True)
+            if not has_ssa.empty and (
+                not has_ssa["numero_ssa"].is_unique
+                or os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
+            ):
+                from .database_upsert_logic import _perform_upsert
+
+                total_inserted += _perform_upsert(
+                    has_ssa, target_table, conn, metrics_out=metrics_out
+                )
+            elif not has_ssa.empty:
                 # Verificar se tabela existe antes de fazer SELECT
                 try:
                     table_exists = pd.read_sql_query(

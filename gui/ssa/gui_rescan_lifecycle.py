@@ -91,6 +91,10 @@ def connect_rescan_worker_lifecycle(
     def on_finished_successfully() -> None:
         outcome = _resolve_rescan_outcome(worker)
         if cancelled:
+            if outcome is RescanOutcome.UPDATED and (
+                batch_reload_count == 0 or batch_reload_failed
+            ):
+                on_batch_completed(0, 0)
             _finish_rescan_as_cancelled(
                 window,
                 progress_dialog,
@@ -134,6 +138,12 @@ def connect_rescan_worker_lifecycle(
 
     def on_error(error_msg) -> None:
         nonlocal cancelled
+        outcome = getattr(worker, "_last_import_outcome", None)
+        if getattr(outcome, "primary_database_changed", False) and (
+            batch_reload_count < getattr(worker, "_batch_index", 1)
+            or batch_reload_failed
+        ):
+            on_batch_completed(0, 0)
         if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
             cancelled = True
             _finish_cancelled_error(

@@ -4,10 +4,14 @@ Elimina codigo frankenstein com implementacao funcional minima.
 """
 
 import logging
+import sys
+from collections.abc import Mapping
 
 import pandas as pd
 
+from core.cache_manager import CacheManager
 from gui.gui_config import DEFAULT_COLUMN_WIDTHS
+from gui.ssa.column_filter_engine import _trim_cache_dict
 
 logger = logging.getLogger(__name__)
 
@@ -338,6 +342,8 @@ class SimpleCacheManager:
     def __init__(self):
         self._formatted_cache = {}
         self._named_caches = {}
+        self.max_formatted_bytes = 8 * 1024 * 1024
+        self.max_named_bytes = 8 * 1024 * 1024
 
     def get_cached_formatted_df(self, df_hash):
         """Retorna DataFrame formatado do cache."""
@@ -345,24 +351,50 @@ class SimpleCacheManager:
 
     def cache_formatted_df(self, df_hash, formatted_df):
         """Armazena DataFrame formatado no cache."""
-        if df_hash not in self._formatted_cache and len(self._formatted_cache) >= 5:
-            # Remove entrada mais antiga antes de inserir a nova.
-            oldest_key = next(iter(self._formatted_cache))
-            del self._formatted_cache[oldest_key]
         self._formatted_cache[df_hash] = formatted_df
+        _trim_cache_dict(self._formatted_cache, 5, max_bytes=self.max_formatted_bytes)
 
     def get_cached_value(self, cache_name, cache_key):
-        """Retorna valor de cache nomeado."""
+        """Return a named snapshot; callers must not mutate retained payloads."""
         cache = self._named_caches.get(cache_name)
         if not isinstance(cache, dict):
             return None
-        return cache.get(cache_key)
+        entry = cache.get(cache_key)
+        return entry[0] if entry is not None else None
 
     def cache_value(self, cache_name, cache_key, value, max_entries=5):
         """Armazena valor em cache nomeado com limite simples."""
+        if isinstance(value, Mapping) and not isinstance(value, dict):
+            self._named_caches.get(cache_name, {}).pop(cache_key, None)
+            logger.debug("Lazy mapping cache value has mutable ownership; entry skipped")
+            return
+        try:
+            value_bytes = CacheManager._estimate_cache_items_memory(
+                [("entry", value)]
+            ) + sys.getsizeof((value, 0)) + sys.getsizeof(self.max_named_bytes)
+        except Exception as exc:
+            self._named_caches.get(cache_name, {}).pop(cache_key, None)
+            logger.warning("Named cache value size unavailable; entry skipped: %s", exc)
+            return
+        if value_bytes > self.max_named_bytes:
+            self._named_caches.get(cache_name, {}).pop(cache_key, None)
+            logger.debug("Named cache value exceeds byte budget; entry skipped")
+            return
         cache = self._named_caches.setdefault(cache_name, {})
         max_entries = max(1, int(max_entries or 1))
         if cache_key not in cache and len(cache) >= max_entries:
             oldest_key = next(iter(cache))
             del cache[oldest_key]
-        cache[cache_key] = value
+        cache[cache_key] = (value, value_bytes)
+        entries = [
+            (named_cache, key, entry_bytes)
+            for named_cache in self._named_caches.values()
+            for key, (_, entry_bytes) in named_cache.items()
+        ]
+        retained_bytes = sum(size for _, _, size in entries)
+        for named_cache, key, size in entries:
+            if named_cache is cache and key == cache_key:
+                continue
+            if size > self.max_named_bytes or retained_bytes > self.max_named_bytes:
+                del named_cache[key]
+                retained_bytes -= size

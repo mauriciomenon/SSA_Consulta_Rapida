@@ -2,8 +2,9 @@
 
 The *_in_full_rescan settings (include_processadas, ignore_nosurvivor)
 used to govern discovery in both modes. The diff mode now keeps its
-differential contract: it does not scan processadas/ and does not skip
-nosurvivor/. The full rescan preserves both behaviors.
+differential contract: it scans the root without processadas/. The
+scanner never enters nosurvivor/ in either mode. Full rescan retains
+the configured processadas/ discovery policy.
 """
 
 import os

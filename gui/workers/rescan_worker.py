@@ -5,6 +5,7 @@ import logging
 import sqlite3
 import sys
 import threading
+from dataclasses import replace
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -375,6 +376,7 @@ class RescanWorker(QThread):
         self._last_processed_files = 0
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
+        self._last_import_outcome = None
         self._last_runtime_error_detail = ""
         self._batch_file_offset = 0
         self._batch_index = 1
@@ -467,6 +469,7 @@ class RescanWorker(QThread):
     def _run_import_operation(self) -> bool:
         from core import import_outcome
 
+        self._last_import_outcome = None
         project_root_path = Path(self.project_root).expanduser().resolve()
         docs_dir = str(project_root_path / "docs_entrada")
         data_dir = str(project_root_path / "data")
@@ -480,22 +483,23 @@ class RescanWorker(QThread):
             if db_parent not in extra_allowed_roots:
                 extra_allowed_roots.append(db_parent)
         outcome_before = import_outcome.get_last_import_outcome()
-        result = run_importer_logic(
-            docs_dir=docs_dir,
-            data_dir=data_dir,
-            db_name=db_name,
-            table_name="ssa_table",
-            force_import=self.force_import,
-            explicit_files=self.explicit_files,
-            extra_allowed_roots=tuple(extra_allowed_roots),
-            should_cancel=lambda: self._should_stop,
-            progress_callback=self._progress_callback,
-        )
-        outcome_after = import_outcome.get_last_import_outcome()
-        self._last_import_outcome = (
-            outcome_after if outcome_after is not outcome_before else None
-        )
-        return result
+        try:
+            return run_importer_logic(
+                docs_dir=docs_dir,
+                data_dir=data_dir,
+                db_name=db_name,
+                table_name="ssa_table",
+                force_import=self.force_import,
+                explicit_files=self.explicit_files,
+                extra_allowed_roots=tuple(extra_allowed_roots),
+                should_cancel=lambda: self._should_stop,
+                progress_callback=self._progress_callback,
+            )
+        finally:
+            outcome_after = import_outcome.get_last_import_outcome()
+            self._last_import_outcome = (
+                outcome_after if outcome_after is not outcome_before else None
+            )
 
     def _count_database_rows(self) -> int | None:
         db_path = self.db_path or str(
@@ -514,6 +518,7 @@ class RescanWorker(QThread):
             return None
 
     def _run_explicit_import_batches(self) -> bool | None:
+        from core import import_outcome
         from extracao.extractor import MAX_IMPORT_BATCH_FILES
 
         source_mode = bool(self.source_files)
@@ -537,6 +542,7 @@ class RescanWorker(QThread):
         self._database_rows_before = self._count_database_rows()
         self._database_rows_after = self._database_rows_before
         any_success = False
+        aggregate_outcome = None
         had_runtime_failure = False
         had_rejection_only = False
         initial_force_import = self.force_import
@@ -562,7 +568,25 @@ class RescanWorker(QThread):
                 should_continue, _summary = self._prepare_import_inputs()
                 if not should_continue:
                     return None
-                batch_success = self._run_import_operation()
+                try:
+                    batch_success = self._run_import_operation()
+                finally:
+                    batch_outcome = self._last_import_outcome
+                    if batch_outcome is not None:
+                        changed = batch_outcome.primary_database_changed or bool(
+                            aggregate_outcome and aggregate_outcome.primary_database_changed
+                        )
+                        if aggregate_outcome is None or not import_outcome.is_blocking_status(
+                            aggregate_outcome.status
+                        ):
+                            aggregate_outcome = batch_outcome
+                        aggregate_outcome = replace(
+                            aggregate_outcome, primary_database_changed=changed
+                        )
+                        had_runtime_failure = (
+                            had_runtime_failure
+                            or import_outcome.is_blocking_status(batch_outcome.status)
+                        )
                 any_success = batch_success or any_success
                 had_runtime_failure = had_runtime_failure or self._has_runtime_errors
                 had_rejection_only = had_rejection_only or self._last_rejection_only
@@ -572,6 +596,7 @@ class RescanWorker(QThread):
                 self.batch_completed.emit(batch_index, self._batch_total)
         finally:
             self.force_import = initial_force_import
+            self._last_import_outcome = aggregate_outcome
 
         self._last_rejection_only = had_rejection_only and not had_runtime_failure
         return False if had_runtime_failure else any_success
@@ -686,25 +711,26 @@ class RescanWorker(QThread):
 
             outcome = self._last_import_outcome
             outcome_status = getattr(outcome, "status", None)
-            if (
-                outcome_status is not None
-                and getattr(outcome_status, "value", "") == "import_busy"
-            ):
-                self.last_outcome = RescanOutcome.ERROR
-                self.progress.emit(100, "Importador ocupado")
-                self.output_line.emit("")
-                self.output_line.emit(
-                    "=== Importacao Nao Executada (Importador Ocupado) ==="
+            from core import import_outcome
+
+            if outcome is not None and import_outcome.is_blocking_status(outcome_status):
+                self.last_outcome = (
+                    RescanOutcome.UPDATED
+                    if outcome.primary_database_changed
+                    else RescanOutcome.ERROR
                 )
-                self.output_line.emit(
-                    "Outra rodada de importacao em andamento; nada foi alterado."
-                )
+                self.progress.emit(100, "Importacao encerrada com erro")
                 self.finished_error.emit(
-                    "Importador ocupado: outra rodada em andamento"
+                    f"Importacao bloqueada ({outcome.status.value}): {outcome.reason}. "
+                    + (
+                        "O banco recebeu alteracoes parciais."
+                        if outcome.primary_database_changed
+                        else "O banco nao foi alterado."
+                    )
                 )
                 return
 
-            if success:
+            if success or (outcome is not None and outcome.primary_database_changed):
                 database_changed_raw = getattr(
                     outcome, "primary_database_changed", None
                 )

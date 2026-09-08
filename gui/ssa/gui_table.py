@@ -381,16 +381,20 @@ def _build_page_content_digest(
 
     try:
         digest = hashlib.blake2b(digest_size=16)
-        digest.update(
-            "|".join(str(col) for col in display_df.columns).encode("utf-8")
+        metadata = (
+            tuple(display_df.columns),
+            tuple(
+                ("category", tuple(dtype.categories), dtype.ordered)
+                if isinstance(dtype, pd.CategoricalDtype)
+                else repr(dtype)
+                for dtype in display_df.dtypes
+            ),
+            tuple(display_df.index.names),
+            str(display_df.index.dtype),
+            display_df.shape,
         )
-        digest.update(f"|rows={len(display_df)}".encode("utf-8"))
-        for col in display_df.columns:
-            col_hash = hash_pandas_object(
-                display_df[col].astype("string").fillna(""),
-                index=False,
-            )
-            digest.update(col_hash.values.tobytes())
+        digest.update(repr(metadata).encode("utf-8"))
+        digest.update(hash_pandas_object(display_df, index=True).values.tobytes())
         return digest.digest()
     except Exception as exc:
         logger.warning("Falha ao computar digest da pagina: %s", exc)

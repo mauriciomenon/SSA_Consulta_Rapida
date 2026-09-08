@@ -9,6 +9,7 @@ from typing import Any
 
 import pandas as pd
 
+from gui.ssa.column_filter_engine import _trim_cache_dict
 from utils.robust_logging import get_robust_logger
 
 from .filter_domain_rules import (
@@ -24,6 +25,7 @@ from .gui_filters_responsavel_state import responsavel_materialization_state
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 RESPONSAVEL_CACHE_MAX_ENTRIES = 8
+RESPONSAVEL_CACHE_MAX_BYTES = 8 * 1024 * 1024
 RESPONSAVEL_WIDGET_BINDINGS = {
     "adv_responsavel_solicitante": (
         "adv_responsavel_solicitante_box",
@@ -540,8 +542,10 @@ def _set_updates_enabled(widget, enabled: bool) -> bool | None:
 
 
 def _trim_ordered_cache(cache: OrderedDict[Any, Any]) -> None:
-    while len(cache) > RESPONSAVEL_CACHE_MAX_ENTRIES:
-        cache.popitem(last=False)
+    _trim_cache_dict(
+        cache, RESPONSAVEL_CACHE_MAX_ENTRIES,
+        max_bytes=RESPONSAVEL_CACHE_MAX_BYTES // 3,
+    )
 
 
 def responsavel_options_refresher(window) -> ResponsavelOptionsRefresher:

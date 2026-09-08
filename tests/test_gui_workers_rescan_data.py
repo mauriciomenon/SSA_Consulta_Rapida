@@ -1,8 +1,55 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from gui.ssa import gui_workers as ssa_gui_workers
+
+
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("batch_reloaded", [False, True])
+@pytest.mark.parametrize("cancelled", [False, True])
+@pytest.mark.parametrize("partial_next_batch", [False, True])
+def test_rescan_error_reloads_committed_changes_without_hiding_error(
+    tmp_path, changed, batch_reloaded, cancelled, partial_next_batch
+):
+    window = _Window()
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=_build_main_py(tmp_path),
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=[],
+        global_meta={},
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        reload_on_success=True,
+    )
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker._last_import_outcome = SimpleNamespace(primary_database_changed=changed)
+    worker._batch_index = 1
+    if batch_reloaded:
+        worker.batch_completed.emit(1, 2)
+        if partial_next_batch:
+            worker._batch_index = 2
+    worker.finished_error.emit(
+        "Processo cancelado pelo usuario" if cancelled else "Falha no segundo lote"
+    )
+    expected_reloads = int(batch_reloaded) + int(
+        changed and (not batch_reloaded or partial_next_batch)
+    )
+    assert window.load_calls == expected_reloads
+    assert "Carregando" not in window.status_label.text
+    expected_status = "cancel" if cancelled else "erro"
+    assert expected_status in window.status_label.text.lower()
 
 
 class _Signal:

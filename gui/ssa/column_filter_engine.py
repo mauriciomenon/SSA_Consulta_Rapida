@@ -11,7 +11,11 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
+from core.cache_manager import CacheManager
 from shared.date_utils import parse_datetime_series_mixed
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 _DATE_FILTER_PATTERN_RE = re.compile(
@@ -33,6 +37,7 @@ class ColumnFilterCaches:
     )
     date_filter_terms: dict[tuple[str, bool], bool] = field(default_factory=dict)
     max_entries: int = 96
+    max_bytes: int = 16 * 1024 * 1024
 
 
 class OrFilterGroup(TypedDict, total=False):
@@ -283,7 +288,7 @@ def _build_effective_column_mask(
             build_column_mask,
         )
     caches.mask[mask_key] = col_mask
-    _trim_cache_dict(caches.mask, caches.max_entries)
+    _trim_cache_dict(caches.mask, caches.max_entries, max_bytes=caches.max_bytes // 6)
     return col_mask.reindex(df.index, fill_value=False)
 
 
@@ -309,34 +314,41 @@ def _get_cached_text_series(
     col_casefold = col_series.str.casefold()
     caches.series[cache_key] = col_series
     caches.casefold[cache_key] = col_casefold
-    _trim_cache_dict(caches.series, caches.max_entries)
-    _trim_cache_dict(caches.casefold, caches.max_entries)
+    _trim_cache_dict(caches.series, caches.max_entries, max_bytes=caches.max_bytes // 6)
+    _trim_cache_dict(caches.casefold, caches.max_entries, max_bytes=caches.max_bytes // 6)
     return col_series, col_casefold
 
 
-def _trim_cache_dict(cache: dict, max_entries: int) -> None:
+def _trim_cache_dict(cache: dict, max_entries: int, *, max_bytes: int | None = None) -> None:
     limit = max(1, int(max_entries))
     while len(cache) > limit:
         first_key = next(iter(cache), None)
         if first_key is None:
             return
         cache.pop(first_key, None)
+    if max_bytes is not None:
+        try:
+            sizes = {
+                key: CacheManager._estimate_cache_items_memory([(str(key), value)])
+                for key, value in cache.items()
+            }
+            total_bytes = sum(sizes.values())
+            while cache and total_bytes > max_bytes:
+                first_key = next(iter(cache))
+                cache.pop(first_key)
+                total_bytes -= sizes[first_key]
+        except Exception as exc:
+            cache.clear()
+            logger.warning("Column filter cache size unavailable; cache cleared: %s", exc)
 
 
 def _trim_date_caches(caches: ColumnFilterCaches) -> None:
-    limit = max(1, int(caches.max_entries))
-    while len(caches.date) > limit:
-        first_key = next(iter(caches.date), None)
-        if first_key is None:
-            break
-        caches.date.pop(first_key, None)
-        caches.date_parsed.pop(first_key, None)
-    while len(caches.date_parsed) > limit:
-        first_key = next(iter(caches.date_parsed), None)
-        if first_key is None:
-            break
-        caches.date_parsed.pop(first_key, None)
-        caches.date.pop(first_key, None)
+    _trim_cache_dict(caches.date, caches.max_entries, max_bytes=caches.max_bytes // 6)
+    _trim_cache_dict(caches.date_parsed, caches.max_entries, max_bytes=caches.max_bytes // 6)
+    for key in caches.date.keys() - caches.date_parsed.keys():
+        del caches.date[key]
+    for key in caches.date_parsed.keys() - caches.date.keys():
+        del caches.date_parsed[key]
 
 
 def _should_match_date_display_filter_cached(

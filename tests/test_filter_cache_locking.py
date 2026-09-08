@@ -104,7 +104,7 @@ def test_filter_cache_uses_default_limit_for_invalid_env(monkeypatch):
 
     stats = cache.get_stats()
 
-    assert stats["max_entry_mb"] == 64.0
+    assert stats["max_entry_mb"] == 16.0
 
 
 def test_filter_cache_unlimited_when_env_zero(monkeypatch):

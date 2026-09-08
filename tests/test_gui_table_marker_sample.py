@@ -9,6 +9,8 @@ cache key and the render signature, so applying a filter that kept the page at
 
 import os
 import sys
+from collections import OrderedDict
+from threading import Event
 from unittest.mock import patch
 
 import pandas as pd
@@ -25,10 +27,20 @@ if project_root not in sys.path:
 from PyQt6.QtCore import QEvent  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
+from core import search_filter  # noqa: E402
+from gui.cache.filter_cache import FilterCache  # noqa: E402
+from gui.workers.filter_worker import FilterWorker  # noqa: E402
 from gui import gui_ssa  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_table  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolated_filter_caches(monkeypatch):
+    monkeypatch.setattr(search_filter, "_NORMALIZED_SEARCH_CACHE", OrderedDict())
+    monkeypatch.setattr(search_filter, "_NORMALIZED_SEARCH_CACHE_GENERATION", 0)
+    monkeypatch.setattr(FilterWorker, "_cache", FilterCache(max_size=50))
 
 
 def _nullable_frame(rows: int, executors: list[str]) -> pd.DataFrame:
@@ -39,7 +51,7 @@ def _nullable_frame(rows: int, executors: list[str]) -> pd.DataFrame:
     what made both pages produce an EMPTY marker on the old code.
     """
     na_position = max(0, min(rows - 6, 44))
-    week_values = [202628] * rows
+    week_values: list[int | None] = [202628] * rows
     week_values[na_position] = None
     return pd.DataFrame(
         {
@@ -71,6 +83,40 @@ def _table_column_index(window, header_fragment: str) -> int:
 
 
 class TestRenderMarkerSample:
+    def test_digest_includes_categorical_dtype_metadata(self):
+        frame = pd.DataFrame({"value": pd.Categorical(["a"], categories=["a", "b"])})
+        changed = pd.DataFrame({"value": pd.Categorical(["a"], categories=["a", "c"])})
+        assert gui_table._build_page_content_digest(frame) != gui_table._build_page_content_digest(changed)
+
+    @pytest.mark.parametrize("change", ["index", "dtype", "columns", "order", "cell"])
+    def test_digest_covers_full_frame_contract(self, change):
+        frame = pd.DataFrame({"left": range(500), "right": range(500)})
+        changed = frame.copy()
+        if change == "index":
+            changed.index = range(1, 501)
+        elif change == "dtype":
+            changed = changed.astype("Int64")
+        elif change == "columns":
+            changed.columns = ["left|right", ""]
+        elif change == "order":
+            changed = changed.iloc[::-1]
+        else:
+            changed.iloc[321, 1] = 987654
+        assert gui_table._build_page_content_digest(frame) != gui_table._build_page_content_digest(changed)
+
+    def test_responsavel_fingerprint_failure_never_reuses_shape(self, monkeypatch):
+        from gui.ssa.filter_domain_rules import generate_responsavel_sector_filter_cache_signature
+
+        def fail_hash(*args, **kwargs):
+            raise TypeError("unsupported value")
+
+        monkeypatch.setattr(pd.util, "hash_pandas_object", fail_hash)
+        frame = pd.DataFrame({"solicitante": ["A"]})
+        first = generate_responsavel_sector_filter_cache_signature(frame, data_load_token=None)
+        frame.loc[0, "solicitante"] = "B"
+        second = generate_responsavel_sector_filter_cache_signature(frame, data_load_token=None)
+        assert first != second
+
     def test_marker_non_empty_and_content_sensitive_with_nullable_numbers(self):
         frame = _nullable_frame(3, ["IEE3", "MEL4", "XYZ"])
         marker = gui_table._build_render_marker_sample(frame)
@@ -92,6 +138,10 @@ class TestEqualSizedPageRender:
         cls.app = QApplication.instance() or QApplication([])
 
     def setup_method(self):
+        self._retired_workers_patch = patch.object(
+            gui_ssa, "GLOBAL_RETIRED_DATA_LOADER_WORKERS", []
+        )
+        self._retired_workers_patch.start()
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
@@ -106,17 +156,101 @@ class TestEqualSizedPageRender:
         )
 
     def teardown_method(self):
-        self._load_patch.stop()
-        filter_worker_registry = self.window._filter_worker_registry
-        filter_worker_registry.clear()
-        self.window.close()
-        self.window.deleteLater()
-        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        QApplication.processEvents()
         try:
-            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.clear()
-        except Exception:
-            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = []
+            filter_worker_registry = self.window._filter_worker_registry
+            filter_worker_registry.clear()
+            self.window.close()
+            self.window.deleteLater()
+            QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            QApplication.processEvents()
+        finally:
+            self._load_patch.stop()
+            self._retired_workers_patch.stop()
+
+    def test_blank_search_rejects_previous_callback_and_restores_undo(self):
+        self._set_search_baseline()
+        window = self.window
+        window._sync_filtering = True
+        target = str(self.mixed_df.iloc[0]["numero_ssa"])
+        window.search_input.setText(f"={target}")
+        window.initiate_filtering()
+        previous_request = window._active_filter_request_id
+        previous_result = window._df_last_search_filtered.copy()
+        assert len(previous_result) == 1
+
+        window.search_input.clear()
+        window._debounce_timer.start(10000)
+        window.initiate_filtering()
+        assert not window._debounce_timer.isActive()
+        assert window._active_filter_request_id != previous_request
+        assert window._df_last_search_filtered is window.df_completo
+        window.on_filter_finished(previous_result, request_id=previous_request)
+        assert window._df_last_search_filtered is window.df_completo
+
+        window._restore_last_filter_state()
+        assert window.search_input.text() == f"={target}"
+        assert len(window.df_exibido) == 1
+
+    def test_data_revision_releases_all_retained_filter_owners(self):
+        self._set_search_baseline()
+        window = self.window
+        retained = self.mixed_df.copy()
+        window._filter_refresh_result_cache = retained
+        window._column_filter_series_cache = {"old": retained["descricao_ssa"]}
+        window._adv_str_cache = {"old": retained["descricao_ssa"]}
+        window.cache_manager.cache_formatted_df("old", retained)
+        search_filter._NORMALIZED_SEARCH_CACHE[("old",)] = {"columns": retained}
+
+        window._bump_data_revision("release_owner_regression")
+
+        assert window._filter_refresh_result_cache is None
+        assert not window._column_filter_series_cache
+        assert not window._adv_str_cache
+        assert window.cache_manager.get_cached_formatted_df("old") is None
+        assert not search_filter._NORMALIZED_SEARCH_CACHE
+
+    def test_blank_search_cancels_running_worker_before_late_result(self, monkeypatch):
+        from gui.workers import filter_worker
+
+        self._set_search_baseline()
+        window = self.window
+        entered, release = Event(), Event()
+        filter_worker.FilterWorker.clear_shared_cache()
+
+        def delayed_search(frame, *args, **kwargs):
+            entered.set()
+            assert release.wait(3), "test did not release blocked worker"
+            return frame.iloc[:1]
+
+        monkeypatch.setattr(filter_worker, "apply_general_search_terms", delayed_search)
+        window._sync_filtering = False
+        window.search_input.setText("Texto")
+        window.initiate_filtering()
+        worker = window.filter_thread
+        try:
+            assert entered.wait(3), "worker did not enter search"
+            window.search_input.clear()
+            window.initiate_filtering()
+            assert worker.isInterruptionRequested()
+        finally:
+            release.set()
+            assert worker.wait(3000), "worker did not stop"
+        QApplication.processEvents()
+        assert window._df_last_search_filtered is window.df_completo
+        assert len(window.df_exibido) == len(self.mixed_df)
+
+    def test_refresh_without_cache_candidate_drops_previous_result(self):
+        self._set_search_baseline()
+        window = self.window
+        window._filter_refresh_result_cache = self.mixed_df.copy()
+        result = window._apply_filter_refresh_filters_and_update_cache(
+            window.df_completo,
+            has_post_search_filters=False,
+            has_excluded_terminal_status=False,
+            measure_timing=lambda name, operation: operation(),
+        )
+        assert result is window.df_completo
+        assert window._filter_refresh_result_cache is None
 
     def _set_search_baseline(self) -> None:
         self.window.df_completo = self.mixed_df.copy()

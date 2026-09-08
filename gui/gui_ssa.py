@@ -961,6 +961,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._canonical_available_columns_cache_key = None
         self._canonical_available_columns_cache = None
         self._adv_values_cache = {}
+        if reason != "sort_column":
+            self.clear_filter_cache()
+            named_caches = getattr(getattr(self, "cache_manager", None), "_named_caches", None)
+            if isinstance(named_caches, dict):
+                named_caches.clear()
         if reason:
             logger.debug("Data revision bump (%s): %s", reason, next_rev)
         return next_rev

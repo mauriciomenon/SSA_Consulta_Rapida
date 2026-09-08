@@ -1669,8 +1669,11 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
                             safe[col] = pd.to_numeric(series, errors="coerce")
                             conversions_made.append(f"{col}: mixed->numeric")
                             continue
-                        except Exception:
-                            pass  # Fall through to string conversion
+                        except Exception as exc:
+                            logger.warning(
+                                "Falha ao converter coluna %s para numero; usando texto: %s",
+                                col, exc,
+                            )
 
                     # Otherwise convert to string
                     safe[col] = series.astype(str)
@@ -3419,21 +3422,19 @@ if REAL_RUNTIME and not raw_df.empty:
                         _clear_recent_api_snapshot()
                         status = getattr(outcome, "status", None)
                         status_value = getattr(status, "value", "")
-                        if outcome is not None and outcome.primary_database_changed:
+                        if outcome is not None and _import_outcome.is_blocking_status(status):
+                            st.error(
+                                f"Importacao terminou com status bloqueante ({status_value})."
+                                + (
+                                    " O banco recebeu alteracoes parciais."
+                                    if outcome.primary_database_changed else ""
+                                )
+                            )
+                        elif outcome is not None and outcome.primary_database_changed:
                             st.success("Importacao concluida.")
                         elif status_value == "deterministic_rejections_only":
                             st.info(
                                 "Arquivos rejeitados por regra deterministica; banco inalterado."
-                            )
-                        elif status_value == "import_busy":
-                            st.warning(
-                                "Importador ocupado: outra rodada em andamento; nada foi alterado."
-                            )
-                        elif outcome is not None and _import_outcome.is_blocking_status(
-                            status
-                        ):
-                            st.error(
-                                f"Importacao terminou com status bloqueante ({status_value})."
                             )
                         elif ok:
                             st.success("Importacao concluida.")

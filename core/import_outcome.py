@@ -4,7 +4,7 @@ The importer historically returns a single bool whose meaning depends on
 the path taken (updated, no-op, rejections-only, failure, cancellation).
 This module gives every caller one structured result while the legacy
 bool stays untouched as ``legacy_result``. Recording happens inside
-``run_importer_logic``; the last outcome of the process is available via
+``run_importer_logic``; the last outcome of the current thread is available via
 ``get_last_import_outcome``.
 """
 
@@ -141,25 +141,17 @@ def build_import_outcome(
     )
 
 
-_LAST_OUTCOME_LOCK = threading.Lock()
-_LAST_OUTCOME: Optional[ImportOutcome] = None
+_OUTCOME_CONTEXT = threading.local()
 
 
 def record_import_outcome(outcome: ImportOutcome, *, expected_run_id: str = "") -> bool:
-    """Record the outcome; returns False if it does not match the expected run.
-
-    When expected_run_id is provided and differs from the outcome's run_id,
-    the outcome belongs to a different invocation (concurrent thread) and
-    is NOT recorded, preventing cross-run contamination.
-    """
-    global _LAST_OUTCOME
+    """Record the calling thread's outcome, rejecting mismatched run IDs."""
     if expected_run_id and outcome.run_id != expected_run_id:
         return False
-    with _LAST_OUTCOME_LOCK:
-        _LAST_OUTCOME = outcome
+    _OUTCOME_CONTEXT.outcome = outcome
     return True
 
 
 def get_last_import_outcome() -> Optional[ImportOutcome]:
-    with _LAST_OUTCOME_LOCK:
-        return _LAST_OUTCOME
+    """Return this thread's last invocation; other threads cannot overwrite it."""
+    return getattr(_OUTCOME_CONTEXT, "outcome", None)

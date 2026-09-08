@@ -8,7 +8,9 @@ returns (ok, report); a fresh check runs only when the database changed.
 """
 
 import os
+import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -86,6 +88,29 @@ def test_repair_wrapper_keeps_boolean_contract(tmp_path):
     db_path = _healthy_db(tmp_path)
 
     assert repair_database_if_needed(db_path, SCHEMA_FILE) is True
+
+
+def test_restore_returns_actual_schema_and_row_report(tmp_path, monkeypatch):
+    db_path = _healthy_db(tmp_path)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute("INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                     "VALUES ('202600001', 'ADM', '2026-01-01 00:00:00')")
+    assert database_integrity._create_integrity_snapshot(db_path, force=True)
+    Path(db_path).write_bytes(b"corrupted SQLite" * 64)
+    counter = _counting_verify(monkeypatch)
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is True
+    assert report["is_valid"] is True
+    assert report["restored_from_snapshot"] is True
+    assert report["table_exists"] is True
+    assert report["schema_valid"] is True
+    assert report["missing_required_columns"] == []
+    assert report["issues"] == []
+    assert counter["calls"] == 2
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [("202600001",)]
 
 
 def test_prepare_working_database_runs_heavy_check_once(tmp_path, monkeypatch):

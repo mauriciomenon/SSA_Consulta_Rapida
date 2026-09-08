@@ -536,24 +536,7 @@ def _resolve_upsert_config() -> tuple[dict[str, int], list[str], list[str]]:
         if desc_cols_env
         else ["descricao_ssa", "descricao", "detalhes", "comentarios"]
     )
-    date_columns = [
-        "data_cadastro",
-        "prazo_limite",
-        "data_limite",
-        "desde",
-        "desde_1",
-        "desde_2",
-        "ate",
-        "ate_1",
-        "ate_2",
-        "data_inicio_programada",
-        "data_programacao",
-        "data_inicio_reprogramada",
-        "data_reprogramacao",
-        "instalacao_estimada",
-        "executado",
-        "concluido",
-    ]
+    date_columns = list(UPSERT_DATE_COLUMNS)
     return status_rank, description_columns, date_columns
 
 
@@ -1266,28 +1249,30 @@ def _perform_upsert(
     return total_upserted
 
 
+UPSERT_DATE_COLUMNS = (
+    "data_cadastro",
+    "prazo_limite",
+    "data_limite",
+    "desde",
+    "desde_1",
+    "desde_2",
+    "ate",
+    "ate_1",
+    "ate_2",
+    "data_inicio_programada",
+    "data_programacao",
+    "data_inicio_reprogramada",
+    "data_reprogramacao",
+    "instalacao_estimada",
+    "executado",
+    "concluido",
+)
+
+
 def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
     work_local = prepare_dataframe_for_storage(frame, normalize_derivada=True)
     _validate_canonical_storage_ids(work_local)
-    date_columns = [
-        "data_cadastro",
-        "prazo_limite",
-        "data_limite",
-        "desde",
-        "desde_1",
-        "desde_2",
-        "ate",
-        "ate_1",
-        "ate_2",
-        "data_inicio_programada",
-        "data_programacao",
-        "data_inicio_reprogramada",
-        "data_reprogramacao",
-        "instalacao_estimada",
-        "executado",
-        "concluido",
-    ]
-    for c in date_columns:
+    for c in UPSERT_DATE_COLUMNS:
         if c in work_local.columns:
             work_local[c] = work_local[c].map(
                 lambda value, col=c: _safe_parse_any_date(value, col)
