@@ -36,11 +36,12 @@ import pandas as pd
 
 try:
     from utils.version import get_app_version
-except ImportError:
+except ImportError as exc:
+    logging.getLogger(__name__).warning("Falha ao importar versao da aplicacao: %s", exc)
 
     def get_app_version(project_root: str | None = None) -> str:
         _ = project_root
-        return "3.11+"
+        return "indisponivel"
 
 
 # --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---

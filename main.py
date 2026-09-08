@@ -202,11 +202,9 @@ def get_app_version():
         from utils.version import get_app_version as _get_version
 
         return _get_version()
-    except ImportError:
-        return "3.11+"
     except Exception as exc:  # noqa: BLE001
-        logger.debug("Falha ao obter versao via utils.version: %s", exc)
-        return "3.11+"
+        logger.warning("Falha ao obter versao via utils.version: %s", exc)
+        return "indisponivel"
 
 
 
