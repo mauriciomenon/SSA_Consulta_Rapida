@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import re
@@ -26,16 +25,6 @@ def _test_env(**overrides: str) -> dict[str, str]:
 
 def _read_repo_text(*parts: str) -> str:
     return (PROJECT_ROOT.joinpath(*parts)).read_text(encoding="utf-8")
-
-
-def _load_opencode_review_module():
-    script_path = PROJECT_ROOT / "scripts" / "ci" / "opencode_pr_review.py"
-    spec = importlib.util.spec_from_file_location("opencode_pr_review_test", script_path)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_key_shell_scripts_parse_with_available_bash() -> None:
@@ -101,23 +90,6 @@ def test_windows_activation_avoids_dynamic_eval_and_silent_catches() -> None:
     silent_catch = re.compile(r"catch\s*\{\s*(?:#[^\r\n]*\s*)?\}", re.MULTILINE)
     assert silent_catch.search(activate_repo) is None
     assert silent_catch.search(direnv_common) is None
-
-
-def test_cleanup_ai_artifacts_reports_git_remove_failures() -> None:
-    script = _read_repo_text("scripts", "cleanup_ai_artifacts.ps1")
-    silent_catch = re.compile(r"catch\s*\{\s*(?:#[^\r\n]*\s*)?\}", re.MULTILINE)
-
-    assert silent_catch.search(script) is None
-    assert script.count("if ($LASTEXITCODE -ne 0)") == 2
-    assert script.count("Write-Warning $message") == 2
-    assert script.count("deletion was not staged") == 2
-    assert script.count("$gitRemoveFailures++") == 2
-    assert "if ($NoGit)" in script
-    assert "elseif ($gitRemoveFailures -gt 0)" in script
-    assert "git deletion(s) were not staged" in script
-    assert "Write-Host" not in script
-    assert "function Ensure-Dir" not in script
-    assert "function New-DirectoryIfMissing" not in script
 
 
 def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
@@ -498,54 +470,11 @@ def test_secret_scan_script_valid_pattern_without_match_succeeds(tmp_path: Path)
     assert "[OK] No sensitive patterns detected" in result.stdout
 
 
-def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
-    workflow = _read_repo_text(".github", "workflows", "opencode.yml")
-    local_action = _read_repo_text(".github", "actions", "opencode-github", "action.yml")
-
-    assert "push:" not in workflow
-    assert "\n  pull_request:" not in workflow
-    assert "opencode-pr-review:" not in workflow
-    assert "opencode-push-review:" not in workflow
-    assert workflow.count("environment: SECRETS") == 3
-    assert "noop:" in workflow
-    assert 'echo "No opencode command in comment; skipping."' in workflow
-    assert "Run automatic PR review" not in workflow
-    assert "Run automatic push review" not in workflow
-    assert "Review this pull request for concrete bugs" not in workflow
-    assert "Review the pushed commit range for concrete bugs" not in workflow
-    assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 1
-    assert workflow.count("uses: ./.github/actions/opencode-github") == 3
-    assert workflow.count("qwen-cloud-coding-plan") == 1
-    assert workflow.count("github.event.issue.pull_request") == 3
-    assert "anomalyco/opencode/github@" not in workflow
-    assert 'default: "true"' in local_action
-    assert "REVIEW_GITHUB_TOKEN: ${{ github.token }}" in local_action
-    assert "opencode github run" not in local_action
-    assert "python scripts/ci/opencode_pr_review.py" in local_action
-    assert "\n        GITHUB_TOKEN: ${{ github.token }}" not in local_action
-    assert "\n        GH_TOKEN: ${{ github.token }}" not in local_action
-    assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
-    assert "actions/cache@v4" not in local_action
-    assert "npm install" not in local_action
-    assert "Dynamic npm package installation is disabled for this repository" in local_action
-    assert "exit 1" in local_action
-    assert "if: steps.cache.outputs.cache-hit == 'true'" in local_action
-    assert "curl -fsSL https://opencode.ai/install | bash" not in local_action
-    assert "releases/latest" not in local_action
-    assert "id-token: write" not in workflow
-    qwen_action = _read_repo_text(".github", "actions", "configure-qwen-opencode", "action.yml")
-    assert "umask 077" in qwen_action
-    assert 'chmod 600 "${HOME}/.config/opencode/opencode.json"' in qwen_action
-
-
 def test_github_actions_do_not_install_python_or_npm_packages_dynamically() -> None:
     checked_paths = [
-        ".github/actions/opencode-github/action.yml",
-        ".github/actions/configure-qwen-opencode/action.yml",
         ".github/workflows/codeql.yml",
         ".github/workflows/dependency-review.yml",
         ".github/workflows/minimal-ci.yml",
-        ".github/workflows/opencode.yml",
         ".github/workflows/release-windows.yml",
         ".github/workflows/secret_scan.yml",
     ]
@@ -575,7 +504,6 @@ def test_github_workflow_external_actions_are_pinned_by_sha() -> None:
         ".github/workflows/codeql.yml",
         ".github/workflows/dependency-review.yml",
         ".github/workflows/minimal-ci.yml",
-        ".github/workflows/opencode.yml",
         ".github/workflows/release-windows.yml",
         ".github/workflows/secret_scan.yml",
     ]
@@ -621,157 +549,6 @@ def test_release_windows_workflow_uses_env_for_dispatch_inputs() -> None:
     assert 'if ($env:RELEASE_INSTALLER_REQUIRED -eq "true")' in workflow
     assert "if: ${{ env.RELEASE_INSTALLER_REQUIRED == 'true' }}" in workflow
     assert "windows-release-${{ env.RELEASE_BACKEND }}" in workflow
-
-
-def test_opencode_review_script_extracts_pr_number() -> None:
-    module = _load_opencode_review_module()
-
-    assert module.extract_pr_number({"pull_request": {"number": 58}}) == 58
-    assert module.extract_pr_number({"issue": {"number": 59, "pull_request": {"url": "x"}}}) == 59
-    with pytest.raises(ValueError, match="pull request"):
-        module.extract_pr_number({"issue": {"number": 60}})
-
-
-def test_opencode_review_script_requires_clear_environment(monkeypatch) -> None:
-    module = _load_opencode_review_module()
-
-    monkeypatch.delenv("MODEL", raising=False)
-
-    with pytest.raises(RuntimeError, match="MODEL"):
-        module.required_env("MODEL")
-
-
-def test_opencode_review_script_does_not_print_failed_command_output(tmp_path: Path, capsys) -> None:
-    module = _load_opencode_review_module()
-    output_path = tmp_path / "captured.txt"
-
-    with pytest.raises(subprocess.CalledProcessError):
-        module.run_checked(
-            [
-                sys.executable,
-                "-c",
-                "import sys; print('SECRET_STDOUT'); print('SECRET_STDERR', file=sys.stderr); sys.exit(3)",
-            ],
-            stdout_path=output_path,
-        )
-
-    captured = capsys.readouterr()
-    assert "SECRET_STDOUT" not in captured.out
-    assert "SECRET_STDERR" not in captured.out
-    assert "SECRET_STDERR" not in captured.err
-    assert "stdout captured in:" in captured.out
-    assert "SECRET_STDOUT" in output_path.read_text(encoding="utf-8")
-
-
-def test_opencode_review_script_truncates_large_diff(tmp_path: Path) -> None:
-    module = _load_opencode_review_module()
-    diff_path = tmp_path / "large.diff"
-    diff_path.write_bytes(b"a" * 120)
-
-    text, truncated = module.truncate_diff(diff_path, limit=80)
-    assert truncated is True
-    data = diff_path.read_bytes()
-    assert data == b"a" * 120
-    assert len(text.encode("utf-8")) <= 80
-    assert "[diff truncated at 80 bytes]" in text
-
-    utf8_path = tmp_path / "utf8.diff"
-    utf8_path.write_text("linha\n" + ("\u00e1" * 100), encoding="utf-8")
-    text, truncated = module.truncate_diff(utf8_path, limit=80)
-    assert truncated is True
-    assert "\ufffd" not in text
-    assert "[diff truncated at 80 bytes]" in text
-
-    source_path = tmp_path / "source.diff"
-    review_path = tmp_path / "review.diff"
-    source_path.write_bytes(b"b" * 120)
-    _, truncated = module.truncate_diff(source_path, output_path=review_path, limit=80)
-    assert truncated is True
-    assert source_path.read_bytes() == b"b" * 120
-    assert b"[diff truncated at 80 bytes]" in review_path.read_bytes()
-
-
-def test_opencode_review_script_adds_lfs_note() -> None:
-    module = _load_opencode_review_module()
-
-    prompt = module.build_prompt("base", "version https://git-lfs.github.com/spec/v1")
-
-    assert "manual review" in prompt
-
-
-def test_opencode_review_script_rejects_unsafe_cli_arguments() -> None:
-    module = _load_opencode_review_module()
-
-    assert module.require_cli_option_value("MODEL", "github-copilot/gpt-4.1") == (
-        "github-copilot/gpt-4.1"
-    )
-    assert module.require_prompt_argument("Review this PR") == "Review this PR"
-
-    with pytest.raises(RuntimeError, match="MODEL"):
-        module.require_cli_option_value("MODEL", "--help")
-    with pytest.raises(RuntimeError, match="AGENT"):
-        module.require_cli_option_value("AGENT", "plan mode")
-    with pytest.raises(RuntimeError, match="PROMPT"):
-        module.require_prompt_argument(" --model attacker")
-    with pytest.raises(RuntimeError, match="PROMPT"):
-        module.require_prompt_argument("bad\x00prompt")
-    with pytest.raises(RuntimeError, match="MODEL"):
-        module.require_cli_option_value("MODEL", "")
-    with pytest.raises(RuntimeError, match="AGENT"):
-        module.require_cli_option_value("AGENT", "   ")
-    with pytest.raises(RuntimeError, match="PROMPT"):
-        module.require_prompt_argument("")
-
-
-def test_opencode_review_script_rejects_fork_pr(monkeypatch) -> None:
-    module = _load_opencode_review_module()
-
-    def fake_run_capture(command, *, timeout=None, env=None):
-        assert command[:3] == ["gh", "pr", "view"]
-        return '{"headRepository":{"nameWithOwner":"attacker/fork"}}'
-
-    monkeypatch.setattr(module, "run_capture", fake_run_capture)
-
-    with pytest.raises(RuntimeError, match="untrusted PR diff"):
-        module.ensure_trusted_pr_source(123, "mauriciomenon/SSA_Consulta_Rapida")
-
-
-def test_opencode_review_script_sanitizes_opencode_environment(monkeypatch) -> None:
-    module = _load_opencode_review_module()
-    opencode_key = "OPENCODE_API_KEY"
-    qwen_key = "QWEN_API_KEY"
-    zai_key = "ZAI_API_KEY"
-    zhipu_key = "ZHIPU_API_KEY"
-    monkeypatch.setenv("GITHUB_TOKEN", "dummy-github-token")
-    monkeypatch.setenv("GH_TOKEN", "dummy-gh-token")
-    monkeypatch.setenv("REVIEW_GITHUB_TOKEN", "dummy-review-token")
-    monkeypatch.setenv(opencode_key, "dummy-opencode-key")
-    monkeypatch.setenv(qwen_key, "dummy-qwen-key")
-    monkeypatch.setenv(zai_key, "dummy-zai-key")
-    monkeypatch.setenv(zhipu_key, "dummy-zhipu-key")
-    monkeypatch.setenv("MODEL_PROVIDER_VALUE", "fake-provider-value")
-
-    env = module.opencode_env("qwen-cloud-coding-plan/qwen3-coder-plus")
-
-    assert "GITHUB_TOKEN" not in env
-    assert "GH_TOKEN" not in env
-    assert "REVIEW_GITHUB_TOKEN" not in env
-    assert "MODEL_PROVIDER_VALUE" not in env
-    assert env[qwen_key] == os.environ[qwen_key]
-    assert opencode_key not in env
-    assert zai_key not in env
-    assert zhipu_key not in env
-    assert module.opencode_env("zai-coding-plan/glm-4.7") == {
-        **{
-            name: value
-            for name in module.OPENCODE_BASE_ENV_NAMES
-            if (value := os.environ.get(name)) is not None
-        },
-        zai_key: os.environ[zai_key],
-        zhipu_key: os.environ[zhipu_key],
-    }
-    with pytest.raises(RuntimeError, match="PROMPT"):
-        module.require_prompt_argument("   ")
 
 
 def test_codeql_precheck_runs_advanced_when_default_setup_is_unverified() -> None:
