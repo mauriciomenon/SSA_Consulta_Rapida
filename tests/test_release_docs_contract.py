@@ -7,6 +7,7 @@ from tests.release_script_assertions import PROJECT_ROOT, read_repo_text
 
 GUIA_DISTRIBUICAO = PROJECT_ROOT / "docs" / "GUIA_DISTRIBUICAO.md"
 SOLUCOES_AMBIENTE = PROJECT_ROOT / "docs" / "SOLUCOES_AMBIENTE_BUILD.md"
+RELEASE_TAG = "v" + read_repo_text("VERSION").strip()
 
 
 def test_distribuicao_doc_enforces_native_host_isolation() -> None:
@@ -26,7 +27,7 @@ def test_solucoes_ambiente_doc_marks_legacy_body_historical() -> None:
 
     assert text.count("## CURRENT TRUTH") == 1
     assert "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in text
-    assert "Release ativa: `v4.47`" in text
+    assert f"Release ativa: `{RELEASE_TAG}`" in text
     assert "WSL fica restrito ao CodeRabbit" in text
     assert "PR atual: #57" not in text
     assert "- Branch alvo: `dev`." not in text
@@ -45,7 +46,7 @@ def test_release_docs_sync_contract() -> None:
     source_text = read_repo_text("docs", "GUIA_DISTRIBUICAO.md")
     source_truth = source_text.split("## HISTORICAL SNAPSHOT", 1)[0]
 
-    assert "Release estavel ativa: `v4.47`" in source_truth
+    assert f"Release estavel ativa: `{RELEASE_TAG}`" in source_truth
     assert "WSL e permitido somente para CodeRabbit" in source_truth
     assert "PR #57: aberto em draft" not in source_truth
     assert "PR #56: merged" not in source_truth
@@ -65,7 +66,7 @@ def test_release_docs_sync_contract() -> None:
         assert (
             "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in current_truth
         )
-        assert "Release ativa: `v4.47`" in current_truth
+        assert f"Release ativa: `{RELEASE_TAG}`" in current_truth
         assert "WSL fica restrito ao CodeRabbit" in current_truth
         assert "PR atual: #57" not in current_truth
         assert "df0345caea9ac3050c87d2172eb75817b8fc3689" not in current_truth

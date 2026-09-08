@@ -1,6 +1,18 @@
 # Merge Readiness Architecture
 
-## Current Truth 2026-05-20 23h14
+## CURRENT TRUTH (2026-09-08, v4.50)
+
+- Runtime e fontes: `v4.50`, branch `dev`. Tag anterior publicada: `v4.46`.
+- Neste checkout, `origin` busca no GitHub principal e publica no GitHub principal, GitHub `schottge-menon` e GitLab. `gitlab` e `schottge` sao remotos dedicados.
+- O usuario autorizou `git push` sem parametros. Os tres destinos foram conferidos por `git ls-remote`; tags exigem publicacao separada.
+- Notas: `docs/RELEASE_NOTES_v4.50.md`. Evidencias e pendencias: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- Esta rodada publica fontes. Nao gerou binarios ou instaladores novos, nem validou artefatos Windows/Linux.
+- GUI real exercitada no macOS. Retestes finais interrompidos por pedido do usuario; nao declarar esses retestes aprovados.
+- CI remoto nao foi confirmado. Clawpatch teve HTTP 429; auditoria de dependencias possui pendencias registradas.
+- `main` nao foi mesclado nesta rodada. O PR #121 ja estava mesclado; outro PR alvo ainda nao foi identificado.
+
+
+## HISTORICAL SNAPSHOT 2026-05-20 23h14
 
 - Branch alvo: `dev`.
 - Baseline usado para este DOC_SYNC:

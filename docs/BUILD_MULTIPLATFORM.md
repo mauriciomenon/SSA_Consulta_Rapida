@@ -2,14 +2,11 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (v4.47 stable)
+## CURRENT TRUTH (2026-09-08, v4.50)
 
-- Sync deste guia: `2026-08-09`.
-- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
-- Estado remoto: `origin` (GitLab) e `bitbucket` estao operacionais; HTTP 403 somente em `gh` (GitHub).
+- Sync deste guia: `2026-09-08`.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Artefatos `v4.43` citados abaixo sao exemplos historicos de nomenclatura, nao artefatos atuais para publicacao.
-- Relatorio consolidado deste ciclo:
-  - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional 3x3:
   - `docs/BUILD_3X3_RUNBOOK.md`
 - Fluxo operacional padrao:
@@ -18,7 +15,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
   3. distribuicao/report com scripts em `dev_env/build/` e `scripts/create_distribution.py`
 - Cada plataforma usa clone, venv e processo nativos do proprio host. Nao usar checkout Windows montado no WSL.
 - WSL fica restrito ao CodeRabbit em clone Linux proprio e nao executa Python, uv, testes ou build.
-- Comando canonico da v4.47 no Windows: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- Comando canonico da v4.50 no Windows: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
 - Fonte da matriz de release: `dev_env/build/release_targets.json`.
 - Matriz ativa:
   - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
@@ -43,6 +40,9 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
     - `bash dev_env/build/build_pyoxidizer_debian_arm64.sh --silent`
 - `release.sh --target all --ssh-host ... --ssh-repo ...` executa macOS local quando em Darwin e chama Debian AMD64 + Debian ARM64 no remoto configurado.
 - `release.sh --target all --dry-run --allow-missing-remote` permite validar macOS local sem host Debian.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
 
 ## Local de saida e staging
 

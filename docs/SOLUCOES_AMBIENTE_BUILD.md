@@ -1,12 +1,15 @@
 # Solucoes para Problemas de Ambiente - Build Systems
 
-## CURRENT TRUTH 2026-08-09
+## CURRENT TRUTH (2026-09-08, v4.50)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- Release ativa: `v4.47`; tag anterior: `v4.46`.
+- Release ativa: `v4.50`; tag anterior: `v4.46`.
 - Cada plataforma usa clone e venv nativos. WSL fica restrito ao CodeRabbit em clone Linux proprio.
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
-- Proximo passo operacional: rebuildar artefatos v4.43 no Windows AMD64 e Debian AMD64 a partir do HEAD sincronizado.
+- Build futuro: gerar artefatos da versao solicitada no clone nativo, a partir do ref confirmado; nenhum build novo integra esta rodada.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
 
 ## HISTORICAL SNAPSHOT 2025-11-14
 

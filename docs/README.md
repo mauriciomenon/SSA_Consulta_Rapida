@@ -1,24 +1,17 @@
 # Documentacao SSA Consulta Rapida
 
-## Baseline ativo
+## CURRENT TRUTH (2026-09-08, v4.50)
 
-- Versao de referencia: `4.47` (estavel; tag anterior: `v4.46`).
-- Esta pagina e a entrada curta da pasta `docs/`.
-- Navegacao oficial: `docs/INDEX.md`.
-- Notas atuais: `docs/RELEASE_NOTES_v4.47.md`.
-- Current truth operacional 2026-08-09:
-  - metadata ativa: `4.47`
-  - release/tag atual: `v4.47`
-  - tag anterior: `v4.46`
-  - publicacao operacional: GitLab e Bitbucket
-  - mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub
-  - `dev` e publicado em `origin/dev` e `bitbucket/dev`; `git pull` padrao usa GitLab
-  - HTTP 403 afeta somente `gh`; nao bloqueia GitLab nem Bitbucket
-  - grupos criticos de banco, importacao, release, filtros, nullable e cache validados no Windows nativo
-  - `uv lock --check` e `pip-audit` sem vulnerabilidade conhecida
-  - suite consolidada, scanners e build real ainda devem ser registrados antes da tag
-  - build Windows oficial permanece condicionado ao relatorio JSON e aos smokes do executavel empacotado
-  - Debian usa clone Linux nativo; WSL fica restrito ao CodeRabbit em clone Linux proprio
+- Runtime e fontes: `v4.50`, branch `dev`. Tag anterior publicada: `v4.46`.
+- Neste checkout, `origin` busca no GitHub principal e publica no GitHub principal, GitHub `schottge-menon` e GitLab. `gitlab` e `schottge` sao remotos dedicados.
+- O usuario autorizou `git push` sem parametros. Os tres destinos foram conferidos por `git ls-remote`; tags exigem publicacao separada.
+- Notas: `docs/RELEASE_NOTES_v4.50.md`. Evidencias e pendencias: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- Esta rodada publica fontes. Nao gerou binarios ou instaladores novos, nem validou artefatos Windows/Linux.
+- GUI real exercitada no macOS. Retestes finais interrompidos por pedido do usuario; nao declarar esses retestes aprovados.
+- CI remoto nao foi confirmado. Clawpatch teve HTTP 429; auditoria de dependencias possui pendencias registradas.
+- `main` nao foi mesclado nesta rodada. O PR #121 ja estava mesclado; outro PR alvo ainda nao foi identificado.
+
+Navegacao oficial: [INDEX.md](INDEX.md).
 
 ## Historical snapshot
 

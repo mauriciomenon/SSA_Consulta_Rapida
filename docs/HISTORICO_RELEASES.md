@@ -1,5 +1,13 @@
 # HISTORICO DE RELEASES
 
+## RELEASE v4.50 - 2026-09-08
+
+Release de fontes com correcoes de importacao, integridade, cancelamento e limites de memoria dos caches.
+Notas: [RELEASE_NOTES_v4.50.md](RELEASE_NOTES_v4.50.md).
+Validacoes e limites: [controle da rodada](CONTROLE_CORRECOES_REVISAO_2026_09_08.md).
+Nenhum binario ou instalador novo foi gerado nesta rodada.
+
+
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
 ## **RELEASE v4.47 - STABLE**
@@ -750,7 +758,7 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.47**: Release estavel ativa
+- **v4.47**: Snapshot historico
 - **v4.46**: Checkpoint anterior do ciclo tri-state
 - **v4.45**: Baseline historico de hardening
 - **v4.44**: Baseline local historico
@@ -767,7 +775,7 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se utilizar a release estavel atual (`4.47`).
+Para melhor performance e estabilidade, recomenda-se utilizar a release de fontes atual (`4.50`).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
 

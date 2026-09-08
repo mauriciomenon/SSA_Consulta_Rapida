@@ -1,12 +1,11 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (v4.47 stable)
+## CURRENT TRUTH (2026-09-08, v4.50)
 
-- Sync deste guia: `2026-08-09`.
-- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
-- `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
+- Sync deste guia: `2026-09-08`.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Caminho operacional principal:
-  - release Windows v4.47: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`
+  - release Windows v4.50: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`
   - build interno: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`
   - distribuicao: `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
@@ -19,6 +18,9 @@
   - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller` gerou ZIP, mas installer falhou por ausencia de origem Windows/Inno no host atual
 - `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
 - Debian deve executar scripts `.sh` em clone Linux nativo; nao compartilhar checkout/venv com Windows.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
 
 ## HISTORICAL SNAPSHOT NOTICE
 

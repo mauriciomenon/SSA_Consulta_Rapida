@@ -135,7 +135,7 @@ Esta publicacao nao inclui novos binarios ou instaladores.
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 
-## Release v4.47 (2026-08, stable)
+## HISTORICAL SNAPSHOT: release v4.47 (2026-08)
 
 ### Destaques
 - Atalhos de situacao alternam entre inclusao, exclusao (`!STATUS`) e estado neutro.
@@ -306,7 +306,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.47)
+### Documentacao tecnica atual (v4.50)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:

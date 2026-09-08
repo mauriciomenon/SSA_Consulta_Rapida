@@ -1,10 +1,9 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (v4.47 stable)
+## CURRENT TRUTH (2026-09-08, v4.50)
 
-- Sync deste guia: `2026-08-09`.
-- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
-- `origin` (GitLab) e `bitbucket` estao operacionais; o HTTP 403 afeta somente release/checks no remote `gh` (GitHub).
+- Sync deste guia: `2026-09-08`.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Fluxo canonico Nuitka (sempre via uv wrappers):
   - Windows: `dev_env/build/build_nuitka.bat --silent`
   - Debian em clone Linux nativo: `bash dev_env/build/build_nuitka_debian.sh --silent`
@@ -18,6 +17,9 @@
 - Pipeline oficial de release continua PyInstaller para pacote default.
 - Nuitka permanece trilha opcional de hardening/performance.
 - Nomes/versionamento exato de executavel dentro de `builds/nuitka/*` devem ser lidos do output do ciclo corrente, nao deste guia historico.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
 
 ## HISTORICAL SNAPSHOT NOTICE
 

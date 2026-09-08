@@ -1,16 +1,17 @@
 # README – PIPELINE DE BUILD AUTOMATIZADO (RASCUNHO)
 
-## CURRENT TRUTH 2026-08-09
+## CURRENT TRUTH (2026-09-08, v4.50)
 
 - Branch fonte local: `dev`.
-- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
-- `origin` e GitLab, `bitbucket` e Bitbucket e `gh` e GitHub; `dev` esta publicado nos dois primeiros.
-- O HTTP 403 por conta suspensa afeta somente `gh`; fetch, pull e push em `origin`/`bitbucket` permanecem operacionais.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Artefatos antigos versionados sao ruido historico/local e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-- Fluxo atual: validar, gerar artefatos novos, publicar `v4.47` em GitLab e espelhar tag no Bitbucket.
+- Fluxo desta rodada: publicar fontes `v4.50` no GitHub e GitLab pelos destinos configurados. Builds futuros exigem artefatos novos e smoke funcional antes da publicacao.
 - Windows usa `release.ps1` em clone nativo; Debian/macOS usam `release.sh` em clones nativos dos respectivos hosts.
 - Nao compartilhar checkout ou venv entre Windows e WSL/Linux; WSL fica restrito ao CodeRabbit em clone Linux proprio.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
 
 ## HISTORICAL SNAPSHOT 2026-05-04 01h14
 

@@ -1,5 +1,13 @@
 # CHANGELOG_IMPLEMENTACOES
 
+## v4.50 - 2026-09-08
+
+- Importacao, integridade, cancelamento, filtros e caches corrigidos.
+- Metadados do runtime e pacote alinhados com 4.50.
+- Publicacao de fontes em GitHub e GitLab; sem novos binarios.
+- Evidencias: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+
+
 ## v4.47 - STABLE MAINTENANCE RELEASE (2026-08-09)
 
 - Ciclo tri-state de situacao sincronizado entre barra rapida, filtros ativos, por coluna e avancados.

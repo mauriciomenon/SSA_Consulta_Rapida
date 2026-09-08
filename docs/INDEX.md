@@ -1,8 +1,19 @@
-# INDEX de Documentacao (Release v4.47)
+# INDEX de Documentacao (Release v4.50)
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-08-09)
+## CURRENT TRUTH (2026-09-08, v4.50)
+
+- Runtime e fontes: `v4.50`, branch `dev`. Tag anterior publicada: `v4.46`.
+- Neste checkout, `origin` busca no GitHub principal e publica no GitHub principal, GitHub `schottge-menon` e GitLab. `gitlab` e `schottge` sao remotos dedicados.
+- O usuario autorizou `git push` sem parametros. Os tres destinos foram conferidos por `git ls-remote`; tags exigem publicacao separada.
+- Notas: `docs/RELEASE_NOTES_v4.50.md`. Evidencias e pendencias: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- Esta rodada publica fontes. Nao gerou binarios ou instaladores novos, nem validou artefatos Windows/Linux.
+- GUI real exercitada no macOS. Retestes finais interrompidos por pedido do usuario; nao declarar esses retestes aprovados.
+- CI remoto nao foi confirmado. Clawpatch teve HTTP 429; auditoria de dependencias possui pendencias registradas.
+- `main` nao foi mesclado nesta rodada. O PR #121 ja estava mesclado; outro PR alvo ainda nao foi identificado.
+
+## HISTORICAL SNAPSHOT (2026-08-09)
 
 1. Release estavel confirmada: `4.47`.
 2. Branch operacional: `dev`.
@@ -107,7 +118,7 @@ O bloco abaixo e contexto historico da frente GUI/preferencias de abril de 2026.
 
 ## Regras de leitura
 
-1. Release ativa: `4.47`. Tag anterior: `v4.46`.
+1. Release ativa: `4.50`. Tag anterior: `v4.46`.
 2. Em conflito de informacao, prevalece:
    - `AGENTS.md` (raiz)
    - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
@@ -116,7 +127,7 @@ O bloco abaixo e contexto historico da frente GUI/preferencias de abril de 2026.
 ## Leitura recomendada (ordem)
 
 1. `README.md` (raiz do repositorio)
-2. `docs/RELEASE_NOTES_v4.47.md`
+2. `docs/RELEASE_NOTES_v4.50.md`
 3. `docs/HISTORICO_RELEASES.md`
 4. `docs/COMANDOS_RAPIDOS.md`
 5. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`

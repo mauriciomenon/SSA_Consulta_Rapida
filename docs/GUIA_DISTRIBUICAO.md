@@ -1,18 +1,18 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH 2026-08-09
+## CURRENT TRUTH (2026-09-08, v4.50)
 
 - Branch fonte local: `dev`.
-- Release estavel ativa: `v4.47`; tag anterior: `v4.46`.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
-- PR #58 e PR #59: merged na linhagem historica acima; `dev` esta publicado em GitLab e Bitbucket.
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
-- Windows v4.47: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- Windows v4.50: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
 - Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
 - Nao compartilhar checkout ou venv entre Windows e WSL/Linux. WSL e permitido somente para CodeRabbit em clone Linux proprio.
-- Mapa de remotos: `origin` = GitLab, `bitbucket` = Bitbucket, `gh` = GitHub. O HTTP 403 afeta somente `gh`.
-- Artefatos anteriores a `v4.47` seguem historicos e nao devem ser usados para publicacao final.
-- Commits e tags autorizados sao publicados em `origin` e `bitbucket`; release primaria usa GitLab enquanto `gh` permanece bloqueado.
+- Artefatos anteriores a `v4.50` seguem historicos e nao devem ser usados para publicacao final.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
 
 ## HISTORICAL SNAPSHOT 2026-06-11 11h
 
@@ -49,7 +49,7 @@
 Use estes comandos como entrada primaria. Os scripts em `dev_env/build/` sao
 implementacao interna e devem ser usados diretamente apenas para diagnostico.
 
-Windows AMD64 v4.47, PyInstaller com banco runtime e instalador:
+Windows AMD64 v4.50, PyInstaller com banco runtime e instalador:
 
 ```powershell
 .\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes
@@ -101,7 +101,7 @@ Dry-run macOS sem remoto Debian:
 ## Release Automatico Local (historico)
 
 O bloco abaixo preserva o fluxo antigo Windows + WSL para auditoria. Ele nao e permitido
-na release v4.47 e nao deve ser executado.
+na release v4.50 e nao deve ser executado.
 
 ```powershell
 .\dev_env\build\release_local.ps1 -Backend all -DebianPackage all -Yes
@@ -131,7 +131,7 @@ Contrato do fluxo:
 - `-DryRun`/`--dry-run` deve validar ambiente e plano sem build nem pacote.
 - `release_windows.ps1` nao chama Bash/WSL.
 - `release_debian.sh` nao chama PowerShell, `.bat` ou Inno Setup.
-- `release_local.ps1` e legado e nao faz parte do fluxo permitido da v4.47.
+- `release_local.ps1` e legado e nao faz parte do fluxo permitido da v4.50.
 
 ## Validacao Operacional 2026-03-10 (host macOS arm64)
 
