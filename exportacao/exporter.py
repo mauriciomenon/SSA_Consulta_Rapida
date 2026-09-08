@@ -1,4 +1,4 @@
-# exportacao/exporter.py 20250725 175000 (v3.1 - Tratamento de Erros e Logging)
+# exportacao/exporter.py - Tratamento de Erros e Logging
 """
 Modulo para exportar DataFrames para diferentes formatos de arquivo.
 """

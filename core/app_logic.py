@@ -1,4 +1,4 @@
-# core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Excecoes, Logging)
+# core/app_logic.py - Refatorado, Excecoes, Logging
 # Last modified: 2025-10-30T15:50:00 (simplified search: removed ALL logical operators, only commas)
 """
 Logica central da aplicacao para importacao e atualizacao do banco de dados.

@@ -1,4 +1,4 @@
-# interface/display.py 20250725 174500 (v10.12 - Tratamento de Erros Aprimorado)
+# interface/display.py - Tratamento de Erros Aprimorado
 import logging
 from typing import Any, Dict
 

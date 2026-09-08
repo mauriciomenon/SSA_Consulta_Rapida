@@ -1,4 +1,4 @@
-# extracao/extractor.py 20250725 101500 (v6.4 - Melhorias de Tipo, Sanitizacao, Logging)
+# extracao/extractor.py - Melhorias de Tipo, Sanitizacao, Logging
 """
 Módulo responsável pela extração e normalização inicial de dados de arquivos Excel.
 

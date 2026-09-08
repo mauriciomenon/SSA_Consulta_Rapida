@@ -1,4 +1,4 @@
-# core/config_manager.py 20250725 163000 (v2.1 - Melhorias de Erro, Logging)
+# core/config_manager.py - Melhorias de Erro, Logging
 """
 Gerenciador de configuracoes da aplicacao.
 

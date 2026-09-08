@@ -1,4 +1,4 @@
-# interface/command_handlers.py 20250723 163500 (v1.0 - Funcoes de Tratamento de Comandos)
+# interface/command_handlers.py - Funcoes de Tratamento de Comandos
 import json
 import os
 

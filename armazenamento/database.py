@@ -1,4 +1,4 @@
-# armazenamento/database.py 20250725 161500 (v2.1 - Boas Praticas Confirmadas)
+# armazenamento/database.py - Boas Praticas Confirmadas
 # Last modified: 2025-10-29T11:15:00 (circular import documentation)
 """
 Modulo para interacao com o banco de dados SQLite.

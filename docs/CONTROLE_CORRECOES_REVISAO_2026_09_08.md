@@ -237,3 +237,9 @@ Usuario autorizou commit, push padrao para GitHub/GitLab, tag e release v4.50. R
 O banner standalone em `utils/fallback/main_simple.py` ainda imprimia `3.0.7`. Agora le `VERSION` relativo ao script e registra erro de leitura. Os fallbacks `3.11+` em `main.py` e `gui/gui_ssa.py` foram substituidos por indisponibilidade com log da causa. Compilacao, Ruff, ty e dois testes de versao passaram; um teste executa o CLI real em outro diretorio, com SQLite temporario, verifica o banner atual e encerra com `sair`. Nenhum dado operacional ou layout foi alterado.
 
 Estes ajustes e o DOC_SYNC posterior foram feitos depois da publicacao inicial da tag v4.50. Nao assumir que a tag inclui esses commits enquanto seu alinhamento nao for autorizado e confirmado.
+
+### Varredura de cabecalhos de codigo
+
+Removidos rotulos numericos obsoletos de onze cabecalhos: `armazenamento/database.py`, `core/app_logic.py`, `core/config_manager.py`, `exportacao/exporter.py`, `extracao/extractor.py`, `interface/command_handlers.py`, `interface/display.py`, `utils/caching.py`, `launchers/cli_entry.py`, `launchers/gui_entry.py` e `scripts_manutencao/verificar_instalacao.ps1`. As descricoes foram preservadas; a versao do aplicativo permanece nos metadados centrais.
+
+`tests/main_test.py` agora resolve a raiz correta para importar a versao e nao retorna `3.0.7` se o import falha. Executado com `--help` fora do repositorio, exibiu `4.50` e stderr vazio. Compilacao e Ruff passaram nos Python alterados; ty passou no script auxiliar. Versoes de ferramentas, dependencias, schemas, fixtures e artefatos locais ignorados foram preservadas.

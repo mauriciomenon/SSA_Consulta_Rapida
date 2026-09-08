@@ -1,4 +1,4 @@
-# utils/caching.py 20250725 110000 (v2.1 - Leitura em Blocos, Logging)
+# utils/caching.py - Leitura em Blocos, Logging
 """
 Utilitários para gerenciamento de cache de arquivos, baseado em hashes.
 

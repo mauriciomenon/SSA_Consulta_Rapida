@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Entry point CLI para executavel v3.10
+Entry point CLI para executavel empacotado
 Separado do main.py principal
 """
 
