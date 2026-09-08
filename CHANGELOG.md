@@ -25,7 +25,6 @@ All notable changes to this project are documented in this file.
 - Windows release orchestration is native-only; Linux release uses a native Linux clone.
 - SQLite connections in active and maintenance paths close on exceptional exits.
 - Runtime and package metadata now identify stable release `4.47`.
-- `cleanup_ai_artifacts.ps1` now checks native `git rm` exit codes, records failures and reports when deletion could not be staged.
 - Functional CLI smoke now closes its verification connection before removing the temporary Windows database.
 - Exact SSA search now treats nullable Arrow values as non-matches instead of aborting the filter.
 
@@ -55,7 +54,6 @@ All notable changes to this project are documented in this file.
 - Completed the dependency audit with `uv tree --outdated`, `pip-audit`, Safety, `pip check`, and `uv lock --check`.
 - Current `uv.lock` contains PyPI artifact URLs only. Future lock regeneration must isolate the private Safety index configured outside the lock.
 - The audit found 69 distinct update candidates across runtime, build, development, web, and transitive dependencies. Updates will be applied in controlled slices, excluding major or high-risk pre-1.0 jumps.
-- Clawpatch was not allowed to include the dirty tree; its fallback broad review was interrupted and produced no applied changes. Vulture findings remain ignored as false positives.
 - Completed the first controlled lock slice in commit `afcc46da32874d93c7a6ecb8f263f35a04c34aae` (`STABILITY_PATCH: update selected dependency lock`, 2026-07-15 12:26:56 -0300). Direct updates cover `idna`, PyQt6, Nuitka, PyInstaller, Black, Filelock, Isort, Mypy, Pytest, Ruff, and Virtualenv.
 - Mypy and Virtualenv required the transitive updates `ast-serialize 0.6.0`, `librt 0.13.0`, `pyinstaller-hooks-contrib 2026.6`, and `python-discovery 1.4.4`. Click `8.4.2` and Pillow `12.3.0` are also present from the previous authorized lock update.
 - Full validation passed: `2526 passed, 6 skipped, 2 warnings, 11 subtests passed`; all lock, type, lint, package integrity, security, import, PyInstaller, and Nuitka checks passed.
@@ -79,7 +77,6 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Promoted local baseline to `4.45` as start of hardening PyQt6 refactor cycle.
 - Synchronized runtime metadata in `VERSION`, `config/version.json`, `pyproject.toml` and `uv.lock`.
-- Detailed plan attached at `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
 
 ### P0 - Critical races fixed (4 HOTFIX_BLOCKER commits)
 - `97c70fee` Explicit shutdown() prevents QThread destroyed warning and PaiApi use-after-free.
@@ -106,7 +103,6 @@ All notable changes to this project are documented in this file.
 ### P3 - God Class decomposition - DEFERRED
 - Extraction of Theme/Event/Display mixins degenerated into local patchwork
   (8+ module-global dependencies per mixin). Deferred by user decision.
-- See `docs/HARDENING_PYQT6_V4_45_PLAN.md` Ciclo 4 section for future approaches.
 
 ### Deferred items (with technical justification)
 - Slice 2.5/2.6 (unify SSA normalization / date parsing): 3 sources have different
@@ -223,7 +219,6 @@ All notable changes to this project are documented in this file.
   - anti-downgrade protection for `situacao` on same-date updates
   - explicit single-file import path
   - DB repair/recreate flows for invalid or incomplete databases
-- Aligned active docs to a single current-truth model across continuity and handoff files.
 
 ### Notes
 - `4.37` is the active local baseline in runtime and docs.
@@ -235,7 +230,6 @@ All notable changes to this project are documented in this file.
 - Centralized `numero_ssa` storage normalization and aligned simple insert/storage sanitization.
 - Stabilized simplified filter contracts and derivadas alias preflight.
 - Closed a focused `pytest`/`ty`/`bandit` min-fix slice to support the tag transition.
-- Prepared the 4.36 handoff/documentation transition.
 
 ## [v4.35] - 2026-03-24
 

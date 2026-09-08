@@ -42,7 +42,5 @@ Quando update e permitido:
 
 ## Escopo fora deste contrato
 
-1. Matriz completa de transicao de estados (draft): `docs/SSA_STATE_MATRIX_DRAFT_20260329.md`
-2. Historico forense da mudanca de criterio: `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
 
 <!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->

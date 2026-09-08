@@ -14,7 +14,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
   2. build por backend com scripts em `dev_env/build/`
   3. distribuicao/report com scripts em `dev_env/build/` e `scripts/create_distribution.py`
 - Cada plataforma usa clone, venv e processo nativos do proprio host. Nao usar checkout Windows montado no WSL.
-- WSL fica restrito ao CodeRabbit em clone Linux proprio e nao executa Python, uv, testes ou build.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Comando canonico da v4.50 no Windows: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
 - Fonte da matriz de release: `dev_env/build/release_targets.json`.
 - Matriz ativa:
@@ -41,8 +41,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 - `release.sh --target all --ssh-host ... --ssh-repo ...` executa macOS local quando em Darwin e chama Debian AMD64 + Debian ARM64 no remoto configurado.
 - `release.sh --target all --dry-run --allow-missing-remote` permite validar macOS local sem host Debian.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
-- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## Local de saida e staging
 

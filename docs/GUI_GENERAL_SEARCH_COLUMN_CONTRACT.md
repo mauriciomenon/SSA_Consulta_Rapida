@@ -175,7 +175,6 @@ Importante:
 Ao retomar esta frente, conferir tambem:
 1. `docs/README.md`
 2. `README.md`
-3. `AGENTS.md`
 
 ## Deferido
 

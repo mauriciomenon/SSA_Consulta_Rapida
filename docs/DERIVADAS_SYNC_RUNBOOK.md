@@ -7,14 +7,6 @@ It does not change GUI behavior.
 
 ## Commands Summary
 
-- Dev guard runners:
-  - Active (Bun/TS): `bun scripts/dev_ai_guard.ts --mode pre-pr --db data/ssas.db`
-  - Fallback (Python): `python scripts/dev_ai_guard.py --mode pre-pr --db data/ssas.db`
-  - Note: keep TS version as primary and Python as compatibility fallback.
-  - In `pre-pr`, the guard auto-skips `sync --verify-only` only when base table
-    `ssa_table` is confirmed missing.
-  - If table presence check is unknown (for example temporary DB lock), guard keeps
-    `sync --verify-only` enabled.
 - Validate schema readiness without writes:
   - `python scripts/derivadas_cli.py --db data/ssas.db --output json schema-scan`
 - Validate consistency without writes:

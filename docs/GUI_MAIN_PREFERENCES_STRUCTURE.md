@@ -137,7 +137,6 @@ Leitura complementar obrigatoria:
 3. o slice 1 fechou primeiro a hierarquia de preferencias e a precedencia da largura salva
 4. o slice 2 atacou apenas o desalinhamento remanescente do width manager automatico, fazendo-o partir do baseline canonico em vez de manter numeros paralelos
 5. este ajuste corretivo remove a semantica errada que fazia o runtime usar o `.example` como seed
-6. isso foi propositalmente menor do que a critica estrutural mais ampla feita aos commits do Copilot: o objetivo aqui foi corrigir a arquitetura minima sem reabrir a sua decisao de produto sobre ordem e tamanhos
 
 ## Schema logico do JSON
 

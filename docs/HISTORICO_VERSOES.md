@@ -185,7 +185,6 @@ STATUS:  Identificado, aguardando correcao
 - **Arquitetura**: Sistema de plugins
 - **Interface**: API REST para integracao
 - **Web**: Interface web complementar
-- **Avancado**: IA para analise de dados
 
 ### **Criterios para v4.0**
 1. **Estabilidade**: v3.x completamente estavel

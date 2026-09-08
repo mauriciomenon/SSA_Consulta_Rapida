@@ -1,6 +1,6 @@
 # Ambiente Python Compartilhado (dev_env)
 
-Este diretorio descreve o fluxo por host nativo. Windows 11 usa PowerShell; Linux e macOS usam bash/zsh em clones e venvs proprios, sem abandonar o fallback em `.venv` quando o pyenv nao estiver instalado. Nao compartilhar checkout ou venv entre Windows e WSL/Linux; WSL fica restrito ao CodeRabbit em clone Linux proprio.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 
 ## Visao geral
 - `.envrc` inicializa tudo: tenta pyenv + pyenv-virtualenv, garante a versao estavel (`3.13.12`, lida de `.python-version` se existir) e ativa o virtualenv `ssa_consulta_stable_<versao>`.

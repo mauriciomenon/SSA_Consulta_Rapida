@@ -19,7 +19,7 @@ def test_distribuicao_doc_enforces_native_host_isolation() -> None:
     assert "/mnt/" not in current_truth
     assert "-Target all" not in current_truth
     assert "clone Linux proprio" in current_truth
-    assert "WSL e permitido somente para CodeRabbit" in current_truth
+    assert "Validacao Linux exige clone Linux proprio" in current_truth
 
 
 def test_solucoes_ambiente_doc_marks_legacy_body_historical() -> None:
@@ -28,7 +28,7 @@ def test_solucoes_ambiente_doc_marks_legacy_body_historical() -> None:
     assert text.count("## CURRENT TRUTH") == 1
     assert "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in text
     assert f"Release ativa: `{RELEASE_TAG}`" in text
-    assert "WSL fica restrito ao CodeRabbit" in text
+    assert "Build e testes exigem ferramentas nativas e clone do proprio host" in text
     assert "PR atual: #57" not in text
     assert "- Branch alvo: `dev`." not in text
     assert "## HISTORICAL SNAPSHOT 2025-11-14" in text
@@ -47,7 +47,7 @@ def test_release_docs_sync_contract() -> None:
     source_truth = source_text.split("## HISTORICAL SNAPSHOT", 1)[0]
 
     assert f"Release estavel ativa: `{RELEASE_TAG}`" in source_truth
-    assert "WSL e permitido somente para CodeRabbit" in source_truth
+    assert "Validacao Linux exige clone Linux proprio" in source_truth
     assert "PR #57: aberto em draft" not in source_truth
     assert "PR #56: merged" not in source_truth
     assert "df0345caea9ac3050c87d2172eb75817b8fc3689" not in source_truth
@@ -67,6 +67,6 @@ def test_release_docs_sync_contract() -> None:
             "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in current_truth
         )
         assert f"Release ativa: `{RELEASE_TAG}`" in current_truth
-        assert "WSL fica restrito ao CodeRabbit" in current_truth
+        assert "Build e testes exigem ferramentas nativas e clone do proprio host" in current_truth
         assert "PR atual: #57" not in current_truth
         assert "df0345caea9ac3050c87d2172eb75817b8fc3689" not in current_truth

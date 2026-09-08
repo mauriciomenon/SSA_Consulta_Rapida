@@ -21,12 +21,10 @@ This repository separates blocking local/CI checks from external advisory servic
 - `.github/workflows/codeql.yml`: GitHub CodeQL security scan.
 - `.github/workflows/secret_scan.yml`: blocking workspace and PR diff secret scans; history scan is advisory and only runs on schedule/manual dispatch.
 - `.deepsource.toml`: local analyzer configuration only; it does not decide whether the GitHub App blocks a PR.
-- `.deepsec/`: local Vercel DeepSec workspace. It is ignored by Git; keep exported findings as local review input unless a dedicated DOC_SYNC commit is requested.
 
 ## Supply Chain Download Policy
 
 - PR and release gates must not install Python or npm packages from public registries only to produce advisory metadata.
-- `.github/actions/opencode-github/action.yml` does not run `npm install`; if its cache is missing, the review job fails with an explicit error instead of downloading from npm.
 - GitHub Automatic Dependency Submission is a dynamic GitHub-managed workflow (`dynamic/dependency-graph/auto-submission`), not a versioned YAML file in this repo.
 - The repository variable `GH_DEPENDENCY_SUBMISSION_SKIP_CACHE=true` is set to avoid cache persistence while Automatic Dependency Submission remains enabled.
 - To fully stop Automatic Dependency Submission, disable it in GitHub Settings > Advanced Security > Dependency graph > Automatic dependency submission. The direct workflow disable API returned HTTP 422 on 2026-05-13.
@@ -52,7 +50,6 @@ This repository separates blocking local/CI checks from external advisory servic
 ## Local Verification Notes
 
 - On 2026-04-25, branch protection for `main` and `dev` was checked and neither branch had required status checks configured.
-- On 2026-04-25, GitHub rulesets were checked and only `Copilot_review` was active.
 - On 2026-04-25, local Snyk CLI execution was blocked by the local Node install missing `libsimdutf.33.dylib`; this is a local toolchain issue.
 - On 2026-04-25, local DeepSource config validation was blocked by missing CLI authentication.
 

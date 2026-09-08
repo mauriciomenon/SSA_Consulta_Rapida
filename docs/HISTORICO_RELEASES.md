@@ -4,8 +4,7 @@
 
 Release de fontes com correcoes de importacao, integridade, cancelamento e limites de memoria dos caches.
 Notas: [RELEASE_NOTES_v4.50.md](RELEASE_NOTES_v4.50.md).
-Validacoes e limites: [controle da rodada](CONTROLE_CORRECOES_REVISAO_2026_09_08.md).
-Nenhum binario ou instalador novo foi gerado nesta rodada.
+Nenhum binario ou instalador novo foi gerado nesta publicacao.
 
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
@@ -29,8 +28,8 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Escopo preservado**
 - Sem mudanca de schema, API das dependencias de runtime, operadores do core ou layout.
-- `pip-audit` nao encontrou vulnerabilidade conhecida; nenhuma dependencia foi atualizada sem necessidade reproduzida nesta rodada.
-- Windows e Linux usam clones e venvs nativos separados; WSL fica restrito ao CodeRabbit em clone Linux proprio.
+- `pip-audit` nao encontrou vulnerabilidade conhecida; nenhuma dependencia foi atualizada sem necessidade reproduzida nesta publicacao.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - `v4.46` permanece como checkpoint anterior do ciclo tri-state.
 - Notas detalhadas: `docs/RELEASE_NOTES_v4.47.md`.
 
@@ -52,7 +51,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - limpar filtro retorna para a SSA origem via `_jump_to_ssa(...)`
 - `config/gui_main_preferences.json` tracked foi normalizado e a documentacao do contrato foi alinhada ao runtime real.
 - Post-mortem tecnico consolidado em:
-  - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
 
 ### **Commits chave**
 - `bf57520d` `STABILITY_PATCH: make GUI own general search columns`
@@ -76,7 +74,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 ### **Principais entregas (planejadas - ver plano detalhado)**
 - Baseline operacional promovido para `4.45` como inicio do ciclo de hardening PyQt6.
 - Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
-- Plano detalhado anexado em `docs/HARDENING_PYQT6_V4_45_PLAN.md`.
 - Escopo planejado: races criticas de shutdown/cancelamento/bloqueio (P0), performance/dedup (P1), limpeza (P2), decomposicao da God Class SSAMainWindow em mixins (P3).
 - Ultima tag/release GitHub publicada permanece `v4.36`.
 
@@ -133,7 +130,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - reorder/sort/resize do header preservam detalhes e mapeamento visual.
   - popup de derivadas consolidado com arvore textual, grafo SVG e exportacao.
   - importacao e update por SSA endurecidos contra downgrade de `situacao` e DB invalido.
-- Docs vivos de controle consolidados em torno de `AGENTS.md`, `README.md` e `docs/README.md`.
 - Backlog real priorizado para a proxima rodada:
   - blindagem de storage contra limpeza legacy com letras
   - aliases validos em `_needs_db_only_derivadas_sync`
@@ -192,11 +188,9 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Commits chave**
 - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
-- `40cc4662` `DOC_SYNC: record numero_ssa write-path stabilization status`
 - `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
 - `f4af8d20` `STABILITY_PATCH: stabilize simplified filter contract and derivadas alias preflight`
 - `bdf612d0` `STABILITY_PATCH: close pytest ty bandit minfix slice`
-- `dd2d45b1` `DOC_SYNC: prepare 4.36 transition handoff`
 
 ---
 
@@ -230,7 +224,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Principais entregas**
 - Full rescan real executado de ponta a ponta com evidencia em:
-  - `docs/indicios_importacao.md` (secao da sessao 2026-03-09)
 - Baseline local promovido para `4.33` em:
   - `VERSION`
   - `config/version.json`
@@ -300,7 +293,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - guardrails de cancelamento/retorno inesperado em `core/app_logic.py`
   - timeout configuravel de reader join em `scripts/pytest_stream_common.py`
 - Regressao focada adicionada para command handlers, importer e stream wrappers.
-- Handoff sincronizado em docs internos posteriormente removidos do repositorio publico.
 - Entregas streamlit (`v4.24.1`) e hardening (`v4.25.0`) preservadas no historico da branch.
 
 ### **Documentacao da versao**
@@ -319,7 +311,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 ## **RELEASE v4.25.0**
 
 **Data de Lancamento**: Fevereiro 2026
-**Tipo**: Sprint 25 Graves Closure and Handoff Sync
 **Status**: Estavel
 
 ### **Principais entregas**
@@ -328,7 +319,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - cancelamento/import guardrails em `core/app_logic.py`
   - path/mapping validation em `interface/command_handlers.py`
 - Regressao focada para command handlers, importer e stream wrappers.
-- Sync de docs de continuidade para handoff entre sessoes.
 
 ## **RELEASE v4.24.0**
 

@@ -5,10 +5,9 @@
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
 - Release ativa: `v4.50`; tag anterior: `v4.46`.
 - Este runbook detalha execucao 3x3; nao deve duplicar a matriz completa de release.
-- Cada plataforma deve usar host/VM, clone e venv nativos. WSL fica restrito ao CodeRabbit em clone Linux proprio.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
-- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## Objetivo
 
@@ -283,7 +282,6 @@ uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
 3. commit atomico por slice
 4. push para `dev`
 5. atualizar:
-   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
    - `README.md`
    - `docs/README.md`
 

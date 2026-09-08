@@ -24,8 +24,7 @@
   - PyOxidizer 0.24.0 usa runtime Python 3.10 embedado.
   - O toolchain e processo do projeto continuam padronizados em `uv run --python 3.13 ...`.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
-- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT NOTICE
 
@@ -33,7 +32,6 @@ Este documento foi mantido para contexto tecnico.
 Nao usar como runbook primario de release.
 
 **Data**: 2025-11-14
-**Autor**: Claude Code
 **Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (NAO MSYS2)
@@ -1329,7 +1327,6 @@ Requer:
 ```batch
 @echo off
 REM Build script para PyOxidizer 0.24.0
-REM Autor: Claude Code
 REM Data: 2025-11-14
 
 echo Iniciando build com PyOxidizer...
@@ -1469,7 +1466,6 @@ parser = argparse.ArgumentParser(
 
 **Ultima atualizacao**: 2025-11-14
 **Versao do guia**: 1.0
-**Autor**: Claude Code
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

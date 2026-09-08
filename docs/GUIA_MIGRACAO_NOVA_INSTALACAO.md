@@ -392,7 +392,6 @@ uv run --python $PY_RUNTIME python -c "from PyQt6.QtWidgets import QApplication;
 type README.md                           # ← Visao geral do projeto
 type GUIA_MODO_OPTIMIZED.md             # ← Otimizacoes de performance
 type CHANGELOG_IMPLEMENTACOES.md        # ← Historico de mudancas
-type REGRAS_DE_OURO.md                  # ← Boas praticas
 ```
 
 ### **2. Configuracoes e Schema**

@@ -19,8 +19,7 @@
 - `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
 - Debian deve executar scripts `.sh` em clone Linux nativo; nao compartilhar checkout/venv com Windows.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
-- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT NOTICE
 
@@ -40,7 +39,6 @@ Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
 > Nota: a data historica acima pertence ao material preservado. O status
 > operacional atual deste guia fica no bloco `CURRENT TRUTH`.
 
-**Autor**: Claude Code
 **Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: MSYS2 UCRT64 / CMD / PowerShell
@@ -321,7 +319,6 @@ Conteudo completo:
 REM HISTORICO: este trecho usa layout antigo em builds/pyinstaller
 @echo off
 REM Build script para PyInstaller 6.16.0
-REM Autor: Claude Code
 REM Data: 2025-11-14
 
 echo Iniciando build com PyInstaller...
@@ -1263,7 +1260,6 @@ VSVersionInfo(
 
 **Ultima atualizacao historica original**: 2025-11-14
 **Versao do guia**: 1.0
-**Autor**: Claude Code
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

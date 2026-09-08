@@ -27,7 +27,7 @@ Release estavel de manutencao da familia 4.x.
 
 - `release.ps1` aceita somente `-Target windows` e bloqueia ambiente WSL, checkout montado e venv de outro host antes de efeitos colaterais.
 - Debian deve usar `./release.sh` dentro de clone Linux nativo, sem compartilhar checkout ou venv com Windows.
-- WSL fica restrito ao CodeRabbit em clone Linux proprio; ele nao executa Python, uv, testes ou build.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Scripts Windows falham de forma fechada quando pre-condicoes, banco runtime, hash, smoke ou instalador obrigatorio nao sao validos.
 - Pacotes PyInstaller continuam `onedir`, com CLI e GUI separados.
 - Quando incluido, o banco runtime fica somente em `data\ssas.db`, fora de `_internal`.
@@ -39,7 +39,7 @@ Release estavel de manutencao da familia 4.x.
 - Sem alteracao dos operadores ou da semantica central de filtros.
 - Sem alteracao de layout ou posicao dos controles.
 - Sem nova god class, mixin, wrapper ou helper de dominio.
-- Dependencias foram apenas auditadas nesta rodada; nao houve salto de versao sem vulnerabilidade reproduzida.
+- Dependencias foram apenas auditadas nesta publicacao; nao houve salto de versao sem vulnerabilidade reproduzida.
 
 ## Artefatos Windows AMD64
 

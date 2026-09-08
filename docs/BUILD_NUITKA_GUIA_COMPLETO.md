@@ -18,8 +18,7 @@
 - Nuitka permanece trilha opcional de hardening/performance.
 - Nomes/versionamento exato de executavel dentro de `builds/nuitka/*` devem ser lidos do output do ciclo corrente, nao deste guia historico.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
-- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT NOTICE
 
@@ -33,7 +32,6 @@ Quando houver conflito com docs operacionais, prevalece CURRENT TRUTH.
 - PARA RELEASE, USAR PYINSTALLER + `launchers/dist/*`.
 
 **Data**: 2025-11-14
-**Autor**: Claude Code
 **Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (PATH limpo)
@@ -368,7 +366,6 @@ Conteudo completo:
 ```batch
 @echo off
 REM Build script para Nuitka 2.8.4 sem gcc do MSYS2 no PATH
-REM Autor: Claude Code
 REM Data: 2025-11-14
 
 echo Removendo MSYS2/MinGW do PATH temporariamente...
@@ -1374,7 +1371,6 @@ python -m nuitka --clean-cache
 
 **Ultima atualizacao**: 2025-11-14
 **Versao do guia**: 1.0
-**Autor**: Claude Code
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

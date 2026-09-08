@@ -81,7 +81,6 @@ Comportamento esperado:
 ## Regras de seguranca operacional
 
 1. Nao aplicar suppress silencioso em erro de extracao/validacao.
-2. Nao mudar regra de schema sem registrar no backlog e handoff.
 3. Nao assumir fallback caro sem medicao objetiva.
 
 ## Evidencia e rastreabilidade

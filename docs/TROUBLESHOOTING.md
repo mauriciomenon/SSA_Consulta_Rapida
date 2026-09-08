@@ -6,7 +6,6 @@ Guia ativo de diagnostico rapido para operacao diaria.
 
 1. Comecar por este documento.
 2. Para importacao detalhada, usar `docs/TROUBLESHOOTING_IMPORTACAO.md`.
-3. Para decisoes recentes, usar o PR/conversa atual.
 
 ## Checklist rapido
 
@@ -37,7 +36,6 @@ Guia ativo de diagnostico rapido para operacao diaria.
 
 1. Verificar dependencias: `uv sync`.
 2. Executar: `uv run --python 3.13 main.py --gui`.
-3. Se falhar, revisar stack trace e registrar no PR/conversa com evidencia.
 
 ### Full rescan sem atualizacao
 
@@ -52,8 +50,5 @@ Guia ativo de diagnostico rapido para operacao diaria.
 
 ## Escalonamento
 
-1. Risco alto de dados/importacao: registrar no PR/conversa com evidencia de arquivo/linha/log.
-2. Duvida de continuidade de sessao: registrar no PR/conversa.
-3. Fechamento de ciclo: registrar resumo tecnico no PR/conversa.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

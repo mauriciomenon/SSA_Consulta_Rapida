@@ -179,7 +179,6 @@ Consulte o historico do commit `5242a65` para:
 
 ## Creditos
 
-**Executado por:** GitHub Copilot AI Assistant  
 **Aprovado por:** Mauricio Menon (@mauriciomenon)  
 **Data:** 2025-11-11
 

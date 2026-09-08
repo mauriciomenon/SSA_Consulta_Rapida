@@ -5,7 +5,6 @@
 - Importacao, integridade, cancelamento, filtros e caches corrigidos.
 - Metadados do runtime e pacote alinhados com 4.50.
 - Publicacao de fontes em GitHub e GitLab; sem novos binarios.
-- Evidencias: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
 
 
 ## v4.47 - STABLE MAINTENANCE RELEASE (2026-08-09)
@@ -50,8 +49,6 @@
   - verificacao visual real confirmou ausencia de no solto no caso controlado
 
 ### Commits chave do trem `v4.36 -> topo atual`
-- `c3a94526` `DOC_SYNC: promote local release baseline to 4.37`
-- `185af3d0` `DOC_SYNC: keep a single current truth in continuity docs`
 - `f1b676c4` `STABILITY_PATCH: normalize gui main preferences runtime config`
 - `bf57520d` `STABILITY_PATCH: make GUI own general search columns`
 - `21135ccf` `STABILITY_PATCH: lock derivadas detail navigation contract`
@@ -69,15 +66,12 @@
 - `numero_ssa` e write-path de storage estabilizados com normalizacao centralizada e sanitizacao coerente.
 - Contrato de filtros simplificados endurecido com preflight de aliases de derivadas.
 - Slice minimo de `pytest`/`ty`/`bandit` fechado para manter a promocao da tag.
-- Handoff documental preparado para a transicao de `v4.36`.
 
 ### Commits chave
 - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
-- `40cc4662` `DOC_SYNC: record numero_ssa write-path stabilization status`
 - `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
 - `f4af8d20` `STABILITY_PATCH: stabilize simplified filter contract and derivadas alias preflight`
 - `bdf612d0` `STABILITY_PATCH: close pytest ty bandit minfix slice`
-- `dd2d45b1` `DOC_SYNC: prepare 4.36 transition handoff`
 
 ## v4.35 - PRE-BASELINE HARDENING TRAIN (2026-03-24)
 
@@ -101,13 +95,11 @@
 - `53def322` `STABILITY_PATCH: package explicit db options and clean local tracking`
 - `b4b995a8` `STABILITY_PATCH: ignore local docs_entrada excel noise`
 
-## v4.33 - DOC_SYNC TOTAL (2026-03-10)
 
 - Sincronizacao completa da documentacao ativa para baseline `4.33`.
 - Controle de estado atualizado com evidencia operacional do PR `#45`:
   - sem threads abertas.
   - bloqueios externos restantes em `CodeFactor`, `code/snyk`, `security/snyk`.
-- Guias de build/distribuicao e docs de migracao/handoff alinhados na mesma rodada.
 
 ##  v4.0.0 - OTIMIZACOES MASSIVAS DE PERFORMANCE (2025-09-26)
 

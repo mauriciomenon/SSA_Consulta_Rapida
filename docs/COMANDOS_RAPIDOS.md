@@ -111,9 +111,8 @@ bash dev_env/build/build_pyoxidizer_debian.sh --silent
 
 ## Notas
 
-1. Para fluxo operacional e handoff, usar o PR/conversa atual.
 2. Para troubleshooting geral, usar `docs/TROUBLESHOOTING.md`.
 3. Para troubleshooting de importacao, usar `docs/TROUBLESHOOTING_IMPORTACAO.md`.
-4. Nao usar checkout em `/mnt/*` nem venv Windows para build/teste Linux. WSL fica restrito ao CodeRabbit em clone Linux proprio.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

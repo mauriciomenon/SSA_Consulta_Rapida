@@ -13,8 +13,7 @@
 - Todos os comandos operacionais devem usar uv (`uv run --python 3.13 ...`).
 - Nao usar comandos antigos deste arquivo com `pip`/`python` direto como fonte primaria.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
-- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ##  **BUILD SYSTEM OTIMIZADO PARA v4.0.0**
 

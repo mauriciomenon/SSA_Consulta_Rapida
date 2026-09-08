@@ -89,7 +89,6 @@ if ! grep -Fq 'printf %s "$HOME"' "$repo_root/dev_env/build/release_local.ps1"; 
   exit 1
 fi
 if grep -Eiq '(mauri|menon)' \
-  "$repo_root/AGENTS.md" \
   "$repo_root/scripts/env/native_host_guard.sh" \
   "$repo_root/scripts/env/native_host_guard.ps1" \
   "$repo_root/dev_env/build/release_local.ps1"; then

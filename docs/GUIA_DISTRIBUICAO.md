@@ -8,11 +8,10 @@
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
 - Windows v4.50: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
 - Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
-- Nao compartilhar checkout ou venv entre Windows e WSL/Linux. WSL e permitido somente para CodeRabbit em clone Linux proprio.
+- Nao compartilhar checkout ou venv entre Windows e WSL/Linux. Validacao Linux exige clone Linux proprio; build Windows usa ferramentas Windows nativas.
 - Artefatos anteriores a `v4.50` seguem historicos e nao devem ser usados para publicacao final.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta rodada publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
-- Evidencias atuais: `docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md`.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT 2026-06-11 11h
 
@@ -150,9 +149,9 @@ Resultado de tentativa de pacote (scripts/create_distribution.py):
 - `pyoxidizer --skip-installer`: FAIL (build ausente em `builds/pyoxidizer`)
 - `pytoexe`: FAIL esperado (choice invalida)
 
-Evidencia local desta rodada:
+Evidencia local desta publicacao:
 - logs consolidados: `/tmp/ssa_pack_audit_20260310_1030/summary.log`
-- artefato alvo desta rodada: `dist_packages/SSA_Consulta_Rapida_v4.37_pyinstaller.zip`
+- artefato alvo desta publicacao: `dist_packages/SSA_Consulta_Rapida_v4.37_pyinstaller.zip`
 
 ## Visao Geral
 
