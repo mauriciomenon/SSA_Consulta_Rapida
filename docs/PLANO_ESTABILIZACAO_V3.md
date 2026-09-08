@@ -1,5 +1,10 @@
 # PLANO MESTRE DE ESTABILIZACAO - SSA_Consulta_Rapida (v3.1)
 
+> HISTORICAL SNAPSHOT: registro do ciclo anterior. A revisao de 2026-09-08
+> identificou falhas funcionais e fechamentos sem evidencia suficiente.
+> O estado atual das correcoes esta em
+> [Controle da revisao](CONTROLE_CORRECOES_REVISAO_2026_09_08.md).
+
 Data: 2026-09-03 (v3.1 incorpora o parecer codex "APROVAR COM CORRECOES VINCULANTES", triado item a item na Parte G). Branch `dev`, HEAD `04ed2b44` (4 commits locais: `76d1f131` marker, `64442bf2`+`04ed2b44` S1, `f49e3488` S2-parcial). NADA publicado; remotos GitHub/schottge/GitLab em `c1770108`.
 
 Estrutura: Parte A = meu plano original do ciclo (executado). Partes B-F = levantamento, triagem codex, slices, testes, controle. Parte G = parecer externo 2026-09-03 com validade verificada e correcoes incorporadas. Este e o unico plano valido.

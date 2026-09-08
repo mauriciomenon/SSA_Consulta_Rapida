@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [v4.50] - 2026-09-08
+
+- Corrige paridade de importacao, isolamento de resultados e recarga apos gravacao parcial.
+- Preserva cancelamento, limpeza de busca e desfazer.
+- Limita caches por memoria e evita reter DataFrames filtrados nos detalhes.
+- Publica fontes; evidencias e limites em `docs/RELEASE_NOTES_v4.50.md`.
+
+
 ## [v4.47] - 2026-08-09
 
 ### Changed

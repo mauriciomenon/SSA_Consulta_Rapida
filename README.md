@@ -1,12 +1,15 @@
-# SSA Consulta Rapida v4.47
+# SSA Consulta Rapida v4.50
 
-Release estavel atual: `v4.47`.
-Tag anterior: `v4.46`.
-Publicacao: GitLab e Bitbucket a partir da branch `dev`.
+## CURRENT TRUTH (2026-09-08)
 
-Notas da release: [docs/RELEASE_NOTES_v4.47.md](docs/RELEASE_NOTES_v4.47.md)
+Release atual: `v4.50`. Tag publicada anterior: `v4.46`.
+Publicacao de fontes a partir de `dev` com `git push` sem parametros.
+Neste checkout, `origin` publica em GitHub (duas contas) e GitLab.
+Notas: [release v4.50](docs/RELEASE_NOTES_v4.50.md).
+Evidencias e limites: [controle da rodada](docs/CONTROLE_CORRECOES_REVISAO_2026_09_08.md).
+Esta publicacao nao inclui novos binarios ou instaladores.
 
-## Current Truth (2026-08-09)
+## HISTORICAL SNAPSHOT (2026-08-09)
 
 - Estado operacional:
   - metadata ativa: `4.47`
