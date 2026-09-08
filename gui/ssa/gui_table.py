@@ -975,8 +975,10 @@ def _load_current_page_slice(window):
         if hasattr(window, "_ensure_data_revision"):
             window._ensure_data_revision()
     except Exception as exc:
-        logger.debug(
-            "Falha ao validar revisao de dados antes de renderizar pagina: %s", exc
+        logger.warning(
+            "Falha ao validar revisao de dados antes de renderizar pagina "
+            "(risco de render stale): %s",
+            exc,
         )
 
 

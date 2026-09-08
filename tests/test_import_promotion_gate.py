@@ -129,6 +129,7 @@ def test_matrix_success_promotes(workspace):
     make_xlsx(docs / "a.xlsx", "202650001")
     result = run(docs, data, tmp, force=True)
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
 
     assert result is True
     assert outcome.status is import_outcome.ImportStatus.UPDATED
@@ -141,6 +142,7 @@ def test_matrix_success_with_deterministic_rejection_promotes(workspace):
     pd.DataFrame({"foo": ["bar"]}).to_excel(docs / "det.xlsx", index=False)
     result = run(docs, data, tmp, force=True)
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
 
     assert result is True
     assert outcome.status is import_outcome.ImportStatus.UPDATED
@@ -152,6 +154,7 @@ def test_matrix_deterministic_only_keeps_rejections_only(workspace):
     pd.DataFrame({"foo": ["bar"]}).to_excel(docs / "det.xlsx", index=False)
     result = run(docs, data, tmp, force=True)
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
 
     assert result is True
     assert outcome.status is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY
@@ -168,6 +171,7 @@ def test_matrix_blocking_error_preserves_primary_and_candidate(workspace):
 
     result = run(docs, data, tmp, force=True, fail_suffix="b.xlsx")
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
     final = ssas(data / "ssas.db")
     candidates = list(data.glob("ssas.db.full_rescan_candidate_*"))
     backups = list(data.glob("ssas.db.full_rescan_backup_*"))

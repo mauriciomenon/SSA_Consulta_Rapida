@@ -2528,8 +2528,10 @@ class FilterGUISSAMixin:
             if hasattr(self, "_ensure_data_revision"):
                 self._ensure_data_revision()
         except Exception as exc:
-            logger.debug(
-                "Falha ao garantir data revision no refresh de filtros: %s", exc
+            logger.warning(
+                "Falha ao garantir data revision no refresh de filtros "
+                "(risco de render stale): %s",
+                exc,
             )
 
     def _render_filter_refresh_page(self, current_details_ssa, measure_timing) -> None:

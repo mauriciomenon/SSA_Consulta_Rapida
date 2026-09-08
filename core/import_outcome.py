@@ -56,9 +56,12 @@ _NON_BLOCKING_STATUSES = frozenset(
 )
 
 
-def is_blocking_status(status: ImportStatus) -> bool:
+def is_blocking_status(status: ImportStatus | None) -> bool:
     """Exit-code/semantic classification: non-blocking statuses mean the run
-    ended in a controlled state that needs no operator action (exit 0)."""
+    ended in a controlled state that needs no operator action (exit 0).
+    None (unknown status) is treated as blocking for safety."""
+    if status is None:
+        return True
     return status not in _NON_BLOCKING_STATUSES
 
 

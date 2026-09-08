@@ -8,7 +8,10 @@ venv without it.
 """
 
 import re
-import tomllib
+try:
+    import tomllib
+except ImportError:  # Python <3.11
+    import tomli as tomllib  # ty: ignore[unresolved-import]
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

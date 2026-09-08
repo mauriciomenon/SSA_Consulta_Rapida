@@ -113,6 +113,7 @@ def test_updated_run_records_outcome_and_keeps_bool(workspace):
     make_xlsx(docs / "a.xlsx", "202640001")
     result = run(docs, data, tmp)
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
 
     assert result is True
     assert outcome is not None
@@ -129,6 +130,7 @@ def test_rejections_only_run_records_outcome_true_bool(workspace):
     pd.DataFrame({"foo": ["bar"]}).to_excel(docs / "bad.xlsx", index=False)
     result = run(docs, data, tmp)
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
 
     assert result is True
     assert outcome is not None
@@ -144,6 +146,7 @@ def test_no_changes_run_records_outcome(workspace):
     outcome_first = import_outcome.get_last_import_outcome()
     result = run(docs, data, tmp)
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
 
     assert result is False
     assert outcome is not outcome_first

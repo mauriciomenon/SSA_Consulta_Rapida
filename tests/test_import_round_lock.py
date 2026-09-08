@@ -108,6 +108,7 @@ def test_busy_run_has_no_side_effects(workspace):
         result = run(docs, data, tmp, force=True)
 
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
     assert result is False
     assert outcome.status is import_outcome.ImportStatus.BUSY
     assert outcome.reason == "primary_locked_by_another_run"
@@ -141,5 +142,6 @@ def test_second_run_after_release_succeeds(workspace):
 
     result = run(docs, data, tmp, force=True)
     outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
     assert result is True
     assert outcome.status is import_outcome.ImportStatus.UPDATED

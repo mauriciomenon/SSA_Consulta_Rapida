@@ -1081,8 +1081,10 @@ def _sync_data_revision_after_load(window, request_id: int | None) -> None:
             window._data_uuid = f"fallback-{time.time_ns()}-{int(getattr(window, '_data_revision', 0) or 0)}"
         window._data_revision_request_id = request_id
     except Exception as exc:
-        logger.debug(
-            "Falha ao atualizar revisao de dados; resetando para baseline: %s", exc
+        logger.warning(
+            "Falha ao atualizar revisao de dados; resetando para baseline "
+            "(risco de render stale): %s",
+            exc,
         )
         window._data_revision = 1
 

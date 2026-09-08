@@ -7,6 +7,10 @@ from typing import Any
 
 import pandas as pd
 
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "gui")
+
 EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
 MACRO_BAIXAR_FILTER_KEY = "ssas_para_baixar"
@@ -362,7 +366,10 @@ def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
             pd.util.hash_pandas_object(frame, index=True).sum()
         )
         return hash((data_hash, len(df), tuple(str(column) for column in df.columns)))
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Falha ao computar hash do DataFrame (risco de cache stale): %s", exc
+        )
         return hash((len(df), tuple(str(column) for column in df.columns)))
 
 
