@@ -2328,7 +2328,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
 
     def on_data_loaded(self, df: pd.DataFrame, request_id: int | None = None):
-        ssa_gui_workers.on_data_loaded(self, df, request_id=request_id)
+        accepted = ssa_gui_workers.on_data_loaded(self, df, request_id=request_id)
+        if accepted is False:
+            logger.debug(
+                "Callback stale de carga rejeitado pelo core (request_id=%s); "
+                "facade nao atualiza controles nem mostra a janela",
+                request_id,
+            )
+            return False
         try:
             self._refresh_quick_setor_executor_options()
             self._refresh_quick_situacao_buttons()
@@ -2341,9 +2348,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if bool(getattr(self, "_startup_show_pending", False)) and not self.isVisible():
             self._startup_show_pending = False
             self.show()
+        return True
 
     def on_load_error(self, error_msg: str, request_id: int | None = None):
-        ssa_gui_workers.on_load_error(
+        accepted = ssa_gui_workers.on_load_error(
             self,
             error_msg,
             request_id=request_id,
@@ -2352,9 +2360,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             **_data_loader_retention_kwargs(),
             sip_module=sip,
         )
+        if accepted is False:
+            logger.debug(
+                "Callback stale de erro rejeitado pelo core (request_id=%s); "
+                "facade nao mostra a janela",
+                request_id,
+            )
+            return False
         if bool(getattr(self, "_startup_show_pending", False)) and not self.isVisible():
             self._startup_show_pending = False
             self.show()
+        return True
 
     def on_load_finished(self, worker=None, request_id: int | None = None):
         ssa_gui_workers.on_load_finished(

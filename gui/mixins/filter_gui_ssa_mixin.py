@@ -818,6 +818,21 @@ class FilterGUISSAMixin:
         previous_search_text = str(
             getattr(self, "_active_filter_search_display", "") or ""
         )
+
+        # Blank search: synchronous, no worker, no deep copy (S6)
+        if not search_text.strip():
+            self._active_filter_search_display = ""
+            self._pending_search_display = ""
+            self._df_last_search_filtered = self.df_completo
+            self._filter_ui_state().set_idle()
+            self._sync_clear_filter_button_state()
+            refresh_ok = self._refresh_after_filter_change(
+                commit_pending_search=False
+            )
+            if not refresh_ok:
+                self._df_last_search_filtered = self.df_completo
+            return
+
         self._safe_store_last_filter_state(
             "initiate_filtering",
             search_text_override=previous_search_text,

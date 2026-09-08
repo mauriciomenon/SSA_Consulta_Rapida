@@ -1270,7 +1270,7 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         )
         return
     if _is_stale_data_load_result(window, request_id):
-        return
+        return False
     loaded = prepare_loaded_dataframes(df)
     window.df_completo = loaded.complete
     window.df_exibido = loaded.display
@@ -1284,6 +1284,7 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     _sync_column_selector_after_load(window)
     _sync_filter_controls_after_load(window)
     _update_loaded_data_status(window)
+    return True
 
 
 def _mask_db_path(error_msg: str, db_path: str | None) -> str:
@@ -1335,7 +1336,7 @@ def on_load_error(
             request_id,
             active_id,
         )
-        return
+        return False
     safe_error_msg = (
         "Nao foi possivel carregar os dados. Consulte os logs para detalhes tecnicos."
     )
