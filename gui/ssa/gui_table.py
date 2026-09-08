@@ -643,16 +643,23 @@ def _format_display_dataframe_for_table(window, display_df, raw_marker_sample):
                 logger.debug(
                     "Falha ao compor assinatura de largura para chave de cache: %s", exc
                 )
-            display_df_hash = (
-                data_uuid,
-                data_revision,
-                page,
-                page_size,
-                len(display_df),
-                tuple(display_df.columns),
-                _build_page_content_digest(display_df),
-                width_signature,
-            )
+            content_digest = _build_page_content_digest(display_df)
+            # None digest = computation failed; disable cache read AND
+            # write so two different pages that both fail to digest
+            # cannot collide on the same cache key
+            if content_digest is None:
+                display_df_hash = None
+            else:
+                display_df_hash = (
+                    data_uuid,
+                    data_revision,
+                    page,
+                    page_size,
+                    len(display_df),
+                    tuple(display_df.columns),
+                    content_digest,
+                    width_signature,
+                )
     except Exception as exc:
         logger.debug("Falha ao gerar chave de cache do DataFrame de exibicao: %s", exc)
 
