@@ -9,6 +9,7 @@ Data: 2026-09-08. Fonte: branch `dev`.
 - Relatorio de integridade descreve o banco restaurado.
 - Busca vazia cancela trabalho anterior, preserva desfazer e rejeita resultados atrasados.
 - Caches possuem limites em bytes; detalhes guardam posicoes sem reter DataFrames filtrados.
+- O CLI simplificado le o banner de `VERSION` pelo caminho do script, sem depender do diretorio de execucao. Main e GUI nao exibem mais `3.11+` quando o carregamento da versao falha; registram a causa e indicam indisponibilidade.
 
 ## Validacao e limites
 

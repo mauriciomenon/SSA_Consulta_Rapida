@@ -231,3 +231,9 @@ Retomada ampliada: 2026-09-08 15:20 -03:00. Codigo local permanece sem commit. N
 ## Publicacao v4.50
 
 Usuario autorizou commit, push padrao para GitHub/GitLab, tag e release v4.50. Retestes interrompidos por pedido explicito. Nenhum binario novo foi gerado.
+
+### Correcao posterior do banner
+
+O banner standalone em `utils/fallback/main_simple.py` ainda imprimia `3.0.7`. Agora le `VERSION` relativo ao script e registra erro de leitura. Os fallbacks `3.11+` em `main.py` e `gui/gui_ssa.py` foram substituidos por indisponibilidade com log da causa. Compilacao, Ruff, ty e dois testes de versao passaram; um teste executa o CLI real em outro diretorio, com SQLite temporario, verifica o banner atual e encerra com `sair`. Nenhum dado operacional ou layout foi alterado.
+
+Estes ajustes e o DOC_SYNC posterior foram feitos depois da publicacao inicial da tag v4.50. Nao assumir que a tag inclui esses commits enquanto seu alinhamento nao for autorizado e confirmado.
