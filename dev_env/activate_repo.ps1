@@ -118,7 +118,16 @@ if ($pyenvAvailable) {
             if ($venvs) { $venvList = $venvs -split "`n" }
             if (-not ($venvList -contains $pyenvEnvName)) {
                 Write-EnvLog "pyenv: creating virtualenv $pyenvEnvName"
-                pyenv virtualenv $targetVersion $pyenvEnvName | Out-Null
+                $previousVersion = $env:PYENV_VERSION
+                try {
+                    $env:PYENV_VERSION = $targetVersion
+                    $backend = pyenv virtualenv --version
+                    if ($LASTEXITCODE -ne 0) { throw 'Falha ao identificar backend do pyenv virtualenv' }
+                } finally {
+                    $env:PYENV_VERSION = $previousVersion
+                }
+                $pipOption = if ($backend -match '\(virtualenv ') { '--no-pip' } else { '--without-pip' }
+                pyenv virtualenv $pipOption $targetVersion $pyenvEnvName | Out-Null
                 if ($LASTEXITCODE -ne 0) {
                     throw "pyenv virtualenv failed with exit code $LASTEXITCODE"
                 }
@@ -150,9 +159,19 @@ if (-not $envSource) {
         } else {
             Write-EnvLog "creating fallback venv $venvDir"
         }
-        $result = Invoke-Python -Args @('-m', 'venv', $venvPath)
+        $result = Invoke-Python -Args @('-m', 'venv', '--without-pip', $venvPath)
         if ($result -ne 0) {
             throw "Failed to create fallback venv $venvPath"
+        }
+    }
+    $venvPython = Join-Path $venvPath 'Scripts/python.exe'
+    if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
+        throw "Executavel Python ausente em $venvPath"
+    }
+    if ($targetVersion -match '^\d+\.\d+(\.\d+)?$') {
+        $actualVersion = & $venvPython -c 'import platform; print(platform.python_version())'
+        if ($LASTEXITCODE -ne 0 -or $actualVersion -notmatch ('^' + [regex]::Escape($targetVersion) + '(\.|$)')) {
+            throw "Versao Python invalida em $venvPath; esperado $targetVersion"
         }
     }
     . $activatePath

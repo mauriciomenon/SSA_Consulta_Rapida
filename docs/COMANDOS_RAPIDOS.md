@@ -83,14 +83,11 @@ pwsh -File scripts_manutencao/quick_recovery.ps1 -Action restore
 git stash pop
 ```
 
-## Fallback manual sem uv
+## Instalacao manual com uv
 
 ```powershell
-python -m venv .venv
-. .venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python main.py
+uv sync --frozen --no-dev
+uv run --frozen --no-dev python main.py
 ```
 
 ## Build silencioso por host nativo

@@ -16,6 +16,7 @@ $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Pa
 Assert-SsaWindowsHost -RepoRoot $ProjectRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
 Assert-SsaWindowsVenv -VenvDir (Join-Path $ProjectRoot '.venv')
 Set-Location $ProjectRoot
+if (-not (Test-CommandAvailable uv)) { throw 'uv nao encontrado no PATH.' }
 
 if (-not $VenvName) {
   if (Test-Path .\.python-version) {
@@ -73,46 +74,59 @@ function Initialize-VirtualEnv() {
   if (-not (Test-CommandAvailable pyenv)) {
     Write-Warning "pyenv-win nao disponivel; criando fallback .venv com python do sistema"
     if (-not (Test-CommandAvailable python)) { throw "Python nao encontrado no PATH." }
-    python -m venv .venv
-    . .\.venv\Scripts\Activate.ps1
-    python -m pip install -U pip
-    python -m pip install -r requirements.txt
-    Write-Output "[ok] Ambiente .venv criado (fallback)."
-    return
-  }
-
-  $existingRaw = & pyenv virtualenvs --bare
-  if ($LASTEXITCODE -ne 0) { throw "Falha ao listar virtualenvs do pyenv-win." }
-  $existing = $existingRaw -split "`n" | ForEach-Object { $_.Trim() }
-  if ($existing -contains $VenvName) {
-    Write-Output "[ok] Virtualenv '$VenvName' ja existe"
-  } else {
-    Write-Output "[info] Criando virtualenv '$VenvName'"
-    $listRaw = & pyenv install -l
-    if ($LASTEXITCODE -ne 0) { throw "Falha ao listar versoes do pyenv-win." }
-    $list = $listRaw -split "`n" | ForEach-Object { $_.Trim() }
-    $ver = $null
-    foreach ($major in @('3.13', '3.12', '3.11', '3.10')) {
-      $candidate = $list | Where-Object { $_ -match ("^{0}\.[0-9]+$" -f [regex]::Escape($major)) } | Select-Object -Last 1
-      if ($candidate) {
-        $ver = $candidate
-        break
-      }
+    if (-not (Test-Path .venv)) {
+      python -m venv --without-pip .venv
+      if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar .venv sem pip.' }
     }
-    if (-not $ver) { throw "Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv-win." }
-    pyenv install -s $ver
-    if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar Python $ver via pyenv-win." }
-    pyenv virtualenv $ver $VenvName
-    if ($LASTEXITCODE -ne 0) { throw "Falha ao criar virtualenv $VenvName." }
+    . .\.venv\Scripts\Activate.ps1
+    Write-Output "[ok] Ambiente .venv ativo (fallback)."
+  } else {
+
+    $existingRaw = & pyenv virtualenvs --bare
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao listar virtualenvs do pyenv-win." }
+    $existing = $existingRaw -split "`n" | ForEach-Object { $_.Trim() }
+    if ($existing -contains $VenvName) {
+      Write-Output "[ok] Virtualenv '$VenvName' ja existe"
+    } else {
+      Write-Output "[info] Criando virtualenv '$VenvName'"
+      $listRaw = & pyenv install -l
+      if ($LASTEXITCODE -ne 0) { throw "Falha ao listar versoes do pyenv-win." }
+      $list = $listRaw -split "`n" | ForEach-Object { $_.Trim() }
+      $ver = $null
+      foreach ($major in @('3.13', '3.12', '3.11', '3.10')) {
+        $candidate = $list | Where-Object { $_ -match ("^{0}\.[0-9]+$" -f [regex]::Escape($major)) } | Select-Object -Last 1
+        if ($candidate) {
+          $ver = $candidate
+          break
+        }
+      }
+      if (-not $ver) { throw "Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv-win." }
+      pyenv install -s $ver
+      if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar Python $ver via pyenv-win." }
+      $previousVersion = $env:PYENV_VERSION
+      try {
+        $env:PYENV_VERSION = $ver
+        $backend = pyenv virtualenv --version
+        if ($LASTEXITCODE -ne 0) { throw 'Falha ao identificar backend do pyenv virtualenv.' }
+      } finally {
+        $env:PYENV_VERSION = $previousVersion
+      }
+      $pipOption = if ($backend -match '\(virtualenv ') { '--no-pip' } else { '--without-pip' }
+      pyenv virtualenv $pipOption $ver $VenvName
+      if ($LASTEXITCODE -ne 0) { throw "Falha ao criar virtualenv $VenvName." }
+    }
+
+    # Ativa sem alterar .python-version
+    pyenv activate $VenvName
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao ativar virtualenv '$VenvName'." }
   }
 
-  # Ativa sem alterar .python-version
-  pyenv activate $VenvName
-  if ($LASTEXITCODE -ne 0) { throw "Falha ao ativar virtualenv '$VenvName'." }
-  python -m pip install -U pip
-  if ($LASTEXITCODE -ne 0) { throw "Falha ao atualizar pip no ambiente '$VenvName'." }
-  python -m pip install -r requirements.txt
-  if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar requirements.txt no ambiente '$VenvName'." }
+  if (-not $env:VIRTUAL_ENV) { throw 'Nenhum ambiente virtual ativo para instalar dependencias.' }
+  $selectedPython = python -c 'import sys; print(sys.executable)'
+  if ($LASTEXITCODE -ne 0) { throw 'Falha ao identificar Python do ambiente selecionado.' }
+  $env:UV_PROJECT_ENVIRONMENT = $env:VIRTUAL_ENV
+  uv sync --project $ProjectRoot --python $selectedPython --frozen --no-dev --inexact
+  if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar dependencias com uv no ambiente '$env:VIRTUAL_ENV'." }
 }
 
 Install-PyenvWin -AllowRemoteInstall:$AllowRemotePyenvInstall -InstallerSha256 $PyenvInstallerSha256

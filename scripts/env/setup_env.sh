@@ -179,12 +179,23 @@ env_log ""
 read -p "Instalar dependências agora? (y/N) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    req_file="$repo_root/requirements_dev.txt"
-    if [[ -f "$req_file" ]]; then
-        env_log "Instalando dependências de desenvolvimento..."
-        pip install -r "$req_file"
-    else
-        env_log "requirements_dev.txt não encontrado"
+    export SSA_PYTHON_VARIANT="$VARIANT"
+    export SSA_PYTHON_STABLE_VERSION="$python_version"
+    # shellcheck disable=SC1091
+    source "$repo_root/scripts/env/direnv_common.sh"
+    ssa_env::apply manual || exit 1
+    if [[ "$SSA_ENV_SOURCE" == "pyenv-local" ]]; then
+        ssa_env__activate_local_venv || exit 1
+    fi
+    selected_python=$(python -c 'import sys; print(sys.executable)')
+    if [[ -z "${VIRTUAL_ENV:-}" ]]; then
+        env_log "Erro: nenhum ambiente virtual ativo para instalar dependencias."
+        exit 1
+    fi
+    env_log "Instalando dependencias de desenvolvimento com uv..."
+    if ! UV_PROJECT_ENVIRONMENT="$VIRTUAL_ENV" uv sync --project "$repo_root" --python "$selected_python" --frozen --inexact; then
+        env_log "Erro ao instalar dependencias com uv."
+        exit 1
     fi
 fi
 

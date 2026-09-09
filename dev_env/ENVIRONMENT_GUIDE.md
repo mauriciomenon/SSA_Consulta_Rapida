@@ -49,7 +49,7 @@ $env:SSA_PYTHON_VARIANT = 'free-threaded'
 ## 5. Boas praticas
 - Sempre rodar `direnv allow` ap?s alterar `.envrc` ou `scripts/env/direnv_common.sh`.
 - Em Windows, considere adicionar `. .\activate_repo.ps1` ao perfil para ativacao automatica.
-- Use `SSA_AUTO_INSTALL_REQ=1` caso queira forcar `pip install -r requirements.txt` no fallback `.venv`.
+- Instale dependencias com `uv sync --frozen`; o runtime sem ferramentas usa `uv sync --frozen --no-dev`. Ativacao nao instala pip.
 - Ao testar builds free-threaded, valide se alguma dependencia nativa suporta o binario `--disable-gil`.
 
 ## 6. Restauro manual

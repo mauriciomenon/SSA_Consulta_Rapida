@@ -5,7 +5,8 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1091
 source "${PROJECT_ROOT}/scripts/env/native_host_guard.sh"
 ssa_native_guard_repo "$PROJECT_ROOT" || exit 1
-ssa_native_guard_tools git || exit 1
+ssa_native_guard_tools git uv || exit 1
+ssa_native_guard_venv "$PROJECT_ROOT/.venv" || exit 1
 cd "$PROJECT_ROOT"
 
 export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
@@ -148,50 +149,68 @@ create_virtualenv_if_missing() {
       echo "[erro] python3 nao encontrado para criar fallback .venv"
       exit 1
     fi
-    if ! python3 -m venv --help >/dev/null 2>&1 || ! python3 -m ensurepip --version >/dev/null 2>&1; then
-      echo "[erro] venv/ensurepip indisponivel no python3 atual; instale python3-venv"
-      exit 1
-    fi
-    python3 -m venv .venv
-    source .venv/bin/activate
-    python -m pip install -U pip
-    python -m pip install -r requirements.txt
-    echo "[ok] Ambiente .venv criado (fallback)."
-    return
-  fi
-
-  if pyenv virtualenvs --bare | grep -qx "$VENV_NAME"; then
-    echo "[ok] Virtualenv pyenv '$VENV_NAME' ja existe"
-  else
-    echo "[info] Criando virtualenv pyenv '$VENV_NAME'"
-    # Prefer 3.13.x; fallback to 3.12/3.11/3.10 if needed.
-    PYENV_LIST=$(pyenv install -l | sed 's/^[[:space:]]*//')
-    PY_VER=""
-    for MAJOR in 3.13 3.12 3.11 3.10; do
-      CANDIDATE=$(printf "%s\n" "$PYENV_LIST" | sed -n "s/^\\(${MAJOR}\\.[0-9]\\+\\)$/\\1/p" | tail -1)
-      if [[ -n "${CANDIDATE:-}" ]]; then
-        PY_VER="$CANDIDATE"
-        break
+    if [[ ! -e .venv ]]; then
+      if ! python3 -m venv --without-pip .venv; then
+        echo "[erro] Falha ao criar .venv sem pip."
+        return 1
       fi
-    done
-    if [[ -z "${PY_VER:-}" ]]; then
-      echo "[erro] Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv."
-      exit 1
     fi
-    if ! pyenv install -s "$PY_VER"; then
-      echo "[erro] Falha ao instalar Python $PY_VER via pyenv."
-      exit 1
+    # shellcheck disable=SC1091
+    source .venv/bin/activate || return 1
+    echo "[ok] Ambiente .venv ativo (fallback)."
+  else
+
+    if pyenv virtualenvs --bare | grep -qx "$VENV_NAME"; then
+      echo "[ok] Virtualenv pyenv '$VENV_NAME' ja existe"
+    else
+      echo "[info] Criando virtualenv pyenv '$VENV_NAME'"
+      # Prefer 3.13.x; fallback to 3.12/3.11/3.10 if needed.
+      PYENV_LIST=$(pyenv install -l | sed 's/^[[:space:]]*//')
+      PY_VER=""
+      for MAJOR in 3.13 3.12 3.11 3.10; do
+        CANDIDATE=$(printf "%s\n" "$PYENV_LIST" | sed -n "s/^\\(${MAJOR}\\.[0-9]\\+\\)$/\\1/p" | tail -1)
+        if [[ -n "${CANDIDATE:-}" ]]; then
+          PY_VER="$CANDIDATE"
+          break
+        fi
+      done
+      if [[ -z "${PY_VER:-}" ]]; then
+        echo "[erro] Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv."
+        exit 1
+      fi
+      if ! pyenv install -s "$PY_VER"; then
+        echo "[erro] Falha ao instalar Python $PY_VER via pyenv."
+        exit 1
+      fi
+      local backend
+      local pip_option="--without-pip"
+      if ! backend=$(PYENV_VERSION="$PY_VER" pyenv virtualenv --version); then
+        echo "[erro] Falha ao identificar backend do pyenv virtualenv."
+        return 1
+      fi
+      if [[ "$backend" == *"(virtualenv "* ]]; then
+        pip_option="--no-pip"
+      fi
+      if ! pyenv virtualenv "$pip_option" "$PY_VER" "$VENV_NAME"; then
+        echo "[erro] Falha ao criar virtualenv $VENV_NAME."
+        exit 1
+      fi
     fi
-    if ! pyenv virtualenv "$PY_VER" "$VENV_NAME"; then
-      echo "[erro] Falha ao criar virtualenv $VENV_NAME."
-      exit 1
-    fi
+
+    # Ativa sem mexer em .python-version
+    pyenv activate "$VENV_NAME" || return 1
   fi
 
-  # Ativa sem mexer em .python-version
-  pyenv activate "$VENV_NAME"
-  python -m pip install -U pip
-  python -m pip install -r requirements.txt
+  if [[ -z "${VIRTUAL_ENV:-}" ]]; then
+    echo "[erro] Nenhum ambiente virtual ativo para instalar dependencias."
+    return 1
+  fi
+  local selected_python
+  selected_python=$(python -c 'import sys; print(sys.executable)') || return 1
+  if ! UV_PROJECT_ENVIRONMENT="$VIRTUAL_ENV" uv sync --project "$PROJECT_ROOT" --python "$selected_python" --frozen --no-dev --inexact; then
+    echo "[erro] Falha ao instalar dependencias com uv no ambiente $VIRTUAL_ENV."
+    return 1
+  fi
 }
 
 configure_direnv_hint() {

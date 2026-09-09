@@ -80,6 +80,217 @@ def test_direnv_common_shell_and_powershell_share_stable_version() -> None:
     assert 'else { "3.13.12" }' in direnv_common_ps1
 
 
+
+ENVIRONMENT_SCRIPTS = (
+    "scripts/env/direnv_common.sh",
+    "scripts/env/direnv_common.ps1",
+    "dev_env/activate_repo.ps1",
+    "dev_env/bootstrap.sh",
+    "dev_env/bootstrap.ps1",
+    "scripts/env/setup_env.sh",
+    "scripts/env/setup_env.ps1",
+    "dev_env/activate_env.bat",
+    "dev_env/setup_pyox_venv.bat",
+)
+
+
+@pytest.mark.parametrize("relative_path", ENVIRONMENT_SCRIPTS)
+def test_environment_scripts_do_not_seed_or_invoke_pip(relative_path: str) -> None:
+    script = _read_repo_text(*relative_path.split("/"))
+    assert "ensurepip" not in script
+    assert "--seed" not in script
+    assert "ensure_venv_pip" not in script
+    assert re.search(r"(?<!uv )\bpip install\b|\b-m pip\b", script) is None
+    for line in script.splitlines():
+        if "-m venv " in line or "'venv'," in line:
+            assert "--without-pip" in line
+
+
+@pytest.mark.parametrize("extension", ["sh", "ps1"])
+def test_environment_installers_sync_selected_environment(extension: str) -> None:
+    bootstrap = _read_repo_text("dev_env", f"bootstrap.{extension}")
+    setup = _read_repo_text("scripts", "env", f"setup_env.{extension}")
+    for script in (bootstrap, setup):
+        assert "uv sync --project" in script
+        assert "--python" in script
+        assert "--frozen" in script
+        assert "--inexact" in script
+        assert "UV_PROJECT_ENVIRONMENT" in script
+        assert "VIRTUAL_ENV" in script
+    assert "--no-dev" in bootstrap
+    assert "--no-dev" not in setup
+
+
+@pytest.fixture
+def isolated_env_repo(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv necessario para validar ambiente sem pip")
+    repo = tmp_path / "repo"
+    env_scripts = repo / "scripts" / "env"
+    env_scripts.mkdir(parents=True)
+    for name in ("direnv_common.sh", "native_host_guard.sh", "setup_env.sh"):
+        shutil.copy2(PROJECT_ROOT / "scripts" / "env" / name, env_scripts / name)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        "#!/usr/bin/env bash\n"
+        'printf "%s\\n" "$*" >> "$SSA_TEST_UV_LOG"\n'
+        'if [[ "$1 $2" == "python install" ]]; then exit 1; fi\n'
+        'if [[ "$1" == "venv" && "${SSA_TEST_FAIL_UV:-0}" == 1 ]]; then exit 42; fi\n'
+        'if [[ "$1" == sync && -n "${SSA_TEST_SYNC_RESULT:-}" ]]; then\n'
+        '  printf "%s\\n" "$UV_PROJECT_ENVIRONMENT" >> "$SSA_TEST_UV_LOG"\n'
+        '  exit "$SSA_TEST_SYNC_RESULT"\n'
+        'fi\n'
+        'exec "$SSA_TEST_UV" "$@"\n',
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+    env = _test_env(
+        PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        SSA_TEST_UV=uv,
+        SSA_TEST_UV_LOG=str(tmp_path / "uv.log"),
+        SSA_SKIP_PYENV="1",
+        SSA_PYTHON_STABLE_VERSION=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        UV_OFFLINE="1",
+        UV_PYTHON_DOWNLOADS="never",
+    )
+    for name in (
+        "SSA_ENV_COMMON_SOURCED", "SSA_ENV_PYENV_INITIALIZED", "SSA_PYTHON_VARIANT",
+        "SSA_USE_FREE_THREADED", "SSA_SKIP_UV", "SSA_VENV_DIR_OVERRIDE",
+        "UV_PROJECT_ENVIRONMENT", "UV_PYTHON", "VIRTUAL_ENV",
+    ):
+        env.pop(name, None)
+    return repo, env
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("fallback", [False, True])
+def test_environment_activation_keeps_pip_absent(
+    isolated_env_repo: tuple[Path, dict[str, str]], existing: bool, fallback: bool
+) -> None:
+    repo, env = isolated_env_repo
+    if existing:
+        subprocess.run(
+            [env["SSA_TEST_UV"], "venv", "--python", sys.executable, str(repo / ".venv")],
+            check=True, capture_output=True, text=True, env=env,
+        )
+        (repo / ".venv" / "preserved.txt").write_text("preservado", encoding="utf-8")
+    if fallback:
+        env["SSA_SKIP_UV"] = "1"
+        env["SSA_ENV_FALLBACK_PYTHON"] = sys.executable
+    result = subprocess.run(
+        ["bash", "-c", ('source scripts/env/direnv_common.sh && ssa_env::apply manual && '
+         'python -c "import importlib.util; assert importlib.util.find_spec(\\\"pip\\\") is None"')],
+        cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (repo / ".venv" / "bin" / "python").exists()
+    if existing:
+        assert (repo / ".venv" / "preserved.txt").read_text(encoding="utf-8") == "preservado"
+    log = Path(env["SSA_TEST_UV_LOG"])
+    calls = log.read_text(encoding="utf-8") if log.exists() else ""
+    assert "--seed" not in calls
+    if existing:
+        assert "venv --python" not in calls
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("failure", ["incomplete", "version", "uv", "fallback_version"])
+def test_environment_activation_rejects_invalid_state(
+    isolated_env_repo: tuple[Path, dict[str, str]], failure: str
+) -> None:
+    repo, env = isolated_env_repo
+    if failure == "incomplete":
+        (repo / ".venv").mkdir()
+    elif failure == "version":
+        subprocess.run(
+            [env["SSA_TEST_UV"], "venv", "--python", sys.executable, str(repo / ".venv")],
+            check=True, capture_output=True, text=True, env=env,
+        )
+        env["SSA_PYTHON_STABLE_VERSION"] = "0.0.0"
+    elif failure == "fallback_version":
+        env.update(SSA_PYTHON_STABLE_VERSION="0.0.0", SSA_SKIP_UV="1", SSA_ENV_FALLBACK_PYTHON=sys.executable)
+    else:
+        env["SSA_TEST_FAIL_UV"] = "1"
+    result = subprocess.run(
+        ["bash", "-c", "source scripts/env/direnv_common.sh && ssa_env::apply manual"],
+        cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0
+    assert "pip missing" not in result.stdout
+    if failure == "uv":
+        assert "uv failed to provision" in result.stdout
+    elif failure == "version":
+        assert "wanted 0.0.0" in result.stdout
+    elif failure == "fallback_version":
+        assert "esperado 0.0.0" in result.stdout
+    else:
+        assert "venv incompleta" in result.stderr
+
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("sync_result", [0, 42])
+def test_environment_setup_syncs_selected_venv_and_propagates_failure(
+    isolated_env_repo: tuple[Path, dict[str, str]], sync_result: int
+) -> None:
+    repo, env = isolated_env_repo
+    env["SSA_TEST_SYNC_RESULT"] = str(sync_result)
+    (repo / ".python-version").write_text(env["SSA_PYTHON_STABLE_VERSION"] + "\n", encoding="utf-8")
+    result = subprocess.run(
+        ["bash", "scripts/env/setup_env.sh"],
+        cwd=repo, env=env, input="y", capture_output=True, text=True, check=False,
+    )
+    assert (result.returncode == 0) == (sync_result == 0), result.stdout + result.stderr
+    calls = Path(env["SSA_TEST_UV_LOG"]).read_text(encoding="utf-8")
+    assert f"sync --project {repo} --python {repo}/.venv/bin/python --frozen --inexact" in calls
+    assert calls.endswith(f"{repo}/.venv\n")
+    if sync_result:
+        assert "Erro ao instalar dependencias com uv." in result.stdout
+        assert "Setup conclu" not in result.stdout
+
+
+@NATIVE_POSIX_ONLY
+def test_environment_setup_rejects_missing_uv(isolated_env_repo: tuple[Path, dict[str, str]]) -> None:
+    repo, env = isolated_env_repo
+    env["PATH"] = "/usr/bin:/bin"
+    result = subprocess.run(
+        ["bash", "scripts/env/setup_env.sh"],
+        cwd=repo, env=env, input="y", capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0
+    assert "ferramenta ausente ou nao executavel: uv" in result.stderr
+    assert not (repo / ".venv").exists()
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("backend,option", [("python -m venv", "--without-pip"), ("virtualenv 20.0", "--no-pip")])
+def test_pyenv_creation_disables_pip_for_selected_backend(
+    isolated_env_repo: tuple[Path, dict[str, str]], backend: str, option: str
+) -> None:
+    repo, env = isolated_env_repo
+    fake_pyenv = Path(env["PATH"].split(os.pathsep)[0]) / "pyenv"
+    fake_pyenv.write_text(
+        "#!/usr/bin/env bash\n"
+        'printf "%s\\n" "$*" >> "$SSA_TEST_PYENV_LOG"\n'
+        'case "$1 $2" in\n'
+        '  "versions --bare") printf "%s\\n" "$SSA_PYTHON_STABLE_VERSION" ;;\n'
+        '  "virtualenv --version") printf "pyenv-virtualenv 1.2.4 (%s)\\n" "$SSA_TEST_BACKEND" ;;\n'
+        'esac\n',
+        encoding="utf-8",
+    )
+    fake_pyenv.chmod(0o755)
+    env.update(SSA_TEST_PYENV_LOG=str(repo / "pyenv.log"), SSA_TEST_BACKEND=backend)
+    result = subprocess.run(
+        ["bash", "-c", ("source scripts/env/direnv_common.sh && ssa_env__determine_variant && "
+         "SSA_ENV_PYENV_AVAILABLE=1 && SSA_ENV_PYENV_HAS_VIRTUALENV=1 && ssa_env__ensure_pyenv_env")],
+        cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"virtualenv {option} " in (repo / "pyenv.log").read_text(encoding="utf-8")
+
 def test_windows_activation_avoids_dynamic_eval_and_silent_catches() -> None:
     activate_repo = _read_repo_text("dev_env", "activate_repo.ps1")
     direnv_common = _read_repo_text("scripts", "env", "direnv_common.ps1")
