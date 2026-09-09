@@ -2,6 +2,7 @@
 # Instale junto com requirements.txt para desenvolvimento local
 
 pytest>=9.0.3
+pytest-timeout>=2.4.0
 flake8>=7.3.0
 isort>=5.13.2
 black>=26.3.1
@@ -11,7 +12,6 @@ pre-commit>=4.6.0
 ruff>=0.15.15
 ty>=0.0.42  # type checking tooling; kept for uv dev flow
 pillow>=12.2.0  # icon regression tests
-codeflash>=0.20.6
 
 # Changelog:
 # [2026-02-16] - Atualizado para versoes com security patches e nota do ty
