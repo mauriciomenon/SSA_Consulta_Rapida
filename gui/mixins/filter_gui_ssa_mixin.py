@@ -2313,6 +2313,7 @@ class FilterGUISSAMixin:
                 date_parsed=getattr(self, "_column_filter_date_parsed_cache", {}) or {},
                 date=getattr(self, "_column_filter_date_cache", {}) or {},
                 frame_tokens=getattr(self, "_column_filter_frame_tokens", {}) or {},
+                default_mode=self._get_default_filter_mode(),
             )
         )
 
@@ -2478,6 +2479,7 @@ class FilterGUISSAMixin:
         if has_post_search_filters or has_excluded_terminal_status:
             cache_context = self._build_filter_cache_context()
             cache_key = (
+                self._get_default_filter_mode(),
                 getattr(self, "_data_revision", None),
                 getattr(self, "_data_uuid", None),
                 id(getattr(self, "df_completo", None)),

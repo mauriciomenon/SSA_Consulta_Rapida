@@ -4132,6 +4132,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return width_settings_changed
 
     def _apply_preferences_dialog_changes(self, state: dict[str, Any]) -> None:
+        previous_mode = self._get_default_filter_mode()
         updates_changed = False
         try:
             self.setUpdatesEnabled(False)
@@ -4153,6 +4154,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             paginator = getattr(self, "paginator", None)
             if paginator is not None:
                 paginator.change_page_size(page_size)
+            if (
+                previous_mode != self._get_default_filter_mode()
+                and not self.df_completo.empty
+            ):
+                self._df_last_search_filtered = self.df_completo
+                self.initiate_filtering()
             if not page_size_saved and hasattr(self, "status_label"):
                 self.status_label.setText(
                     "Status: Linhas por pagina atualizadas, mas a persistencia falhou."

@@ -878,6 +878,42 @@ class TestGUIFilterLogic:
         assert "Clique em uma SSA" in str(details_tree_text.toolTip() or "")
         assert str(details_graph_label.toolTip() or "") == "Clique abre detalhes"
 
+    @pytest.mark.parametrize("scope", ["column", "general"])
+    def test_preferences_mode_change_recomputes_active_filters(self, monkeypatch, scope):
+        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        monkeypatch.setitem(gui_settings, "default_filter_mode", "contains")
+        self.window._cached_default_mode = "contains"
+        self.window._sync_filtering = True
+        frame = self.base_df.copy()
+        frame["descricao_ssa"] = ["alpha", "alphabet", "beta", "gamma", "delta"]
+        self.window.df_completo = frame
+        self.window._df_last_search_filtered = frame
+        self.window._active_column_filters = (
+            {"descricao_ssa": "alpha"} if scope == "column" else {}
+        )
+        self.window._advanced_filters_active = False
+        self.window._exclude_ste_sca = False
+        self.window.search_input.setText("alpha" if scope == "general" else "")
+        self.window._debounce_timer.stop()
+        self.window.initiate_filtering()
+        assert sorted(self.window.df_exibido["descricao_ssa"]) == ["alpha", "alphabet"]
+
+        for mode, expected in [
+            ("exact", ["alpha"]),
+            ("contains", ["alpha", "alphabet"]),
+            ("regex", ["alpha", "alphabet"]),
+        ]:
+            def accept_mode(dialog):
+                combo = dialog.findChild(QComboBox, "preferencesSearchModeCombo")
+                combo.setCurrentIndex(combo.findData(mode))
+                return QDialog.DialogCode.Accepted
+
+            monkeypatch.setattr(QDialog, "exec", accept_mode)
+            self.window._open_preferences_dialog()
+
+            assert self.window._get_default_filter_mode() == mode
+            assert sorted(self.window.df_exibido["descricao_ssa"]) == expected
+
     def test_preferences_dialog_exposes_runtime_controls_and_column_entry(self, monkeypatch):
         selector = getattr(self.window, "column_selector", None)
         assert selector is not None

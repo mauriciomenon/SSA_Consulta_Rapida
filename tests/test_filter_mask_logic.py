@@ -1,8 +1,19 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from gui.ssa.filter_mask_logic import build_column_mask
+
+
+@pytest.mark.parametrize("mode", ["contains", "exact", "prefix", "suffix", "regex"])
+@pytest.mark.parametrize("raw,expected", [("!alpha", ["beta"]), ("alpha,!alpha", [])])
+def test_column_exclusions_apply_in_every_mode(mode, raw, expected):
+    series = pd.Series(["alpha", "beta"])
+
+    mask = build_column_mask(series, raw, default_mode=mode)
+
+    assert series[mask].tolist() == expected
 
 
 def test_build_column_mask_combines_plain_include_and_exclude_tokens():

@@ -38,6 +38,7 @@ class ColumnFilterCaches:
     date_filter_terms: dict[tuple[str, bool], bool] = field(default_factory=dict)
     max_entries: int = 96
     max_bytes: int = 16 * 1024 * 1024
+    default_mode: str = "contains"
 
 
 class OrFilterGroup(TypedDict, total=False):
@@ -251,7 +252,7 @@ def _build_effective_column_mask(
     build_column_mask: Callable[..., pd.Series],
     date_display_columns: set[str] | frozenset[str] | None,
 ) -> pd.Series:
-    mask_key = (frame_key, str(col), raw_str)
+    mask_key = (frame_key, str(col), raw_str, caches.default_mode)
     cached_mask = caches.mask.get(mask_key)
     if isinstance(cached_mask, pd.Series):
         return cached_mask.reindex(df.index, fill_value=False)
