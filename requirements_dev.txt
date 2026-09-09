@@ -1,17 +1,13 @@
-# Dependencias de desenvolvimento (minimas)
-# Instale junto com requirements.txt para desenvolvimento local
+# Compatibilidade de desenvolvimento; combinar com requirements.txt.
+# Fluxo principal: uv sync --frozen
 
-pytest>=9.0.3
-pytest-timeout>=2.4.0
-flake8>=7.3.0
-isort>=5.13.2
-black>=26.3.1
-mypy>=2.1.0
-pytest-cov>=7.1.0
-pre-commit>=4.6.0
-ruff>=0.15.15
-ty>=0.0.42  # type checking tooling; kept for uv dev flow
-pillow>=12.2.0  # icon regression tests
-
-# Changelog:
-# [2026-02-16] - Atualizado para versoes com security patches e nota do ty
+pytest>=9.1.1,<10
+pytest-timeout>=2.4.0,<3
+flake8>=7.3.0,<8
+black>=26.5.1,<27
+mypy>=2.3.1,<3
+pytest-cov>=7.1.0,<8
+pre-commit>=4.6.2,<5
+ruff>=0.16.6,<1
+ty>=0.0.79,<1
+pillow>=12.3.0,<13

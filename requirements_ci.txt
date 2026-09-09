@@ -1,16 +1,5 @@
-# Dependencias de CI/CD (sem runtime)
-pytest>=9.0.3
-pytest-timeout>=2.4.0
-flake8>=7.3.0
-isort>=5.13.2
-black>=26.3.1
-mypy>=2.1.0
-pytest-cov>=7.1.0
-pre-commit>=4.6.0
-pyinstaller>=6.20.0
-ruff>=0.15.15
-ty>=0.0.42
-pillow>=12.2.0
+# Compatibilidade de CI. Fonte: pyproject.toml e uv.lock.
+# Fluxo principal: uv sync --frozen --extra dev
 
-# Changelog:
-# [2026-05-11] - CI inclui ferramentas de dev e build usadas pelos gates.
+-r requirements_dev.txt
+pyinstaller>=6.22.2,<7
