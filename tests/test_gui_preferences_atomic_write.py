@@ -145,6 +145,66 @@ def test_preferences_writer_snapshots_before_enqueue():
     ]
 
 
+def test_preferences_writer_coalesces_updates_during_slow_write(monkeypatch):
+    from gui.ssa import gui_preferences_persistence
+
+    started = threading.Event()
+    release = threading.Event()
+    written: list[dict] = []
+
+    def _write(data, *, retries):
+        written.append(data)
+        if len(written) == 1:
+            started.set()
+            assert release.wait(5.0)
+        return True
+
+    writer = gui_preferences_persistence.PreferencesWriter(
+        _write, debounce_seconds=0.001, retries=0
+    )
+    monkeypatch.setattr(gui_preferences_persistence, "_GUI_PREFERENCES_WRITER", writer)
+    try:
+        assert writer.persist_async({"version": 0})
+        assert started.wait(1.0)
+        for version in range(1, 1001):
+            assert writer.persist_async({"version": version})
+        with writer._lock:
+            assert writer._pending == {"version": 1000}
+        assert gui_preferences_persistence.shutdown_gui_preferences_writer(
+            timeout=0.001
+        ) is False
+        assert writer.persist_async({"version": 1001}) is False
+    finally:
+        release.set()
+        assert gui_preferences_persistence.shutdown_gui_preferences_writer(
+            timeout=1.0
+        ) is True
+
+    assert written == [{"version": 0}, {"version": 1000}]
+
+
+def test_preferences_writer_reports_unexpected_failure(monkeypatch):
+    from gui.ssa import gui_preferences_persistence
+
+    errors: list[str] = []
+
+    def _write(data, *, retries):
+        raise OSError("disco indisponivel")
+
+    monkeypatch.setattr(
+        gui_preferences_persistence.logger, "exception", errors.append
+    )
+    writer = gui_preferences_persistence.PreferencesWriter(_write)
+    try:
+        assert writer.persist_async({"theme": "dark"})
+        assert writer._terminated.wait(1.0)
+        assert writer.is_stopped is True
+        assert writer.persist_async({"theme": "light"}) is False
+    finally:
+        assert writer.shutdown(timeout=1.0) is True
+    assert errors == ["Falha inesperada no gravador de preferencias GUI"]
+
+
 def test_persist_gui_preferences_async_restarts_without_blocking_join(monkeypatch):
     from gui.ssa import gui_preferences_persistence
 

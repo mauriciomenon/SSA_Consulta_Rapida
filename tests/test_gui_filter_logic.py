@@ -14467,6 +14467,37 @@ class TestGUIFilterLogic:
         assert worker.deleted is False
         assert self.window.data_loader_thread is worker
 
+    def test_close_event_waits_for_preferences_writer(self, monkeypatch):
+        import threading
+
+        from gui.ssa import gui_preferences_persistence
+
+        started = threading.Event()
+        release = threading.Event()
+
+        def write_preferences(data, *, retries):
+            started.set()
+            assert release.wait(5.0)
+            return True
+
+        writer = gui_preferences_persistence.PreferencesWriter(write_preferences)
+        monkeypatch.setattr(gui_preferences_persistence, "_GUI_PREFERENCES_WRITER", writer)
+        try:
+            assert writer.persist_async({"theme": "dark"})
+            assert started.wait(1.0)
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is False
+            assert "gravacao das preferencias" in self.window.status_label.text()
+        finally:
+            release.set()
+            assert writer.shutdown(timeout=1.0) is True
+
+        retry_event = QCloseEvent()
+        self.window.closeEvent(retry_event)
+        assert retry_event.isAccepted() is True
+
     def test_close_event_stops_main_and_sector_debounce_timers(self):
         self.window._debounce_timer.start()
         self.window._sector_debounce_timer.start()

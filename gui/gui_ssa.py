@@ -6308,9 +6308,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 shutdown_gui_preferences_writer,
             )
 
-            shutdown_gui_preferences_writer(timeout=1.0)
+            preferences_finished = shutdown_gui_preferences_writer(timeout=1.0)
         except Exception as exc:
-            logger.debug("Falha ao aguardar persistencia GUI no shutdown: %s", exc)
+            logger.error("Falha ao aguardar persistencia GUI no shutdown: %s", exc)
+            return False
+        if not preferences_finished:
+            logger.warning("Shutdown adiado; gravacao de preferencias em andamento")
+            self.status_label.setText(
+                "Encerramento aguardando gravacao das preferencias."
+            )
+            return False
         return True
 
     def closeEvent(self, event):

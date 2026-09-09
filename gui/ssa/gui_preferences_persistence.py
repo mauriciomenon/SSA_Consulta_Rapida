@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import queue
 import threading
 from collections.abc import Callable
 from typing import Any
@@ -44,8 +43,8 @@ class PreferencesWriter:
         self._write_func = write_func
         self._debounce_seconds = debounce_seconds
         self._retries = retries
-        self._lock = threading.Lock()
-        self._queue: queue.Queue[dict[Any, Any] | None] = queue.Queue()
+        self._lock = threading.Condition()
+        self._pending: dict[Any, Any] | None = None
         self._stopped = False
         self._terminated = threading.Event()
         self._thread = threading.Thread(
@@ -56,11 +55,12 @@ class PreferencesWriter:
         self._thread.start()
 
     def persist_async(self, gui_prefs: dict) -> bool:
-        """Queue a preferences write and return only the enqueue status."""
+        """Substitui a preferencia pendente e informa se foi aceita."""
         with self._lock:
             if self._stopped:
                 return False
-            self._queue.put(_snapshot_preferences(gui_prefs))
+            self._pending = _snapshot_preferences(gui_prefs)
+            self._lock.notify()
             return True
 
     @property
@@ -75,52 +75,37 @@ class PreferencesWriter:
     def _run(self) -> None:
         try:
             while True:
-                prefs_snapshot = self._queue.get()
-                if prefs_snapshot is None:
-                    self._queue.task_done()
-                    return
-                try:
-                    prefs_snapshot, stop_after_write = self._drain_latest_snapshot(
-                        prefs_snapshot
-                    )
-                    self._write_func(
-                        prefs_snapshot,
-                        retries=self._retries,
-                    )
-                finally:
-                    self._queue.task_done()
-                if stop_after_write:
-                    return
+                with self._lock:
+                    while self._pending is None and not self._stopped:
+                        self._lock.wait()
+                    if self._pending is None:
+                        return
+                    # Cada atualizacao reinicia a pausa antes da gravacao.
+                    while not self._stopped and self._lock.wait(
+                        timeout=self._debounce_seconds
+                    ):
+                        pass
+                    prefs_snapshot = self._pending
+                    self._pending = None
+                self._write_func(prefs_snapshot, retries=self._retries)
+        except Exception:
+            logger.exception("Falha inesperada no gravador de preferencias GUI")
         finally:
-            self._terminated.set()
+            with self._lock:
+                self._stopped = True
+                self._terminated.set()
 
-    def _drain_latest_snapshot(
-        self, prefs_snapshot: dict[str, Any]
-    ) -> tuple[dict[str, Any], bool]:
-        stop_after_write = False
-        while True:
-            try:
-                next_snapshot = self._queue.get(timeout=self._debounce_seconds)
-            except queue.Empty:
-                break
-            if next_snapshot is None:
-                stop_after_write = True
-                self._queue.task_done()
-                continue
-            prefs_snapshot = next_snapshot
-            self._queue.task_done()
-        return prefs_snapshot, stop_after_write
-
-    def shutdown(self, *, timeout: float | None = 1.0) -> None:
+    def shutdown(self, *, timeout: float | None = 1.0) -> bool:
         with self._lock:
             if not self._stopped:
                 self._stopped = True
-                self._queue.put(None)
+                self._lock.notify()
             thread = self._thread
         if timeout is None:
             thread.join()
-            return
-        thread.join(timeout=max(0.0, float(timeout)))
+        else:
+            thread.join(timeout=max(0.0, float(timeout)))
+        return not thread.is_alive()
 
 
 def _snapshot_preferences(gui_prefs: dict) -> dict:
@@ -167,7 +152,7 @@ def persist_gui_preferences_async(gui_prefs: dict) -> bool:
     return _get_gui_preferences_writer().persist_async(gui_prefs)
 
 
-def shutdown_gui_preferences_writer(*, timeout: float = 1.0) -> None:
+def shutdown_gui_preferences_writer(*, timeout: float | None = 1.0) -> bool:
     with _GUI_PREFERENCES_WRITER_LOCK:
         writer = _GUI_PREFERENCES_WRITER
-    writer.shutdown(timeout=timeout)
+    return writer.shutdown(timeout=timeout)
