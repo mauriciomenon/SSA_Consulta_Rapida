@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=82.0.1"]
+requires = ["setuptools>=83.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -52,7 +52,7 @@ dev = [
     "pre-commit>=4.6.0",
     "ruff>=0.15.15",
     "ty>=0.0.42",
-    "pillow>=12.2.0",
+    "pillow>=12.3.0",
     "codeflash>=0.20.6",
     "filelock>=3.20.3",
     "virtualenv>=20.36.1",
@@ -60,7 +60,7 @@ dev = [
 build = [
     "pyinstaller>=6.20.0",
     "nuitka>=4.1.2",
-    "pillow>=12.2.0",
+    "pillow>=12.3.0",
     "cairosvg>=2.9.0",
     "pywin32>=311; platform_system == 'Windows'",
     "dmgbuild>=1.6.7; platform_system == 'Darwin'",
@@ -81,7 +81,7 @@ dev = [
     "pre-commit>=4.6.0",
     "ruff>=0.15.15",
     "ty>=0.0.42",
-    "pillow>=12.2.0",
+    "pillow>=12.3.0",
     "codeflash>=0.20.6",
     "filelock>=3.20.3",
     "virtualenv>=20.36.1",
