@@ -154,7 +154,11 @@ if ($install -eq "y" -or $install -eq "Y") {
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw 'uv nao encontrado no PATH.' }
     if ($SkipPyenv) { $env:SSA_SKIP_PYENV = '1' }
     $env:SSA_PYTHON_VARIANT = $Variant
-    $env:SSA_PYTHON_STABLE_VERSION = $pythonVersion
+    if ($Variant -eq 'free-threaded') {
+        $env:SSA_PYTHON_FT_VERSION = $pythonVersion
+    } else {
+        $env:SSA_PYTHON_STABLE_VERSION = $pythonVersion
+    }
     . (Join-Path $repoRoot 'scripts/env/direnv_common.ps1')
     if (-not (ssa_env_apply manual)) { throw 'Falha ao ativar ambiente selecionado.' }
     if ($env:SSA_ENV_SOURCE -eq 'pyenv-local') {

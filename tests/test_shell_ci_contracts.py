@@ -254,9 +254,156 @@ def test_environment_setup_syncs_selected_venv_and_propagates_failure(
 
 
 @NATIVE_POSIX_ONLY
+def test_environment_setup_keeps_stable_version_when_selecting_free_threaded(
+    isolated_env_repo: tuple[Path, dict[str, str]],
+) -> None:
+    repo, env = isolated_env_repo
+    env.update(
+        SSA_PYTHON_VARIANT="free-threaded",
+        SSA_PYTHON_FT_VERSION=env["SSA_PYTHON_STABLE_VERSION"],
+        SSA_PYTHON_STABLE_VERSION="3.12.0",
+        SSA_TEST_SYNC_RESULT="0",
+    )
+    (repo / ".python-version").write_text("3.12.0\n", encoding="utf-8")
+    result = subprocess.run(
+        ["bash", "-c", (
+            "source scripts/env/setup_env.sh && "
+            "SSA_PYTHON_VARIANT=stable && ssa_env__determine_variant && "
+            'printf "STABLE=%s\\n" "$SSA_ENV_PY_VERSION"'
+        )],
+        cwd=repo, env=env, input="y", capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "STABLE=3.12.0" in result.stdout
+    assert (repo / ".venv_ft" / "bin" / "python").exists()
+
+
+def _run_powershell_activation_probe(
+    repo: Path, env: dict[str, str], target: str, variant: str = "stable",
+) -> subprocess.CompletedProcess[str]:
+    pwsh = shutil.which("pwsh")
+    if pwsh is None:
+        pytest.skip("pwsh necessario para validar provisionamento PowerShell")
+    env = env | {
+        "SSA_TEST_REPO": str(repo),
+        "SSA_TEST_SCRIPT": str(PROJECT_ROOT / "dev_env" / "activate_repo.ps1"),
+        "SSA_TEST_TARGET": target,
+        "SSA_TEST_VARIANT": variant,
+    }
+    # Executa os blocos reais de provisionamento sem o guard exclusivo do Windows.
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$repoRoot = $env:SSA_TEST_REPO
+$targetVersion = $env:SSA_TEST_TARGET
+$variant = $env:SSA_TEST_VARIANT
+$venvDir = if ($variant -eq 'free-threaded') { '.venv_ft' } else { '.venv' }
+$envSource = $null
+$ast = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_SCRIPT, [ref]$null, [ref]$null)
+foreach ($statement in $ast.EndBlock.Statements) {
+    if (($statement -is [Management.Automation.Language.FunctionDefinitionAst] -and $statement.Name -eq 'Write-EnvLog') -or
+        ($statement -is [Management.Automation.Language.IfStatementAst] -and
+            $statement.Clauses[0].Item1.Extent.Text -in @(
+                '-not $envSource', '$variant -eq ''free-threaded''', '$envSource -like ''venv:*'''))) {
+        . ([scriptblock]::Create($statement.Extent.Text))
+    }
+}
+Write-Output "SOURCE=$envSource"
+"""
+    return subprocess.run(
+        [pwsh, "-NoProfile", "-Command", command],
+        cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("target,variant,requested", [
+    ("3.13.12", "stable", "3.13.12"),
+    ("3.14-dev", "free-threaded", "3.14+freethreaded"),
+    ("3.14.2t", "free-threaded", "3.14.2+freethreaded"),
+])
+def test_powershell_activation_requests_target_and_propagates_uv_failure(
+    isolated_env_repo: tuple[Path, dict[str, str]], target: str, variant: str, requested: str,
+) -> None:
+    repo, env = isolated_env_repo
+    env["SSA_TEST_FAIL_UV"] = "1"
+    result = _run_powershell_activation_probe(repo, env, target, variant)
+    assert result.returncode != 0
+    assert "Falha ao criar" in result.stderr
+    calls = Path(env["SSA_TEST_UV_LOG"]).read_text(encoding="utf-8").splitlines()
+    venv_dir = ".venv_ft" if variant == "free-threaded" else ".venv"
+    assert calls == [f"venv --python {requested} {repo / venv_dir}"]
+    assert not (repo / venv_dir).exists()
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("failure", [None, "version", "ft_version", "free-threaded"])
+def test_powershell_activation_validates_existing_interpreter_without_recreating(
+    isolated_env_repo: tuple[Path, dict[str, str]], failure: str | None,
+) -> None:
+    repo, env = isolated_env_repo
+    variant = "free-threaded" if failure in ("ft_version", "free-threaded") else "stable"
+    venv_dir = ".venv_ft" if variant == "free-threaded" else ".venv"
+    scripts = repo / venv_dir / "Scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "python.exe").symlink_to(sys.executable)
+    (scripts / "Activate.ps1").write_text(
+        "Set-Content -LiteralPath (Join-Path $env:SSA_TEST_REPO 'activated.txt') -Value '1'\n",
+        encoding="utf-8",
+    )
+    target = "0.0.0" if failure == "version" else env["SSA_PYTHON_STABLE_VERSION"]
+    if failure == "ft_version":
+        target = "0.0.0t"
+    result = _run_powershell_activation_probe(repo, env, target, variant)
+    assert (result.returncode == 0) == (failure is None), result.stdout + result.stderr
+    if failure in ("version", "ft_version"):
+        assert "Versao Python invalida" in result.stderr
+    elif failure == "free-threaded":
+        assert "nao e uma build free-threaded" in result.stderr
+    else:
+        assert "SOURCE=venv:.venv" in result.stdout
+    assert (repo / "activated.txt").exists() == (failure is None)
+    assert not Path(env["SSA_TEST_UV_LOG"]).exists()
+
+
+def test_powershell_setup_keeps_stable_version_when_selecting_free_threaded() -> None:
+    pwsh = shutil.which("pwsh")
+    if pwsh is None:
+        pytest.skip("pwsh necessario para validar selecao PowerShell")
+    env = _test_env(SSA_TEST_SETUP=str(PROJECT_ROOT / "scripts" / "env" / "setup_env.ps1"))
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$Variant = 'free-threaded'
+$pythonVersion = '3.14-dev'
+$env:SSA_PYTHON_STABLE_VERSION = '3.13.12'
+$ast = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_SETUP, [ref]$null, [ref]$null)
+$installBlock = $ast.EndBlock.Statements | Where-Object {
+    $_ -is [Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text.StartsWith('$install -eq')
+}
+foreach ($statement in $installBlock.Clauses[0].Item2.Statements) {
+    if ($statement -is [Management.Automation.Language.PipelineAst] -and
+        $statement.PipelineElements[0].InvocationOperator -eq [Management.Automation.Language.TokenKind]::Dot) { break }
+    . ([scriptblock]::Create($statement.Extent.Text))
+}
+@($env:SSA_PYTHON_STABLE_VERSION, $env:SSA_PYTHON_FT_VERSION) | ConvertTo-Json -Compress
+"""
+    result = subprocess.run(
+        [pwsh, "-NoProfile", "-Command", command],
+        env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout) == ["3.13.12", "3.14-dev"]
+
+
+@NATIVE_POSIX_ONLY
 def test_environment_setup_rejects_missing_uv(isolated_env_repo: tuple[Path, dict[str, str]]) -> None:
     repo, env = isolated_env_repo
-    env["PATH"] = "/usr/bin:/bin"
+    bin_dir = Path(env["PATH"].split(os.pathsep)[0])
+    (bin_dir / "uv").unlink()
+    for command in ("bash", "dirname", "tr"):
+        executable = shutil.which(command)
+        assert executable is not None
+        (bin_dir / command).symlink_to(executable)
+    env["PATH"] = str(bin_dir)
     result = subprocess.run(
         ["bash", "scripts/env/setup_env.sh"],
         cwd=repo, env=env, input="y", capture_output=True, text=True, check=False,

@@ -18,19 +18,6 @@ function ConvertTo-EnvNameSegment {
     return $result
 }
 
-function Invoke-Python {
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        & python @Args
-        return $LASTEXITCODE
-    }
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3 @Args
-        return $LASTEXITCODE
-    }
-    throw "Python interpreter not found on PATH"
-}
-
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if (-not $repoRoot) {
     $repoRoot = (Get-Location).Path
@@ -153,29 +140,43 @@ if ($pyenvAvailable) {
 if (-not $envSource) {
     $venvPath = Join-Path $repoRoot $venvDir
     $activatePath = Join-Path $venvPath 'Scripts/Activate.ps1'
+    $numericVersion = if ($targetVersion -match '^(\d+\.\d+(?:\.\d+)?)(?:t|\+freethreaded)?(?:-dev)?$') { $Matches[1] } else { $null }
     if (-not (Test-Path $activatePath)) {
-        if ($variant -eq 'free-threaded') {
-            Write-EnvLog "warn: free-threaded variant requested but pyenv unavailable; creating fallback venv $venvDir"
-        } else {
-            Write-EnvLog "creating fallback venv $venvDir"
+        if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+            throw 'uv nao encontrado no PATH para criar o ambiente.'
         }
-        $result = Invoke-Python -Args @('-m', 'venv', '--without-pip', $venvPath)
-        if ($result -ne 0) {
-            throw "Failed to create fallback venv $venvPath"
+        $uvPythonVersion = if ($variant -eq 'free-threaded' -and $numericVersion) {
+            "$numericVersion+freethreaded"
+        } else { $targetVersion }
+        Write-EnvLog "Criando $venvDir com Python $uvPythonVersion via uv"
+        uv venv --python $uvPythonVersion $venvPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao criar $venvPath com Python $uvPythonVersion"
         }
     }
     $venvPython = Join-Path $venvPath 'Scripts/python.exe'
     if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
         throw "Executavel Python ausente em $venvPath"
     }
-    if ($targetVersion -match '^\d+\.\d+(\.\d+)?$') {
+    if ($numericVersion) {
         $actualVersion = & $venvPython -c 'import platform; print(platform.python_version())'
-        if ($LASTEXITCODE -ne 0 -or $actualVersion -notmatch ('^' + [regex]::Escape($targetVersion) + '(\.|$)')) {
+        if ($LASTEXITCODE -ne 0 -or $actualVersion -notmatch ('^' + [regex]::Escape($numericVersion) + '(\.|$)')) {
             throw "Versao Python invalida em $venvPath; esperado $targetVersion"
         }
     }
-    . $activatePath
     $envSource = "venv:$venvDir"
+}
+
+if ($variant -eq 'free-threaded') {
+    $selectedPython = if ($envSource -like 'venv:*') { $venvPython } else { 'python' }
+    & $selectedPython -c 'import sys, sysconfig; sys.exit(0 if sysconfig.get_config_var("Py_GIL_DISABLED") else 1)'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'O Python selecionado nao e uma build free-threaded.'
+    }
+}
+
+if ($envSource -like 'venv:*') {
+    . $activatePath
 }
 
 $env:PYTHONUTF8 = '1'
@@ -197,7 +198,4 @@ foreach ($path in @($scriptPath, $maintPath)) {
 
 $pyVersion = try { (& python --version 2>$null).Split()[1] } catch { 'unknown' }
 Write-EnvLog ("python {0} ({1} via {2})" -f $pyVersion, $variant, $envSource)
-if ($variant -eq 'free-threaded' -and ($envSource -notlike 'pyenv-virtualenv*')) {
-    Write-EnvLog 'note: fallback venv may not include the free-threaded build'
-}
 

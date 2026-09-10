@@ -180,7 +180,11 @@ read -p "Instalar dependências agora? (y/N) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     export SSA_PYTHON_VARIANT="$VARIANT"
-    export SSA_PYTHON_STABLE_VERSION="$python_version"
+    if [[ "$VARIANT" == "free-threaded" ]]; then
+        export SSA_PYTHON_FT_VERSION="$python_version"
+    else
+        export SSA_PYTHON_STABLE_VERSION="$python_version"
+    fi
     # shellcheck disable=SC1091
     source "$repo_root/scripts/env/direnv_common.sh"
     ssa_env::apply manual || exit 1
