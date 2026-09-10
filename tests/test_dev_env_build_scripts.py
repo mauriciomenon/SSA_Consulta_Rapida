@@ -247,6 +247,17 @@ def test_pyinstaller_windows_checks_clean_errorlevel() -> None:
     assert "if errorlevel 1 (" in clean_block
 
 
+def test_pyinstaller_windows_pins_x64_python_for_every_stage() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'set "UV_PYTHON=cpython-3.13-windows-x86_64-none"' in script
+    commands = [line.strip() for line in script.splitlines() if line.strip().startswith("uv run ")]
+    assert commands
+    assert all('uv run --python "%UV_PYTHON%" ' in command for command in commands)
+
+
 def test_pyinstaller_windows_embeds_only_explicit_runtime_database() -> None:
     script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
         encoding="utf-8"

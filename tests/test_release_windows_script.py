@@ -70,7 +70,7 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert "Dry-run Windows concluido sem build/pacote." in script
     assert_before(script, "if ($DryRun)", "if (-not $Yes)")
     assert "Invoke-CheckedProcess $repoRoot $config.build_script" in script
-    assert '@("run", "--python", "3.13", "python", "-m", $DistributionModule' in script
+    assert '@("run", "--python", $pythonRequest, "python", "-m", $DistributionModule' in script
     assert_before(script, "if ($DryRun)", "foreach ($backendName in $selectedBackends)")
     assert_before(script, "if ($DryRun)", "Invoke-CheckedProcess $repoRoot $config.build_script")
     release_loop = section_between(

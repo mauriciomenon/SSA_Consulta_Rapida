@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+import pytest
+
 from tests.release_script_assertions import (
     PROJECT_ROOT,
     assert_before,
@@ -72,6 +81,121 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
         "Invoke-WindowsRelease $repoRoot",
     )
     assert_before(script, "Assert-WindowsReleaseHost", "& powershell @releaseArgs")
+
+
+@pytest.mark.parametrize("previous_environment", [None, "existing-environment"])
+@pytest.mark.parametrize("stage,backend,failure", [
+    ("preflight", "pyinstaller", None),
+    ("preflight", "pyinstaller", "uv"),
+    ("preflight", "pyinstaller", "powershell"),
+    ("preflight", "pyinstaller,nuitka", None),
+    ("preflight", "nuitka", None),
+    ("preflight", "pyoxidizer", None),
+    ("dry-run", "pyinstaller", None),
+    ("package", "pyinstaller", None),
+    ("package", "pyinstaller", "uv"),
+    ("package", "nuitka", None),
+    ("package", "pyoxidizer", None),
+])
+def test_windows_release_scopes_x64_environment_and_restores_caller(
+    tmp_path: Path, previous_environment: str | None, stage: str, backend: str, failure: str | None,
+) -> None:
+    powershell = shutil.which("pwsh") or shutil.which("powershell")
+    if powershell is None:
+        pytest.skip("PowerShell necessario para validar selecao e restauracao de ambiente")
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "import json, os, pathlib, sys\n"
+        "with pathlib.Path(os.environ['SSA_TEST_LOG']).open('a') as log:\n"
+        "    log.write(json.dumps({'command': sys.argv[1], 'args': sys.argv[2:], "
+        "'environment': os.environ.get('UV_PROJECT_ENVIRONMENT')}) + '\\n')\n"
+        "raise SystemExit(42 if sys.argv[1] == os.environ['SSA_TEST_FAILURE'] else 0)\n",
+        encoding="utf-8",
+    )
+    for name in ("uv", "powershell"):
+        executable = tmp_path / (f"{name}.cmd" if sys.platform == "win32" else name)
+        if sys.platform == "win32":
+            content = f'@"%SSA_TEST_PYTHON%" "%SSA_TEST_PROBE%" {name} %*\n'
+        else:
+            content = f'#!/bin/sh\nexec "$SSA_TEST_PYTHON" "$SSA_TEST_PROBE" {name} "$@"\n'
+        executable.write_text(content, encoding="utf-8")
+        executable.chmod(0o755)
+    env = os.environ | {
+        "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+        "SSA_TEST_PYTHON": sys.executable,
+        "SSA_TEST_PROBE": str(probe),
+        "SSA_TEST_LOG": str(tmp_path / "calls.jsonl"),
+        "SSA_TEST_FAILURE": failure or "",
+        "SSA_TEST_REPO": str(tmp_path),
+        "SSA_TEST_ROOT_SCRIPT": str(PROJECT_ROOT / "release.ps1"),
+        "SSA_TEST_PACKAGE_SCRIPT": str(PROJECT_ROOT / "dev_env/build/release_windows.ps1"),
+        "SSA_TEST_STAGE": stage,
+        "SSA_TEST_BACKEND": backend,
+    }
+    env.pop("UV_PROJECT_ENVIRONMENT", None)
+    if previous_environment is not None:
+        env["UV_PROJECT_ENVIRONMENT"] = previous_environment
+    # Executa o escopo real dos wrappers; o guard Windows completo e validado na VM.
+    command = r"""
+Set-StrictMode -Version 3.0
+$ErrorActionPreference = 'Stop'
+$RepoRoot = $env:SSA_TEST_REPO
+$BackendCsv = $env:SSA_TEST_BACKEND
+$DryRun = $env:SSA_TEST_STAGE -eq 'dry-run'
+$Yes = $true
+$SkipInstaller = $true
+$IncludeRuntimeDb = $false
+$DistributionModule = 'scripts.create_distribution'
+$failure = $null
+$rootAst = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_ROOT_SCRIPT, [ref]$null, [ref]$null)
+$packageAst = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_PACKAGE_SCRIPT, [ref]$null, [ref]$null)
+foreach ($ast in @($rootAst, $packageAst)) {
+    foreach ($statement in $ast.EndBlock.Statements) {
+        if ($statement -is [Management.Automation.Language.FunctionDefinitionAst] -and
+            $statement.Name -in @('Initialize-WindowsBuildExtra', 'Invoke-DistributionPackage', 'Invoke-CheckedProcess')) {
+            . ([scriptblock]::Create($statement.Extent.Text))
+        }
+    }
+}
+try {
+    if ($env:SSA_TEST_STAGE -eq 'package') {
+        Invoke-DistributionPackage $RepoRoot $BackendCsv $true $false
+    } else {
+        $scope = $rootAst.EndBlock.Statements | Where-Object {
+            $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -eq 'Invoke-WindowsRelease'
+        }
+        foreach ($statement in $scope.Body.EndBlock.Statements) {
+            if ($statement -is [Management.Automation.Language.AssignmentStatementAst] -or
+                $statement -is [Management.Automation.Language.TryStatementAst]) {
+                . ([scriptblock]::Create($statement.Extent.Text))
+            }
+        }
+    }
+} catch { $failure = $_.Exception.Message }
+@{environment=$env:UV_PROJECT_ENVIRONMENT; environment_present=(Test-Path Env:UV_PROJECT_ENVIRONMENT); error=$failure} | ConvertTo-Json -Compress
+"""
+    result = subprocess.run(
+        [powershell, "-NoProfile", "-Command", command],
+        cwd=tmp_path, env=env, capture_output=True, text=True, check=False, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["environment"] == previous_environment
+    assert state["environment_present"] is (previous_environment is not None)
+    assert bool(state["error"]) is (failure is not None)
+    calls = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    use_x64 = "pyinstaller" in backend.split(",") and stage != "dry-run"
+    expected_environment = str(tmp_path / ".venv-win") if use_x64 else previous_environment
+    assert calls
+    for call in calls:
+        assert call["environment"] == expected_environment
+        if call["command"] == "uv":
+            expected_python = "cpython-3.13-windows-x86_64-none" if use_x64 else "3.13"
+            assert call["args"][call["args"].index("--python") + 1] == expected_python
+    if stage == "dry-run":
+        assert [call["command"] for call in calls] == ["powershell"]
+    if failure is None and stage == "preflight":
+        assert calls[-1]["command"] == "powershell"
 
 
 def test_root_release_bash_exposes_simple_defaults() -> None:

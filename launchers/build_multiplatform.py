@@ -18,6 +18,7 @@ import shutil
 import sqlite3
 import subprocess  # nosec B404
 import sys
+import sysconfig
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
@@ -60,7 +61,10 @@ class MultiPlatformBuilder:
 
         # Carregar versao
         self.version = self._load_version()
-        self.runtime_python = os.environ.get("UV_PYTHON", "3.13")
+        default_python = (
+            "cpython-3.13-windows-x86_64-none" if sys.platform == "win32" else "3.13"
+        )
+        self.runtime_python = os.environ.get("UV_PYTHON", default_python)
         self.uv_cmd = shutil.which("uv") or "uv"
 
         logger.info(f"Iniciando build para SSA Consulta Rapida v{self.version}")
@@ -262,7 +266,7 @@ VSVersionInfo(
         system = platform.system()
         machine = platform.machine().lower()
 
-        if system == "Windows" and machine in ["amd64", "x86_64"]:
+        if system == "Windows" and sysconfig.get_platform() == "win-amd64":
             return "windows_amd64"
         elif system == "Darwin" and machine in ["arm64", "aarch64"]:
             return "macos_arm64"
@@ -281,12 +285,22 @@ VSVersionInfo(
             return venv_dir / "Scripts" / "python.exe"
         return venv_dir / "bin" / "python"
 
-    def _is_python_executable_ok(self, python_exe: Path) -> bool:
-        """Verifica se o python do venv responde normalmente."""
+    def _is_python_executable_ok(self, python_exe: Path, platform_name: str) -> bool:
+        """Verifica se o Python responde e tem a arquitetura Windows solicitada."""
         result = self._run_command(
-            [python_exe, "-c", "import sys"], timeout=15, capture_output=True, text=True
+            [python_exe, "-c", "import sysconfig; print(sysconfig.get_platform())"],
+            timeout=15,
+            capture_output=True,
+            text=True,
         )
-        return result.returncode == 0
+        if result.returncode != 0:
+            return False
+        if platform_name == "windows_amd64" and result.stdout.strip() != "win-amd64":
+            logger.error(
+                "Python %s usa %s; esperado win-amd64", python_exe, result.stdout.strip()
+            )
+            return False
+        return True
 
     def _is_venv_compatible(self, platform_name: str, requirements_file: Path) -> bool:
         """Valida se o venv existente pode ser reutilizado."""
@@ -294,7 +308,7 @@ VSVersionInfo(
         python_exe = self._python_executable(platform_name)
         if not (venv_dir.exists() and python_exe.exists()):
             return False
-        if not self._is_python_executable_ok(python_exe):
+        if not self._is_python_executable_ok(python_exe, platform_name):
             return False
 
         if not requirements_file.exists():
@@ -370,6 +384,9 @@ VSVersionInfo(
         result = self._run_command(cmd, timeout=600, capture_output=True, text=True)
         if result.returncode != 0:
             logger.error("Erro criando venv via uv: %s", result.stderr.strip())
+            return False
+        if not self._is_python_executable_ok(python_exe, platform_name):
+            logger.error("Python do novo ambiente e incompativel com %s", platform_name)
             return False
 
         # Instalar dependencias

@@ -745,14 +745,24 @@ function Invoke-DistributionPackage {
         [Parameter(Mandatory = $true)] [bool] $IncludeRuntimeDbFlag
     )
 
-    $distributionArgs = @("run", "--python", "3.13", "python", "-m", $DistributionModule, "--build-system", $BackendName)
-    if ($SkipInstallerFlag) {
-        $distributionArgs += "--skip-installer"
+    $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
+    try {
+        $pythonRequest = "3.13"
+        if ($BackendName -eq "pyinstaller") {
+            $pythonRequest = "cpython-3.13-windows-x86_64-none"
+            $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot ".venv-win"
+        }
+        $distributionArgs = @("run", "--python", $pythonRequest, "python", "-m", $DistributionModule, "--build-system", $BackendName)
+        if ($SkipInstallerFlag) {
+            $distributionArgs += "--skip-installer"
+        }
+        if ($IncludeRuntimeDbFlag) {
+            $distributionArgs += "--include-runtime-db"
+        }
+        Invoke-CheckedProcess $RepoRoot "uv" $distributionArgs
+    } finally {
+        $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnvironment
     }
-    if ($IncludeRuntimeDbFlag) {
-        $distributionArgs += "--include-runtime-db"
-    }
-    Invoke-CheckedProcess $RepoRoot "uv" $distributionArgs
 }
 
 function Write-ReleaseReport {

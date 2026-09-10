@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import plistlib
 import os
+import shutil
 import subprocess
 import sqlite3
 import sys
+import sysconfig
 from contextlib import closing
 from pathlib import Path
 
@@ -42,6 +44,74 @@ def test_load_version_rejects_empty_release_version(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="version_short ausente"):
         builder._load_version()
+
+
+@pytest.mark.parametrize("platform_name", ["windows_amd64", "macos_arm64"])
+def test_python_probe_checks_windows_interpreter_architecture(platform_name: str) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    expected = platform_name != "windows_amd64" or sysconfig.get_platform() == "win-amd64"
+
+    assert builder._is_python_executable_ok(Path(sys.executable), platform_name) is expected
+
+
+def test_python_probe_rejects_missing_executable(tmp_path: Path) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+
+    assert not builder._is_python_executable_ok(tmp_path / "missing-python", "windows_amd64")
+
+
+def test_setup_virtual_environment_creates_and_reuses_native_python(tmp_path: Path) -> None:
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv necessario para validar criacao real da venv")
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.platforms_dir = tmp_path / "platforms"
+    builder.runtime_python = sys.executable
+    builder.uv_cmd = uv
+    platform_name = builder.detect_current_platform()
+    if platform_name is None:
+        pytest.skip("interpreter atual nao e um alvo de build suportado")
+    platform_dir = builder.platforms_dir / platform_name
+    platform_dir.mkdir(parents=True)
+
+    python_exe = builder.setup_virtual_environment(platform_name)
+    assert python_exe == builder._python_executable(platform_name)
+    preserved = platform_dir / "venv" / "preserved.txt"
+    preserved.write_text("preservado", encoding="utf-8")
+
+    assert builder.setup_virtual_environment(platform_name, skip_if_exists=True) == python_exe
+    assert preserved.read_text(encoding="utf-8") == "preservado"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="requer Python POSIX real como candidato incompativel")
+def test_setup_virtual_environment_rejects_wrong_architecture_before_install(tmp_path: Path) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.platforms_dir = tmp_path / "platforms"
+    builder.runtime_python = "cpython-3.13-windows-x86_64-none"
+    platform_dir = builder.platforms_dir / "windows_amd64"
+    platform_dir.mkdir(parents=True)
+    (platform_dir / "requirements.txt").write_text("must-not-install\n", encoding="utf-8")
+    fake_uv = tmp_path / "uv"
+    calls_file = tmp_path / "uv_calls.json"
+    fake_uv.write_text(
+        f"#!{sys.executable}\n"
+        "import json, pathlib, sys\n"
+        f"with pathlib.Path({str(calls_file)!r}).open('a') as log:\n"
+        "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "if sys.argv[1] != 'venv':\n"
+        "    raise SystemExit(91)\n"
+        "scripts = pathlib.Path(sys.argv[-1]) / 'Scripts'\n"
+        "scripts.mkdir(parents=True)\n"
+        "(scripts / 'python.exe').symlink_to(sys.executable)\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+    builder.uv_cmd = str(fake_uv)
+
+    assert builder.setup_virtual_environment("windows_amd64") is False
+    calls = [json.loads(line) for line in calls_file.read_text(encoding="utf-8").splitlines()]
+    assert calls == [["venv", "--python", builder.runtime_python, str(platform_dir / "venv")]]
+    assert not (platform_dir / "venv" / ".requirements_signature").exists()
 
 
 def test_command_stdout_logs_metadata_command_failure(monkeypatch):

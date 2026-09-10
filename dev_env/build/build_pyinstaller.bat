@@ -20,15 +20,15 @@ if "%WITH_RUNTIME_DB%"=="1" set "RUNTIME_DB_ARGS=--runtime-db "%REPO_ROOT%\data\
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
-set "UV_PYTHON=3.13"
+set "UV_PYTHON=cpython-3.13-windows-x86_64-none"
 set "UV_MANAGED_PYTHON=true"
 set "UV_PROJECT_ENVIRONMENT=.venv-win"
 
 if "%SILENT%"=="1" (
-    uv run --python 3.13 "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --clean >nul 2>&1
+    uv run --python "%UV_PYTHON%" "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --clean >nul 2>&1
 ) else (
     echo Limpando artefatos PyInstaller anteriores...
-    uv run --python 3.13 "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --clean
+    uv run --python "%UV_PYTHON%" "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --clean
 )
 
 if errorlevel 1 (
@@ -39,10 +39,10 @@ if errorlevel 1 (
 
 if "%SILENT%"=="1" (
     echo [build_pyinstaller] modo silencioso ativo. log: "%LOG_FILE%"
-    uv run --python 3.13 "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --apps cli gui %RUNTIME_DB_ARGS% > "%LOG_FILE%" 2>&1
+    uv run --python "%UV_PYTHON%" "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --apps cli gui %RUNTIME_DB_ARGS% > "%LOG_FILE%" 2>&1
 ) else (
     echo Iniciando build PyInstaller windows_amd64...
-    uv run --python 3.13 "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --apps cli gui %RUNTIME_DB_ARGS%
+    uv run --python "%UV_PYTHON%" "%REPO_ROOT%\launchers\build_multiplatform.py" --platform windows_amd64 --apps cli gui %RUNTIME_DB_ARGS%
 )
 
 if errorlevel 1 (
@@ -52,9 +52,9 @@ if errorlevel 1 (
 )
 
 if "%SILENT%"=="1" (
-    uv run --python 3.13 "%REPO_ROOT%\scripts\sync_pyinstaller_outputs.py" --platform windows_amd64 --quiet >> "%LOG_FILE%" 2>&1
+    uv run --python "%UV_PYTHON%" "%REPO_ROOT%\scripts\sync_pyinstaller_outputs.py" --platform windows_amd64 --quiet >> "%LOG_FILE%" 2>&1
 ) else (
-    uv run --python 3.13 "%REPO_ROOT%\scripts\sync_pyinstaller_outputs.py" --platform windows_amd64
+    uv run --python "%UV_PYTHON%" "%REPO_ROOT%\scripts\sync_pyinstaller_outputs.py" --platform windows_amd64
 )
 
 if errorlevel 1 (
@@ -76,7 +76,7 @@ echo Artefatos em: "%REPO_ROOT%\launchers\dist\windows_amd64" e "%REPO_ROOT%\bui
 if "%SILENT%"=="0" (
     set /p "DO_CLEANUP=Executar cleanup TEMP agora? [s/N]: "
     if /I "!DO_CLEANUP!"=="s" (
-        uv run --python 3.13 "%REPO_ROOT%\scripts\cleanup_build_artifacts.py" --scope temp
+        uv run --python "%UV_PYTHON%" "%REPO_ROOT%\scripts\cleanup_build_artifacts.py" --scope temp
     )
 )
 if "%SILENT%"=="0" pause

@@ -83,26 +83,34 @@ function Invoke-WindowsRelease {
     )
 
     Assert-WindowsReleaseHost
-    if (-not $DryRun) {
-        Initialize-WindowsBuildExtra $RepoRoot $BackendCsv
-    }
-    $script = Join-Path $RepoRoot "dev_env\build\release_windows.ps1"
-    $releaseArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
-    if ($Yes) {
-        $releaseArgs += "-Yes"
-    }
-    if ($DryRun) {
-        $releaseArgs += "-DryRun"
-    }
-    if ($SkipInstaller) {
-        $releaseArgs += "-SkipInstaller"
-    }
-    if ($IncludeRuntimeDb) {
-        $releaseArgs += "-IncludeRuntimeDb"
-    }
-    & powershell @releaseArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Release Windows falhou."
+    $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
+    try {
+        if (-not $DryRun -and ($BackendCsv -split ",") -contains "pyinstaller") {
+            $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot ".venv-win"
+        }
+        if (-not $DryRun) {
+            Initialize-WindowsBuildExtra $RepoRoot $BackendCsv
+        }
+        $script = Join-Path $RepoRoot "dev_env\build\release_windows.ps1"
+        $releaseArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
+        if ($Yes) {
+            $releaseArgs += "-Yes"
+        }
+        if ($DryRun) {
+            $releaseArgs += "-DryRun"
+        }
+        if ($SkipInstaller) {
+            $releaseArgs += "-SkipInstaller"
+        }
+        if ($IncludeRuntimeDb) {
+            $releaseArgs += "-IncludeRuntimeDb"
+        }
+        & powershell @releaseArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Release Windows falhou."
+        }
+    } finally {
+        $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnvironment
     }
 }
 
@@ -143,6 +151,7 @@ function Initialize-WindowsBuildExtra {
     }
 
     if ($modules.Count -gt 0) {
+        $pythonRequest = if ($modules -contains "PyInstaller") { "cpython-3.13-windows-x86_64-none" } else { "3.13" }
         $imports = ($modules | ForEach-Object { "import $_" }) -join "; "
         $uvOutput = @()
         Push-Location $RepoRoot
@@ -150,7 +159,7 @@ function Initialize-WindowsBuildExtra {
             $uvOutput = & uv @(
                 "run",
                 "--python",
-                "3.13",
+                $pythonRequest,
                 "--extra",
                 "build",
                 "python",
