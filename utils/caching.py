@@ -60,7 +60,7 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
                     cache_file,
                     exc,
                 )
-        if tmp_path:
+        if tmp_path is not None:
             try:
                 os.remove(tmp_path)
             except OSError as exc:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from typing import Any
 
 import pandas as pd
 
@@ -31,12 +30,6 @@ class DetailsSeriesIndex(Mapping[str, pd.Series]):
 
     def __len__(self) -> int:
         return len(self._row_positions)
-
-    def get(self, key: str, default: Any = None) -> pd.Series | Any:
-        position = self._row_positions.get(key)
-        if position is None:
-            return default
-        return self[key]
 
     def get_position(self, key: str) -> int | None:
         position = self._row_positions.get(key)

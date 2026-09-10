@@ -94,7 +94,7 @@ def _atomic_write_json_file(
                     path,
                     exc,
                 )
-        if tmp_path:
+        if tmp_path is not None:
             try:
                 os.remove(tmp_path)
             except FileNotFoundError:
@@ -173,7 +173,7 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         _fsync_parent_directory(target_dir)
         tmp_path = None
     finally:
-        if tmp_path:
+        if tmp_path is not None:
             try:
                 os.remove(tmp_path)
             except FileNotFoundError:

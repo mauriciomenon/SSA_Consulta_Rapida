@@ -29,7 +29,7 @@ _NORMALIZED_SEARCH_CACHE_LOCK = threading.Lock()
 _NORMALIZED_SEARCH_CACHE_MAX_ENTRIES = 1
 _NORMALIZED_SEARCH_CACHE_MAX_BYTES = 64 * 1024 * 1024
 _NORMALIZED_SEARCH_CACHE: OrderedDict[tuple[Any, ...], dict[str, Any]] = OrderedDict()
-_NORMALIZED_SEARCH_CACHE_GENERATION = 0
+_NORMALIZED_SEARCH_CACHE_GENERATION: int = 0
 
 class GeneralSearchCancelled(Exception):
     """Internal cancellation signal for background general-search execution."""
@@ -530,7 +530,7 @@ def _column_match_mask(
         column_masks.append(column_mask.to_numpy(dtype=bool, copy=False))
     if not column_masks:
         return pd.Series(False, index=candidate_index)
-    return pd.Series(np.logical_or.reduce(column_masks), index=candidate_index)
+    return pd.Series(np.any(column_masks, axis=0), index=candidate_index)
 
 
 def _regex_column_match_mask(
@@ -558,7 +558,7 @@ def _regex_column_match_mask(
         column_masks.append(column_mask.to_numpy(dtype=bool, copy=False))
     if not column_masks:
         return pd.Series(False, index=candidate_index)
-    return pd.Series(np.logical_or.reduce(column_masks), index=candidate_index)
+    return pd.Series(np.any(column_masks, axis=0), index=candidate_index)
 
 
 def _mask_for_filter_term(

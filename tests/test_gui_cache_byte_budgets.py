@@ -271,6 +271,8 @@ def test_details_positions_series_preserves_mapping_and_input_isolation():
     assert list(lookup) == ["first", "second"]
     assert len(lookup) == 2
     assert lookup["first"]["numero_ssa"] == "first"
+    assert lookup.get("first") is lookup["first"]
+    assert lookup.get("missing") is None
     assert lookup.get_position("first") == 0
     assert isinstance(lookup.get_position("first"), int)
     assert lookup.get_position("missing") is None
