@@ -1,5 +1,14 @@
 # CHANGELOG_IMPLEMENTACOES
 
+## Manutencao de dependencias - 2026-09-09
+
+Registro retrospectivo consolidado em 2026-09-10; versao da aplicacao permanece 4.50.0.
+
+- `a3e7adb6`: limpeza e atualizacao de dependencias diretas/transitivas; requirements alinhados ao uv; regras anteriores do Ruff preservadas.
+- `36706e77`: scripts de ambiente ajustados para uv e criacao sem pip, com testes e guias correspondentes.
+- Lock: 108 -> 100 registros; 45 nomes atualizados, 10 removidos e um adicionado. Ambiente macOS: 63 -> 47 pacotes.
+- [Registro completo](REGISTRO_DEPENDENCIAS_2026_09_09.md): inventarios antes/depois, motivos, fontes, validacoes e riscos. Preservar o primeiro componente numerico da versao nao comprova compatibilidade; revisao individual dos 45 changelogs e validacao nativa Windows/Linux permanecem pendentes.
+
 ## v4.50 - 2026-09-08
 
 - Importacao, integridade, cancelamento, filtros e caches corrigidos.

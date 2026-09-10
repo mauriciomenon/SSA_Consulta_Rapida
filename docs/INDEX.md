@@ -21,6 +21,7 @@ Versao de referencia: **4.50**.
 
 ## Desenvolvimento e distribuicao
 
+- [Registro da limpeza e atualizacao de dependencias de 2026-09-09](REGISTRO_DEPENDENCIAS_2026_09_09.md)
 - [Ambiente](../dev_env/ENVIRONMENT_GUIDE.md)
 - [Estrategia de testes](TESTING_STRATEGY.md)
 - [Testes sem tela](TESTING_HEADLESS.md)
