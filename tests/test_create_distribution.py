@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+import shutil
 import sqlite3
+import subprocess
 import sys
+import tempfile
 import zipfile
 from contextlib import closing
 from pathlib import Path
@@ -102,15 +106,22 @@ def test_create_zip_package_logs_temp_cleanup_failure(
     monkeypatch.setattr(
         create_distribution, "_prepare_package_staging", lambda *_, **__: False
     )
+    temporary_paths: set[Path] = set()
+    original_rmtree = create_distribution.shutil.rmtree
 
     def fail_rmtree(path):
-        assert Path(path).name.startswith("temp_fake_")
+        assert Path(path).name.startswith("ssa_pkg_")
+        temporary_paths.add(Path(path))
         raise PermissionError("locked")
 
     monkeypatch.setattr(create_distribution.shutil, "rmtree", fail_rmtree)
 
-    with pytest.raises(PermissionError, match="locked"):
-        create_distribution.create_zip_package("fake", "1.0.0")
+    try:
+        with pytest.raises(PermissionError, match="locked"):
+            create_distribution.create_zip_package("fake", "1.0.0")
+    finally:
+        for path in temporary_paths:
+            original_rmtree(path)
 
     assert any(
         "Falha ao remover diretorio temporario do pacote" in record.getMessage()
@@ -407,6 +418,92 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
             name.endswith("docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md")
             for name in names
         )
+
+
+@pytest.mark.parametrize(
+    ("version", "include_missing_sample_db"),
+    [("4.50", False), ("4.50", True), ("4.50/missing", False)],
+)
+def test_create_zip_package_uses_short_staging_and_removes_it(
+    version: str,
+    include_missing_sample_db: bool,
+) -> None:
+    source_script = Path(create_distribution.__file__).resolve()
+    package_name = "SSA_Consulta_Rapida_v4.50_pyinstaller"
+    runtime_name = "SSA_CLI_v4.50_windows_amd64"
+    deep_files = (
+        "lxml/isoschematron/resources/xsl/iso-schematron-xslt1/"
+        "iso_schematron_skeleton_for_xslt1.xsl",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/multiarray/"
+        "dragon4_LICENSE.txt",
+    )
+    with tempfile.TemporaryDirectory(prefix="ssa_test_") as workspace:
+        project_root = Path(workspace) / "ssa_consulta_rapida_pyqt6"
+        script = project_root / "scripts" / source_script.name
+        script.parent.mkdir(parents=True)
+        shutil.copy2(source_script, script)
+        runtime_dir = (
+            project_root / "launchers" / "dist" / "windows_amd64" / runtime_name
+        )
+        runtime_dir.mkdir(parents=True)
+        (runtime_dir / f"{runtime_name}.exe").write_bytes(b"executable fixture")
+        for relative_path in deep_files:
+            resource = runtime_dir / "_internal" / relative_path
+            resource.parent.mkdir(parents=True, exist_ok=True)
+            resource.write_text(relative_path, encoding="utf-8")
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                """
+import json
+import runpy
+import sys
+
+namespace = runpy.run_path(sys.argv[1])
+staging = []
+
+def observe(event, args):
+    if event == "tempfile.mkdtemp":
+        staging.append(args[0])
+
+sys.addaudithook(observe)
+result = namespace["create_zip_package"](
+    "pyinstaller", sys.argv[3], include_sample_db=sys.argv[2] == "True"
+)
+print(json.dumps({"zip": str(result) if result else None, "staging": staging}))
+""",
+                str(script),
+                str(include_missing_sample_db),
+                version,
+            ],
+            cwd=source_script.parent.parent,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        report = json.loads(completed.stdout.splitlines()[-1])
+        assert len(report["staging"]) == 1
+        staging = Path(report["staging"][0])
+        assert staging.parent.resolve() == Path(tempfile.gettempdir()).resolve()
+        assert not staging.exists()
+        if include_missing_sample_db or "/" in version:
+            assert report["zip"] is None
+            return
+
+        zip_path = Path(report["zip"])
+        assert zip_path == (
+            project_root / "builds" / "packages" / "windows_amd64"
+            / f"{package_name}.zip"
+        )
+        with zipfile.ZipFile(zip_path) as archive:
+            assert archive.testzip() is None
+            for relative_path in deep_files:
+                entry = f"{package_name}/{runtime_name}/_internal/{relative_path}"
+                assert archive.read(entry).decode("utf-8") == relative_path
 
 
 def test_create_zip_package_returns_none_when_platform_is_not_in_build_path(

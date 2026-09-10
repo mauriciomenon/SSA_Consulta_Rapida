@@ -17,6 +17,7 @@ import os
 import shutil
 import sqlite3
 import subprocess
+import tempfile
 import zipfile
 from contextlib import closing
 from pathlib import Path
@@ -1056,16 +1057,14 @@ def create_zip_package(
         return None
     package_output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Criar diretorio temporario para montagem
-    timestamp = format_current_timestamp("%Y%m%d_%H%M%S")
-    temp_dir = package_output_dir / f"temp_{build_system}_{timestamp}"
-    temp_dir.mkdir(parents=True, exist_ok=True)
+    # Manter o staging curto para as dependencias aninhadas no Windows.
+    temp_dir = Path(tempfile.mkdtemp(prefix="ssa_pkg_"))
 
     package_name = f"SSA_Consulta_Rapida_v{version}_{build_system}"
     package_dir = temp_dir / package_name
-    package_dir.mkdir(exist_ok=True)
 
     try:
+        package_dir.mkdir(exist_ok=True)
         if not _prepare_package_staging(
             build_system,
             build_info,
@@ -1077,16 +1076,6 @@ def create_zip_package(
             include_local_db,
             include_runtime_db,
         ):
-            if temp_dir.exists():
-                try:
-                    shutil.rmtree(temp_dir)
-                except OSError as exc:
-                    logger.error(
-                        "Falha ao remover diretorio temporario do pacote: %s: %s",
-                        temp_dir,
-                        exc,
-                    )
-                    raise
             return None
 
         # Criar ZIP
@@ -1096,8 +1085,12 @@ def create_zip_package(
         logger.info("  Criando arquivo ZIP: %s", zip_name)
 
         _create_package_zip(package_dir, package_name, zip_path)
+        file_size = zip_path.stat().st_size / (1024 * 1024)  # MB
 
-        # Limpar diretorio temporario
+    except Exception as e:
+        logger.error("Erro ao criar ZIP: %s", e)
+        return None
+    finally:
         try:
             shutil.rmtree(temp_dir)
         except OSError as exc:
@@ -1108,16 +1101,8 @@ def create_zip_package(
             )
             raise
 
-        file_size = zip_path.stat().st_size / (1024 * 1024)  # MB
-        logger.info("  ZIP criado: %s (%.1f MB)", zip_path.name, file_size)
-
-        return zip_path
-
-    except Exception as e:
-        logger.error("Erro ao criar ZIP: %s", e)
-        if temp_dir.exists():
-            shutil.rmtree(temp_dir)
-        return None
+    logger.info("  ZIP criado: %s (%.1f MB)", zip_path.name, file_size)
+    return zip_path
 
 
 def _normalize_windows_path(raw_value: str) -> str:
