@@ -1,8 +1,8 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (2026-09-08, v4.50)
+## CURRENT TRUTH (2026-09-10, v4.50)
 
-- Sync deste guia: `2026-09-08`.
+- Sync deste guia: `2026-09-10`.
 - Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Caminho operacional principal:
   - release Windows v4.50: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`
@@ -19,7 +19,42 @@
 - `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
 - Debian deve executar scripts `.sh` em clone Linux nativo; nao compartilhar checkout/venv com Windows.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- A tag v4.50 publica fontes. Consulte a validacao local de Windows ARM abaixo para os binarios de desenvolvimento.
+
+### Windows 11 ARM com executaveis AMD64
+
+O fluxo PyInstaller usa `cpython-3.13-windows-x86_64-none` e `.venv-win`
+na preparacao e no empacotamento. O ambiente anterior do shell e restaurado
+ao terminar. O builder valida `sysconfig.get_platform() == 'win-amd64'`
+antes de instalar dependencias e aceita Python x64 executado em Windows ARM.
+
+Na VM de desenvolvimento preparada, Git, uv e PowerShell ficam em
+`%LOCALAPPDATA%\SSADev`. Em um novo console PowerShell:
+
+```powershell
+$tools = Join-Path $env:LOCALAPPDATA 'SSADev'
+$env:PATH = "$tools\git\cmd;$tools\uv;$tools\pwsh;$env:PATH"
+Set-Location (Join-Path $env:USERPROFILE 'gitlab\ssa_consulta_rapida_pyqt6')
+powershell -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 -Target windows -Backend pyinstaller -SkipInstaller -Yes
+```
+
+O comando exige checkout versionado e limpo, gera CLI e GUI e dispensa o
+instalador Inno Setup. A politica de execucao acima vale apenas para esse
+processo PowerShell. A inclusao de banco depende de `-IncludeRuntimeDb`.
+
+A montagem do ZIP usa uma pasta `ssa_pkg_*` no TEMP do sistema. Esse caminho
+reduz a profundidade das dependencias lxml/NumPy durante a copia. A limpeza
+fica em um unico `finally`, incluindo falhas e interrupcoes da montagem;
+erros de remocao continuam visiveis.
+Consulte o [limite de caminhos do Windows](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation).
+
+Validacao do ambiente em 2026-09-10: Windows 11 Pro ARM64, CPython 3.13.12
+AMD64, uv 0.12.12 e PyInstaller 6.22.2. O Python informou `win-amd64` e o
+bootloader selecionado foi `Windows-64bit-intel`.
+
+O [PyInstaller exige o sistema operacional do alvo](https://pyinstaller.org/en/stable/).
+O [Windows 11 ARM executa programas x64](https://learn.microsoft.com/en-us/windows/arm/apps-on-arm-x86-emulation),
+e o [uv permite selecionar explicitamente Python x64 nesse sistema](https://docs.astral.sh/uv/concepts/python-versions/#transparent-x86_64-emulation-on-aarch64).
 
 ## HISTORICAL SNAPSHOT NOTICE
 
