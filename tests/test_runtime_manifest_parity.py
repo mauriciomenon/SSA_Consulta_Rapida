@@ -1,8 +1,7 @@
 """Coverage gate: runtime dependency lists must not drift from pyproject.
 
 This checks NAME COVERAGE (every direct runtime dependency of
-pyproject.toml must appear in each manifest), not version parity. The
-explicit floor assertions below (filelock) exist because
+pyproject.toml must appear in each manifest) and filelock version parity because
 armazenamento/database_lock.py imports it and REL-01 shipped a frozen
 venv without it.
 """
@@ -76,10 +75,10 @@ def test_filelock_present_everywhere():
         assert "filelock" in _manifest_names(manifest), manifest
 
 
-def test_filelock_version_floor_pinned_in_every_manifest():
-    pattern = re.compile(r"^\s*filelock>=3\.20\.3\s*$")
+def test_filelock_version_matches_pyproject_in_every_manifest():
+    with open(PROJECT_ROOT / "pyproject.toml", "rb") as handle:
+        dependencies = tomllib.load(handle)["project"]["dependencies"]
+    expected = next(requirement for requirement in dependencies if requirement.startswith("filelock>="))
     for manifest in RUNTIME_MANIFESTS:
         lines = manifest.read_text(encoding="utf-8").splitlines()
-        assert any(
-            pattern.match(line) for line in lines
-        ), f"{manifest} must pin filelock>=3.20.3"
+        assert expected in {line.strip() for line in lines}, f"{manifest} deve declarar {expected}"
