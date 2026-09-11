@@ -5246,10 +5246,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self,
                     "Sucesso",
                     (
-                        f"Banco de dados selecionado: {os.path.basename(db_file)}\n\n"
-                        "Clique em 'Carregar XLSX' para importar arquivos externos."
+                        f"Banco de dados selecionado: {os.path.basename(db_file)}.\n\n"
+                        "Os dados do banco selecionado serao recarregados "
+                        "automaticamente."
                     ),
                 )
+            if hasattr(self, "load_data"):
+                try:
+                    self.load_data()
+                except Exception as exc:
+                    logger.warning(
+                        "Falha ao recarregar dados apos troca de banco: %s", exc
+                    )
             return result
 
         error = str(result.get("error") or "").strip()

@@ -9900,6 +9900,37 @@ class TestGUIFilterLogic:
         finally:
             gui_ssa.DB_PATH = original_db_path
 
+    def test_load_other_database_triggers_data_reload_contract(
+        self, monkeypatch, tmp_path
+    ):
+        db_file = tmp_path / "other_reload.db"
+        db_file.write_text("stub", encoding="utf-8")
+        original_db_path = gui_ssa.DB_PATH
+        reload_calls: list[str] = []
+
+        monkeypatch.setattr(
+            gui_ssa.QFileDialog,
+            "getOpenFileName",
+            lambda *args, **kwargs: (str(db_file), ""),
+        )
+        monkeypatch.setattr(
+            gui_ssa,
+            "query_db",
+            lambda *_args, **_kwargs: pd.DataFrame({"numero_ssa": ["1"]}),
+        )
+        monkeypatch.setattr(
+            SSAMainWindow,
+            "load_data",
+            lambda self: reload_calls.append("load_data"),
+        )
+
+        try:
+            result = self.window.load_other_database()
+            assert bool(result["ok"]) is True
+            assert reload_calls == ["load_data"]
+        finally:
+            gui_ssa.DB_PATH = original_db_path
+
     def test_details_anchor_derivadas_tree_opens_popup(self):
         self.window._details_current_ssa = "12.19.117.87"
         with patch("gui.ssa.gui_details._show_derivadas_tree_for_ssa") as popup_mock:
