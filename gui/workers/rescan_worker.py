@@ -557,7 +557,10 @@ class RescanWorker(QThread):
                 self._batch_file_offset = start
                 self._batch_ssa_inserted = 0
                 self._batch_ssa_updated = 0
-                self.force_import = initial_force_import and batch_index == 1
+                # Importacao explicita/batched nunca usa o modo full-rescan:
+                # um candidato construido so com os arquivos do batch seria
+                # promovido sobre o primario e perderia as linhas restantes.
+                self.force_import = False
                 if source_mode:
                     self.source_files = batch
                     self.explicit_files = None
