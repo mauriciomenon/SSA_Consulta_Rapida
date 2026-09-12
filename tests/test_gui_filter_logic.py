@@ -14602,6 +14602,40 @@ class TestGUIFilterLogic:
         self.window.closeEvent(retry_event)
         assert retry_event.isAccepted() is True
 
+    def test_close_event_rejected_restores_shutting_down_flag(self):
+        """Shutdown adiado nao pode deixar _is_shutting_down=True para sempre.
+
+        O flag bloqueia filtros, carga, PAI API e derivadas; se o X for
+        ignorado porque ha workers ativos, o app precisa voltar ao normal.
+        """
+        class _AliveWorker:
+            def __init__(self):
+                self.interruption_requested = False
+                self.running = True
+
+            def isRunning(self):
+                return self.running
+
+            def requestInterruption(self):
+                self.interruption_requested = True
+
+            def quit(self):
+                return None
+
+        worker = _AliveWorker()
+        self.window._adv_options_worker = worker
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert self.window._is_shutting_down is False
+
+        worker.running = False
+        retry_event = QCloseEvent()
+        self.window.closeEvent(retry_event)
+        assert retry_event.isAccepted() is True
+
     def test_on_data_loaded_ignores_stale_request(self):
         original_df = self.window.df_completo.copy()
         stale_df = self.base_df.iloc[:1].copy()

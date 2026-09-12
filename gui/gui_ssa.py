@@ -5622,6 +5622,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         self._shutdown_pending_workers = running_workers
         if running_labels:
+            # Fechamento adiado: o app continua operando. Sem o reset, o
+            # flag ficaria True para sempre e bloquearia filtros, carga de
+            # dados, PAI API, derivadas e refresh de opcoes avancadas.
+            self._is_shutting_down = False
             labels = ", ".join(sorted(set(running_labels))) or "worker desconhecido"
             logger.warning("Shutdown adiado; workers ativos: %s", labels)
             status_label = getattr(self, "status_label", None)
