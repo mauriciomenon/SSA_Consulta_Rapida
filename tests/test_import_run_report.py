@@ -59,6 +59,7 @@ def _mock_db_ok(monkeypatch: pytest.MonkeyPatch) -> None:
             "database_accessible": True,
             "table_exists": True,
             "schema_valid": True,
+            "sqlite_integrity_ok": True,
             "data_consistent": True,
             "disk_space_sufficient": True,
         },
@@ -1536,6 +1537,7 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
             "database_accessible": True,
             "table_exists": True,
             "schema_valid": True,
+            "sqlite_integrity_ok": True,
             "data_consistent": True,
             "disk_space_sufficient": True,
         },
@@ -1574,7 +1576,8 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
         force_import=True,
     )
 
-    assert updated is True
+    # Rejeicao deterministica nao atualiza o banco: result=False no contrato.
+    assert updated is False
     assert _read_descricao(primary_db) == "primary_old"
     payload = cast(dict[str, Any], captured["payload"])
     assert payload["status"] == "deterministic_rejections_only"
@@ -1740,6 +1743,7 @@ def test_run_importer_logic_full_rescan_success_promotes_candidate_at_end(
             "database_accessible": True,
             "table_exists": True,
             "schema_valid": True,
+            "sqlite_integrity_ok": True,
             "data_consistent": True,
             "disk_space_sufficient": True,
         },

@@ -1276,7 +1276,24 @@ def _validate_and_promote_candidate_if_needed(
         return result
     integrity_report = database.verify_database_integrity(working_db_path, table_name)
     result["integrity_report"] = integrity_report
-    if not integrity_report.get("is_valid", False):
+    structural_ok = all(
+        integrity_report.get(key, False)
+        for key in (
+            "database_accessible",
+            "table_exists",
+            "schema_valid",
+            "sqlite_integrity_ok",
+        )
+    )
+    if structural_ok and not integrity_report.get("is_valid", False):
+        # Falhas de qualidade de dados (status fora do catalogo, duplicatas,
+        # datas) nao impedem a promocao: o candidato e o estado mais correto
+        # disponivel e o reparo conservador nao reescreve dados.
+        logger.warning(
+            "DB candidato promovido com inconsistencias de dados nao estruturais: %s",
+            integrity_report.get("issues", []),
+        )
+    if not structural_ok:
         logger.error(
             "DB candidato falhou na validacao final antes da promocao: %s",
             integrity_report.get("issues", []),
@@ -1392,10 +1409,17 @@ def _prepare_working_database_for_import(
         if not integrity_report["table_exists"] or not integrity_report["schema_valid"]:
             raise DatabaseSchemaError(f"Problemas de schema: {issues}")
         if not integrity_report["data_consistent"]:
-            raise DatabaseCorruptionError(f"Dados corrompidos: {issues}")
+            # Inconsistencia de dados (status fora do catalogo, duplicatas,
+            # datas) nao bloqueia: a propria importacao e o mecanismo de
+            # correcao. Apenas falhas estruturais acima abortam o fluxo.
+            logger.warning(
+                "Inconsistencias de dados no banco atual; a importacao pode corrigi-las: %s",
+                issues,
+            )
         if not integrity_report["disk_space_sufficient"]:
             raise DatabaseSpaceError(f"Espaco em disco insuficiente: {issues}")
-        raise DatabaseError(f"Problemas gerais no banco: {issues}")
+        if integrity_report["data_consistent"]:
+            raise DatabaseError(f"Problemas gerais no banco: {issues}")
 
     if integrity_report["warnings"]:
         for warning in integrity_report["warnings"]:
@@ -1540,7 +1564,7 @@ def _finalize_import_run_outcome(
     ):
         logger.info("Nenhum arquivo regular elegivel encontrado para importacao.")
         return {
-            "result": True,
+            "result": False,
             "status": "no_changes",
             "reason": "no_regular_import_candidates",
             "integrity_report": {},
@@ -1560,7 +1584,7 @@ def _finalize_import_run_outcome(
             "nenhum arquivo elegivel foi importado nesta execucao."
         )
         return {
-            "result": True,
+            "result": False,
             "status": "deterministic_rejections_only",
             "reason": "all_candidates_rejected_by_deterministic_rules",
             "integrity_report": {},

@@ -117,7 +117,10 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
         force_import=False,
     )
 
-    assert updated is True
+    # deterministic_rejections_only nao atualiza o banco: result=False reflete
+    # o contrato "result == DB atualizado" e permite a GUI exibir o banner
+    # correto em vez de "concluido sem alteracoes".
+    assert updated is False
     assert deterministic_calls == [[str(bad_file)]]
     assert cache_after_calls["n"] == 0
     payload = cast(dict[str, Any], captured["payload"])

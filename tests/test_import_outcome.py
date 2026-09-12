@@ -125,15 +125,15 @@ def test_updated_run_records_outcome_and_keeps_bool(workspace):
     assert outcome.report_path
 
 
-def test_rejections_only_run_records_outcome_true_bool(workspace):
+def test_rejections_only_run_records_outcome_false_bool(workspace):
     docs, data, tmp = workspace
     pd.DataFrame({"foo": ["bar"]}).to_excel(docs / "bad.xlsx", index=False)
     result = run(docs, data, tmp)
     outcome = import_outcome.get_last_import_outcome()
     assert outcome is not None
 
-    assert result is True
-    assert outcome is not None
+    # Rejeicao deterministica nao atualiza o banco: result=False no contrato.
+    assert result is False
     assert outcome.status is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY
     assert outcome.primary_database_changed is False
     assert outcome.deterministic_failure_count >= 1
