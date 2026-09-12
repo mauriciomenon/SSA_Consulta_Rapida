@@ -28,19 +28,27 @@ na preparacao e no empacotamento. O ambiente anterior do shell e restaurado
 ao terminar. O builder valida `sysconfig.get_platform() == 'win-amd64'`
 antes de instalar dependencias e aceita Python x64 executado em Windows ARM.
 
-Na VM de desenvolvimento preparada, Git, uv e PowerShell ficam em
-`%LOCALAPPDATA%\SSADev`. Em um novo console PowerShell:
+Na VM de desenvolvimento preparada, use Git, uv e PowerShell 7 ja instalados
+pelo WinGet. Abra um novo console PowerShell 7 e confira os executaveis
+encontrados no PATH:
 
 ```powershell
-$tools = Join-Path $env:LOCALAPPDATA 'SSADev'
-$env:PATH = "$tools\git\cmd;$tools\uv;$tools\pwsh;$env:PATH"
+Get-Command git, uv, pwsh -CommandType Application -ErrorAction Stop |
+    Select-Object Name, Source
 Set-Location (Join-Path $env:USERPROFILE 'gitlab\ssa_consulta_rapida_pyqt6')
-powershell -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 -Target windows -Backend pyinstaller -SkipInstaller -Yes
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 -Target windows -Backend pyinstaller -SkipInstaller -Yes
 ```
 
 O comando exige checkout versionado e limpo, gera CLI e GUI e dispensa o
 instalador Inno Setup. A politica de execucao acima vale apenas para esse
 processo PowerShell. A inclusao de banco depende de `-IncludeRuntimeDb`.
+
+Este fluxo usa CPython 3.13 x64 e as dependencias do projeto resolvidas pelo uv.
+Com as dependencias em wheels e o bootloader distribuido pelo PyInstaller,
+o empacotamento dispensa Visual Studio Build Tools, LLVM/Clang e Windows SDK.
+Reconstruir o bootloader ou extensoes nativas a partir de fontes exige
+ferramentas adicionais. Consulte os [requisitos do PyInstaller](https://pyinstaller.org/en/v6.22.2/requirements.html)
+e a [documentacao do bootloader](https://pyinstaller.org/en/v6.22.2/bootloader-building.html).
 
 A montagem do ZIP usa uma pasta `ssa_pkg_*` no TEMP do sistema. Esse caminho
 reduz a profundidade das dependencias lxml/NumPy durante a copia. A limpeza
