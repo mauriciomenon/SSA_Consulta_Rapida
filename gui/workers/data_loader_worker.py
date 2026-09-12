@@ -148,3 +148,9 @@ class DataLoaderWorker(QThread):
         ):
             logger.exception("Erro interno no DataLoaderWorker durante carregamento")
             self.error_occurred.emit("Falha ao carregar dados do banco.")
+        except Exception:
+            # Sem este catch-all uma excecao fora da tupla acima completaria o
+            # thread sem emitir error_occurred: finished dispararia e a GUI
+            # reportaria sucesso sobre os dados antigos.
+            logger.exception("Erro inesperado no DataLoaderWorker durante carregamento")
+            self.error_occurred.emit("Falha ao carregar dados do banco.")

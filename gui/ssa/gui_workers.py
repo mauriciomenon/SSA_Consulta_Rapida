@@ -738,6 +738,11 @@ def _prepare_data_load_request(window) -> int:
     return request_id
 
 
+def _derivadas_sync_in_progress(window) -> bool:
+    state = getattr(window, "_derivadas_sync_state", None)
+    return bool(getattr(state, "running", False))
+
+
 def _set_data_load_busy_state(
     window,
     *,
@@ -745,17 +750,23 @@ def _set_data_load_busy_state(
     status_text: str | None = None,
     context: str,
 ) -> None:
+    window._data_load_busy = busy
     if status_text is not None:
         _set_status_label_text(window, status_text, context=context)
     progress_bar = getattr(window, "progress_bar", None)
     if progress_bar is not None and hasattr(progress_bar, "setVisible"):
-        progress_bar.setVisible(busy)
+        # Nao esconde a barra enquanto o sync de derivadas estiver usando-a.
+        if busy or not _derivadas_sync_in_progress(window):
+            progress_bar.setVisible(busy)
     load_button = getattr(window, "load_button", None)
     if load_button is not None and hasattr(load_button, "setEnabled"):
         load_button.setEnabled(not busy)
     search_button = getattr(window, "search_button", None)
     if search_button is not None and hasattr(search_button, "setEnabled"):
         search_button.setEnabled(not busy)
+    api_button = getattr(window, "api_button", None)
+    if api_button is not None and hasattr(api_button, "setEnabled"):
+        api_button.setEnabled(not busy)
 
 
 def _cleanup_previous_data_loader_before_start(
@@ -1048,7 +1059,24 @@ def load_data(
         retired_force_wait_ms=retired_force_wait_ms,
         sip_module=sip_module,
     )
-    worker.start()
+    try:
+        worker.start()
+    except Exception as exc:
+        logger.error("Falha ao iniciar DataLoaderWorker: %s", exc)
+        window.data_loader_thread = None
+        on_load_error(
+            window,
+            str(exc),
+            request_id=request_id,
+            db_path=db_path,
+            qmessagebox=qmessagebox,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
 
 
 def _is_stale_data_load_result(window, request_id: int | None) -> bool:
@@ -1351,6 +1379,7 @@ def on_load_error(
     else:
         if qmessagebox is not None:
             qmessagebox.critical(window, "Erro de Carregamento", safe_error_msg)
+    window._data_load_busy = False
     _set_status_label_text(
         window,
         "Status: Erro ao carregar dados.",
@@ -1362,8 +1391,15 @@ def on_load_error(
     search_button = getattr(window, "search_button", None)
     if search_button is not None and hasattr(search_button, "setEnabled"):
         search_button.setEnabled(True)
+    api_button = getattr(window, "api_button", None)
+    if api_button is not None and hasattr(api_button, "setEnabled"):
+        api_button.setEnabled(True)
     progress_bar = getattr(window, "progress_bar", None)
-    if progress_bar is not None and hasattr(progress_bar, "setVisible"):
+    if (
+        progress_bar is not None
+        and hasattr(progress_bar, "setVisible")
+        and not _derivadas_sync_in_progress(window)
+    ):
         progress_bar.setVisible(False)
     if global_workers is not None and global_meta is not None:
         try:
@@ -1385,9 +1421,14 @@ def on_load_error(
 
 
 def _restore_data_load_controls(window) -> None:
-    window.progress_bar.setVisible(False)
+    window._data_load_busy = False
+    if not _derivadas_sync_in_progress(window):
+        window.progress_bar.setVisible(False)
     window.load_button.setEnabled(True)
     window.search_button.setEnabled(True)
+    api_button = getattr(window, "api_button", None)
+    if api_button is not None and hasattr(api_button, "setEnabled"):
+        api_button.setEnabled(True)
 
 
 def _update_load_finished_status_if_needed(window) -> None:
@@ -1528,7 +1569,7 @@ def rescan_data(
     operation_label: str = "Reescaneamento",
     reload_on_success: bool = False,
     operation_kind: str = "import",
-) -> None:
+) -> bool:
     normalized_mode = str(rescan_mode or "prompt").strip().lower()
     explicit_files_tuple = tuple(str(path) for path in explicit_files or ())
     source_files_tuple = tuple(str(path) for path in source_files or ())
@@ -1579,7 +1620,7 @@ def rescan_data(
                 "Status: Reescaneamento cancelado pelo usuario.",
                 context="rescan.cancel.mode",
             )
-            return
+            return False
         force_import = clicked == full_btn
     else:
         logger.warning(
@@ -1614,7 +1655,7 @@ def rescan_data(
                     running_text,
                     context=running_context,
                 )
-                return
+                return False
         except Exception as exc:
             logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
         try:
@@ -1687,7 +1728,23 @@ def rescan_data(
         set_status_label_text=_set_status_label_text,
     )
 
-    worker.start()
+    try:
+        worker.start()
+    except Exception as exc:
+        logger.warning("Falha ao iniciar RescanWorker: %s", exc)
+        window._active_rescan_worker = None
+        try:
+            if getattr(window, "_active_rescan_dialog", None) is progress_dialog:
+                window._active_rescan_dialog = None
+            progress_dialog.close()
+        except Exception as close_exc:
+            logger.debug("Falha ao fechar dialogo de progresso apos erro no start: %s", close_exc)
+        _set_status_label_text(
+            window,
+            "Status: Falha ao iniciar reescaneamento.",
+            context="rescan.start_error",
+        )
+        return False
     if normalized_kind == "consolidate":
         _set_status_label_text(
             window,
@@ -1704,3 +1761,4 @@ def rescan_data(
         progress_dialog.show_non_modal()
     else:
         progress_dialog.show()
+    return True

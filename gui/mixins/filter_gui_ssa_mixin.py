@@ -438,6 +438,11 @@ class FilterGUISSAMixin:
                 "Estado visual de filtro ignorado antes da UI de filtro estar pronta"
             )
             return
+        if getattr(self, "_data_load_busy", False):
+            logger.debug(
+                "set_idle de filtro ignorado: carga de dados em andamento"
+            )
+            return
         self._filter_ui_state().set_idle()
 
     def _set_checked_without_signal(
@@ -809,6 +814,11 @@ class FilterGUISSAMixin:
     def initiate_filtering(self):
         if self.df_completo.empty:
             self._set_filter_ui_idle()
+            if getattr(self, "_data_load_busy", False):
+                logger.debug(
+                    "initiate_filtering ignorado: carga de dados em andamento"
+                )
+                return
             QMessageBox.information(
                 _qt_parent(self), "Aviso", "Nenhum dado carregado para filtrar."
             )
@@ -1222,7 +1232,8 @@ class FilterGUISSAMixin:
                 worker if worker is not None else getattr(self, "filter_thread", None)
             )
             self._cleanup_filter_worker(target_worker)
-            self._filter_ui_state().set_cleanup()
+            if not getattr(self, "_data_load_busy", False):
+                self._filter_ui_state().set_cleanup()
             try:
                 self._prune_retired_filter_workers()
             except Exception as exc:

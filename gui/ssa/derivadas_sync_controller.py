@@ -493,7 +493,11 @@ def _restore_derivadas_sync_ui_state(
     try:
         if ui.update_button is not None:
             ui.update_button.setEnabled(bool(previous.get("update_enabled", True)))
-        if ui.progress_bar is not None:
+        # Se uma carga de dados assumiu a progress_bar durante o sync, ela
+        # continua dona dela; restaurar o snapshot esconderia o progresso dela.
+        if ui.progress_bar is not None and not getattr(
+            ui.message_parent, "_data_load_busy", False
+        ):
             ui.progress_bar.setVisible(bool(previous.get("progress_visible")))
             progress_range = previous.get("progress_range") or (0, 0)
             ui.progress_bar.setRange(progress_range[0], progress_range[1])

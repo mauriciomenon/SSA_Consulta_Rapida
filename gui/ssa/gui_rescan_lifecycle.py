@@ -334,6 +334,12 @@ def _finish_successful_rescan(
             logger.warning(
                 "Falha ao recarregar dados apos operacao concluida: %s", exc
             )
+            set_status_label_text(
+                window,
+                "Status: Operacao concluida, mas a recarga de dados falhou. "
+                "Use 'Recarregar Dados' para atualizar a tabela.",
+                context="rescan.success.reload_failed",
+            )
 
 
 def _finish_rescan_error(
