@@ -9,6 +9,7 @@ e inicia a interface CLI ou GUI conforme as opcoes fornecidas.
 
 import argparse
 import importlib
+import inspect
 import itertools
 import logging
 import os
@@ -443,7 +444,14 @@ def _log_import_failure_context() -> None:
     logger.error("  4. Memoria disponivel do sistema")
 
 
-def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
+def _run_data_import(
+    args: argparse.Namespace,
+    run_importer_logic,
+    *,
+    docs_dir: str | None = None,
+    db_path: str | None = None,
+    table_name: str | None = None,
+) -> bool:
     from core import import_outcome
     if not getattr(args, "force_rescan", False):
         logger.info(
@@ -473,7 +481,22 @@ def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
     )
     try:
         _outcome_before = import_outcome.get_last_import_outcome()
-        db_updated = run_importer_logic(force_import=force_import)
+        import_kwargs: dict = {}
+        if db_path:
+            import_kwargs["data_dir"] = os.path.dirname(db_path) or "."
+            import_kwargs["db_name"] = os.path.basename(db_path)
+        if docs_dir:
+            import_kwargs["docs_dir"] = docs_dir
+        if table_name:
+            import_kwargs["table_name"] = table_name
+        try:
+            accepted = set(inspect.signature(run_importer_logic).parameters)
+            import_kwargs = {
+                key: value for key, value in import_kwargs.items() if key in accepted
+            }
+        except (TypeError, ValueError):
+            pass
+        db_updated = run_importer_logic(force_import=force_import, **import_kwargs)
         _outcome_after = import_outcome.get_last_import_outcome()
         outcome = (
             _outcome_after
@@ -545,26 +568,34 @@ def _resolve_database_target(active_runtime_root: str) -> tuple[str, str]:
     return db_path, table_name
 
 
+def _fallback_gui_to_cli(start_cli_loop, db_path: str, table_name: str) -> None:
+    if sys.stdin is not None and sys.stdin.isatty():
+        logger.info("Recuando para CLI.")
+        start_cli_loop(db_path, table_name)
+        return
+    logger.error(
+        "GUI indisponivel e stdin nao interativo; encerrando sem fallback para CLI."
+    )
+    sys.exit(1)
+
+
 def _launch_gui(db_path: str, table_name: str, start_cli_loop, active_runtime_root: str) -> None:
     logger.info("Iniciando interface grafica (GUI)...")
     try:
         from gui.launcher import GuiOperationalError, launch_gui
     except ImportError as exc:
         logger.error("Falha ao iniciar GUI por dependencia/importacao: %s", exc)
-        logger.info("Recuando para CLI.")
-        start_cli_loop(db_path, table_name)
+        _fallback_gui_to_cli(start_cli_loop, db_path, table_name)
         return
 
     try:
         launch_gui(active_runtime_root, sys.argv, logger)
     except ImportError as exc:
         logger.error("Falha ao iniciar GUI por dependencia/importacao: %s", exc)
-        logger.info("Recuando para CLI.")
-        start_cli_loop(db_path, table_name)
+        _fallback_gui_to_cli(start_cli_loop, db_path, table_name)
     except GuiOperationalError as exc:
         logger.error("Falha operacional ao criar/mostrar janela da GUI: %s", exc)
-        logger.info("Recuando para CLI.")
-        start_cli_loop(db_path, table_name)
+        _fallback_gui_to_cli(start_cli_loop, db_path, table_name)
 
 
 def _launch_interface(
@@ -700,8 +731,14 @@ def main(cli_args=None):
         _prepare_application_environment(active_runtime_root, setup_project_structure)
         _ensure_default_configuration(ensure_default_settings)
         _run_backfill_action(args, backfill_args)
-        _run_data_import(args, run_importer_logic)
         db_path, table_name = _resolve_database_target(active_runtime_root)
+        _run_data_import(
+            args,
+            run_importer_logic,
+            docs_dir=os.path.join(active_runtime_root, "docs_entrada"),
+            db_path=db_path,
+            table_name=table_name,
+        )
         _launch_interface(
             args, db_path, table_name, start_cli_loop, active_runtime_root
         )
