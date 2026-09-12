@@ -45,6 +45,48 @@ class _AliveThread(threading.Thread):
         return self.alive
 
 
+class _FailingStartThread(threading.Thread):
+    def __init__(self, target=None, daemon: bool | None = None, **_kwargs: Any) -> None:
+        super().__init__(target=target, daemon=daemon)
+
+    def start(self) -> None:
+        raise RuntimeError("can't start new thread")
+
+
+def test_async_derivadas_start_failure_runs_finalize_to_restore_ui(tmp_path) -> None:
+    """Falha em worker.start() deve restaurar a UI via finalize_result."""
+    state = derivadas_sync_controller.DerivadasSyncState()
+    state.mark_started()
+    state.ui_state = {"status": "before"}
+    sync_lock = derivadas_sync_controller._ensure_derivadas_sync_lock(state)
+    finalized: list[dict[str, Any]] = []
+
+    result = derivadas_sync_controller._start_async_derivadas_sync(
+        derivadas_sync_controller.DerivadasSyncUiRefs(
+            message_parent=object(),
+            status_label=None,
+            progress_bar=None,
+            update_button=None,
+        ),
+        state,
+        db_path=str(tmp_path / "ssas.db"),
+        table_name="ssa_table",
+        special_files=[],
+        sync_lock=sync_lock,
+        qtimer=_ImmediateTimer,
+        sip_module=None,
+        thread_factory=_FailingStartThread,
+        execute_job=lambda **_kwargs: pytest.fail("job must not run"),
+        finalize_result=lambda _parent, value: finalized.append(value) or value,
+        sync_state_callback=None,
+    )
+
+    assert result["ok"] is False
+    assert result["reason"] == "start_failed"
+    assert finalized == [result]
+    assert state.thread is None
+
+
 def test_async_derivadas_timeout_marks_state_finished_for_finalize_callback(
     monkeypatch,
     tmp_path,

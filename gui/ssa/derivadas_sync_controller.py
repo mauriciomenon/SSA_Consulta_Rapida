@@ -323,15 +323,18 @@ def _start_async_derivadas_sync(
         with sync_lock:
             if getattr(state, "thread", None) is worker:
                 state.thread = None
-            state.mark_finished()
-        _sync_state(sync_state_callback)
-        return {
+        failure_result = {
             "ok": False,
             "reason": "start_failed",
             "error": str(exc),
             "db_path": db_path,
             "table_name": table_name,
         }
+        # Passa pelo finalizador para restaurar barra/botoes/status pelo
+        # mesmo caminho de uma falha de sincronizacao em andamento.
+        finalize_result(ui.message_parent, failure_result)
+        _sync_state(sync_state_callback)
+        return failure_result
     qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
     return {
         "ok": True,
