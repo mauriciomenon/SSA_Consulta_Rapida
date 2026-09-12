@@ -29,6 +29,7 @@ import socket
 import subprocess  # nosec B404
 import sys
 import threading
+import time
 from collections import OrderedDict
 from typing import Any, TypedDict, cast
 
@@ -467,6 +468,7 @@ TSM_DEBUG_ENABLED = str(os.environ.get("SSA_TSM_DEBUG", "")).strip().lower() in 
 
 # Constantes de UI
 DETAILS_DIALOG_FONT_SIZE = 10  # pt
+OTHER_DB_VALIDATION_TIMEOUT_SEC = 120.0
 DETAILS_DIALOG_TABLE_PADDING = 8  # px
 DETAILS_DIALOG_BORDER_COLOR = "#ccc"
 HIGHLIGHT_BACKGROUND_COLOR = "yellow"
@@ -5217,6 +5219,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger=logger,
         )
         self._sync_derivadas_sync_state_attrs(state)
+        if bool(finalized.get("ok")) and hasattr(self, "load_data"):
+            try:
+                self.load_data()
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao recarregar dados apos sync de derivadas: %s", exc
+                )
         return finalized
 
     @staticmethod
@@ -5302,6 +5311,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._other_db_validation_running = True
             self._other_db_validation_thread = None
             self._other_db_validation_pending_result = None
+            validation_deadline = time.monotonic() + OTHER_DB_VALIDATION_TIMEOUT_SEC
 
             def _window_alive() -> bool:
                 if self is None:
@@ -5316,9 +5326,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     return False
 
             def _work() -> None:
-                self._other_db_validation_pending_result = (
-                    SSAMainWindow._validate_database_candidate(db_file)
-                )
+                try:
+                    self._other_db_validation_pending_result = (
+                        SSAMainWindow._validate_database_candidate(db_file)
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "Falha inesperada na validacao de banco alternativo: %s",
+                        db_file,
+                    )
+                    self._other_db_validation_pending_result = {
+                        "ok": False,
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "db_file": db_file,
+                    }
 
             def _poll_delivery() -> None:
                 if not _window_alive():
@@ -5328,15 +5349,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     return
                 pending = getattr(self, "_other_db_validation_pending_result", None)
                 if pending is None:
-                    if bool(getattr(self, "_other_db_validation_running", False)):
-                        QTimer.singleShot(100, _poll_delivery)
+                    if not bool(getattr(self, "_other_db_validation_running", False)):
+                        return
+                    if time.monotonic() >= validation_deadline:
+                        logger.error(
+                            "Validacao de banco alternativo excedeu %ss sem resultado.",
+                            OTHER_DB_VALIDATION_TIMEOUT_SEC,
+                        )
+                        self._other_db_validation_pending_result = None
+                        self._other_db_validation_thread = None
+                        self._other_db_validation_running = False
+                        self.status_label.setText(
+                            "Status: Validacao de banco alternativo excedeu o tempo limite."
+                        )
+                        return
+                    QTimer.singleShot(100, _poll_delivery)
                     return
                 self._other_db_validation_pending_result = None
                 SSAMainWindow._finalize_database_candidate_validation(self, pending)
 
             worker = threading.Thread(target=_work, daemon=True)
             self._other_db_validation_thread = worker
-            worker.start()
+            try:
+                worker.start()
+            except Exception as exc:
+                logger.error(
+                    "Falha ao iniciar validacao de banco alternativo: %s", exc
+                )
+                self._other_db_validation_thread = None
+                self._other_db_validation_running = False
+                self.status_label.setText(
+                    "Status: Falha ao iniciar validacao do banco alternativo."
+                )
+                return {"ok": False, "error": str(exc), "db_file": db_file}
             QTimer.singleShot(100, _poll_delivery)
             return {"ok": True, "started": True, "db_file": db_file}
         elif db_file:  # Arquivo selecionado mas nao existe
