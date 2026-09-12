@@ -5659,6 +5659,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             event.accept()
             return
         event.ignore()
+        # Sem auto-retry: um X acidental nao fecha a janela sozinha. O deadline
+        # so vale para tentativas repetidas do usuario, mantendo a semantica
+        # "X ignorado = continuar trabalhando" e ainda resolvendo worker
+        # pendurado (segundo clique apos 30s forca o fechamento).
         shutdown_started = getattr(self, "_shutdown_started_at", None)
         if shutdown_started is None:
             shutdown_started = time.monotonic()
@@ -5673,14 +5677,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 elapsed,
             )
             event.accept()
-            return
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
-            try:
-                QTimer.singleShot(500, self.close)
-            except (RuntimeError, AttributeError) as exc:
-                logger.debug(
-                    "Falha ao reagendar fechamento da janela: %s", exc
-                )
 
 
 # --- Ponto de Entrada ---
