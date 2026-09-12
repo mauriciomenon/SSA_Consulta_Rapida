@@ -59,5 +59,5 @@ def test_ascii_filter_sanitizes_nested_values() -> None:
     keep = ascii_filter.filter(record)
 
     assert keep is True
-    assert record.args == {"labels": ["aao", "reviso"]}
-    assert record.getMessage() == "Valor: {'labels': ['aao', 'reviso']}"
+    assert record.args == {"labels": ["acao", "revisao"]}
+    assert record.getMessage() == "Valor: {'labels': ['acao', 'revisao']}"
