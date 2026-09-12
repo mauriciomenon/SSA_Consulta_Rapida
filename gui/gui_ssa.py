@@ -2529,13 +2529,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.debug(
                     "Falha ao bloquear sinais do paginator durante sort: %s", exc
                 )
-            self.paginator.set_dataframe(self.df_exibido)
             try:
-                self.paginator.blockSignals(paginator_signals_were_blocked)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao restaurar sinais do paginator apos sort: %s", exc
-                )
+                self.paginator.set_dataframe(self.df_exibido)
+            finally:
+                try:
+                    self.paginator.blockSignals(paginator_signals_were_blocked)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao restaurar sinais do paginator apos sort: %s", exc
+                    )
             current_page = max(
                 1,
                 min(
@@ -2975,8 +2977,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
         try:
             was_blocked = input_widget.blockSignals(True)
-            input_widget.setText(value)
-            input_widget.blockSignals(was_blocked)
+            try:
+                input_widget.setText(value)
+            finally:
+                input_widget.blockSignals(was_blocked)
         except Exception as exc:
             logger.debug(
                 "Falha ao sincronizar campo do filtro rapido %s: %s",
