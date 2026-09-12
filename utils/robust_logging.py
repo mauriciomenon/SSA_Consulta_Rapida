@@ -330,11 +330,18 @@ class RobustLogger:
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
 
-        # Cria diretório de logs. Caminho relativo ancora na raiz do projeto
-        # (nao no CWD), para que import-time loggers nao criem logs/ perdidos.
+        # Cria diretório de logs. Caminho relativo ancora no runtime root
+        # (gravavel em modo empacotado) ou na raiz do projeto como fallback —
+        # nunca no CWD, para que import-time loggers nao criem logs/ perdidos.
         log_dir = Path(self.config["log_dir"])
         if not log_dir.is_absolute():
-            log_dir = Path(__file__).resolve().parents[1] / log_dir
+            runtime_root = os.environ.get("SSA_RUNTIME_ROOT")
+            anchor = (
+                Path(runtime_root)
+                if runtime_root
+                else Path(__file__).resolve().parents[1]
+            )
+            log_dir = anchor / log_dir
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
