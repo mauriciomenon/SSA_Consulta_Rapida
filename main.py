@@ -483,17 +483,36 @@ def _run_data_import(
         _outcome_before = import_outcome.get_last_import_outcome()
         import_kwargs: dict = {}
         if db_path:
-            import_kwargs["data_dir"] = os.path.dirname(db_path) or "."
+            db_parent = os.path.dirname(os.path.abspath(db_path))
+            import_kwargs["data_dir"] = db_parent
             import_kwargs["db_name"] = os.path.basename(db_path)
+            # SSA_DB_PATH pode apontar fora do project_root: espelha o
+            # rescan worker liberando o diretorio do banco no path-safety.
+            import_kwargs["extra_allowed_roots"] = (db_parent,)
         if docs_dir:
             import_kwargs["docs_dir"] = docs_dir
+            docs_parent = os.path.dirname(os.path.abspath(docs_dir))
+            if docs_parent:
+                roots = list(import_kwargs.get("extra_allowed_roots") or ())
+                if docs_parent not in roots:
+                    roots.append(docs_parent)
+                import_kwargs["extra_allowed_roots"] = tuple(roots)
         if table_name:
             import_kwargs["table_name"] = table_name
         try:
-            accepted = set(inspect.signature(run_importer_logic).parameters)
-            import_kwargs = {
-                key: value for key, value in import_kwargs.items() if key in accepted
-            }
+            params = inspect.signature(run_importer_logic).parameters.values()
+            accepts_var_keyword = any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in params
+            )
+            if not accepts_var_keyword:
+                accepted = set(
+                    inspect.signature(run_importer_logic).parameters
+                )
+                import_kwargs = {
+                    key: value
+                    for key, value in import_kwargs.items()
+                    if key in accepted
+                }
         except (TypeError, ValueError):
             pass
         db_updated = run_importer_logic(force_import=force_import, **import_kwargs)

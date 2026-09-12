@@ -65,6 +65,49 @@ def test_main_force_rescan_does_not_fallback_when_optimized_import_is_missing(
     assert calls["importer"] == 0
 
 
+def test_run_data_import_external_db_path_propagates_allowed_roots(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """SSA_DB_PATH fora do project_root deve liberar o diretorio no path-safety.
+
+    Espelha o comportamento do RescanWorker da GUI: o diretorio do banco
+    configurado externamente entra em extra_allowed_roots para que
+    ensure_path_is_allowed nao recuse o caminho.
+    """
+    from types import SimpleNamespace
+
+    import main
+
+    captured: dict = {}
+
+    def fake_run_importer_logic(force_import: bool = False, **kwargs):  # noqa: ARG001
+        captured.update(kwargs)
+        return False
+
+    db_dir = tmp_path / "external_db_dir"
+    db_dir.mkdir()
+    db_path = db_dir / "ssas.db"
+    docs_dir = tmp_path / "external_docs"
+    docs_dir.mkdir()
+
+    args = SimpleNamespace(force_rescan=True, standard=True, optimized=False)
+    main._run_data_import(
+        args,
+        fake_run_importer_logic,
+        docs_dir=str(docs_dir),
+        db_path=str(db_path),
+        table_name="ssa_table",
+    )
+
+    assert captured["data_dir"] == str(db_dir)
+    assert captured["db_name"] == "ssas.db"
+    assert captured["docs_dir"] == str(docs_dir)
+    assert captured["table_name"] == "ssa_table"
+    roots = captured["extra_allowed_roots"]
+    assert str(db_dir) in roots
+    assert str(tmp_path) in roots
+
+
 def test_main_version_handles_missing_sys_argv(monkeypatch: pytest.MonkeyPatch) -> None:
     import main
 
