@@ -2081,6 +2081,10 @@ def _refresh_advanced_filter_options(self):
 
         def _on_ready(ui_state, w=worker_ref):
             nonlocal refresh_after_finish
+            if not _is_not_deleted(self):
+                # Entrega tardia apos WA_DeleteOnClose: acessar self abortaria
+                # o processo com 'wrapped C/C++ object has been deleted'.
+                return
             if bool(getattr(self, "_is_shutting_down", False)):
                 return
             current_df = getattr(self, "df_completo", None)
@@ -2121,6 +2125,8 @@ def _refresh_advanced_filter_options(self):
 
         def _on_error(error_msg, w=worker_ref):
             nonlocal refresh_after_finish
+            if not _is_not_deleted(self):
+                return
             logger.debug(
                 "AdvancedOptionsWorker erro: %s; fallback para path sincrono", error_msg
             )
@@ -2157,6 +2163,8 @@ def _refresh_advanced_filter_options(self):
                 logger.debug("Fallback sincrono de advanced options falhou: %s", exc)
 
         def _on_finished(w=worker_ref):
+            if not _is_not_deleted(self):
+                return
             if getattr(self, "_adv_options_worker", None) is w:
                 self._adv_options_worker = None
             self._adv_options_worker_active = False

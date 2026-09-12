@@ -199,7 +199,28 @@ def _has_named_alias(mapping: dict[str, str] | None, col: str) -> bool:
     return bool(value and value != col)
 
 
-def _connect_filter_signal(signal, slot, *, label: str) -> bool:
+def _is_window_deleted(obj: Any) -> bool:
+    if obj is None or sip is None:
+        return False
+    try:
+        return bool(sip.isdeleted(obj))
+    except Exception:
+        return False
+
+
+def _connect_filter_signal(signal, slot, *, label: str, window: Any = None) -> bool:
+    if window is not None:
+        original_slot = slot
+
+        def _guarded_slot(*args, **kwargs):
+            # Callback tardio pode ser entregue apos a destruicao da janela
+            # (WA_DeleteOnClose + sinais enfileirados); sem a guarda o acesso
+            # a widgets destruidos aborta o processo.
+            if _is_window_deleted(window):
+                return None
+            return original_slot(*args, **kwargs)
+
+        slot = _guarded_slot
     if signal is None:
         logger.debug("Signal ausente para %s; pulando conexao.", label)
         return False
@@ -784,11 +805,13 @@ class FilterGUISSAMixin:
             worker.filter_finished,
             lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid),
             label="filter_worker.filter_finished",
+            window=self,
         )
         error_connected = _connect_filter_signal(
             worker.error_occurred,
             lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid),
             label="filter_worker.error_occurred",
+            window=self,
         )
         _connect_filter_signal(
             worker.finished,
@@ -796,6 +819,7 @@ class FilterGUISSAMixin:
                 w, request_id=rid
             ),
             label="filter_worker.finished.cleanup",
+            window=self,
         )
         if not (filter_finished_connected and error_connected):
             logger.warning(

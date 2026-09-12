@@ -312,6 +312,8 @@ def _run_auto_refresh_timeout(
     window: PaiApiWindowPort,
     worker_cls: Any,
 ) -> bool:
+    if _window_is_deleted(window):
+        return False
     return start_pai_api_refresh(
         window,
         preferences=window.pai_api_preferences(),
@@ -337,6 +339,8 @@ def _set_worker_progress(
     message: str,
     *_args: Any,
 ) -> None:
+    if _window_is_deleted(window):
+        return
     window.set_pai_api_status(f"Status: {message}")
 
 
@@ -345,7 +349,21 @@ def _set_worker_preview_status(
     preview: Any,
     *_args: Any,
 ) -> None:
+    if _window_is_deleted(window):
+        return
     window.set_pai_api_status(f"Status: {format_preview_status(preview)}")
+
+
+def _window_is_deleted(window: Any) -> bool:
+    """True somente quando o Qt confirma a destruicao do objeto."""
+    try:
+        from PyQt6 import sip
+    except ImportError:
+        return False
+    try:
+        return bool(sip.isdeleted(window))
+    except Exception:
+        return False
 
 
 def _confirm_worker_import(
@@ -355,6 +373,8 @@ def _confirm_worker_import(
     *_args: Any,
     qmessagebox: Any,
 ) -> None:
+    if _window_is_deleted(window):
+        return
     window.set_pai_api_status(f"Status: {format_decision_request_status(decision_request)}")
     worker.set_import_decision(window.confirm_pai_api_import(qmessagebox, decision_request))
 
@@ -366,6 +386,8 @@ def _finish_success(
     qmessagebox: Any,
     reload_after_success: bool,
 ) -> None:
+    if _window_is_deleted(window):
+        return
     partial_status = _worker_partial_status(worker)
     if _worker_import_skipped(worker):
         window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
@@ -382,6 +404,8 @@ def _finish_error(
     worker: Any,
     message: str,
 ) -> None:
+    if _window_is_deleted(window):
+        return
     short_message = _short_error_message(message)
     logger.warning("Falha na SAM API: %s", short_message)
     if short_message != message:
@@ -394,6 +418,8 @@ def _release_worker(
     worker: Any,
     *_args: Any,
 ) -> None:
+    if _window_is_deleted(window):
+        return
     if window.active_pai_api_worker() is worker:
         window.set_active_pai_api_worker(None)
 

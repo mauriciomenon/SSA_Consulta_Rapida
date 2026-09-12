@@ -242,6 +242,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "SAM API habilitada",
         "Consulta via xpath/scrap_report",
         "Atualizacao automatica",
+        "Atualizar dados agora",
     ]
     assert "Setores executores" in api_menu.submenus
     assert "Tipos de dados" in api_menu.submenus

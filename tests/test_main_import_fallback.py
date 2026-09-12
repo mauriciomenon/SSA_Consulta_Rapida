@@ -74,7 +74,7 @@ def test_run_data_import_external_db_path_propagates_allowed_roots(
     configurado externamente entra em extra_allowed_roots para que
     ensure_path_is_allowed nao recuse o caminho.
     """
-    from types import SimpleNamespace
+    import argparse
 
     import main
 
@@ -90,7 +90,7 @@ def test_run_data_import_external_db_path_propagates_allowed_roots(
     docs_dir = tmp_path / "external_docs"
     docs_dir.mkdir()
 
-    args = SimpleNamespace(force_rescan=True, standard=True, optimized=False)
+    args = argparse.Namespace(force_rescan=True, standard=True, optimized=False)
     main._run_data_import(
         args,
         fake_run_importer_logic,

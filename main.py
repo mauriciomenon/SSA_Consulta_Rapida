@@ -493,7 +493,7 @@ def _run_data_import(
             import_kwargs["docs_dir"] = docs_dir
             docs_parent = os.path.dirname(os.path.abspath(docs_dir))
             if docs_parent:
-                roots = list(import_kwargs.get("extra_allowed_roots") or ())
+                roots: list[str] = list(import_kwargs.get("extra_allowed_roots") or ())
                 if docs_parent not in roots:
                     roots.append(docs_parent)
                 import_kwargs["extra_allowed_roots"] = tuple(roots)

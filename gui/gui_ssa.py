@@ -5013,7 +5013,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         worker = threading.Thread(target=_work, daemon=True)
         self._vacuum_analyze_thread = worker
-        worker.start()
+        try:
+            worker.start()
+        except Exception as exc:
+            logger.error("Falha ao iniciar analise de vacuum: %s", exc)
+            self._vacuum_analyze_thread = None
+            self._vacuum_analyze_running = False
+            status_label = getattr(self, "status_label", None)
+            if status_label is not None and hasattr(status_label, "setText"):
+                status_label.setText("Status: Falha ao iniciar analise de vacuum.")
+            return {"ok": False, "error": str(exc), "db_path": db_path}
         QTimer.singleShot(100, _poll_delivery)
         return {"ok": True, "started": True, "db_path": db_path}
 
@@ -5246,6 +5255,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _finalize_database_candidate_validation(
         self, result: dict[str, Any]
     ) -> dict[str, Any]:
+        request_tag = result.get("_request_id")
+        if request_tag is not None and request_tag != getattr(
+            self, "_other_db_validation_request_id", None
+        ):
+            logger.warning(
+                "Resultado de validacao de banco alternativo expirado descartado: %s",
+                result.get("db_file"),
+            )
+            return {
+                "ok": False,
+                "reason": "stale_result",
+                "db_file": result.get("db_file"),
+            }
         self._other_db_validation_running = False
         self._other_db_validation_thread = None
         self._other_db_validation_pending_result = None
@@ -5318,6 +5340,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._other_db_validation_running = True
             self._other_db_validation_thread = None
             self._other_db_validation_pending_result = None
+            request_id = getattr(self, "_other_db_validation_request_id", 0) + 1
+            self._other_db_validation_request_id = request_id
             validation_deadline = time.monotonic() + OTHER_DB_VALIDATION_TIMEOUT_SEC
 
             def _window_alive() -> bool:
@@ -5334,19 +5358,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             def _work() -> None:
                 try:
-                    self._other_db_validation_pending_result = (
-                        SSAMainWindow._validate_database_candidate(db_file)
-                    )
+                    result = SSAMainWindow._validate_database_candidate(db_file)
                 except Exception as exc:
                     logger.exception(
                         "Falha inesperada na validacao de banco alternativo: %s",
                         db_file,
                     )
-                    self._other_db_validation_pending_result = {
+                    result = {
                         "ok": False,
                         "error": f"{type(exc).__name__}: {exc}",
                         "db_file": db_file,
                     }
+                result["_request_id"] = request_id
+                self._other_db_validation_pending_result = result
 
             def _poll_delivery() -> None:
                 if not _window_alive():
@@ -5355,6 +5379,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self._other_db_validation_running = False
                     return
                 pending = getattr(self, "_other_db_validation_pending_result", None)
+                if pending is not None and pending.get("_request_id") != getattr(
+                    self, "_other_db_validation_request_id", None
+                ):
+                    # Resultado atrasado de uma validacao expirada: descartar
+                    # sem aplicar para nao selecionar o banco errado.
+                    self._other_db_validation_pending_result = None
+                    pending = None
                 if pending is None:
                     if not bool(getattr(self, "_other_db_validation_running", False)):
                         return
@@ -5373,6 +5404,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     QTimer.singleShot(100, _poll_delivery)
                     return
                 self._other_db_validation_pending_result = None
+                pending.pop("_request_id", None)
                 SSAMainWindow._finalize_database_candidate_validation(self, pending)
 
             worker = threading.Thread(target=_work, daemon=True)
@@ -5620,8 +5652,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Falha ao consultar thread de derivadas no shutdown: %s", exc
                 )
 
+        previous_pending_ids = {
+            id(pending_worker)
+            for pending_worker in getattr(self, "_shutdown_pending_workers", []) or []
+        }
         self._shutdown_pending_workers = running_workers
         if running_labels:
+            current_ids = {id(worker) for worker in running_workers}
+            if previous_pending_ids and current_ids.isdisjoint(previous_pending_ids):
+                # Novo episodio de shutdown: o deadline de 30s reinicia. Sem
+                # isso, um X ignorado ha horas forcaria o fechamento no
+                # primeiro clique de uma operacao iniciada depois.
+                self._shutdown_started_at = None
             # Fechamento adiado: o app continua operando. Sem o reset, o
             # flag ficaria True para sempre e bloquearia filtros, carga de
             # dados, PAI API, derivadas e refresh de opcoes avancadas.
@@ -5680,6 +5722,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Workers conhecidos ja foram retidos em registros globais neste
             # ponto; fechar a janela nao os destroi. Sem deadline um worker
             # pendurado manteria a janela aberta para sempre.
+            # WA_DeleteOnClose destroi os widgets ao aceitar: desconecta os
+            # sinais dos workers retidos para que callbacks tardios nao
+            # acessem objetos Qt ja destruidos.
+            for pending_worker in getattr(self, "_shutdown_pending_workers", []) or []:
+                disconnect = getattr(pending_worker, "disconnect", None)
+                if callable(disconnect):
+                    try:
+                        disconnect()
+                    except (RuntimeError, TypeError, AttributeError) as exc:
+                        logger.debug(
+                            "Falha ao desconectar worker no fechamento forcado: %s",
+                            exc,
+                        )
             logger.critical(
                 "Shutdown forcado apos %.1fs; workers ainda ativos foram retidos em background.",
                 elapsed,

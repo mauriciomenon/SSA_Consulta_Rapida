@@ -9,6 +9,18 @@ from typing import Any
 from gui.ssa.list_exporter import ListExportResult, resolve_export_columns
 from gui.workers.list_export_worker import ListExportWorker
 
+
+def _window_deleted(window: Any) -> bool:
+    """True somente quando o Qt confirma a destruicao do objeto."""
+    try:
+        from PyQt6 import sip
+    except ImportError:
+        return False
+    try:
+        return bool(sip.isdeleted(window))
+    except Exception:
+        return False
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,6 +71,8 @@ def export_current_list_tsv(
 
     def _on_error(error: str) -> None:
         logger.error("Falha ao exportar lista para arquivo: %s", error)
+        if _window_deleted(window):
+            return
         message_box.information(window, "Aviso", "Falha ao exportar a lista.")
 
     def _on_finished() -> None:

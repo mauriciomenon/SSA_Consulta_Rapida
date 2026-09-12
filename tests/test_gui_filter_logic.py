@@ -14183,7 +14183,7 @@ class TestGUIFilterLogic:
             def deleteLater(self):
                 self.deleted = True
 
-        def _connect_side_effect(_signal, _slot, *, label):
+        def _connect_side_effect(_signal, _slot, *, label, **_kwargs):
             if label == "filter_worker.filter_finished":
                 return False
             return True
@@ -14623,7 +14623,7 @@ class TestGUIFilterLogic:
                 return None
 
         worker = _AliveWorker()
-        self.window._adv_options_worker = worker
+        self.window._active_pai_api_worker = worker
 
         event = QCloseEvent()
         self.window.closeEvent(event)
@@ -14635,6 +14635,122 @@ class TestGUIFilterLogic:
         retry_event = QCloseEvent()
         self.window.closeEvent(retry_event)
         assert retry_event.isAccepted() is True
+
+    def test_shutdown_new_episode_resets_force_deadline(self):
+        """Deadline de 30s nao pode reutilizar timestamp de episodio anterior.
+
+        X ignorado ha muito tempo + operacao nova iniciada depois: o segundo
+        X deve ser ignorado, nao forcar fechamento imediato.
+        """
+        class _AliveWorker:
+            def __init__(self):
+                self.running = True
+
+            def isRunning(self):
+                return self.running
+
+            def requestInterruption(self):
+                return None
+
+            def quit(self):
+                return None
+
+        worker_a = _AliveWorker()
+        self.window._active_pai_api_worker = worker_a
+        first = QCloseEvent()
+        self.window.closeEvent(first)
+        assert first.isAccepted() is False
+        # Simula timestamp antigo do episodio anterior.
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        worker_a.running = False
+        worker_b = _AliveWorker()
+        self.window._active_pai_api_worker = worker_b
+
+        second = QCloseEvent()
+        self.window.closeEvent(second)
+
+        assert second.isAccepted() is False
+        assert time.monotonic() - self.window._shutdown_started_at < 30
+
+    def test_forced_close_disconnects_pending_workers(self):
+        """Fechamento forcado desconecta sinais dos workers retidos.
+
+        WA_DeleteOnClose destroi os widgets; sem desconexao, callbacks
+        tardios acessam objetos Qt ja destruidos.
+        """
+        class _AliveWorker:
+            def __init__(self):
+                self.disconnected = False
+
+            def isRunning(self):
+                return True
+
+            def requestInterruption(self):
+                return None
+
+            def quit(self):
+                return None
+
+            def disconnect(self):
+                self.disconnected = True
+
+        worker = _AliveWorker()
+        self.window._active_pai_api_worker = worker
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert worker.disconnected is True
+
+    def test_finalize_database_candidate_validation_discards_stale_result(
+        self, monkeypatch
+    ):
+        """Resultado de validacao expirada nao pode selecionar outro banco."""
+        original_db_path = gui_ssa.DB_PATH
+        self.window._other_db_validation_request_id = 2
+        self.window._other_db_validation_running = True
+
+        try:
+            outcome = self.window._finalize_database_candidate_validation(
+                {"_request_id": 1, "ok": True, "db_file": "/tmp/velho.db"}
+            )
+            assert outcome.get("reason") == "stale_result"
+            assert gui_ssa.DB_PATH == original_db_path
+            # A validacao atual (request 2) continua em andamento.
+            assert self.window._other_db_validation_running is True
+
+            current = self.window._finalize_database_candidate_validation(
+                {"_request_id": 2, "ok": True, "db_file": "/tmp/novo.db"}
+            )
+            assert bool(current.get("ok")) is True
+            assert gui_ssa.DB_PATH == "/tmp/novo.db"
+            assert self.window._other_db_validation_running is False
+        finally:
+            gui_ssa.DB_PATH = original_db_path
+
+    def test_save_current_filter_cancel_restores_advanced_filters(self):
+        """Cancelar 'Salvar filtro' restaura o conteudo de _advanced_filters."""
+        self.window._advanced_filters = {"situacao": ["1"]}
+        self.window._advanced_filters_active = True
+
+        def _fake_apply(store_only: bool = False):
+            self.window._advanced_filters = {"situacao": ["2"]}
+            self.window._advanced_filters_active = True
+
+        self.window._apply_advanced_filters_from_ui = _fake_apply
+        before = list(self.window.persistent_filters)
+        with patch(
+            "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+            return_value=("", False),
+        ):
+            self.window.save_current_filter()
+
+        assert self.window._advanced_filters == {"situacao": ["1"]}
+        assert self.window._advanced_filters_active is True
+        assert self.window.persistent_filters == before
 
     def test_on_data_loaded_ignores_stale_request(self):
         original_df = self.window.df_completo.copy()

@@ -295,6 +295,10 @@ def _add_pai_api_menu(
     auto_action.triggered.connect(window.set_pai_api_auto_refresh_enabled)
     pai_menu.addAction(auto_action)
 
+    refresh_action = action_cls("Atualizar dados agora", window)
+    refresh_action.triggered.connect(lambda: window.refresh_data_from_api())
+    pai_menu.addAction(refresh_action)
+
     sector_menu = pai_menu.addMenu("Setores executores")
     selected_sectors = {value.casefold() for value in options.executor_sectors}
     for sector in PAI_API_ALLOWED_SECTORS:

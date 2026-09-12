@@ -184,6 +184,7 @@ def connect_rescan_worker_lifecycle(
         worker.finished_success,
         on_finished_successfully,
         label="rescan.finished_success",
+        window=window,
     )
     batch_completed_signal = getattr(worker, "batch_completed", None)
     if batch_completed_signal is not None:
@@ -191,8 +192,14 @@ def connect_rescan_worker_lifecycle(
             batch_completed_signal,
             on_batch_completed,
             label="rescan.batch_completed",
+            window=window,
         )
-    connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
+    connect_signal(
+        worker.finished_error,
+        on_error,
+        label="rescan.finished_error",
+        window=window,
+    )
     connect_signal(
         worker.finished,
         release_worker_ref,
@@ -219,6 +226,7 @@ def connect_rescan_worker_lifecycle(
         progress_dialog.cancel_requested,
         on_cancel_requested,
         label="rescan.dialog.cancel_requested",
+        window=window,
     )
 
 

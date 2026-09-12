@@ -75,7 +75,32 @@ def _set_status_label_text(window, text: str, *, context: str) -> bool:
         return False
 
 
-def _connect_signal(signal, slot, *, label: str) -> bool:
+def _is_qobject_deleted(obj) -> bool:
+    """True somente quando o Qt confirma a destruicao do objeto."""
+    if obj is None:
+        return False
+    try:
+        from PyQt6 import sip
+    except ImportError:
+        return False
+    try:
+        return bool(sip.isdeleted(obj))
+    except Exception:
+        return False
+
+
+def _connect_signal(signal, slot, *, label: str, window=None) -> bool:
+    if window is not None:
+        original_slot = slot
+
+        def _guarded_slot(*args, **kwargs):
+            # Callback tardio pode chegar depois de WA_DeleteOnClose destruir
+            # a janela; sem a guarda o acesso a widgets destruidos aborta.
+            if _is_qobject_deleted(window):
+                return None
+            return original_slot(*args, **kwargs)
+
+        slot = _guarded_slot
     if signal is None:
         logger.debug("Signal ausente para %s; pulando conexao.", label)
         return False
@@ -906,15 +931,25 @@ def _connect_data_loader_callbacks(
         data_prepared_signal,
         _handle_data_loaded,
         label="data_loader.data_prepared",
+        window=window,
     ):
         _connect_signal(
-            worker.data_loaded, _handle_data_loaded, label="data_loader.data_loaded"
+            worker.data_loaded,
+            _handle_data_loaded,
+            label="data_loader.data_loaded",
+            window=window,
         )
     _connect_signal(
-        worker.error_occurred, _handle_load_error, label="data_loader.error_occurred"
+        worker.error_occurred,
+        _handle_load_error,
+        label="data_loader.error_occurred",
+        window=window,
     )
     _connect_signal(
-        worker.finished, _handle_load_finished, label="data_loader.finished"
+        worker.finished,
+        _handle_load_finished,
+        label="data_loader.finished",
+        window=window,
     )
     _connect_signal(
         worker.finished, worker.deleteLater, label="data_loader.finished.deleteLater"
@@ -1698,13 +1733,22 @@ def rescan_data(
     window._active_rescan_worker = worker
 
     _connect_signal(
-        worker.output_line, progress_dialog.append_output, label="rescan.output_line"
+        worker.output_line,
+        progress_dialog.append_output,
+        label="rescan.output_line",
+        window=progress_dialog,
     )
     _connect_signal(
-        worker.error_line, progress_dialog.append_error, label="rescan.error_line"
+        worker.error_line,
+        progress_dialog.append_error,
+        label="rescan.error_line",
+        window=progress_dialog,
     )
     _connect_signal(
-        worker.progress, progress_dialog.update_progress, label="rescan.progress"
+        worker.progress,
+        progress_dialog.update_progress,
+        label="rescan.progress",
+        window=progress_dialog,
     )
 
     should_reload_on_success = bool(reload_on_success or normalized_mode == "full")
