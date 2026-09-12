@@ -1994,6 +1994,11 @@ def run_importer_logic(
             promoted_backup_path  # full rescan promoted (backup exists)
             or promoted_backup_path == ""  # promoted but no backup path recorded
             or (
+                candidate_db_path is not None
+                # candidate promoted even when there was no prior DB to back up
+                and working_db_path == primary_db_path
+            )
+            or (
                 candidate_db_path is None  # diff mode (no candidate)
                 and (
                     integrity_report.get("restored_from_snapshot", False)
