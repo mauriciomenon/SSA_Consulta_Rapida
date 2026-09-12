@@ -469,6 +469,7 @@ TSM_DEBUG_ENABLED = str(os.environ.get("SSA_TSM_DEBUG", "")).strip().lower() in 
 # Constantes de UI
 DETAILS_DIALOG_FONT_SIZE = 10  # pt
 OTHER_DB_VALIDATION_TIMEOUT_SEC = 120.0
+SHUTDOWN_FORCE_TIMEOUT_SEC = 30.0
 DETAILS_DIALOG_TABLE_PADDING = 8  # px
 DETAILS_DIALOG_BORDER_COLOR = "#ccc"
 HIGHLIGHT_BACKGROUND_COLOR = "yellow"
@@ -4602,22 +4603,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             from gui.workers import RescanWorker
 
             if safe_selected_files:
-                ssa_gui_workers.rescan_data(
-                    self,
-                    project_root=project_root,
-                    rescan_worker_cls=RescanWorker,
-                    rescan_dialog_cls=RescanProgressDialog,
-                    qmessagebox=QMessageBox,
-                    **_rescan_retention_kwargs(),
-                    sip_module=sip,
-                    rescan_mode="explicit",
-                    source_files=tuple(safe_selected_files),
-                    db_path=DB_PATH,
-                    operation_label="Importacao",
-                    reload_on_success=True,
-                    operation_kind="import",
+                queued = bool(
+                    ssa_gui_workers.rescan_data(
+                        self,
+                        project_root=project_root,
+                        rescan_worker_cls=RescanWorker,
+                        rescan_dialog_cls=RescanProgressDialog,
+                        qmessagebox=QMessageBox,
+                        **_rescan_retention_kwargs(),
+                        sip_module=sip,
+                        rescan_mode="explicit",
+                        source_files=tuple(safe_selected_files),
+                        db_path=DB_PATH,
+                        operation_label="Importacao",
+                        reload_on_success=True,
+                        operation_kind="import",
+                    )
                 )
-                queued = True
         except Exception as exc:
             logger.warning("Falha ao iniciar importacao: %s", exc)
             failed += len(safe_selected_files)
@@ -4764,20 +4766,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             from gui.widgets import RescanProgressDialog
             from gui.workers import RescanWorker
 
-            ssa_gui_workers.rescan_data(
-                self,
-                project_root=project_root,
-                rescan_worker_cls=RescanWorker,
-                rescan_dialog_cls=RescanProgressDialog,
-                qmessagebox=QMessageBox,
-                **_rescan_retention_kwargs(),
-                sip_module=sip,
-                rescan_mode="diff",
-                operation_label="Consolidacao de arquivos",
-                reload_on_success=False,
-                operation_kind="consolidate",
+            queued = bool(
+                ssa_gui_workers.rescan_data(
+                    self,
+                    project_root=project_root,
+                    rescan_worker_cls=RescanWorker,
+                    rescan_dialog_cls=RescanProgressDialog,
+                    qmessagebox=QMessageBox,
+                    **_rescan_retention_kwargs(),
+                    sip_module=sip,
+                    rescan_mode="diff",
+                    operation_label="Consolidacao de arquivos",
+                    reload_on_success=False,
+                    operation_kind="consolidate",
+                )
             )
-            queued = True
         except Exception as exc:
             logger.warning("Falha ao iniciar consolidacao de arquivos: %s", exc)
             failed = 1
@@ -5654,8 +5657,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """
         if self.shutdown():
             event.accept()
-        else:
-            event.ignore()
+            return
+        event.ignore()
+        shutdown_started = getattr(self, "_shutdown_started_at", None)
+        if shutdown_started is None:
+            shutdown_started = time.monotonic()
+            self._shutdown_started_at = shutdown_started
+        elapsed = time.monotonic() - shutdown_started
+        if elapsed >= SHUTDOWN_FORCE_TIMEOUT_SEC:
+            # Workers conhecidos ja foram retidos em registros globais neste
+            # ponto; fechar a janela nao os destroi. Sem deadline um worker
+            # pendurado manteria a janela aberta para sempre.
+            logger.critical(
+                "Shutdown forcado apos %.1fs; workers ainda ativos foram retidos em background.",
+                elapsed,
+            )
+            event.accept()
+            return
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            try:
+                QTimer.singleShot(500, self.close)
+            except (RuntimeError, AttributeError) as exc:
+                logger.debug(
+                    "Falha ao reagendar fechamento da janela: %s", exc
+                )
 
 
 # --- Ponto de Entrada ---
