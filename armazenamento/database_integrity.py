@@ -562,8 +562,14 @@ def _repair_database_if_needed_locked(
         missing_required = list(report["missing_required_columns"])
         missing_optional = list(report["missing_optional_columns"])
         if not missing_required and not missing_optional:
-            logger.error("Inconsistencia de dados exige reimportacao, nao reparo automatico")
-            return False, report
+            # Inconsistencias de dados (duplicatas, status fora do catalogo,
+            # datas invalidas) nao sao corrupcao estrutural: bloquear aqui
+            # impediria exatamente a reimportacao que as corrige.
+            logger.warning(
+                "Inconsistencias de dados detectadas; importacao seguira para corrigi-las: %s",
+                report.get("issues", []),
+            )
+            return True, report
 
         snapshot = _create_integrity_snapshot(db_path, force=True)
         if snapshot is None:
