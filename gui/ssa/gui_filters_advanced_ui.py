@@ -2172,7 +2172,15 @@ def _refresh_advanced_filter_options(self):
         worker.error_occurred.connect(_on_error)
         worker.finished.connect(_on_finished)
         worker.finished.connect(worker.deleteLater)
-        worker.start()
+        try:
+            worker.start()
+        except Exception as exc:
+            # Sem rollback, _adv_options_worker_active ficaria True e
+            # bloquearia futuros refreshes de opcoes.
+            logger.error("Falha ao iniciar worker de opcoes avancadas: %s", exc)
+            if getattr(self, "_adv_options_worker", None) is worker:
+                self._adv_options_worker = None
+            self._adv_options_worker_active = False
     finally:
         self._adv_options_scheduled = False
 

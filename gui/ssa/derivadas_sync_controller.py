@@ -13,6 +13,9 @@ from gui.ssa.derivadas_sync_job import (
     DERIVADAS_SYNC_PHASE_SHEETS,
     execute_derivadas_sync_job as execute_derivadas_sync_job_headless,
 )
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 DERIVADAS_SYNC_POLL_INTERVAL_MS = 500
 DERIVADAS_SYNC_TIMEOUT_SEC = 30 * 60
@@ -313,7 +316,22 @@ def _start_async_derivadas_sync(
             }
         state.thread = worker
         _sync_state(sync_state_callback)
-    worker.start()
+    try:
+        worker.start()
+    except Exception as exc:
+        logger.error("Falha ao iniciar sync de derivadas: %s", exc)
+        with sync_lock:
+            if getattr(state, "thread", None) is worker:
+                state.thread = None
+            state.mark_finished()
+        _sync_state(sync_state_callback)
+        return {
+            "ok": False,
+            "reason": "start_failed",
+            "error": str(exc),
+            "db_path": db_path,
+            "table_name": table_name,
+        }
     qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
     return {
         "ok": True,

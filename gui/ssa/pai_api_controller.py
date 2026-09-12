@@ -223,7 +223,16 @@ def start_pai_api_refresh(
         qmessagebox=context.qmessagebox,
         reload_after_success=should_reload,
     )
-    worker.start()
+    try:
+        worker.start()
+    except Exception as exc:
+        # Sem rollback, o worker registrado nunca roda e o guarda de
+        # reentrada bloquearia tentativas futuras como "ja em andamento".
+        logger.error("Falha ao iniciar worker da SAM API: %s", exc)
+        if window.active_pai_api_worker() is worker:
+            window.set_active_pai_api_worker(None)
+        window.set_pai_api_status("Status: Falha ao iniciar SAM API.")
+        return False
     window.set_pai_api_status(STATUS_API_RUNNING)
     return True
 

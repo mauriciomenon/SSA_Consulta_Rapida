@@ -809,7 +809,18 @@ class FilterGUISSAMixin:
             )
             return
         self._retain_filter_worker_until_finished(worker)
-        worker.start()
+        try:
+            worker.start()
+        except Exception as exc:
+            # Sem rollback, o busy state de filtro ficaria preso (botoes
+            # desabilitados, status "Filtrando...") sem worker rodando.
+            logger.error("Falha ao iniciar FilterWorker: %s", exc)
+            self._cleanup_filter_worker(worker)
+            self._clear_active_filter_worker_reference(worker)
+            self.on_filter_error(
+                "Falha ao iniciar filtro.",
+                request_id=request_id,
+            )
 
     def initiate_filtering(self):
         if self.df_completo.empty:

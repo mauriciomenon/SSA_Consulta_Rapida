@@ -71,7 +71,14 @@ def export_current_list_tsv(
         worker.finished.connect(_on_finished)
         if hasattr(worker, "deleteLater"):
             worker.finished.connect(worker.deleteLater)
-    worker.start()
+    try:
+        worker.start()
+    except Exception as exc:
+        # Sem rollback, state.running ficaria True para sempre e bloquearia
+        # exportacoes futuras com "Exportacao em andamento".
+        logger.error("Falha ao iniciar exportacao de lista: %s", exc)
+        state.clear()
+        message_box.information(window, "Aviso", "Falha ao iniciar a exportacao.")
 
 
 def _choose_export_path(window: Any, file_dialog: Any) -> str:
