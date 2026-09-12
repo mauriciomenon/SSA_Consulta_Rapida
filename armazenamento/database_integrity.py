@@ -559,6 +559,15 @@ def _repair_database_if_needed_locked(
             logger.error("Tabela SSA fisica ausente; reparo automatico foi bloqueado")
             return False, report
 
+        if not report.get("file_permissions_ok", False):
+            # Sem permissao de escrita nem o reparo nem a reimportacao
+            # conseguem corrigir o banco; manter como bloqueante.
+            logger.error(
+                "Permissoes insuficientes no banco %s; reparo bloqueado",
+                db_path,
+            )
+            return False, report
+
         missing_required = list(report["missing_required_columns"])
         missing_optional = list(report["missing_optional_columns"])
         if not missing_required and not missing_optional:

@@ -22,6 +22,7 @@ def _patch_integrity_ok(monkeypatch: pytest.MonkeyPatch) -> None:
             "table_exists": True,
             "schema_valid": True,
             "sqlite_integrity_ok": True,
+            "file_permissions_ok": True,
             "data_consistent": True,
             "disk_space_sufficient": True,
             "warnings": [],

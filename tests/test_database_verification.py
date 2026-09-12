@@ -1354,6 +1354,37 @@ class TestDatabaseRepair:
         assert result is True
         assert "arquivo_origem" in query_db(db_path, "ssa_table").columns
 
+    def test_repair_blocks_readonly_database_with_data_inconsistency(
+        self, tmp_path, monkeypatch
+    ):
+        """Permissao insuficiente permanece bloqueante com dados inconsistentes."""
+        db_path = os.path.join(tmp_path, "readonly_inconsistent.db")
+        Path(db_path).write_bytes(b"placeholder")
+
+        monkeypatch.setattr(
+            database_integrity_module,
+            "verify_database_integrity",
+            lambda *args, **kwargs: {
+                "is_valid": False,
+                "needs_creation": False,
+                "database_accessible": True,
+                "table_exists": True,
+                "schema_valid": True,
+                "sqlite_integrity_ok": True,
+                "data_consistent": False,
+                "file_permissions_ok": False,
+                "missing_required_columns": [],
+                "missing_optional_columns": [],
+                "issues": ["Permissoes insuficientes para o banco"],
+                "warnings": [],
+            },
+        )
+
+        assert (
+            repair_database_if_needed(db_path, "schema.sql", table_name="ssa_table")
+            is False
+        )
+
     def test_verify_missing_required_columns_exposes_repair_metadata(self, tmp_path):
         """Schema drift de colunas obrigatorias deve aparecer explicitamente no report."""
         db_path = os.path.join(tmp_path, "missing_required_report.db")

@@ -1283,6 +1283,7 @@ def _validate_and_promote_candidate_if_needed(
             "table_exists",
             "schema_valid",
             "sqlite_integrity_ok",
+            "file_permissions_ok",
         )
     )
     if structural_ok and not integrity_report.get("is_valid", False):
