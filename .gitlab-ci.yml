@@ -66,9 +66,9 @@ pytest-full:
   extends: .python_setup
   timeout: 30 minutes
   variables:
-    PYTEST_ADDOPTS: "--timeout=45 --timeout-method=thread --junitxml=pytest-results.xml"
+    PYTEST_ADDOPTS: "--timeout=45 --timeout-method=thread --durations=20 --junitxml=pytest-results.xml"
   script:
-    - bash scripts/run_tests.sh
+    - bash scripts/run_tests.sh full
   artifacts:
     when: always
     expire_in: 14 days
