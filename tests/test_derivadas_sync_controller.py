@@ -98,6 +98,75 @@ def test_async_derivadas_start_failure_runs_finalize_to_restore_ui(
     assert state.ui_state == {"status": "before"}
 
 
+@pytest.mark.parametrize("stage", ["result", "timeout", "start"])
+def test_async_derivadas_finalize_failure_releases_state(monkeypatch, tmp_path, stage):
+    _QueuedTimer.callbacks.clear()
+    state = derivadas_sync_controller.DerivadasSyncState()
+    state.mark_started()
+    sync_lock = derivadas_sync_controller._ensure_derivadas_sync_lock(state)
+    status = []
+    ui = derivadas_sync_controller.DerivadasSyncUiRefs(
+        message_parent=object(), status_label=None, progress_bar=None, update_button=None
+    )
+    times = iter([0.0, float(derivadas_sync_controller.DERIVADAS_SYNC_TIMEOUT_SEC + 1)])
+    monkeypatch.setattr(derivadas_sync_controller, "monotonic", lambda: next(times))
+
+    def finalize(_parent, result):
+        if stage == "result":
+            return derivadas_sync_controller.finalize_derivadas_sync_result(
+                ui, state, result, qmessagebox=None, logger=derivadas_sync_controller.logger
+            )
+        state.last_report = result
+        raise ValueError("falha ao aplicar resultado")
+
+    db_path = str(tmp_path / "ssas.db")
+    result = derivadas_sync_controller._start_async_derivadas_sync(
+        ui, state, db_path=db_path, table_name="ssas", special_files=[],
+        sync_lock=sync_lock, qtimer=_QueuedTimer, sip_module=None,
+        thread_factory=_FailingStartThread if stage == "start" else _AliveThread,
+        execute_job=lambda **_kwargs: {}, finalize_result=finalize,
+        sync_state_callback=lambda: status.append(state.running),
+    )
+    worker = state.thread
+    if stage == "result":
+        state.pending_result = {"ok": True, "merged_edges": "invalido"}
+    if stage != "start":
+        _QueuedTimer.callbacks.pop(0)()
+        assert state.thread is worker
+        assert isinstance(worker, _AliveThread) and worker.is_alive()
+        worker.alive = False
+    else:
+        assert result["ok"] is False
+        assert result["reason"] == "finalize_failed"
+    assert state.running is False
+    assert state.last_report is None
+    assert state.report_invalidated is True
+    assert "Falha ao aplicar" in state.last_status_text
+    assert not sync_lock.locked()
+
+    assert derivadas_sync_controller._begin_derivadas_sync(
+        ui, state, db_path=db_path, sync_lock=sync_lock,
+        sync_state_callback=None,
+    ) is None
+    assert state.running is True
+    assert state.report_invalidated is False
+    _QueuedTimer.callbacks.clear()
+    monkeypatch.setattr(derivadas_sync_controller, "monotonic", lambda: 0.0)
+    retry = derivadas_sync_controller._start_async_derivadas_sync(
+        ui, state, db_path=db_path, table_name="ssas", special_files=[],
+        sync_lock=sync_lock, qtimer=_QueuedTimer, sip_module=None,
+        thread_factory=_HungThread, execute_job=lambda **_kwargs: {},
+        finalize_result=lambda _parent, result: derivadas_sync_controller.finalize_derivadas_sync_result(
+            ui, state, result, qmessagebox=None, logger=derivadas_sync_controller.logger
+        ), sync_state_callback=None,
+    )
+    state.pending_result = {"ok": True, "merged_edges": 1}
+    _QueuedTimer.callbacks.pop(0)()
+    assert retry["started"] is True
+    assert state.running is False
+    assert "total=1" in state.last_status_text
+
+
 def test_async_derivadas_timeout_marks_state_finished_for_finalize_callback(
     monkeypatch,
     tmp_path,

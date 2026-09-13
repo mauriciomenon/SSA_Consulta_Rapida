@@ -828,6 +828,9 @@ def test_run_vacuum_analyze_async_path_delivers_result_and_resets_flags(
             if self._target is not None:
                 self._target()
 
+        def is_alive(self) -> bool:
+            return False
+
     monkeypatch.setattr(gui_ssa, "QTimer", _ImmediateTimer)
     monkeypatch.setattr(gui_ssa, "QMessageBox", _FakeMessageBox)
     monkeypatch.setattr(gui_ssa.threading, "Thread", _InlineThread)
@@ -846,3 +849,96 @@ def test_run_vacuum_analyze_async_path_delivers_result_and_resets_flags(
     assert window._vacuum_analyze_running is False
     assert window._vacuum_analyze_thread is None
     assert "DB compactado" in window.status_label.text
+
+
+@pytest.mark.parametrize("operation,stage", [
+    ("run_vacuum_analyze", "dialog"),
+    ("load_other_database", "prepare"),
+    ("load_other_database", "dialog"),
+    ("load_other_database", "reload"),
+])
+def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, operation, stage):
+    current = tmp_path / "current.db"
+    candidate = tmp_path / "candidate.db"
+    current.touch()
+    candidate.touch()
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(current))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    scheduled = []
+    fail = True
+    outcomes = []
+
+    def dialog(*_args):
+        if fail and stage == "dialog":
+            raise RuntimeError("falha ao exibir dialogo")
+
+    state = gui_ssa.ssa_derivadas_sync.DerivadasSyncState(last_report={"old": True})
+
+    def get_state():
+        if fail and stage == "prepare":
+            raise RuntimeError("falha ao preparar troca")
+        return state
+
+    def reload():
+        if fail and stage == "reload":
+            raise RuntimeError("falha ao recarregar")
+
+    class Thread:
+        def __init__(self, target, **_kwargs):
+            self.target = target
+            self.alive = True
+
+        def start(self):
+            self.target()
+
+        def is_alive(self):
+            return self.alive
+
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=Thread))
+    monkeypatch.setattr(gui_ssa, "QTimer", SimpleNamespace(
+        singleShot=lambda _ms, callback: scheduled.append(callback)))
+    monkeypatch.setattr(gui_ssa, "QMessageBox", SimpleNamespace(
+        question=lambda *_args: 1, information=dialog,
+        StandardButton=SimpleNamespace(Yes=1, No=2)))
+    monkeypatch.setattr(gui_ssa, "QFileDialog", lambda: SimpleNamespace(
+        getOpenFileName=lambda *_args: (str(candidate), "")))
+    prefix = "_vacuum_analyze" if operation == "run_vacuum_analyze" else "_other_db_validation"
+    finalizer_name = ("_finalize_vacuum_analyze_result" if operation == "run_vacuum_analyze"
+                      else "_finalize_database_candidate_validation")
+    original_finalize = getattr(gui_ssa.SSAMainWindow, finalizer_name)
+
+    def finalize(window, value):
+        result = original_finalize(window, value)
+        outcomes.append(result)
+        return result
+
+    monkeypatch.setattr(gui_ssa.SSAMainWindow, finalizer_name, finalize)
+    monkeypatch.setattr(gui_ssa.SSAMainWindow, "_execute_vacuum_analyze",
+                        lambda _path: {"ok": True})
+    monkeypatch.setattr(gui_ssa.SSAMainWindow, "_validate_database_candidate",
+                        lambda path: {"ok": True, "db_file": path})
+    window = SimpleNamespace(status_label=_DummyLabel(), _get_derivadas_sync_state=get_state,
+                             load_data=reload)
+    execute = getattr(gui_ssa.SSAMainWindow, operation)
+    assert execute(window)["started"] is True
+    worker = getattr(window, prefix + "_thread")
+    scheduled.pop(0)()
+    assert getattr(window, prefix + "_thread") is worker
+    assert getattr(window, prefix + "_running") is True
+    assert outcomes == []
+    worker.alive = False
+    scheduled.pop(0)()
+    assert outcomes[-1]["ok"] is False
+    assert "Falha" in window.status_label.text or "falha" in window.status_label.text or "nao foram" in window.status_label.text
+    assert getattr(window, prefix + "_running") is False
+    assert getattr(window, prefix + "_thread") is None
+    selected = operation == "load_other_database" and stage != "prepare"
+    assert gui_ssa.DB_PATH == str(candidate if selected else current)
+    if selected:
+        assert state.last_report is None
+        assert state.report_invalidated is True
+    fail = False
+    assert execute(window)["started"] is True
+    getattr(window, prefix + "_thread").alive = False
+    scheduled.pop(0)()
+    assert outcomes[-1]["ok"] is True

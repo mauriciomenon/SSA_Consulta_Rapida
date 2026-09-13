@@ -251,6 +251,26 @@ def _start_async_derivadas_sync(
 ) -> dict[str, Any]:
     started = monotonic()
 
+    def _deliver_result(result: dict[str, Any]) -> dict[str, Any]:
+        try:
+            finalized = finalize_result(ui.message_parent, result)
+            _sync_state(sync_state_callback)
+            return finalized
+        except Exception as exc:
+            logger.exception("Falha ao aplicar resultado de derivadas: %s", exc)
+            with sync_lock:
+                state.mark_finished()
+                state.last_report = None
+                state.report_invalidated = True
+            try:
+                _restore_derivadas_sync_ui_state(ui, state.ui_state, logger)
+                _set_status_label(ui, state, "Status: Falha ao aplicar resultado de derivadas.")
+                _sync_state(sync_state_callback)
+                refresh_database_actions(ui.message_parent)
+            except Exception as ui_exc:
+                logger.exception("Falha ao informar erro de derivadas na interface: %s", ui_exc)
+            return {**result, "ok": False, "reason": "finalize_failed", "error": str(exc)}
+
     def _set_phase_status(text: str) -> None:
         with sync_lock:
             if state.running:
@@ -309,7 +329,7 @@ def _start_async_derivadas_sync(
                 _sync_state(sync_state_callback)
                 result = pending or {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
                 if not shutting_down:
-                    finalize_result(ui.message_parent, result)
+                    _deliver_result(result)
                     qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
                 return
             if state.running:
@@ -321,7 +341,7 @@ def _start_async_derivadas_sync(
             state.mark_finished()
         _sync_state(sync_state_callback)
         if not shutting_down:
-            finalize_result(ui.message_parent, pending)
+            _deliver_result(pending)
             qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
 
     try:
@@ -350,9 +370,7 @@ def _start_async_derivadas_sync(
         }
         # Passa pelo finalizador para restaurar barra/botoes/status pelo
         # mesmo caminho de uma falha de sincronizacao em andamento.
-        finalize_result(ui.message_parent, failure_result)
-        _sync_state(sync_state_callback)
-        return failure_result
+        return _deliver_result(failure_result)
     qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
     return {
         "ok": True,

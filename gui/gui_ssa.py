@@ -5026,6 +5026,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if bool(getattr(self, "_vacuum_analyze_running", False)):
                     QTimer.singleShot(100, _poll_delivery)
                 return
+            if worker.is_alive():
+                QTimer.singleShot(100, _poll_delivery)
+                return
             self._vacuum_analyze_pending_result = None
             SSAMainWindow._finalize_vacuum_analyze_result(self, pending)
 
@@ -5055,24 +5058,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _finalize_vacuum_analyze_result(self, result: dict[str, Any]) -> dict[str, Any]:
         self._vacuum_analyze_running = False
         self._vacuum_analyze_thread = None
-        ssa_app_menus.refresh_database_actions(self)
+        try:
+            ssa_app_menus.refresh_database_actions(self)
 
-        if bool(result.get("ok")):
-            if hasattr(self, "status_label"):
-                self.status_label.setText(
-                    "Status: DB compactado e estatisticas atualizadas."
-                )
+            if bool(result.get("ok")):
+                if hasattr(self, "status_label"):
+                    self.status_label.setText(
+                        "Status: DB compactado e estatisticas atualizadas."
+                    )
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    QMessageBox.information(
+                        self, "Sucesso", "Compactacao e atualizacao do DB concluidas."
+                    )
+                return result
+
+            error = str(result.get("error") or "Erro desconhecido")
+            logger.error("Falha ao compactar DB e atualizar estatisticas: %s", error)
             if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.information(
-                    self, "Sucesso", "Compactacao e atualizacao do DB concluidas."
-                )
-            return result
-
-        error = str(result.get("error") or "Erro desconhecido")
-        logger.error("Falha ao compactar DB e atualizar estatisticas: %s", error)
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
-            QMessageBox.warning(self, "Erro", f"Falha na compactacao do DB: {error}")
-        return {"ok": False, "error": error, "db_path": result.get("db_path")}
+                QMessageBox.warning(self, "Erro", f"Falha na compactacao do DB: {error}")
+            return {"ok": False, "error": error, "db_path": result.get("db_path")}
+        except Exception as exc:
+            logger.exception("Falha ao aplicar resultado da compactacao: %s", exc)
+            try:
+                if hasattr(self, "status_label"):
+                    self.status_label.setText("Status: Falha ao aplicar resultado da compactacao.")
+                ssa_app_menus.refresh_database_actions(self)
+            except Exception as ui_exc:
+                logger.exception("Falha ao informar erro da compactacao na interface: %s", ui_exc)
+            return {**result, "ok": False, "reason": "finalize_failed", "error": str(exc)}
 
     def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:
         try:
@@ -5263,6 +5276,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.warning(
                     "Falha ao recarregar dados apos sync de derivadas: %s", exc
                 )
+                self.status_label.setText(
+                    "Status: Derivadas atualizadas, mas os dados nao foram recarregados. "
+                    "Use 'Recarregar Dados'."
+                )
+                return {**finalized, "ok": False, "reason": "reload_failed", "error": str(exc)}
         return finalized
 
     def export_derivadas_report(self):
@@ -5300,60 +5318,77 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             }
         self._other_db_validation_thread = None
 
-        db_file = str(result.get("db_file") or "").strip()
-        if bool(result.get("ok")) and db_file:
-            global DB_PATH
-            DB_PATH = db_file
-            derivadas_state = self._get_derivadas_sync_state()
-            derivadas_state.last_report = None
-            derivadas_state.report_invalidated = True
-            self.status_label.setText(
-                f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}"
-            )
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.information(
-                    self,
-                    "Sucesso",
-                    (
-                        f"Banco de dados selecionado: {os.path.basename(db_file)}.\n\n"
-                        "Os dados do banco selecionado serao recarregados "
-                        "automaticamente."
-                    ),
+        global DB_PATH
+        selected = False
+        try:
+            db_file = str(result.get("db_file") or "").strip()
+            if bool(result.get("ok")) and db_file:
+                derivadas_state = self._get_derivadas_sync_state()
+                derivadas_state.last_report = None
+                derivadas_state.report_invalidated = True
+                DB_PATH = db_file
+                selected = True
+                self.status_label.setText(
+                    f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}"
                 )
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    QMessageBox.information(
+                        self,
+                        "Sucesso",
+                        (
+                            f"Banco de dados selecionado: {os.path.basename(db_file)}.\n\n"
+                            "Os dados do banco selecionado serao recarregados "
+                            "automaticamente."
+                        ),
+                    )
+                self._other_db_validation_running = False
+                ssa_app_menus.refresh_database_actions(self)
+                if hasattr(self, "load_data"):
+                    try:
+                        self.load_data()
+                    except Exception as exc:
+                        logger.warning(
+                            "Falha ao recarregar dados apos troca de banco: %s", exc
+                        )
+                        self.status_label.setText(
+                            "Status: Banco selecionado, mas os dados nao foram recarregados. "
+                            "Use 'Recarregar Dados'."
+                        )
+                        return {**result, "ok": False, "reason": "reload_failed", "error": str(exc)}
+                return result
+
             self._other_db_validation_running = False
             ssa_app_menus.refresh_database_actions(self)
-            if hasattr(self, "load_data"):
-                try:
-                    self.load_data()
-                except Exception as exc:
-                    logger.warning(
-                        "Falha ao recarregar dados apos troca de banco: %s", exc
+            error = str(result.get("error") or "").strip()
+            if error:
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    QMessageBox.critical(
+                        self, "Erro", f"Erro ao abrir o banco de dados: {error}"
                     )
-                    self.status_label.setText(
-                        "Status: Banco selecionado, mas os dados nao foram recarregados. "
-                        "Use 'Recarregar Dados'."
-                    )
-            return result
+                self.status_label.setText("Status: Falha ao validar banco alternativo.")
+                return result
 
-        self._other_db_validation_running = False
-        ssa_app_menus.refresh_database_actions(self)
-        error = str(result.get("error") or "").strip()
-        if error:
             if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.critical(
-                    self, "Erro", f"Erro ao abrir o banco de dados: {error}"
+                QMessageBox.warning(
+                    self,
+                    "Erro",
+                    "O arquivo selecionado nao contem dados validos na tabela principal de SSAs.",
                 )
-            self.status_label.setText("Status: Falha ao validar banco alternativo.")
-            return result
-
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
-            QMessageBox.warning(
-                self,
-                "Erro",
-                "O arquivo selecionado nao contem dados validos na tabela principal de SSAs.",
-            )
-        self.status_label.setText("Status: Banco alternativo invalido.")
-        return {"ok": False, "db_file": db_file}
+            self.status_label.setText("Status: Banco alternativo invalido.")
+            return {"ok": False, "db_file": db_file}
+        except Exception as exc:
+            logger.exception("Falha ao aplicar validacao do banco alternativo: %s", exc)
+            self._other_db_validation_running = False
+            try:
+                self.status_label.setText(
+                    "Status: Banco selecionado, mas houve falha ao concluir sua abertura. "
+                    "Use 'Recarregar Dados'." if selected else
+                    "Status: Falha ao aplicar validacao do banco alternativo."
+                )
+                ssa_app_menus.refresh_database_actions(self)
+            except Exception as ui_exc:
+                logger.exception("Falha ao informar erro do banco alternativo na interface: %s", ui_exc)
+            return {**result, "ok": False, "reason": "finalize_failed", "error": str(exc)}
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
@@ -5442,6 +5477,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                             "Status: Validacao de banco alternativo excedeu o tempo limite."
                         )
                         return
+                    QTimer.singleShot(100, _poll_delivery)
+                    return
+                if worker.is_alive():
                     QTimer.singleShot(100, _poll_delivery)
                     return
                 pending_result = None
