@@ -3,8 +3,8 @@
 Este guia resume como rodar a suite de testes, validar importacao de dados e executar verificacoes rapidas em modo headless (sem UI) tanto no Terminal integrado do VS Code quanto no Terminal.app (macOS).
 
 ## 1. Pre‐requisitos
-- Python (pyenv) conforme versao definida no projeto (ex: 3.13.x).
-- Dependencias instaladas: `pip install -e .` ou `pip install -r requirements.txt`.
+- Python e uv conforme o ambiente e o lock do projeto.
+- Dependencias preparadas com `uv sync --frozen --extra dev` quando necessario; nao atualizar o lock durante a validacao.
 - Variaveis opcionais de ambiente (nenhuma critica obrigatoria para os testes de nucleo).
 
 ## 2. Script Unificado
@@ -34,16 +34,16 @@ Para validar cliques reais da GUI, resumo visual de filtros, chips do resumo e
 indicadores de filtros por coluna em modo automatico/headless:
 
 ```
-QT_QPA_PLATFORM=offscreen SSA_SYNC_FILTER=1 uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "graphical or filters_summary or column_filter_buttons_flow or gui_smoke or hard_reset_filters_state"
+QT_QPA_PLATFORM=offscreen SSA_SYNC_FILTER=1 uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py -k "graphical or filters_summary or column_filter_buttons_flow or gui_smoke or hard_reset_filters_state"
 ```
 
 ## 4. Diagnostico Rapido
 | Situacao | Acao |
 |----------|------|
-| Coleta vazia (0 tests) | Verificar se houve interrupcao (Ctrl+C) ou plugin travando; rodar `pytest -vv -s tests/test_upsert_behaviors.py`. |
-| Teste especifico | `pytest tests/test_upsert_behaviors.py::test_upsert_insert_new -vv -s` |
-| Ver lista de arquivos candidatos | `python - <<'PY'` com varredura AST (exemplo no historico). |
-| Limpar cache | `pytest --cache-clear -q` |
+| Coleta vazia (0 tests) | Verificar se houve interrupcao (Ctrl+C) ou plugin travando; rodar `uv run --no-sync python -m pytest -vv -s tests/test_upsert_behaviors.py`. |
+| Teste especifico | `uv run --no-sync python -m pytest tests/test_upsert_behaviors.py::test_upsert_insert_new -vv -s` |
+| Ver lista de arquivos candidatos | `uv run --no-sync python - <<'PY'` com varredura AST (exemplo no historico). |
+| Limpar cache | `uv run --no-sync python -m pytest --cache-clear -q` |
 
 ## 5. Cobertura
 Gera relatorio em terminal:
@@ -52,7 +52,8 @@ Gera relatorio em terminal:
 ```
 Para HTML (se desejar):
 ```
-coverage html && open htmlcov/index.html
+uv run --no-sync python -m coverage html
+open htmlcov/index.html
 ```
 
 ## 6. Boas Praticas
@@ -69,14 +70,13 @@ coverage html && open htmlcov/index.html
 | Erro | Causa | Correcao |
 |------|-------|----------|
 | TOML parse error | Bloco invalido no `pyproject.toml` | Corrigir/Remover docstring multi‐linha fora do padrao TOML |
-| ImportError antigo | Test deletado ainda no cache | `pytest --cache-clear` + remover `__pycache__` se necessario |
+| ImportError antigo | Test deletado ainda no cache | `uv run --no-sync python -m pytest --cache-clear` + remover `__pycache__` se necessario |
 | 0 items collected | Interrupcao/KeyboardInterrupt ou plugin | Reexecutar sem interrupcao, isolar test file |
 
 ## 9. Execucao no Terminal.app
 ```
 cd /caminho/para/SSA_Consulta_Rapida
-pyenv local 3.13.12  # se usar pyenv
-pip install -r requirements.txt
+uv sync --frozen --extra dev
 ./scripts/run_tests.sh full
 ```
 
@@ -87,6 +87,8 @@ pip install -r requirements.txt
 4. Rodar ferramenta de lint (Ruff) se necessario.
 
 ---
-Documento gerado para padronizar execucoes consistentes e reduzir atrito em diagnosticos.
+A passagem completa desta auditoria esta em [VALIDATION_PLAN.md](VALIDATION_PLAN.md).
+Ela separa verificacoes ja executadas de suite completa, scanners e validacao
+visual ainda pendentes. Qt offscreen nao comprova comportamento nativo da GUI.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

@@ -1,6 +1,13 @@
 # Estrategia de Testes
 
-> Versao inicial – iterativa. Atualizar conforme novos modulos forem cobertos.
+Este documento descreve a estrategia geral. O
+[plano de validacao da auditoria](VALIDATION_PLAN.md) contem a passagem para a
+rodada completa, comandos, casos de regressao e criterios de aceite.
+
+Na rodada de implementacao, validacoes locais selecionadas nao substituem a
+suite completa, scanners, desempenho e uso visual nos sistemas suportados.
+Registrar resultados por comando e revisao do codigo; nao reutilizar contagens
+de uma rodada anterior como aprovacao de alteracoes novas.
 
 ## Piramide de Testes (Alvo)
 - Unidade (rapidos, puros, sem IO pesado) ~60%
@@ -36,13 +43,13 @@ Scripts agregados por `run_quality_gates.py`:
 
 O agregador oferece JSON com `summary.overall_status` e lista de `gates`. Argumentos adicionais suportados:
 ```
-uv run --python 3.13 scripts/run_quality_gates.py --only smoke_cli
-uv run --python 3.13 scripts/run_quality_gates.py --extra-doc docs/README.md
-uv run --python 3.13 scripts/run_quality_gates.py --skip check_docs
+uv run --no-sync python scripts/run_quality_gates.py --only smoke_cli
+uv run --no-sync python scripts/run_quality_gates.py --extra-doc docs/README.md
+uv run --no-sync python scripts/run_quality_gates.py --skip check_docs
 ```
 
 ## Markers Pytest
-Definidos em `pytest.ini`:
+Definidos em `pyproject.toml` (`tool.pytest.ini_options.markers`):
 - `integration`
 - `legacy`
 - `slow`
@@ -50,11 +57,16 @@ Definidos em `pytest.ini`:
 
 Uso rapido:
 ```
-pytest -m "integration and not slow" -q
-pytest -m smoke -q
+uv run --no-sync python -m pytest -m "integration and not slow" -q
+uv run --no-sync python -m pytest -m smoke -q
 ```
 
 ## Limiar Progressivo de Qualidade (Roadmap)
+
+Metas de evolucao; esta tabela nao comprova que uma regra esta ativa no CI ou
+que a cobertura atual atingiu o percentual. Conferir a configuracao publicada
+e o resultado da execucao antes de declarar um bloqueio efetivo.
+
 | Fase | Criterios | Acao de Bloqueio |
 |------|-----------|------------------|
 | Fase 1 | >=5 testes core integracao (OK) + gates smoke passando | CI falha se <5 |
@@ -79,13 +91,13 @@ pytest -m smoke -q
 ## Execucao Rapida
 ```
 # Smoke + integracao basica (exclui legacy/slow)
-pytest -m "integration and not slow and not legacy" -q
+uv run --no-sync python -m pytest -m "integration and not slow and not legacy" -q
 
 # Gates (caminho feliz + falhas controladas)
-pytest -k quality_gates -q
+uv run --no-sync python -m pytest -k quality_gates -q
 
 # Cobertura inicial
-pytest --cov=armazenamento --cov=core --cov-report=term-missing -q
+uv run --no-sync python -m pytest --cov=armazenamento --cov=core --cov-report=term-missing -q
 ```
 
 ## Politica de Migracao Legacy

@@ -34,6 +34,22 @@ No Windows, use PowerShell e o ambiente nativo descrito no [guia de ambiente](de
 
 [Importacao](docs/ARQUITETURA_IMPORTACAO.md) | [Regras de atualizacao](docs/ARCH_DB_UPSERT.md) | [Diagnostico](docs/TROUBLESHOOTING_IMPORTACAO.md)
 
+## Relatorios de derivadas
+
+A CLI de derivadas continua imprimindo o resultado JSON no stdout. Os comandos
+`sync`, `heal` e `maintenance` tambem aceitam `--report-json`, `--report-csv` e
+`--report-tsv` para salvar arquivos, inclusive os tres formatos na mesma execucao.
+JSON preserva o resultado completo; CSV e TSV resumem a reconciliacao. Arquivos
+existentes exigem `--overwrite-reports`.
+
+Na GUI, use `Database > Exportar relatorio de derivadas...` apos uma sincronizacao
+manual concluida. O dialogo oferece JSON, CSV e TSV do ultimo resultado valido
+para o banco atual. Trocar de banco ou iniciar outra sincronizacao invalida esse
+resultado.
+
+[Guia e exemplos de derivadas](docs/DERIVADAS_SYNC_RUNBOOK.md) |
+[Plano de validacao da auditoria](docs/VALIDATION_PLAN.md)
+
 ## Distribuicao
 
 Esta versao disponibiliza fontes. Nenhum novo binario ou instalador acompanha esta publicacao.

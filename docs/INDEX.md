@@ -7,6 +7,7 @@ Versao de referencia: **4.50**.
 - [Visao geral](../README.md)
 - [Notas da versao](RELEASE_NOTES_v4.50.md)
 - [Comandos rapidos](COMANDOS_RAPIDOS.md)
+- [Sincronizacao e exportacao de derivadas: JSON, CSV e TSV](DERIVADAS_SYNC_RUNBOOK.md)
 - [Instalacao e migracao](GUIA_MIGRACAO_NOVA_INSTALACAO.md)
 - [Solucao de problemas](TROUBLESHOOTING.md)
 
@@ -24,6 +25,7 @@ Versao de referencia: **4.50**.
 - [Registro da limpeza e atualizacao de dependencias de 2026-09-09](REGISTRO_DEPENDENCIAS_2026_09_09.md)
 - [Ambiente](../dev_env/ENVIRONMENT_GUIDE.md)
 - [Estrategia de testes](TESTING_STRATEGY.md)
+- [Plano de validacao e passagem da auditoria](VALIDATION_PLAN.md)
 - [Testes sem tela](TESTING_HEADLESS.md)
 - [Distribuicao](GUIA_DISTRIBUICAO.md)
 - [Build multiplataforma](BUILD_MULTIPLATFORM.md)
