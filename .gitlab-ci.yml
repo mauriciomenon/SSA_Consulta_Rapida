@@ -64,7 +64,7 @@ quality-gates:
 pytest-full:
   stage: verify
   extends: .python_setup
-  timeout: 30 minutes
+  timeout: 40 minutes
   variables:
     PYTEST_ADDOPTS: "--timeout=45 --timeout-method=thread --durations=20 --junitxml=pytest-results.xml"
   script:

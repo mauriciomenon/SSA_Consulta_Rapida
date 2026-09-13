@@ -78,7 +78,7 @@ Este documento descreve a arquitetura, interfaces e APIs dos workers assíncrono
 1. [Arquitetura de Workers](#arquitetura-de-workers)
 2. [DataLoaderWorker](#dataloaderworker)
 3. [FilterWorker](#filterworker)
-4. [Padrões de Uso](#padrões-de-uso)
+4. [Padroes de uso na GUI](#padroes-de-uso-na-gui)
 5. [Sinais e Slots](#sinais-e-slots)
 6. [Tratamento de Erros](#tratamento-de-erros)
 7. [Testes](#testes)

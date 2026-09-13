@@ -61,7 +61,7 @@ Evidencias de codigo: `gui/gui_ssa.py` (validacao/fechamento), `gui/ssa/gui_pref
 | A2 | Rescan multi-batched promovia candidato contendo so o batch 1 sobre o DB primario | `gui/workers/rescan_worker.py` `force_import` so no batch 1 | `force_import=False` em todos os batches explicitos; restaurado no `finally` | **CORRIGIDO** (`9163348c`) |
 | A3 | `actually_changed=False` no 1o full rescan (sem backup pre-existente)  -  GUI nao recarregava | `core/app_logic.py`, `core/import_database_rotation.py` | promocao reconhecida via `working_db_path == primary_db_path` | **CORRIGIDO** (`68b8f369`) |
 | A4 | `SSA_DB_PATH` era lida pela interface mas ignorada pela importacao CLI | `main.py` defaults `data/ssas.db` | `db_path`/`table_name` propagados ao importer; `docs_dir` ancorado no runtime root | **CORRIGIDO** (`9b3f9be0`, `6c32dffd`) |
-| A5 | Deadlock operacional: inconsistencia de DADOS (`situacao` fora do catalogo, duplicado) bloqueava justamente a reimportacao que a corrigia | `armazenamento/database_integrity.py`, gates em `app_logic.py` | Politica adotada: "inconsistencia de dados != corrupcao". Estrutural (sqlite/tabela/schema/disco) continua bloqueante; qualidade de dados vira warning e permite reimport. Reparo conservador aplica os mesmos criterios estruturais antes e depois de adicionar colunas opcionais; dados inconsistentes permitidos continuam produzindo aviso (F3). | **CORRIGIDO** nesta rodada; ver mapa G |
+| A5 | Deadlock operacional: inconsistencia de DADOS (`situacao` fora do catalogo, duplicado) bloqueava justamente a reimportacao que a corrigia | `armazenamento/database_integrity.py`, gates em `app_logic.py` | Politica adotada: "inconsistencia de dados != corrupcao". SQLite, tabela, schema e permissoes continuam bloqueantes; qualidade de dados vira warning e permite reimport. A descricao antiga de disco sempre bloqueante estava incorreta: ha criterios condicionais diferentes entre preparo e promocao, detalhados em M10. Reparo conservador aplica os mesmos criterios estruturais antes e depois de adicionar colunas opcionais; dados inconsistentes permitidos continuam produzindo aviso (F3). | **CORRIGIDO** nesta rodada; ver mapa G |
 | A6 | "Atualizar derivadas" concluia sem recarregar dados  -  contagens stale na tabela | `gui/ssa/derivadas_sync_controller.py` | sucesso dispara `load_data()` no padrao do commit `73251013` | **CORRIGIDO** (`de1be62c`) |
 | A7 | Operacoes de dados podiam iniciar em paralelo; menus continuavam ativos | `app_menus.py`, controladores de carga/derivadas/rescan/SAM e validacao de DB | Predicado compartilhado protege entradas e acoes reais do menu. Checagem ocorre antes e depois de dialogos; acoes restauradas em termino/falha. Filtros e navegacao preservados. A classificacao anterior de guardas honestas estava incorreta. | **CORRIGIDO** nesta rodada |
 
@@ -925,3 +925,91 @@ Correcao em 03b55d37; CI Lint remoto aprovou os quatro jobs bloqueantes,
 sem erros ou avisos. A nova execucao remota deve ser conferida pelo SHA
 publicado na PR 131; o placar falho acima permanece como evidencia e nao
 aprova o complemento.
+
+
+### M8. Runner local de pytest no Bash 3.2
+
+Reproducao adicional: `PYTEST_ADDOPTS='' uv run --no-sync /bin/bash
+scripts/run_tests.sh quiet` abortava com `pytest_extra_opts[@]: unbound
+variable`, retorno 1, antes de iniciar pytest. O wrapper tambem serializava
+opcoes por linha e as repassava em argv, embora pytest ja leia PYTEST_ADDOPTS;
+isso duplicava opcoes e nao preservava corretamente tokens vazios ou LF.
+
+Depois: o wrapper valida somente a sintaxe com shlex para preservar retorno 2
+em aspas invalidas. Pytest recebe a variavel integral pelo ambiente, uma vez,
+sem array adicional, serializacao ou novo helper. A precedencia e a nativa do
+pytest: opcoes explicitas do modo escolhido prevalecem sobre as do ambiente.
+Falhas de sintaxe continuam encerrando antes de executar a suite.
+
+Contratos existentes ajustados: aspas, variavel vazia, espacos, token vazio,
+LF e sintaxe invalida. 19 casos focados passaram no Bash 3.2 em 2,48s e os
+mesmos 19 no Bash 5.3 em 2,69s. Wrapper real no Bash 3.2 executou oito casos
+selecionados por PYTEST_ADDOPTS, em 1,09s; argv contem somente o comando base,
+sem duplicar a selecao. ShellCheck, py_compile, Ruff, ty e diff-check passaram.
+Logs: `/tmp/ssa-run-tests-bash53-20260913-161145.log` e
+`/tmp/ssa-run-tests-real-bash32-20260913-161145.log`.
+
+A pipeline 2844986660 corresponde ao complemento anterior 0abedeb1. Autoria
+e gates passaram; sua execucao parcial nao aprova o runner posterior. A PR
+131 identifica o HEAD publicado e a pipeline que valida o complemento final.
+
+
+### M9. Scanners locais do diff de CI
+
+Ferramentas executadas nos quatro Python alterados entre b9672334 e o
+complemento do runner; scanners de segredos nos 14 arquivos entao alterados.
+Nao e uma nova auditoria de todo o codigo ou historico. Nenhuma regra foi
+suprimida, nenhuma dependencia foi atualizada e nenhum segredo foi validado
+contra um servico externo. Saidas e hashes em focused-scanners-summary.json,
+no diretorio de M1.
+
+| Ferramenta | Escopo e resultado | Limite |
+|---|---|---|
+| pip-audit 2.10.1 | 13 dependencias de runtime exportadas do uv.lock frozen; retorno 0, zero vulnerabilidades conhecidas, zero dependencias ignoradas | Nao inclui todos os extras de desenvolvimento nem binarios nativos |
+| Gitleaks 8.30.1 | 14 arquivos, todos os retornos 0, sem segredos detectados | Conteudo atual do diff; historico nao revarrido |
+| TruffleHog 3.97.4 | Retorno 0, zero resultados | Deteccao local, sem verificacao remota de credenciais |
+| detect-secrets 1.5.0 | Retorno 0, results vazio | Deteccao local, sem verificacao remota |
+| Bandit 1.9.4 | Retorno 1; 2619 avisos LOW: 2592 asserts, 20 subprocess, seis executaveis por PATH e um import subprocess | Quatro arquivos de testes; nenhum HIGH/MEDIUM, sem falha de parsing; avisos nao foram apagados |
+| Vulture 2.16 | Retorno 3; 249 candidatos, 247 com confianca 60% e dois parametros de fixtures com 100% | Analise isolada de testes nao resolve chamadas dinamicas feitas pela aplicacao; nao comprova codigo morto removivel |
+| Semgrep 1.177.0 | 1066 regras Python, quatro arquivos, zero achados publicados; retorno 2 | Uma regra de taint excedeu tempo em test_gui_filter_logic.py. Execucao parcial, nao aprovada, apesar do resumo textual dizer concluida |
+
+O erro Semgrep e da regra dangerous-system-call-tainted-env-args no arquivo
+extenso de testes. Nao houve mudanca de timeout ou exclusao para obter verde.
+Relatorio JSON preservado; repetir somente essa analise pendente com escopo
+controlado na passagem. Essas execucoes nao aprovam automaticamente alteracoes
+posteriores aos hashes registrados.
+
+O limite global do job pytest-full foi ajustado de 30 para 40 minutos apos a
+medicao de 29min43s: havia apenas 17s de margem. Permanecem 45s por teste,
+mesma selecao completa, JUnit, falhas bloqueantes e exibicao das duracoes.
+Nao se trata de dispensar a falha de cabecalho, que foi reproduzida e corrigida.
+
+
+### M10. Ultima revisao da PR e encerramento solicitado
+
+A revisao remota acrescentou 38 comentarios sobre o intervalo completo da
+branch, alem do comentario de limpeza de logging ja resolvido em 53e748b8.
+Esses comentarios sao alegacoes do revisor, nao autorizacoes nem defeitos
+automaticamente confirmados. A consulta integral esta no artefato
+pr-comments-0abedeb1.json de M1.
+
+| Item | Antes / depois ou diagnostico | Estado |
+|---|---|---|
+| P1, salvar filtro com selecao pendente | store_only alterava o mesmo dicionario guardado para restauracao. Cancelar mantinha o filtro ativo novo e os avancados antigos. e767f391 preserva copia profunda antes da sincronizacao. Teste existente usa sincronizacao real, verifica snapshot pendente e estado original restaurado | CORRIGIDO; antes 1 falha, depois 25 testes focados aprovados em 7,42s, compile/Ruff/ty aprovados |
+| P1, vacuum/validacao fora do inventario de shutdown | Omissao confirmada, mas nao foi reproduzida falha funcional. Validacao e leitura; vacuum usa lock/SQLite; callbacks verificam a janela. Ausencia de prova tambem nao garante seguranca absoluta | NAO CONFIRMADO como P1; contrato de fechamento exige triagem, sem alterar politica nesta rodada |
+| P1, espaco livre na promocao | Verificacao registra pouco espaco como aviso. Preparo bloqueia disco insuficiente quando o relatorio esta invalido; promocao usa somente criterios estruturais. A5 foi corrigido para nao afirmar bloqueio uniforme. Adicionar disco ao bloqueio final tambem mudaria comportamento de bancos validos | DIVERGENCIA CONFIRMADA; alinhamento dos criterios permanece pendencia tecnica, sem adotar automaticamente a sugestao do bot |
+| Cinco inconsistencias documentais | Corrigidos indice de WORKERS_API_DOCUMENTATION, lista completa de marcadores, abertura do HTML so apos geracao bem-sucedida, eventos reais de CI em VALIDATION_PLAN e cabecalho versionado/atualizado do RECOVERY_BACKLOG | CORRIGIDO |
+| Outros 30 comentarios da revisao ampla | Incluem cobertura, importacao, reparo, exportacao, hooks, logging e estados de GUI. Nao houve triagem integral nem aplicacao automatica das sugestoes | PENDENTE; nao declarar a revisao integral aprovada |
+
+A sugestao remota de liberar uma base Git ausente nao foi adotada: contraria
+a politica explicita de autoria. A PR continua em rascunho, sem merge.
+
+O mantenedor pediu para pular o teste Linux e encerrar o consumo adicional.
+A suite da pipeline 2844986660 foi cancelada por esse pedido; o complemento
+final nao recebe aprovacao Linux nesta rodada. A configuracao automatica da
+CI permanece publicada para uso futuro, mas o teste Linux da publicacao final
+tambem deve ser cancelado. Nao confundir cancelamento solicitado com sucesso.
+
+Validacoes pesadas e novas varreduras encerradas. A proxima atividade tecnica
+e tratar o backlog da revisao ampla em escopo proprio; regularizacao da conta
+GitHub e autorizacao especifica para reescrita continuam pendencias separadas.

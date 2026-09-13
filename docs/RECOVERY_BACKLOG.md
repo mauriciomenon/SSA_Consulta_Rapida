@@ -1,7 +1,11 @@
 # Pendencias de estabilizacao
 
-Atualizado em 2026-09-09, HEAD 36706e77; commits de limpeza uv a3e7adb6 e 36706e77 enviados aos tres remotos configurados.
-Documento local ignorado pelo Git.
+Atualizado em 2026-09-13. Documento versionado; cada rodada abaixo identifica
+seu escopo e sua evidencia. Estado de CI/CD na ultima secao e na PR 131.
+
+## 2026-09-09 - Historico da limpeza uv
+
+Commits a3e7adb6 e 36706e77 enviados aos tres remotes configurados.
 
 - [x] Tratar origem do GitPython no ambiente GUI: Codeflash removido dos manifestos, dos dois ambientes locais encontrados, do cache e da configuracao do usuario. Dependencias compartilhadas preservadas. Pytest-timeout virou dependencia direta de testes. Detalhes e backups no controle da rodada.
 - [x] Pip removido da .venv e reinsercao corrigida em nove scripts. Ativacao real repetida preservou o ambiente sem pip. 134 testes focados e 55 web aprovados; uma omissao opcional PyArrow. Backups e evidencias no controle da rodada.
@@ -339,3 +343,33 @@ da GUI. Secret-scan foi pulado nessa pipeline e precisa de resultado proprio.
 Job passa a exibir nomes e duracoes, preservando os limites e a reprovacao por
 falha. Proxima atividade: conferir o complemento publicado e o resultado
 remoto por SHA na PR 131; demais bloqueios externos continuam acima.
+
+
+Runner Bash 3.2 corrigido: sem PYTEST_ADDOPTS ocorria unbound variable antes
+de pytest. Removida serializacao e duplicacao de argumentos; variavel inteira
+consumida pelo pytest, com validacao de aspas e retorno 2 preservados.
+19 contratos passaram em cada Bash 3.2/5.3 e oito no wrapper real. Ver M8.
+
+
+Scanners do diff de CI: pip-audit runtime, Gitleaks, TruffleHog e detect-secrets
+sem ocorrencias. Bandit/Vulture mantiveram avisos de testes; Semgrep terminou
+parcial com timeout de uma regra em test_gui_filter_logic.py, retorno 2.
+Nao declarar todos os scanners aprovados. Evidencia e escopo na secao M9.
+Limite global GitLab ajustado para 40min apos job medido em 29min43s; limite
+individual de 45s e reprovacao por falha preservados.
+
+
+## Encerramento da rodada CI solicitado pelo mantenedor
+
+- e767f391 corrige alias dos filtros ativos ao salvar/cancelar: reproducao
+  antes com falha, depois 25 testes focados aprovados. Ver M10.
+- Revisao ampla: cinco inconsistencias documentais corrigidas; 30 comentarios
+  adicionais ainda sem triagem integral. Nao equivalem a 30 bugs confirmados.
+- Vacuum/validacao ausentes do inventario de shutdown: omissao confirmada,
+  sem P1 funcional reproduzido. Politica de disco tem criterios diferentes
+  no preparo/promocao; pendencia tecnica, nao decisao delegada ao usuario.
+- A pedido do mantenedor, teste Linux cancelado e varreduras encerradas.
+  O HEAD final nao tem suite Linux aprovada nesta rodada. CI automatica
+  permanece configurada, com cancelamento do job nesta publicacao.
+- Proxima atividade: triagem tecnica delimitada dos comentarios restantes;
+  GitHub depende de regularizacao da conta e a PR permanece rascunho.

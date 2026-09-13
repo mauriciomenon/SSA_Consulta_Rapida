@@ -120,7 +120,9 @@ Configuracao da rodada de 13/09/2026, posterior a `b9672334`:
 - GitLab: MR, branch padrao, disparo web e push em `fix/`. Havendo MR aberto,
   o push da feature nao duplica sua pipeline de MR. Autoria, gates, suite
   completa e scanner de segredos sao bloqueantes. `pytest-full` deixou de
-  ser manual/opcional; o limite do job e 30 minutos, com 45s por teste.
+  ser manual/opcional; o limite do job e 40 minutos, com 45s por teste.
+  A primeira execucao completa durou 29min43s; o limite anterior de 30min
+  deixava apenas 17s de margem para variacoes do runner.
   O setup instala Git para os contratos de inventario e hooks do repositorio.
 - Gates: `ci_quality_gates.sh` aceita `GATES_ARGS` com aspas, sem `eval`.
   Argumentos vazios e nomes com LF sao preservados no Bash 3.2 e 5.3.
@@ -132,6 +134,11 @@ Configuracao da rodada de 13/09/2026, posterior a `b9672334`:
   registra os testes mais lentos. JUnit em `pytest-results.xml`, preservado em sucesso/falha
   por 14 dias. O arquivo so existe se pytest alcancar sua geracao; timeout do
   processo ou falha de setup nao equivalem a teste aprovado.
+- Runner local: `run_tests.sh` valida aspas com shlex e deixa pytest consumir
+  `PYTEST_ADDOPTS` pelo ambiente uma vez. Variavel vazia funciona no Bash 3.2;
+  tokens vazios e LF sao preservados. Sintaxe invalida encerra com retorno 2.
+  A precedencia e a nativa do pytest: opcoes explicitas do modo escolhido
+  prevalecem sobre as do ambiente. Nao existe expansao via eval.
 - Windows: a coleta de logs de falha vem depois da verificacao e do envio dos
   artefatos. Assim, uma falha na verificacao final tambem pode preservar os
   logs ja produzidos. YAML/PowerShell validos nao comprovam build executado.
@@ -158,11 +165,15 @@ Referencia da simulacao de pipeline:
 Resultados desta rodada e limites do servidor estao na secao M do relatorio.
 
 ## Markers Pytest
+
 Definidos em `pyproject.toml` (`tool.pytest.ini_options.markers`):
+
+- `performance`
 - `integration`
 - `legacy`
 - `slow`
 - `smoke`
+- `stress`
 
 Uso rapido:
 ```

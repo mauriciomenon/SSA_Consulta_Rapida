@@ -63,10 +63,9 @@ Gera relatorio em terminal:
 ```
 ./scripts/run_tests.sh cov
 ```
-Para HTML (se desejar):
-```
-uv run --no-sync python -m coverage html
-open htmlcov/index.html
+Para gerar HTML e abrir no macOS somente se a geracao concluir com sucesso:
+```sh
+uv run --no-sync python -m coverage html && open htmlcov/index.html
 ```
 
 ## 6. Boas Praticas

@@ -49,6 +49,11 @@ sao guardadas e pertencem a funcoes identicas a dev. Validar a base antes de
 classificar o restante; nao suprimir alertas em massa nem alterar a politica
 consultiva de `.github/CODE_QUALITY.md` para obter verde.
 
+O complemento 245baae0 tambem corrige run_tests.sh no Bash 3.2: variavel vazia
+nao aborta e PYTEST_ADDOPTS e consumido pelo pytest uma unica vez. Contratos
+focados passaram nos dois Bash e no wrapper real; ver M8. Preserve a sintaxe
+invalida com retorno 2 e a precedencia nativa dos argumentos do pytest.
+
 Antes de repetir testes pesados, leia M em AUDIT_FIXES_REPORT.md. Confira o
 SHA da PR contra a branch publicada, a base dev e os jobs reais no servidor.
 GitLab agora agenda pushes fix/ e torna pytest-full automatico e bloqueante;
@@ -62,6 +67,25 @@ mensagens antigas ainda impedem esse gate; corrigi-las exige autorizacao
 especifica para reescrever o historico publicado. Nenhuma reescrita integra
 a rodada atual. A PR atual foi solicitada pelo mantenedor; a restricao da
 passagem abaixo impede o proximo validador de abrir outra PR por conta propria.
+
+Scanners locais da rodada CI estao em M9. Pip-audit consultou apenas as 13
+dependencias de runtime travadas; nao substitui extras. Semgrep publicou zero
+achados, mas retornou 2 por timeout de uma regra no arquivo extenso de testes;
+continua parcial. Bandit/Vulture emitiram avisos, principalmente contratos de
+testes. Preserve os relatorios e nao os resuma como todos aprovados. O job
+Linux agora tem 40min globais com os mesmos 45s por teste, apos medicao de
+29min43s; conferir duracoes e resultado completo do novo SHA.
+
+Atualizacao final: e767f391 corrige o estado ativo ao cancelar salvamento de
+filtro, com reproducao anterior e 25 testes focados aprovados. M10 registra
+os novos comentarios da PR: cinco correcoes documentais, duas pendencias
+qualificadas de contrato/politica e 30 apontamentos ainda sem triagem integral.
+Nao adote automaticamente recomendacoes de bots ou mude a politica de autoria.
+
+O mantenedor determinou pular o teste Linux e encerrar novas varreduras nesta
+rodada. A suite em curso foi cancelada, sem aprovacao Linux do HEAD final.
+Os comandos pesados abaixo sao uma passagem para eventual rodada posterior,
+nao uma ordem para reinicia-los automaticamente nem prova de execucao.
 
 ## Pedido pronto para enviar ao outro modelo
 
@@ -222,9 +246,10 @@ a regra. Remover essas mensagens exige reescrita especificamente autorizada e
 muda tambem hashes dos descendentes; esta passagem nao autoriza essa operacao.
 
 Os hooks sao contornaveis. CI roda depois do push e somente nos eventos
-configurados; o push simples desta branch nao aciona minimal-ci nem o pipeline
-GitLab sem um evento adicional aplicavel. Nao afirmar que existe bloqueio nativo
-universal. Consulte os checks do SHA testado; nao dispare novos jobs pesados
+configurados. O push desta branch fix/ aciona GitLab pela regra atual; no
+GitHub, a PR aberta para dev aciona minimal-ci. Push isolado em fix/ sem PR
+nao satisfaz o filtro de branches do minimal-ci. Nao afirmar que existe
+bloqueio nativo universal. Consulte os checks do SHA testado; nao dispare novos jobs pesados
 apenas para substituir a validacao local sem registrar escopo e custo.
 
 ## Scanners e plataformas
