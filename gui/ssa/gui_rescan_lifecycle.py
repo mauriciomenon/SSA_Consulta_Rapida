@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from time import perf_counter
 
+from gui.ssa.app_menus import refresh_database_actions
 from gui.ssa.gui_worker_registry import GLOBAL_WORKERS_LOCK
 from gui.ssa.gui_worker_status import (
     cancel_request_status_text,
@@ -48,6 +49,7 @@ def connect_rescan_worker_lifecycle(
         try:
             if getattr(window, "_active_rescan_worker", None) is worker:
                 window._active_rescan_worker = None
+                refresh_database_actions(window)
         except Exception as exc:
             logger.debug("Falha ao liberar referencia do RescanWorker: %s", exc)
         try:
@@ -105,7 +107,15 @@ def connect_rescan_worker_lifecycle(
             release_dialog_ref()
             return
         was_active_worker = getattr(window, "_active_rescan_worker", None) is worker
-        progress_dialog.set_finished(True)
+        integrity_warnings = getattr(worker, "integrity_warnings", ())
+        if integrity_warnings:
+            progress_dialog.set_finished(
+                True,
+                "Operacao concluida com ressalvas de integridade.\n"
+                + "\n".join(integrity_warnings),
+            )
+        else:
+            progress_dialog.set_finished(True)
         release_dialog_ref()
         _finish_successful_rescan(
             window,
@@ -117,6 +127,7 @@ def connect_rescan_worker_lifecycle(
             explicit_import_has_files=bool(getattr(worker, "explicit_files", ())),
             normalized_kind=normalized_kind,
             set_status_label_text=set_status_label_text,
+            integrity_warnings=integrity_warnings,
         )
 
     def on_batch_completed(_current: int, _total: int) -> None:
@@ -306,6 +317,7 @@ def _finish_successful_rescan(
     explicit_import_has_files: bool,
     normalized_kind: str,
     set_status_label_text,
+    integrity_warnings=(),
 ) -> None:
     successful_import_outcome = outcome == RescanOutcome.UPDATED or (
         is_explicit_import
@@ -324,6 +336,10 @@ def _finish_successful_rescan(
         if normalized_kind == "consolidate"
         else success_status_text(is_explicit_import, outcome)
     )
+    if integrity_warnings:
+        success_text += (
+            " Ressalvas de integridade: consulte os avisos no dialogo da operacao."
+        )
     set_status_label_text(
         window,
         success_text,

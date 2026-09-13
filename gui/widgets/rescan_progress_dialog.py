@@ -158,12 +158,18 @@ class RescanProgressDialog(QDialog):
         self.close_button.setEnabled(True)
 
         if success:
+            final_message = message.strip() if isinstance(message, str) else ""
             self.status_label.setText(
-                f"Operacao concluida com sucesso: {self._operation_label}."
+                final_message.splitlines()[0] if final_message
+                else f"Operacao concluida com sucesso: {self._operation_label}."
             )
+            color = "#996000" if final_message else "green"
             self.status_label.setStyleSheet(
-                "font-weight: bold; font-size: 12pt; color: green;"
+                f"font-weight: bold; font-size: 12pt; color: {color};"
             )
+            if final_message:
+                self.status_label.setToolTip(final_message)
+                self.append_error(f"[AVISO] {final_message}")
             self.progress_bar.setValue(100)
         else:
             final_message = message.strip() if isinstance(message, str) else ""

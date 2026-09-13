@@ -40,7 +40,7 @@ _file_logging_level = logging.INFO
 
 
 class _ASCIIOnlyFilter(logging.Filter):
-    """Remove qualquer caractere nao ASCII das mensagens de log."""
+    """Translitera mensagens e tracebacks para ASCII."""
 
     @staticmethod
     def _to_ascii(value):
@@ -67,6 +67,8 @@ class _ASCIIOnlyFilter(logging.Filter):
                 record.args = self._to_ascii_arg(record.args)
             else:
                 record.args = tuple(self._to_ascii_arg(arg) for arg in record.args)
+        if record.exc_info and not record.exc_text:
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
         if record.exc_text:
             record.exc_text = self._to_ascii(record.exc_text)
         return True

@@ -107,6 +107,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def update_derivadas_from_sources(self) -> None:
             return None
 
+        def export_derivadas_report(self) -> None:
+            return None
+
         def consolidate_input_files(self) -> None:
             return None
 
@@ -166,7 +169,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "SAM API" in window._menu_bar.menus["Opcoes"].submenus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 2
     assert len(window._menu_bar.menus["Importacao"].actions) == 2
-    assert len(window._menu_bar.menus["Database"].actions) == 3
+    assert len(window._menu_bar.menus["Database"].actions) == 4
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert len(window._menu_bar.menus["Ajuda"].actions) == 2
     assert "Avancado" in window._menu_bar.menus["Importacao"].submenus
@@ -203,6 +206,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     ]
     assert database_labels == [
         "Atualizar derivadas",
+        "Exportar relatorio de derivadas...",
         "Recarregar dados",
         "Compactar DB",
     ]
@@ -324,7 +328,7 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert captured["kwargs"]["rescan_mode"] == "explicit"
     assert captured["kwargs"]["reload_on_success"] is True
     assert captured["kwargs"]["operation_kind"] == "import"
-    assert window.status_label.text == ""
+    assert window.status_label.text == "Status: Importacao de 2 arquivo(s) em andamento."
     assert len(warnings) == 1
     assert "outra.xls" in str(warnings[0])
 

@@ -12,6 +12,7 @@ import uuid
 from time import perf_counter
 
 import pandas as pd
+from gui.ssa.app_menus import database_operation_in_progress, refresh_database_actions
 from gui.ssa.gui_filters_responsavel_state import responsavel_materialization_state
 from gui.ssa.gui_loaded_dataframes import (
     LoadedDataFrames,
@@ -792,6 +793,7 @@ def _set_data_load_busy_state(
     api_button = getattr(window, "api_button", None)
     if api_button is not None and hasattr(api_button, "setEnabled"):
         api_button.setEnabled(not busy)
+    refresh_database_actions(window)
 
 
 def _cleanup_previous_data_loader_before_start(
@@ -1415,9 +1417,14 @@ def on_load_error(
         if qmessagebox is not None:
             qmessagebox.critical(window, "Erro de Carregamento", safe_error_msg)
     window._data_load_busy = False
+    previous_data = getattr(window, "df_completo", None)
+    retained_data_notice = (
+        " A tabela anterior foi mantida e pode estar desatualizada."
+        if previous_data is not None and not previous_data.empty else ""
+    )
     _set_status_label_text(
         window,
-        "Status: Erro ao carregar dados.",
+        "Status: Erro ao carregar dados." + retained_data_notice,
         context="on_load_error",
     )
     load_button = getattr(window, "load_button", None)
@@ -1429,6 +1436,7 @@ def on_load_error(
     api_button = getattr(window, "api_button", None)
     if api_button is not None and hasattr(api_button, "setEnabled"):
         api_button.setEnabled(True)
+    refresh_database_actions(window)
     progress_bar = getattr(window, "progress_bar", None)
     if (
         progress_bar is not None
@@ -1464,6 +1472,7 @@ def _restore_data_load_controls(window) -> None:
     api_button = getattr(window, "api_button", None)
     if api_button is not None and hasattr(api_button, "setEnabled"):
         api_button.setEnabled(True)
+    refresh_database_actions(window)
 
 
 def _update_load_finished_status_if_needed(window) -> None:
@@ -1605,6 +1614,12 @@ def rescan_data(
     reload_on_success: bool = False,
     operation_kind: str = "import",
 ) -> bool:
+    if database_operation_in_progress(window):
+        _set_status_label_text(
+            window, "Status: Aguarde a operacao atual antes de importar ou reescanear.",
+            context="rescan.operation_in_progress",
+        )
+        return False
     normalized_mode = str(rescan_mode or "prompt").strip().lower()
     explicit_files_tuple = tuple(str(path) for path in explicit_files or ())
     source_files_tuple = tuple(str(path) for path in source_files or ())
@@ -1661,6 +1676,13 @@ def rescan_data(
         logger.warning(
             "QMessageBox indisponivel em modo prompt; usando Atualizar Dados por seguranca."
         )
+
+    if database_operation_in_progress(window):
+        _set_status_label_text(
+            window, "Status: Outra operacao foi iniciada. Aguarde antes de reescanear.",
+            context="rescan.operation_started_during_prompt",
+        )
+        return False
 
     try:
         prune_retired_rescan_workers(
@@ -1777,6 +1799,7 @@ def rescan_data(
     except Exception as exc:
         logger.warning("Falha ao iniciar RescanWorker: %s", exc)
         window._active_rescan_worker = None
+        refresh_database_actions(window)
         try:
             if getattr(window, "_active_rescan_dialog", None) is progress_dialog:
                 window._active_rescan_dialog = None
@@ -1789,6 +1812,7 @@ def rescan_data(
             context="rescan.start_error",
         )
         return False
+    refresh_database_actions(window)
     if normalized_kind == "consolidate":
         _set_status_label_text(
             window,

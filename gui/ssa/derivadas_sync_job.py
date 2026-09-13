@@ -78,6 +78,14 @@ def execute_derivadas_sync_job(
             )
         return {
             "ok": True,
+            "db_path": os.path.realpath(db_path),
+            "table_name": table_name,
+            "sheet_files": list(special_files),
+            "phase_reports": [
+                {**report, "phase": "db" if index == 0 else "sheets"}
+                for index, report in enumerate(phase_reports)
+            ],
+            "consistency": consistency,
             "db_edges": db_edges,
             "sheet_edges": sheet_edges,
             "merged_edges": merged_edges,

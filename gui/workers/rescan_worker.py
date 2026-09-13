@@ -212,6 +212,7 @@ class RescanWorker(QThread):
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
         self._last_import_outcome = None
+        self.integrity_warnings: list[str] = []
         self._last_runtime_error_detail = ""
         self._batch_file_offset = 0
         self._batch_index = 1
@@ -377,6 +378,7 @@ class RescanWorker(QThread):
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
         self._last_import_outcome = None
+        self.integrity_warnings = []
         self._last_runtime_error_detail = ""
         self._batch_file_offset = 0
         self._batch_index = 1
@@ -500,6 +502,18 @@ class RescanWorker(QThread):
             self._last_import_outcome = (
                 outcome_after if outcome_after is not outcome_before else None
             )
+            outcome = self._last_import_outcome
+            if outcome is not None and not import_outcome.is_blocking_status(outcome.status):
+                report = outcome.integrity_report
+                details = list(report.get("warnings") or [])
+                if report.get("data_consistent") is False:
+                    details.extend(report.get("issues") or [
+                        "Inconsistencias de dados permanecem no banco."
+                    ])
+                for detail in details:
+                    text = str(detail).strip()
+                    if text and text not in self.integrity_warnings:
+                        self.integrity_warnings.append(text)
 
     def _count_database_rows(self) -> int | None:
         db_path = self.db_path or str(
@@ -623,6 +637,11 @@ class RescanWorker(QThread):
         self, outcome: RescanOutcome, banner: str, message: str
     ) -> None:
         self.last_outcome = outcome
+        if self.integrity_warnings:
+            banner = "=== Operacao Concluida com Ressalvas ==="
+            message = "Concluido com ressalvas de integridade. Veja os avisos."
+            for warning in self.integrity_warnings:
+                self.error_line.emit(f"[AVISO] {warning}")
         self.progress.emit(100, message)
         self.output_line.emit("")
         self.output_line.emit(banner)

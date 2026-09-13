@@ -509,6 +509,10 @@ class FilterGUISSAMixin:
                 search_button=getattr(self, "search_button", None),
                 status_label=getattr(self, "status_label", None),
                 logger=logger,
+                preserve_operation_feedback=lambda: bool(
+                    getattr(self, "_data_load_busy", False)
+                    or getattr(self, "_derivadas_sync_running", False)
+                ),
             )
             self._filter_ui_state_presenter = presenter
         return presenter

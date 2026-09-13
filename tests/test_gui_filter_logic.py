@@ -14740,9 +14740,13 @@ class TestGUIFilterLogic:
             self.window._advanced_filters = {"situacao": ["2"]}
             self.window._advanced_filters_active = True
 
-        self.window._apply_advanced_filters_from_ui = _fake_apply
         before = list(self.window.persistent_filters)
-        with patch(
+        with patch.object(
+            self.window,
+            "_apply_advanced_filters_from_ui",
+            autospec=True,
+            side_effect=_fake_apply,
+        ), patch(
             "gui.ssa.persistent_filter_ui.QInputDialog.getText",
             return_value=("", False),
         ):

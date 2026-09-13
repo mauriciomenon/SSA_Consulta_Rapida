@@ -19,6 +19,7 @@ from core.pai_api_options import (
     update_pai_api_sector_setting,
 )
 from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
+from gui.ssa.app_menus import database_operation_in_progress, refresh_database_actions
 from gui.workers.pai_api_worker import (
     PaiApiRefreshWorker,
     PaiApiWorkerConfig,
@@ -199,6 +200,10 @@ def start_pai_api_refresh(
         if not quiet_if_running:
             window.set_pai_api_status(STATUS_API_ALREADY_RUNNING)
         return False
+    if database_operation_in_progress(window):
+        if not quiet_if_running:
+            window.set_pai_api_status("Status: Aguarde a operacao atual antes de atualizar a SAM API.")
+        return False
 
     should_reload = True if reload_after_success is None else reload_after_success
     worker = worker_cls(
@@ -231,9 +236,11 @@ def start_pai_api_refresh(
         logger.error("Falha ao iniciar worker da SAM API: %s", exc)
         if window.active_pai_api_worker() is worker:
             window.set_active_pai_api_worker(None)
+        refresh_database_actions(window)
         window.set_pai_api_status("Status: Falha ao iniciar SAM API.")
         return False
     window.set_pai_api_status(STATUS_API_RUNNING)
+    refresh_database_actions(window)
     return True
 
 
@@ -422,6 +429,7 @@ def _release_worker(
         return
     if window.active_pai_api_worker() is worker:
         window.set_active_pai_api_worker(None)
+        refresh_database_actions(window)
 
 
 def _worker_is_running(worker: Any) -> bool:

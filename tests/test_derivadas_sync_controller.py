@@ -266,6 +266,7 @@ def test_async_derivadas_timeout_rejects_second_start_while_worker_alive(
     monkeypatch,
     tmp_path,
 ) -> None:
+    _QueuedTimer.callbacks.clear()
     state = derivadas_sync_controller.DerivadasSyncState()
     state.mark_started()
     sync_lock = derivadas_sync_controller._ensure_derivadas_sync_lock(state)
@@ -294,7 +295,7 @@ def test_async_derivadas_timeout_rejects_second_start_while_worker_alive(
         table_name="ssa_table",
         special_files=[],
         sync_lock=sync_lock,
-        qtimer=_ImmediateTimer,
+        qtimer=_QueuedTimer,
         sip_module=None,
         thread_factory=_AliveThread,
         execute_job=lambda **_kwargs: pytest.fail(
@@ -304,6 +305,7 @@ def test_async_derivadas_timeout_rejects_second_start_while_worker_alive(
         sync_state_callback=None,
     )
 
+    _QueuedTimer.callbacks.pop(0)()
     assert result["started"] is True
     assert finalized == [
         {

@@ -68,6 +68,12 @@ def export_current_list_tsv(
                 result.rows,
                 result.columns,
             )
+            if not _window_deleted(window):
+                status_label = getattr(window, "status_label", None)
+                if status_label is not None:
+                    status_label.setText(
+                        f"Status: Lista exportada: {result.rows} linhas em {result.path}."
+                    )
 
     def _on_error(error: str) -> None:
         logger.error("Falha ao exportar lista para arquivo: %s", error)

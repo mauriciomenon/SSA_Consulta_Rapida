@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from typing import Any
 
 from core.pai_api_options import (
@@ -12,6 +13,40 @@ from core.pai_api_options import (
     PAI_API_SETTINGS_KEY,
     normalize_pai_api_options,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def database_operation_in_progress(window: Any) -> bool:
+    if any(bool(getattr(window, flag, False)) for flag in (
+        "_data_load_busy", "_other_db_validation_running",
+        "_vacuum_analyze_running", "_is_shutting_down",
+    )):
+        return True
+    state = getattr(window, "_derivadas_sync_state", None)
+    if getattr(state, "running", False):
+        return True
+    thread = getattr(state, "thread", None)
+    if thread is not None and thread.is_alive():
+        return True
+    for attr in ("_active_rescan_worker", "_active_pai_api_worker"):
+        worker = getattr(window, attr, None)
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return True
+            except RuntimeError as exc:
+                logger.debug("Worker encerrado ao consultar operacao (%s): %s", attr, exc)
+    return False
+
+
+def refresh_database_actions(window: Any) -> None:
+    enabled = not database_operation_in_progress(window)
+    for action in getattr(window, "_database_operation_actions", ()):
+        action.setEnabled(enabled)
+    button = getattr(window, "api_button", None)
+    if button is not None:
+        button.setEnabled(enabled)
 
 
 def setup_app_menus(
@@ -29,6 +64,7 @@ def setup_app_menus(
     menu_bar = menu_bar_getter()
     if menu_bar is None or not hasattr(menu_bar, "addMenu"):
         return
+    window._database_operation_actions = []
 
     arquivo_menu = menu_bar.addMenu("Arquivo")
     importacao_menu = menu_bar.addMenu("Importacao")
@@ -48,6 +84,7 @@ def setup_app_menus(
         table_alignment_labels=table_alignment_labels,
     )
     _add_help_menu(window, ajuda_menu, action_cls)
+    refresh_database_actions(window)
 
 
 def _add_file_menu(window: Any, arquivo_menu: Any, action_cls: Any) -> None:
@@ -74,6 +111,7 @@ def _add_import_menu(
         window,
         "Importar XLSX externo",
         window.import_external_excel_files,
+        requires_idle=True,
     )
     _add_action(
         importacao_menu,
@@ -81,6 +119,7 @@ def _add_import_menu(
         window,
         "Consolidar arquivos de entrada",
         window.consolidate_input_files,
+        requires_idle=True,
     )
     advanced_menu = importacao_menu.addMenu("Avancado")
     _add_folder_actions(
@@ -104,9 +143,18 @@ def _add_database_menu(
         window,
         "Atualizar derivadas",
         window.update_derivadas_from_sources,
+        requires_idle=True,
     )
-    _add_action(db_menu, action_cls, window, "Recarregar dados", window.load_data)
-    _add_action(db_menu, action_cls, window, "Compactar DB", window.run_vacuum_analyze)
+    _add_action(
+        db_menu,
+        action_cls,
+        window,
+        "Exportar relatorio de derivadas...",
+        window.export_derivadas_report,
+        status_tip="Salvar a ultima sincronizacao deste banco em JSON, CSV ou TSV.",
+    )
+    _add_action(db_menu, action_cls, window, "Recarregar dados", window.load_data, requires_idle=True)
+    _add_action(db_menu, action_cls, window, "Compactar DB", window.run_vacuum_analyze, requires_idle=True)
     advanced_menu = db_menu.addMenu("Avancado")
     _add_action(
         advanced_menu,
@@ -114,6 +162,7 @@ def _add_database_menu(
         window,
         "Atualizar Dados",
         window.rescan_diff_data,
+        requires_idle=True,
     )
     _add_action(
         advanced_menu,
@@ -121,14 +170,16 @@ def _add_database_menu(
         window,
         "Reescaneamento Completo",
         window.rescan_full_data,
+        requires_idle=True,
     )
-    _add_action(advanced_menu, action_cls, window, "Reescanear", window.rescan_data)
+    _add_action(advanced_menu, action_cls, window, "Reescanear", window.rescan_data, requires_idle=True)
     _add_action(
         advanced_menu,
         action_cls,
         window,
         "Carregar outro DB",
         window.load_other_database,
+        requires_idle=True,
     )
     _add_folder_actions(
         window,
@@ -227,12 +278,15 @@ def _add_action(
     callback: Any,
     *,
     status_tip: str | None = None,
+    requires_idle: bool = False,
 ) -> Any:
     action = action_cls(label, window)
     if status_tip:
         _set_action_status_tip(action, status_tip)
     action.triggered.connect(callback)
     menu.addAction(action)
+    if requires_idle:
+        window._database_operation_actions.append(action)
     return action
 
 
@@ -298,6 +352,7 @@ def _add_pai_api_menu(
     refresh_action = action_cls("Atualizar dados agora", window)
     refresh_action.triggered.connect(lambda: window.refresh_data_from_api())
     pai_menu.addAction(refresh_action)
+    window._database_operation_actions.append(refresh_action)
 
     sector_menu = pai_menu.addMenu("Setores executores")
     selected_sectors = {value.casefold() for value in options.executor_sectors}
