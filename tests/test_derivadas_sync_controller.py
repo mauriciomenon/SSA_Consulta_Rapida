@@ -53,8 +53,16 @@ class _FailingStartThread(threading.Thread):
         raise RuntimeError("can't start new thread")
 
 
-def test_async_derivadas_start_failure_runs_finalize_to_restore_ui(tmp_path) -> None:
-    """Falha em worker.start() deve restaurar a UI via finalize_result."""
+@pytest.mark.parametrize("fail_constructor", [False, True])
+def test_async_derivadas_start_failure_runs_finalize_to_restore_ui(
+    tmp_path, fail_constructor
+) -> None:
+    """Falha na criacao ou partida restaura o estado e a UI."""
+    def create_thread(**kwargs):
+        if fail_constructor:
+            raise RuntimeError("falha ao criar thread")
+        return _FailingStartThread(**kwargs)
+
     state = derivadas_sync_controller.DerivadasSyncState()
     state.mark_started()
     state.ui_state = {"status": "before"}
@@ -75,7 +83,7 @@ def test_async_derivadas_start_failure_runs_finalize_to_restore_ui(tmp_path) -> 
         sync_lock=sync_lock,
         qtimer=_ImmediateTimer,
         sip_module=None,
-        thread_factory=_FailingStartThread,
+        thread_factory=create_thread,
         execute_job=lambda **_kwargs: pytest.fail("job must not run"),
         finalize_result=lambda _parent, value: finalized.append(value) or value,
         sync_state_callback=None,
@@ -85,6 +93,9 @@ def test_async_derivadas_start_failure_runs_finalize_to_restore_ui(tmp_path) -> 
     assert result["reason"] == "start_failed"
     assert finalized == [result]
     assert state.thread is None
+    assert state.running is False
+    assert not sync_lock.locked()
+    assert state.ui_state == {"status": "before"}
 
 
 def test_async_derivadas_timeout_marks_state_finished_for_finalize_callback(

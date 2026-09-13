@@ -324,24 +324,23 @@ def _start_async_derivadas_sync(
             finalize_result(ui.message_parent, pending)
             qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
 
-    worker = thread_factory(target=_work, daemon=True)
-    with sync_lock:
-        if not state.running:
-            return {
-                "ok": False,
-                "reason": "not_running",
-                "db_path": db_path,
-                "table_name": table_name,
-            }
-        state.thread = worker
-        _sync_state(sync_state_callback)
     try:
+        worker = thread_factory(target=_work, daemon=True)
+        with sync_lock:
+            if not state.running:
+                return {
+                    "ok": False,
+                    "reason": "not_running",
+                    "db_path": db_path,
+                    "table_name": table_name,
+                }
+            state.thread = worker
+            _sync_state(sync_state_callback)
         worker.start()
     except Exception as exc:
         logger.error("Falha ao iniciar sync de derivadas: %s", exc)
         with sync_lock:
-            if getattr(state, "thread", None) is worker:
-                state.thread = None
+            state.mark_finished()
         failure_result = {
             "ok": False,
             "reason": "start_failed",

@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
+
+import pytest
 
 from gui import gui_ssa
 
@@ -728,6 +731,56 @@ def test_run_vacuum_analyze_missing_db(monkeypatch, tmp_path: Path) -> None:
     result = gui_ssa.SSAMainWindow.run_vacuum_analyze(cast(Any, object()))
     assert result["ok"] is False
     assert result["reason"] == "missing_db"
+
+
+@pytest.mark.parametrize("operation", ["run_vacuum_analyze", "load_other_database"])
+@pytest.mark.parametrize("stage", ["constructor", "start"])
+def test_database_thread_failure_releases_state_for_next_attempt(
+    monkeypatch, tmp_path: Path, operation: str, stage: str
+) -> None:
+    db_path = tmp_path / "candidate.db"
+    db_path.write_bytes(b"")
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_path))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr(
+        gui_ssa, "QMessageBox",
+        SimpleNamespace(question=lambda *_args: 1, StandardButton=SimpleNamespace(Yes=1, No=2)),
+    )
+    monkeypatch.setattr(
+        gui_ssa, "QFileDialog",
+        lambda: SimpleNamespace(getOpenFileName=lambda *_args: (str(db_path), "")),
+    )
+    scheduled = []
+    monkeypatch.setattr(
+        gui_ssa, "QTimer", SimpleNamespace(singleShot=lambda ms, callback: scheduled.append(callback))
+    )
+    fail = True
+
+    class Thread:
+        def __init__(self, **_kwargs):
+            if fail and stage == "constructor":
+                raise RuntimeError("falha ao criar thread")
+
+        def start(self):
+            if fail and stage == "start":
+                raise RuntimeError("falha ao iniciar thread")
+
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=Thread))
+    window = SimpleNamespace(status_label=_DummyLabel())
+    prefix = "_vacuum_analyze" if operation == "run_vacuum_analyze" else "_other_db_validation"
+    execute = getattr(gui_ssa.SSAMainWindow, operation)
+    result = execute(window)
+
+    assert result["ok"] is False
+    assert getattr(window, prefix + "_running") is False
+    assert getattr(window, prefix + "_thread") is None
+    assert "Falha ao iniciar" in window.status_label.text
+    assert scheduled == []
+    fail = False
+    retry = execute(window)
+    assert retry["started"] is True
+    assert getattr(window, prefix + "_running") is True
+    assert len(scheduled) == 1
 
 
 def test_run_vacuum_analyze_async_path_delivers_result_and_resets_flags(

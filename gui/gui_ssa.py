@@ -5026,9 +5026,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._vacuum_analyze_pending_result = None
             SSAMainWindow._finalize_vacuum_analyze_result(self, pending)
 
-        worker = threading.Thread(target=_work, daemon=True)
-        self._vacuum_analyze_thread = worker
         try:
+            worker = threading.Thread(target=_work, daemon=True)
+            self._vacuum_analyze_thread = worker
             worker.start()
         except Exception as exc:
             logger.error("Falha ao iniciar analise de vacuum: %s", exc)
@@ -5444,9 +5444,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 pending_result = None
                 SSAMainWindow._finalize_database_candidate_validation(self, pending)
 
-            worker = threading.Thread(target=_work, daemon=True)
-            self._other_db_validation_thread = worker
             try:
+                worker = threading.Thread(target=_work, daemon=True)
+                self._other_db_validation_thread = worker
                 worker.start()
             except Exception as exc:
                 logger.error(
