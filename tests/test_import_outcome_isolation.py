@@ -211,6 +211,7 @@ def test_streamlit_reports_partial_update_as_error():
 def test_late_cancel_after_success_reloads_committed_changes(changed, batch_reloaded):
     from types import SimpleNamespace
     from gui.ssa.gui_rescan_lifecycle import connect_rescan_worker_lifecycle
+    from gui.ssa.gui_workers import _connect_signal
     from gui.workers.rescan_worker import RescanOutcome
     from tests.test_gui_workers_rescan_data import _BaseWorker, _DialogNoop, _Window
 
@@ -223,7 +224,7 @@ def test_late_cancel_after_success_reloads_committed_changes(changed, batch_relo
         window, worker, dialog, reload_on_success=True, is_explicit_import=False,
         normalized_kind="import", global_workers=[], global_meta={}, max_global_workers=8,
         retired_ttl_sec=30, retired_force_wait_ms=10, sip_module=None,
-        connect_signal=lambda signal, slot, **kwargs: signal.connect(slot),
+        connect_signal=_connect_signal,
         prune_retired_workers=lambda *args, **kwargs: None,
         is_worker_running=lambda target, _sip: target.isRunning(),
         set_status_label_text=lambda target, text, **kwargs: target.status_label.setText(text),
