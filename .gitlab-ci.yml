@@ -32,6 +32,21 @@ default:
     - uv sync --frozen --extra dev
     - export PATH="$CI_PROJECT_DIR/.venv/bin:$PATH"
 
+autoria-git:
+  stage: verify
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    - apt-get update
+    - apt-get install --yes --no-install-recommends git
+  cache: []
+  script:
+    - |
+      set -eu
+      BASE_SHA="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-${CI_COMMIT_BEFORE_SHA:-0000000000000000000000000000000000000000}}"
+      HEAD_SHA="${CI_MERGE_REQUEST_SOURCE_BRANCH_SHA:-$CI_COMMIT_SHA}"
+      uv run --no-project --no-sync python scripts/validate_git_authorship.py range "$BASE_SHA" "$HEAD_SHA"
+
 quality-gates:
   stage: verify
   extends: .python_setup
