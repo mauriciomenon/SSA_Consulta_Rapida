@@ -246,9 +246,10 @@ existentes para as omissoes confirmadas; nao houve exclusao ou skip novo.
 
 Permanecem para a passagem: scanners amplos, validacao nativa Qt/Windows/Linux,
 CPU/RSS, caminhos sem hard link e demais limites funcionais/online/historicos
-da lista anterior. Uma suite verde nao conclui esses itens. Proxima atividade:
-executar os ensaios restantes da passagem, sem alterar a politica ou reescrever
-o historico. Commits de codigo: 3e367782, 79a0d25e e 0f239dac.
+da lista anterior. Uma suite verde nao conclui esses itens. O log final da
+rodada A-E esta em `pytest-final-full.log` e registra 2969 passed, 9 skipped,
+34 warnings e 11 subtests passed em 706,03s, retorno 0, no commit `5b75f8f8`.
+Commits de codigo da rodada K: 3e367782, 79a0d25e e 0f239dac.
 
 
 ## 2026-09-13 - Residuos A-E apos c30f87da
@@ -288,6 +289,13 @@ frequencia real. D foi exercitado com QTimer real em subprocesso: retorno -6
 antes e 0 depois, com busy=False; isso nao substitui uso visual multiplataforma.
 Proxima atividade: executar os ensaios nativos, plataformas e scanners amplos
 da passagem; a suite local e a correcao da fixture estao registradas em L4.
+
+Artefatos do reteste final: [`pytest-final-full.log`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-full.log),
+[`pytest-final-result.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-result.json),
+[`pytest-final-metadata.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-metadata.json)
+e [`pytest-final-source-hashes.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-source-hashes.json).
+Os arquivos sao locais ao host da validacao; o commit e o comando devem ser
+conferidos antes de reutilizar o placar.
 
 
 ## 2026-09-13 - CI/CD e PR apos b9672334

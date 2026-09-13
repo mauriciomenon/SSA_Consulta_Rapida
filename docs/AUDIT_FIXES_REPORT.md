@@ -541,9 +541,10 @@ CPU/RSS e plataformas Windows/Linux, alem dos scanners discriminados na passagem
 O prazo existente para fechamento forcado continua aplicavel; informar falha
 na gravacao nao remove essa politica nem torna um disco indisponivel gravavel.
 Cancelamento no meio do parser de planilha, inventario de APIs e historico Git
-continuam com os estados declarados no backlog. A suite local de `0f239dac`
-esta concluida; o diff A-E posterior exige sua propria verificacao, registrada
-em L4. Os limites nativos, remotos e de durabilidade permanecem separados.
+continuam com os estados declarados no backlog. O reteste completo registrado
+em L4 pertence ao commit `5b75f8f8`; a suite de `0f239dac` e historica e o
+diff A-E posterior exige a evidencia propria ja registrada em L4. Os limites
+nativos, remotos e de durabilidade permanecem separados.
 
 
 ## L. Residuos A-E apos c30f87da
@@ -677,6 +678,19 @@ Ambiente: macOS 27.0 arm64, Python 3.13.12, PyQt/Qt 6.11.0, pytest 9.1.1.
 Artefatos locais: `/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/`.
 `pytest-final-full.log`, `pytest-final-result.json` e
 `pytest-final-source-hashes.json` preservam log, retorno e conteudo verificado.
+
+Links diretos para os artefatos locais desta execucao:
+
+- [`pytest-final-full.log`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-full.log)
+- [`pytest-final-result.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-result.json)
+- [`pytest-final-metadata.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-metadata.json)
+- [`pytest-final-source-hashes.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-source-hashes.json)
+- [`final-static-checks.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/final-static-checks.json)
+- [`scanners-results.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/scanners-results.json)
+
+Os caminhos sao artefatos locais do host que executou a validacao. Se nao
+existirem em outro ambiente, o resultado verificavel continua sendo o SHA,
+o comando, o retorno e o resumo transcrito acima.
 
 ### L5. Durabilidade e pendencias
 

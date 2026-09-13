@@ -38,6 +38,12 @@ antes de iniciar. Isso exige regularizacao da conta, nao mudanca dos gates.
 A pipeline GitLab e o estado dos commits estao na secao M de
 [AUDIT_FIXES_REPORT.md](../docs/AUDIT_FIXES_REPORT.md).
 
+O reteste local final da rodada A-E foi executado no commit `5b75f8f8`:
+2969 passed, 9 skipped, 34 warnings e 11 subtests passed em 706,03s, retorno 0.
+O resultado e historico em relacao ao HEAD posterior. O log e os metadados
+estao apontados na secao L4 do relatorio; nenhuma suite Linux foi executada
+na rodada documental posterior.
+
 CodeFactor passou apos corrigir caminhos temporarios e limpeza dos testes;
 quatro avisos de complexidade permanecem nao bloqueantes. GitGuardian reportou
 40 commits sem segredos. Resultados de Snyk/Socket sem mudancas de manifests

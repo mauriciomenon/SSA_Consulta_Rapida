@@ -13,6 +13,14 @@ passed em 706,03s, retorno 0; 613 Python inalterados durante a execucao.
 Scanners amplos e ensaios nativos continuam separados. Os comandos abaixo sao
 trabalho da proxima rodada quando nao identificados como ja executados.
 
+Fonte primaria do reteste: [`pytest-final-full.log`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-full.log).
+O comando foi `QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q
+--durations=10`; ambiente macOS 27.0 arm64, Python 3.13.12, pytest 9.1.1,
+PyQt/Qt 6.11.0 e uv 0.12.13. O retorno foi 0 e o tempo de parede foi 707,93 s.
+O resultado e valido para `5b75f8f8` e para o conteudo cujos hashes estao em
+[`pytest-final-source-hashes.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-source-hashes.json);
+nao e um placar automatico do HEAD posterior.
+
 Atualizacao apos os retornos: zcode informou 2923 passed, 1 failed, 9 skipped
 e 11 subtests no 0beceb58. A falha de preparacao do teste de fechamento forcado
 foi reproduzida e ajustada em 39e7c16a; 27 testes locais passaram. A rodada
@@ -86,6 +94,14 @@ O mantenedor determinou pular o teste Linux e encerrar novas varreduras nesta
 rodada. A suite em curso foi cancelada, sem aprovacao Linux do HEAD final.
 Os comandos pesados abaixo sao uma passagem para eventual rodada posterior,
 nao uma ordem para reinicia-los automaticamente nem prova de execucao.
+
+Artefatos complementares da rodada final: [`pytest-final-result.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-result.json),
+[`pytest-final-metadata.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-metadata.json),
+[`final-static-checks.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/final-static-checks.json)
+e [`scanners-results.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/scanners-results.json).
+Eles pertencem ao escopo e aos SHAs indicados nos proprios arquivos; nao devem
+ser lidos como aprovacao de validacoes que retornaram erro, timeout ou nao
+foram executadas.
 
 ## Pedido pronto para enviar ao outro modelo
 

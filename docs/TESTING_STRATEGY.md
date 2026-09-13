@@ -134,6 +134,13 @@ Configuracao da rodada de 13/09/2026, posterior a `b9672334`:
   registra os testes mais lentos. JUnit em `pytest-results.xml`, preservado em sucesso/falha
   por 14 dias. O arquivo so existe se pytest alcancar sua geracao; timeout do
   processo ou falha de setup nao equivalem a teste aprovado.
+- Reteste local final da rodada A-E: `5b75f8f8`, 2969 passed, 9 skipped,
+  34 warnings e 11 subtests passed em 706,03s, retorno 0. O log e os metadados
+  estao em [`pytest-final-full.log`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-full.log),
+  [`pytest-final-result.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-result.json)
+  e [`pytest-final-metadata.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-metadata.json).
+  Esse resultado pertence ao SHA indicado e nao substitui a validacao de
+  alteracoes posteriores.
 - Runner local: `run_tests.sh` valida aspas com shlex e deixa pytest consumir
   `PYTEST_ADDOPTS` pelo ambiente uma vez. Variavel vazia funciona no Bash 3.2;
   tokens vazios e LF sao preservados. Sintaxe invalida encerra com retorno 2.
@@ -233,4 +240,3 @@ Atualize este documento ao:
 - Deprecar scripts de gate ou alterar saida JSON
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
