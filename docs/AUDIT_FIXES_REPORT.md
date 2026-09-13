@@ -815,8 +815,9 @@ O CodeFactor anotou oito ocorrencias na PR. Complemento apos a abertura:
 Contagem de linhas e inventario AST, nao a metrica interna do CodeFactor.
 O complemento altera somente dois testes; tres casos passaram em 1,19s,
 com py_compile, Ruff e ty aprovados. Nenhum aviso de complexidade foi
-suprimido e nenhum limiar de aprovacao foi reduzido. Esses quatro itens
-permanecem como divida de manutencao e impedem declarar todos os checks verdes.
+suprimido e nenhum limiar de aprovacao foi reduzido. O CodeFactor passou no
+complemento `7015e6fd`, mantendo quatro anotacoes de complexidade nao
+bloqueantes. Esses itens permanecem como divida de manutencao.
 Reavaliar em slice de refatoracao com contratos de erro, concorrencia e autoria
 preservados; nao remover guardas apenas para reduzir a contagem.
 
@@ -824,3 +825,103 @@ O SHA que contem este complemento deve ser obtido do Git; a evidencia remota
 final e vinculada ao SHA na descricao da PR e nos artefatos desta rodada.
 Build Windows, ensaios visuais nativos e scanners amplos da passagem nao foram
 executados aqui. Nao houve merge, reescrita nem alteracao de regras do servidor.
+
+
+### M5. Estado do complemento 7015e6fd
+
+O complemento `7015e6fd5c185cfc10c96b1bf99e00d6d8704c5b` foi publicado e
+conferido por `git ls-remote` nos tres destinos. A pipeline do primeiro complemento e
+[pipeline 2844937862](https://gitlab.com/mauricio.menon/ssa_consulta_rapida_pyqt6/-/pipelines/2844937862).
+A anterior 2844932382 foi cancelada automaticamente apos o push: autoria e
+gates passaram, pytest foi interrompido e secret-scan nao executou. Nao ha
+placar completo a reutilizar daquela primeira tentativa.
+
+CodeFactor no complemento: success, quatro anotacoes Complex Method e zero
+anotacoes B108/B110. GitGuardian informou 40 commits examinados sem segredos.
+Snyk, Socket e DeepScan tambem reportaram sucesso no escopo informado por
+cada integracao; ausencia de mudanca em manifests nao equivale a auditoria
+completa das dependencias. CodeRabbit/Aikido remotos omitiram analise por draft.
+
+GitHub Actions no complemento: runs 34775012629, 34775012635, 34775012625 e
+34775012621 encerraram com o mesmo bloqueio de faturamento. As oito anotacoes
+confirmam que os jobs nao iniciaram. `gh pr checks --required` nao reportou
+checks obrigatorios para esta PR. Portanto, CI falha e regra de servidor
+impedindo merge nao sao equivalentes; a PR segue draft e nao foi integrada.
+
+Novos commits humanos aprovados pelo verificador: dois no intervalo
+b9672334..7015e6fd. A validacao do intervalo completo da PR continua rejeitada
+pelas mensagens antigas; nao foi reescrito nem dispensado nenhum commit.
+Logs e respostas de API desta rodada estao no diretorio de artefatos de M1;
+a descricao da PR registra o resultado remoto por SHA.
+
+
+### M6. DeepSource e complemento da limpeza de testes
+
+O [DeepSource no 7015e6fd](https://app.deepsource.com/gh/mauriciomenon/SSA_Consulta_Rapida/run/b4ade804-0df7-4946-97a8-1d8635393188/python/)
+terminou com status failure e nota C. A interface publica informa 746
+ocorrencias marcadas como introduzidas, 622 resolvidas e 22 classificadas como
+criticas. O proprio servico alerta que a branch pai nao tem PR propria e que
+a analise de base pode incluir ocorrencias de branches anteriores. Nao ha
+fundamento para declarar 746 novos bugs desta correcao de CI.
+
+Duas ocorrencias criticas foram conferidas: `_get_canonical_available_columns`
+(gui/gui_ssa.py:1817) ja verifica isinstance(cached, list) antes de iterar;
+`copy_cell_value` (gui/gui_ssa.py:4313) verifica callable antes de chamar.
+Ambas as funcoes sao identicas a dev/e62a85bf por comparacao AST. Outros
+exemplos visiveis classificam next() de relogios controlados em testes como
+risco critico. A triagem das 746 ocorrencias nao foi realizada nem dispensada.
+Primeiro conferir a base de comparacao e separar alertas de teste, problemas
+preexistentes e regressao; nao aplicar supressoes em massa.
+
+A politica preexistente em `.github/CODE_QUALITY.md` trata DeepSource/Snyk como
+sinais consultivos, sem mudar para isso a politica do servidor nesta rodada.
+O status failure e real, mas nao equivale a job de testes falho nem a um check
+obrigatorio de merge. Seu resultado permanece visivel e consta da passagem.
+
+A revisao adicional da limpeza de logging reproduziu um problema no primeiro
+complemento: se o primeiro close lancasse, sobrava um handler e o segundo
+nao era fechado. O helper final tenta fechar todos, limpa o cache do logger e
+propaga RuntimeError com todas as falhas e a primeira causa encadeada. Nenhum
+erro fica em except/pass; os dois call sites compartilham a mesma limpeza.
+
+Prova controlada com tres handlers, dois falhando: zero handlers restantes,
+tres tentativas de close, cache vazio e as duas falhas presentes no erro.
+Dois testes existentes de logging passaram em 0,05s; compile, Ruff e ty
+aprovados. A prova esta em `cleanup-failure-probe.json` nos artefatos de M1.
+O complemento `53e748b8` nao altera codigo da aplicacao nem configuracao de CI.
+
+
+### M7. Falha Linux reproduzida e correcao do teste de cabecalho
+
+A pipeline 2844937862 terminou com falha real de assercao, retorno 1, sem
+atingir o timeout global. Placar no 7015e6fd: 2943 passed, 1 failed, 42 skipped,
+34 warnings e 11 subtests passed, em 1737,34s; job em 1782,99s. JUnit publicado
+com 2986 casos. Autoria e quality-gates passaram; secret-scan foi pulado pela
+falha na etapa verify, portanto nao foi aprovado nessa pipeline.
+
+O teste `test_executor_filter_refresh_rebuilds_table_through_pipeline` passou
+pelas duas verificacoes de 50 linhas e falhou ao buscar o cabecalho visual
+"Set. Exec". A GUI adapta esse texto conforme largura e fonte. Reproducao
+local com o fluxo real: largura 26 gera "[f] Exec.", largura 240 gera
+"[f] Set. Exec."; ambos conservam 50 linhas e somente IEE3. A busca antiga
+falha no primeiro caso. Evidencia: `adaptive-header-before.json` em M1.
+
+Antes: o helper de teste deduzia a coluna pelo titulo abreviado. Depois:
+consulta o indice canonico setor_executor em `_current_display_columns`,
+o mapa usado pela renderizacao. Removido o helper de busca textual. O caso
+existente foi parametrizado com as duas larguras; as assercoes dos valores
+visiveis e da quantidade de linhas continuam obrigatorias. Nenhum caminho da
+aplicacao, fonte, abreviacao ou limite de desempenho foi modificado.
+
+Validacao local: 43 testes de marcador/renderizacao passaram em 4,50s;
+py_compile, Ruff e ty aprovados. Os 15 testes anteriores passaram isolados
+antes da correcao, demonstrando por que o contexto visual precisa ser
+controlado. A prova com coluna estreita reproduziu a falha antes do patch.
+
+O job agora usa `run_tests.sh full` e `--durations=20`: publica os nomes dos
+testes durante a execucao e os maiores tempos no resumo, mantendo captura de
+saida, JUnit, 45s por teste, limite global de 30 minutos e falhas bloqueantes.
+Correcao em 03b55d37; CI Lint remoto aprovou os quatro jobs bloqueantes,
+sem erros ou avisos. A nova execucao remota deve ser conferida pelo SHA
+publicado na PR 131; o placar falho acima permanece como evidencia e nao
+aprova o complemento.

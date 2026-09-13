@@ -30,6 +30,25 @@ CodeFactor. Leia M4 para distinguir os quatro avisos de complexidade ainda
 abertos de falhas do executor GitHub. Nao classifique CodeRabbit remoto como
 revisao concluida quando sua descricao informa skip por draft.
 
+O complemento 53e748b8 ajusta somente a limpeza do teste de logging: todos os
+handlers sao tratados e o cache e limpo antes de propagar falhas acumuladas.
+Dois testes e a prova controlada de tres handlers/dois erros passaram. Nao
+confundir esse resultado focado com o placar remoto do commit 7015e6fd.
+
+A suite Linux completa no 7015e6fd terminou com 2943 passed, 1 failed,
+42 skipped e 11 subtests passed em 1737,34s, sem timeout. A falha era a busca
+pelo titulo adaptativo Set. Exec em teste, reproduzida com coluna estreita.
+O complemento 03b55d37 usa a identidade setor_executor e verifica larguras 26/240;
+43 testes focados passaram. Leia M7 para evidencia antes/depois. O novo log
+remoto mostra nomes dos testes e as 20 maiores duracoes; confira seu SHA e
+resultado na PR 131 antes de repetir a suite.
+
+DeepSource no 7015e6fd informou 746 ocorrencias introduzidas e 622 resolvidas,
+com aviso de possivel imprecisao da base. Duas ocorrencias criticas conferidas
+sao guardadas e pertencem a funcoes identicas a dev. Validar a base antes de
+classificar o restante; nao suprimir alertas em massa nem alterar a politica
+consultiva de `.github/CODE_QUALITY.md` para obter verde.
+
 Antes de repetir testes pesados, leia M em AUDIT_FIXES_REPORT.md. Confira o
 SHA da PR contra a branch publicada, a base dev e os jobs reais no servidor.
 GitLab agora agenda pushes fix/ e torna pytest-full automatico e bloqueante;

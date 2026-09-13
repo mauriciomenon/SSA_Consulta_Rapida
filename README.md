@@ -56,7 +56,8 @@ resultado.
 O GitHub verifica PRs para `main`/`dev` e pushes nessas branches. O GitLab
 verifica MRs, a branch padrao, execucoes manuais e pushes em branches `fix/`;
 nessas execucoes, a suite completa e automatica e bloqueante. Os gates publicam
-diagnosticos e o GitLab preserva JSONL e relatorio JUnit por 14 dias.
+diagnosticos e o GitLab preserva JSONL e relatorio JUnit por 14 dias. O log da
+suite identifica cada teste e resume as 20 maiores duracoes.
 
 [Contratos e comandos de CI](docs/TESTING_STRATEGY.md#ci-github-gitlab-e-release-windows) |
 [Resultados e bloqueios da PR](docs/AUDIT_FIXES_REPORT.md#m-correcao-de-cicd-e-preparacao-da-pr)

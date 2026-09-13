@@ -128,7 +128,8 @@ Configuracao da rodada de 13/09/2026, posterior a `b9672334`:
   codigo 2 antes dos gates/smoke; falha funcional encerra com codigo 1.
   O stdout/stderr capturado e exibido no log. O ultimo registro JSON continua
   em `quality_gates_output.jsonl`; no GitLab, e preservado mesmo em falha.
-- Pytest no GitLab: JUnit em `pytest-results.xml`, preservado em sucesso/falha
+- Pytest no GitLab: modo full exibe cada nome e resultado; `--durations=20`
+  registra os testes mais lentos. JUnit em `pytest-results.xml`, preservado em sucesso/falha
   por 14 dias. O arquivo so existe se pytest alcancar sua geracao; timeout do
   processo ou falha de setup nao equivalem a teste aprovado.
 - Windows: a coleta de logs de falha vem depois da verificacao e do envio dos

@@ -308,7 +308,8 @@ confirmada no trace. Resultado final e SHA na PR e na secao M do relatorio.
 
 CodeFactor: corrigidos caminhos /tmp fixos no teste de banco e except/pass na
 limpeza do teste de logging (tres testes aprovados, compile/Ruff/ty verdes).
-Quatro avisos Complex Method permanecem em on_load_error, _poll_delivery,
+CodeFactor passou em 7015e6fd; quatro avisos Complex Method nao bloqueantes
+permanecem em on_load_error, _poll_delivery,
 load_other_database e validate_updates. Nao sao novos defeitos funcionais
 reproduzidos; exigem refatoracao com contratos preservados, fora deste patch
 cirurgico de CI. Nao foram suprimidos nem alterados limites do servidor.
@@ -316,3 +317,25 @@ cirurgico de CI. Nao foram suprimidos nem alterados limites do servidor.
 Proxima atividade: concluir verificacao da pipeline do complemento e, apos
 regularizar faturamento, reexecutar Actions. Tratar a reescrita das mensagens
 somente com autorizacao especifica; a PR permanece draft.
+
+
+DeepSource no complemento 7015e6fd: failure consultivo segundo a politica
+existente de `.github/CODE_QUALITY.md`. A interface alerta sobre comparacao de
+base imprecisa; 746 ocorrencias introduzidas/622 resolvidas exigem triagem.
+Duas ocorrencias criticas sao guardadas por isinstance/callable e pertencem a
+funcoes identicas a dev. Nao declarar todas falsas nem corrigir em massa.
+
+Limpeza de logging: o complemento final tenta todos os handlers e limpa o
+cache antes de propagar falhas acumuladas. Prova com tres handlers/dois erros
+aprovada, mais dois testes existentes e compile/Ruff/ty. A falha anterior de
+interromper a limpeza no primeiro close foi reproduzida e corrigida.
+
+
+Suite GitLab 2844937862 encerrada: 2943 passed, 1 failed, 42 skipped e 11
+subtests passed. Falha do helper que buscava o titulo visual Set. Exec;
+reproduzida e corrigida usando o mapa canonico de colunas. Teste existente
+agora cobre larguras estreita/larga; 43 testes focados aprovados. Sem alteracao
+da GUI. Secret-scan foi pulado nessa pipeline e precisa de resultado proprio.
+Job passa a exibir nomes e duracoes, preservando os limites e a reprovacao por
+falha. Proxima atividade: conferir o complemento publicado e o resultado
+remoto por SHA na PR 131; demais bloqueios externos continuam acima.
