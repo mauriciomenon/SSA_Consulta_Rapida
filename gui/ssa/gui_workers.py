@@ -1229,6 +1229,7 @@ def _sync_column_selector_after_load(window) -> None:
 
 def _sync_filter_controls_after_load(window) -> None:
     has_active_filters = False
+    refreshed = True
     try:
         has_active_filters = bool(window._has_any_active_filters())
         window.clear_filter_button.setEnabled(has_active_filters)
@@ -1240,7 +1241,7 @@ def _sync_filter_controls_after_load(window) -> None:
         window.clear_filter_button.setEnabled(True)
         has_active_filters = True
     if has_active_filters:
-        window._refresh_after_filter_change()
+        refreshed = window._refresh_after_filter_change()
     else:
         try:
             current_details_ssa = getattr(window, "_details_current_ssa", None)
@@ -1288,7 +1289,9 @@ def _sync_filter_controls_after_load(window) -> None:
                 "Falha no caminho rapido de sync pos-load; usando refresh completo: %s",
                 exc,
             )
-            window._refresh_after_filter_change()
+            refreshed = window._refresh_after_filter_change()
+    if refreshed is False:
+        raise RuntimeError("Falha ao aplicar filtros aos dados carregados.")
     try:
         if getattr(window, "_active_filter_panel_kind", None) == "advanced":
             window._refresh_advanced_filter_options()
@@ -1338,19 +1341,29 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         return
     if _is_stale_data_load_result(window, request_id):
         return False
-    loaded = prepare_loaded_dataframes(df)
-    window.df_completo = loaded.complete
-    window.df_exibido = loaded.display
-    window._df_last_search_filtered = (
-        window.df_completo if loaded.preprocessed_for_gui else window.df_exibido
-    )
-    _sync_data_revision_after_load(window, request_id)
-    _reset_post_load_filter_state(window)
-    _reset_post_load_sort_and_width_state(window)
-    _sync_non_null_column_cache_after_load(window, loaded)
-    _sync_column_selector_after_load(window)
-    _sync_filter_controls_after_load(window)
-    _update_loaded_data_status(window)
+    data_applied = False
+    try:
+        loaded = prepare_loaded_dataframes(df)
+        window.df_completo = loaded.complete
+        data_applied = True
+        window.df_exibido = loaded.display
+        window._df_last_search_filtered = (
+            window.df_completo if loaded.preprocessed_for_gui else window.df_exibido
+        )
+        _sync_data_revision_after_load(window, request_id)
+        _reset_post_load_filter_state(window)
+        _reset_post_load_sort_and_width_state(window)
+        _sync_non_null_column_cache_after_load(window, loaded)
+        _sync_column_selector_after_load(window)
+        _sync_filter_controls_after_load(window)
+        _update_loaded_data_status(window)
+    except Exception as exc:
+        handler = getattr(window, "on_load_error", None)
+        if callable(handler):
+            handler(str(exc), request_id=request_id, data_applied=data_applied)
+        else:
+            on_load_error(window, str(exc), request_id=request_id, data_applied=data_applied)
+        return False
     return True
 
 
@@ -1388,6 +1401,7 @@ def on_load_error(
     *,
     request_id: int | None = None,
     db_path: str | None = None,
+    data_applied: bool = False,
     qmessagebox=None,
     global_workers: list | None = None,
     global_meta: dict | None = None,
@@ -1418,10 +1432,13 @@ def on_load_error(
             qmessagebox.critical(window, "Erro de Carregamento", safe_error_msg)
     window._data_load_busy = False
     previous_data = getattr(window, "df_completo", None)
-    retained_data_notice = (
-        " A tabela anterior foi mantida e pode estar desatualizada."
-        if previous_data is not None and not previous_data.empty else ""
-    )
+    if data_applied:
+        retained_data_notice = " A exibicao pode estar incompleta. Recarregue os dados."
+    else:
+        retained_data_notice = (
+            " A tabela anterior foi mantida e pode estar desatualizada."
+            if previous_data is not None and not previous_data.empty else ""
+        )
     _set_status_label_text(
         window,
         "Status: Erro ao carregar dados." + retained_data_notice,

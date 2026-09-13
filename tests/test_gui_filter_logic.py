@@ -14869,6 +14869,58 @@ class TestGUIFilterLogic:
         assert self.window._startup_show_pending is False
         assert self.window.status_label.text() == "Status: Banco de dados nao encontrado."
 
+    @pytest.mark.parametrize("data_applied", [False, True])
+    def test_on_data_loaded_failure_uses_error_facade_and_shows_startup_window(
+        self, data_applied
+    ):
+        self.window.hide()
+        self.window._startup_show_pending = True
+        self.window._active_data_load_request_id = 17
+        self.window._data_load_busy = True
+        self.window.status_label.setText("Status: Carregando dados...")
+        old_data = self.window.df_completo
+        payload = (
+            self.base_df.iloc[:1].copy()
+            if data_applied
+            else pd.DataFrame([[10001, 10002]], columns=["numero_ssa", "numero_ssa"])
+        )
+        hook_error = RuntimeError("Falha sintetica no pos-load") if data_applied else None
+        with (
+            patch.object(self.window, "on_load_error", wraps=self.window.on_load_error) as facade,
+            patch.object(ssa_gui_workers, "on_load_error", wraps=ssa_gui_workers.on_load_error) as error_handler,
+            patch.object(ssa_gui_workers, "_reset_post_load_filter_state", side_effect=hook_error),
+        ):
+            assert self.window.on_data_loaded(payload, request_id=17) is False
+
+        facade.assert_called_once()
+        assert facade.call_args.kwargs == {"request_id": 17, "data_applied": data_applied}
+        error_handler.assert_called_once()
+        assert error_handler.call_args.args[0] is self.window
+        assert error_handler.call_args.kwargs["request_id"] == 17
+        assert error_handler.call_args.kwargs["data_applied"] is data_applied
+        assert error_handler.call_args.kwargs["db_path"] == gui_ssa.DB_PATH
+        assert error_handler.call_args.kwargs["qmessagebox"] is gui_ssa.QMessageBox
+        assert error_handler.call_args.kwargs["global_workers"] is gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+        assert self.window.isVisible() is True
+        assert self.window._startup_show_pending is False
+        assert self.window._data_load_busy is False
+        assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+        assert self.window.progress_bar.isVisible() is False
+        error_status = self.window.status_label.text()
+        assert error_status.startswith("Status: Erro ao carregar dados.")
+        if data_applied:
+            assert self.window.df_completo is not old_data
+            assert "exibicao pode estar incompleta" in error_status
+            assert "tabela anterior foi mantida" not in error_status
+        else:
+            assert self.window.df_completo is old_data
+            assert "tabela anterior foi mantida" in error_status
+
+        self.window.on_load_finished(request_id=17)
+
+        assert self.window.status_label.text() == error_status
+
     def test_on_data_loaded_stops_pending_sector_timer(self):
         self.window._active_data_load_request_id = 12
         self.window._sector_debounce_timer.start()

@@ -2359,11 +2359,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.show()
         return True
 
-    def on_load_error(self, error_msg: str, request_id: int | None = None):
+    def on_load_error(
+        self, error_msg: str, request_id: int | None = None, *, data_applied: bool = False
+    ):
         accepted = ssa_gui_workers.on_load_error(
             self,
             error_msg,
             request_id=request_id,
+            data_applied=data_applied,
             db_path=DB_PATH,
             qmessagebox=QMessageBox,
             **_data_loader_retention_kwargs(),
