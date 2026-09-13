@@ -45,6 +45,10 @@ def connect_rescan_worker_lifecycle(
         global_meta=global_meta,
     )
 
+    def set_current_worker_status(target_window, text, *, context) -> None:
+        if getattr(window, "_active_rescan_worker", None) is worker:
+            set_status_label_text(target_window, text, context=context)
+
     def release_worker_ref(*_args) -> None:
         try:
             if getattr(window, "_active_rescan_worker", None) is worker:
@@ -102,7 +106,7 @@ def connect_rescan_worker_lifecycle(
                 progress_dialog,
                 is_explicit_import=is_explicit_import,
                 normalized_kind=normalized_kind,
-                set_status_label_text=set_status_label_text,
+                set_status_label_text=set_current_worker_status,
             )
             release_dialog_ref()
             return
@@ -126,7 +130,7 @@ def connect_rescan_worker_lifecycle(
             is_explicit_import=is_explicit_import,
             explicit_import_has_files=bool(getattr(worker, "explicit_files", ())),
             normalized_kind=normalized_kind,
-            set_status_label_text=set_status_label_text,
+            set_status_label_text=set_current_worker_status,
             integrity_warnings=integrity_warnings,
         )
 
@@ -162,7 +166,7 @@ def connect_rescan_worker_lifecycle(
                 progress_dialog,
                 is_explicit_import=is_explicit_import,
                 normalized_kind=normalized_kind,
-                set_status_label_text=set_status_label_text,
+                set_status_label_text=set_current_worker_status,
             )
             release_dialog_ref()
             return
@@ -172,7 +176,7 @@ def connect_rescan_worker_lifecycle(
             window,
             is_explicit_import=is_explicit_import,
             normalized_kind=normalized_kind,
-            set_status_label_text=set_status_label_text,
+            set_status_label_text=set_current_worker_status,
         )
 
     def on_cancel_requested() -> None:
@@ -181,7 +185,7 @@ def connect_rescan_worker_lifecycle(
         cancel_text, cancel_context = cancel_request_status_text(
             is_explicit_import, normalized_kind
         )
-        set_status_label_text(window, cancel_text, context=cancel_context)
+        set_current_worker_status(window, cancel_text, context=cancel_context)
         if is_worker_running(worker, sip_module):
             try:
                 if hasattr(worker, "stop"):
