@@ -1732,80 +1732,84 @@ def rescan_data(
         )
         main_py_path = "main.py"
 
-    progress_dialog = rescan_dialog_cls(window)
-    _configure_operation_dialog(progress_dialog, operation_label)
+    progress_dialog = None
+    worker = None
     try:
+        progress_dialog = rescan_dialog_cls(window)
+        _configure_operation_dialog(progress_dialog, operation_label)
         window._active_rescan_dialog = progress_dialog
-    except Exception as exc:
-        logger.debug(
-            "Falha ao registrar referencia do dialogo de reescaneamento: %s", exc
+
+        worker = _build_rescan_worker(
+            rescan_worker_cls,
+            main_py_path=main_py_path,
+            project_root=project_root,
+            force_import=force_import,
+            explicit_files=explicit_files_tuple,
+            source_files=source_files_tuple,
+            db_path=db_path,
+            operation_label=operation_label,
+            operation_kind=normalized_kind,
+        )
+        window._active_rescan_worker = worker
+
+        _connect_signal(
+            worker.output_line,
+            progress_dialog.append_output,
+            label="rescan.output_line",
+            window=progress_dialog,
+        )
+        _connect_signal(
+            worker.error_line,
+            progress_dialog.append_error,
+            label="rescan.error_line",
+            window=progress_dialog,
+        )
+        _connect_signal(
+            worker.progress,
+            progress_dialog.update_progress,
+            label="rescan.progress",
+            window=progress_dialog,
         )
 
-    worker = _build_rescan_worker(
-        rescan_worker_cls,
-        main_py_path=main_py_path,
-        project_root=project_root,
-        force_import=force_import,
-        explicit_files=explicit_files_tuple,
-        source_files=source_files_tuple,
-        db_path=db_path,
-        operation_label=operation_label,
-        operation_kind=normalized_kind,
-    )
-    window._active_rescan_worker = worker
+        should_reload_on_success = bool(reload_on_success or normalized_mode == "full")
 
-    _connect_signal(
-        worker.output_line,
-        progress_dialog.append_output,
-        label="rescan.output_line",
-        window=progress_dialog,
-    )
-    _connect_signal(
-        worker.error_line,
-        progress_dialog.append_error,
-        label="rescan.error_line",
-        window=progress_dialog,
-    )
-    _connect_signal(
-        worker.progress,
-        progress_dialog.update_progress,
-        label="rescan.progress",
-        window=progress_dialog,
-    )
+        connect_rescan_worker_lifecycle(
+            window,
+            worker,
+            progress_dialog,
+            reload_on_success=should_reload_on_success,
+            is_explicit_import=is_explicit_import,
+            normalized_kind=normalized_kind,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+            connect_signal=_connect_signal,
+            prune_retired_workers=prune_retired_rescan_workers,
+            is_worker_running=is_rescan_worker_running,
+            set_status_label_text=_set_status_label_text,
+        )
 
-    should_reload_on_success = bool(reload_on_success or normalized_mode == "full")
-
-    connect_rescan_worker_lifecycle(
-        window,
-        worker,
-        progress_dialog,
-        reload_on_success=should_reload_on_success,
-        is_explicit_import=is_explicit_import,
-        normalized_kind=normalized_kind,
-        global_workers=global_workers,
-        global_meta=global_meta,
-        max_global_workers=max_global_workers,
-        retired_ttl_sec=retired_ttl_sec,
-        retired_force_wait_ms=retired_force_wait_ms,
-        sip_module=sip_module,
-        connect_signal=_connect_signal,
-        prune_retired_workers=prune_retired_rescan_workers,
-        is_worker_running=is_rescan_worker_running,
-        set_status_label_text=_set_status_label_text,
-    )
-
-    try:
         worker.start()
     except Exception as exc:
         logger.warning("Falha ao iniciar RescanWorker: %s", exc)
-        window._active_rescan_worker = None
+        if worker is not None and getattr(window, "_active_rescan_worker", None) is worker:
+            window._active_rescan_worker = None
+        with _GLOBAL_WORKERS_LOCK:
+            global_workers[:] = [item for item in global_workers if item is not worker]
+            global_meta.pop(worker, None)
         refresh_database_actions(window)
         try:
             if getattr(window, "_active_rescan_dialog", None) is progress_dialog:
                 window._active_rescan_dialog = None
-            progress_dialog.close()
+            if progress_dialog is not None:
+                progress_dialog.close()
+            if worker is not None:
+                worker.deleteLater()
         except Exception as close_exc:
-            logger.debug("Falha ao fechar dialogo de progresso apos erro no start: %s", close_exc)
+            logger.warning("Falha na limpeza apos erro ao iniciar rescan: %s", close_exc)
         _set_status_label_text(
             window,
             "Status: Falha ao iniciar reescaneamento.",

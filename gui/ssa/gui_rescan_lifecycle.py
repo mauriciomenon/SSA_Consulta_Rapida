@@ -195,7 +195,7 @@ def connect_rescan_worker_lifecycle(
                     "Falha ao solicitar stop do RescanWorker no cancelamento: %s", exc
                 )
 
-    connect_signal(
+    success_connected = connect_signal(
         worker.finished_success,
         on_finished_successfully,
         label="rescan.finished_success",
@@ -209,18 +209,18 @@ def connect_rescan_worker_lifecycle(
             label="rescan.batch_completed",
             window=window,
         )
-    connect_signal(
+    error_connected = connect_signal(
         worker.finished_error,
         on_error,
         label="rescan.finished_error",
         window=window,
     )
-    connect_signal(
+    worker_cleanup_connected = connect_signal(
         worker.finished,
         release_worker_ref,
         label="rescan.finished.ref_cleanup",
     )
-    connect_signal(
+    dialog_cleanup_connected = connect_signal(
         worker.finished,
         release_dialog_ref,
         label="rescan.finished.dialog_release",
@@ -243,6 +243,8 @@ def connect_rescan_worker_lifecycle(
         label="rescan.dialog.cancel_requested",
         window=window,
     )
+    if not all((success_connected, error_connected, worker_cleanup_connected, dialog_cleanup_connected)):
+        raise RuntimeError("Falha ao conectar sinais obrigatorios do reescaneamento.")
 
 
 def register_rescan_worker(
