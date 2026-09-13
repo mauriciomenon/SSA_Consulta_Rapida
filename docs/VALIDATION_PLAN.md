@@ -1,15 +1,20 @@
 # Passagem para validacao completa da auditoria
 
 Data: 2026-09-13. Branch: `fix/audit-surgical-fixes`.
-Este documento e o texto de passagem para o proximo modelo. O mantenedor pediu
-separar a implementacao cirurgica do reteste completo e dos scanners pesados.
-Os comandos abaixo sao trabalho da proxima rodada, salvo quando explicitamente
-identificados como ja executados.
+Este documento e o texto de passagem para o proximo modelo. O pedido inicial
+separava a implementacao do reteste pesado. O pedido posterior autorizou
+reproducao e estabilizacao local caso a tentativa de modelo externo falhasse;
+essa tentativa falhou. A rodada da secao K do relatorio executou a suite completa.
+Scanners amplos e ensaios nativos continuam separados. Os comandos abaixo sao
+trabalho da proxima rodada quando nao identificados como ja executados.
 
 Atualizacao apos os retornos: zcode informou 2923 passed, 1 failed, 9 skipped
 e 11 subtests no 0beceb58. A falha de preparacao do teste de fechamento forcado
-foi reproduzida e ajustada; 27 testes locais passaram. A suite completa do HEAD
-corrigido ainda precisa ser executada. Detalhes na secao J do relatorio.
+foi reproduzida e ajustada em 39e7c16a; 27 testes locais passaram. A rodada
+seguinte corrige oito falhas de producao, com 83 testes dos controladores e
+47 casos selecionados aprovados. Suite completa local no codigo 0f239dac:
+2938 passed, 9 skipped, 34 warnings e 11 subtests passed em 701,80s; exit 0.
+Os onze Python ficaram iguais durante a execucao; ver secao K.
 
 ## Pedido pronto para enviar ao outro modelo
 
@@ -28,9 +33,12 @@ Os commits de codigo a validar sao:
 | `0448f5c81493b41bf0b1f7c28ca5acdd802415f4` | F3: mesma politica de integridade depois do reparo |
 | `9548f41eef323ec76b595dbb71e1f815c97cb48a` | Exportacoes, F4, N7/N8/N11, menus e feedback |
 | `1ef9edafa507a89d12a2f8982c404907cd894c78` | C2: traceback ASCII em texto e JSON |
+| `3e367782` | S1: confirmar gravacao antes do fechamento |
+| `79a0d25e` | S4/S7/S8: falhas de construtor/start |
+| `0f239dac` | S2/S3/S5/S6: callbacks, preparacao e reload |
 
-Use o HEAD da branch que contem esses quatro commits, o documento 0beceb58 e
-o complemento que identifica o worker no teste de fechamento forcado;
+Use o HEAD da branch que contem os commits acima, o documento 0beceb58,
+o complemento 39e7c16a e as correcoes de estado descritas na secao K do relatorio;
 registre o SHA completo antes de qualquer validacao. O hash do commit que contem
 este proprio documento deve ser obtido do Git, sem presumir um valor no texto.
 Nao crie branch, worktree, PR, merge ou reescrita do historico. Nao altere a
@@ -193,7 +201,41 @@ retomada. Qt offscreen nao substitui essa evidencia. Meca CPU/RSS e tempo nos
 fluxos alterados com os mesmos dados, separando carga inicial de repeticoes.
 Nao invente comparacao de desempenho se nao houver base executada equivalente.
 
-## Ja validado e limites
+## Rodada de estabilizacao apos 39e7c16a
+
+Casos de regressao foram acrescentados aos arquivos existentes apenas para as
+falhas reproduzidas. Executar todos os controladores e a selecao de fechamento:
+
+```sh
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_pai_api_controller.py tests/test_gui_preferences_atomic_write.py tests/test_derivadas_sync_controller.py tests/test_gui_workers_rescan_data.py
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py -k 'close or shutdown or other_database or candidate'
+```
+
+Conferir os contratos abaixo, incluindo a tentativa seguinte:
+
+| Cenario | Resultado exigido |
+|---|---|
+| Preferencias: escrita retorna False ou lanca | `flush` levanta OSError; fechar informa erro e restaura flag. `shutdown` sozinho so confirma termino da thread |
+| Preferencias: A falha, B ainda pendente | Espera curta retorna False enquanto B trabalha; B bem-sucedida permite flush True. Excecao terminal nao pode deixar espera infinita |
+| SAM: A termina, B inicia, chegam sinais de A | Status, confirmacao, carga e referencia de B permanecem intactos; B ainda entrega resultados |
+| SAM: construtor/reset/connect/start falha | Retorno False, status de falha, nenhuma referencia indevida; proxima tentativa inicia |
+| SAM: sucesso seguido de reload falho | Erro de recarga visivel; nao reimportar nem perder referencia antes de finished |
+| Derivadas: construtor/start falha | running=False, lock liberado e UI restaurada pelo finalizador |
+| Compactacao/banco alternativo: construtor/start falha | Flag/referencia liberadas, erro informado, nenhum polling iniciado e nova tentativa aceita |
+| Rescan: sucesso/erro/cancelamento/finished antigos | Dialogo antigo pode concluir; status, carga e referencias atuais permanecem |
+
+Evidencia atual: 83 casos dos controladores aprovados em 0,61s; selecao conjunta
+de fechamento/concorrencia com 47 passed, 602 deselected em 29,18s. Nao somar
+placares sobrepostos. py_compile/Ruff/ty passaram nos onze Python alterados; os 21 testes do
+menu/importacao passaram, incluindo quatro casos de construtor/start.
+CodeRabbit CLI 0.7.6: review_completed, dez arquivos, 0 issues. O complemento
+de construtores teve revisao local independente. A suite completa passou com
+2938 passed, 9 skipped, 34 warnings e 11 subtests passed em 701,80s, exit 0,
+no conteudo de 0f239dac. Executada em macOS arm64/Python 3.13.12/Qt 6.11.0,
+com offscreen. A chamada Pi/Kimi falhou e nao forneceu parecer; exit 0 da CLI
+com mensagens de erro do modelo nao representa aprovacao.
+
+## Evidencia das rodadas anteriores e limites
 
 Retornos externos do 0beceb58: suite reprovada informada pelo zcode; selecao de
 22 aprovada pelo Devin. Complemento local: uma linha na preparacao do teste,

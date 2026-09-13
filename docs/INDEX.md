@@ -26,6 +26,7 @@ Versao de referencia: **4.50**.
 - [Ambiente](../dev_env/ENVIRONMENT_GUIDE.md)
 - [Estrategia de testes](TESTING_STRATEGY.md)
 - [Plano de validacao e passagem da auditoria](VALIDATION_PLAN.md)
+- [Relatorio de correcoes e estabilizacao de estado](AUDIT_FIXES_REPORT.md)
 - [Testes sem tela](TESTING_HEADLESS.md)
 - [Distribuicao](GUIA_DISTRIBUICAO.md)
 - [Build multiplataforma](BUILD_MULTIPLATFORM.md)

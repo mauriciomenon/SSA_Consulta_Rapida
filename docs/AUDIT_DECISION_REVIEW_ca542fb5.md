@@ -207,3 +207,17 @@ de AUDIT_FIXES_REPORT.md e em VALIDATION_PLAN.md.
 A divergencia do artefato de diff apontada pelo Devin pertence a uma mensagem
 antiga: .patch nao era o nome real. .patch.md e local/ignorado; a fonte
 reproduzivel para outro checkout e git diff. Nenhuma API foi removida.
+
+
+## Complemento de estabilizacao apos 39e7c16a
+
+O pedido posterior autorizou reproduzir falhas de estado e continuar localmente
+se a CLI externa falhasse. Pi/Kimi nao forneceu parecer valido. A verificacao
+local confirmou oito falhas de producao em preferencias, SAM, derivadas e
+rescan, corrigidas sem mudar A5 nem remover APIs. O antes/depois e a evidencia
+atual estao na secao K de AUDIT_FIXES_REPORT.md; os numeros e limites das secoes
+anteriores deste laudo continuam historicos. A suite completa local no codigo
+0f239dac passou: 2938 passed, 9 skipped, 34 warnings, 11 subtests passed em
+701,80s; exit 0. CodeRabbit revisou dez arquivos Python e levantou 0 issues;
+o complemento de construtores teve revisao local. Nao confundir isso com a
+chamada Pi/Kimi que falhou ou com validacao visual nativa ainda nao realizada.

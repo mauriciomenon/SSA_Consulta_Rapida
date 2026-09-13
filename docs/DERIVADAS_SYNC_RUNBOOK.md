@@ -114,4 +114,17 @@ conferir a consistencia.
 
 Durante carga, sincronizacao, rescan, SAM, compactacao ou validacao de outro banco, as acoes de dados conflitantes ficam indisponiveis. Aguarde a conclusao antes de iniciar outra operacao. Filtros e navegacao existentes permanecem disponiveis quando nao dependem da carga em andamento; eles nao apagam o progresso de derivadas.
 
-Ao tentar fechar durante gravacao de preferencias, a janela pode permanecer aberta. Novas preferencias continuam sendo aceitas; a tentativa de fechamento nao encerra a fila de gravacao.
+Ao tentar fechar durante gravacao de preferencias, a janela pode permanecer
+aberta. A tentativa de fechamento nao encerra a fila de gravacao. Se a escrita
+falhar, o status informa `Falha ao salvar preferencias. Verifique o log antes de
+encerrar.`; essa falha nao e apresentada como gravacao concluida. Corrigida a
+causa, uma nova gravacao bem-sucedida permite confirmar as preferencias.
+
+Se a sincronizacao de derivadas, compactacao ou validacao de outro banco nao
+puder construir ou iniciar sua thread, a GUI informa a falha e libera o estado
+para outra tentativa. Uma operacao antiga nao pode substituir o resultado ou
+liberar os controles de uma nova operacao.
+
+Se a SAM API concluir e a recarga da tabela falhar, o status indica
+`SAM API concluida; falha ao recarregar. Use Recarregar dados.`. A falha tambem
+fica no log; recarregue os dados sem repetir automaticamente a importacao.

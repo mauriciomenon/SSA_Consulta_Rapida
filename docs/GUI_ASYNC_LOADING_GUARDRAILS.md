@@ -56,9 +56,14 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 
 - `closeEvent` define `_is_shutting_down` durante a tentativa e restaura `False`
   se o fechamento for adiado. Timers so param quando o fechamento e aceito.
-- `shutdown()` aguarda a persistencia de preferencias com `flush(timeout=1.0)`;
-  esse limite nao encerra o gravador nem impede novas preferencias. O gravador
-  recebe `shutdown(timeout=0.0)` somente no fechamento aceito.
+- `shutdown()` confirma a persistencia de preferencias com `flush(timeout=1.0)`.
+  O retorno `False` indica espera expirada; retorno falso da escrita ou excecao
+  gera `OSError` no `flush`, mesmo com fila vazia. O status e o log informam a
+  falha, e o fechamento adiado restaura `_is_shutting_down=False`.
+- O limite do `flush` nao encerra o gravador. Uma nova gravacao bem-sucedida
+  elimina o erro anterior; apenas aceitar um snapshot na fila nao o elimina.
+  Quem aguarda o `flush` tambem e notificado se a thread termina com erro. O
+  gravador recebe `shutdown(timeout=0.0)` somente no fechamento aceito.
 - O prazo de 30 segundos acompanha os objetos de operacoes pendentes, incluindo
   workers Qt e a thread de derivadas. Um conjunto novo, sem operacoes da
   tentativa anterior, reinicia o prazo. Uma nova tentativa apos o prazo pode
@@ -73,6 +78,20 @@ Este documento define as regras de segurança para o carregamento assíncrono da
   progresso e estado de carga ou sincronizacao ainda em andamento.
 - O relatorio de derivadas e invalidado ao iniciar outra sincronizacao ou trocar
   de banco. Exportar exige validar o mesmo resultado novamente apos os dialogos.
+- Falha no construtor ou no `start()` da thread de derivadas chama
+  `mark_finished()` e passa pelo finalizador de erro. Uma nova tentativa nao
+  fica bloqueada por estado de execucao que nunca iniciou.
+- Compactacao e validacao de outro banco protegem a construcao e a atribuicao
+  da thread no mesmo tratamento de erro do `start()`. A falha limpa flag e
+  referencia, informa o status e atualiza os menus para permitir nova tentativa.
+- A SAM API trata falhas de construtor, preparacao, conexao de sinais e `start()`
+  no mesmo fluxo de erro. Progresso, previa, decisao de importacao, sucesso e
+  erro so atualizam a janela para o worker ativo; a decisao tambem e conferida
+  depois do dialogo. Falha na recarga apos sucesso e registrada e indica
+  `Recarregar dados`, sem declarar falha da importacao ja concluida.
+- Retornos de rescan substituido concluem somente seu proprio dialogo e limpam
+  suas referencias. Nao mudam o status, recarregam a janela ou removem o worker
+  e o dialogo da operacao atual; isso inclui cancelamento e erro tardios.
 
 ## Anti-patterns proibidos
 

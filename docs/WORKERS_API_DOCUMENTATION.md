@@ -7,9 +7,14 @@
 - `closeEvent` restaura `_is_shutting_down=False` ao adiar o fechamento e mantem
   timers operantes. `shutdown()` solicita cancelamento e consulta o estado real
   dos workers, sem esperas em serie na GUI.
-- Preferencias usam `flush(timeout=1.0)` enquanto a janela pode permanecer
-  aberta; o gravador continua aceitando atualizacoes. Seu encerramento so e
-  solicitado depois de aceitar o fechamento da janela.
+- `PreferencesWriter.persist_async()` confirma aceitacao na fila, nao escrita
+  em disco. `flush(timeout=1.0)` retorna `False` quando a espera expira e levanta
+  `OSError` quando a escrita retorna falso ou lanca excecao. Fila vazia nao
+  mascara esse erro, e o termino da thread notifica quem aguarda. Uma nova
+  escrita bem-sucedida elimina o erro anterior.
+- No fechamento, a falha de preferencias aparece no status e no log. O caminho
+  de adiamento mantem `_is_shutting_down=False`, sem encerrar o gravador por
+  timeout de `flush`; o encerramento so e solicitado ao aceitar o fechamento.
 - O prazo de 30 segundos e reiniciado quando as operacoes pendentes nao incluem
   nenhuma da tentativa anterior. Workers Qt e a thread de derivadas participam
   dessa identidade; prazo expirado nao e evidencia de conclusao com sucesso.
@@ -19,7 +24,19 @@
   `gui/ssa/app_menus.py`, incluindo a vida real da thread de derivadas. Uma
   finalizacao antiga nao libera uma operacao nova.
 - `RescanWorker` propaga as ressalvas reais do relatorio de integridade, sem
-  repetir a verificacao apenas para mudar a mensagem final.
+  repetir a verificacao apenas para mudar a mensagem final. Retornos de um
+  worker substituido podem finalizar seu dialogo, mas nao alterar o status,
+  recarregar dados ou retirar referencias do worker e dialogo atuais.
+- A SAM API protege construcao, preparacao, conexao dos sinais e inicio do
+  worker. Retornos de progresso, previa, decisao, sucesso e erro conferem a
+  identidade ativa; a confirmacao de importacao repete a guarda apos o dialogo.
+  Se a recarga falhar apos sucesso, o log registra a excecao e o status indica
+  `Recarregar dados`.
+- Derivadas chama `mark_finished()` e seu finalizador de erro quando o
+  construtor da thread ou `start()` falha, liberando o estado para nova tentativa.
+- Compactacao e validacao de outro banco tambem incluem construcao e atribuicao
+  da thread no tratamento de falha do inicio. O erro libera flag, referencia e
+  menus, informa o status e permite outra tentativa.
 - O ultimo relatorio manual valido de derivadas pode ser exportado pela GUI;
   seu ciclo de invalidacao e formatos estao no [guia de derivadas](DERIVADAS_SYNC_RUNBOOK.md).
 

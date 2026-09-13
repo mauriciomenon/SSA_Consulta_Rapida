@@ -48,7 +48,8 @@ para o banco atual. Trocar de banco ou iniciar outra sincronizacao invalida esse
 resultado.
 
 [Guia e exemplos de derivadas](docs/DERIVADAS_SYNC_RUNBOOK.md) |
-[Plano de validacao da auditoria](docs/VALIDATION_PLAN.md)
+[Plano de validacao da auditoria](docs/VALIDATION_PLAN.md) |
+[Relatorio de correcoes e estabilizacao de estado](docs/AUDIT_FIXES_REPORT.md)
 
 ## Distribuicao
 

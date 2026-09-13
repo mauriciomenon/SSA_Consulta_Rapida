@@ -1,9 +1,9 @@
 # Relatorio de Correcoes  -  Auditoria SSA Consulta Rapida
 
-**Branch:** `fix/audit-surgical-fixes`. A primeira entrega foi publicada nos tres destinos em `0beceb58` (codigo ate `1ef9edaf`). O complemento apos os retornos dos revisores ajusta um teste existente e estes documentos; obtenha seu HEAD com `git rev-parse HEAD`. Base da implementacao: `ca542fb5`; base da auditoria historica: `dev` em `e62a85bf`.
-**Historico anterior:** `e62a85bf..ca542fb5` contem 21 commits; o intervalo exclusivo `36dc3137..ca542fb5` tem 20. A reescrita anterior preservou 12 hashes e alterou 9, com arvores equivalentes. A primeira implementacao acrescentou quatro commits de codigo e um documental, sem reescrever ancestrais; este complemento ajusta a preparacao de um teste e a passagem.
+**Branch:** `fix/audit-surgical-fixes`. A primeira entrega foi publicada nos tres destinos em `0beceb58` (codigo ate `1ef9edaf`), seguida da correcao de fixture em `39e7c16a`. A rodada de estabilizacao da secao K parte de `39e7c16a` e altera codigo de producao. Obtenha o HEAD com `git rev-parse HEAD`. Base da implementacao: `ca542fb5`; base da auditoria historica: `dev` em `e62a85bf`.
+**Historico anterior:** `e62a85bf..ca542fb5` contem 21 commits; o intervalo exclusivo `36dc3137..ca542fb5` tem 20. A reescrita anterior preservou 12 hashes e alterou 9, com arvores equivalentes. A primeira implementacao acrescentou quatro commits de codigo e um documental, sem reescrever ancestrais; `39e7c16a` ajustou a preparacao de um teste e a passagem.
 **Validacao historica anterior a 0beceb58:** 2924 passed, 9 skipped. Revisao independente: 83 aprovacoes focadas; py_compile/Ruff passaram; ty falhou (um erro novo no teste, outros diagnosticos fora do patch); Semgrep parcial por dois timeouts.
-**Estado atual, apos os retornos de 13/09/2026:** o zcode informou suite completa em `0beceb58` com **2923 passed, 1 failed, 9 skipped, 11 subtests**. A falha foi reproduzida localmente e corrigida na preparacao do teste de fechamento forcado; a selecao ampliada passou em **27 casos**. Nenhum codigo de producao mudou neste complemento. A suite completa do novo HEAD permanece pendente; nao declarar aprovacao geral. Os cinco commits anteriores estao publicados, hooks ativos e CI versionada. As 16 mensagens antigas com credito proibido permanecem. Evidencias e comparacao dos revisores na secao J; passagem atualizada em `VALIDATION_PLAN.md`.
+**Estado da rodada atual, em 13/09/2026:** oito falhas de estado reproduzidas localmente e corrigidas em preferencias, SAM API, derivadas, reescaneamento, compactacao e banco alternativo; detalhes na secao K. Passaram 83 testes dos controladores e uma selecao de 47 casos, com sobreposicao. Suite completa aprovada: **2938 passed, 9 skipped, 34 warnings, 11 subtests passed em 701,80s**, no codigo de `0f239dac`. Os onze Python ficaram inalterados durante a execucao. Revisao CodeRabbit e complemento local detalhados em K3. Os placares de zcode/Devin e o ajuste de fixture pertencem a rodada anterior, preservada na secao J. Hooks ativos e CI versionada; as 16 mensagens antigas com credito proibido permanecem sem reescrita autorizada.
 
 Legenda de estado: **CORRIGIDO** (codigo commitado e publicado; a evidencia de validacao e discriminada por rodada) | **PARCIAL** | **NAO CORRIGIDO** (justificativa) | **NAO-BUG** (verificado, sem alteracao)
 
@@ -34,7 +34,7 @@ A resposta anterior foi incompleta tanto no codigo como no relato. Esta tabela s
 | Bloqueio nativo de servidor | Recursos completos indisponiveis nos planos/tipos atuais | Limite confirmado; hooks locais e CI nao sao apresentados como substitutos equivalentes | NAO ATIVADO ONLINE |
 | Corrigir mensagens antigas | 16 commits continham credito Devin apesar do autor/committer humanos | Diagnostico e proposta de reescrita discriminados; objetos/referencias publicados preservados | NAO REESCRITO |
 | Documentacao no inicio/final | Contagens, caminho GitLab e estados divergentes; sem comparativo completo | Relatorio, laudo, backlog, guias e indices reconciliados; passagem completa e documentos desta rodada versionados | ENTREGUE |
-| Reteste pesado por outros modelos | Solicitado fora da execucao cirurgica | zcode informou suite completa reprovada no 0beceb58; falha ajustada e 27 casos locais passaram. Passagem atualizada exige nova suite no HEAD corrigido | PARCIAL: RETESTE COMPLETO DO COMPLEMENTO PENDENTE |
+| Reteste e estabilizacao de estado | zcode informou suite reprovada em 0beceb58; ajuste de fixture publicado em 39e7c16a | Pedido posterior autorizou reproducao com modelo externo e fallback local. A chamada externa falhou; oito falhas reais receberam correcao e regressao focada | ENTREGUE: SUITE LOCAL APROVADA; ver K |
 | Teste de fechamento forcado | Timestamp vencido sem identidade da operacao; teste falhava | Preparacao registra o mesmo worker em _shutdown_pending_operations; aceitacao e desconexao continuam exigidas | CORRIGIDO E VALIDADO LOCALMENTE |
 
 Evidencias de codigo: `gui/gui_ssa.py` (validacao/fechamento), `gui/ssa/gui_preferences_persistence.py` (fila), `gui/ssa/app_menus.py` e controladores (coordenacao), `armazenamento/database_integrity.py` (F3), `gui/workers/rescan_worker.py` e `gui/ssa/gui_rescan_lifecycle.py` (F4), `scripts/derivadas_cli.py`/`armazenamento/derivadas_sync.py` (exportacao), `scripts/validate_git_authorship.py` (regra executavel).
@@ -120,7 +120,7 @@ Erro adicional de ty em `_fake_apply` corrigido no teste existente com `patch.ob
 
 | Classe | Resultado |
 |---|---|
-| `worker.start()` restantes (prefs writer, launcher stderr pump, `qt_thread_shim`) | sem flag persistente relevante; **vacuum NAO era inerte**  -  corrigido em N14 |
+| `worker.start()` restantes (prefs writer, launcher stderr pump, `qt_thread_shim`) | Inspecao anterior limitada ao inicio da thread; nao comprova seguranca de todo o ciclo. A rodada K confirmou falha de persistencia/flush no prefs writer e falha de construtor em derivadas. **vacuum NAO era inerte**, corrigido em N14 |
 | `subprocess.Popen` (`system_integration.py:163`) | **NAO e morto**  -  alcancavel via guia de instalacao (`main_window_system_controller.open_local_path`  ->  `open_local_path_non_blocking`); claim anterior incorreto |
 | `BEGIN`/`BEGIN IMMEDIATE` sem rollback (5 sites) | todos dentro de `get_db_connection`, que faz rollback em excecao e fecha no finally |
 | `lock.acquire()` fora de `with` | nenhum |
@@ -182,7 +182,7 @@ Ausencia de consumidor interno nao comprova funcao removivel ou perda por refato
 | `9548f41e` | F2 exportacoes/API, F4, N7/N8/N11, A7/Z-A15/Z-C1/Z-C5, cinco casos D7 |
 | `1ef9edaf` | C2: traceback texto/JSON |
 
-## H. Escopo e limites da rodada atual
+## H. Escopo e limites da primeira implementacao
 
 - Os testes novos listados nos commits publicados sao evidencia historica, nao testes executados nesta implementacao.
 - Os tres destinos estavam em ca542fb5 antes da implementacao e receberam os quatro commits ate 1ef9edaf por push normal. Nao houve reescrita nesta rodada. A simulacao ao final refere-se somente ao historico anterior e nao foi executada.
@@ -193,7 +193,7 @@ Ausencia de consumidor interno nao comprova funcao removivel ou perda por refato
 - Laudo anterior: `docs/AUDIT_DECISION_REVIEW_ca542fb5.md`, referente ao commit publicado antes destas mudancas.
 
 
-## I. Validacao e operacao do resultado atual
+## I. Validacao e operacao da primeira implementacao
 
 ### I1. Verificacoes da primeira implementacao, anteriores aos retornos
 
@@ -401,3 +401,135 @@ foram listados por node ID para evitar nova exclusao pelo nome.
 A proxima validacao deve usar o HEAD que inclui este complemento. Exigir suite
 completa nova e evidencias dos scanners ainda ausentes; manter resultados do
 0beceb58 como historico reprovado. Os demais limites da secao I4 permanecem.
+
+
+## K. Estabilizacao de estado apos 39e7c16a
+
+### K1. Pedido, metodo e tentativa externa
+
+Pedido do mantenedor: reproduzir falhas reais de estado, logica e chamadas
+faliveis; tentar um modelo externo via CLI e executar localmente se falhasse.
+A autorizacao anterior de corrigir, documentar, comitar e publicar foi mantida.
+Nao houve mudanca de politica A5, remocao de API ou refatoracao transversal.
+
+Foi usada a skill external-model-audit-coordinator com um pacote delimitado de
+quatro controladores, sem credenciais, bancos, planilhas ou logs de producao.
+A verificacao de saida do pacote encontrou zero itens sensiveis em um arquivo
+com 65317 bytes; SHA256:
+`f7fb07457abf442abf41e700bd5b95cafb2ad039c4a35a03e63e980f170db36d`.
+
+Comando externo efetivamente executado:
+
+```sh
+pi --provider opencodex --model cursor/kimi-k3 --thinking high \
+  --no-tools --no-session --no-extensions --no-skills \
+  --no-prompt-templates --no-context-files --no-themes --no-approve \
+  --mode json -p @packet.txt
+```
+
+Resultado: 14,39 segundos, processo com exit 0, mas quatro mensagens do modelo
+com `stopReason=error` e `Connection error.`. Nenhum parecer valido. O exit 0
+nao foi tratado como sucesso. A analise e as reproducoes seguintes sao locais;
+nao sao achados atribuidos ao modelo externo.
+
+### K2. Falhas reproduzidas e correcao aplicada
+
+| Caso | Antes, reproduzido em 39e7c16a | Depois | Evidencia de regressao |
+|---|---|---|---|
+| S1, preferencias/N7 | Gravador aceitava snapshot, mas `flush()` retornava True mesmo com retorno False ou OSError na gravacao. Fechamento podia ser aceito sem persistencia confirmada | Guarda o resultado da ultima gravacao; `flush()` levanta OSError se ela falhou. Termino acorda aguardantes. Nova gravacao bem-sucedida limpa a falha. GUI informa erro, rejeita fechamento e restaura `_is_shutting_down=False` | `test_preferences_writer_reports_unexpected_failure`, `test_preferences_writer_flush_confirms_disk_write_and_later_recovery`, `test_close_event_waits_for_preferences_writer` parametrizado |
+| S2, SAM API/callbacks | A parava, B iniciava e um sinal antigo de A mudava status; sucesso antigo ainda provocava reload. Reproducao: referencia B preservada, mas 1 reload indevido | Progresso, preview, pedido de confirmacao, sucesso e erro verificam identidade do worker. Decisao e revalidada depois do dialogo. `finished` antigo nao limpa B | `test_previous_worker_signals_do_not_change_current_operation`; confirma tambem que B continua entregando progresso e sucesso |
+| S3, SAM API/inicializacao | Excecao em connect escapava e deixava referencia ativa. Construcao/reset/conexao ficavam fora do tratamento de start | Construcao, reset, registro, conexoes e partida usam o mesmo tratamento. Falha informa status, libera somente a referencia correspondente e permite nova tentativa | `test_refresh_setup_failure_allows_next_attempt`: construtor, reset, connect e start |
+| S4, derivadas/inicializacao | Construtor da thread lancava; `state.running` permanecia True com nenhuma thread criada | Criacao e partida compartilham tratamento; `mark_finished()` libera o estado antes do finalizador restaurar a UI. Thread ainda viva permanece retida conforme contrato existente | `test_async_derivadas_start_failure_runs_finalize_to_restore_ui` parametrizado para construtor/start, verificando flag, referencia, lock e estado da UI |
+| S5, reescaneamento/callbacks | Sucesso, erro e cancelamento antigos substituiam o status de B por mensagens de A. Nenhum reload indevido nesse caso, mas feedback da operacao atual ficava errado | Publicacao de status exige worker vigente. Dialogo antigo conserva seu encerramento; liberacao de referencias e carga continuam protegidas por identidade | `test_previous_rescan_signals_preserve_current_status_and_references`, incluindo sucesso/erro apos cancelamento e `finished` antigo |
+| S6, SAM API/reload | Erro ao recarregar dados escapava do callback, com status ainda dizendo que estava carregando | Falha de reload e registrada e exibida com instrucao para Recarregar dados. Importacao concluida nao e repetida; referencia permanece ate termino nativo | `test_success_reports_reload_failure_without_losing_worker` |
+| S7, compactacao/inicializacao | Construtor da thread lancava antes do try e deixava `_vacuum_analyze_running=True` | Criacao e registro entram no tratamento existente de start. Falha libera flag/referencia/menus, informa status e nao agenda polling | `test_database_thread_failure_releases_state_for_next_attempt`, combinacoes de compactacao com construtor/start |
+| S8, banco alternativo/inicializacao | Mesmo padrao deixava `_other_db_validation_running=True` depois da falha de construtor | Tratamento existente cobre criacao e start. Estado liberado; nova tentativa recebe nova identidade de validacao | Mesmo teste parametrizado, combinacoes de banco alternativo com construtor/start |
+
+Arquivos de producao: `gui/gui_ssa.py`, `gui/ssa/gui_preferences_persistence.py`,
+`gui/ssa/pai_api_controller.py`, `gui/ssa/derivadas_sync_controller.py` e
+`gui/ssa/gui_rescan_lifecycle.py`. As reproducoes usam gravador real em thread,
+eventos de sincronizacao e dubles dos pontos faliveis; nao consultam SAM real
+nem danificam arquivos reais para simular erros.
+
+Referencias do codigo atual (nao sao linhas da base anterior):
+
+| Caso | Ponto corrigido |
+|---|---|
+| S1 | `gui/ssa/gui_preferences_persistence.py:93` e `:109`; `gui/gui_ssa.py:5709` |
+| S2 | `gui/ssa/pai_api_controller.py:349`, `:384`, `:399` e `:423` |
+| S3 | `gui/ssa/pai_api_controller.py:209` |
+| S4 | `gui/ssa/derivadas_sync_controller.py:327` |
+| S5 | `gui/ssa/gui_rescan_lifecycle.py:48` |
+| S6 | `gui/ssa/pai_api_controller.py:405` |
+| S7 | `gui/gui_ssa.py:5029` |
+| S8 | `gui/gui_ssa.py:5447` |
+
+### K3. Validacao desta rodada
+
+- py_compile, Ruff e ty: aprovados nos onze arquivos Python alterados.
+- Quatro arquivos de testes dos controladores: **83 passed in 0.61s**.
+- Selecao conjunta de fechamento, preferencias e concorrencia: **47 passed,
+  602 deselected in 29.18s**. Inclui fechamento forcado e prazo por operacao.
+- Nao somar esses dois placares: ha casos em comum.
+- `tests/test_gui_menu_import_external.py`: **21 passed in 0.26s**, incluindo
+  quatro combinacoes de construtor/start em compactacao e banco alternativo.
+- Foram acrescentados casos de regressao nos arquivos existentes para omissoes
+  confirmadas. Nenhum teste foi removido, desabilitado ou transformado em skip.
+- A primeira execucao focada teve uma expectativa nova incorreta: o sucesso do
+  rescan atual inicia carga e deve mostrar Carregando dados. A expectativa foi
+  corrigida para exigir esse status e exatamente uma carga; producao preservada.
+- CodeRabbit CLI 0.7.6 autenticada: review_completed, dez arquivos Python,
+  0 issues. Revisao independente confirmou os contratos de identidade e flush.
+- Os dois ajustes posteriores de construtor e seu teste tiveram revisao local
+  independente, sem regressao concreta identificada. Nao fazem parte do parecer
+  CodeRabbit anterior; a CLI nao permite limitar a chamada aos dois trechos.
+- Ensaios adicionais em memoria: A retorna False com B pendente, B salva e o
+  flush final confirma sucesso; A lanca com B pendente, a thread termina e
+  flush(timeout=None) levanta OSError sem espera infinita. Shutdown confirma
+  termino da thread, nao sucesso em disco; snapshot pendente nao e gravado
+  automaticamente depois de uma excecao terminal.
+- A primeira suite ampla foi interrompida deliberadamente com SIGINT para
+  incorporar S7/S8; terminou com exit 134 durante a interrupcao, apos 477,07s.
+  Esse resultado nao e aprovacao. A nova execucao registra hashes dos onze
+  Python para verificar que o codigo permaneceu igual durante toda a suite.
+- Suite completa final: **2938 passed, 9 skipped, 34 warnings, 11 subtests
+  passed in 701.80s (0:11:41)**; exit 0. Tempo externo total: 703,73s.
+- Comando: `QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q --durations=10`.
+- Ambiente: macOS 27.0 arm64, Python 3.13.12, uv 0.12.13, pytest 9.1.1,
+  PyQt/Qt 6.11.0. Hashes dos onze arquivos Python confirmados iguais do inicio
+  ao fim; conteudo corresponde ao commit de codigo `0f239dac`.
+- Os nove skips foram preservados. Os 34 avisos sao de grupos em regex (2)
+  e inferencia de formato de datas (32), em arquivos fora deste patch.
+  Nenhum aviso foi suprimido para obter o placar.
+- A lista de duracoes inclui teste de lock de importacao (15,06s), substituicao
+  de filtro antigo (10,11s) e cache apos mutacao (10,09s). Essas duracoes sao de
+  testes; nao sao benchmark comparativo de CPU/RSS do aplicativo.
+- Doze documentos passaram no verificador, sem problemas; links relativos
+  existentes foram conferidos. Scanners amplos, SAM real e validacao visual
+  nativa nao foram executados.
+
+### K4. Commits por assunto
+
+| Commit | Casos | Conteudo |
+|---|---|---|
+| `3e367782` | S1 | Confirmacao da gravacao e fechamento; regressoes de falha/recuperacao |
+| `79a0d25e` | S4/S7/S8 | Construtor/start de derivadas, compactacao e banco alternativo |
+| `0f239dac` | S2/S3/S5/S6 | Identidade de callbacks, preparacao e reload SAM, status de rescan |
+
+Autoria e committer humanos preservados: Mauricio Menon, com o email ja
+configurado no Git. Sem trailers ou credito de ferramentas. Os hooks locais
+repetiram py_compile/Ruff nos commits. O verificador de autoria passou no range
+novo desde 39e7c16a. Documentacao consolidada em commit posterior; obtenha
+seu SHA pelo Git. Nenhum commit anterior foi reescrito.
+
+### K5. Limites e proxima atividade
+
+Os testes cobrem os estados reproduzidos, incluindo a tentativa seguinte; nao
+provam ausencia de toda corrida possivel. Ainda faltam ensaios nativos com Qt,
+CPU/RSS e plataformas Windows/Linux, alem dos scanners discriminados na passagem.
+O prazo existente para fechamento forcado continua aplicavel; informar falha
+na gravacao nao remove essa politica nem torna um disco indisponivel gravavel.
+Cancelamento no meio do parser de planilha, inventario de APIs e historico Git
+continuam com os estados declarados no backlog. A suite local esta concluida.
+Proxima atividade: executar a passagem para os limites restantes, mantendo o
+resultado local separado de verificacoes remotas ou nativas nao realizadas.

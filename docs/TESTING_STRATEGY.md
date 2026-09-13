@@ -14,6 +14,39 @@ Ao selecionar por `-k`, conferir que os casos criticos aparecem na coleta.
 para regressao conhecida, usar tambem o node ID completo indicado na passagem.
 Registrar o retorno da ferramenta original, sem perde-lo em pipes para tail/tee.
 
+## Regressao de operacoes substituidas e nova tentativa
+
+A matriz de concorrencia deve exercitar uma operacao A seguida de B, incluindo
+retornos atrasados de A. Verificar o estado de B antes e depois de cada retorno;
+constatar apenas ausencia de excecao nao comprova isolamento.
+
+- SAM API: progresso, previa, decisao, sucesso e erro de A nao alteram B. Se o
+  dialogo de A permanecer aberto durante a troca, sua resposta nao deve ser
+  entregue depois que B se torna ativa.
+- Inicio da SAM API: falha em construtor, preparacao, conexao ou `start()` libera
+  o registro da tentativa e permite iniciar outra. Sucesso seguido de falha de
+  recarga deve manter mensagem objetiva, log e orientacao `Recarregar dados`.
+- Derivadas: falha no construtor e no `start()` encerra o estado de execucao;
+  conferir finalizacao da UI e inicio de uma nova tentativa.
+- Compactacao e validacao de outro banco: exercitar as duas operacoes nas duas
+  etapas de falha, construtor e `start()`. Conferir flag, referencia, status,
+  menus e inicio de nova tentativa em cada combinacao. Esses casos estao em
+  `tests/test_gui_menu_import_external.py`.
+- Rescan: sucesso, erro e cancelamento de A podem finalizar seu dialogo, mas nao
+  mudam status, carga ou referencias do worker e dialogo de B.
+- Preferencias: diferenciar escrita que retorna falso, escrita que lanca excecao
+  e escrita ainda em andamento. `flush` deve informar a falha e liberar quem
+  espera quando a thread termina; uma nova escrita confirmada elimina o erro.
+- Fechamento: falha ao salvar preferencias precisa aparecer no status e no log;
+  o adiamento restaura o flag da janela. Manter tambem os casos do prazo de
+  fechamento para a mesma operacao e para uma nova operacao.
+
+Testes Qt com `QT_QPA_PLATFORM=offscreen` verificam sinais, callbacks e estado
+sem janela nativa. Registrar separadamente o uso visual no host, incluindo
+fechamento, dialogos e mensagens; a execucao sem tela nao comprova essa etapa.
+Resultados de selecoes diferentes nao devem ser somados quando ha sobreposicao.
+O resultado da suite completa depende de sua propria execucao concluida.
+
 ## Piramide de Testes (Alvo)
 - Unidade (rapidos, puros, sem IO pesado) ~60%
 - Integracao (SQLite + scripts + normalizacao) ~30%

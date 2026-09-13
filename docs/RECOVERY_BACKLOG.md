@@ -219,3 +219,29 @@ usar git diff, sem depender do nome errado citado numa mensagem antiga.
 
 Proxima atividade: executar a suite completa no HEAD corrigido e entregar os
 resultados dos scanners pendentes, sem reescrever historico ou alterar A5.
+
+
+## 2026-09-13 - Estabilizacao de estado apos 39e7c16a
+
+Esta entrada atualiza o estado do reteste pedido acima. A tentativa externa
+Pi/Kimi terminou sem parecer valido (Connection error); o mantenedor autorizou
+fallback local. Oito falhas de producao foram reproduzidas e corrigidas:
+confirmacao falsa de preferencias, callbacks antigos da SAM, falha de setup
+SAM, falha no construtor de derivadas, status antigo de rescan e reload SAM
+sem tratamento, alem de falha de construtor em compactacao e banco alternativo.
+AUDIT_FIXES_REPORT.md, secao K, contem o antes/depois.
+
+Verificacao focada: 83 testes dos controladores e 47 casos selecionados
+aprovados, sem somar sobreposicoes. py_compile/Ruff/ty passaram. CodeRabbit
+revisou os dez arquivos Python e levantou 0 issues; o complemento de dois
+construtores teve revisao local. Suite completa no codigo 0f239dac aprovada:
+2938 passed, 9 skipped, 34 warnings e 11 subtests passed em 701,80s, exit 0.
+Hashes dos onze Python preservados durante toda a execucao.
+Ao contrario da rodada anterior, foram acrescentadas regressoes nos arquivos
+existentes para as omissoes confirmadas; nao houve exclusao ou skip novo.
+
+Permanecem para a passagem: scanners amplos, validacao nativa Qt/Windows/Linux,
+CPU/RSS, caminhos sem hard link e demais limites funcionais/online/historicos
+da lista anterior. Uma suite verde nao conclui esses itens. Proxima atividade:
+executar os ensaios restantes da passagem, sem alterar a politica ou reescrever
+o historico. Commits de codigo: 3e367782, 79a0d25e e 0f239dac.
