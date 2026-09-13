@@ -624,9 +624,23 @@ def _repair_database_if_needed_locked(
             conn.commit()
 
         final_report = verify_database_integrity(db_path, table_name)
-        if not final_report["is_valid"]:
+        if not all(
+            final_report.get(key, False)
+            for key in (
+                "database_accessible",
+                "table_exists",
+                "schema_valid",
+                "sqlite_integrity_ok",
+                "file_permissions_ok",
+            )
+        ):
             logger.error("Reparo conservador falhou: %s", final_report["issues"])
             return False, final_report
+        if not final_report["is_valid"]:
+            logger.warning(
+                "Estrutura reparada; inconsistencias de dados permanecem para reimportacao: %s",
+                final_report.get("issues", []),
+            )
         _create_integrity_snapshot(db_path, force=True)
         logger.info("Reparo conservador concluido com sucesso")
         return True, final_report
