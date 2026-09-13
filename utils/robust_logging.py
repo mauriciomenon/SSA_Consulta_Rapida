@@ -157,7 +157,7 @@ class JSONFormatter(logging.Formatter):
 
         # Adiciona exceção se presente
         if record.exc_info:
-            log_obj["exception"] = self.formatException(record.exc_info)
+            log_obj["exception"] = record.exc_text or self.formatException(record.exc_info)
 
         return json.dumps(log_obj, ensure_ascii=False)
 
