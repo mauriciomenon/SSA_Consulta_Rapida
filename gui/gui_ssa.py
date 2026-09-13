@@ -5707,6 +5707,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             preferences_finished = flush_gui_preferences_writer(timeout=1.0)
         except Exception as exc:
             logger.error("Falha ao aguardar persistencia GUI no shutdown: %s", exc)
+            self.status_label.setText(
+                "Falha ao salvar preferencias. Verifique o log antes de encerrar."
+            )
             return False
         if not preferences_finished:
             logger.warning("Shutdown adiado; gravacao de preferencias em andamento")

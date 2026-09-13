@@ -46,6 +46,7 @@ class PreferencesWriter:
         self._lock = threading.Condition()
         self._pending: dict[Any, Any] | None = None
         self._writing = False
+        self._write_failed = False
         self._stopped = False
         self._terminated = threading.Event()
         self._thread = threading.Thread(
@@ -89,10 +90,12 @@ class PreferencesWriter:
                     prefs_snapshot = self._pending
                     self._pending = None
                     self._writing = True
+                written = False
                 try:
-                    self._write_func(prefs_snapshot, retries=self._retries)
+                    written = bool(self._write_func(prefs_snapshot, retries=self._retries))
                 finally:
                     with self._lock:
+                        self._write_failed = not written
                         self._writing = False
                         self._lock.notify_all()
         except Exception:
@@ -101,14 +104,19 @@ class PreferencesWriter:
             with self._lock:
                 self._stopped = True
                 self._terminated.set()
+                self._lock.notify_all()
 
     def flush(self, *, timeout: float | None = 1.0) -> bool:
-        """Aguarda gravacoes sem recusar novas preferencias se a espera expirar."""
+        """Confirma gravacao; retorna False na espera ou levanta OSError na falha."""
         with self._lock:
-            return self._lock.wait_for(
-                lambda: self._pending is None and not self._writing,
+            finished = self._lock.wait_for(
+                lambda: (self._pending is None and not self._writing)
+                or self._terminated.is_set(),
                 timeout=timeout,
             )
+            if finished and self._write_failed:
+                raise OSError("A ultima gravacao de preferencias GUI falhou.")
+            return finished
 
     def shutdown(self, *, timeout: float | None = 1.0) -> bool:
         with self._lock:

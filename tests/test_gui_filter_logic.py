@@ -14498,7 +14498,8 @@ class TestGUIFilterLogic:
         assert worker.deleted is False
         assert self.window.data_loader_thread is worker
 
-    def test_close_event_waits_for_preferences_writer(self, monkeypatch):
+    @pytest.mark.parametrize("write_succeeds", [True, False])
+    def test_close_event_waits_for_preferences_writer(self, monkeypatch, write_succeeds):
         import threading
 
         from gui.ssa import gui_preferences_persistence
@@ -14509,7 +14510,7 @@ class TestGUIFilterLogic:
         def write_preferences(data, *, retries):
             started.set()
             assert release.wait(5.0)
-            return True
+            return write_succeeds
 
         writer = gui_preferences_persistence.PreferencesWriter(write_preferences)
         monkeypatch.setattr(gui_preferences_persistence, "_GUI_PREFERENCES_WRITER", writer)
@@ -14527,7 +14528,10 @@ class TestGUIFilterLogic:
 
         retry_event = QCloseEvent()
         self.window.closeEvent(retry_event)
-        assert retry_event.isAccepted() is True
+        assert retry_event.isAccepted() is write_succeeds
+        if not write_succeeds:
+            assert self.window._is_shutting_down is False
+            assert "Falha ao salvar preferencias" in self.window.status_label.text()
 
     def test_close_event_stops_main_and_sector_debounce_timers(self):
         self.window._debounce_timer.start()
