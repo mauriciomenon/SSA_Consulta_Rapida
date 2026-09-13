@@ -25,20 +25,37 @@ if ! command -v "$PY" >/dev/null 2>&1; then
 fi
 
 if [ -n "$GATES_ARGS" ]; then
-  while IFS= read -r arg; do
+  parsed_gates_args_file=$(mktemp "${TMPDIR:-/tmp}/ssa-gates-args.XXXXXX") || exit 2
+  trap 'rm -f "$parsed_gates_args_file"' EXIT
+  "$PY" - "$GATES_ARGS" > "$parsed_gates_args_file" <<'PY' || exit 2
+import shlex
+import sys
+
+try:
+    args = shlex.split(sys.argv[1])
+except ValueError as exc:
+    print(f"[ci_quality_gates] GATES_ARGS invalido: {exc}", file=sys.stderr)
+    sys.exit(2)
+
+for arg in args:
+    print(arg, end="\0")
+PY
+  while IFS= read -r -d '' arg; do
     GATES_ARGS_ARRAY+=("$arg")
-  done < <(
-    "$PY" -c 'import os, shlex; print(*shlex.split(os.environ["GATES_ARGS"]), sep="\n")'
-  )
+  done < "$parsed_gates_args_file"
+  rm -f "$parsed_gates_args_file"
+  trap - EXIT
 fi
 
 set +e
-OUT=$("$PY" scripts/run_quality_gates.py "${GATES_ARGS_ARRAY[@]}" 2>&1)
+# Bash 3.2 com nounset exige esta expansao para arrays vazios.
+OUT=$("$PY" scripts/run_quality_gates.py ${GATES_ARGS_ARRAY[@]+"${GATES_ARGS_ARRAY[@]}"} 2>&1)
 CODE=$?
 set -e
 
 QUALITY_GATES_JSONL="${QUALITY_GATES_JSONL:-quality_gates_output.jsonl}"
-echo "$OUT" | tail -n 1 > "$QUALITY_GATES_JSONL"
+printf '%s\n' "$OUT"
+printf '%s\n' "$OUT" | tail -n 1 > "$QUALITY_GATES_JSONL"
 
 STATUS="error"
 if [ $CODE -eq 0 ] || [ $CODE -eq 1 ]; then

@@ -7,14 +7,20 @@
 
 **Resultado historico da rodada K, em 13/09/2026:** oito falhas de estado reproduzidas localmente e corrigidas em preferencias, SAM API, derivadas, reescaneamento, compactacao e banco alternativo; detalhes na secao K. Passaram 83 testes dos controladores e uma selecao de 47 casos, com sobreposicao. Suite completa aprovada: **2938 passed, 9 skipped, 34 warnings, 11 subtests passed em 701,80s**, no codigo de `0f239dac`. Os onze Python ficaram inalterados durante a execucao. Revisao CodeRabbit e complemento local detalhados em K3. Os placares de zcode/Devin e o ajuste de fixture pertencem a rodada anterior, preservada na secao J. Hooks ativos e CI versionada; as 16 mensagens antigas com credito proibido permanecem sem reescrita autorizada.
 
-**Rodada vigente A-E:** os cinco residuos do levantamento posterior foram reproduzidos e receberam correcoes locais. Isso amplia a cobertura dos sites S1-S8; nao transforma a suite historica em aprovacao do diff atual. Antes/depois e evidencias em L; validacao integrada, commits e publicacao em L4.
+**Rodada A-E concluida:** os cinco residuos do levantamento posterior foram reproduzidos e receberam correcoes locais. Isso amplia a cobertura dos sites S1-S8; nao transforma a suite historica em aprovacao do diff atual. Antes/depois e evidencias em L; validacao integrada, commits e publicacao em L4.
+
+**Rodada vigente CI/CD:** parte de `b9672334`, sem alterar codigo da aplicacao.
+Corrige parser/diagnosticos dos gates, agenda GitLab em branches fix e torna a
+suite completa bloqueante, com artefatos de diagnostico. O resumo e o estado
+da PR estao na secao M. As referencias anteriores a GitLab manual e ausencia
+de pipeline nesta branch descrevem os commits anteriores a esta rodada.
 
 Legenda de estado: **IMPLEMENTADO** (correcao no codigo; validacao/publicacao discriminadas em L4) | **CORRIGIDO** (codigo commitado e publicado; a evidencia de validacao e discriminada por rodada) | **PARCIAL** | **NAO CORRIGIDO** (justificativa) | **NAO-BUG** (verificado, sem alteracao)
 
 
 ## Comparativo antes/depois e estado por pedido
 
-Esta tabela registra pedidos e entregas historicas ate K. A rodada vigente A-E possui comparativo proprio em L2. As tabelas A-K preservam evidencias por revisao; suas expressoes "nesta rodada" referem-se a entrega historica descrita, sem aprovar alteracoes posteriores.
+Esta tabela registra pedidos e entregas historicas ate K. A rodada A-E possui comparativo proprio em L2; CI/CD e PR estao na secao M. As tabelas A-K preservam evidencias por revisao; suas expressoes "nesta rodada" referem-se a entrega historica descrita, sem aprovar alteracoes posteriores.
 
 | Pedido | Antes, em ca542fb5 / primeira entrega | Depois, nos commits desta rodada | Estado |
 |---|---|---|---|
@@ -687,3 +693,78 @@ Cancelamento dentro do parser, inventario de APIs, mensagens Git historicas e
 limitacoes de regras online continuam no backlog. A proxima atividade e executar
 os ensaios restantes da passagem, sem deduzir cobertura integral
 de um genero de falha a partir de sites corrigidos ou testes selecionados.
+
+
+## M. Correcao de CI/CD e preparacao da PR
+
+Pedido: verificar e corrigir CI/CD, atualizar docs e preparar PR. Base local
+`b96723349217499fe10470be52209ff9993ed93e`, branch existente
+`fix/audit-surgical-fixes`, destino da PR `dev` no GitHub principal. A base
+comum e `e62a85bf0f90e337def6fb2916651fe1e7364884`. Sem nova branch,
+worktree, merge ou reescrita do historico.
+
+### M1. Antes e depois
+
+| Item | Antes | Depois | Estado |
+|---|---|---|---|
+| Aspas em GATES_ARGS | Falha de shlex ocorria em process substitution e era ignorada; gates/smoke ainda executavam | Parse sincrono com retorno conferido e tokens separados por NUL; erro sai com codigo 2 antes dos gates | CORRIGIDO |
+| Argumentos vazios no macOS | Bash 3.2 com nounset abortava ao expandir array vazio | Expansao compativel preserva zero argumentos | CORRIGIDO |
+| Diagnostico dos gates | stdout/stderr capturados nao apareciam; GitLab nao anexava JSONL | Log visivel e artefato JSONL em sucesso/falha por 14 dias | CORRIGIDO |
+| Pipeline da branch fix | Push nesta branch nao agendava GitLab | Regra para push em fix/, evitando duplicacao quando ha MR | CORRIGIDO |
+| Suite remota GitLab | pytest-full manual e allow_failure=true; pipeline verde podia omitir toda a suite | Suite automatica e bloqueante, timeout e relatorio JUnit | CORRIGIDO |
+| Falha final do build Windows | Envio dos logs vinha antes da verificacao dos artefatos | Coleta vem no fim e cobre falhas posteriores ao build | CORRIGIDO |
+| GitHub Actions | Jobs nem iniciavam por bloqueio de faturamento | Bloqueio confirmado na API; exige regularizacao da conta | BLOQUEADO NO SERVIDOR |
+| Autoria no intervalo da PR | Mensagens antigas violam a regra vigente | Verificador preservado; a PR nao recebe excecao | BLOQUEADO PELO HISTORICO |
+
+Backups timestamp das configuracoes e artefatos desta rodada ficam em
+`/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-ci-review-vlgu4m7x/`.
+O backup do shell e `/tmp/ci_quality_gates.sh.20260913-151431.bak`.
+
+### M2. Validacao local e do agendamento
+
+- Reproducao inicial do shell: 3 falhas e 1 aprovado. A revisao encontrou
+  perda de argumento vazio no primeiro patch; esse patch nao foi publicado.
+  O parser final preserva argumentos vazios e LF com NUL em arquivo temporario,
+  retorna 2 em parse invalido e remove o temporario em sucesso/falha.
+- Validacao final: shell e tres arquivos quality_gates, 77 passed em 7,06s
+  com Bash 3.2; contratos shell, 73 passed em 5,60s com Bash 5.3. Ha
+  sobreposicao. Ambos shells executaram no macOS; Linux depende do job remoto.
+  Regressoes ampliadas no arquivo existente, sem novo arquivo de teste.
+- Revisao CodeRabbit concluida: perda de argumento corrigida; recomendacao
+  de adicionar RTK nao corresponde a requisito executavel e foi descartada.
+  O complemento teve revisao focada; nenhum wrapper de ferramenta foi incluido.
+- Contratos Windows/entrypoints/artefatos: 60 passed em 8,47s.
+- py_compile, Ruff e ty do teste alterado, ShellCheck e actionlint aprovados.
+  yamllint retorna 0 com avisos de comprimento de linha, sem erros de sintaxe.
+  Parser PowerShell e PSScriptAnalyzer: tres passos inline, zero problemas.
+- CI Lint remoto, dry_run com ref fix/audit-surgical-fixes: valid=true,
+  errors=[], warnings=[]; quatro jobs on_success e allow_failure=false.
+  A simulacao valida configuracao/agendamento; nao executa comandos dos jobs.
+- Wrapper real, com `.venv/bin/python`: tres gates ok, smoke 1 passed e
+  2985 deselected, retorno final 0 em 2,67s. A tentativa inicial do comando
+  local resolveu o symlink para o Python base e falhou por pandas/pytest
+  ausentes; corrigido somente o comando de validacao, sem instalar pacotes.
+  `quality-gates-local.log` preserva essa falha de ambiente e
+  `quality-gates-final.log` preserva a execucao correta.
+- Suite completa da aplicacao: manter como evidencia historica os 2969 passed
+  de `5b75f8f8` em L4. Nao apresentar esse resultado como reteste deste patch.
+
+### M3. Evidencias anteriores e bloqueios de integracao
+
+GitLab pipeline 2842491246, no dev e62a85bf: gates e scanner aprovados, mas
+pytest-full permaneceu manual e allow_failure=true. Esse verde nao inclui
+execucao da suite completa.
+
+GitHub runs 34667652301, 34667652285 e 34667652262: os sete jobs falhos
+possuem zero etapas e anotacao "The job was not started because your account
+is locked due to a billing issue.". O limite da conta nao e falha de YAML.
+
+O comando `uv run --no-sync python scripts/validate_git_authorship.py range
+origin/dev HEAD` retorna 1 no primeiro commit antigo rejeitado:
+`22ccae16d9c3049ec8cd35b505592119ab0e4fc8`. As 16 mensagens antigas
+continuam como pendencia historica. Mudar essas mensagens altera hashes e
+exige autorizacao especifica; nenhum gate foi afrouxado.
+
+O segundo GitHub aceita Git SSH, mas a conta autenticada no gh nao consegue
+consultar esse repositorio via API. Publicacao SSH e execucao de CI sao fatos
+diferentes. Novos resultados de publicacao/PR serao registrados abaixo.

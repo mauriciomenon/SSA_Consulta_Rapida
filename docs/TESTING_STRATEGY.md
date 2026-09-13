@@ -110,6 +110,52 @@ uv run --no-sync python scripts/run_quality_gates.py --extra-doc docs/README.md
 uv run --no-sync python scripts/run_quality_gates.py --skip check_docs
 ```
 
+## CI GitHub, GitLab e release Windows
+
+Configuracao da rodada de 13/09/2026, posterior a `b9672334`:
+
+- GitHub `minimal-ci`: push em main/dev, PR para main/dev e disparo manual.
+  Os cinco grupos verificam autoria e selecionam validacoes conforme o diff.
+  Um job impedido de iniciar por faturamento nao executou os testes.
+- GitLab: MR, branch padrao, disparo web e push em `fix/`. Havendo MR aberto,
+  o push da feature nao duplica sua pipeline de MR. Autoria, gates, suite
+  completa e scanner de segredos sao bloqueantes. `pytest-full` deixou de
+  ser manual/opcional; o limite do job e 30 minutos, com 45s por teste.
+  O setup instala Git para os contratos de inventario e hooks do repositorio.
+- Gates: `ci_quality_gates.sh` aceita `GATES_ARGS` com aspas, sem `eval`.
+  Argumentos vazios e nomes com LF sao preservados no Bash 3.2 e 5.3.
+  O parser usa NUL em temporario removido antes dos gates. Aspas invalidas encerram com
+  codigo 2 antes dos gates/smoke; falha funcional encerra com codigo 1.
+  O stdout/stderr capturado e exibido no log. O ultimo registro JSON continua
+  em `quality_gates_output.jsonl`; no GitLab, e preservado mesmo em falha.
+- Pytest no GitLab: JUnit em `pytest-results.xml`, preservado em sucesso/falha
+  por 14 dias. O arquivo so existe se pytest alcancar sua geracao; timeout do
+  processo ou falha de setup nao equivalem a teste aprovado.
+- Windows: a coleta de logs de falha vem depois da verificacao e do envio dos
+  artefatos. Assim, uma falha na verificacao final tambem pode preservar os
+  logs ja produzidos. YAML/PowerShell validos nao comprovam build executado.
+
+Comandos locais de diagnostico (ambiente ja sincronizado):
+
+```sh
+actionlint
+yamllint -d relaxed .github/workflows .gitlab-ci.yml
+shellcheck scripts/ci_quality_gates.sh
+PYTHON="$PWD/.venv/bin/python" QT_QPA_PLATFORM=offscreen bash scripts/ci_quality_gates.sh
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest tests/test_shell_ci_contracts.py tests/test_quality_gates_fail_paths.py -q
+uv run --no-sync python scripts/validate_git_authorship.py range origin/dev HEAD
+```
+
+Preserve o caminho `.venv/bin/python`; resolver o symlink ate o interpretador
+base remove o contexto do ambiente e pode causar dependencias ausentes.
+Conferir SHA, estado dos jobs e anexos antes de declarar aprovacao. O verificador
+usa o HEAD real do PR/MR e o intervalo do evento; um push incremental aprovado
+nao garante que o intervalo completo de uma PR esteja aprovado.
+
+Referencia da simulacao de pipeline:
+[CI Lint API](https://docs.gitlab.com/api/lint/).
+Resultados desta rodada e limites do servidor estao na secao M do relatorio.
+
 ## Markers Pytest
 Definidos em `pyproject.toml` (`tool.pytest.ini_options.markers`):
 - `integration`

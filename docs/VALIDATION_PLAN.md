@@ -6,7 +6,8 @@ separava a implementacao do reteste pesado. O pedido posterior autorizou
 reproducao e estabilizacao local caso a tentativa de modelo externo falhasse;
 essa tentativa falhou. A rodada K executou a suite completa em `0f239dac`,
 com documentacao publicada em `c30f87da`. A rodada vigente A-E parte de
-`c30f87da`; seu fechamento esta na secao L4 do relatorio.
+`c30f87da`; seu fechamento esta na secao L4 do relatorio. A rodada posterior de CI/CD
+parte de b9672334 e esta discriminada na secao M.
 Reteste final em `5b75f8f8`: 2969 passed, 9 skipped, 34 warnings e 11 subtests
 passed em 706,03s, retorno 0; 613 Python inalterados durante a execucao.
 Scanners amplos e ensaios nativos continuam separados. Os comandos abaixo sao
@@ -20,6 +21,22 @@ seguinte corrige oito falhas de producao, com 83 testes dos controladores e
 2938 passed, 9 skipped, 34 warnings e 11 subtests passed em 701,80s; exit 0.
 Os onze Python ficaram iguais durante aquela execucao; ver secao K. Esse
 placar e historico e nao aprova o diff A-E posterior.
+
+## Passagem de CI/CD para a PR
+
+Antes de repetir testes pesados, leia M em AUDIT_FIXES_REPORT.md. Confira o
+SHA da PR contra a branch publicada, a base dev e os jobs reais no servidor.
+GitLab agora agenda pushes fix/ e torna pytest-full automatico e bloqueante;
+o estado manual descrito nas rodadas antigas e historico. Preserve JUnit e
+JSONL, diferencie simulacao de pipeline de execucao e investigue qualquer
+falha a partir do log integral. Nao mude gates para esconder falhas.
+
+GitHub esta sujeito ao bloqueio de faturamento da conta. Depois de liberado,
+reexecute os jobs e confira tambem o intervalo completo da autoria. As
+mensagens antigas ainda impedem esse gate; corrigi-las exige autorizacao
+especifica para reescrever o historico publicado. Nenhuma reescrita integra
+a rodada atual. A PR atual foi solicitada pelo mantenedor; a restricao da
+passagem abaixo impede o proximo validador de abrir outra PR por conta propria.
 
 ## Pedido pronto para enviar ao outro modelo
 

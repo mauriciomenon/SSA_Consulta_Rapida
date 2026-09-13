@@ -51,6 +51,16 @@ resultado.
 [Plano de validacao da auditoria](docs/VALIDATION_PLAN.md) |
 [Relatorio de correcoes e estabilizacao de estado](docs/AUDIT_FIXES_REPORT.md)
 
+## CI e validacao
+
+O GitHub verifica PRs para `main`/`dev` e pushes nessas branches. O GitLab
+verifica MRs, a branch padrao, execucoes manuais e pushes em branches `fix/`;
+nessas execucoes, a suite completa e automatica e bloqueante. Os gates publicam
+diagnosticos e o GitLab preserva JSONL e relatorio JUnit por 14 dias.
+
+[Contratos e comandos de CI](docs/TESTING_STRATEGY.md#ci-github-gitlab-e-release-windows) |
+[Resultados e bloqueios da PR](docs/AUDIT_FIXES_REPORT.md#m-correcao-de-cicd-e-preparacao-da-pr)
+
 ## Distribuicao
 
 Esta versao disponibiliza fontes. Nenhum novo binario ou instalador acompanha esta publicacao.

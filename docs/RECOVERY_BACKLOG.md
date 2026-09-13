@@ -284,3 +284,23 @@ frequencia real. D foi exercitado com QTimer real em subprocesso: retorno -6
 antes e 0 depois, com busy=False; isso nao substitui uso visual multiplataforma.
 Proxima atividade: executar os ensaios nativos, plataformas e scanners amplos
 da passagem; a suite local e a correcao da fixture estao registradas em L4.
+
+
+## 2026-09-13 - CI/CD e PR apos b9672334
+
+- Corrigidos: parse de GATES_ARGS, array vazio no Bash 3.2, diagnosticos dos
+  gates, artefatos GitLab e ordem da coleta de falha do release Windows.
+- GitLab passa a agendar push em fix/ e a executar pytest-full automatico e
+  bloqueante; as entradas anteriores sobre job manual preservam o historico.
+- Validacao: 77 testes de shell/gates e 60 de Windows/entrypoints/artefatos,
+  lints locais e simulacao remota GitLab aprovados. Ver secao M do relatorio.
+- Pendente externo: regularizar faturamento GitHub e reexecutar Actions. Jobs
+  recentes possuem zero etapas; nao ha aprovacao remota GitHub da aplicacao.
+- Pendente de autorizacao especifica: corrigir as 16 mensagens antigas que
+  bloqueiam autoria no intervalo completo dev..HEAD. Sem excecao no gate,
+  force-push ou reescrita nesta rodada.
+- Nao executado nesta rodada: build nativo Windows e verificacao visual Qt.
+  Os demais ensaios de plataforma, desempenho e scanners da passagem continuam.
+
+Proxima atividade: publicar o patch, abrir a PR draft para dev e registrar
+separadamente o estado de cada pipeline e seus bloqueios reais.
