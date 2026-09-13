@@ -102,6 +102,7 @@ class PreferencesWriter:
             logger.exception("Falha inesperada no gravador de preferencias GUI")
         finally:
             with self._lock:
+                self._write_failed = self._write_failed or self._pending is not None
                 self._stopped = True
                 self._terminated.set()
                 self._lock.notify_all()

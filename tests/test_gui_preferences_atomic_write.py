@@ -209,6 +209,34 @@ def test_preferences_writer_reports_unexpected_failure(monkeypatch):
     assert errors == ["Falha inesperada no gravador de preferencias GUI"]
 
 
+def test_preferences_writer_flush_rejects_pending_after_early_termination():
+    from gui.ssa.gui_preferences_persistence import PreferencesWriter
+
+    def write(data, *, retries):
+        pytest.fail("A falha na espera deve ocorrer antes da escrita")
+
+    writer = PreferencesWriter(write, debounce_seconds=float("inf"))
+    try:
+        assert writer.persist_async({"version": 1})
+        assert writer._terminated.wait(1.0)
+        assert writer._pending == {"version": 1}
+        with pytest.raises(OSError, match="ultima gravacao"):
+            writer.flush(timeout=None)
+    finally:
+        assert writer.shutdown(timeout=1.0)
+
+
+def test_preferences_writer_flush_confirms_empty_shutdown():
+    from gui.ssa.gui_preferences_persistence import PreferencesWriter
+
+    def write(data, *, retries):
+        pytest.fail("Encerrar o escritor vazio nao deve iniciar escrita")
+
+    writer = PreferencesWriter(write)
+    assert writer.shutdown(timeout=1.0)
+    assert writer.flush(timeout=None) is True
+
+
 def test_preferences_writer_flush_confirms_disk_write_and_later_recovery():
     from gui.ssa.gui_preferences_persistence import PreferencesWriter
 
