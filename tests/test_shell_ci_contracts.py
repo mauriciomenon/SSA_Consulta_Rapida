@@ -548,11 +548,25 @@ def test_ci_quality_gates_parses_gate_args_with_quotes(
 
 
 @NATIVE_POSIX_ONLY
-def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("addopts", "expected_code"),
+    [
+        ('--collect-only -k "cache manager"', 0),
+        ("", 0),
+        ("   ", 0),
+        ("-k ''", 0),
+        ("-k '' --collect-only", 0),
+        ('-k "linha 1\nlinha 2\n"', 0),
+        ('-k "aspas incompletas', 2),
+    ],
+)
+def test_run_tests_parses_pytest_addopts_with_quotes(
+    tmp_path: Path, addopts: str, expected_code: int
+) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
 
-    capture = tmp_path / "argv.txt"
+    capture = tmp_path / "argv.json"
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_python = fake_bin / "python"
@@ -562,7 +576,9 @@ def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
         "if [[ \"${1:-}\" == \"-\" ]]; then\n"
         "  exec \"$REAL_PYTHON\" \"$@\"\n"
         "fi\n"
-        "printf '%s\\n' \"$@\" > \"$RUN_TESTS_CAPTURE\"\n",
+        "\"$REAL_PYTHON\" -c 'import json, os, sys; "
+        "print(json.dumps({\"argv\": sys.argv[1:], \"addopts\": os.environ[\"PYTEST_ADDOPTS\"]}))' "
+        "\"$@\" > \"$RUN_TESTS_CAPTURE\"\n",
         encoding="utf-8",
     )
     fake_python.chmod(0o755)
@@ -575,22 +591,21 @@ def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
         check=False,
         env=_test_env(
             PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
-            PYTEST_ADDOPTS='--collect-only -k "cache manager"',
+            PYTEST_ADDOPTS=addopts,
             REAL_PYTHON=sys.executable,
             RUN_TESTS_CAPTURE=str(capture),
         ),
     )
 
-    assert result.returncode == 0, result.stderr
-    assert capture.read_text(encoding="utf-8").splitlines() == [
-        "-m",
-        "pytest",
-        "--cache-clear",
-        "-q",
-        "--collect-only",
-        "-k",
-        "cache manager",
-    ]
+    assert result.returncode == expected_code, result.stderr
+    if expected_code == 2:
+        assert "PYTEST_ADDOPTS invalido" in result.stderr
+        assert not capture.exists()
+        return
+    assert json.loads(capture.read_text(encoding="utf-8")) == {
+        "argv": ["-m", "pytest", "--cache-clear", "-q"],
+        "addopts": addopts,
+    }
 
 
 def test_run_tests_does_not_expand_pytest_addopts_unquoted() -> None:
@@ -598,7 +613,8 @@ def test_run_tests_does_not_expand_pytest_addopts_unquoted() -> None:
 
     assert '"${base_cmd[@]}" ${PYTEST_ADDOPTS:-}' not in script
     assert "shlex.split" in script
-    assert '"${base_cmd[@]}" "${pytest_extra_opts[@]}"' in script
+    assert '"${base_cmd[@]}"' in script
+    assert "pytest_extra_opts" not in script
 
 
 def test_secret_scan_hook_loop_safety_and_log_hygiene() -> None:
