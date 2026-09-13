@@ -10,11 +10,18 @@ import pytest
 from utils.robust_logging import RobustLogger
 
 
-def _release_root_handlers() -> None:
+def _release_root_handlers(robust_logger: RobustLogger) -> None:
     root_logger = logging.getLogger()
+    errors: list[Exception] = []
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-        handler.close()
+        try:
+            handler.close()
+        except Exception as exc:
+            errors.append(exc)
+    robust_logger.loggers.clear()
+    if errors:
+        raise RuntimeError(f"Falha ao fechar handlers de teste: {errors!r}") from errors[0]
 
 
 def test_relative_log_dir_anchors_at_ssa_runtime_root(
@@ -38,8 +45,7 @@ def test_relative_log_dir_anchors_at_ssa_runtime_root(
             for filename in handler_filenames
         ), handler_filenames
     finally:
-        _release_root_handlers()
-        robust_logger.loggers.clear()
+        _release_root_handlers(robust_logger)
 
 
 def test_relative_log_dir_falls_back_to_package_root(
@@ -59,5 +65,4 @@ def test_relative_log_dir_falls_back_to_package_root(
             for filename in handler_filenames
         ), handler_filenames
     finally:
-        _release_root_handlers()
-        robust_logger.loggers.clear()
+        _release_root_handlers(robust_logger)
