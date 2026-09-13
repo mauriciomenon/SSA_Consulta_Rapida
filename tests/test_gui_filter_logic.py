@@ -14140,32 +14140,51 @@ class TestGUIFilterLogic:
         assert first_worker.deleted is True
         assert second_worker.start_called is True
 
-    def test_initiate_filtering_aborts_when_critical_signal_connection_fails(self):
+    @pytest.mark.parametrize(
+        "failure_stage",
+        ["constructor", "token", "result_signal", "error_signal", "finished_signal", "retention", "start"],
+    )
+    def test_initiate_filtering_recovers_after_worker_setup_failure(self, failure_stage):
         self.window._sync_filtering = False
         self.window.search_input.setText("Teste")
+        failures_enabled = True
+        workers = []
+
+        def _fail_at(stage):
+            if failures_enabled and failure_stage == stage:
+                raise RuntimeError(f"Falha sintetica em {stage}")
 
         class _FakeSignal:
-            def __init__(self):
+            def __init__(self, stage):
                 self._callbacks = []
+                self.stage = stage
 
             def connect(self, callback):
+                _fail_at(self.stage)
                 self._callbacks.append(callback)
 
             def disconnect(self, _callback=None):
                 self._callbacks.clear()
 
+            def emit(self, *args):
+                for callback in list(self._callbacks):
+                    callback(*args)
+
         class _FakeWorker:
             def __init__(self, *_args, **_kwargs):
-                self.filter_finished = _FakeSignal()
-                self.error_occurred = _FakeSignal()
-                self.finished = _FakeSignal()
+                _fail_at("constructor")
+                self.filter_finished = _FakeSignal("result_signal")
+                self.error_occurred = _FakeSignal("error_signal")
+                self.finished = _FakeSignal("finished_signal")
                 self.start_called = False
                 self.quit_called = False
                 self.wait_called_ms = None
                 self.deleted = False
                 self._running = False
+                workers.append(self)
 
             def start(self):
+                _fail_at("start")
                 self.start_called = True
                 self._running = True
 
@@ -14183,22 +14202,70 @@ class TestGUIFilterLogic:
             def deleteLater(self):
                 self.deleted = True
 
-        def _connect_side_effect(_signal, _slot, *, label, **_kwargs):
-            if label == "filter_worker.filter_finished":
-                return False
-            return True
+        original_token = self.window._build_filter_worker_df_token
+        original_retain = self.window._retain_filter_worker_until_finished
 
-        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _FakeWorker):
-            with patch(
-                "gui.mixins.filter_gui_ssa_mixin._connect_filter_signal",
-                side_effect=_connect_side_effect,
-            ):
-                self.window.initiate_filtering()
+        def _build_token(source):
+            _fail_at("token")
+            return original_token(source)
 
-        assert self.window.filter_thread is None
+        def _retain(worker):
+            original_retain(worker)
+            _fail_at("retention")
+
+        with (
+            patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _FakeWorker),
+            patch.object(self.window, "_build_filter_worker_df_token", _build_token),
+            patch.object(self.window, "_retain_filter_worker_until_finished", _retain),
+        ):
+            self.window.initiate_filtering()
+            failed_request_id = self.window._active_filter_request_id
+
+            assert self.window.filter_thread is None
+            assert self.window.status_label.text() == "Status: Erro ao aplicar filtro."
+            assert self.window.progress_bar.isVisible() is False
+            assert self.window.load_button.isEnabled() is True
+            assert self.window.search_button.isEnabled() is True
+            assert self.window._filter_worker_registry.snapshot() == []
+            assert all(worker.deleted and not worker.start_called for worker in workers)
+
+            failures_enabled = False
+            self.window.initiate_filtering()
+            worker = self.window.filter_thread
+            assert worker.start_called is True
+            assert self.window._active_filter_request_id > failed_request_id
+            worker._running = False
+            worker.filter_finished.emit(self.base_df.iloc[[0]].copy())
+            worker.finished.emit()
+
+        assert worker.deleted is True
+        assert worker.isRunning() is False
+        assert self.window._filter_worker_registry.snapshot() == []
+        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [1]
+        assert self.window.progress_bar.isVisible() is False
+        assert self.window.search_button.isEnabled() is True
+
+    @pytest.mark.parametrize(
+        "method_name",
+        ["_prepare_search_chunks", "_select_general_filter_source_candidate", "_get_default_filter_mode", "_get_filter_source_dataframe"],
+    )
+    def test_initiate_filtering_recovers_after_preparation_failure(self, method_name):
+        self.window.search_input.setText("Teste A")
+        self.window._filter_ui_state().set_busy()
+        with patch.object(self.window, method_name, side_effect=RuntimeError("Falha sintetica de preparo")):
+            self.window.initiate_filtering()
+        failed_request_id = self.window._active_filter_request_id
+
         assert self.window.status_label.text() == "Status: Erro ao aplicar filtro."
         assert self.window.progress_bar.isVisible() is False
         assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+
+        self.window.initiate_filtering()
+
+        assert self.window._active_filter_request_id > failed_request_id
+        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [1]
+        assert self.window.progress_bar.isVisible() is False
         assert self.window.search_button.isEnabled() is True
 
     def test_retain_filter_worker_releases_immediately_when_release_hook_fails(self):
