@@ -9,6 +9,11 @@ suite completa, scanners, desempenho e uso visual nos sistemas suportados.
 Registrar resultados por comando e revisao do codigo; nao reutilizar contagens
 de uma rodada anterior como aprovacao de alteracoes novas.
 
+Ao selecionar por `-k`, conferir que os casos criticos aparecem na coleta.
+`close_event` nao seleciona `test_forced_close_disconnects_pending_workers`;
+para regressao conhecida, usar tambem o node ID completo indicado na passagem.
+Registrar o retorno da ferramenta original, sem perde-lo em pipes para tail/tee.
+
 ## Piramide de Testes (Alvo)
 - Unidade (rapidos, puros, sem IO pesado) ~60%
 - Integracao (SQLite + scripts + normalizacao) ~30%

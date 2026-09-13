@@ -176,8 +176,12 @@ sobrepostas. Nenhum caso novo de teste foi escrito nesta implementacao.
 
 Pendencias reais para o proximo modelo:
 
-1. Suite completa e scanners amplos; classificar regressao, passivo anterior,
-   falha de ferramenta e timeout separadamente. Registrar SHA/ambiente/comandos.
+1. Repetir suite completa no HEAD posterior ao ajuste do teste de fechamento.
+   zcode informou 2923 passed, 1 failed, 9 skipped no 0beceb58; falha reproduzida
+   e corrigida, com 27 casos locais aprovados. Registrar novo SHA e resultado.
+   Scanners amplos restantes continuam pendentes; distinguir erro de ferramenta,
+   timeout e achado. Dois ERROR Semgrep foram classificados externamente como
+   falsos positivos, ainda sem revalidacao da saida bruta neste complemento.
 2. Reproducoes da matriz da passagem, incluindo N8 A-expira/B-pronto/A-tardio,
    N7 preferencias/timers e N11 Qt/derivadas depois de preferencias.
 3. Uso nativo e capturas em plataformas acessiveis; medir CPU/RSS/tempo dos
@@ -198,3 +202,20 @@ Pendencias reais para o proximo modelo:
 Proxima atividade: executar VALIDATION_PLAN.md no HEAD recebido e publicar laudo
 com antes/depois, resultados comprovados, limites e pendencias. Esta passagem nao
 autoriza mudar politica, criar branch/PR/worktree, aplicar merge ou reescrever Git.
+
+
+## 2026-09-13 - Retorno zcode e Devin/Kimi K3
+
+Correcao aplicada: somente a preparacao de
+`test_forced_close_disconnects_pending_workers` passou a registrar o worker
+como operacao anterior. Codigo de producao e assercoes preservados.
+Antes: 1 failed isolado. Depois: py_compile/Ruff/ty e 27 testes focados aprovados.
+
+A selecao anterior da passagem e a selecao de 22 casos do Devin excluiam o
+teste pelo nome. VALIDATION_PLAN.md agora inclui o caso e o de novo episodio
+explicitamente. AUDIT_FIXES_REPORT.md, secao J, compara as evidencias e corrige
+a interpretacao de suite/scanners/inspecao. Artefato .patch.md permanece local;
+usar git diff, sem depender do nome errado citado numa mensagem antiga.
+
+Proxima atividade: executar a suite completa no HEAD corrigido e entregar os
+resultados dos scanners pendentes, sem reescrever historico ou alterar A5.

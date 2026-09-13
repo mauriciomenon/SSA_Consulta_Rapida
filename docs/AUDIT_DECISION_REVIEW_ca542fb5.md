@@ -188,3 +188,22 @@ Os quatro commits de codigo foram publicados por push normal nos tres destinos.
 A documentacao e consolidada em commit posterior. A referencia para antes/depois,
 validacao efetiva e pendencias e AUDIT_FIXES_REPORT.md. O diagnostico historico
 deste laudo nao e autorizacao de reescrita nem atestado de defeitos ainda atuais.
+
+
+## Complemento dos retornos sobre 0beceb58
+
+O zcode informou suite completa com 2923 passed, 1 failed, 9 skipped e 11
+subtests. O Devin informou apenas uma selecao de 22 casos aprovada; ela nao
+continha o teste de fechamento forcado que falhou. Os pareceres nao demonstram
+resultados contraditorios sobre a mesma selecao.
+
+A falha foi reproduzida localmente. O teste simulava prazo antigo sem registrar
+a identidade da operacao anterior. Uma linha foi acrescentada a sua preparacao,
+mantendo o comportamento N11 e as assercoes de aceitacao/desconexao.
+Compilacao/Ruff/ty e 27 testes focados passaram. A suite completa do novo HEAD
+continua pendente. O relato detalhado e a passagem atualizada estao na secao J
+de AUDIT_FIXES_REPORT.md e em VALIDATION_PLAN.md.
+
+A divergencia do artefato de diff apontada pelo Devin pertence a uma mensagem
+antiga: .patch nao era o nome real. .patch.md e local/ignorado; a fonte
+reproduzivel para outro checkout e git diff. Nenhuma API foi removida.

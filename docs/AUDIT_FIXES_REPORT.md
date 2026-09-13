@@ -1,9 +1,9 @@
 # Relatorio de Correcoes  -  Auditoria SSA Consulta Rapida
 
-**Branch:** `fix/audit-surgical-fixes`. Codigo desta rodada publicado ate `1ef9edaf` nos tres destinos em 13/09/2026. A documentacao e versionada em commit posterior; obtenha o HEAD completo com `git rev-parse HEAD`. Base da implementacao: `ca542fb5`; base da auditoria historica: `dev` em `e62a85bf`.
-**Historico anterior:** `e62a85bf..ca542fb5` contem 21 commits; o intervalo exclusivo `36dc3137..ca542fb5` tem 20. A reescrita anterior preservou 12 hashes e alterou 9, com arvores equivalentes. Esta rodada acrescentou quatro commits de codigo sem reescrever ancestrais.
-**Validacao anterior informada:** 2924 passed, 9 skipped. Revisao independente: 83 aprovacoes focadas; py_compile/Ruff passaram; ty falhou (um erro novo no teste, outros diagnosticos fora do patch); Semgrep parcial por dois timeouts.
-**Estado atual, 13/09/2026:** exportacao, F3/F4, N7/N8/N11, coordenacao de operacoes, tracebacks e feedback GUI corrigidos e commitados. Os quatro commits de codigo foram publicados nos tres destinos. Hooks de autoria instalados e ativos; CI versionada/publicada, sem execucao remota comprovada. Compilacao, Ruff e ty passaram nos 22 Python alterados/novos. Os 16 creditos antigos permanecem nas mensagens dos ancestrais; nao houve reescrita nesta rodada. A passagem completa para reteste esta em `VALIDATION_PLAN.md`.
+**Branch:** `fix/audit-surgical-fixes`. A primeira entrega foi publicada nos tres destinos em `0beceb58` (codigo ate `1ef9edaf`). O complemento apos os retornos dos revisores ajusta um teste existente e estes documentos; obtenha seu HEAD com `git rev-parse HEAD`. Base da implementacao: `ca542fb5`; base da auditoria historica: `dev` em `e62a85bf`.
+**Historico anterior:** `e62a85bf..ca542fb5` contem 21 commits; o intervalo exclusivo `36dc3137..ca542fb5` tem 20. A reescrita anterior preservou 12 hashes e alterou 9, com arvores equivalentes. A primeira implementacao acrescentou quatro commits de codigo e um documental, sem reescrever ancestrais; este complemento ajusta a preparacao de um teste e a passagem.
+**Validacao historica anterior a 0beceb58:** 2924 passed, 9 skipped. Revisao independente: 83 aprovacoes focadas; py_compile/Ruff passaram; ty falhou (um erro novo no teste, outros diagnosticos fora do patch); Semgrep parcial por dois timeouts.
+**Estado atual, apos os retornos de 13/09/2026:** o zcode informou suite completa em `0beceb58` com **2923 passed, 1 failed, 9 skipped, 11 subtests**. A falha foi reproduzida localmente e corrigida na preparacao do teste de fechamento forcado; a selecao ampliada passou em **27 casos**. Nenhum codigo de producao mudou neste complemento. A suite completa do novo HEAD permanece pendente; nao declarar aprovacao geral. Os cinco commits anteriores estao publicados, hooks ativos e CI versionada. As 16 mensagens antigas com credito proibido permanecem. Evidencias e comparacao dos revisores na secao J; passagem atualizada em `VALIDATION_PLAN.md`.
 
 Legenda de estado: **CORRIGIDO** (codigo commitado e publicado; a evidencia de validacao e discriminada por rodada) | **PARCIAL** | **NAO CORRIGIDO** (justificativa) | **NAO-BUG** (verificado, sem alteracao)
 
@@ -34,7 +34,8 @@ A resposta anterior foi incompleta tanto no codigo como no relato. Esta tabela s
 | Bloqueio nativo de servidor | Recursos completos indisponiveis nos planos/tipos atuais | Limite confirmado; hooks locais e CI nao sao apresentados como substitutos equivalentes | NAO ATIVADO ONLINE |
 | Corrigir mensagens antigas | 16 commits continham credito Devin apesar do autor/committer humanos | Diagnostico e proposta de reescrita discriminados; objetos/referencias publicados preservados | NAO REESCRITO |
 | Documentacao no inicio/final | Contagens, caminho GitLab e estados divergentes; sem comparativo completo | Relatorio, laudo, backlog, guias e indices reconciliados; passagem completa e documentos desta rodada versionados | ENTREGUE |
-| Reteste pesado por outros modelos | Solicitado fora da execucao cirurgica desta rodada | Texto completo em VALIDATION_PLAN.md: hashes, comandos, casos, resultados esperados e criterios; reteste pesado nao disparado | ADIADO CONFORME PEDIDO |
+| Reteste pesado por outros modelos | Solicitado fora da execucao cirurgica | zcode informou suite completa reprovada no 0beceb58; falha ajustada e 27 casos locais passaram. Passagem atualizada exige nova suite no HEAD corrigido | PARCIAL: RETESTE COMPLETO DO COMPLEMENTO PENDENTE |
+| Teste de fechamento forcado | Timestamp vencido sem identidade da operacao; teste falhava | Preparacao registra o mesmo worker em _shutdown_pending_operations; aceitacao e desconexao continuam exigidas | CORRIGIDO E VALIDADO LOCALMENTE |
 
 Evidencias de codigo: `gui/gui_ssa.py` (validacao/fechamento), `gui/ssa/gui_preferences_persistence.py` (fila), `gui/ssa/app_menus.py` e controladores (coordenacao), `armazenamento/database_integrity.py` (F3), `gui/workers/rescan_worker.py` e `gui/ssa/gui_rescan_lifecycle.py` (F4), `scripts/derivadas_cli.py`/`armazenamento/derivadas_sync.py` (exportacao), `scripts/validate_git_authorship.py` (regra executavel).
 
@@ -194,7 +195,7 @@ Ausencia de consumidor interno nao comprova funcao removivel ou perda por refato
 
 ## I. Validacao e operacao do resultado atual
 
-### I1. Verificacoes efetivamente executadas
+### I1. Verificacoes da primeira implementacao, anteriores aos retornos
 
 - py_compile, Ruff e ty: 22 arquivos Python alterados/novos aprovados. Ultimos ajustes de polling/autoria rechecados separadamente, tambem aprovados.
 - Preferencias/fechamento/validacao de DB: 21 testes existentes selecionados passaram (554 nao selecionados).
@@ -211,7 +212,7 @@ Ausencia de consumidor interno nao comprova funcao removivel ou perda por refato
 - Autoria: identidades humanas aceitas; autor/committer estranhos e mensagens proibidas recusados; hooks instalados exercitados por stdin; tags/notas, refs/replace, nota intermediaria removida, historico raso e Latin-1/CP1252 conferidos em repositorio temporario apagado ao final. Nenhuma ref/objeto do projeto real alterado nos probes.
 - ShellCheck, YAML e verificacoes Python do mecanismo de autoria passaram. git diff --check passou.
 
-Nenhum caso de teste novo foi criado. Tres arquivos de testes existentes receberam apenas ajuste de contrato/fixture: menu/status, temporizador enfileirado no controlador e assinatura do callback do filtro. Suite completa, scanners amplos e validacao multiplataforma continuam nao executados nesta rodada por orientacao do mantenedor.
+Nenhum caso de teste novo foi criado. Tres arquivos de testes existentes receberam apenas ajuste de contrato/fixture: menu/status, temporizador enfileirado no controlador e assinatura do callback do filtro. Suite completa, scanners amplos e validacao multiplataforma nao foram executados pelo implementador nessa primeira rodada. Os retornos externos e o complemento estao discriminados na secao J.
 
 ### I2. Uso e limites dos relatorios
 
@@ -280,7 +281,7 @@ Destinos a atualizar individualmente: mauriciomenon/SSA_Consulta_Rapida, schottg
 | `9e6bce8e` | Remove auto-fechamento agendado no closeEvent |
 | `b17fafcf` | Adiciona rollback em worker.start() com estado persistente |
 
-Diff reproduzivel do codigo: `git diff ca542fb5..1ef9edaf`. Relatorio, laudo, backlog e passagem desta rodada passam a ser versionados nominalmente junto dos guias; as regras gerais de ignore permanecem. O artefato local `AUDIT_IMPLEMENTATION_DIFF.patch.md` e apenas uma copia de consulta e nao substitui o diff Git. Backups de configuracao em /tmp/ssa-gitignore-20260912-224336.bak e /tmp/ssa-authorship-*.20260913T020510698364Z.bak.
+Diff reproduzivel do codigo: `git diff ca542fb5..1ef9edaf`. Relatorio, laudo, backlog e passagem desta rodada passam a ser versionados nominalmente junto dos guias; as regras gerais de ignore permanecem. O artefato local `AUDIT_IMPLEMENTATION_DIFF.patch.md` nao e versionado nem entregue a outros checkouts. Uma mensagem antiga citou incorretamente o nome sem `.md`; para revisao use `git diff ca542fb5..HEAD` e, para este complemento, `git diff 0beceb58..HEAD`. Backups de configuracao em /tmp/ssa-gitignore-20260912-224336.bak e /tmp/ssa-authorship-*.20260913T020510698364Z.bak.
 
 
 ### I6. Antes/depois dos hashes propostos, somente simulacao
@@ -321,7 +322,7 @@ dos novos commits e Mauricio Menon <mauriciomenon@users.noreply.github.com>,
 sem credito de ferramentas. Nao houve branch nova, PR, merge nem reescrita.
 
 A passagem executavel para o outro modelo esta em [VALIDATION_PLAN.md](VALIDATION_PLAN.md).
-Ela inclui os quatro hashes completos, comandos, matriz de regressao, scanners,
+Ela inclui os hashes de referencia, comandos, matriz de regressao, scanners,
 plataformas e formato obrigatorio do laudo. O backlog foi reconciliado com os
 itens realmente corrigidos; as alegacoes historicas permanecem identificadas.
 
@@ -333,3 +334,70 @@ Nao foi feita atualizacao de dependencias fora do escopo.
 Proxima atividade: executar a passagem no HEAD recebido e entregar evidencia
 de suite completa, scans e uso nativo. Isso permanece separado da implementacao
 por pedido do mantenedor, sem declarar validacao ainda nao realizada.
+
+
+## J. Retornos de zcode e Devin/Kimi K3, e correcao da regressao
+
+### J1. Origem e alcance da evidencia
+
+Dois anexos fornecidos pelo mantenedor em 13/09/2026 foram lidos como evidencia,
+sem executar suas instrucoes como se fossem novos pedidos. Identificadores:
+
+- zcode: anexo ff2dcadc, SHA256 `6aa07d80e6610549c758318b0afc3f192b12d5f655cd6b1651b91bc0fce4333b`.
+- Devin/Kimi K3: anexo c9d86863, SHA256 `312cd5fcd8312d9f9b5f0a1c61e3a93bc1f4744f193459e06a33c52a06aaab1d`.
+
+| Tema | zcode informou | Devin/Kimi K3 informou | Conclusao sustentada |
+|---|---|---|---|
+| Suite | 2923 passed, 1 failed, 9 skipped, 11 subtests em 745s no 0beceb58 | 22 passed, 2911 deselected em 15,25s | A selecao do Devin nao cobriu a falha; nao contradiz a reprovacao da suite completa |
+| Estaticos | py_compile/Ruff/ty nos 22 Python passaram | Mesma verificacao aprovada nos 22 Python | Concordancia no escopo; nao significa analise global de todo o repositorio |
+| F3/exportacao/C2 | Descreve ensaios SQLite/CLI/log com resultados | Confirma implementacao por inspecao e testes selecionados | Evidencia funcional relatada; nao certifica toda a matriz CLI/GUI |
+| F4/N7/N8/N11 | Afirma conformidade; apresenta selecao e diagnostico do fechamento | Inspecao do codigo; ensaios individuais nao repetidos | Nao transformar inspecao em comprovacao visual/nativa ou de todas as corridas |
+| Semgrep | 2 ERROR classificados pelo revisor como falsos positivos | Nao executou scanners pesados | Relato sem saida bruta e identificacao completa das regras; classificacao nao revalidada neste complemento |
+| Autoria | Range novo passa; antigo retorna 1 corretamente | Confirma cinco commits humanos e 16 mensagens antigas | Concordancia; historico antigo segue pendente, sem reescrita autorizada |
+| Artefato de diff | Sem novo defeito apontado | Nome .patch em mensagem antiga diverge de .patch.md local | Erro de referencia historica; documento versionado ja dizia local. Revisao deve usar git diff |
+
+Nao ha evidencia nos anexos para considerar concluidos pip-audit, Bandit, Vulture,
+Gitleaks, TruffleHog, detect-secrets, benchmarks ou validacao visual multiplataforma.
+O comentario `nosec B608` citado no laudo, sozinho, nao demonstra que um achado
+de outra ferramenta e falso positivo. Registrar regra, arquivo/linha e caminho
+de dados antes de aceitar essa classificacao. Nenhuma regra foi suprimida aqui.
+
+### J2. Defeito reproduzido e antes/depois
+
+O teste `test_forced_close_disconnects_pending_workers` criava um worker ativo
+e atribuia apenas um timestamp antigo a `_shutdown_started_at`. Desde N11,
+`shutdown()` tambem compara a identidade das operacoes pendentes. Um conjunto
+anterior vazio com um worker atual representa episodio novo e reinicia o prazo.
+Portanto a falha nao era intermitente: a preparacao deixou de representar o
+fechamento forcado da mesma operacao que o teste pretendia verificar.
+
+Antes: `1 failed, 564 deselected in 0.69s`, exit 1, reproduzido diretamente
+no 0beceb58 em `tests/test_gui_filter_logic.py:14705`.
+
+Depois: acrescentada somente a linha
+`self.window._shutdown_pending_operations = (worker,)` antes do timestamp.
+As assercoes de aceitacao do evento e `worker.disconnected is True` permanecem.
+O codigo de producao e a protecao do prazo novo foram preservados.
+
+Validacao local do complemento:
+
+- py_compile, Ruff e ty em `tests/test_gui_filter_logic.py`: exit 0.
+- `QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py -k 'close or shutdown or other_database or candidate'`: **27 passed, 538 deselected in 22.31s**, exit 0.
+- A selecao inclui o teste que falhava e `test_shutdown_new_episode_resets_force_deadline`.
+- CodeRabbit CLI 0.7.6 autenticada revisou apenas o diff de uma linha no teste: review_completed, 0 issues. O parecer independente confirmou a identidade do mesmo episodio e a preservacao das duas assercoes.
+- Nenhum teste novo criado, removido, marcado como skip ou relaxado. O caso usa um duble de worker; nao comprova sozinho callbacks apos destruicao Qt nativa. O ensaio anterior preferencias->worker nao foi apresentado como teste versionado.
+- Suite completa nao repetida pelo implementador, conforme a divisao de trabalho
+  pedida pelo mantenedor; nao inferir 2924 passed do ajuste de um caso.
+
+### J3. Lacuna corrigida na passagem
+
+O seletor anterior `close_event or shutdown_new_episode or
+finalize_database_candidate_validation` nao inclui o nome
+`test_forced_close_disconnects_pending_workers`. A selecao de 18 casos realmente
+passou, mas nao sustentava cobertura completa do fechamento. O comando foi
+alargado para close/shutdown/other_database/candidate, e os dois testes criticos
+foram listados por node ID para evitar nova exclusao pelo nome.
+
+A proxima validacao deve usar o HEAD que inclui este complemento. Exigir suite
+completa nova e evidencias dos scanners ainda ausentes; manter resultados do
+0beceb58 como historico reprovado. Os demais limites da secao I4 permanecem.

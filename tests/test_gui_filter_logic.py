@@ -14697,6 +14697,7 @@ class TestGUIFilterLogic:
 
         worker = _AliveWorker()
         self.window._active_pai_api_worker = worker
+        self.window._shutdown_pending_operations = (worker,)
         self.window._shutdown_started_at = time.monotonic() - 9999
 
         event = QCloseEvent()

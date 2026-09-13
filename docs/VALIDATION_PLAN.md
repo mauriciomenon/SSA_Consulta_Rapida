@@ -6,6 +6,11 @@ separar a implementacao cirurgica do reteste completo e dos scanners pesados.
 Os comandos abaixo sao trabalho da proxima rodada, salvo quando explicitamente
 identificados como ja executados.
 
+Atualizacao apos os retornos: zcode informou 2923 passed, 1 failed, 9 skipped
+e 11 subtests no 0beceb58. A falha de preparacao do teste de fechamento forcado
+foi reproduzida e ajustada; 27 testes locais passaram. A suite completa do HEAD
+corrigido ainda precisa ser executada. Detalhes na secao J do relatorio.
+
 ## Pedido pronto para enviar ao outro modelo
 
 Valide integralmente as correcoes desta branch e produza um laudo com evidencias.
@@ -24,7 +29,8 @@ Os commits de codigo a validar sao:
 | `9548f41eef323ec76b595dbb71e1f815c97cb48a` | Exportacoes, F4, N7/N8/N11, menus e feedback |
 | `1ef9edafa507a89d12a2f8982c404907cd894c78` | C2: traceback ASCII em texto e JSON |
 
-Use o HEAD da branch que contem esses quatro commits e os documentos seguintes;
+Use o HEAD da branch que contem esses quatro commits, o documento 0beceb58 e
+o complemento que identifica o worker no teste de fechamento forcado;
 registre o SHA completo antes de qualquer validacao. O hash do commit que contem
 este proprio documento deve ser obtido do Git, sem presumir um valor no texto.
 Nao crie branch, worktree, PR, merge ou reescrita do historico. Nao altere a
@@ -37,6 +43,10 @@ de executar; reproduza e relate falhas antes de propor qualquer novo patch.
 Execute cada comando separadamente, guardando saida, erro, codigo de retorno,
 duracao, versao da ferramenta, sistema operacional e arquitetura. Um timeout,
 comando indisponivel, coleta vazia ou erro de ambiente nao conta como aprovacao.
+Nao capture o retorno de `tail` ou `tee` como se fosse o retorno da ferramenta;
+execute sem pipe ou preserve explicitamente o status do comando original.
+Para comparar esta revisao use `git diff 0beceb58..HEAD`; o arquivo local
+AUDIT_IMPLEMENTATION_DIFF.patch.md nao e versionado nem necessario a revisao.
 
 ```sh
 git status --short
@@ -83,8 +93,14 @@ se sobrepoem como se fossem casos distintos. Para diagnostico focado:
 
 ```sh
 QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_derivadas_cli.py tests/test_derivadas_sync_controller.py tests/test_derivadas_sync_job.py tests/test_database_verification.py tests/test_rescan_worker_advanced.py tests/test_rescan_worker_cleanup.py tests/test_rescan_progress_dialog.py tests/test_gui_preferences_atomic_write.py tests/test_filter_ui_state.py tests/test_ascii_logging_filter.py tests/test_gui_menu_import_external.py
-QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py -k 'close_event or shutdown_new_episode or finalize_database_candidate_validation'
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py -k 'close or shutdown or other_database or candidate'
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py::TestGUIFilterLogic::test_forced_close_disconnects_pending_workers tests/test_gui_filter_logic.py::TestGUIFilterLogic::test_shutdown_new_episode_resets_force_deadline
 ```
+
+O seletor antigo com `close_event` excluia `forced_close_disconnects_pending_workers`.
+Os node IDs acima garantem verificar a desconexao apos o prazo da mesma operacao
+e o reinicio do prazo para uma operacao diferente. Nao remover um caso para
+conseguir suite verde.
 
 ## Casos obrigatorios e resultado esperado
 
@@ -110,7 +126,7 @@ QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_fi
 | N8 | A expira, B conclui, A entrega depois | Apenas B aplicado uma vez; resultado pronto de B nao apagado |
 | N7 flag/timers | X durante worker, fechamento adiado | Flag restaurada, timers vivos, filtros e conclusoes continuam funcionando |
 | N7 preferencias | Escrita 1 bloqueada, flush expira, salvar 2, liberar escrita | Fila aceita 2 e grava [1,2]; nao inicia segundo escritor concorrente |
-| N7 aceite | Fechar normalmente e pelo prazo da mesma operacao | Flag ativa no aceite; fila recebe shutdown apenas no fechamento aceito |
+| N7 aceite | Fechar normalmente e pelo prazo da mesma operacao; no teste forcado, registrar o mesmo worker como operacao anterior | Flag ativa no aceite, sinais desconectados; fila recebe shutdown apenas no fechamento aceito |
 | N11 Qt/derivadas | Operacao A termina, B nova; primeiro X em B | Prazo novo, incluindo transicao de preferencias para Qt/derivadas |
 | N11 mesma operacao | Repetir X durante mesma operacao apos 30s | Politica de fechamento forcado existente mantida, sem auto-retry |
 | Menus | Carga/rescan/derivadas/SAM/vacuum/validacao ativos; tentar outro caminho | Acoes conflitantes bloqueadas e restauradas em sucesso, erro e falha de start |
@@ -178,6 +194,15 @@ fluxos alterados com os mesmos dados, separando carga inicial de repeticoes.
 Nao invente comparacao de desempenho se nao houver base executada equivalente.
 
 ## Ja validado e limites
+
+Retornos externos do 0beceb58: suite reprovada informada pelo zcode; selecao de
+22 aprovada pelo Devin. Complemento local: uma linha na preparacao do teste,
+py_compile/Ruff/ty aprovados e 27 passed, 538 deselected em 22,31s.
+Esses resultados nao constituem nova execucao da suite completa. O Semgrep
+externo informou dois ERROR classificados como falsos positivos; obter a saida
+bruta e validar a justificativa antes de encerrar essa analise. Os outros
+scanners amplos nao possuem resultado nos anexos recebidos.
+
 
 Na implementacao: compilacao/Ruff/ty dos 22 Python alterados/novos passaram;
 selecoes existentes de 21, 29, 33 e 92 testes passaram, com sobreposicao.
