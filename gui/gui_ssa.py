@@ -29,6 +29,7 @@ import socket
 import subprocess  # nosec B404
 import sys
 import threading
+import time
 from collections import OrderedDict
 from typing import Any, TypedDict, cast
 
@@ -467,6 +468,8 @@ TSM_DEBUG_ENABLED = str(os.environ.get("SSA_TSM_DEBUG", "")).strip().lower() in 
 
 # Constantes de UI
 DETAILS_DIALOG_FONT_SIZE = 10  # pt
+OTHER_DB_VALIDATION_TIMEOUT_SEC = 120.0
+SHUTDOWN_FORCE_TIMEOUT_SEC = 30.0
 DETAILS_DIALOG_TABLE_PADDING = 8  # px
 DETAILS_DIALOG_BORDER_COLOR = "#ccc"
 HIGHLIGHT_BACKGROUND_COLOR = "yellow"
@@ -2356,11 +2359,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.show()
         return True
 
-    def on_load_error(self, error_msg: str, request_id: int | None = None):
+    def on_load_error(
+        self, error_msg: str, request_id: int | None = None, *, data_applied: bool = False
+    ):
         accepted = ssa_gui_workers.on_load_error(
             self,
             error_msg,
             request_id=request_id,
+            data_applied=data_applied,
             db_path=DB_PATH,
             qmessagebox=QMessageBox,
             **_data_loader_retention_kwargs(),
@@ -2526,13 +2532,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.debug(
                     "Falha ao bloquear sinais do paginator durante sort: %s", exc
                 )
-            self.paginator.set_dataframe(self.df_exibido)
             try:
-                self.paginator.blockSignals(paginator_signals_were_blocked)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao restaurar sinais do paginator apos sort: %s", exc
-                )
+                self.paginator.set_dataframe(self.df_exibido)
+            finally:
+                try:
+                    self.paginator.blockSignals(paginator_signals_were_blocked)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao restaurar sinais do paginator apos sort: %s", exc
+                    )
             current_page = max(
                 1,
                 min(
@@ -2972,8 +2980,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
         try:
             was_blocked = input_widget.blockSignals(True)
-            input_widget.setText(value)
-            input_widget.blockSignals(was_blocked)
+            try:
+                input_widget.setText(value)
+            finally:
+                input_widget.blockSignals(was_blocked)
         except Exception as exc:
             logger.debug(
                 "Falha ao sincronizar campo do filtro rapido %s: %s",
@@ -4555,6 +4565,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def import_external_excel_files(self):
         """Inicia importacao; o staging roda em background."""
+        if ssa_app_menus.database_operation_in_progress(self):
+            self.status_label.setText("Status: Aguarde a operacao atual antes de importar XLSX.")
+            return {"queued": False, "staged": 0, "reason": "operation_in_progress"}
         selected_files, _ = QFileDialog.getOpenFileNames(
             self,
             "Selecionar arquivos Excel para importar",
@@ -4600,22 +4613,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             from gui.workers import RescanWorker
 
             if safe_selected_files:
-                ssa_gui_workers.rescan_data(
-                    self,
-                    project_root=project_root,
-                    rescan_worker_cls=RescanWorker,
-                    rescan_dialog_cls=RescanProgressDialog,
-                    qmessagebox=QMessageBox,
-                    **_rescan_retention_kwargs(),
-                    sip_module=sip,
-                    rescan_mode="explicit",
-                    source_files=tuple(safe_selected_files),
-                    db_path=DB_PATH,
-                    operation_label="Importacao",
-                    reload_on_success=True,
-                    operation_kind="import",
+                queued = bool(
+                    ssa_gui_workers.rescan_data(
+                        self,
+                        project_root=project_root,
+                        rescan_worker_cls=RescanWorker,
+                        rescan_dialog_cls=RescanProgressDialog,
+                        qmessagebox=QMessageBox,
+                        **_rescan_retention_kwargs(),
+                        sip_module=sip,
+                        rescan_mode="explicit",
+                        source_files=tuple(safe_selected_files),
+                        db_path=DB_PATH,
+                        operation_label="Importacao",
+                        reload_on_success=True,
+                        operation_kind="import",
+                    )
                 )
-                queued = True
         except Exception as exc:
             logger.warning("Falha ao iniciar importacao: %s", exc)
             failed += len(safe_selected_files)
@@ -4633,6 +4647,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "enfileirada=nao."
                 )
             self.status_label.setText(summary)
+        elif queued:
+            self.status_label.setText(
+                f"Status: Importacao de {len(safe_selected_files)} arquivo(s) em andamento."
+            )
 
         return {
             "selected": selected_count,
@@ -4762,20 +4780,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             from gui.widgets import RescanProgressDialog
             from gui.workers import RescanWorker
 
-            ssa_gui_workers.rescan_data(
-                self,
-                project_root=project_root,
-                rescan_worker_cls=RescanWorker,
-                rescan_dialog_cls=RescanProgressDialog,
-                qmessagebox=QMessageBox,
-                **_rescan_retention_kwargs(),
-                sip_module=sip,
-                rescan_mode="diff",
-                operation_label="Consolidacao de arquivos",
-                reload_on_success=False,
-                operation_kind="consolidate",
+            queued = bool(
+                ssa_gui_workers.rescan_data(
+                    self,
+                    project_root=project_root,
+                    rescan_worker_cls=RescanWorker,
+                    rescan_dialog_cls=RescanProgressDialog,
+                    qmessagebox=QMessageBox,
+                    **_rescan_retention_kwargs(),
+                    sip_module=sip,
+                    rescan_mode="diff",
+                    operation_label="Consolidacao de arquivos",
+                    reload_on_success=False,
+                    operation_kind="consolidate",
+                )
             )
-            queued = True
         except Exception as exc:
             logger.warning("Falha ao iniciar consolidacao de arquivos: %s", exc)
             failed = 1
@@ -4920,7 +4939,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger=logger,
             )
             if hasattr(self, "status_label"):
-                self.status_label.setText("Status: Guia de instalacao aberto.")
+                self.status_label.setText(
+                    "Status: Guia de instalacao aberto."
+                    if opened
+                    else "Status: Nao foi possivel abrir o guia de instalacao."
+                )
             return {"opened": opened, "path": safe_doc_path}
         except Exception as exc:
             logger.warning("Falha ao abrir guia de instalacao: %s", exc)
@@ -4932,6 +4955,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def run_vacuum_analyze(self):
         """Executa VACUUM/ANALYZE manualmente no banco principal."""
+        if ssa_app_menus.database_operation_in_progress(self):
+            self.status_label.setText("Status: Aguarde a operacao atual antes de compactar o DB.")
+            return {"ok": False, "reason": "operation_in_progress"}
         db_path = DB_PATH
         if not db_path or not os.path.exists(db_path):
             if os.environ.get("PYTEST_CURRENT_TEST"):
@@ -4951,9 +4977,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if answer != qmessagebox.StandardButton.Yes:
                 return {"ok": False, "cancelled": True}
 
-        if bool(getattr(self, "_vacuum_analyze_running", False)):
+        if ssa_app_menus.database_operation_in_progress(self):
             if hasattr(self, "status_label"):
-                self.status_label.setText("Status: Compactacao do DB ja em andamento.")
+                self.status_label.setText("Status: Outra operacao foi iniciada. Aguarde antes de compactar.")
             return {"ok": False, "reason": "already_running", "db_path": db_path}
 
         if hasattr(self, "status_label"):
@@ -4966,6 +4992,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return SSAMainWindow._finalize_vacuum_analyze_result(self, result)
 
         self._vacuum_analyze_running = True
+        ssa_app_menus.refresh_database_actions(self)
         self._vacuum_analyze_pending_result = None
 
         def _window_alive() -> bool:
@@ -4999,12 +5026,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if bool(getattr(self, "_vacuum_analyze_running", False)):
                     QTimer.singleShot(100, _poll_delivery)
                 return
+            if worker.is_alive():
+                QTimer.singleShot(100, _poll_delivery)
+                return
             self._vacuum_analyze_pending_result = None
             SSAMainWindow._finalize_vacuum_analyze_result(self, pending)
 
-        worker = threading.Thread(target=_work, daemon=True)
-        self._vacuum_analyze_thread = worker
-        worker.start()
+        try:
+            worker = threading.Thread(target=_work, daemon=True)
+            self._vacuum_analyze_thread = worker
+            worker.start()
+        except Exception as exc:
+            logger.error("Falha ao iniciar analise de vacuum: %s", exc)
+            self._vacuum_analyze_thread = None
+            self._vacuum_analyze_running = False
+            ssa_app_menus.refresh_database_actions(self)
+            status_label = getattr(self, "status_label", None)
+            if status_label is not None and hasattr(status_label, "setText"):
+                status_label.setText("Status: Falha ao iniciar analise de vacuum.")
+            return {"ok": False, "error": str(exc), "db_path": db_path}
         QTimer.singleShot(100, _poll_delivery)
         return {"ok": True, "started": True, "db_path": db_path}
 
@@ -5018,23 +5058,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _finalize_vacuum_analyze_result(self, result: dict[str, Any]) -> dict[str, Any]:
         self._vacuum_analyze_running = False
         self._vacuum_analyze_thread = None
+        try:
+            ssa_app_menus.refresh_database_actions(self)
 
-        if bool(result.get("ok")):
-            if hasattr(self, "status_label"):
-                self.status_label.setText(
-                    "Status: DB compactado e estatisticas atualizadas."
-                )
+            if bool(result.get("ok")):
+                if hasattr(self, "status_label"):
+                    self.status_label.setText(
+                        "Status: DB compactado e estatisticas atualizadas."
+                    )
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    QMessageBox.information(
+                        self, "Sucesso", "Compactacao e atualizacao do DB concluidas."
+                    )
+                return result
+
+            error = str(result.get("error") or "Erro desconhecido")
+            logger.error("Falha ao compactar DB e atualizar estatisticas: %s", error)
             if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.information(
-                    self, "Sucesso", "Compactacao e atualizacao do DB concluidas."
-                )
-            return result
-
-        error = str(result.get("error") or "Erro desconhecido")
-        logger.error("Falha ao compactar DB e atualizar estatisticas: %s", error)
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
-            QMessageBox.warning(self, "Erro", f"Falha na compactacao do DB: {error}")
-        return {"ok": False, "error": error, "db_path": result.get("db_path")}
+                QMessageBox.warning(self, "Erro", f"Falha na compactacao do DB: {error}")
+            return {"ok": False, "error": error, "db_path": result.get("db_path")}
+        except Exception as exc:
+            logger.exception("Falha ao aplicar resultado da compactacao: %s", exc)
+            try:
+                if hasattr(self, "status_label"):
+                    self.status_label.setText("Status: Falha ao aplicar resultado da compactacao.")
+                ssa_app_menus.refresh_database_actions(self)
+            except Exception as ui_exc:
+                logger.exception("Falha ao informar erro da compactacao na interface: %s", ui_exc)
+            return {**result, "ok": False, "reason": "finalize_failed", "error": str(exc)}
 
     def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:
         try:
@@ -5215,9 +5266,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             previous_ui_state=previous_ui_state,
             qmessagebox=QMessageBox,
             logger=logger,
+            current_db_path=DB_PATH,
         )
         self._sync_derivadas_sync_state_attrs(state)
+        if bool(finalized.get("ok")) and hasattr(self, "load_data"):
+            try:
+                self.load_data()
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao recarregar dados apos sync de derivadas: %s", exc
+                )
+                self.status_label.setText(
+                    "Status: Derivadas atualizadas, mas os dados nao foram recarregados. "
+                    "Use 'Recarregar Dados'."
+                )
+                return {**finalized, "ok": False, "reason": "reload_failed", "error": str(exc)}
         return finalized
+
+    def export_derivadas_report(self):
+        return ssa_derivadas_sync.export_derivadas_report(
+            self._derivadas_sync_ui_refs(),
+            self._get_derivadas_sync_state(),
+            db_path=DB_PATH,
+            qfiledialog=QFileDialog,
+            qmessagebox=QMessageBox,
+        )
 
     @staticmethod
     def _validate_database_candidate(db_file: str) -> dict[str, Any]:
@@ -5230,56 +5303,98 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _finalize_database_candidate_validation(
         self, result: dict[str, Any]
     ) -> dict[str, Any]:
-        self._other_db_validation_running = False
+        request_tag = result.get("_request_id")
+        if request_tag is not None and request_tag != getattr(
+            self, "_other_db_validation_request_id", None
+        ):
+            logger.warning(
+                "Resultado de validacao de banco alternativo expirado descartado: %s",
+                result.get("db_file"),
+            )
+            return {
+                "ok": False,
+                "reason": "stale_result",
+                "db_file": result.get("db_file"),
+            }
         self._other_db_validation_thread = None
-        self._other_db_validation_pending_result = None
 
-        db_file = str(result.get("db_file") or "").strip()
-        if bool(result.get("ok")) and db_file:
-            global DB_PATH
-            DB_PATH = db_file
-            self.status_label.setText(
-                f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}"
-            )
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.information(
-                    self,
-                    "Sucesso",
-                    (
-                        f"Banco de dados selecionado: {os.path.basename(db_file)}.\n\n"
-                        "Os dados do banco selecionado serao recarregados "
-                        "automaticamente."
-                    ),
+        global DB_PATH
+        selected = False
+        try:
+            db_file = str(result.get("db_file") or "").strip()
+            if bool(result.get("ok")) and db_file:
+                derivadas_state = self._get_derivadas_sync_state()
+                derivadas_state.last_report = None
+                derivadas_state.report_invalidated = True
+                DB_PATH = db_file
+                selected = True
+                self.status_label.setText(
+                    f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}"
                 )
-            if hasattr(self, "load_data"):
-                try:
-                    self.load_data()
-                except Exception as exc:
-                    logger.warning(
-                        "Falha ao recarregar dados apos troca de banco: %s", exc
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    QMessageBox.information(
+                        self,
+                        "Sucesso",
+                        (
+                            f"Banco de dados selecionado: {os.path.basename(db_file)}.\n\n"
+                            "Os dados do banco selecionado serao recarregados "
+                            "automaticamente."
+                        ),
                     )
-            return result
+                self._other_db_validation_running = False
+                ssa_app_menus.refresh_database_actions(self)
+                if hasattr(self, "load_data"):
+                    try:
+                        self.load_data()
+                    except Exception as exc:
+                        logger.warning(
+                            "Falha ao recarregar dados apos troca de banco: %s", exc
+                        )
+                        self.status_label.setText(
+                            "Status: Banco selecionado, mas os dados nao foram recarregados. "
+                            "Use 'Recarregar Dados'."
+                        )
+                        return {**result, "ok": False, "reason": "reload_failed", "error": str(exc)}
+                return result
 
-        error = str(result.get("error") or "").strip()
-        if error:
+            self._other_db_validation_running = False
+            ssa_app_menus.refresh_database_actions(self)
+            error = str(result.get("error") or "").strip()
+            if error:
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    QMessageBox.critical(
+                        self, "Erro", f"Erro ao abrir o banco de dados: {error}"
+                    )
+                self.status_label.setText("Status: Falha ao validar banco alternativo.")
+                return result
+
             if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.critical(
-                    self, "Erro", f"Erro ao abrir o banco de dados: {error}"
+                QMessageBox.warning(
+                    self,
+                    "Erro",
+                    "O arquivo selecionado nao contem dados validos na tabela principal de SSAs.",
                 )
-            self.status_label.setText("Status: Falha ao validar banco alternativo.")
-            return result
-
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
-            QMessageBox.warning(
-                self,
-                "Erro",
-                "O arquivo selecionado nao contem dados validos na tabela principal de SSAs.",
-            )
-        self.status_label.setText("Status: Banco alternativo invalido.")
-        return {"ok": False, "db_file": db_file}
+            self.status_label.setText("Status: Banco alternativo invalido.")
+            return {"ok": False, "db_file": db_file}
+        except Exception as exc:
+            logger.exception("Falha ao aplicar validacao do banco alternativo: %s", exc)
+            self._other_db_validation_running = False
+            try:
+                self.status_label.setText(
+                    "Status: Banco selecionado, mas houve falha ao concluir sua abertura. "
+                    "Use 'Recarregar Dados'." if selected else
+                    "Status: Falha ao aplicar validacao do banco alternativo."
+                )
+                ssa_app_menus.refresh_database_actions(self)
+            except Exception as ui_exc:
+                logger.exception("Falha ao informar erro do banco alternativo na interface: %s", ui_exc)
+            return {**result, "ok": False, "reason": "finalize_failed", "error": str(exc)}
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
+        if ssa_app_menus.database_operation_in_progress(self):
+            self.status_label.setText("Status: Aguarde a operacao de dados em andamento.")
+            return {"ok": False, "reason": "database_busy"}
         file_dialog = QFileDialog()
         db_file, _ = file_dialog.getOpenFileName(
             self,
@@ -5289,19 +5404,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
 
         if db_file and os.path.exists(db_file):
-            if bool(getattr(self, "_other_db_validation_running", False)):
+            if ssa_app_menus.database_operation_in_progress(self):
                 self.status_label.setText(
-                    "Status: Validacao de banco alternativo ja em andamento."
+                    "Status: Aguarde a operacao de dados em andamento."
                 )
-                return {"ok": False, "reason": "already_running", "db_file": db_file}
+                return {"ok": False, "reason": "database_busy", "db_file": db_file}
             self.status_label.setText("Status: Validando banco alternativo...")
             if os.environ.get("PYTEST_CURRENT_TEST"):
                 result = SSAMainWindow._validate_database_candidate(db_file)
                 return self._finalize_database_candidate_validation(result)
 
             self._other_db_validation_running = True
+            ssa_app_menus.refresh_database_actions(self)
             self._other_db_validation_thread = None
-            self._other_db_validation_pending_result = None
+            pending_result: dict[str, Any] | None = None
+            request_id = getattr(self, "_other_db_validation_request_id", 0) + 1
+            self._other_db_validation_request_id = request_id
+            validation_deadline = time.monotonic() + OTHER_DB_VALIDATION_TIMEOUT_SEC
 
             def _window_alive() -> bool:
                 if self is None:
@@ -5316,27 +5435,71 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     return False
 
             def _work() -> None:
-                self._other_db_validation_pending_result = (
-                    SSAMainWindow._validate_database_candidate(db_file)
-                )
+                nonlocal pending_result
+                try:
+                    result = SSAMainWindow._validate_database_candidate(db_file)
+                except Exception as exc:
+                    logger.exception(
+                        "Falha inesperada na validacao de banco alternativo: %s",
+                        db_file,
+                    )
+                    result = {
+                        "ok": False,
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "db_file": db_file,
+                    }
+                result["_request_id"] = request_id
+                pending_result = result
 
             def _poll_delivery() -> None:
+                nonlocal pending_result
+                if request_id != self._other_db_validation_request_id:
+                    return
                 if not _window_alive():
-                    self._other_db_validation_pending_result = None
+                    pending_result = None
                     self._other_db_validation_thread = None
                     self._other_db_validation_running = False
                     return
-                pending = getattr(self, "_other_db_validation_pending_result", None)
+                pending = pending_result
                 if pending is None:
-                    if bool(getattr(self, "_other_db_validation_running", False)):
-                        QTimer.singleShot(100, _poll_delivery)
+                    if not bool(getattr(self, "_other_db_validation_running", False)):
+                        return
+                    if time.monotonic() >= validation_deadline:
+                        logger.error(
+                            "Validacao de banco alternativo excedeu %ss sem resultado.",
+                            OTHER_DB_VALIDATION_TIMEOUT_SEC,
+                        )
+                        pending_result = None
+                        self._other_db_validation_thread = None
+                        self._other_db_validation_running = False
+                        ssa_app_menus.refresh_database_actions(self)
+                        self.status_label.setText(
+                            "Status: Validacao de banco alternativo excedeu o tempo limite."
+                        )
+                        return
+                    QTimer.singleShot(100, _poll_delivery)
                     return
-                self._other_db_validation_pending_result = None
+                if worker.is_alive():
+                    QTimer.singleShot(100, _poll_delivery)
+                    return
+                pending_result = None
                 SSAMainWindow._finalize_database_candidate_validation(self, pending)
 
-            worker = threading.Thread(target=_work, daemon=True)
-            self._other_db_validation_thread = worker
-            worker.start()
+            try:
+                worker = threading.Thread(target=_work, daemon=True)
+                self._other_db_validation_thread = worker
+                worker.start()
+            except Exception as exc:
+                logger.error(
+                    "Falha ao iniciar validacao de banco alternativo: %s", exc
+                )
+                self._other_db_validation_thread = None
+                self._other_db_validation_running = False
+                ssa_app_menus.refresh_database_actions(self)
+                self.status_label.setText(
+                    "Status: Falha ao iniciar validacao do banco alternativo."
+                )
+                return {"ok": False, "error": str(exc), "db_file": db_file}
             QTimer.singleShot(100, _poll_delivery)
             return {"ok": True, "started": True, "db_file": db_file}
         elif db_file:  # Arquivo selecionado mas nao existe
@@ -5439,27 +5602,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             id(worker): worker for worker in worker_candidates if worker is not None
         }
 
-        self._is_shutting_down = True
-
-        for timer_attr in (
-            "_debounce_timer",
-            "_sector_debounce_timer",
-            "_advanced_apply_timer",
-        ):
-            timer = getattr(self, timer_attr, None)
-            if timer is not None:
-                try:
-                    timer.stop()
-                except RuntimeError as exc:
-                    logger.debug("Falha ao parar %s no shutdown: %s", timer_attr, exc)
-
-        pai_timer = getattr(self, "_active_pai_api_timer", None)
-        if pai_timer is not None:
-            try:
-                pai_timer.stop()
-            except RuntimeError as exc:
-                logger.debug("Falha ao parar timer PAI no shutdown: %s", exc)
-
         rescan_worker = getattr(self, "_active_rescan_worker", None)
         if rescan_worker is not None:
             try:
@@ -5556,20 +5698,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Falha ao consultar worker durante shutdown: %s", exc
                 )
 
+        running_operations = list(running_workers)
         derivadas_state = getattr(self, "_derivadas_sync_state", None)
         derivadas_thread = getattr(derivadas_state, "thread", None)
         if derivadas_thread is not None:
             try:
                 if derivadas_thread.is_alive():
+                    running_operations.append(derivadas_thread)
                     running_labels.append(type(derivadas_thread).__name__)
             except (RuntimeError, AttributeError) as exc:
+                running_operations.append(derivadas_thread)
                 running_labels.append(type(derivadas_thread).__name__)
                 logger.warning(
                     "Falha ao consultar thread de derivadas no shutdown: %s", exc
                 )
 
+        previous_pending_ids = {
+            id(pending_worker)
+            for pending_worker in getattr(self, "_shutdown_pending_operations", ())
+        }
         self._shutdown_pending_workers = running_workers
+        self._shutdown_pending_operations = tuple(running_operations)
         if running_labels:
+            current_ids = {id(worker) for worker in running_operations}
+            if current_ids.isdisjoint(previous_pending_ids):
+                # Novo episodio de shutdown: o deadline de 30s reinicia. Sem
+                # isso, um X ignorado ha horas forcaria o fechamento no
+                # primeiro clique de uma operacao iniciada depois.
+                self._shutdown_started_at = None
             labels = ", ".join(sorted(set(running_labels))) or "worker desconhecido"
             logger.warning("Shutdown adiado; workers ativos: %s", labels)
             status_label = getattr(self, "status_label", None)
@@ -5586,12 +5742,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         try:
             from gui.ssa.gui_preferences_persistence import (
-                shutdown_gui_preferences_writer,
+                flush_gui_preferences_writer,
             )
 
-            preferences_finished = shutdown_gui_preferences_writer(timeout=1.0)
+            preferences_finished = flush_gui_preferences_writer(timeout=1.0)
         except Exception as exc:
             logger.error("Falha ao aguardar persistencia GUI no shutdown: %s", exc)
+            self.status_label.setText(
+                "Falha ao salvar preferencias. Verifique o log antes de encerrar."
+            )
             return False
         if not preferences_finished:
             logger.warning("Shutdown adiado; gravacao de preferencias em andamento")
@@ -5602,15 +5761,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return True
 
     def closeEvent(self, event):
-        """
-        Metodo chamado quando a janela eh fechada.
-        Garante cleanup adequado dos QThreads para evitar o erro:
-        'QThread: Destroyed while thread is still running'
-        """
-        if self.shutdown():
-            event.accept()
-        else:
+        """Adia o fechamento com a GUI operante ou encerra apos o prazo."""
+        self._is_shutting_down = True
+        if not self.shutdown():
+            self._is_shutting_down = False
+            ssa_app_menus.refresh_database_actions(self)
             event.ignore()
+            shutdown_started = getattr(self, "_shutdown_started_at", None)
+            if shutdown_started is None:
+                shutdown_started = time.monotonic()
+                self._shutdown_started_at = shutdown_started
+            elapsed = time.monotonic() - shutdown_started
+            if elapsed < SHUTDOWN_FORCE_TIMEOUT_SEC:
+                return
+            self._is_shutting_down = True
+            for pending_worker in getattr(self, "_shutdown_pending_workers", []) or []:
+                disconnect = getattr(pending_worker, "disconnect", None)
+                if callable(disconnect):
+                    try:
+                        disconnect()
+                    except (RuntimeError, TypeError, AttributeError) as exc:
+                        logger.debug(
+                            "Falha ao desconectar worker no fechamento forcado: %s",
+                            exc,
+                        )
+            logger.critical(
+                "Shutdown forcado apos %.1fs; workers ainda ativos foram retidos em background.",
+                elapsed,
+            )
+        try:
+            from gui.ssa.gui_preferences_persistence import (
+                shutdown_gui_preferences_writer,
+            )
+
+            if not shutdown_gui_preferences_writer(timeout=0.0):
+                logger.debug("Gravador de preferencias encerrando em background.")
+        except Exception as exc:
+            logger.error("Falha ao encerrar gravador de preferencias: %s", exc)
+        for timer_attr in (
+            "_debounce_timer",
+            "_sector_debounce_timer",
+            "_advanced_apply_timer",
+            "_active_pai_api_timer",
+        ):
+            timer = getattr(self, timer_attr, None)
+            if timer is not None:
+                try:
+                    timer.stop()
+                except RuntimeError as exc:
+                    logger.debug("Falha ao parar %s no shutdown: %s", timer_attr, exc)
+        event.accept()
 
 
 # --- Ponto de Entrada ---

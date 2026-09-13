@@ -559,11 +559,26 @@ def _repair_database_if_needed_locked(
             logger.error("Tabela SSA fisica ausente; reparo automatico foi bloqueado")
             return False, report
 
+        if not report.get("file_permissions_ok", False):
+            # Sem permissao de escrita nem o reparo nem a reimportacao
+            # conseguem corrigir o banco; manter como bloqueante.
+            logger.error(
+                "Permissoes insuficientes no banco %s; reparo bloqueado",
+                db_path,
+            )
+            return False, report
+
         missing_required = list(report["missing_required_columns"])
         missing_optional = list(report["missing_optional_columns"])
         if not missing_required and not missing_optional:
-            logger.error("Inconsistencia de dados exige reimportacao, nao reparo automatico")
-            return False, report
+            # Inconsistencias de dados (duplicatas, status fora do catalogo,
+            # datas invalidas) nao sao corrupcao estrutural: bloquear aqui
+            # impediria exatamente a reimportacao que as corrige.
+            logger.warning(
+                "Inconsistencias de dados detectadas; importacao seguira para corrigi-las: %s",
+                report.get("issues", []),
+            )
+            return True, report
 
         snapshot = _create_integrity_snapshot(db_path, force=True)
         if snapshot is None:
@@ -609,9 +624,23 @@ def _repair_database_if_needed_locked(
             conn.commit()
 
         final_report = verify_database_integrity(db_path, table_name)
-        if not final_report["is_valid"]:
+        if not all(
+            final_report.get(key, False)
+            for key in (
+                "database_accessible",
+                "table_exists",
+                "schema_valid",
+                "sqlite_integrity_ok",
+                "file_permissions_ok",
+            )
+        ):
             logger.error("Reparo conservador falhou: %s", final_report["issues"])
             return False, final_report
+        if not final_report["is_valid"]:
+            logger.warning(
+                "Estrutura reparada; inconsistencias de dados permanecem para reimportacao: %s",
+                final_report.get("issues", []),
+            )
         _create_integrity_snapshot(db_path, force=True)
         logger.info("Reparo conservador concluido com sucesso")
         return True, final_report

@@ -14140,32 +14140,51 @@ class TestGUIFilterLogic:
         assert first_worker.deleted is True
         assert second_worker.start_called is True
 
-    def test_initiate_filtering_aborts_when_critical_signal_connection_fails(self):
+    @pytest.mark.parametrize(
+        "failure_stage",
+        ["constructor", "token", "result_signal", "error_signal", "finished_signal", "retention", "start"],
+    )
+    def test_initiate_filtering_recovers_after_worker_setup_failure(self, failure_stage):
         self.window._sync_filtering = False
         self.window.search_input.setText("Teste")
+        failures_enabled = True
+        workers = []
+
+        def _fail_at(stage):
+            if failures_enabled and failure_stage == stage:
+                raise RuntimeError(f"Falha sintetica em {stage}")
 
         class _FakeSignal:
-            def __init__(self):
+            def __init__(self, stage):
                 self._callbacks = []
+                self.stage = stage
 
             def connect(self, callback):
+                _fail_at(self.stage)
                 self._callbacks.append(callback)
 
             def disconnect(self, _callback=None):
                 self._callbacks.clear()
 
+            def emit(self, *args):
+                for callback in list(self._callbacks):
+                    callback(*args)
+
         class _FakeWorker:
             def __init__(self, *_args, **_kwargs):
-                self.filter_finished = _FakeSignal()
-                self.error_occurred = _FakeSignal()
-                self.finished = _FakeSignal()
+                _fail_at("constructor")
+                self.filter_finished = _FakeSignal("result_signal")
+                self.error_occurred = _FakeSignal("error_signal")
+                self.finished = _FakeSignal("finished_signal")
                 self.start_called = False
                 self.quit_called = False
                 self.wait_called_ms = None
                 self.deleted = False
                 self._running = False
+                workers.append(self)
 
             def start(self):
+                _fail_at("start")
                 self.start_called = True
                 self._running = True
 
@@ -14183,22 +14202,70 @@ class TestGUIFilterLogic:
             def deleteLater(self):
                 self.deleted = True
 
-        def _connect_side_effect(_signal, _slot, *, label):
-            if label == "filter_worker.filter_finished":
-                return False
-            return True
+        original_token = self.window._build_filter_worker_df_token
+        original_retain = self.window._retain_filter_worker_until_finished
 
-        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _FakeWorker):
-            with patch(
-                "gui.mixins.filter_gui_ssa_mixin._connect_filter_signal",
-                side_effect=_connect_side_effect,
-            ):
-                self.window.initiate_filtering()
+        def _build_token(source):
+            _fail_at("token")
+            return original_token(source)
 
-        assert self.window.filter_thread is None
+        def _retain(worker):
+            original_retain(worker)
+            _fail_at("retention")
+
+        with (
+            patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _FakeWorker),
+            patch.object(self.window, "_build_filter_worker_df_token", _build_token),
+            patch.object(self.window, "_retain_filter_worker_until_finished", _retain),
+        ):
+            self.window.initiate_filtering()
+            failed_request_id = self.window._active_filter_request_id
+
+            assert self.window.filter_thread is None
+            assert self.window.status_label.text() == "Status: Erro ao aplicar filtro."
+            assert self.window.progress_bar.isVisible() is False
+            assert self.window.load_button.isEnabled() is True
+            assert self.window.search_button.isEnabled() is True
+            assert self.window._filter_worker_registry.snapshot() == []
+            assert all(worker.deleted and not worker.start_called for worker in workers)
+
+            failures_enabled = False
+            self.window.initiate_filtering()
+            worker = self.window.filter_thread
+            assert worker.start_called is True
+            assert self.window._active_filter_request_id > failed_request_id
+            worker._running = False
+            worker.filter_finished.emit(self.base_df.iloc[[0]].copy())
+            worker.finished.emit()
+
+        assert worker.deleted is True
+        assert worker.isRunning() is False
+        assert self.window._filter_worker_registry.snapshot() == []
+        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [1]
+        assert self.window.progress_bar.isVisible() is False
+        assert self.window.search_button.isEnabled() is True
+
+    @pytest.mark.parametrize(
+        "method_name",
+        ["_prepare_search_chunks", "_select_general_filter_source_candidate", "_get_default_filter_mode", "_get_filter_source_dataframe"],
+    )
+    def test_initiate_filtering_recovers_after_preparation_failure(self, method_name):
+        self.window.search_input.setText("Teste A")
+        self.window._filter_ui_state().set_busy()
+        with patch.object(self.window, method_name, side_effect=RuntimeError("Falha sintetica de preparo")):
+            self.window.initiate_filtering()
+        failed_request_id = self.window._active_filter_request_id
+
         assert self.window.status_label.text() == "Status: Erro ao aplicar filtro."
         assert self.window.progress_bar.isVisible() is False
         assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+
+        self.window.initiate_filtering()
+
+        assert self.window._active_filter_request_id > failed_request_id
+        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [1]
+        assert self.window.progress_bar.isVisible() is False
         assert self.window.search_button.isEnabled() is True
 
     def test_retain_filter_worker_releases_immediately_when_release_hook_fails(self):
@@ -14498,7 +14565,8 @@ class TestGUIFilterLogic:
         assert worker.deleted is False
         assert self.window.data_loader_thread is worker
 
-    def test_close_event_waits_for_preferences_writer(self, monkeypatch):
+    @pytest.mark.parametrize("write_succeeds", [True, False])
+    def test_close_event_waits_for_preferences_writer(self, monkeypatch, write_succeeds):
         import threading
 
         from gui.ssa import gui_preferences_persistence
@@ -14509,7 +14577,7 @@ class TestGUIFilterLogic:
         def write_preferences(data, *, retries):
             started.set()
             assert release.wait(5.0)
-            return True
+            return write_succeeds
 
         writer = gui_preferences_persistence.PreferencesWriter(write_preferences)
         monkeypatch.setattr(gui_preferences_persistence, "_GUI_PREFERENCES_WRITER", writer)
@@ -14527,7 +14595,10 @@ class TestGUIFilterLogic:
 
         retry_event = QCloseEvent()
         self.window.closeEvent(retry_event)
-        assert retry_event.isAccepted() is True
+        assert retry_event.isAccepted() is write_succeeds
+        if not write_succeeds:
+            assert self.window._is_shutting_down is False
+            assert "Falha ao salvar preferencias" in self.window.status_label.text()
 
     def test_close_event_stops_main_and_sector_debounce_timers(self):
         self.window._debounce_timer.start()
@@ -14602,6 +14673,174 @@ class TestGUIFilterLogic:
         self.window.closeEvent(retry_event)
         assert retry_event.isAccepted() is True
 
+    def test_close_event_rejected_restores_shutting_down_flag(self):
+        """Shutdown adiado nao pode deixar _is_shutting_down=True para sempre.
+
+        O flag bloqueia filtros, carga, PAI API e derivadas; se o X for
+        ignorado porque ha workers ativos, o app precisa voltar ao normal.
+        """
+        class _AliveWorker:
+            def __init__(self):
+                self.interruption_requested = False
+                self.running = True
+
+            def isRunning(self):
+                return self.running
+
+            def requestInterruption(self):
+                self.interruption_requested = True
+
+            def quit(self):
+                return None
+
+        worker = _AliveWorker()
+        self.window._active_pai_api_worker = worker
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert self.window._is_shutting_down is False
+
+        worker.running = False
+        retry_event = QCloseEvent()
+        self.window.closeEvent(retry_event)
+        assert retry_event.isAccepted() is True
+
+    def test_shutdown_new_episode_resets_force_deadline(self):
+        """Deadline de 30s nao pode reutilizar timestamp de episodio anterior.
+
+        X ignorado ha muito tempo + operacao nova iniciada depois: o segundo
+        X deve ser ignorado, nao forcar fechamento imediato.
+        """
+        class _AliveWorker:
+            def __init__(self):
+                self.running = True
+
+            def isRunning(self):
+                return self.running
+
+            def requestInterruption(self):
+                return None
+
+            def quit(self):
+                return None
+
+        worker_a = _AliveWorker()
+        self.window._active_pai_api_worker = worker_a
+        first = QCloseEvent()
+        self.window.closeEvent(first)
+        assert first.isAccepted() is False
+        # Simula timestamp antigo do episodio anterior.
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        worker_a.running = False
+        worker_b = _AliveWorker()
+        self.window._active_pai_api_worker = worker_b
+
+        second = QCloseEvent()
+        self.window.closeEvent(second)
+
+        assert second.isAccepted() is False
+        assert time.monotonic() - self.window._shutdown_started_at < 30
+
+    def test_forced_close_disconnects_pending_workers(self):
+        """Fechamento forcado desconecta sinais dos workers retidos.
+
+        WA_DeleteOnClose destroi os widgets; sem desconexao, callbacks
+        tardios acessam objetos Qt ja destruidos.
+        """
+        class _AliveWorker:
+            def __init__(self):
+                self.disconnected = False
+
+            def isRunning(self):
+                return True
+
+            def requestInterruption(self):
+                return None
+
+            def quit(self):
+                return None
+
+            def disconnect(self):
+                self.disconnected = True
+
+        worker = _AliveWorker()
+        self.window._active_pai_api_worker = worker
+        self.window._shutdown_pending_operations = (worker,)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert worker.disconnected is True
+
+    def test_finalize_database_candidate_validation_discards_stale_result(
+        self, tmp_path
+    ):
+        """Resultado de validacao expirada nao pode selecionar outro banco."""
+        original_db_path = gui_ssa.DB_PATH
+        old_db_path = str(tmp_path / "velho.db")
+        new_db_path = str(tmp_path / "novo.db")
+        self.window._other_db_validation_request_id = 2
+        self.window._other_db_validation_running = True
+
+        try:
+            outcome = self.window._finalize_database_candidate_validation(
+                {"_request_id": 1, "ok": True, "db_file": old_db_path}
+            )
+            assert outcome.get("reason") == "stale_result"
+            assert gui_ssa.DB_PATH == original_db_path
+            # A validacao atual (request 2) continua em andamento.
+            assert self.window._other_db_validation_running is True
+
+            current = self.window._finalize_database_candidate_validation(
+                {"_request_id": 2, "ok": True, "db_file": new_db_path}
+            )
+            assert bool(current.get("ok")) is True
+            assert gui_ssa.DB_PATH == new_db_path
+            assert self.window._other_db_validation_running is False
+        finally:
+            gui_ssa.DB_PATH = original_db_path
+
+    def test_save_current_filter_cancel_restores_advanced_filters(self):
+        """Cancelar restaura filtros ativos apos sincronizacao in-place do painel."""
+        self.window._advanced_filters = {"situacao": ["1"]}
+        self.window._advanced_filters_active = True
+        self.window._active_column_filters = OrderedDict(situacao="1")
+
+        def _fake_apply(store_only: bool = False):
+            assert store_only is True
+            self.window._advanced_filters = {"situacao": ["2"]}
+            self.window._advanced_filters_active = True
+            self.window._sync_active_situacao_filter_from_advanced_filters()
+
+        before = list(self.window.persistent_filters)
+        with patch.object(
+            self.window,
+            "_apply_advanced_filters_from_ui",
+            autospec=True,
+            side_effect=_fake_apply,
+        ), patch(
+            "gui.ssa.persistent_filter_ui.build_persistent_filter_name",
+            return_value="Filtro pendente",
+        ) as build_name, patch(
+            "gui.ssa.persistent_filter_ui.QInputDialog.getText",
+            return_value=("", False),
+        ):
+            self.window.save_current_filter()
+
+        assert self.window._advanced_filters == {"situacao": ["1"]}
+        assert self.window._advanced_filters_active is True
+        assert self.window._active_column_filters == OrderedDict(situacao="1")
+        assert self.window.persistent_filters == before
+        build_name.assert_called_once()
+        captured_state = build_name.call_args.args[0]
+        assert captured_state["active_column_filters"]["situacao"] == "2"
+        assert captured_state["advanced_filters"]["situacao"] == ["2"]
+
     def test_on_data_loaded_ignores_stale_request(self):
         original_df = self.window.df_completo.copy()
         stale_df = self.base_df.iloc[:1].copy()
@@ -14642,6 +14881,58 @@ class TestGUIFilterLogic:
         assert self.window.isVisible() is True
         assert self.window._startup_show_pending is False
         assert self.window.status_label.text() == "Status: Banco de dados nao encontrado."
+
+    @pytest.mark.parametrize("data_applied", [False, True])
+    def test_on_data_loaded_failure_uses_error_facade_and_shows_startup_window(
+        self, data_applied
+    ):
+        self.window.hide()
+        self.window._startup_show_pending = True
+        self.window._active_data_load_request_id = 17
+        self.window._data_load_busy = True
+        self.window.status_label.setText("Status: Carregando dados...")
+        old_data = self.window.df_completo
+        payload = (
+            self.base_df.iloc[:1].copy()
+            if data_applied
+            else pd.DataFrame([[10001, 10002]], columns=["numero_ssa", "numero_ssa"])
+        )
+        hook_error = RuntimeError("Falha sintetica no pos-load") if data_applied else None
+        with (
+            patch.object(self.window, "on_load_error", wraps=self.window.on_load_error) as facade,
+            patch.object(ssa_gui_workers, "on_load_error", wraps=ssa_gui_workers.on_load_error) as error_handler,
+            patch.object(ssa_gui_workers, "_reset_post_load_filter_state", side_effect=hook_error),
+        ):
+            assert self.window.on_data_loaded(payload, request_id=17) is False
+
+        facade.assert_called_once()
+        assert facade.call_args.kwargs == {"request_id": 17, "data_applied": data_applied}
+        error_handler.assert_called_once()
+        assert error_handler.call_args.args[0] is self.window
+        assert error_handler.call_args.kwargs["request_id"] == 17
+        assert error_handler.call_args.kwargs["data_applied"] is data_applied
+        assert error_handler.call_args.kwargs["db_path"] == gui_ssa.DB_PATH
+        assert error_handler.call_args.kwargs["qmessagebox"] is gui_ssa.QMessageBox
+        assert error_handler.call_args.kwargs["global_workers"] is gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+        assert self.window.isVisible() is True
+        assert self.window._startup_show_pending is False
+        assert self.window._data_load_busy is False
+        assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+        assert self.window.progress_bar.isVisible() is False
+        error_status = self.window.status_label.text()
+        assert error_status.startswith("Status: Erro ao carregar dados.")
+        if data_applied:
+            assert self.window.df_completo is not old_data
+            assert "exibicao pode estar incompleta" in error_status
+            assert "tabela anterior foi mantida" not in error_status
+        else:
+            assert self.window.df_completo is old_data
+            assert "tabela anterior foi mantida" in error_status
+
+        self.window.on_load_finished(request_id=17)
+
+        assert self.window.status_label.text() == error_status
 
     def test_on_data_loaded_stops_pending_sector_timer(self):
         self.window._active_data_load_request_id = 12

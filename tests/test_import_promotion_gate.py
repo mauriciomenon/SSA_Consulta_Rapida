@@ -156,7 +156,8 @@ def test_matrix_deterministic_only_keeps_rejections_only(workspace):
     outcome = import_outcome.get_last_import_outcome()
     assert outcome is not None
 
-    assert result is True
+    # Rejeicao deterministica nao atualiza o banco: result=False no contrato.
+    assert result is False
     assert outcome.status is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY
     assert not (data / "ssas.db").exists() or not ssas(data / "ssas.db")
 

@@ -491,8 +491,10 @@ def get_files_to_process(
         size, mtime_ns = stat_sig
 
         cached_entry = current_cache.get(file_cache_key)
+        legacy_basename_hit = False
         if cached_entry is None and file_cache_key != filename:
             cached_entry = current_cache.get(filename)
+            legacy_basename_hit = cached_entry is not None
         if cached_entry is None:
             files_to_process.append(file_path)
             continue
@@ -513,9 +515,12 @@ def get_files_to_process(
             if isinstance(mtime_val, int):
                 cached_mtime_ns = mtime_val
 
-        # Fast path: metadata matches and we have a sha.
+        # Fast path: metadata matches and we have a sha. Um hit por basename
+        # legado nao pode usar este caminho: outro arquivo com mesmo nome,
+        # size e mtime em outro diretorio seria ignorado sem comparar hash.
         if (
-            isinstance(cached_sha, str)
+            not legacy_basename_hit
+            and isinstance(cached_sha, str)
             and cached_sha
             and cached_size is not None
             and cached_mtime_ns is not None

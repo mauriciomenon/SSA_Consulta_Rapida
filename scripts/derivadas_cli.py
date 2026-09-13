@@ -32,10 +32,14 @@ from armazenamento.derivadas_queries import (
 from armazenamento.derivadas_schema import scan_derivadas_schema_readiness_from_path  # noqa: E402
 from armazenamento.derivadas_sync import get_sync_stats  # noqa: E402
 from armazenamento.derivadas_sync import (
+    export_reconciliation_csv,
+    export_reconciliation_tsv,
+    export_report_json,
     run_derivadas_maintenance,
     scan_derivadas_consistency,
     self_heal_derivadas,
     sync_derivadas,
+    validate_report_output_paths,
 )
 
 
@@ -191,7 +195,10 @@ def _handle_top(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Derivadas database helper CLI")
+    parser = argparse.ArgumentParser(
+        description="CLI de sincronizacao e consulta de derivadas.",
+        epilog="sync, heal e maintenance preservam JSON em stdout, inclusive ao salvar relatorios.",
+    )
     parser.add_argument("--db", default="data/ssas.db", help="SQLite database path")
     parser.add_argument("--table-name", default="ssa_table", help="Base SSA table name")
     parser.add_argument(
@@ -305,6 +312,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     maintenance_parser.set_defaults(func=_handle_maintenance)
 
+    for report_parser in (sync_parser, heal_parser, maintenance_parser):
+        for report_format in ("json", "csv", "tsv"):
+            report_parser.add_argument(
+                f"--report-{report_format}",
+                metavar="ARQUIVO",
+                help=f"Salva relatorio {report_format.upper()} sem substituir o JSON em stdout",
+            )
+        report_parser.add_argument(
+            "--overwrite-reports",
+            action="store_true",
+            help="Permite substituir relatorios existentes; banco e fontes continuam protegidos",
+        )
+
     info_parser = sub.add_parser("info", help="Show hierarchy profile for one SSA")
     info_parser.add_argument("ssa", help="SSA number")
     info_parser.add_argument(
@@ -355,7 +375,53 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    exports = [
+        (path, exporter)
+        for name, exporter in (
+            ("report_json", export_report_json),
+            ("report_csv", export_reconciliation_csv),
+            ("report_tsv", export_reconciliation_tsv),
+        )
+        if (path := getattr(args, name, None)) is not None
+    ]
+    protected_paths = []
+    if exports:
+        database_path = os.path.realpath(os.path.expanduser(args.db))
+        protected_paths = [
+            database_path,
+            *(database_path + suffix for suffix in ("-wal", "-shm", "-journal")),
+        ]
+        if sheet_file := getattr(args, "sheet_file", None):
+            protected_paths.append(sheet_file)
+        if sheet_glob := getattr(args, "sheet_files_glob", None):
+            protected_paths.extend(glob.glob(sheet_glob))
+        if docs_dir := getattr(args, "special_docs_dir", None):
+            protected_paths.extend(_list_special_sheet_files(docs_dir))
+        validate_report_output_paths(
+            [path for path, _ in exports],
+            protected_paths=protected_paths,
+            overwrite=args.overwrite_reports,
+        )
     result = args.func(args)
+    if exports:
+        _as_json(result)
+        exit_code = 0
+        for path, exporter in exports:
+            try:
+                exporter(
+                    result,
+                    path,
+                    overwrite=args.overwrite_reports,
+                    protected_paths=protected_paths,
+                )
+            except (OSError, ValueError, TypeError) as exc:
+                print(
+                    f"Falha ao salvar relatorio {path}: {exc} "
+                    "A operacao ja executada nao foi desfeita; confira o JSON em stdout.",
+                    file=sys.stderr,
+                )
+                exit_code = 1
+        return exit_code
     if args.output == "json":
         _as_json(result)
         return 0

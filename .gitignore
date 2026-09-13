@@ -416,7 +416,6 @@ agents.toml
 .agents/.gitignore
 
 # Documentos internos e configuracoes locais: nunca publicar
-/AGENTS.md
 /CLAUDE.md
 /ROUND_STATUS.md
 /RTK.md

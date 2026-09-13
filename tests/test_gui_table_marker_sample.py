@@ -73,15 +73,6 @@ def _nullable_frame(rows: int, executors: list[str]) -> pd.DataFrame:
     )
 
 
-def _table_column_index(window, header_fragment: str) -> int:
-    table = window.table_widget
-    for index in range(table.columnCount()):
-        item = table.horizontalHeaderItem(index)
-        if item is not None and header_fragment in item.text():
-            return index
-    raise AssertionError(f"column with header '{header_fragment}' not found")
-
-
 class TestRenderMarkerSample:
     def test_digest_includes_categorical_dtype_metadata(self):
         frame = pd.DataFrame({"value": pd.Categorical(["a"], categories=["a", "b"])})
@@ -266,7 +257,7 @@ class TestEqualSizedPageRender:
         return item.text()
 
     def _executor_values_on_table(self) -> set[str]:
-        col = _table_column_index(self.window, "Set. Exec")
+        col = self.window._current_display_columns.index("setor_executor")
         table = self.window.table_widget
         return {
             table.item(row, col).text() for row in range(table.rowCount())
@@ -292,13 +283,18 @@ class TestEqualSizedPageRender:
         assert first_after != first_before, "table kept stale first row"
         assert self._executor_values_on_table() == {"IEE3"}
 
-    def test_executor_filter_refresh_rebuilds_table_through_pipeline(self):
+    @pytest.mark.parametrize("column_width", [26, 240])
+    def test_executor_filter_refresh_rebuilds_table_through_pipeline(self, column_width):
         self._set_search_baseline()
         self._render_initial_page()
 
         self.window._advanced_filters = {"setor_executor": ["IEE3"]}
         self.window._advanced_filters_active = True
         self.window._refresh_after_filter_change()
+
+        col = self.window._current_display_columns.index("setor_executor")
+        self.window.table_widget.setColumnWidth(col, column_width)
+        gui_table._apply_adaptive_header_labels(self.window)
 
         assert len(self.window.df_exibido) == 50
         assert self.window.table_widget.rowCount() == 50

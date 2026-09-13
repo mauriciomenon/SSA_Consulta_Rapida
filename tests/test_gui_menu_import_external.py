@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
+
+import pytest
 
 from gui import gui_ssa
 
@@ -107,6 +110,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def update_derivadas_from_sources(self) -> None:
             return None
 
+        def export_derivadas_report(self) -> None:
+            return None
+
         def consolidate_input_files(self) -> None:
             return None
 
@@ -166,7 +172,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "SAM API" in window._menu_bar.menus["Opcoes"].submenus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 2
     assert len(window._menu_bar.menus["Importacao"].actions) == 2
-    assert len(window._menu_bar.menus["Database"].actions) == 3
+    assert len(window._menu_bar.menus["Database"].actions) == 4
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert len(window._menu_bar.menus["Ajuda"].actions) == 2
     assert "Avancado" in window._menu_bar.menus["Importacao"].submenus
@@ -203,6 +209,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     ]
     assert database_labels == [
         "Atualizar derivadas",
+        "Exportar relatorio de derivadas...",
         "Recarregar dados",
         "Compactar DB",
     ]
@@ -242,6 +249,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "SAM API habilitada",
         "Consulta via xpath/scrap_report",
         "Atualizacao automatica",
+        "Atualizar dados agora",
     ]
     assert "Setores executores" in api_menu.submenus
     assert "Tipos de dados" in api_menu.submenus
@@ -323,7 +331,7 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert captured["kwargs"]["rescan_mode"] == "explicit"
     assert captured["kwargs"]["reload_on_success"] is True
     assert captured["kwargs"]["operation_kind"] == "import"
-    assert window.status_label.text == ""
+    assert window.status_label.text == "Status: Importacao de 2 arquivo(s) em andamento."
     assert len(warnings) == 1
     assert "outra.xls" in str(warnings[0])
 
@@ -725,6 +733,56 @@ def test_run_vacuum_analyze_missing_db(monkeypatch, tmp_path: Path) -> None:
     assert result["reason"] == "missing_db"
 
 
+@pytest.mark.parametrize("operation", ["run_vacuum_analyze", "load_other_database"])
+@pytest.mark.parametrize("stage", ["constructor", "start"])
+def test_database_thread_failure_releases_state_for_next_attempt(
+    monkeypatch, tmp_path: Path, operation: str, stage: str
+) -> None:
+    db_path = tmp_path / "candidate.db"
+    db_path.write_bytes(b"")
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_path))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr(
+        gui_ssa, "QMessageBox",
+        SimpleNamespace(question=lambda *_args: 1, StandardButton=SimpleNamespace(Yes=1, No=2)),
+    )
+    monkeypatch.setattr(
+        gui_ssa, "QFileDialog",
+        lambda: SimpleNamespace(getOpenFileName=lambda *_args: (str(db_path), "")),
+    )
+    scheduled = []
+    monkeypatch.setattr(
+        gui_ssa, "QTimer", SimpleNamespace(singleShot=lambda ms, callback: scheduled.append(callback))
+    )
+    fail = True
+
+    class Thread:
+        def __init__(self, **_kwargs):
+            if fail and stage == "constructor":
+                raise RuntimeError("falha ao criar thread")
+
+        def start(self):
+            if fail and stage == "start":
+                raise RuntimeError("falha ao iniciar thread")
+
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=Thread))
+    window = SimpleNamespace(status_label=_DummyLabel())
+    prefix = "_vacuum_analyze" if operation == "run_vacuum_analyze" else "_other_db_validation"
+    execute = getattr(gui_ssa.SSAMainWindow, operation)
+    result = execute(window)
+
+    assert result["ok"] is False
+    assert getattr(window, prefix + "_running") is False
+    assert getattr(window, prefix + "_thread") is None
+    assert "Falha ao iniciar" in window.status_label.text
+    assert scheduled == []
+    fail = False
+    retry = execute(window)
+    assert retry["started"] is True
+    assert getattr(window, prefix + "_running") is True
+    assert len(scheduled) == 1
+
+
 def test_run_vacuum_analyze_async_path_delivers_result_and_resets_flags(
     monkeypatch,
     tmp_path: Path,
@@ -770,6 +828,9 @@ def test_run_vacuum_analyze_async_path_delivers_result_and_resets_flags(
             if self._target is not None:
                 self._target()
 
+        def is_alive(self) -> bool:
+            return False
+
     monkeypatch.setattr(gui_ssa, "QTimer", _ImmediateTimer)
     monkeypatch.setattr(gui_ssa, "QMessageBox", _FakeMessageBox)
     monkeypatch.setattr(gui_ssa.threading, "Thread", _InlineThread)
@@ -788,3 +849,96 @@ def test_run_vacuum_analyze_async_path_delivers_result_and_resets_flags(
     assert window._vacuum_analyze_running is False
     assert window._vacuum_analyze_thread is None
     assert "DB compactado" in window.status_label.text
+
+
+@pytest.mark.parametrize("operation,stage", [
+    ("run_vacuum_analyze", "dialog"),
+    ("load_other_database", "prepare"),
+    ("load_other_database", "dialog"),
+    ("load_other_database", "reload"),
+])
+def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, operation, stage):
+    current = tmp_path / "current.db"
+    candidate = tmp_path / "candidate.db"
+    current.touch()
+    candidate.touch()
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(current))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    scheduled = []
+    fail = True
+    outcomes = []
+
+    def dialog(*_args):
+        if fail and stage == "dialog":
+            raise RuntimeError("falha ao exibir dialogo")
+
+    state = gui_ssa.ssa_derivadas_sync.DerivadasSyncState(last_report={"old": True})
+
+    def get_state():
+        if fail and stage == "prepare":
+            raise RuntimeError("falha ao preparar troca")
+        return state
+
+    def reload():
+        if fail and stage == "reload":
+            raise RuntimeError("falha ao recarregar")
+
+    class Thread:
+        def __init__(self, target, **_kwargs):
+            self.target = target
+            self.alive = True
+
+        def start(self):
+            self.target()
+
+        def is_alive(self):
+            return self.alive
+
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=Thread))
+    monkeypatch.setattr(gui_ssa, "QTimer", SimpleNamespace(
+        singleShot=lambda _ms, callback: scheduled.append(callback)))
+    monkeypatch.setattr(gui_ssa, "QMessageBox", SimpleNamespace(
+        question=lambda *_args: 1, information=dialog,
+        StandardButton=SimpleNamespace(Yes=1, No=2)))
+    monkeypatch.setattr(gui_ssa, "QFileDialog", lambda: SimpleNamespace(
+        getOpenFileName=lambda *_args: (str(candidate), "")))
+    prefix = "_vacuum_analyze" if operation == "run_vacuum_analyze" else "_other_db_validation"
+    finalizer_name = ("_finalize_vacuum_analyze_result" if operation == "run_vacuum_analyze"
+                      else "_finalize_database_candidate_validation")
+    original_finalize = getattr(gui_ssa.SSAMainWindow, finalizer_name)
+
+    def finalize(window, value):
+        result = original_finalize(window, value)
+        outcomes.append(result)
+        return result
+
+    monkeypatch.setattr(gui_ssa.SSAMainWindow, finalizer_name, finalize)
+    monkeypatch.setattr(gui_ssa.SSAMainWindow, "_execute_vacuum_analyze",
+                        lambda _path: {"ok": True})
+    monkeypatch.setattr(gui_ssa.SSAMainWindow, "_validate_database_candidate",
+                        lambda path: {"ok": True, "db_file": path})
+    window = SimpleNamespace(status_label=_DummyLabel(), _get_derivadas_sync_state=get_state,
+                             load_data=reload)
+    execute = getattr(gui_ssa.SSAMainWindow, operation)
+    assert execute(window)["started"] is True
+    worker = getattr(window, prefix + "_thread")
+    scheduled.pop(0)()
+    assert getattr(window, prefix + "_thread") is worker
+    assert getattr(window, prefix + "_running") is True
+    assert outcomes == []
+    worker.alive = False
+    scheduled.pop(0)()
+    assert outcomes[-1]["ok"] is False
+    assert "Falha" in window.status_label.text or "falha" in window.status_label.text or "nao foram" in window.status_label.text
+    assert getattr(window, prefix + "_running") is False
+    assert getattr(window, prefix + "_thread") is None
+    selected = operation == "load_other_database" and stage != "prepare"
+    assert gui_ssa.DB_PATH == str(candidate if selected else current)
+    if selected:
+        assert state.last_report is None
+        assert state.report_invalidated is True
+    fail = False
+    assert execute(window)["started"] is True
+    getattr(window, prefix + "_thread").alive = False
+    scheduled.pop(0)()
+    assert outcomes[-1]["ok"] is True

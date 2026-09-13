@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import unicodedata
 from typing import Any, Callable, cast
 
@@ -59,6 +60,15 @@ class PersistentFilterUiController:
 
     def save_current(self) -> None:
         apply_advanced = getattr(self.window, "_apply_advanced_filters_from_ui", None)
+        previous_active_filters = copy.deepcopy(
+            getattr(self.window, "_active_column_filters", None)
+        )
+        previous_advanced_active = getattr(
+            self.window, "_advanced_filters_active", False
+        )
+        previous_advanced_filters = copy.deepcopy(
+            getattr(self.window, "_advanced_filters", None)
+        )
         if callable(apply_advanced):
             try:
                 apply_advanced(store_only=True)
@@ -77,6 +87,12 @@ class PersistentFilterUiController:
                 "Nao foi possivel ler o filtro atual para salvar.",
             )
             return
+        finally:
+            # store_only muta o estado ativo para o snapshot capturar a
+            # selecao do painel; restaura para nao divergir da tabela exibida.
+            self.window._active_column_filters = previous_active_filters
+            self.window._advanced_filters_active = previous_advanced_active
+            self.window._advanced_filters = previous_advanced_filters
         current_text = str(current_state.get("search_text", "") or "").strip()
         if not self._has_filter_state(current_state, current_text):
             QMessageBox.information(

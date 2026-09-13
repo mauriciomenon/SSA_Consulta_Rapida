@@ -45,6 +45,8 @@ class PreferencesWriter:
         self._retries = retries
         self._lock = threading.Condition()
         self._pending: dict[Any, Any] | None = None
+        self._writing = False
+        self._write_failed = False
         self._stopped = False
         self._terminated = threading.Event()
         self._thread = threading.Thread(
@@ -87,13 +89,35 @@ class PreferencesWriter:
                         pass
                     prefs_snapshot = self._pending
                     self._pending = None
-                self._write_func(prefs_snapshot, retries=self._retries)
+                    self._writing = True
+                written = False
+                try:
+                    written = bool(self._write_func(prefs_snapshot, retries=self._retries))
+                finally:
+                    with self._lock:
+                        self._write_failed = not written
+                        self._writing = False
+                        self._lock.notify_all()
         except Exception:
             logger.exception("Falha inesperada no gravador de preferencias GUI")
         finally:
             with self._lock:
+                self._write_failed = self._write_failed or self._pending is not None
                 self._stopped = True
                 self._terminated.set()
+                self._lock.notify_all()
+
+    def flush(self, *, timeout: float | None = 1.0) -> bool:
+        """Confirma gravacao; retorna False na espera ou levanta OSError na falha."""
+        with self._lock:
+            finished = self._lock.wait_for(
+                lambda: (self._pending is None and not self._writing)
+                or self._terminated.is_set(),
+                timeout=timeout,
+            )
+            if finished and self._write_failed:
+                raise OSError("A ultima gravacao de preferencias GUI falhou.")
+            return finished
 
     def shutdown(self, *, timeout: float | None = 1.0) -> bool:
         with self._lock:
@@ -156,3 +180,9 @@ def shutdown_gui_preferences_writer(*, timeout: float | None = 1.0) -> bool:
     with _GUI_PREFERENCES_WRITER_LOCK:
         writer = _GUI_PREFERENCES_WRITER
     return writer.shutdown(timeout=timeout)
+
+
+def flush_gui_preferences_writer(*, timeout: float | None = 1.0) -> bool:
+    with _GUI_PREFERENCES_WRITER_LOCK:
+        writer = _GUI_PREFERENCES_WRITER
+    return writer.flush(timeout=timeout)

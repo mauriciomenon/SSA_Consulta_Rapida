@@ -16,13 +16,15 @@ import json
 import logging
 import os
 import sqlite3
+import tempfile
 import unicodedata
 from collections import defaultdict, deque
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from pathlib import Path
+from typing import IO, Any
 
 import pandas as pd
 
@@ -366,9 +368,10 @@ def _load_excel_frames(
     try:
         frames: list[pd.DataFrame] = []
         parse_errors: list[tuple[str, Exception]] = []
-        with open_validated_excel_source(sheet_file) as source_stream, pd.ExcelFile(
-            source_stream
-        ) as workbook:
+        with (
+            open_validated_excel_source(sheet_file) as source_stream,
+            pd.ExcelFile(source_stream) as workbook,
+        ):
             target_sheets = [sheet_name] if sheet_name else list(workbook.sheet_names)
             for target_sheet in target_sheets:
                 try:
@@ -607,7 +610,9 @@ def _collect_special_visual_sheet_edges(
         ]
         column_groups: list[tuple[int, int, int]] = []
         relation_indexes = [
-            index for index, header in enumerate(normalized_headers) if header == "relacao"
+            index
+            for index, header in enumerate(normalized_headers)
+            if header == "relacao"
         ]
         for relation_index in relation_indexes:
             child_index = next(
@@ -1015,8 +1020,7 @@ def _analyze_reconciliation(
     source_edges: list[SourceEdge],
 ) -> dict[str, Any]:
     pair_edges = [
-        (matrix_edge.parent_ssa, matrix_edge.child_ssa)
-        for matrix_edge in matrix_edges
+        (matrix_edge.parent_ssa, matrix_edge.child_ssa) for matrix_edge in matrix_edges
     ]
 
     child_parents = _build_child_parent_map(pair_edges)
@@ -2181,33 +2185,171 @@ def run_derivadas_maintenance(
     }
 
 
-def export_reconciliation_csv(report: dict[str, Any], output_file: str) -> None:
-    """Export a lightweight reconciliation report (single-row csv)."""
+def validate_report_output_paths(
+    output_files: Iterable[str],
+    *,
+    protected_paths: Iterable[str] = (),
+    overwrite: bool = True,
+) -> None:
+    """Recusa destinos repetidos, fontes protegidas e substituicoes nao autorizadas."""
+    occupied = [Path(path).expanduser().resolve() for path in protected_paths]
+    for output_file in output_files:
+        if not str(output_file).strip():
+            raise ValueError("O destino do relatorio esta vazio.")
+        target = Path(output_file).expanduser().resolve()
+        if not target.parent.is_dir():
+            raise ValueError(f"A pasta de destino nao existe: {target.parent}")
+        if target.exists() and not target.is_file():
+            raise ValueError(f"O destino precisa ser um arquivo: {target}")
+        for other in occupied:
+            if target == other or (
+                target.exists() and other.exists() and target.samefile(other)
+            ):
+                raise ValueError(f"Destino repetido ou protegido: {target}")
+        if target.exists() and not overwrite:
+            raise FileExistsError(f"O relatorio ja existe: {target}")
+        occupied.append(target)
 
-    reconciliation = dict(report.get("reconciliation") or {})
-    row = {
-        "timestamp": report.get("timestamp"),
-        "mode": report.get("mode"),
-        "verify_only": report.get("verify_only"),
-        "source_edges": (report.get("merge_stats") or {}).get("source_edges", 0),
-        "merged_edges": (report.get("merge_stats") or {}).get("merged_edges", 0),
-        "multiparent_children_count": reconciliation.get(
-            "multiparent_children_count", 0
-        ),
-        "orphan_parents_count": reconciliation.get("orphan_parents_count", 0),
-        "orphan_children_count": reconciliation.get("orphan_children_count", 0),
-        "db_vs_sheet_conflict_count": reconciliation.get(
-            "db_vs_sheet_conflict_count", 0
-        ),
-        "cycle_node_count": reconciliation.get("cycle_node_count", 0),
-    }
-    fieldnames = list(row.keys())
-    with open(output_file, "w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+
+@contextmanager
+def _report_output(
+    output_file: str, *, overwrite: bool, protected_paths: Iterable[str]
+) -> Iterator[IO[str]]:
+    protected = tuple(protected_paths)
+    validate_report_output_paths(
+        [output_file], protected_paths=protected, overwrite=overwrite
+    )
+    target = Path(output_file).expanduser().resolve()
+    temporary = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        newline="",
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+        delete=False,
+    )
+    try:
+        with temporary as stream:
+            yield stream.file
+            stream.flush()
+            os.fsync(stream.fileno())
+        validate_report_output_paths(
+            [output_file], protected_paths=protected, overwrite=overwrite
+        )
+        if overwrite:
+            os.replace(temporary.name, target)
+        else:
+            os.link(temporary.name, target)
+    finally:
+        if os.path.exists(temporary.name):
+            try:
+                os.unlink(temporary.name)
+            except OSError as exc:
+                logger.warning(
+                    "Falha ao remover temporario de relatorio %s: %s",
+                    temporary.name,
+                    exc,
+                )
+
+
+def _export_reconciliation(
+    report: dict[str, Any],
+    output_file: str,
+    *,
+    delimiter: str,
+    overwrite: bool,
+    protected_paths: Iterable[str],
+) -> None:
+    phases = report.get("phase_reports")
+    reports = (
+        phases
+        if phases is not None
+        else [report.get("heal", report).get("sync", report)]
+    )
+    rows = []
+    for item in reports:
+        if "reconciliation" not in item:
+            reason = report.get("reason") or report.get("heal", {}).get("reason")
+            raise ValueError(
+                "Nao houve reconciliacao nesta operacao; CSV/TSV nao disponivel"
+                f"{f' ({reason})' if reason else ''}. O JSON preserva o resultado completo."
+            )
+        reconciliation = item["reconciliation"]
+        row = {
+            "timestamp": item.get("timestamp"),
+            "mode": item.get("mode"),
+            "verify_only": item.get("verify_only"),
+            "source_edges": (item.get("merge_stats") or {}).get("source_edges", 0),
+            "merged_edges": (item.get("merge_stats") or {}).get("merged_edges", 0),
+            "multiparent_children_count": reconciliation.get(
+                "multiparent_children_count", 0
+            ),
+            "orphan_parents_count": reconciliation.get("orphan_parents_count", 0),
+            "orphan_children_count": reconciliation.get("orphan_children_count", 0),
+            "db_vs_sheet_conflict_count": reconciliation.get(
+                "db_vs_sheet_conflict_count", 0
+            ),
+            "cycle_node_count": reconciliation.get("cycle_node_count", 0),
+        }
+        if phases is not None:
+            row = {"phase": item.get("phase"), **row}
+        rows.append(row)
+    if not rows:
+        raise ValueError(
+            "Nao houve reconciliacao nesta operacao; use o relatorio JSON."
+        )
+    with _report_output(
+        output_file, overwrite=overwrite, protected_paths=protected_paths
+    ) as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), delimiter=delimiter)
         writer.writeheader()
-        writer.writerow(row)
+        writer.writerows(rows)
 
 
-def export_report_json(report: dict[str, Any], output_file: str) -> None:
-    with open(output_file, "w", encoding="utf-8") as fh:
-        json.dump(report, fh, ensure_ascii=False, indent=2)
+def export_reconciliation_csv(
+    report: dict[str, Any],
+    output_file: str,
+    *,
+    overwrite: bool = True,
+    protected_paths: Iterable[str] = (),
+) -> None:
+    """Grava reconciliacao CSV; aceita sync, heal, maintenance ou fases da GUI."""
+    _export_reconciliation(
+        report,
+        output_file,
+        delimiter=",",
+        overwrite=overwrite,
+        protected_paths=protected_paths,
+    )
+
+
+def export_reconciliation_tsv(
+    report: dict[str, Any],
+    output_file: str,
+    *,
+    overwrite: bool = True,
+    protected_paths: Iterable[str] = (),
+) -> None:
+    """Grava as mesmas colunas do CSV, separadas por tabulacao."""
+    _export_reconciliation(
+        report,
+        output_file,
+        delimiter="\t",
+        overwrite=overwrite,
+        protected_paths=protected_paths,
+    )
+
+
+def export_report_json(
+    report: dict[str, Any],
+    output_file: str,
+    *,
+    overwrite: bool = True,
+    protected_paths: Iterable[str] = (),
+) -> None:
+    """Grava o resultado completo, incluindo operacoes sem reconciliacao."""
+    with _report_output(
+        output_file, overwrite=overwrite, protected_paths=protected_paths
+    ) as stream:
+        json.dump(report, stream, ensure_ascii=False, indent=2)

@@ -945,8 +945,10 @@ def _render_derivadas_context_entry(window, state: dict[str, Any], entry_index: 
     try:
         if int(tab_bar.currentIndex()) != entry_index:
             tab_bar.blockSignals(True)
-            tab_bar.setCurrentIndex(entry_index)
-            tab_bar.blockSignals(False)
+            try:
+                tab_bar.setCurrentIndex(entry_index)
+            finally:
+                tab_bar.blockSignals(False)
     except Exception as exc:
         logger.debug("Falha ao alinhar aba contextual de derivadas: %s", exc)
     font_size_pt, font_family = _resolve_details_render_fonts(window)
@@ -1033,8 +1035,10 @@ def _close_current_derivadas_context(window) -> None:
     entry = entries.pop(current_index)
     tab_bar = state["tab_bar"]
     tab_bar.blockSignals(True)
-    tab_bar.removeTab(current_index)
-    tab_bar.blockSignals(False)
+    try:
+        tab_bar.removeTab(current_index)
+    finally:
+        tab_bar.blockSignals(False)
     if not entries:
         state["current_ssa"] = ""
         _show_main_derivadas_page(window)

@@ -199,7 +199,28 @@ def _has_named_alias(mapping: dict[str, str] | None, col: str) -> bool:
     return bool(value and value != col)
 
 
-def _connect_filter_signal(signal, slot, *, label: str) -> bool:
+def _is_window_deleted(obj: Any) -> bool:
+    if obj is None or sip is None:
+        return False
+    try:
+        return bool(sip.isdeleted(obj))
+    except Exception:
+        return False
+
+
+def _connect_filter_signal(signal, slot, *, label: str, window: Any = None) -> bool:
+    if window is not None:
+        original_slot = slot
+
+        def _guarded_slot(*args, **kwargs):
+            # Callback tardio pode ser entregue apos a destruicao da janela
+            # (WA_DeleteOnClose + sinais enfileirados); sem a guarda o acesso
+            # a widgets destruidos aborta o processo.
+            if _is_window_deleted(window):
+                return None
+            return original_slot(*args, **kwargs)
+
+        slot = _guarded_slot
     if signal is None:
         logger.debug("Signal ausente para %s; pulando conexao.", label)
         return False
@@ -438,6 +459,11 @@ class FilterGUISSAMixin:
                 "Estado visual de filtro ignorado antes da UI de filtro estar pronta"
             )
             return
+        if getattr(self, "_data_load_busy", False):
+            logger.debug(
+                "set_idle de filtro ignorado: carga de dados em andamento"
+            )
+            return
         self._filter_ui_state().set_idle()
 
     def _set_checked_without_signal(
@@ -483,6 +509,10 @@ class FilterGUISSAMixin:
                 search_button=getattr(self, "search_button", None),
                 status_label=getattr(self, "status_label", None),
                 logger=logger,
+                preserve_operation_feedback=lambda: bool(
+                    getattr(self, "_data_load_busy", False)
+                    or getattr(self, "_derivadas_sync_running", False)
+                ),
             )
             self._filter_ui_state_presenter = presenter
         return presenter
@@ -766,49 +796,59 @@ class FilterGUISSAMixin:
     ) -> None:
         if bool(getattr(self, "_is_shutting_down", False)):
             return
-        worker = FilterWorker(
-            filter_source,
-            search_chunks,
-            search_columns=general_search_columns,
-            default_mode=default_mode,
-            cache_context="",
-            df_hash=self._build_filter_worker_df_token(filter_source),
-        )
-        self.filter_thread = worker
-        filter_finished_connected = _connect_filter_signal(
-            worker.filter_finished,
-            lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid),
-            label="filter_worker.filter_finished",
-        )
-        error_connected = _connect_filter_signal(
-            worker.error_occurred,
-            lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid),
-            label="filter_worker.error_occurred",
-        )
-        _connect_filter_signal(
-            worker.finished,
-            lambda *_, w=worker, rid=request_id: self.on_filter_finished_cleanup(
-                w, request_id=rid
-            ),
-            label="filter_worker.finished.cleanup",
-        )
-        if not (filter_finished_connected and error_connected):
-            logger.warning(
-                "Falha ao conectar sinais criticos de filtro; abortando inicio do worker."
+        worker = None
+        try:
+            worker = FilterWorker(
+                filter_source,
+                search_chunks,
+                search_columns=general_search_columns,
+                default_mode=default_mode,
+                cache_context="",
+                df_hash=self._build_filter_worker_df_token(filter_source),
             )
-            self._cleanup_filter_worker(worker)
-            self._clear_active_filter_worker_reference(worker)
+            self.filter_thread = worker
+            filter_finished_connected = _connect_filter_signal(
+                worker.filter_finished,
+                lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid),
+                label="filter_worker.filter_finished",
+                window=self,
+            )
+            error_connected = _connect_filter_signal(
+                worker.error_occurred,
+                lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid),
+                label="filter_worker.error_occurred",
+                window=self,
+            )
+            cleanup_connected = _connect_filter_signal(
+                worker.finished,
+                lambda *_, w=worker, rid=request_id: self.on_filter_finished_cleanup(
+                    w, request_id=rid
+                ),
+                label="filter_worker.finished.cleanup",
+                window=self,
+            )
+            if not (filter_finished_connected and error_connected and cleanup_connected):
+                raise RuntimeError("Conexoes de sinais de filtro indisponiveis.")
+            self._retain_filter_worker_until_finished(worker)
+            worker.start()
+        except Exception as exc:
+            logger.error("Falha ao iniciar FilterWorker: %s", exc)
+            if worker is not None:
+                self._cleanup_filter_worker(worker)
+                self._clear_active_filter_worker_reference(worker)
             self.on_filter_error(
-                "Falha ao iniciar filtro: conexoes de sinais indisponiveis.",
+                "Falha ao iniciar filtro.",
                 request_id=request_id,
             )
-            return
-        self._retain_filter_worker_until_finished(worker)
-        worker.start()
 
     def initiate_filtering(self):
         if self.df_completo.empty:
             self._set_filter_ui_idle()
+            if getattr(self, "_data_load_busy", False):
+                logger.debug(
+                    "initiate_filtering ignorado: carga de dados em andamento"
+                )
+                return
             QMessageBox.information(
                 _qt_parent(self), "Aviso", "Nenhum dado carregado para filtrar."
             )
@@ -845,24 +885,25 @@ class FilterGUISSAMixin:
             logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
         request_id = self._invalidate_active_filter_request("initiate_filtering")
 
-        raw_chunks = self._prepare_search_chunks(search_text) if search_text else []
-        search_chunks_for_worker = raw_chunks
+        try:
+            search_chunks_for_worker = self._prepare_search_chunks(search_text)
+            self._sync_clear_filter_button_state()
+            filter_source_candidate = self._select_general_filter_source_candidate(
+                search_text
+            )
+            default_mode = self._get_default_filter_mode()
+            filter_source = self._get_filter_source_dataframe(filter_source_candidate)
+            general_search_columns = build_gui_general_search_columns(filter_source)
+        except Exception as exc:
+            logger.error("Falha ao preparar filtro: %s", exc)
+            self._cancel_active_filter_worker("initiate_filtering_prepare_failed")
+            self.on_filter_error("Falha ao preparar filtro.", request_id=request_id)
+            return
 
-        self._sync_clear_filter_button_state()
-
-        display_text = search_text if search_text else ""
-        filter_source_candidate = self._select_general_filter_source_candidate(
-            search_text
-        )
-        self._pending_search_display = display_text
-        self._active_filter_search_display = display_text
+        self._pending_search_display = search_text
+        self._active_filter_search_display = search_text
         self._active_filter_search_request_id = request_id
-
         self._filter_ui_state().set_busy()
-
-        default_mode = self._get_default_filter_mode()
-        filter_source = self._get_filter_source_dataframe(filter_source_candidate)
-        general_search_columns = build_gui_general_search_columns(filter_source)
 
         # Modo síncrono (sem QThread) opcional para testes
         if getattr(self, "_sync_filtering", False):
@@ -1222,7 +1263,8 @@ class FilterGUISSAMixin:
                 worker if worker is not None else getattr(self, "filter_thread", None)
             )
             self._cleanup_filter_worker(target_worker)
-            self._filter_ui_state().set_cleanup()
+            if not getattr(self, "_data_load_busy", False):
+                self._filter_ui_state().set_cleanup()
             try:
                 self._prune_retired_filter_workers()
             except Exception as exc:

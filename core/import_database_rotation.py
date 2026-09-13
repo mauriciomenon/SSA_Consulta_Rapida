@@ -243,6 +243,7 @@ def force_wal_checkpoint(db_path: str, *, log_label: str) -> Optional[Exception]
                     )
                     time.sleep(0.35 * attempt)
                     continue
+                break
             last_error = None
             break
         except sqlite3.Error as exc:

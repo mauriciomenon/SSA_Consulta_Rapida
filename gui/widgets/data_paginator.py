@@ -124,8 +124,10 @@ class DataPaginator(QWidget):
             and self.page_size_spinbox.value() != self.page_size
         ):
             self.page_size_spinbox.blockSignals(True)
-            self.page_size_spinbox.setValue(self.page_size)
-            self.page_size_spinbox.blockSignals(False)
+            try:
+                self.page_size_spinbox.setValue(self.page_size)
+            finally:
+                self.page_size_spinbox.blockSignals(False)
         # Reset para a pagina 1 ao mudar o tamanho
         self.current_page = 1
         self.update_pagination_info()

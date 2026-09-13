@@ -46,31 +46,20 @@ case "$mode" in
     ;;
 esac
 
-# Allow user extra opts via PYTEST_ADDOPTS
-pytest_extra_opts=()
+# Validar a sintaxe; pytest consome PYTEST_ADDOPTS diretamente do ambiente.
 if [[ -n "${PYTEST_ADDOPTS:-}" ]]; then
-  echo "[run_tests] Extra opts: $PYTEST_ADDOPTS"
-  parsed_pytest_addopts="$(
-    python - "$PYTEST_ADDOPTS" <<'PY'
+  echo "[run_tests] Opcoes adicionais: $PYTEST_ADDOPTS"
+  python - "$PYTEST_ADDOPTS" <<'PY' || exit 2
 import shlex
 import sys
 
 try:
-    args = shlex.split(sys.argv[1])
+    shlex.split(sys.argv[1])
 except ValueError as exc:
-    print(f"[run_tests] ERROR: invalid PYTEST_ADDOPTS: {exc}", file=sys.stderr)
+    print(f"[run_tests] PYTEST_ADDOPTS invalido: {exc}", file=sys.stderr)
     sys.exit(2)
-
-for arg in args:
-    print(arg)
 PY
-  )" || exit 2
-  if [[ -n "$parsed_pytest_addopts" ]]; then
-    while IFS= read -r pytest_arg; do
-      pytest_extra_opts+=( "$pytest_arg" )
-    done <<< "$parsed_pytest_addopts"
-  fi
 fi
 
 set -x
-"${base_cmd[@]}" "${pytest_extra_opts[@]}"
+"${base_cmd[@]}"

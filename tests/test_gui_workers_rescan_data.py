@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from types import SimpleNamespace
 
 import pytest
@@ -223,6 +224,152 @@ class _WorkerIsRunningRaises(_BaseWorker):
 def _build_main_py(tmp_path: Path) -> str:
     (tmp_path / "main.py").write_text("print('ok')\n", encoding="utf-8")
     return str(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "failure_stage",
+    [
+        "constructor",
+        "start",
+        "rescan.finished_success",
+        "rescan.finished_error",
+        "rescan.finished.ref_cleanup",
+        "rescan.finished.dialog_release",
+    ],
+)
+def test_rescan_recovers_after_setup_failure(tmp_path, monkeypatch, failure_stage):
+    failures_enabled = True
+    workers = []
+    dialogs = []
+
+    class _TrackedDialog(_DialogNoop):
+        def __init__(self, window):
+            super().__init__(window)
+            self.closed = False
+            self.result = None
+            dialogs.append(self)
+
+        def close(self):
+            self.closed = True
+
+        def set_finished(self, success, *_args):
+            self.result = success
+
+    class _TrackedWorker(_BaseWorker):
+        def __init__(self, main_py_path, project_root):
+            if failures_enabled and failure_stage == "constructor":
+                raise RuntimeError("Falha sintetica no construtor")
+            super().__init__(main_py_path, project_root)
+            self.deleted = False
+            workers.append(self)
+
+        def start(self):
+            if failures_enabled and failure_stage == "start":
+                raise RuntimeError("Falha sintetica no start")
+            super().start()
+
+        def deleteLater(self):
+            self.deleted = True
+
+    original_connect = ssa_gui_workers._connect_signal
+
+    def _connect(signal, slot, *, label, **kwargs):
+        if failures_enabled and label == failure_stage:
+            return False
+        return original_connect(signal, slot, label=label, **kwargs)
+
+    monkeypatch.setattr(ssa_gui_workers, "_connect_signal", _connect)
+    window = _Window()
+    global_workers = []
+    global_meta = {}
+    options: dict[str, Any] = dict(
+        project_root=_build_main_py(tmp_path),
+        rescan_worker_cls=_TrackedWorker,
+        rescan_dialog_cls=_TrackedDialog,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        reload_on_success=True,
+    )
+
+    assert ssa_gui_workers.rescan_data(window, **options) is False
+    assert dialogs[0].closed is True
+    assert dialogs[0].show_called is False
+    assert window._active_rescan_worker is None
+    assert window._active_rescan_dialog is None
+    assert global_workers == []
+    assert global_meta == {}
+    assert window.status_label.text == "Status: Falha ao iniciar reescaneamento."
+    assert all(worker.deleted and not worker.isRunning() for worker in workers)
+
+    failures_enabled = False
+    assert ssa_gui_workers.rescan_data(window, **options) is True
+    worker = window._active_rescan_worker
+    assert worker is workers[-1]
+    assert worker.isRunning() is True
+    assert dialogs[-1].show_called is True
+    worker._running = False
+    worker.finished_success.emit()
+    worker.finished.emit()
+
+    assert dialogs[-1].result is True
+    assert window.load_calls == 1
+    assert window._active_rescan_worker is None
+    assert window._active_rescan_dialog is None
+    assert global_workers == []
+    assert global_meta == {}
+    assert worker.deleted is True
+
+
+def test_previous_rescan_signals_preserve_current_status_and_references(tmp_path):
+    window = _Window()
+    options: dict[str, Any] = dict(
+        project_root=_build_main_py(tmp_path),
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=[],
+        global_meta={},
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        reload_on_success=True,
+    )
+    assert ssa_gui_workers.rescan_data(window, **options)
+    old_worker = window._active_rescan_worker
+    old_dialog = window._active_rescan_dialog
+    assert isinstance(old_worker, _BaseWorker)
+    assert isinstance(old_dialog, _DialogNoop)
+    old_worker._running = False
+    assert ssa_gui_workers.rescan_data(window, **options)
+    current_worker = window._active_rescan_worker
+    current_dialog = window._active_rescan_dialog
+    assert isinstance(current_worker, _BaseWorker)
+    window.status_label.setText("operacao atual")
+
+    old_worker.finished_success.emit()
+    old_worker.finished_error.emit("erro antigo")
+    old_dialog.cancel_requested.emit()
+    old_worker.finished_success.emit()
+    old_worker.finished_error.emit("processo cancelado")
+    old_worker.finished.emit()
+
+    assert window.status_label.text == "operacao atual"
+    assert window._active_rescan_worker is current_worker
+    assert window._active_rescan_dialog is current_dialog
+    assert window.load_calls == 0
+    current_worker.finished_success.emit()
+    assert window.load_calls == 1
+    assert window.status_label.text == "Status: Carregando dados..."
 
 
 def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):

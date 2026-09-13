@@ -7,6 +7,9 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^fix\//'
 
 variables:
   QT_QPA_PLATFORM: "offscreen"
@@ -27,25 +30,50 @@ default:
     - apt-get update
     - >-
       apt-get install --yes --no-install-recommends
-      jq libdbus-1-3 libegl1 libfontconfig1 libgl1 libglib2.0-0 libopengl0
+      git jq libdbus-1-3 libegl1 libfontconfig1 libgl1 libglib2.0-0 libopengl0
       libxkbcommon-x11-0 libxcb-cursor0
     - uv sync --frozen --extra dev
     - export PATH="$CI_PROJECT_DIR/.venv/bin:$PATH"
+
+autoria-git:
+  stage: verify
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    - apt-get update
+    - apt-get install --yes --no-install-recommends git
+  cache: []
+  script:
+    - |
+      set -eu
+      BASE_SHA="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-${CI_COMMIT_BEFORE_SHA:-0000000000000000000000000000000000000000}}"
+      HEAD_SHA="${CI_MERGE_REQUEST_SOURCE_BRANCH_SHA:-$CI_COMMIT_SHA}"
+      uv run --no-project --no-sync python scripts/validate_git_authorship.py range "$BASE_SHA" "$HEAD_SHA"
 
 quality-gates:
   stage: verify
   extends: .python_setup
   script:
     - PYTHON="$CI_PROJECT_DIR/.venv/bin/python" bash scripts/ci_quality_gates.sh
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - quality_gates_output.jsonl
 
 pytest-full:
   stage: verify
   extends: .python_setup
-  rules:
-    - when: manual
-  allow_failure: true
+  timeout: 40 minutes
+  variables:
+    PYTEST_ADDOPTS: "--timeout=45 --timeout-method=thread --durations=20 --junitxml=pytest-results.xml"
   script:
-    - bash scripts/run_tests.sh
+    - bash scripts/run_tests.sh full
+  artifacts:
+    when: always
+    expire_in: 14 days
+    reports:
+      junit: pytest-results.xml
 
 secret-scan:
   stage: security

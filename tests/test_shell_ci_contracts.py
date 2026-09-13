@@ -461,26 +461,47 @@ def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
 
 
 @NATIVE_POSIX_ONLY
-def test_ci_quality_gates_parses_gate_args_with_quotes(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("gate_args", "gate_code", "expected_code", "expected_args"),
+    [
+        ('--skip "check docs" --label "cache manager"', 0, 0, ["--skip", "check docs", "--label", "cache manager"]),
+        ('--skip "check docs" --label "cache manager"', 1, 1, ["--skip", "check docs", "--label", "cache manager"]),
+        ('--skip "check docs', 0, 2, []),
+        ("", 0, 0, []),
+        ("   ", 0, 0, []),
+        ("--extra-doc ''", 0, 0, ["--extra-doc", ""]),
+        ("--extra-doc '' --skip check_docs", 0, 0, ["--extra-doc", "", "--skip", "check_docs"]),
+        ('--extra-doc "linha 1\nlinha 2\n"', 0, 0, ["--extra-doc", "linha 1\nlinha 2\n"]),
+        ("''", 0, 0, [""]),
+    ],
+)
+def test_ci_quality_gates_parses_gate_args_with_quotes(
+    tmp_path: Path, gate_args: str, gate_code: int, expected_code: int, expected_args: list[str]
+) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
 
-    capture = tmp_path / "argv.txt"
+    capture = tmp_path / "argv.json"
+    smoke_capture = tmp_path / "smoke.txt"
+    result_file = tmp_path / "quality_gates_output.jsonl"
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_python = fake_bin / "python"
     fake_python.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        "if [[ \"${1:-}\" == \"-c\" ]]; then\n"
+        "if [[ \"${1:-}\" == \"-c\" || \"${1:-}\" == \"-\" ]]; then\n"
         "  exec \"$REAL_PYTHON\" \"$@\"\n"
         "fi\n"
         "if [[ \"${1:-}\" == \"scripts/run_quality_gates.py\" ]]; then\n"
-        "  printf '%s\\n' \"${@:2}\" > \"$QUALITY_GATES_CAPTURE\"\n"
-        "  printf '{\"overall_status\":\"ok\"}\\n'\n"
-        "  exit 0\n"
+        "  \"$REAL_PYTHON\" -c 'import json, sys; print(json.dumps(sys.argv[1:]))' \"${@:2}\" > \"$QUALITY_GATES_CAPTURE\"\n"
+        "  printf 'Diagnostico do gate no stdout\\n'\n"
+        "  printf 'Diagnostico do gate no stderr\\n' >&2\n"
+        "  printf '{\"overall_status\":\"%s\"}\\n' \"$QUALITY_GATES_STATUS\"\n"
+        "  exit \"$QUALITY_GATES_CODE\"\n"
         "fi\n"
         "if [[ \"${1:-}\" == \"-m\" && \"${2:-}\" == \"pytest\" ]]; then\n"
+        "  printf 'smoke executado\\n' > \"$QUALITY_GATES_SMOKE_CAPTURE\"\n"
         "  exit 0\n"
         "fi\n"
         "printf 'unexpected python invocation: %s\\n' \"$*\" >&2\n"
@@ -497,28 +518,55 @@ def test_ci_quality_gates_parses_gate_args_with_quotes(tmp_path: Path) -> None:
         check=False,
         env=_test_env(
             PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
-            GATES_ARGS='--skip "check docs" --label "cache manager"',
+            GATES_ARGS=gate_args,
+            TMPDIR=str(tmp_path),
             REAL_PYTHON=sys.executable,
             QUALITY_GATES_CAPTURE=str(capture),
-            QUALITY_GATES_JSONL=str(tmp_path / "quality_gates_output.jsonl"),
+            QUALITY_GATES_SMOKE_CAPTURE=str(smoke_capture),
+            QUALITY_GATES_JSONL=str(result_file),
+            QUALITY_GATES_CODE=str(gate_code),
+            QUALITY_GATES_STATUS="ok" if gate_code == 0 else "fail",
         ),
     )
 
-    assert result.returncode == 0, result.stderr
-    assert capture.read_text(encoding="utf-8").splitlines() == [
-        "--skip",
-        "check docs",
-        "--label",
-        "cache manager",
-    ]
+    assert result.returncode == expected_code, result.stdout + result.stderr
+    assert not list(tmp_path.glob("ssa-gates-args.*"))
+    if expected_code == 2:
+        assert "GATES_ARGS invalido" in result.stderr
+        assert not capture.exists()
+        assert not smoke_capture.exists()
+        assert not result_file.exists()
+        return
+    assert "Diagnostico do gate no stdout" in result.stdout
+    assert "Diagnostico do gate no stderr" in result.stdout
+    assert result.stderr == ""
+    assert smoke_capture.exists()
+    assert json.loads(result_file.read_text(encoding="utf-8")) == {
+        "overall_status": "ok" if gate_code == 0 else "fail"
+    }
+    assert json.loads(capture.read_text(encoding="utf-8")) == expected_args
 
 
 @NATIVE_POSIX_ONLY
-def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("addopts", "expected_code"),
+    [
+        ('--collect-only -k "cache manager"', 0),
+        ("", 0),
+        ("   ", 0),
+        ("-k ''", 0),
+        ("-k '' --collect-only", 0),
+        ('-k "linha 1\nlinha 2\n"', 0),
+        ('-k "aspas incompletas', 2),
+    ],
+)
+def test_run_tests_parses_pytest_addopts_with_quotes(
+    tmp_path: Path, addopts: str, expected_code: int
+) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
 
-    capture = tmp_path / "argv.txt"
+    capture = tmp_path / "argv.json"
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_python = fake_bin / "python"
@@ -528,7 +576,9 @@ def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
         "if [[ \"${1:-}\" == \"-\" ]]; then\n"
         "  exec \"$REAL_PYTHON\" \"$@\"\n"
         "fi\n"
-        "printf '%s\\n' \"$@\" > \"$RUN_TESTS_CAPTURE\"\n",
+        "\"$REAL_PYTHON\" -c 'import json, os, sys; "
+        "print(json.dumps({\"argv\": sys.argv[1:], \"addopts\": os.environ[\"PYTEST_ADDOPTS\"]}))' "
+        "\"$@\" > \"$RUN_TESTS_CAPTURE\"\n",
         encoding="utf-8",
     )
     fake_python.chmod(0o755)
@@ -541,22 +591,21 @@ def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
         check=False,
         env=_test_env(
             PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
-            PYTEST_ADDOPTS='--collect-only -k "cache manager"',
+            PYTEST_ADDOPTS=addopts,
             REAL_PYTHON=sys.executable,
             RUN_TESTS_CAPTURE=str(capture),
         ),
     )
 
-    assert result.returncode == 0, result.stderr
-    assert capture.read_text(encoding="utf-8").splitlines() == [
-        "-m",
-        "pytest",
-        "--cache-clear",
-        "-q",
-        "--collect-only",
-        "-k",
-        "cache manager",
-    ]
+    assert result.returncode == expected_code, result.stderr
+    if expected_code == 2:
+        assert "PYTEST_ADDOPTS invalido" in result.stderr
+        assert not capture.exists()
+        return
+    assert json.loads(capture.read_text(encoding="utf-8")) == {
+        "argv": ["-m", "pytest", "--cache-clear", "-q"],
+        "addopts": addopts,
+    }
 
 
 def test_run_tests_does_not_expand_pytest_addopts_unquoted() -> None:
@@ -564,7 +613,8 @@ def test_run_tests_does_not_expand_pytest_addopts_unquoted() -> None:
 
     assert '"${base_cmd[@]}" ${PYTEST_ADDOPTS:-}' not in script
     assert "shlex.split" in script
-    assert '"${base_cmd[@]}" "${pytest_extra_opts[@]}"' in script
+    assert '"${base_cmd[@]}"' in script
+    assert "pytest_extra_opts" not in script
 
 
 def test_secret_scan_hook_loop_safety_and_log_hygiene() -> None:

@@ -19,6 +19,7 @@ from core.pai_api_options import (
     update_pai_api_sector_setting,
 )
 from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
+from gui.ssa.app_menus import database_operation_in_progress, refresh_database_actions
 from gui.workers.pai_api_worker import (
     PaiApiRefreshWorker,
     PaiApiWorkerConfig,
@@ -199,32 +200,46 @@ def start_pai_api_refresh(
         if not quiet_if_running:
             window.set_pai_api_status(STATUS_API_ALREADY_RUNNING)
         return False
+    if database_operation_in_progress(window):
+        if not quiet_if_running:
+            window.set_pai_api_status("Status: Aguarde a operacao atual antes de atualizar a SAM API.")
+        return False
 
     should_reload = True if reload_after_success is None else reload_after_success
-    worker = worker_cls(
-        PaiApiWorkerConfig(
-            project_root=Path(context.project_root),
-            docs_dir=Path(context.docs_dir),
-            db_path=Path(context.db_path),
-            output_dir=Path(context.output_dir),
-            options=options,
-            confirm_before_import=ask_reload,
-            fetch_only=not (ask_reload or should_reload),
+    worker = None
+    try:
+        worker = worker_cls(
+            PaiApiWorkerConfig(
+                project_root=Path(context.project_root),
+                docs_dir=Path(context.docs_dir),
+                db_path=Path(context.db_path),
+                output_dir=Path(context.output_dir),
+                options=options,
+                confirm_before_import=ask_reload,
+                fetch_only=not (ask_reload or should_reload),
+            )
         )
-    )
-    reset_for_start = getattr(worker, "reset_for_start", None)
-    if callable(reset_for_start):
-        reset_for_start()
-    if not window.set_active_pai_api_worker(worker):
+        reset_for_start = getattr(worker, "reset_for_start", None)
+        if callable(reset_for_start):
+            reset_for_start()
+        if not window.set_active_pai_api_worker(worker):
+            return False
+        _connect_worker(
+            window,
+            worker,
+            qmessagebox=context.qmessagebox,
+            reload_after_success=should_reload,
+        )
+        worker.start()
+    except Exception as exc:
+        logger.error("Falha ao iniciar worker da SAM API: %s", exc)
+        if worker is not None and window.active_pai_api_worker() is worker:
+            window.set_active_pai_api_worker(None)
+        refresh_database_actions(window)
+        window.set_pai_api_status("Status: Falha ao iniciar SAM API.")
         return False
-    _connect_worker(
-        window,
-        worker,
-        qmessagebox=context.qmessagebox,
-        reload_after_success=should_reload,
-    )
-    worker.start()
     window.set_pai_api_status(STATUS_API_RUNNING)
+    refresh_database_actions(window)
     return True
 
 
@@ -281,8 +296,8 @@ def _connect_worker(
 ) -> None:
     worker.output_line.connect(_log_worker_output)
     worker.error_line.connect(_log_worker_error)
-    worker.progress.connect(partial(_set_worker_progress, window))
-    worker.preview_ready.connect(partial(_set_worker_preview_status, window))
+    worker.progress.connect(partial(_set_worker_progress, window, worker))
+    worker.preview_ready.connect(partial(_set_worker_preview_status, window, worker))
     worker.import_decision_required.connect(
         partial(_confirm_worker_import, window, worker, qmessagebox=qmessagebox)
     )
@@ -303,6 +318,8 @@ def _run_auto_refresh_timeout(
     window: PaiApiWindowPort,
     worker_cls: Any,
 ) -> bool:
+    if _window_is_deleted(window):
+        return False
     return start_pai_api_refresh(
         window,
         preferences=window.pai_api_preferences(),
@@ -324,19 +341,37 @@ def _log_worker_error(text: str, *_args: Any) -> None:
 
 def _set_worker_progress(
     window: PaiApiWindowPort,
+    worker: PaiApiWorkerPort,
     _percent: int,
     message: str,
     *_args: Any,
 ) -> None:
+    if _window_is_deleted(window) or window.active_pai_api_worker() is not worker:
+        return
     window.set_pai_api_status(f"Status: {message}")
 
 
 def _set_worker_preview_status(
     window: PaiApiWindowPort,
+    worker: PaiApiWorkerPort,
     preview: Any,
     *_args: Any,
 ) -> None:
+    if _window_is_deleted(window) or window.active_pai_api_worker() is not worker:
+        return
     window.set_pai_api_status(f"Status: {format_preview_status(preview)}")
+
+
+def _window_is_deleted(window: Any) -> bool:
+    """True somente quando o Qt confirma a destruicao do objeto."""
+    try:
+        from PyQt6 import sip
+    except ImportError:
+        return False
+    try:
+        return bool(sip.isdeleted(window))
+    except Exception:
+        return False
 
 
 def _confirm_worker_import(
@@ -346,8 +381,12 @@ def _confirm_worker_import(
     *_args: Any,
     qmessagebox: Any,
 ) -> None:
+    if _window_is_deleted(window) or window.active_pai_api_worker() is not worker:
+        return
     window.set_pai_api_status(f"Status: {format_decision_request_status(decision_request)}")
-    worker.set_import_decision(window.confirm_pai_api_import(qmessagebox, decision_request))
+    approved = window.confirm_pai_api_import(qmessagebox, decision_request)
+    if not _window_is_deleted(window) and window.active_pai_api_worker() is worker:
+        worker.set_import_decision(approved)
 
 
 def _finish_success(
@@ -357,13 +396,21 @@ def _finish_success(
     qmessagebox: Any,
     reload_after_success: bool,
 ) -> None:
+    if _window_is_deleted(window) or window.active_pai_api_worker() is not worker:
+        return
     partial_status = _worker_partial_status(worker)
     if _worker_import_skipped(worker):
         window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
         return
     if reload_after_success:
         window.set_pai_api_status(partial_status or STATUS_API_RELOAD)
-        window.reload_pai_api_data()
+        try:
+            window.reload_pai_api_data()
+        except Exception as exc:
+            logger.warning("SAM API concluida, mas falhou ao recarregar dados: %s", exc)
+            window.set_pai_api_status(
+                "Status: SAM API concluida; falha ao recarregar. Use Recarregar dados."
+            )
         return
     window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
 
@@ -373,6 +420,8 @@ def _finish_error(
     worker: Any,
     message: str,
 ) -> None:
+    if _window_is_deleted(window) or window.active_pai_api_worker() is not worker:
+        return
     short_message = _short_error_message(message)
     logger.warning("Falha na SAM API: %s", short_message)
     if short_message != message:
@@ -385,8 +434,11 @@ def _release_worker(
     worker: Any,
     *_args: Any,
 ) -> None:
+    if _window_is_deleted(window):
+        return
     if window.active_pai_api_worker() is worker:
         window.set_active_pai_api_worker(None)
+        refresh_database_actions(window)
 
 
 def _worker_is_running(worker: Any) -> bool:
