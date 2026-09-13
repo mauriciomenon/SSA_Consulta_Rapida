@@ -128,3 +128,21 @@ liberar os controles de uma nova operacao.
 Se a SAM API concluir e a recarga da tabela falhar, o status indica
 `SAM API concluida; falha ao recarregar. Use Recarregar dados.`. A falha tambem
 fica no log; recarregue os dados sem repetir automaticamente a importacao.
+
+
+## Falha ao apresentar um resultado concluido
+
+Se houver erro ao aplicar o resultado de derivadas na interface, a GUI informa
+a falha, restaura os controles e invalida o relatorio dessa entrega. A operacao
+no banco nao e desfeita automaticamente. Uma thread ainda viva continua retida;
+aguarde seu termino antes de uma nova sincronizacao.
+
+Se apenas a recarga dos dados falhar depois de atualizar derivadas, o status
+informa que as derivadas foram atualizadas e orienta usar `Recarregar Dados`.
+O controlador retorna falha de recarga, sem repetir automaticamente a operacao.
+
+Na selecao de outro banco, uma falha anterior a selecao conserva o banco atual.
+Se a selecao ja ocorreu, uma falha de dialogo ou recarga conserva o novo banco,
+invalida o relatorio anterior e informa como recarregar. Falha de compactacao
+na apresentacao tambem fica no status/log; nao confundir com a conclusao da
+operacao no SQLite. Os detalhes de reproducao estao na secao L do relatorio.

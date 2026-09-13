@@ -63,7 +63,11 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 - O limite do `flush` nao encerra o gravador. Uma nova gravacao bem-sucedida
   elimina o erro anterior; apenas aceitar um snapshot na fila nao o elimina.
   Quem aguarda o `flush` tambem e notificado se a thread termina com erro. O
-  gravador recebe `shutdown(timeout=0.0)` somente no fechamento aceito.
+  gravador recebe `shutdown(timeout=0.0)` somente no fechamento aceito. Se
+  terminar antes da escrita com `_pending` preenchido, `flush` levanta OSError.
+  Encerrar um escritor vazio continua valido. O contrato confirma escritor e
+  substituicao do arquivo; fsync temporario/diretorio ainda pode falhar e ser
+  registrado em debug por `config_manager`, sem garantia absoluta de durabilidade.
 - O prazo de 30 segundos acompanha os objetos de operacoes pendentes, incluindo
   workers Qt e a thread de derivadas. Um conjunto novo, sem operacoes da
   tentativa anterior, reinicia o prazo. Uma nova tentativa apos o prazo pode
@@ -92,6 +96,31 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 - Retornos de rescan substituido concluem somente seu proprio dialogo e limpam
   suas referencias. Nao mudam o status, recarregam a janela ou removem o worker
   e o dialogo da operacao atual; isso inclui cancelamento e erro tardios.
+
+## Preparacao e entrega: residuos A-E
+
+- Rescan/importacao protege construtor, preparacao, sinais obrigatorios, registro
+  e partida. Falha retira somente dialogo, worker e registros da tentativa.
+- Filtro prepara termos, fonte, modo e colunas antes de sinalizar busy. Token,
+  construtor, conexoes obrigatorias, retencao e partida compartilham tratamento;
+  erro cancela a tentativa anterior e restaura controles por `on_filter_error`.
+- `on_data_loaded` protege preparacao e aplicacao. Se os dados ainda nao foram
+  aplicados, informa que a tabela anterior foi mantida; se ja foram aplicados,
+  informa exibicao possivelmente incompleta e pede recarga. Retorno False da
+  atualizacao visual e falha, e o estado de carga deve ser liberado. O erro
+  passa pela fachada da janela, preservando apresentacao no startup, contexto
+  do banco, modal e retencao; nao chamar o controlador ignorando esse contrato.
+- Finalizacao de derivadas tem tratamento local, inclusive quando ela falha
+  durante timeout ou falha de start. Relatorio fica invalidado; a thread ainda
+  viva permanece referenciada e impede sobreposicao ate terminar.
+- Compactacao e validacao de banco aguardam termino nativo antes de finalizar.
+  Erro de dialogo/widget vira retorno falso e mensagem; nao deve escapar do
+  callback de timer. Banco so e selecionado depois de preparar o estado de
+  derivadas. Falha posterior conserva a selecao e orienta recarga, sem retorno
+  de sucesso quando a aplicacao na GUI falhou.
+- Esses contratos se referem aos pontos corrigidos. Suite verde e uma lista de
+  sites protegidos nao comprovam ausencia de toda corrida ou excecao Qt.
+  Evidencia por revisao: secao L de [AUDIT_FIXES_REPORT.md](AUDIT_FIXES_REPORT.md).
 
 ## Anti-patterns proibidos
 

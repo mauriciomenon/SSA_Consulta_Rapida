@@ -37,6 +37,19 @@ indicadores de filtros por coluna em modo automatico/headless:
 QT_QPA_PLATFORM=offscreen SSA_SYNC_FILTER=1 uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py -k "graphical or filters_summary or column_filter_buttons_flow or gui_smoke or hard_reset_filters_state"
 ```
 
+### Entrega de callbacks e falhas de estado
+
+A rodada A-E parte de `c30f87da`. Para verificar os controladores e os pontos
+GUI afetados, use os seletores da [passagem](VALIDATION_PLAN.md), incluindo
+preparacao/construcao, entrega da carga e finalizadores. Registre resultado do
+conteudo atual; 2938 passed/9 skipped e o historico de `0f239dac`.
+
+Um callback Qt que possa abortar precisa ser exercitado em subprocesso isolado.
+O caso de DataFrame com duas colunas `numero_ssa`, entregue por QTimer real,
+terminava com -6 antes da correcao e retornou 0/busy=False depois. Verifique
+tambem a proxima carga. Uma chamada direta de funcao nao demonstra o mesmo
+comportamento do event loop; offscreen nao comprova uso visual nativo.
+
 ## 4. Diagnostico Rapido
 | Situacao | Acao |
 |----------|------|
@@ -88,7 +101,7 @@ uv sync --frozen --extra dev
 
 ---
 A passagem completa desta auditoria esta em [VALIDATION_PLAN.md](VALIDATION_PLAN.md).
-Ela separa verificacoes ja executadas de suite completa, scanners e validacao
+Ela registra a suite local concluida e separa os scanners amplos e a validacao
 visual ainda pendentes. Qt offscreen nao comprova comportamento nativo da GUI.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

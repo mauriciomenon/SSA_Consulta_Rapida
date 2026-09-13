@@ -47,6 +47,30 @@ fechamento, dialogos e mensagens; a execucao sem tela nao comprova essa etapa.
 Resultados de selecoes diferentes nao devem ser somados quando ha sobreposicao.
 O resultado da suite completa depende de sua propria execucao concluida.
 
+## Residuos A-E apos c30f87da
+
+Os 2938 passed e 9 skipped da rodada S1-S8 pertencem ao codigo `0f239dac`, com
+documentacao em `c30f87da`. O diff A-E exige resultado proprio, registrado em L4
+de AUDIT_FIXES_REPORT.md. Nao somar resultados focados com casos em comum.
+
+A selecao precisa incluir falhas de preparacao e sinais obrigatorios em rescan
+e filtro, termino do escritor antes da escrita, entrega de DataFrame malformado,
+retorno False da atualizacao visual e excecao de finalizadores. Em cada caso,
+verificar estado liberado ou thread viva retida, mensagem correta e tentativa
+seguinte concluida. Em D, verificar que a fachada de erro mostra a janela no
+startup e preserva contexto/modal/retencao. Ausencia de excecao sozinha nao basta.
+
+Para Qt, executar em subprocesso isolado o caso que possa abortar o processo.
+A reproducao com duas colunas `numero_ssa` entregues por QTimer passou de
+SIGABRT (-6) para retorno 0/busy=False. Nao instalar excepthook global para
+transformar abortos em aprovacoes e nao usar dados/configuracoes de producao.
+O teste offscreen confirma esse caminho, sem substituir captura nativa.
+
+Para preferencias, usar a falha controlada de `Condition.wait` e conferir
+flush=OSError com snapshot pendente, shutdown vazio valido e recuperacao apos
+escrita posterior. O teste extremo nao mede incidencia real. Fsync tolerado
+continua um limite da politica, nao um resultado validado de durabilidade.
+
 ## Piramide de Testes (Alvo)
 - Unidade (rapidos, puros, sem IO pesado) ~60%
 - Integracao (SQLite + scripts + normalizacao) ~30%

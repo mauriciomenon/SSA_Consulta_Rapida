@@ -1,16 +1,20 @@
 # Relatorio de Correcoes  -  Auditoria SSA Consulta Rapida
 
-**Branch:** `fix/audit-surgical-fixes`. A primeira entrega foi publicada nos tres destinos em `0beceb58` (codigo ate `1ef9edaf`), seguida da correcao de fixture em `39e7c16a`. A rodada de estabilizacao da secao K parte de `39e7c16a` e altera codigo de producao. Obtenha o HEAD com `git rev-parse HEAD`. Base da implementacao: `ca542fb5`; base da auditoria historica: `dev` em `e62a85bf`.
+**Branch:** `fix/audit-surgical-fixes`. A primeira entrega foi publicada nos tres destinos em `0beceb58` (codigo ate `1ef9edaf`), seguida da correcao de fixture em `39e7c16a`. A rodada K parte de `39e7c16a`; seu codigo foi publicado ate `0f239dac`, com documentacao em `c30f87da`. A rodada A-E da secao L parte de `c30f87da`; seu fechamento e registrado em L4. Obtenha o HEAD com `git rev-parse HEAD`. Base da implementacao: `ca542fb5`; base da auditoria historica: `dev` em `e62a85bf`.
 **Historico anterior:** `e62a85bf..ca542fb5` contem 21 commits; o intervalo exclusivo `36dc3137..ca542fb5` tem 20. A reescrita anterior preservou 12 hashes e alterou 9, com arvores equivalentes. A primeira implementacao acrescentou quatro commits de codigo e um documental, sem reescrever ancestrais; `39e7c16a` ajustou a preparacao de um teste e a passagem.
 **Validacao historica anterior a 0beceb58:** 2924 passed, 9 skipped. Revisao independente: 83 aprovacoes focadas; py_compile/Ruff passaram; ty falhou (um erro novo no teste, outros diagnosticos fora do patch); Semgrep parcial por dois timeouts.
-**Estado da rodada atual, em 13/09/2026:** oito falhas de estado reproduzidas localmente e corrigidas em preferencias, SAM API, derivadas, reescaneamento, compactacao e banco alternativo; detalhes na secao K. Passaram 83 testes dos controladores e uma selecao de 47 casos, com sobreposicao. Suite completa aprovada: **2938 passed, 9 skipped, 34 warnings, 11 subtests passed em 701,80s**, no codigo de `0f239dac`. Os onze Python ficaram inalterados durante a execucao. Revisao CodeRabbit e complemento local detalhados em K3. Os placares de zcode/Devin e o ajuste de fixture pertencem a rodada anterior, preservada na secao J. Hooks ativos e CI versionada; as 16 mensagens antigas com credito proibido permanecem sem reescrita autorizada.
+**Resultado da rodada A-E:** cinco residuos corrigidos em seis arquivos de producao. Reteste completo em `5b75f8f8`: **2969 passed, 9 skipped, 34 warnings, 11 subtests passed em 706,03s**, retorno 0. A primeira execucao falhou em quatro variantes de uma fixture; a correcao e os dois resultados estao separados em L4.
 
-Legenda de estado: **CORRIGIDO** (codigo commitado e publicado; a evidencia de validacao e discriminada por rodada) | **PARCIAL** | **NAO CORRIGIDO** (justificativa) | **NAO-BUG** (verificado, sem alteracao)
+**Resultado historico da rodada K, em 13/09/2026:** oito falhas de estado reproduzidas localmente e corrigidas em preferencias, SAM API, derivadas, reescaneamento, compactacao e banco alternativo; detalhes na secao K. Passaram 83 testes dos controladores e uma selecao de 47 casos, com sobreposicao. Suite completa aprovada: **2938 passed, 9 skipped, 34 warnings, 11 subtests passed em 701,80s**, no codigo de `0f239dac`. Os onze Python ficaram inalterados durante a execucao. Revisao CodeRabbit e complemento local detalhados em K3. Os placares de zcode/Devin e o ajuste de fixture pertencem a rodada anterior, preservada na secao J. Hooks ativos e CI versionada; as 16 mensagens antigas com credito proibido permanecem sem reescrita autorizada.
+
+**Rodada vigente A-E:** os cinco residuos do levantamento posterior foram reproduzidos e receberam correcoes locais. Isso amplia a cobertura dos sites S1-S8; nao transforma a suite historica em aprovacao do diff atual. Antes/depois e evidencias em L; validacao integrada, commits e publicacao em L4.
+
+Legenda de estado: **IMPLEMENTADO** (correcao no codigo; validacao/publicacao discriminadas em L4) | **CORRIGIDO** (codigo commitado e publicado; a evidencia de validacao e discriminada por rodada) | **PARCIAL** | **NAO CORRIGIDO** (justificativa) | **NAO-BUG** (verificado, sem alteracao)
 
 
 ## Comparativo antes/depois e estado por pedido
 
-A resposta anterior foi incompleta tanto no codigo como no relato. Esta tabela substitui o encerramento anterior; nao reutiliza um resultado historico como prova das mudancas atuais.
+Esta tabela registra pedidos e entregas historicas ate K. A rodada vigente A-E possui comparativo proprio em L2. As tabelas A-K preservam evidencias por revisao; suas expressoes "nesta rodada" referem-se a entrega historica descrita, sem aprovar alteracoes posteriores.
 
 | Pedido | Antes, em ca542fb5 / primeira entrega | Depois, nos commits desta rodada | Estado |
 |---|---|---|---|
@@ -34,7 +38,8 @@ A resposta anterior foi incompleta tanto no codigo como no relato. Esta tabela s
 | Bloqueio nativo de servidor | Recursos completos indisponiveis nos planos/tipos atuais | Limite confirmado; hooks locais e CI nao sao apresentados como substitutos equivalentes | NAO ATIVADO ONLINE |
 | Corrigir mensagens antigas | 16 commits continham credito Devin apesar do autor/committer humanos | Diagnostico e proposta de reescrita discriminados; objetos/referencias publicados preservados | NAO REESCRITO |
 | Documentacao no inicio/final | Contagens, caminho GitLab e estados divergentes; sem comparativo completo | Relatorio, laudo, backlog, guias e indices reconciliados; passagem completa e documentos desta rodada versionados | ENTREGUE |
-| Reteste e estabilizacao de estado | zcode informou suite reprovada em 0beceb58; ajuste de fixture publicado em 39e7c16a | Pedido posterior autorizou reproducao com modelo externo e fallback local. A chamada externa falhou; oito falhas reais receberam correcao e regressao focada | ENTREGUE: SUITE LOCAL APROVADA; ver K |
+| Sites S1-S8: reteste e estabilizacao de estado | zcode informou suite reprovada em 0beceb58; ajuste de fixture publicado em 39e7c16a | Pedido posterior autorizou reproducao com modelo externo e fallback local. A chamada externa falhou; oito falhas reais receberam correcao e regressao focada | ENTREGUE: SUITE LOCAL APROVADA; ver K |
+| Residuos A-E apos c30f87da | Levantamento apontou preparacao de rescan/filtro, termino do escritor, entrega de carga e finalizadores ainda expostos | Correcao localizada e reproducao discriminadas em L2-L3 | CORRIGIDO; VALIDADO em L4 |
 | Teste de fechamento forcado | Timestamp vencido sem identidade da operacao; teste falhava | Preparacao registra o mesmo worker em _shutdown_pending_operations; aceitacao e desconexao continuam exigidas | CORRIGIDO E VALIDADO LOCALMENTE |
 
 Evidencias de codigo: `gui/gui_ssa.py` (validacao/fechamento), `gui/ssa/gui_preferences_persistence.py` (fila), `gui/ssa/app_menus.py` e controladores (coordenacao), `armazenamento/database_integrity.py` (F3), `gui/workers/rescan_worker.py` e `gui/ssa/gui_rescan_lifecycle.py` (F4), `scripts/derivadas_cli.py`/`armazenamento/derivadas_sync.py` (exportacao), `scripts/validate_git_authorship.py` (regra executavel).
@@ -126,7 +131,7 @@ Erro adicional de ty em `_fake_apply` corrigido no teste existente com `patch.ob
 | `lock.acquire()` fora de `with` | nenhum |
 | `os.environ`/`os.chdir` mutacao | nenhum em producao |
 | `worker.wait()` bloqueante | bounded + fallback de retencao (`gui_workers.py:672`) |
-| `setEnabled(False)` orfao | todos restaurados por maquinas de estado (filter bar, rescan dialog, paginator) |
+| `setEnabled(False)` orfao | Inspecao historica limitada aos caminhos entao percorridos. O residual B confirmou UI de filtro ocupada apos falha de preparacao; corrigido e reproduzido na rodada L. Nao comprova cobertura de toda a classe de falha |
 | `bare except`/`eval`/`exec`/`os.system`/`shell=True` | ausentes no codigo da aplicacao |
 | Identificadores SQL | validados/escapados (`is_valid_identifier`, `_quote_identifier`) |
 | `FilterCache` | deep copy + lock + limites de bytes |
@@ -451,7 +456,7 @@ Arquivos de producao: `gui/gui_ssa.py`, `gui/ssa/gui_preferences_persistence.py`
 eventos de sincronizacao e dubles dos pontos faliveis; nao consultam SAM real
 nem danificam arquivos reais para simular erros.
 
-Referencias do codigo atual (nao sao linhas da base anterior):
+Referencias do codigo de `0f239dac` (as linhas podem mudar na rodada L):
 
 | Caso | Ponto corrigido |
 |---|---|
@@ -464,7 +469,7 @@ Referencias do codigo atual (nao sao linhas da base anterior):
 | S7 | `gui/gui_ssa.py:5029` |
 | S8 | `gui/gui_ssa.py:5447` |
 
-### K3. Validacao desta rodada
+### K3. Validacao historica da rodada S1-S8
 
 - py_compile, Ruff e ty: aprovados nos onze arquivos Python alterados.
 - Quatro arquivos de testes dos controladores: **83 passed in 0.61s**.
@@ -530,6 +535,155 @@ CPU/RSS e plataformas Windows/Linux, alem dos scanners discriminados na passagem
 O prazo existente para fechamento forcado continua aplicavel; informar falha
 na gravacao nao remove essa politica nem torna um disco indisponivel gravavel.
 Cancelamento no meio do parser de planilha, inventario de APIs e historico Git
-continuam com os estados declarados no backlog. A suite local esta concluida.
-Proxima atividade: executar a passagem para os limites restantes, mantendo o
-resultado local separado de verificacoes remotas ou nativas nao realizadas.
+continuam com os estados declarados no backlog. A suite local de `0f239dac`
+esta concluida; o diff A-E posterior exige sua propria verificacao, registrada
+em L4. Os limites nativos, remotos e de durabilidade permanecem separados.
+
+
+## L. Residuos A-E apos c30f87da
+
+### L1. Escopo e leitura do levantamento
+
+Base desta rodada: `c30f87da`, cujo codigo Python corresponde ao conjunto
+S1-S8 validado em `0f239dac`. O anexo posterior e um levantamento externo;
+suas sugestoes nao constituem uma nova autorizacao. O pedido do mantenedor
+para reproduzir, estabilizar e corrigir as falhas de estado fornece o escopo.
+
+Os sites S1-S8 estavam corrigidos nos caminhos testados. A expressao "genero
+corrigido" nao demonstrava que todo construtor, preparacao, retorno de Qt ou
+encerramento do projeto estava protegido. A-E sao residuos concretos em outros
+pontos ou etapas desses fluxos. Foram preservadas API Python, stdout JSON,
+exportacoes JSON/CSV/TSV, politica A5 e identidade humana nos procedimentos Git.
+Nenhum `sys.excepthook` global foi acrescentado.
+
+### L2. Antes/depois por residual
+
+| Residual | Antes em c30f87da | Correcao e resultado observado | Estado |
+|---|---|---|---|
+| A, rescan/importacao | Construtor e preparacao fora do tratamento de partida. Falhas podiam deixar dialogo, worker ou registro da tentativa e escapar para o slot do menu | Construcao, preparacao, conexoes obrigatorias, registro e partida tratados no mesmo fluxo. Falha limpa os recursos da tentativa, informa erro e permite outra importacao; referencias alheias permanecem preservadas | CORRIGIDO; VALIDADO |
+| B, filtro | Falha em token, construtor ou preparacao escapava com texto Filtrando, busca desabilitada e progresso visivel. Apenas `start()` estava protegido | Preparacao de termos, fonte, modo e colunas ocorre antes de busy. Token, construtor, sinais obrigatorios, retencao e partida usam tratamento unico. Erro cancela a tentativa anterior e passa por `on_filter_error`; nova requisicao entrega dados | CORRIGIDO; VALIDADO |
+| C, preferencias | Thread terminava antes da escrita com `_pending` preenchido e `_write_failed=False`; `flush()` devolvia True pela flag de termino | Termino com preferencias pendentes registra falha. `flush()` levanta OSError; encerramento vazio legitimo continua True, e gravacao posterior bem-sucedida conserva a recuperacao prevista | CORRIGIDO; VALIDADO |
+| D, entrega da carga | DataFrame malformado ou erro ao sincronizar controles escapava de `on_data_loaded`. A consulta ter terminado nao garantia aplicacao bem-sucedida na GUI | Entrega protegida e erro encaminhado a `on_load_error`. Antes de aplicar dados, tabela anterior preservada; depois da aplicacao, mensagem informa exibicao possivelmente incompleta e pede recarga. Retorno False da atualizacao visual tambem e tratado como falha. O encaminhamento preserva a fachada da janela, inclusive apresentacao no startup, modal, mascara do caminho e retencao | CORRIGIDO; VALIDADO |
+| E, entrega de derivadas | Finalizador podia lancar no resultado, timeout ou tratamento de falha de partida; relatorio parcialmente aplicado podia continuar disponivel | Bloco local de entrega registra erro, invalida relatorio, restaura UI e retorna falha. Mantem referencia de thread ainda viva; nova tentativa conclui depois de seu termino | CORRIGIDO; VALIDADO |
+| E, compactacao | Dialogo ou widget podia lancar durante finalizacao por timer | Finalizador protege aplicacao, informa erro e retorna `ok=False`. Polling aguarda termino nativo antes de liberar referencia e estado | CORRIGIDO; VALIDADO |
+| E, banco alternativo | Falha de preparacao ocorria depois de mudar DB_PATH; dialogo falho mantinha busy. Recarga falha ainda retornava sucesso | Prepara/invalida estado antes de selecionar. Falha anterior preserva banco antigo; falha posterior conserva banco ja selecionado, relatorio anterior invalidado e instrucao de recarga. Estado liberado e retorno falso | CORRIGIDO; VALIDADO |
+
+Referencias no codigo de `5b75f8f8` (producao igual a `a58bf7d7`):
+
+| Residual | Implementacao | Regressao |
+|---|---|---|
+| A | `gui/ssa/gui_workers.py:1613`; `gui/ssa/gui_rescan_lifecycle.py:20` | `tests/test_gui_workers_rescan_data.py:240`; cancelamento tardio em `tests/test_import_outcome_isolation.py:211` |
+| B | `gui/mixins/filter_gui_ssa_mixin.py:788` e `:844` | `tests/test_gui_filter_logic.py:14147` e `:14252` |
+| C | `gui/ssa/gui_preferences_persistence.py:77` | `tests/test_gui_preferences_atomic_write.py:212` e `:229` |
+| D | `gui/ssa/gui_workers.py:1335` e `:1398`; fachada em `gui/gui_ssa.py:2362` | `tests/test_contract_data_load_stale_guard.py:168`; startup em `tests/test_gui_filter_logic.py:14873` |
+| E | `gui/ssa/derivadas_sync_controller.py:254`; `gui/gui_ssa.py:5058`, `:5255` e `:5303` | `tests/test_derivadas_sync_controller.py:102`; casos de finalizacao em `tests/test_gui_menu_import_external.py:860` |
+
+### L3. Evidencia e limites das reproducoes
+
+- B: reproducao na fixture real da GUI mostrou RuntimeError escapando em
+  construtor/token/modo, texto Filtrando, busca desabilitada e progresso visivel.
+  Selecao `initiate_filtering or filter_worker or filter_finished or filter_error
+  or sync_filter`: **48 passed, 528 deselected em 30,26s**. Os testes abrangem
+  sete etapas de inicializacao e quatro de preparacao, com nova entrega apos erro.
+- C: `debounce_seconds=float("inf")` faz `Condition.wait()` levantar OverflowError
+  antes da escrita, sem monkey-patch. Antes: accepted=True, terminated=True,
+  pending preenchido, nenhuma escrita e flush=True. Depois: flush=OSError.
+  Regressao antes do patch: **1 failed, 2 passed, 10 deselected**. Arquivo depois:
+  **13 passed em 0,55s**. O gatilho e controlado e extremo; nao demonstra frequencia
+  observada desse erro em producao. O defeito confirmado e a falsa confirmacao
+  quando o escritor termina com uma preferencia aceita ainda pendente.
+- D: reproducao com QTimer real em subprocesso isolado e DataFrame com duas
+  colunas `numero_ssa`. Antes: processo encerrado por SIGABRT, retorno -6.
+  Depois: retorno 0 e busy=False. Esse ensaio confirma o caminho Qt exercitado;
+  nao equivale a inspecao visual nativa nem a cobertura multiplataforma.
+- E: tres reproducoes de derivadas falharam antes do patch por excecao escapando
+  em resultado, timeout e finalizacao de start_failed. Para GUI, os metodos do
+  HEAD extraidos por AST confirmaram dialogo escapando, troca prematura de banco
+  com relatorio antigo preservado e recarga falha retornando ok=True.
+- E: **35 passed em 0,31s** nos arquivos `test_gui_menu_import_external.py` e
+  `test_derivadas_sync_controller.py`, incluindo sete casos novos de falha e
+  nova tentativa concluida. A referencia/busy permanecem enquanto a thread
+  controlada esta viva. py_compile, Ruff e ty passaram nesses quatro Python.
+- A/D: **57 passed em 0,31s** nos dois arquivos completos de rescan e contrato
+  de carga. Seis falhas de inicializacao/conexao e quatro falhas de entrega
+  verificam limpeza, aviso correto e nova tentativa concluida.
+- D/fachada: **42 passed, 545 deselected em 15,60s**, retorno 0, na selecao
+  de carga e callbacks obsoletos. Dois casos novos usam os metodos reais de
+  SSAMainWindow para conferir apresentacao no startup antes/depois da aplicacao.
+- C: py_compile, Ruff e ty passaram no modulo e no arquivo de testes.
+- Nao somar selecoes sobrepostas. A verificacao integrada da rodada pertence
+  a L4; os 2938 passed historicos nao validam as alteracoes A-E.
+
+Revisao CodeRabbit CLI 0.7.6 sobre os seis arquivos GUI: um achado major
+valido em D. Chamar diretamente o controlador de erro contornava a fachada da
+janela e podia manter a janela inicial escondida. A correcao encaminha pelo
+`window.on_load_error`, com `data_applied` keyword-only na fachada, preservando
+apresentacao no startup, contexto do banco, modal e retencao. Foi acrescentada
+regressao para esse caminho. Nao registrar esse parecer como zero achados; o
+resultado final da regressao e da revisao integrada pertence a L4.
+
+Scanners focados executados nesta rodada; nao representam
+varredura ampla do repositorio/historico:
+
+| Ferramenta | Escopo e resultado |
+|---|---|
+| Semgrep | p/python, 1066 regras, seis arquivos de producao, zero achados, retorno 0. A tentativa com config auto + metrics off falhou por incompatibilidade e nao conta como aprovacao |
+| Bandit | Seis arquivos de producao, zero achados e zero erros |
+| detect-secrets | Escopo focado, zero achados |
+| TruffleHog | filesystem, no-verification, escopo focado, zero achados; nao executou verificacao online de credenciais |
+| Gitleaks | Diff com redacao de valores, zero achados; nao e auditoria de todo o historico |
+| Vulture | Limiar >=80, 18 imports nao usados; comparacao com c30f87da confirmou os mesmos 18, nenhum novo |
+| pip-audit | --path .venv/lib/python3.13/site-packages: 47 entradas, 46 externas auditadas sem vulnerabilidades conhecidas; pacote local ssa-consulta-rapida 4.50.0 ignorado por nao estar no PyPI. A execucao default com 28 entradas auditou o ambiente da ferramenta e nao prova seguranca do aplicativo |
+| ShellCheck | scripts/install_hooks.sh e hooks pre-push/commit-msg, retorno 0 |
+| PSScriptAnalyzer | scripts/ recursivo, 59 avisos e zero erros; nenhum PowerShell alterado |
+
+A validacao integrada tambem deve conferir os erros de preparacao/conexao de A,
+retencao/liberacao dos registros, falha visual depois de dados aplicados em D,
+retornos False e preservacao das operacoes seguintes. Comandos na passagem.
+
+### L4. Fechamento da rodada A-E
+
+A primeira execucao global sobre `a58bf7d7` terminou com **4 failed, 2965 passed,
+9 skipped, 34 warnings, 11 subtests passed em 669,06s**, retorno 1; tempo de
+parede 670,97s. Nenhum Python mudou durante a execucao. As quatro falhas eram
+variantes do mesmo teste de cancelamento tardio: a fixture retornava None apos
+conectar o sinal, em desacordo com o contrato booleano do adaptador.
+
+A reproducao isolada confirmou as quatro falhas em 0,19s. `5b75f8f8` passa a
+usar `_connect_signal` real nessa fixture, sem remover assercoes ou alterar
+producao. Os arquivos de isolamento de resultado e rescan passaram juntos:
+**68 passed em 0,30s**, com py_compile, Ruff e ty aprovados. O reteste global
+abaixo e uma execucao separada; o primeiro resultado continua registrado como
+falha.
+
+
+| Registro | Resultado |
+|---|---|
+| Base | `c30f87da` |
+| Validacao integrada, SHA/conteudo, comando, placar, duracao e retorno | `5b75f8f840072b806aadf17d1d0e6933500cb112`; `QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q --durations=10`: **2969 passed, 9 skipped, 34 warnings, 11 subtests passed em 706,03s**, retorno 0; parede 707,93s. Os 613 Python versionados ficaram inalterados. |
+| Revisao do diff final | CodeRabbit 0.7.6: seis arquivos de producao, um major em D; encaminhamento pela fachada corrigido e validado por dois casos de startup. Revisao local do complemento, py_compile, Ruff e ty aprovados. |
+| Commits por assunto e autoria conferida | `d8107fe8` C; `56701001` B; `56daccf1` A; `062bdb8f` D; `a58bf7d7` E; `5b75f8f8` fixture de cancelamento. Seis commits de codigo/testes e zero notas aprovados pelo verificador de autoria. |
+| Publicacao e conferencia dos tres remotes/checks | Codigo/testes `5b75f8f8` publicado e conferido por `git ls-remote` nos dois GitHub e no GitLab. GitHub principal: statuses vazio e consulta de Actions limitada a PRs vazia; GitLab: pipelines vazio. A configuracao nao agenda CI por push nesta branch. Schottge: API retorna 404, publicacao SSH confirmada. Documentacao segue em commit proprio nesta branch. |
+
+Os resultados historicos de K e a primeira execucao global com falha ficam
+preservados. O placar aprovado acima pertence exclusivamente ao reteste final.
+Ambiente: macOS 27.0 arm64, Python 3.13.12, PyQt/Qt 6.11.0, pytest 9.1.1.
+Artefatos locais: `/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/`.
+`pytest-final-full.log`, `pytest-final-result.json` e
+`pytest-final-source-hashes.json` preservam log, retorno e conteudo verificado.
+
+### L5. Durabilidade e pendencias
+
+`flush()` confirma o resultado informado pelo escritor e, no caminho normal,
+a gravacao/substituicao do arquivo por `os.replace`. Isso nao garante durabilidade
+absoluta contra queda de energia. `core/config_manager.py` ainda tolera OSError
+no fsync do arquivo temporario e do diretorio, registrando em debug; no Windows,
+o fsync do diretorio nao e executado. A rodada A-E nao mudou essa politica.
+A afirmacao de que todas as falhas de fsync propagam estava incorreta.
+
+A suite local esta aprovada em L4. Permanecem pendentes: scanners amplos,
+uso visual nativo e capturas, SAM real, Windows/Linux e comparacoes CPU/RSS.
+Cancelamento dentro do parser, inventario de APIs, mensagens Git historicas e
+limitacoes de regras online continuam no backlog. A proxima atividade e executar
+os ensaios restantes da passagem, sem deduzir cobertura integral
+de um genero de falha a partir de sites corrigidos ou testes selecionados.

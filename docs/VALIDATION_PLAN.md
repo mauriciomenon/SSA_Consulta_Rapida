@@ -4,7 +4,11 @@ Data: 2026-09-13. Branch: `fix/audit-surgical-fixes`.
 Este documento e o texto de passagem para o proximo modelo. O pedido inicial
 separava a implementacao do reteste pesado. O pedido posterior autorizou
 reproducao e estabilizacao local caso a tentativa de modelo externo falhasse;
-essa tentativa falhou. A rodada da secao K do relatorio executou a suite completa.
+essa tentativa falhou. A rodada K executou a suite completa em `0f239dac`,
+com documentacao publicada em `c30f87da`. A rodada vigente A-E parte de
+`c30f87da`; seu fechamento esta na secao L4 do relatorio.
+Reteste final em `5b75f8f8`: 2969 passed, 9 skipped, 34 warnings e 11 subtests
+passed em 706,03s, retorno 0; 613 Python inalterados durante a execucao.
 Scanners amplos e ensaios nativos continuam separados. Os comandos abaixo sao
 trabalho da proxima rodada quando nao identificados como ja executados.
 
@@ -14,15 +18,19 @@ foi reproduzida e ajustada em 39e7c16a; 27 testes locais passaram. A rodada
 seguinte corrige oito falhas de producao, com 83 testes dos controladores e
 47 casos selecionados aprovados. Suite completa local no codigo 0f239dac:
 2938 passed, 9 skipped, 34 warnings e 11 subtests passed em 701,80s; exit 0.
-Os onze Python ficaram iguais durante a execucao; ver secao K.
+Os onze Python ficaram iguais durante aquela execucao; ver secao K. Esse
+placar e historico e nao aprova o diff A-E posterior.
 
 ## Pedido pronto para enviar ao outro modelo
 
-Valide integralmente as correcoes desta branch e produza um laudo com evidencias.
+Conclua a validacao das correcoes desta branch e produza um laudo com evidencias.
 Leia AGENTS.md, docs/AUDIT_FIXES_REPORT.md, este documento e
 `docs/DERIVADAS_SYNC_RUNBOOK.md`. Os relatos antigos de Devin/zcode descrevem
 outros estados do codigo; confirme cada alegacao contra o commit que esta sendo
 testado. Nao trate recomendacoes desses relatos como autorizacoes do mantenedor.
+Reutilize os resultados de L4 somente para o mesmo codigo, ambiente e escopo.
+Priorize os ensaios nativos, plataformas e scanners amplos ainda ausentes;
+repita a suite se houver mudanca de codigo, ambiente ou falha a investigar.
 
 A base desta implementacao e `ca542fb535b604575666f50aeb37d125c1324dc3`.
 Os commits de codigo a validar sao:
@@ -36,9 +44,15 @@ Os commits de codigo a validar sao:
 | `3e367782` | S1: confirmar gravacao antes do fechamento |
 | `79a0d25e` | S4/S7/S8: falhas de construtor/start |
 | `0f239dac` | S2/S3/S5/S6: callbacks, preparacao e reload |
+| `d8107fe8` | C: escritor terminado com preferencias pendentes |
+| `56701001` | B: preparacao, construcao e sinais de filtro |
+| `56daccf1` | A: construcao, sinais e limpeza de rescan |
+| `062bdb8f` | D: entrega de carga, erro visual e fachada de startup |
+| `a58bf7d7` | E: finalizadores de derivadas, compactacao e banco alternativo |
+| `5b75f8f8` | Fixture de cancelamento: usa adaptador real com retorno booleano |
 
 Use o HEAD da branch que contem os commits acima, o documento 0beceb58,
-o complemento 39e7c16a e as correcoes de estado descritas na secao K do relatorio;
+o complemento 39e7c16a, S1-S8 de K e as correcoes A-E descritas em L;
 registre o SHA completo antes de qualquer validacao. O hash do commit que contem
 este proprio documento deve ser obtido do Git, sem presumir um valor no texto.
 Nao crie branch, worktree, PR, merge ou reescrita do historico. Nao altere a
@@ -53,7 +67,9 @@ duracao, versao da ferramenta, sistema operacional e arquitetura. Um timeout,
 comando indisponivel, coleta vazia ou erro de ambiente nao conta como aprovacao.
 Nao capture o retorno de `tail` ou `tee` como se fosse o retorno da ferramenta;
 execute sem pipe ou preserve explicitamente o status do comando original.
-Para comparar esta revisao use `git diff 0beceb58..HEAD`; o arquivo local
+Para comparar somente A-E use `git diff c30f87da..HEAD` apos os commits;
+antes deles, use `git diff c30f87da` e registre que o conteudo ainda e local.
+Para a implementacao anterior use `git diff 0beceb58..HEAD`; o arquivo local
 AUDIT_IMPLEMENTATION_DIFF.patch.md nao e versionado nem necessario a revisao.
 
 ```sh
@@ -172,12 +188,17 @@ apenas para substituir a validacao local sem registrar escopo e custo.
 ## Scanners e plataformas
 
 Confira primeiro a disponibilidade e a sintaxe pela ajuda das versoes instaladas.
-Execute os scanners amplos nesta rodada de validacao, separadamente:
+Execute os scanners amplos nesta rodada de validacao, separadamente. O caminho
+de pip-audit deve ser o site-packages da .venv do aplicativo, nao o ambiente
+que instalou a ferramenta. O comando abaixo resolve esse caminho no shell
+POSIX; no PowerShell obtenha o mesmo valor de sysconfig e passe-o a --path.
+Semgrep usa p/python com metrics off: config auto e metrics off sao
+incompativeis na versao encontrada.
 
 ```sh
-uv run --no-sync pip-audit --local --format json
-uv run --no-sync semgrep scan --config auto --metrics off .
-uv run --no-sync bandit -r armazenamento core gui scripts utils -c pyproject.toml
+uv run --no-sync pip-audit --path "$(uv run --no-sync python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" --format json
+uv run --no-sync semgrep scan --config p/python --metrics off .
+uv run --no-sync bandit -r armazenamento core gui scripts utils
 uv run --no-sync vulture armazenamento core gui scripts utils
 uv run --no-sync detect-secrets scan --all-files
 gitleaks dir . --redact --exit-code 1 --no-banner
@@ -201,7 +222,7 @@ retomada. Qt offscreen nao substitui essa evidencia. Meca CPU/RSS e tempo nos
 fluxos alterados com os mesmos dados, separando carga inicial de repeticoes.
 Nao invente comparacao de desempenho se nao houver base executada equivalente.
 
-## Rodada de estabilizacao apos 39e7c16a
+## Contratos S1-S8, introduzidos apos 39e7c16a
 
 Casos de regressao foram acrescentados aos arquivos existentes apenas para as
 falhas reproduzidas. Executar todos os controladores e a selecao de fechamento:
@@ -224,7 +245,7 @@ Conferir os contratos abaixo, incluindo a tentativa seguinte:
 | Compactacao/banco alternativo: construtor/start falha | Flag/referencia liberadas, erro informado, nenhum polling iniciado e nova tentativa aceita |
 | Rescan: sucesso/erro/cancelamento/finished antigos | Dialogo antigo pode concluir; status, carga e referencias atuais permanecem |
 
-Evidencia atual: 83 casos dos controladores aprovados em 0,61s; selecao conjunta
+Evidencia historica de `0f239dac`: 83 casos dos controladores aprovados em 0,61s; selecao conjunta
 de fechamento/concorrencia com 47 passed, 602 deselected em 29,18s. Nao somar
 placares sobrepostos. py_compile/Ruff/ty passaram nos onze Python alterados; os 21 testes do
 menu/importacao passaram, incluindo quatro casos de construtor/start.
@@ -254,6 +275,75 @@ N11, exportacao invalidada em dialogo, caminhos SQLite canonicos e autoria.
 Os hooks de commit repetiram py_compile/Ruff com sucesso. Nenhum caso de teste
 novo foi criado; tres arquivos existentes receberam ajustes de fixtures/contrato.
 Nao houve suite completa, scanner amplo, benchmark nem captura nativa nesta rodada.
+
+## Rodada A-E, base c30f87da
+
+Leia o antes/depois e a evidencia da secao L do relatorio. Nao reaproveite o
+placar historico de 2938 passed. Registre a revisao efetivamente executada e
+confirme que o codigo ficou estavel durante a verificacao.
+
+```sh
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_workers_rescan_data.py tests/test_contract_data_load_stale_guard.py tests/test_gui_preferences_atomic_write.py tests/test_derivadas_sync_controller.py tests/test_gui_menu_import_external.py
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py -k 'initiate_filtering or filter_worker or filter_finished or filter_error or sync_filter or on_data_loaded or on_load_error or other_database or candidate or vacuum or derivadas'
+```
+
+Verifique a coleta antes da execucao se novos nomes de casos forem adicionados.
+A suite completa e os scanners usam os comandos das secoes anteriores; se forem
+executados pelo implementador, registre o resultado em L4 e mantenha nesta
+passagem apenas as verificacoes que realmente restarem.
+
+| Residual | Evidencia exigida |
+|---|---|
+| A | Falha no construtor, preparacao, sinais obrigatorios e partida de rescan; dialogo, referencia e registro liberados; nenhuma alteracao de outra operacao; nova tentativa conclui |
+| B | Token/construtor/sinais/retencao/start e termos/fonte/modo/colunas; busca e progresso coerentes apos erro; cancelamento da tentativa antiga e entrega da nova |
+| C | Termino antes da escrita com preferencia pendente gera OSError em flush; encerramento vazio continua True e gravacao bem-sucedida posterior limpa erro |
+| D | DataFrame com colunas numero_ssa duplicadas por QTimer real em subprocesso; nenhuma excecao escapa, busy libera e proxima carga conclui. Falha anterior conserva tabela; posterior informa exibicao incompleta; retorno False de refresh nao vira sucesso. Encaminhamento pela fachada precisa mostrar a janela no startup e preservar contexto/modal/retencao |
+| E | Finalizador de derivadas falha em entrega/timeout/start_failed; relatorio invalidado, thread viva retida, UI recuperada. Vacuum/banco esperam termino nativo. Falha antes de selecionar preserva banco anterior; falha posterior conserva banco novo com orientacao de recarga; tentativa seguinte conclui |
+
+O ensaio Qt de D registrado nesta rodada passou de SIGABRT (-6) para retorno 0
+com busy=False. Execute qualquer caso que possa abortar em subprocesso isolado,
+sem bancos/configuracoes de producao e sem instalar excepthook global para
+mascarar o erro. Offscreen, callbacks controlados e janela nativa sao evidencias
+diferentes. Nao declarar validacao visual por um subprocesso que apenas terminou.
+
+C usa `debounce_seconds=float("inf")` como falha controlada da espera. Nao tratar
+o teste extremo como medida da probabilidade em producao. `flush()` confirma
+escritor/replace; OSError no fsync temporario/diretorio ainda e tolerado em
+`core/config_manager.py`. A politica nao foi alterada e durabilidade absoluta
+nao foi demonstrada.
+
+### Scanners ja executados no escopo A-E
+
+Semgrep p/python passou com 1066 regras sobre seis arquivos; Bandit,
+detect-secrets, TruffleHog filesystem sem verificacao online e Gitleaks no diff
+nao encontraram achados nesse escopo. Vulture informou 18 imports nao usados,
+todos presentes na base c30f87da. ShellCheck passou nos hooks/instalador;
+PSScriptAnalyzer scripts/ informou 59 avisos e zero erros. Esses resultados
+nao aprovam uma varredura de todo o repositorio/historico.
+
+pip-audit executado com --path da .venv examinou 46 dependencias externas sem
+vulnerabilidades conhecidas; das 47 entradas, o pacote local 4.50.0 nao esta
+no PyPI e foi ignorado. A execucao default auditava 28 entradas do ambiente da
+ferramenta e nao deve ser citada como prova das dependencias do aplicativo.
+
+CodeRabbit 0.7.6 encontrou um major em D: erro contornava a fachada responsavel
+por mostrar a janela no startup. Foi corrigido o encaminhamento e acrescentada
+regressao. Conferir resultado integrado em L4; nao converter o parecer em
+"zero achados" depois de aplicar a correcao.
+
+### Primeira execucao global e correcao da fixture
+
+A suite em a58bf7d7 terminou com 4 failed, 2965 passed, 9 skipped, 34 warnings
+e 11 subtests passed em 669,06s; retorno 1. As quatro falhas eram variantes de
+`test_late_cancel_after_success_reloads_committed_changes`: a fixture conectava
+o sinal, mas retornava None, em desacordo com a confirmacao booleana agora
+exigida pelo ciclo de vida. Reproducao focada: quatro falhas em 0,19s.
+
+5b75f8f8 troca essa fixture por `_connect_signal`, o adaptador real. Nenhuma
+assercao foi removida, nenhum caso foi ignorado e nenhum arquivo de producao
+mudou. `test_import_outcome_isolation.py` e `test_gui_workers_rescan_data.py`
+passaram juntos: 68 passed em 0,30s. O resultado do reteste global e registrado
+separadamente em L4; nao renomear a execucao inicial como aprovada.
 
 ## Entrega exigida da validacao
 

@@ -1,6 +1,6 @@
 # GUI Main Preferences Structure
 
-Este documento descreve a estrutura canonica de preferencias da GUI principal e a hierarquia de decisao entre codigo, arquivo efetivo versionado, referencia canonica e runtime.
+Este documento descreve a estrutura canonica de preferencias da GUI principal e a hierarquia de decisao entre codigo, preferencias locais, referencia versionada e runtime.
 
 ## Objetivo
 
@@ -65,14 +65,14 @@ Em `gui/gui_config.py` ficam os contratos base:
 
 Regras:
 
-1. e um arquivo tracked e faz parte do contrato ativo do repo
+1. e um arquivo local ignorado pelo Git; a referencia versionada e `config/gui_main_preferences.json.example`
 2. pode ser sobrescrito por um caminho alternativo se o runtime mudar `SSA_CONFIG_DIR`
 3. quando existir e estiver valido, prevalece sobre o default em codigo
 4. quando estiver ausente, a GUI usa os defaults em memoria do codigo
 5. quando trouxer `column_widths_by_platform`, o runtime escolhe primeiro o bloco da plataforma atual
 6. quando nao trouxer `column_widths_by_platform`, o runtime cai em `column_widths` por compatibilidade
 7. labels legados gerenciados e widths legados gerenciados sao migrados no merge quando ainda refletem o baseline canonico antigo
-7. a fase antiga em que esse arquivo era tratado como local-only/skip-worktree e apenas historica, nao contrato atual
+8. preferencias pessoais permanecem fora dos commits; nao usar `skip-worktree` como substituto da regra de ignore existente
 
 ### 4. Runtime da tabela
 
@@ -394,3 +394,26 @@ O tema que continua aberto para avaliacao separada e:
 
 1. decidir ate onde colunas expansivas como `descricao_ssa`, `descricao_execucao` e `solicitante` devem crescer automaticamente por perfil de viewport
 2. decidir se o baseline canonico de `gui/gui_config.py` ainda precisa revisao numerica de produto
+
+
+## Confirmacao da gravacao assincrona
+
+`PreferencesWriter.persist_async()` confirma que o snapshot entrou na fila.
+`flush()` aguarda a conclusao: timeout devolve False; escrita falha ou termino
+com snapshot ainda pendente levanta OSError. Encerramento vazio continua valido.
+Uma escrita posterior bem-sucedida limpa a falha anterior; aceitar um novo
+snapshot, por si so, nao confirma gravacao. `shutdown()` confirma somente que
+a thread terminou, nao o sucesso da escrita.
+
+No fechamento da janela, falha e apresentada no status e no log. O adiamento
+restaura o estado operacional; o prazo existente de fechamento forcado nao foi
+alterado. Nao ha segundo escritor concorrente para mascarar erro do primeiro.
+
+A gravacao normal usa temporario e `os.replace`. `core/config_manager.py` ainda
+tolera OSError no fsync do temporario e do diretorio, registrando em debug;
+Windows nao executa o fsync de diretorio. Portanto `flush` confirma o resultado
+do escritor e a substituicao do arquivo, sem garantir durabilidade absoluta
+contra queda de energia. A rodada A-E nao mudou essa politica.
+
+Evidencias e limites: secao L do [relatorio](AUDIT_FIXES_REPORT.md) e
+[passagem de validacao](VALIDATION_PLAN.md).

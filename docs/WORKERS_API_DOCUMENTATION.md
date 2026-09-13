@@ -11,7 +11,10 @@
   em disco. `flush(timeout=1.0)` retorna `False` quando a espera expira e levanta
   `OSError` quando a escrita retorna falso ou lanca excecao. Fila vazia nao
   mascara esse erro, e o termino da thread notifica quem aguarda. Uma nova
-  escrita bem-sucedida elimina o erro anterior.
+  escrita bem-sucedida elimina o erro anterior. Termino antes da escrita com
+  snapshot pendente tambem gera falha; encerramento vazio continua valido.
+  O contrato confirma escritor/replace, sem garantir durabilidade absoluta:
+  fsync temporario/diretorio continua tolerando OSError em `config_manager`.
 - No fechamento, a falha de preferencias aparece no status e no log. O caminho
   de adiamento mantem `_is_shutting_down=False`, sem encerrar o gravador por
   timeout de `flush`; o encerramento so e solicitado ao aceitar o fechamento.
@@ -39,6 +42,23 @@
   menus, informa o status e permite outra tentativa.
 - O ultimo relatorio manual valido de derivadas pode ser exportado pela GUI;
   seu ciclo de invalidacao e formatos estao no [guia de derivadas](DERIVADAS_SYNC_RUNBOOK.md).
+
+- Rescan protege construcao, preparacao, conexoes obrigatorias, registro e
+  partida; falha limpa apenas os recursos da tentativa. Filtro protege tambem
+  token e retencao; prepara termos/fonte/modo/colunas antes de marcar busy.
+- A entrega de `on_data_loaded` devolve False e aciona `on_load_error` em falha.
+  Antes de aplicar, conserva dados anteriores; depois de aplicar, informa que
+  a exibicao pode estar incompleta. A atualizacao visual retornar False tambem
+  interrompe a entrega com erro. O encaminhamento usa a fachada da janela para
+  preservar apresentacao no startup, contexto de banco/modal e retencao.
+  Identidade de requisicao continua exigida.
+- Finalizadores de derivadas, compactacao e banco alternativo possuem tratamento
+  local. Falha de aplicacao retorna `ok=False`, informa erro e conserva referencias
+  ainda vivas. Derivadas invalidam relatorio; compactacao/validacao esperam termino
+  nativo antes de entregar. Nova tentativa e permitida quando o estado foi liberado.
+- Banco alternativo prepara/invalida o estado de derivadas antes de mudar DB_PATH.
+  Falha anterior conserva o banco antigo; falha posterior conserva o banco ja
+  selecionado e pede recarga. Recarga falha nao e reportada como sucesso da UI.
 
 Detalhes e criterios de regressao:
 [guardrails da GUI](GUI_ASYNC_LOADING_GUARDRAILS.md) e
@@ -95,7 +115,7 @@ Este documento descreve a arquitetura, interfaces e APIs dos workers assíncrono
 2. **Cancelamento cooperativo**: workers Qt oferecem `cancel()` ou `requestInterruption()` conforme sua interface. Solicitar cancelamento nao comprova termino; uma leitura de planilha em andamento pode concluir antes da proxima verificacao.
 3. **Cache Inteligente**: Resultados são cacheados quando apropriado
 4. **Signal-Based**: Comunicação via PyQt Signals para thread-safety
-5. **Fail-Safe**: Tratamento robusto de erros sem crashar a UI
+5. **Erros locais**: Os caminhos tratados encaminham falhas ao controlador correspondente. As reproducoes A-E estao no relatorio; isso nao comprova que toda excecao possivel da UI foi coberta.
 
 ---
 

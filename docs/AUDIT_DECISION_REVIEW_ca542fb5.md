@@ -221,3 +221,17 @@ anteriores deste laudo continuam historicos. A suite completa local no codigo
 701,80s; exit 0. CodeRabbit revisou dez arquivos Python e levantou 0 issues;
 o complemento de construtores teve revisao local. Nao confundir isso com a
 chamada Pi/Kimi que falhou ou com validacao visual nativa ainda nao realizada.
+
+
+## Complemento A-E, base c30f87da
+
+O levantamento posterior identificou residuos na preparacao de rescan/filtro,
+termino do escritor, entrega de carga e finalizadores. O escopo S1-S8 acima
+nao comprova que essas classes de falha estavam totalmente encerradas.
+Correcoes, antes/depois e evidencias atuais estao na secao L de
+[AUDIT_FIXES_REPORT.md](AUDIT_FIXES_REPORT.md). Validacao integrada e publicacao
+desta rodada pertencem a L4; os 2938 passed de 0f239dac continuam historicos.
+
+A politica A5, APIs e formatos foram preservados. Tambem nao mudou a tolerancia
+a OSError no fsync temporario/diretorio de config_manager: flush confirma o
+resultado do escritor/replace, sem garantia absoluta de durabilidade.

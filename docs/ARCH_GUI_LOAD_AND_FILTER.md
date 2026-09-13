@@ -32,6 +32,28 @@ restaura `_is_shutting_down=False`. Novas preferencias podem ser enviadas;
 somente uma nova gravacao bem-sucedida elimina o erro anterior. O prazo de
 encerramento continua seguindo as operacoes ainda vivas.
 
+Preparacao de rescan e filtro inclui os pontos faliveis anteriores a `start()`:
+construtores, conexoes obrigatorias e registros. No filtro, termos, fonte, modo
+e colunas sao preparados antes de sinalizar ocupacao. Erro limpa a tentativa e
+permite a seguinte sem perder o controle sobre workers ainda vivos.
+
+A entrega da carga protege separadamente o que ocorre antes e depois de aplicar
+os dados. Erro de preparacao conserva a tabela anterior; erro posterior informa
+que a exibicao pode estar incompleta. Retorno False da atualizacao visual nao e
+tratado como sucesso. O controle permanece no fluxo local de erro da carga;
+nao foi instalado tratamento global de excecoes Qt.
+
+Finalizadores de derivadas, compactacao e banco alternativo tratam erros de
+aplicacao. Derivadas invalidam o relatorio e conservam thread viva. Compactacao
+e validacao aguardam termino nativo antes da entrega. Banco alternativo prepara
+o estado antes de selecionar; falha posterior preserva o banco selecionado e
+orienta recarga. Erro de recarga retorna falha mesmo quando a operacao no banco
+ja terminou, sem repetir automaticamente a gravacao.
+
+A confirmacao de preferencias inclui termino com snapshot pendente, que gera
+falha. Nao e garantia absoluta de durabilidade: fsync do temporario/diretorio
+continua tolerando OSError em `core/config_manager.py`; a politica nao mudou.
+
 ## Referencias
 
 - [Regras de carregamento e encerramento](GUI_ASYNC_LOADING_GUARDRAILS.md)

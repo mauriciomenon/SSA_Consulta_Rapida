@@ -245,3 +245,42 @@ CPU/RSS, caminhos sem hard link e demais limites funcionais/online/historicos
 da lista anterior. Uma suite verde nao conclui esses itens. Proxima atividade:
 executar os ensaios restantes da passagem, sem alterar a politica ou reescrever
 o historico. Commits de codigo: 3e367782, 79a0d25e e 0f239dac.
+
+
+## 2026-09-13 - Residuos A-E apos c30f87da
+
+Esta entrada atualiza o fechamento da auditoria. A suite historica de
+`0f239dac` (2938 passed, 9 skipped) nao aprova o diff posterior. A-K do relatorio
+preservam historico; a evidencia vigente e a secao L de AUDIT_FIXES_REPORT.md.
+
+Implementados: A, preparacao/construcao/conexoes de rescan; B, preparacao e
+inicializacao do filtro; C, escritor terminado com preferencia pendente; D,
+entrega de carga e retorno falso da atualizacao visual; E, falhas dos
+finalizadores de derivadas, compactacao e banco alternativo. Regressoes
+verificam estado apos erro e tentativa seguinte; nao houve mudanca de A5,
+remocao de API, troca do stdout JSON ou excepthook global.
+
+Pendencias da rodada:
+
+1. Validacao local concluida: 2969 passed, 9 skipped, 34 warnings e 11 subtests
+   passed em 706,03s, retorno 0, em 5b75f8f8. Revisao, commits e publicacao
+   estao em L4. Nao somar esse placar com selecoes sobrepostas.
+2. Executar somente scanners amplos ainda ausentes e classificar resultado,
+   falha de ferramenta e timeout separadamente. Scanners focados foram executados
+   e estao discriminados em L3; Vulture manteve 18 imports preexistentes e
+   PSScriptAnalyzer apontou 59 avisos sem erros. Reutilizar resultados apenas
+   para o mesmo conteudo e escopo.
+3. Validar visualmente Qt nativo, dialogos e mensagens nos sistemas acessiveis;
+   incluir Windows/Linux, SAM real e comparacoes CPU/RSS ainda ausentes.
+4. Manter explicito o limite de durabilidade: falhas de fsync temporario e de
+   diretorio continuam toleradas em config_manager. `flush` confirma escritor
+   e substituicao, nao garantia absoluta contra queda de energia. Nao houve
+   mudanca dessa politica.
+5. Preservar demais limites historicos: cancelamento dentro do parser, APIs
+   sem consumidor interno, regras online indisponiveis e 16 mensagens Git.
+
+C e um caso extremo reproduzido de forma controlada; nao ha medida de sua
+frequencia real. D foi exercitado com QTimer real em subprocesso: retorno -6
+antes e 0 depois, com busy=False; isso nao substitui uso visual multiplataforma.
+Proxima atividade: executar os ensaios nativos, plataformas e scanners amplos
+da passagem; a suite local e a correcao da fixture estao registradas em L4.
