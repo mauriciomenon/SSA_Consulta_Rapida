@@ -14806,13 +14806,16 @@ class TestGUIFilterLogic:
             gui_ssa.DB_PATH = original_db_path
 
     def test_save_current_filter_cancel_restores_advanced_filters(self):
-        """Cancelar 'Salvar filtro' restaura o conteudo de _advanced_filters."""
+        """Cancelar restaura filtros ativos apos sincronizacao in-place do painel."""
         self.window._advanced_filters = {"situacao": ["1"]}
         self.window._advanced_filters_active = True
+        self.window._active_column_filters = OrderedDict(situacao="1")
 
         def _fake_apply(store_only: bool = False):
+            assert store_only is True
             self.window._advanced_filters = {"situacao": ["2"]}
             self.window._advanced_filters_active = True
+            self.window._sync_active_situacao_filter_from_advanced_filters()
 
         before = list(self.window.persistent_filters)
         with patch.object(
@@ -14821,6 +14824,9 @@ class TestGUIFilterLogic:
             autospec=True,
             side_effect=_fake_apply,
         ), patch(
+            "gui.ssa.persistent_filter_ui.build_persistent_filter_name",
+            return_value="Filtro pendente",
+        ) as build_name, patch(
             "gui.ssa.persistent_filter_ui.QInputDialog.getText",
             return_value=("", False),
         ):
@@ -14828,7 +14834,12 @@ class TestGUIFilterLogic:
 
         assert self.window._advanced_filters == {"situacao": ["1"]}
         assert self.window._advanced_filters_active is True
+        assert self.window._active_column_filters == OrderedDict(situacao="1")
         assert self.window.persistent_filters == before
+        build_name.assert_called_once()
+        captured_state = build_name.call_args.args[0]
+        assert captured_state["active_column_filters"]["situacao"] == "2"
+        assert captured_state["advanced_filters"]["situacao"] == ["2"]
 
     def test_on_data_loaded_ignores_stale_request(self):
         original_df = self.window.df_completo.copy()

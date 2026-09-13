@@ -60,7 +60,9 @@ class PersistentFilterUiController:
 
     def save_current(self) -> None:
         apply_advanced = getattr(self.window, "_apply_advanced_filters_from_ui", None)
-        previous_active_filters = getattr(self.window, "_active_column_filters", None)
+        previous_active_filters = copy.deepcopy(
+            getattr(self.window, "_active_column_filters", None)
+        )
         previous_advanced_active = getattr(
             self.window, "_advanced_filters_active", False
         )
