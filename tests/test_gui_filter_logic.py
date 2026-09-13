@@ -14778,16 +14778,18 @@ class TestGUIFilterLogic:
         assert worker.disconnected is True
 
     def test_finalize_database_candidate_validation_discards_stale_result(
-        self, monkeypatch
+        self, tmp_path
     ):
         """Resultado de validacao expirada nao pode selecionar outro banco."""
         original_db_path = gui_ssa.DB_PATH
+        old_db_path = str(tmp_path / "velho.db")
+        new_db_path = str(tmp_path / "novo.db")
         self.window._other_db_validation_request_id = 2
         self.window._other_db_validation_running = True
 
         try:
             outcome = self.window._finalize_database_candidate_validation(
-                {"_request_id": 1, "ok": True, "db_file": "/tmp/velho.db"}
+                {"_request_id": 1, "ok": True, "db_file": old_db_path}
             )
             assert outcome.get("reason") == "stale_result"
             assert gui_ssa.DB_PATH == original_db_path
@@ -14795,10 +14797,10 @@ class TestGUIFilterLogic:
             assert self.window._other_db_validation_running is True
 
             current = self.window._finalize_database_candidate_validation(
-                {"_request_id": 2, "ok": True, "db_file": "/tmp/novo.db"}
+                {"_request_id": 2, "ok": True, "db_file": new_db_path}
             )
             assert bool(current.get("ok")) is True
-            assert gui_ssa.DB_PATH == "/tmp/novo.db"
+            assert gui_ssa.DB_PATH == new_db_path
             assert self.window._other_db_validation_running is False
         finally:
             gui_ssa.DB_PATH = original_db_path

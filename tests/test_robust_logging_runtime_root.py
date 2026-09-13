@@ -14,10 +14,7 @@ def _release_root_handlers() -> None:
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-        try:
-            handler.close()
-        except Exception:  # noqa: BLE001 - cleanup best-effort
-            pass
+        handler.close()
 
 
 def test_relative_log_dir_anchors_at_ssa_runtime_root(

@@ -768,3 +768,59 @@ exige autorizacao especifica; nenhum gate foi afrouxado.
 O segundo GitHub aceita Git SSH, mas a conta autenticada no gh nao consegue
 consultar esse repositorio via API. Publicacao SSH e execucao de CI sao fatos
 diferentes. Novos resultados de publicacao/PR serao registrados abaixo.
+
+
+### M4. Publicacao, PR e verificacoes externas
+
+Commit de CI `ba2de05fa4786ed556e57aa6e840550c701ff3cd`: autor e committer
+Mauricio Menon, email humano configurado. Hook e verificador aprovaram o novo
+intervalo; push e `git ls-remote` confirmaram o mesmo SHA nos tres remotes.
+
+[PR 131](https://github.com/mauriciomenon/SSA_Consulta_Rapida/pull/131)
+aberta em draft, `fix/audit-surgical-fixes` para `dev`, sem conflitos no
+momento da consulta. Draft nao significa pronta para merge: os bloqueios
+abaixo continuam discriminados. A descricao inclui a auditoria completa e o
+texto de passagem, alem deste patch de CI.
+
+A primeira pipeline automatica da branch,
+[2844932382](https://gitlab.com/mauricio.menon/ssa_consulta_rapida_pyqt6/-/pipelines/2844932382),
+executou o commit ba2de05f: autoria aprovada e quality-gates aprovado em 65s.
+O trace de pytest-full confirma execucao automatica com timeout e JUnit.
+O complemento de testes/documentos posterior tem pipeline propria; conferir
+SHA e resultado em
+[pipelines desta branch](https://gitlab.com/mauricio.menon/ssa_consulta_rapida_pyqt6/-/pipelines?ref=fix%2Faudit-surgical-fixes).
+Este registro de agendamento nao substitui o placar final da suite.
+
+Na PR, os runs GitHub 34774710005 (minimal-ci), 34774709999 (Secret Scan),
+34774710012 (CodeQL) e 34774710017 (Dependency review) falharam antes de
+executar seus oito jobs por bloqueio de faturamento. Confirmado nas anotacoes
+individuais. Nao foi alterado o YAML para esconder esse bloqueio.
+
+CodeRabbit no servidor informou `Review skipped: draft pull request`; seu
+status verde nao e uma revisao adicional. A revisao CLI de M2 foi executada.
+O resultado de autoria do push GitLab valida somente o novo intervalo; a PR
+completa continua rejeitando as 16 mensagens antigas.
+
+O CodeFactor anotou oito ocorrencias na PR. Complemento apos a abertura:
+
+| Ocorrencia | Tratamento | Validacao/limite |
+|---|---|---|
+| B108, tres caminhos em teste de resultado antigo de banco | Caminhos fixos /tmp substituidos pela fixture tmp_path; isolamento por caso e portabilidade | Teste de resultado antigo aprovado |
+| B110, limpeza dos handlers em teste de logging | Removido except/pass; falha de close agora falha o teste | Dois testes de logging aprovados |
+| Complex Method, on_load_error | Mantido nesta rodada | Cresceu de 65 para 83 linhas na auditoria; fluxo de erro/carga estabilizado, sem falha funcional nova demonstrada |
+| Complex Method, _poll_delivery de derivadas | Mantido nesta rodada | De 41 para 48 linhas; guardas de timeout, identidade e fechamento precisam ser preservadas |
+| Complex Method, load_other_database | Mantido nesta rodada | De 63 para 114 linhas; envolve dialogo, validacao asincrona e nova tentativa |
+| Complex Method, validate_updates | Mantido nesta rodada | Funcao nova de 45 linhas verifica refs, commits, tags e notas; dividir sem revisao pode perder cobertura da politica |
+
+Contagem de linhas e inventario AST, nao a metrica interna do CodeFactor.
+O complemento altera somente dois testes; tres casos passaram em 1,19s,
+com py_compile, Ruff e ty aprovados. Nenhum aviso de complexidade foi
+suprimido e nenhum limiar de aprovacao foi reduzido. Esses quatro itens
+permanecem como divida de manutencao e impedem declarar todos os checks verdes.
+Reavaliar em slice de refatoracao com contratos de erro, concorrencia e autoria
+preservados; nao remover guardas apenas para reduzir a contagem.
+
+O SHA que contem este complemento deve ser obtido do Git; a evidencia remota
+final e vinculada ao SHA na descricao da PR e nos artefatos desta rodada.
+Build Windows, ensaios visuais nativos e scanners amplos da passagem nao foram
+executados aqui. Nao houve merge, reescrita nem alteracao de regras do servidor.

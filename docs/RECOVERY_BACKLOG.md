@@ -302,5 +302,17 @@ da passagem; a suite local e a correcao da fixture estao registradas em L4.
 - Nao executado nesta rodada: build nativo Windows e verificacao visual Qt.
   Os demais ensaios de plataforma, desempenho e scanners da passagem continuam.
 
-Proxima atividade: publicar o patch, abrir a PR draft para dev e registrar
-separadamente o estado de cada pipeline e seus bloqueios reais.
+Publicacao: ba2de05f nos tres remotes; PR 131 aberta em draft para dev.
+GitLab 2844932382: autoria e gates aprovados; execucao automatica da suite
+confirmada no trace. Resultado final e SHA na PR e na secao M do relatorio.
+
+CodeFactor: corrigidos caminhos /tmp fixos no teste de banco e except/pass na
+limpeza do teste de logging (tres testes aprovados, compile/Ruff/ty verdes).
+Quatro avisos Complex Method permanecem em on_load_error, _poll_delivery,
+load_other_database e validate_updates. Nao sao novos defeitos funcionais
+reproduzidos; exigem refatoracao com contratos preservados, fora deste patch
+cirurgico de CI. Nao foram suprimidos nem alterados limites do servidor.
+
+Proxima atividade: concluir verificacao da pipeline do complemento e, apos
+regularizar faturamento, reexecutar Actions. Tratar a reescrita das mensagens
+somente com autorizacao especifica; a PR permanece draft.

@@ -24,6 +24,12 @@ placar e historico e nao aprova o diff A-E posterior.
 
 ## Passagem de CI/CD para a PR
 
+A PR preparada e a numero 131 no GitHub principal, com base dev. O primeiro
+commit de CI e ba2de05f; um complemento ajusta dois testes apontados pelo
+CodeFactor. Leia M4 para distinguir os quatro avisos de complexidade ainda
+abertos de falhas do executor GitHub. Nao classifique CodeRabbit remoto como
+revisao concluida quando sua descricao informa skip por draft.
+
 Antes de repetir testes pesados, leia M em AUDIT_FIXES_REPORT.md. Confira o
 SHA da PR contra a branch publicada, a base dev e os jobs reais no servidor.
 GitLab agora agenda pushes fix/ e torna pytest-full automatico e bloqueante;
