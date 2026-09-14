@@ -23,6 +23,13 @@ resultado continua sendo PE AMD64. O fluxo ARM64 usa Python e dependencias
 Windows ARM64 nativos. O macOS ARM64 e construido no Mac. Nao alterar firmware,
 boot ou aceleracao grafica da VM para executar esses comandos.
 
+Despertar a tela e usar o login ja fornecido quando a sessao estiver bloqueada.
+Reutilizar SSH quando disponivel ou o console e a transferencia local existentes.
+A senha de criptografia da VM, o PIN e a senha do Windows sao credenciais
+distintas. Falha de acesso nao justifica alterar hardware virtual ou entrar no
+firmware. Um reparo autorizado exige snapshot e backup da configuracao antes da
+alteracao; registrar o responsavel e os efeitos confirmados no relatorio.
+
 ## Origem do codigo
 
 Usar o checkout Windows local esperado pelo guard do projeto:
@@ -115,13 +122,17 @@ caminhos efetivamente gerados. Nao executar limpeza de outro alvo.
 
 ## Validacao de cada entrega
 
-Conferir os metadados dos dois executaveis contra `git rev-parse HEAD`, a versao
+Conferir os metadados dos dois executaveis contra o commit registrado por
+`git rev-parse HEAD` no inicio do build, a versao
 do codigo e o alvo solicitado. Validar tambem a arquitetura das bibliotecas
 nativas empacotadas. Testes de scripts nao substituem a execucao do pacote.
 
 Extrair o ZIP ou montar o DMG em uma area de teste e executar os binarios dali.
-Usar runtime isolado fora do checkout, com `SSA_RUNTIME_ROOT`, `SSA_CONFIG_DIR`
-e `SSA_DB_PATH` apontando para dados de teste.
+Usar runtime isolado fora do checkout, dentro do TEMP do usuario, com
+`SSA_RUNTIME_ROOT` apontando para esse diretorio. Colocar a base sintetica em
+`data/ssas.db` dentro dele: o launcher congelado redefine `SSA_CONFIG_DIR` para
+`config/` e `SSA_DB_PATH` para `data/ssas.db` do runtime. Nao usar banco pessoal
+nem liberar diretorios adicionais para contornar uma fixture mal posicionada.
 
 Para a CLI, definir `SSA_SMOKE_TEST=1`, executar o launcher e exigir codigo zero
 e o marcador de smoke. Remover essa variavel antes do teste visual da GUI.
@@ -136,6 +147,11 @@ GUI e os metadados corretos. O DMG macOS permanece no diretorio do seu alvo.
 Os nomes devem ser derivados da versao e do alvo da execucao, sem nomes de uma
 entrega anterior fixados neste guia.
 
+O release Windows gera ZIPs individuais e um ZIP combinado terminado em
+`_pyinstaller.zip`, sem arquitetura no nome, dentro da pasta de cada alvo.
+Entregar o combinado, identificando a arquitetura no nome da copia final.
+Validar tambem esse ZIP: o relatorio automatico do release cobre os individuais.
+
 Comparar SHA-256 antes e depois da transferencia: `Get-FileHash -Algorithm SHA256`
 no Windows e `shasum -a 256` no Mac, com o caminho real de cada pacote. Conferir
 que o arquivo de destino existe e pode ser lido antes de declarar a entrega.
@@ -144,3 +160,13 @@ Os artefatos ficam ignorados pelo Git; nao adicionar binarios ao repositorio.
 Se o ZIP falhar com `WinError 206`, conferir o staging curto no TEMP usado por
 `scripts/create_distribution.py`. Registrar a falha e corrigir sua causa; timeout
 ou artefato de uma execucao anterior nao comprovam sucesso do build atual.
+
+## Encerramento
+
+Entregar quando os alvos solicitados tiverem pacote legivel, arquitetura e
+metadados corretos, smoke com retorno zero, GUI aberta e copia no Mac com hash
+conferido. Registrar os limites reais da verificacao visual. Suite completa e
+scanners adicionais so entram por pedido ou por falha ou risco concreto.
+Correcoes exclusivamente documentais posteriores nao invalidam os binarios:
+preservar o commit de origem nos metadados e no relatorio, sem alterar o About
+manualmente ou iniciar novas compilacoes apenas para acompanhar commits de docs.

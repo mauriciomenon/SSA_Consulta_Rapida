@@ -52,6 +52,8 @@
 - Para Windows ARM64, executar somente em Windows 11 ARM64 nativo e validar `sysconfig.get_platform() == "win-arm64"`; para AMD64, validar `win-amd64`. O alvo de uma arquitetura nao pode modificar artefatos da outra nem os builds macOS.
 - Nao comitar `.env`, segredos, configuracoes locais de ferramentas ou arquivos ignorados sem autorizacao.
 - Fazer backup com timestamp antes de alterar configuracoes existentes.
+- Build nao autoriza alterar firmware, boot, aceleracao ou rede da VM. Reutilizar acesso existente; tela bloqueada exige despertar/login, nao reconfiguracao. Para reparo de VM autorizado, preservar snapshot e backup antes da alteracao.
+- Registrar quem executou alteracoes confirmadas e seus efeitos no relatorio do incidente; nao transformar fatos estabelecidos em duvida nem confundir esse registro com autoria Git.
 
 ## Validacao e entrega
 - Usar `uv run --no-sync` para Python e ferramentas do projeto.
@@ -63,6 +65,7 @@
 - Conferir o diff e `git status --short` ao terminar.
 - Atualizar documentacao e relatorios conforme o codigo entregue; distinguir entregue, parcial e nao executado.
 - Informar impacto, validacao, pendencias e proxima atividade em linguagem direta.
+- Entregar os alvos solicitados apos conferir pacote, arquitetura, commit de origem, smoke, abertura da GUI e hash da copia. Ampliar verificacoes somente por falha ou risco concreto; ajustes apenas documentais nao exigem recompilar artefatos ja validados.
 
 ## Relatorio por pedido
 - Entregar comparativo antes/depois por pedido, com evidencia e estado: entregue, parcial ou nao feito.

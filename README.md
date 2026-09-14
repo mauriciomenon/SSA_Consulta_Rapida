@@ -15,10 +15,10 @@ Use um checkout e ambiente Python nativos do sistema operacional. Nao compartilh
 No macOS ou Linux, execute a partir da raiz do repositorio:
 
 ```bash
-source scripts/env/direnv_common.sh || exit $?
-ssa_env::apply || exit $?
-ssa_native_guard_tools uv || exit $?
-uv run --python 3.13 main.py --gui
+bash -c 'source scripts/env/direnv_common.sh &&
+ssa_env::apply &&
+ssa_native_guard_tools uv &&
+uv run --no-sync main.py --gui'
 ```
 
 Para a interface de terminal, retire `--gui`. Use `--help` para consultar os argumentos.
@@ -83,6 +83,10 @@ Os comandos Windows usam explicitamente `-Platform windows_amd64` ou
 `-Platform windows_arm64`; o comando macOS usa `--platform macos_arm64`.
 Os ZIPs Windows devem ser copiados da VM para os diretorios do Mac indicados
 acima, comparando SHA-256 na origem e no destino.
+
+Entregar assim que os pacotes solicitados passarem nessas verificacoes. Registrar
+limites de validacao no relatorio da entrega; ampliar testes somente diante de
+falha concreta. Uma correcao posterior apenas de documentacao nao exige rebuild.
 
 [Comandos e validacao dos tres alvos](docs/BUILD_WINDOWS_ARM64_AMD64.md) |
 [Guia de distribuicao](docs/GUIA_DISTRIBUICAO.md) |
