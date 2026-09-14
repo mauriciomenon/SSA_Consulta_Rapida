@@ -1,4 +1,4 @@
-# Compatibilidade de build para windows_amd64.
+# Compatibilidade de build para windows_arm64.
 # Versoes definidas em pyproject.toml e uv.lock.
 
 pandas>=2.3.3,<3; python_version < '3.11'

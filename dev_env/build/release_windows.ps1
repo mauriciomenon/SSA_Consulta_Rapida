@@ -796,15 +796,25 @@ function Invoke-DistributionPackage {
 
     $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
     $previousReleasePlatform = $env:SSA_RELEASE_PLATFORM
+    $previousManagedPython = $env:UV_MANAGED_PYTHON
     try {
         $pythonRequest = "3.13"
         if ($BackendName -eq "pyinstaller") {
-            $pythonRequest = if ($TargetPlatform -eq "windows_arm64") { "3.13" } else { "cpython-3.13-windows-x86_64-none" }
+            $pythonRequest = if ($TargetPlatform -eq "windows_arm64") { $env:SSA_WINDOWS_ARM64_PYTHON } else { "cpython-3.13-windows-x86_64-none" }
+            if ($TargetPlatform -eq "windows_arm64") {
+                if ([string]::IsNullOrWhiteSpace($pythonRequest)) {
+                    $pythonRequest = Join-Path $env:LOCALAPPDATA "Programs\Python\Python313-arm64\python.exe"
+                }
+                $env:UV_MANAGED_PYTHON = "false"
+            }
             $buildEnvironment = if ($TargetPlatform -eq "windows_arm64") { ".venv-win-arm64" } else { ".venv-win" }
             $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot $buildEnvironment
         }
         $env:SSA_RELEASE_PLATFORM = $TargetPlatform
         $distributionArgs = @("run", "--python", $pythonRequest, "python", "-m", $DistributionModule, "--build-system", $BackendName)
+        if ($TargetPlatform -eq "windows_arm64") {
+            $distributionArgs = @("run", "--no-sync") + $distributionArgs[1..($distributionArgs.Count - 1)]
+        }
         if ($SkipInstallerFlag) {
             $distributionArgs += "--skip-installer"
         }
@@ -815,6 +825,7 @@ function Invoke-DistributionPackage {
     } finally {
         $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnvironment
         $env:SSA_RELEASE_PLATFORM = $previousReleasePlatform
+        $env:UV_MANAGED_PYTHON = $previousManagedPython
     }
 }
 

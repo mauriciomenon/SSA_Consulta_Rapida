@@ -92,7 +92,24 @@ function Invoke-WindowsRelease {
     }
     Assert-WindowsReleaseHost
     $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
+    $previousArmPython = $env:SSA_WINDOWS_ARM64_PYTHON
+    $previousManagedPython = $env:UV_MANAGED_PYTHON
     try {
+        if ($TargetPlatform -eq "windows_arm64" -and -not $DryRun) {
+            $armPython = $env:SSA_WINDOWS_ARM64_PYTHON
+            if ([string]::IsNullOrWhiteSpace($armPython)) {
+                $armPython = Join-Path $env:LOCALAPPDATA "Programs\Python\Python313-arm64\python.exe"
+            }
+            if (-not (Test-Path -LiteralPath $armPython -PathType Leaf)) {
+                throw "Python ARM64 ausente. Defina SSA_WINDOWS_ARM64_PYTHON com o executavel nativo."
+            }
+            $env:UV_MANAGED_PYTHON = "false"
+            & uv run --no-project --no-sync --python $armPython python -c "import sysconfig; raise SystemExit(0 if sysconfig.get_platform() == 'win-arm64' else 1)"
+            if ($LASTEXITCODE -ne 0) {
+                throw "Python incompativel: esperado win-arm64."
+            }
+            $env:SSA_WINDOWS_ARM64_PYTHON = $armPython
+        }
         if (-not $DryRun -and ($BackendCsv -split ",") -contains "pyinstaller") {
             $buildEnvironment = if ($TargetPlatform -eq "windows_arm64") { ".venv-win-arm64" } else { ".venv-win" }
             $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot $buildEnvironment
@@ -120,6 +137,8 @@ function Invoke-WindowsRelease {
         }
     } finally {
         $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnvironment
+        $env:SSA_WINDOWS_ARM64_PYTHON = $previousArmPython
+        $env:UV_MANAGED_PYTHON = $previousManagedPython
     }
 }
 
@@ -161,7 +180,7 @@ function Initialize-WindowsBuildExtra {
     }
 
     if ($modules.Count -gt 0) {
-        $pythonRequest = if ($modules -contains "PyInstaller" -and $TargetPlatform -eq "windows_amd64") { "cpython-3.13-windows-x86_64-none" } else { "3.13" }
+        $pythonRequest = if ($TargetPlatform -eq "windows_arm64") { $env:SSA_WINDOWS_ARM64_PYTHON } elseif ($modules -contains "PyInstaller") { "cpython-3.13-windows-x86_64-none" } else { "3.13" }
         $imports = ($modules | ForEach-Object { "import $_" }) -join "; "
         $uvOutput = @()
         Push-Location $RepoRoot

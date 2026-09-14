@@ -64,26 +64,26 @@ suite identifica cada teste e resume as 20 maiores duracoes.
 
 ## Distribuicao
 
-Esta versao disponibiliza fontes. Nenhum novo binario ou instalador acompanha esta publicacao.
-Builds devem ocorrer no host nativo e passar por smoke funcional do executavel gerado.
+Builds partem de `dev`, com o mesmo commit de origem e ambientes separados por
+sistema e arquitetura. Cada entrega exige verificacao dos metadados, arquitetura,
+smoke da CLI e abertura visual da GUI a partir do pacote.
 
-[Guia de distribuicao](docs/GUIA_DISTRIBUICAO.md) | [Build multiplataforma](docs/BUILD_MULTIPLATFORM.md)
-
-### Builds Windows por arquitetura
-
-Os builds Windows ARM64 e AMD64 sao fluxos independentes, executados na VM Windows 11 ARM64:
-
-| Arquitetura | Python validado | Ambiente | Saida principal |
+| Alvo | Ambiente Windows | Saida dos executaveis | Pacote no Mac |
 | --- | --- | --- | --- |
-| AMD64 | `win-amd64` | `.venv-win` | `launchers/dist/windows_amd64/` e `builds/packages/windows_amd64/` |
-| ARM64 | `win-arm64` | `.venv-win-arm64` | `launchers/dist/windows_arm64/` e `builds/packages/windows_arm64/` |
+| Windows AMD64 | `.venv-win` | `launchers/dist/windows_amd64/` | `builds/packages/windows_amd64/` |
+| Windows ARM64 | `.venv-win-arm64` | `launchers/dist/windows_arm64/` | `builds/packages/windows_arm64/` |
+| macOS ARM64 | Nao se aplica | `launchers/dist/macos_arm64/` | DMG no mesmo diretorio |
 
-O fluxo ARM64 usa `dev_env/build/build_pyinstaller_windows_arm64.bat` e nao reutiliza venv, dist, temp, metadata ou ZIP do AMD64. O comando ARM deve ser executado a partir de um checkout limpo do branch `dev`:
+Na VM VMware Windows 11 ARM64, AMD64 usa Python x64 sob emulacao e produz PE
+AMD64; ARM64 usa Python ARM64 nativo e produz PE ARM64. O build macOS ARM64 roda
+no Mac. Configuracoes, ambientes internos e temporarios do builder ficam em
+`launchers/platforms/<alvo>/`, sem compartilhar artefatos entre alvos.
 
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 `
-    -Target windows -Platform windows_arm64 -Backend pyinstaller `
-    -SkipInstaller -Yes
-```
+Os comandos Windows usam explicitamente `-Platform windows_amd64` ou
+`-Platform windows_arm64`; o comando macOS usa `--platform macos_arm64`.
+Os ZIPs Windows devem ser copiados da VM para os diretorios do Mac indicados
+acima, comparando SHA-256 na origem e no destino.
 
-O builder interrompe o processo se o Python nao reportar `win-arm64`. Para o procedimento completo, incluindo validacao PE, smoke da CLI, abertura visual da GUI e copia do ZIP para o host, consulte [BUILD_WINDOWS_ARM64_AMD64.md](docs/BUILD_WINDOWS_ARM64_AMD64.md).
+[Comandos e validacao dos tres alvos](docs/BUILD_WINDOWS_ARM64_AMD64.md) |
+[Guia de distribuicao](docs/GUIA_DISTRIBUICAO.md) |
+[Build multiplataforma](docs/BUILD_MULTIPLATFORM.md)

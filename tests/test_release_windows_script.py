@@ -17,6 +17,19 @@ SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
 TARGETS_FILE = PROJECT_ROOT / "dev_env" / "build" / "release_targets.json"
 
 
+def test_release_arm64_checks_native_python_before_bootstrap() -> None:
+    script = read_repo_text("release.ps1")
+    assert_before(
+        script,
+        "sysconfig.get_platform() == 'win-arm64'",
+        "Initialize-WindowsBuildExtra $RepoRoot",
+    )
+    assert '$env:SSA_WINDOWS_ARM64_PYTHON = $armPython' in script
+    assert '$env:UV_MANAGED_PYTHON = "false"' in script
+    assert '$env:SSA_WINDOWS_ARM64_PYTHON = $previousArmPython' in script
+    assert '$env:UV_MANAGED_PYTHON = $previousManagedPython' in script
+
+
 def _script_text() -> str:
     return read_repo_text("dev_env", "build", "release_windows.ps1")
 

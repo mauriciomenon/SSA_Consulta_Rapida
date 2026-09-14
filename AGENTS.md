@@ -48,6 +48,7 @@
 - Nao esconder erros com `except` vazio, `suppress` ou recuperacao silenciosa; nao usar monkey-patch.
 - Preservar tratamento de cancelamento, timeout, estado de workers, sinais e locks.
 - Considerar macOS arm64, Windows amd64/arm64 e Linux amd64/arm64.
+- Produzir os builds solicitados a partir de `dev`, conferindo o mesmo commit de origem nos tres alvos. O build macOS ARM64 usa `launchers/platforms/macos_arm64` e `launchers/dist/macos_arm64`; copiar os ZIPs Windows da VM para `builds/packages/<alvo>` no Mac e comparar SHA-256. Procedimento: `docs/BUILD_WINDOWS_ARM64_AMD64.md`.
 - Para Windows ARM64, executar somente em Windows 11 ARM64 nativo e validar `sysconfig.get_platform() == "win-arm64"`; para AMD64, validar `win-amd64`. O alvo de uma arquitetura nao pode modificar artefatos da outra nem os builds macOS.
 - Nao comitar `.env`, segredos, configuracoes locais de ferramentas ou arquivos ignorados sem autorizacao.
 - Fazer backup com timestamp antes de alterar configuracoes existentes.

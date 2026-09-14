@@ -268,6 +268,13 @@ def test_pyinstaller_windows_arm64_build_script_isolated_from_x64() -> None:
     assert "--platform windows_arm64 --apps cli gui" in script
     assert "cpython-3.13-windows-x86_64-none" not in script
     assert 'set "UV_PROJECT_ENVIRONMENT=.venv-win-arm64"' in script
+    assert 'set "UV_PYTHON=%SSA_WINDOWS_ARM64_PYTHON%"' in script
+    assert 'set "UV_MANAGED_PYTHON=false"' in script
+    assert script.index("sysconfig.get_platform() == 'win-arm64'") < script.index(
+        "--platform windows_arm64 --clean"
+    )
+    commands = [line.strip() for line in script.splitlines() if line.strip().startswith("uv run ")]
+    assert all("--no-sync" in command for command in commands)
 
 
 def test_pyinstaller_windows_embeds_only_explicit_runtime_database() -> None:
