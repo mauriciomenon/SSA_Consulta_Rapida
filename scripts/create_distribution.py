@@ -34,11 +34,13 @@ VERSION_FILE = PROJECT_ROOT / "VERSION"
 DIST_OUTPUT = PROJECT_ROOT / "dist_packages"
 PYINSTALLER_CANONICAL_DIRS = (
     "launchers/dist/windows_amd64",
+    "launchers/dist/windows_arm64",
     "launchers/dist/macos_arm64",
     "launchers/dist/debian_amd64",
 )
 PACKAGE_PLATFORMS = (
     "windows_amd64",
+    "windows_arm64",
     "macos_arm64",
     "debian_amd64",
     "debian_arm64",
@@ -101,6 +103,18 @@ BUILD_SYSTEMS = {
         "internal_dir": None,
     },
 }
+
+if os.environ.get("SSA_RELEASE_PLATFORM") == "windows_arm64":
+    BUILD_SYSTEMS["pyinstaller"].update(
+        {
+            "exe_path": "launchers/dist/windows_arm64/SSA_GUI.exe",
+            "base_dir": "launchers/dist/windows_arm64",
+            "canonical_dirs": [
+                "launchers/dist/windows_arm64",
+                "builds/pyinstaller/windows_arm64",
+            ],
+        }
+    )
 
 # Diretorios que devem ser criados para o usuario
 USER_DIRS = [
@@ -628,7 +642,7 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
             (
                 PROJECT_ROOT / rel
                 for rel in _get_pyinstaller_canonical_dirs()
-                if "windows_amd64" in rel
+                if rel.startswith("launchers/dist/windows_")
             ),
             PROJECT_ROOT / "launchers" / "dist" / "windows_amd64",
         )

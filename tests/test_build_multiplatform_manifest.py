@@ -54,6 +54,29 @@ def test_python_probe_checks_windows_interpreter_architecture(platform_name: str
     assert builder._is_python_executable_ok(Path(sys.executable), platform_name) is expected
 
 
+def test_python_probe_accepts_native_windows_arm64(monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    monkeypatch.setattr(
+        builder,
+        "_run_command",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, stdout="win-arm64\n", stderr=""
+        ),
+    )
+
+    assert builder._is_python_executable_ok(Path("arm-python.exe"), "windows_arm64")
+
+
+def test_detect_current_platform_maps_windows_arm64(monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Windows")
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.sysconfig.get_platform", lambda: "win-arm64"
+    )
+
+    assert builder.detect_current_platform() == "windows_arm64"
+
+
 def test_python_probe_rejects_missing_executable(tmp_path: Path) -> None:
     builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
 

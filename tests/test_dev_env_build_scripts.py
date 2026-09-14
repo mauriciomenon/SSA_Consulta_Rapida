@@ -258,6 +258,18 @@ def test_pyinstaller_windows_pins_x64_python_for_every_stage() -> None:
     assert all('uv run --python "%UV_PYTHON%" ' in command for command in commands)
 
 
+def test_pyinstaller_windows_arm64_build_script_isolated_from_x64() -> None:
+    script = (
+        PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller_windows_arm64.bat"
+    ).read_text(encoding="utf-8")
+
+    assert "windows_arm64" in script
+    assert "--platform windows_arm64 --clean" in script
+    assert "--platform windows_arm64 --apps cli gui" in script
+    assert "cpython-3.13-windows-x86_64-none" not in script
+    assert 'set "UV_PROJECT_ENVIRONMENT=.venv-win-arm64"' in script
+
+
 def test_pyinstaller_windows_embeds_only_explicit_runtime_database() -> None:
     script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
         encoding="utf-8"

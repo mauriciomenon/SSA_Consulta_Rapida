@@ -43,6 +43,11 @@ class MultiPlatformBuilder:
             "arch": "AMD64",
             "executable_ext": ".exe",
         },
+        "windows_arm64": {
+            "system": "Windows",
+            "arch": "ARM64",
+            "executable_ext": ".exe",
+        },
         "macos_arm64": {"system": "Darwin", "arch": "arm64", "executable_ext": ""},
         "debian_amd64": {"system": "Linux", "arch": "x86_64", "executable_ext": ""},
         "debian_arm64": {"system": "Linux", "arch": "aarch64", "executable_ext": ""},
@@ -266,8 +271,12 @@ VSVersionInfo(
         system = platform.system()
         machine = platform.machine().lower()
 
-        if system == "Windows" and sysconfig.get_platform() == "win-amd64":
-            return "windows_amd64"
+        if system == "Windows":
+            windows_platform = sysconfig.get_platform()
+            if windows_platform == "win-amd64":
+                return "windows_amd64"
+            if windows_platform == "win-arm64":
+                return "windows_arm64"
         elif system == "Darwin" and machine in ["arm64", "aarch64"]:
             return "macos_arm64"
         elif system == "Linux" and machine in ["x86_64", "amd64"]:
@@ -295,9 +304,16 @@ VSVersionInfo(
         )
         if result.returncode != 0:
             return False
-        if platform_name == "windows_amd64" and result.stdout.strip() != "win-amd64":
+        expected_platform = {
+            "windows_amd64": "win-amd64",
+            "windows_arm64": "win-arm64",
+        }.get(platform_name)
+        if expected_platform and result.stdout.strip() != expected_platform:
             logger.error(
-                "Python %s usa %s; esperado win-amd64", python_exe, result.stdout.strip()
+                "Python %s usa %s; esperado %s",
+                python_exe,
+                result.stdout.strip(),
+                expected_platform,
             )
             return False
         return True

@@ -127,6 +127,20 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert '"--repo-root",' in script
 
 
+def test_release_windows_declares_native_arm64_target() -> None:
+    script = _script_text()
+    targets = json.loads(TARGETS_FILE.read_text(encoding="utf-8"))
+
+    assert "windows_arm64" in script
+    assert "build_pyinstaller_windows_arm64.bat" in script
+    assert [item["name"] for item in targets["backends"] if item.get("windows_arm64")] == [
+        "pyinstaller"
+    ]
+    assert [item["name"] for item in targets["packages"] if item.get("windows_arm64")] == [
+        "zip"
+    ]
+
+
 def test_release_windows_runtime_db_hash_compares_sqlite_snapshots_between_bundles() -> None:
     script = _script_text()
     runtime_body = section_between(

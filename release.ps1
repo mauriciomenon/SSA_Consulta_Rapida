@@ -1,6 +1,7 @@
 [CmdletBinding(PositionalBinding = $false)]
 param(
     [string] $Target = "windows",
+    [string] $Platform = "windows_amd64",
     [string[]] $Backend = @(),
     [switch] $Yes,
     [switch] $DryRun,
@@ -21,7 +22,8 @@ function Show-Usage {
     Write-Host ""
     Write-Host "Defaults:"
     Write-Host "  Target: windows"
-    Write-Host "  Backend Windows: nuitka"
+    Write-Host "  Platform: windows_amd64 (ou windows_arm64)"
+    Write-Host "  Backend Windows: nuitka (AMD64) ou pyinstaller (ARM64)"
     Write-Host "  Instalador Windows: ativado por padrao; use -SkipInstaller para desativar"
     Write-Host ""
     Write-Host "Opcoes uteis:"
@@ -79,20 +81,27 @@ function Assert-WindowsReleaseHost {
 function Invoke-WindowsRelease {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
-        [Parameter(Mandatory = $true)] [string] $BackendCsv
+        [Parameter(Mandatory = $true)] [string] $BackendCsv,
+        [Parameter(Mandatory = $true)] [string] $TargetPlatform
     )
 
+    $TargetPlatform = if (Get-Variable -Name TargetPlatform -Scope Local -ErrorAction SilentlyContinue) {
+        (Get-Variable -Name TargetPlatform -Scope Local).Value
+    } else {
+        "windows_amd64"
+    }
     Assert-WindowsReleaseHost
     $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
     try {
         if (-not $DryRun -and ($BackendCsv -split ",") -contains "pyinstaller") {
-            $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot ".venv-win"
+            $buildEnvironment = if ($TargetPlatform -eq "windows_arm64") { ".venv-win-arm64" } else { ".venv-win" }
+            $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot $buildEnvironment
         }
         if (-not $DryRun) {
-            Initialize-WindowsBuildExtra $RepoRoot $BackendCsv
+            Initialize-WindowsBuildExtra $RepoRoot $BackendCsv $TargetPlatform
         }
         $script = Join-Path $RepoRoot "dev_env\build\release_windows.ps1"
-        $releaseArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
+        $releaseArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv, "-Platform", $TargetPlatform)
         if ($Yes) {
             $releaseArgs += "-Yes"
         }
@@ -117,7 +126,8 @@ function Invoke-WindowsRelease {
 function Initialize-WindowsBuildExtra {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
-        [Parameter(Mandatory = $true)] [string] $BackendCsv
+        [Parameter(Mandatory = $true)] [string] $BackendCsv,
+        [Parameter(Mandatory = $true)] [string] $TargetPlatform
     )
 
     $moduleByBackend = @{
@@ -151,7 +161,7 @@ function Initialize-WindowsBuildExtra {
     }
 
     if ($modules.Count -gt 0) {
-        $pythonRequest = if ($modules -contains "PyInstaller") { "cpython-3.13-windows-x86_64-none" } else { "3.13" }
+        $pythonRequest = if ($modules -contains "PyInstaller" -and $TargetPlatform -eq "windows_amd64") { "cpython-3.13-windows-x86_64-none" } else { "3.13" }
         $imports = ($modules | ForEach-Object { "import $_" }) -join "; "
         $uvOutput = @()
         Push-Location $RepoRoot
@@ -220,9 +230,12 @@ $repoRoot = Resolve-RepoRoot
 Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
 Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot ".venv")
 $backendCsv = Join-ReleaseCsv $Backend $DefaultBackend
+if ($Platform -eq "windows_arm64" -and $Backend.Count -eq 0) {
+    $backendCsv = "pyinstaller"
+}
 
 Write-Host "Release target: $targetName"
 Write-Host "Backend: $backendCsv"
-Invoke-WindowsRelease $repoRoot $backendCsv
+Invoke-WindowsRelease $repoRoot $backendCsv $Platform
 
 Write-Host "Release concluido."

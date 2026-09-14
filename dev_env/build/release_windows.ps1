@@ -10,13 +10,13 @@ param(
     [switch] $SkipPackage,
     [switch] $SkipInstaller,
     [switch] $IncludeRuntimeDb,
-    [switch] $DryRun
+    [switch] $DryRun,
+    [string] $Platform = "windows_amd64"
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
 
-$Platform = "windows_amd64"
 $DistributionModule = "scripts.create_distribution"
 $MandatoryGuideName = "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
 
@@ -29,6 +29,12 @@ function Assert-WindowsHost {
 function Assert-PowerShellHost {
     if ($PSVersionTable.PSVersion.Major -lt 5) {
         throw "PowerShell 5 ou superior e requerido."
+    }
+}
+
+function Assert-WindowsReleasePlatform {
+    if ($Platform -notin @("windows_amd64", "windows_arm64")) {
+        throw "Plataforma Windows invalida: $Platform. Use windows_amd64 ou windows_arm64."
     }
 }
 
@@ -203,8 +209,37 @@ function Get-BackendScorecard {
 function Get-BackendConfig {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
-        [Parameter(Mandatory = $true)] [string] $Version
+        [Parameter(Mandatory = $true)] [string] $Version,
+        [Parameter(Mandatory = $true)] [string] $TargetPlatform
     )
+
+    if ($TargetPlatform -eq "windows_arm64") {
+        return @{
+            pyinstaller = [ordered]@{
+                build_script = (Join-Path $RepoRoot "dev_env\build\build_pyinstaller_windows_arm64.bat")
+                package_system = "pyinstaller"
+                cli_exe = (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_CLI_v$($Version)_windows_arm64\SSA_CLI_v$($Version)_windows_arm64.exe")
+                gui_exe = (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_GUI_v$($Version)_windows_arm64\SSA_GUI_v$($Version)_windows_arm64.exe")
+                build_info = @(
+                    (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_CLI_v$($Version)_windows_arm64\_internal\config\build_info.json"),
+                    (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_GUI_v$($Version)_windows_arm64\_internal\config\build_info.json")
+                )
+                release_zips = @(
+                    [ordered]@{
+                        source = (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_CLI_v$($Version)_windows_arm64")
+                        zip = (Join-Path $RepoRoot "builds\packages\windows_arm64\SSA_Consulta_Rapida_v$($Version)_windows_arm64_pyinstaller_cli.zip")
+                    },
+                    [ordered]@{
+                        source = (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_GUI_v$($Version)_windows_arm64")
+                        zip = (Join-Path $RepoRoot "builds\packages\windows_arm64\SSA_Consulta_Rapida_v$($Version)_windows_arm64_pyinstaller_gui.zip")
+                    }
+                )
+            }
+        }
+    }
+    if ($TargetPlatform -ne "windows_amd64") {
+        throw "Configuracao ausente para plataforma Windows: $TargetPlatform"
+    }
 
     return @{
         pyinstaller = [ordered]@{
@@ -281,8 +316,20 @@ function Get-BackendCleanupPath {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
         [Parameter(Mandatory = $true)] [string] $BackendName,
-        [Parameter(Mandatory = $true)] [string] $Version
+        [Parameter(Mandatory = $true)] [string] $Version,
+        [Parameter(Mandatory = $true)] [string] $TargetPlatform
     )
+
+    if ($TargetPlatform -eq "windows_arm64") {
+        if ($BackendName -ne "pyinstaller") {
+            throw "Backend nao suportado em Windows ARM64: $BackendName"
+        }
+        return @(
+            (Join-Path $RepoRoot "launchers\dist\windows_arm64"),
+            (Join-Path $RepoRoot "builds\pyinstaller\windows_arm64"),
+            (Join-Path $RepoRoot "launchers\platforms\windows_arm64\temp")
+        )
+    }
 
     switch ($BackendName) {
         'pyinstaller' {
@@ -318,11 +365,12 @@ function Invoke-BackendCleanup {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
         [Parameter(Mandatory = $true)] [string] $BackendName,
-        [Parameter(Mandatory = $true)] [string] $Version
+        [Parameter(Mandatory = $true)] [string] $Version,
+        [Parameter(Mandatory = $true)] [string] $TargetPlatform
     )
 
     $removed = @()
-    $paths = Get-BackendCleanupPath -RepoRoot $RepoRoot -BackendName $BackendName -Version $Version
+    $paths = Get-BackendCleanupPath -RepoRoot $RepoRoot -BackendName $BackendName -Version $Version -TargetPlatform $TargetPlatform
     foreach ($path in $paths) {
         if (Test-Path -LiteralPath $path) {
             Remove-Item -LiteralPath $path -Recurse -Force
@@ -742,16 +790,20 @@ function Invoke-DistributionPackage {
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
         [Parameter(Mandatory = $true)] [string] $BackendName,
         [Parameter(Mandatory = $true)] [bool] $SkipInstallerFlag,
-        [Parameter(Mandatory = $true)] [bool] $IncludeRuntimeDbFlag
+        [Parameter(Mandatory = $true)] [bool] $IncludeRuntimeDbFlag,
+        [string] $TargetPlatform = "windows_amd64"
     )
 
     $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
+    $previousReleasePlatform = $env:SSA_RELEASE_PLATFORM
     try {
         $pythonRequest = "3.13"
         if ($BackendName -eq "pyinstaller") {
-            $pythonRequest = "cpython-3.13-windows-x86_64-none"
-            $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot ".venv-win"
+            $pythonRequest = if ($TargetPlatform -eq "windows_arm64") { "3.13" } else { "cpython-3.13-windows-x86_64-none" }
+            $buildEnvironment = if ($TargetPlatform -eq "windows_arm64") { ".venv-win-arm64" } else { ".venv-win" }
+            $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot $buildEnvironment
         }
+        $env:SSA_RELEASE_PLATFORM = $TargetPlatform
         $distributionArgs = @("run", "--python", $pythonRequest, "python", "-m", $DistributionModule, "--build-system", $BackendName)
         if ($SkipInstallerFlag) {
             $distributionArgs += "--skip-installer"
@@ -762,6 +814,7 @@ function Invoke-DistributionPackage {
         Invoke-CheckedProcess $RepoRoot "uv" $distributionArgs
     } finally {
         $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnvironment
+        $env:SSA_RELEASE_PLATFORM = $previousReleasePlatform
     }
 }
 
@@ -773,7 +826,8 @@ function Write-ReleaseReport {
 
     $reportDir = Join-Path $RepoRoot "builds\reports"
     New-Item -ItemType Directory -Force $reportDir | Out-Null
-    $reportPath = Join-Path $reportDir "release_report_windows_amd64.json"
+    $reportName = if ($Platform -eq "windows_amd64") { "release_report_windows_amd64.json" } else { "release_report_windows_arm64.json" }
+    $reportPath = Join-Path $reportDir $reportName
     $reportJson = $Report | ConvertTo-Json -Depth 12
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText($reportPath, $reportJson + [Environment]::NewLine, $utf8NoBom)
@@ -785,6 +839,7 @@ $scriptRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Assert-SsaWindowsHost -RepoRoot $scriptRepoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
 Assert-WindowsHost
 Assert-PowerShellHost
+Assert-WindowsReleasePlatform
 Assert-Tool "git" "instale Git para Windows"
 Assert-Tool "uv" "instale uv"
 
@@ -841,7 +896,7 @@ if (-not $Yes) {
     }
 }
 
-$configs = Get-BackendConfig $repoRoot $version
+$configs = Get-BackendConfig $repoRoot $version $Platform
 $results = @()
 
 foreach ($backendName in $selectedBackends) {
@@ -851,7 +906,7 @@ foreach ($backendName in $selectedBackends) {
     $runtimeProtectionRecords = @()
     $runtimeDatabaseRecords = @()
     if (-not $SkipBuild) {
-        $cleanupRemoved = @(Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version)
+        $cleanupRemoved = @(Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version -TargetPlatform $Platform)
         $buildArgs = @("--silent")
         if ($IncludeRuntimeDb -and $backendName -eq "pyinstaller") {
             $buildArgs += "--with-runtime-db"
@@ -875,7 +930,7 @@ foreach ($backendName in $selectedBackends) {
     if (-not $SkipPackage) {
         Write-BackendReleaseZips $config.release_zips
         $includeBackendRuntimeDb = [bool]($IncludeRuntimeDb -and $backendName -eq "pyinstaller")
-        Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller) $includeBackendRuntimeDb
+        Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller) $includeBackendRuntimeDb $Platform
         $zipPaths = @($config.release_zips | ForEach-Object { $_.zip })
         $runtimeDbHash = if ($runtimeDatabaseRecords.Count -gt 0) { $runtimeDatabaseRecords[0]['sha256'] } else { $null }
         $zipRecords = @(Assert-ZipContents $zipPaths $runtimeDbHash)
