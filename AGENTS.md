@@ -42,11 +42,13 @@
 ## Implementacao
 - Manter os comportamentos estabilizados e os contratos publicos de CLI, GUI e API.
 - Manter JSON no stdout da CLI; arquivos de exportacao sao opcoes adicionais.
+- Manter os builds Windows separados por arquitetura: `windows_amd64` usa o ambiente `.venv-win` e seus caminhos canonicos; `windows_arm64` usa `.venv-win-arm64`, `launchers/platforms/windows_arm64` e `builds/packages/windows_arm64`. Nunca compartilhar venv, dist, temp, ZIP ou metadata entre essas arquiteturas.
 - Separar acesso ao banco, controle, filtragem e apresentacao. Evitar helpers e camadas sem necessidade.
 - Preferir correcao pequena e verificavel; nao fazer refatoracao transversal fora do pedido.
 - Nao esconder erros com `except` vazio, `suppress` ou recuperacao silenciosa; nao usar monkey-patch.
 - Preservar tratamento de cancelamento, timeout, estado de workers, sinais e locks.
 - Considerar macOS arm64, Windows amd64/arm64 e Linux amd64/arm64.
+- Para Windows ARM64, executar somente em Windows 11 ARM64 nativo e validar `sysconfig.get_platform() == "win-arm64"`; para AMD64, validar `win-amd64`. O alvo de uma arquitetura nao pode modificar artefatos da outra nem os builds macOS.
 - Nao comitar `.env`, segredos, configuracoes locais de ferramentas ou arquivos ignorados sem autorizacao.
 - Fazer backup com timestamp antes de alterar configuracoes existentes.
 

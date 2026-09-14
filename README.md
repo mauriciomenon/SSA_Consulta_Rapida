@@ -68,3 +68,22 @@ Esta versao disponibiliza fontes. Nenhum novo binario ou instalador acompanha es
 Builds devem ocorrer no host nativo e passar por smoke funcional do executavel gerado.
 
 [Guia de distribuicao](docs/GUIA_DISTRIBUICAO.md) | [Build multiplataforma](docs/BUILD_MULTIPLATFORM.md)
+
+### Builds Windows por arquitetura
+
+Os builds Windows ARM64 e AMD64 sao fluxos independentes, executados na VM Windows 11 ARM64:
+
+| Arquitetura | Python validado | Ambiente | Saida principal |
+| --- | --- | --- | --- |
+| AMD64 | `win-amd64` | `.venv-win` | `launchers/dist/windows_amd64/` e `builds/packages/windows_amd64/` |
+| ARM64 | `win-arm64` | `.venv-win-arm64` | `launchers/dist/windows_arm64/` e `builds/packages/windows_arm64/` |
+
+O fluxo ARM64 usa `dev_env/build/build_pyinstaller_windows_arm64.bat` e nao reutiliza venv, dist, temp, metadata ou ZIP do AMD64. O comando ARM deve ser executado a partir de um checkout limpo do branch `dev`:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 `
+    -Target windows -Platform windows_arm64 -Backend pyinstaller `
+    -SkipInstaller -Yes
+```
+
+O builder interrompe o processo se o Python nao reportar `win-arm64`. Para o procedimento completo, incluindo validacao PE, smoke da CLI, abertura visual da GUI e copia do ZIP para o host, consulte [BUILD_WINDOWS_ARM64_AMD64.md](docs/BUILD_WINDOWS_ARM64_AMD64.md).

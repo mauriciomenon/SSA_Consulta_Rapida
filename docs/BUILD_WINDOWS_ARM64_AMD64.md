@@ -1,8 +1,17 @@
 <!-- markdownlint-disable MD013 -->
 
-# Build Windows AMD64 em Windows 11 ARM64
+# Builds Windows AMD64 e ARM64 em Windows 11 ARM64
 
-Este documento registra o processo nativo usado para gerar os executaveis Windows AMD64 do SSA_Consulta_Rapida em uma VM Windows 11 ARM64. O host era macOS ARM64. O resultado foi um pacote PyInstaller com CLI e GUI AMD64, executado pelo Windows ARM por emulacao x64.
+Este documento separa os dois fluxos Windows no mesmo host VMware. O build AMD64 usa Python x64 sob emulacao do Windows ARM. O build ARM64 usa Python ARM64 nativo. Nenhum ambiente, pasta temporaria, metadata ou pacote e compartilhado entre as arquiteturas.
+
+## Matriz de saida
+
+| Arquitetura | Plataforma Python | Ambiente | Configuracao | Dist | Pacotes |
+| --- | --- | --- | --- | --- | --- |
+| AMD64 | `win-amd64` | `.venv-win` | `launchers/platforms/windows_amd64/` | `launchers/dist/windows_amd64/` | `builds/packages/windows_amd64/` |
+| ARM64 | `win-arm64` | `.venv-win-arm64` | `launchers/platforms/windows_arm64/` | `launchers/dist/windows_arm64/` | `builds/packages/windows_arm64/` |
+
+O branch de origem e `dev`. O comando ARM usa exclusivamente `-Platform windows_arm64 -Backend pyinstaller`. Nao copie arquivos do diretorio AMD64 para o diretorio ARM.
 
 O fluxo foi concluido em 2026-09-10 para a versao 4.50, no commit `46f3fece45c99ba21973fc54198c17256231bafa`.
 
@@ -22,13 +31,13 @@ O fluxo foi concluido em 2026-09-10 para a versao 4.50, no commit `46f3fece45c99
 
 A arquitetura ARM64 pertence ao sistema hospedeiro da VM. O executavel continua sendo AMD64 porque o interpretador x64 e o bootloader x64 foram usados durante o build.
 
-## Por que o build foi feito dentro do Windows
+## Fluxo AMD64
 
 O PyInstaller nao e um cross-compiler geral. O bootloader e as extensoes empacotadas precisam ser resolvidos para o sistema alvo. Por isso, o build Windows foi executado em um Windows real dentro da VM, e nao no macOS ARM.
 
 O Windows 11 ARM executa processos x64 por emulacao. Isso permite usar um Python Windows x64 e produzir um executavel AMD64 sem fingir a arquitetura por variaveis de ambiente.
 
-O ponto de controle usado pelo builder foi:
+O ponto de controle usado pelo builder e:
 
 ```powershell
 python -c "import platform, sysconfig; print(platform.machine()); print(sysconfig.get_platform())"
@@ -36,13 +45,40 @@ python -c "import platform, sysconfig; print(platform.machine()); print(sysconfi
 
 A saida esperada para este fluxo e `ARM64` para a maquina do sistema e `win-amd64` para o interpretador selecionado. O builder interrompe o processo se o interpretador nao for `win-amd64`.
 
+O script legado AMD64 e `dev_env/build/build_pyinstaller.bat`. Ele usa `.venv-win`, `launchers/platforms/windows_amd64/` e `builds/packages/windows_amd64/`. Este fluxo nao deve ser executado durante a entrega ARM.
+
+## Fluxo ARM64 nativo
+
+Use uma sessao separada do Python ARM64. O ambiente precisa reportar `win-arm64`; um Python x64 emulado nao atende este fluxo.
+
+```powershell
+Set-Location (Join-Path $env:USERPROFILE 'gitlab\ssa_consulta_rapida_pyqt6')
+git switch dev
+git status --short
+$env:UV_PROJECT_ENVIRONMENT = '.venv-win-arm64'
+uv sync --extra build --locked
+& .\.venv-win-arm64\Scripts\python.exe -c "import platform, sysconfig; print(platform.machine()); print(sysconfig.get_platform())"
+```
+
+A saida deve conter `ARM64` e `win-arm64`. O build ARM executa somente:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 `
+    -Target windows -Platform windows_arm64 -Backend pyinstaller `
+    -SkipInstaller -Yes
+```
+
+O script dedicado e `dev_env/build/build_pyinstaller_windows_arm64.bat`. Seus artefatos ficam em `launchers/dist/windows_arm64/`, `builds/pyinstaller/windows_arm64/` e `builds/packages/windows_arm64/`. O relatorio fica em `builds/reports/release_report_windows_arm64.json`.
+
+Confirme a arquitetura PE dos dois executaveis ARM64 com `Machine: 0xaa64` e a arquitetura dos dois executaveis AMD64 com `Machine: 0x8664`. O smoke da CLI e a abertura visual da GUI devem usar um runtime isolado fora do checkout.
+
 ## Pre-requisitos na VM
 
 A VM precisa ter:
 
 - Windows 11 ARM64 atualizado.
 - Git for Windows.
-- uv x64.
+- uv compativel com os dois interpretadores instalados.
 - PowerShell 7.
 - Acesso ao repositorio Git.
 - Espaco temporario para o ambiente, PyInstaller e ZIP final.
@@ -72,7 +108,7 @@ git status --short
 
 O ultimo comando deve nao imprimir arquivos modificados. Nao copie `.env`, preferencias pessoais, bancos de dados de usuario ou arquivos do OneDrive para o checkout de build.
 
-## Selecionar Python x64 com uv
+## Selecionar Python x64 com uv no fluxo AMD64
 
 O projeto usa um ambiente separado para Windows:
 
@@ -84,6 +120,8 @@ uv sync --extra build --locked
 ```
 
 O ambiente `.venv-win` deve apontar para Python x64 e nao deve ser compartilhado com um ambiente macOS ou Linux. O builder tambem verifica a arquitetura antes de instalar dependencias e antes de chamar o PyInstaller.
+
+No fluxo ARM, use `.venv-win-arm64`. Nunca altere `UV_PYTHON` do script AMD64 para produzir ARM. O script ARM ja seleciona Python `3.13` e rejeita qualquer interpretador que reporte `win-amd64`.
 
 ## Executar o release
 
@@ -241,6 +279,6 @@ Defina `SSA_RUNTIME_ROOT`, `SSA_CONFIG_DIR` e `SSA_DB_PATH` para um runtime isol
 
 - O build AMD64 depende de executar o PyInstaller em Windows.
 - Windows 11 ARM e adequado para esse fluxo porque executa Python e aplicativos x64 por emulacao.
-- O resultado nao e um binario ARM64; para ARM64 nativo seria necessario outro alvo, Python ARM64 e dependencias ARM64 compativeis.
+- O resultado AMD64 e um binario x64 executado por emulacao no Windows ARM. O resultado ARM64 exige Python ARM64 e wheels ARM64 compativeis; os dois resultados sao publicados em diretorios distintos.
 - O pacote ZIP e um artefato local ignorado pelo Git. A publicacao deve usar o mecanismo de release definido pelo projeto.
 - A validacao visual feita nesta rodada cobre abertura e encerramento da GUI, nao uma certificacao completa de todos os filtros.
