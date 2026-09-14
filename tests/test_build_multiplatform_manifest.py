@@ -453,6 +453,17 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     config_cache = builder.base_dir / "config" / "__pycache__"
     config_cache.mkdir()
     (config_cache / "__init__.pyc").write_bytes(b"bytecode")
+    (builder.base_dir / ".gitignore").write_text(
+        "config/*.bak-*\nconfig/preferences.json\n", encoding="utf-8"
+    )
+    (builder.base_dir / "config" / "settings.json.bak-20260914").write_text(
+        '{"private": true}', encoding="utf-8"
+    )
+    (builder.base_dir / "config" / "preferences.json").write_text(
+        '{"local": true}', encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "config"], check=True)
     (builder.base_dir / "docs").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md").write_text(
         "guide",
@@ -476,7 +487,11 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         stdout = ""
         stderr = ""
 
+    real_run = subprocess.run
+
     def _fake_run(cmd, **_kwargs):
+        if cmd[:2] == ["git", "ls-files"]:
+            return real_run(cmd, **_kwargs)
         captured_cmds.append(cmd)
         return _Result()
 
@@ -532,6 +547,10 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";config")
     ]
     assert any("settings.json" in value for value in config_add_data)
+    assert not any(
+        "bak-20260914" in value or "preferences.json" in value
+        for value in windows_cmd
+    )
     assert not any("__init__.py" in value or "__pycache__" in value for value in windows_cmd)
     runtime_db_args = [
         value
@@ -576,6 +595,19 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         if idx > 0 and mac_cmd[idx - 1] == "--add-data"
     )
     assert "--version-file" not in mac_cmd
+    assert not any(
+        "bak-20260914" in value or "preferences.json" in value for value in mac_cmd
+    )
+
+    def _failed_git(cmd, **kwargs):
+        if cmd[:2] == ["git", "ls-files"]:
+            return subprocess.CompletedProcess(cmd, 128, "", "not a git repository")
+        return _fake_run(cmd, **kwargs)
+
+    captured_cmds.clear()
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _failed_git)
+    assert builder.build_executable("macos_arm64", "cli", tmp_path / "python3", config) is False
+    assert not any("PyInstaller" in cmd for cmd in captured_cmds)
 
 
 def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):

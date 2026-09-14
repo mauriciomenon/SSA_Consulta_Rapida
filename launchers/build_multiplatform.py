@@ -583,8 +583,17 @@ VSVersionInfo(
         build_info_path = self._write_build_info_file("pyinstaller", platform_name)
         add_data_sep = ";" if platform_name.startswith("windows") else ":"
 
+        tracked_config = self._run_command(
+            ["git", "ls-files", "-z", "--", "config"],
+            timeout=30,
+            cwd=self.base_dir,
+        )
+        if tracked_config.returncode != 0:
+            logger.error("Falha ao listar config versionada: %s", tracked_config.stderr)
+            return False
         if config_path.exists():
-            for config_file in sorted(config_path.rglob("*")):
+            for relative_path in sorted(filter(None, tracked_config.stdout.split("\0"))):
+                config_file = self.base_dir / relative_path
                 if (
                     not config_file.is_file()
                     or "__pycache__" in config_file.parts

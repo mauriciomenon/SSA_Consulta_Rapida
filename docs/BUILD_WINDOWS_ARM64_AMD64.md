@@ -102,10 +102,10 @@ Na raiz do checkout `dev` no Mac, conferir branch, estado e commit como no
 Windows. Executar com o ambiente nativo:
 
 ```bash
-source scripts/env/direnv_common.sh || exit $?
-ssa_env::apply || exit $?
-ssa_native_guard_tools uv || exit $?
-uv run --no-sync python launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui
+bash -c 'source scripts/env/direnv_common.sh &&
+ssa_env::apply &&
+ssa_native_guard_tools uv &&
+uv run --no-sync python launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui'
 ```
 
 A configuracao e `launchers/platforms/macos_arm64/build_config.json`. O builder
