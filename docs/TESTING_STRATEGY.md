@@ -1,5 +1,14 @@
 # Estrategia de Testes
 
+## Selecao e encerramento
+
+Selecionar testes pelo impacto da mudanca e pelos contratos afetados. Ampliar
+para suite completa ou scanners adicionais quando solicitado ou justificado
+por falha ou risco concreto. Correcoes apenas documentais exigem conferencia
+do diff, dos links locais e dos contratos documentais pertinentes.
+Para binarios, aplicar [o procedimento de entrega](BUILD_WINDOWS_ARM64_AMD64.md);
+resultados historicos de auditoria nao criam requisitos adicionais de build.
+
 Este documento descreve a estrategia geral. O
 [plano de validacao da auditoria](VALIDATION_PLAN.md) contem a passagem para a
 rodada completa, comandos, casos de regressao e criterios de aceite.
@@ -134,13 +143,10 @@ Configuracao da rodada de 13/09/2026, posterior a `b9672334`:
   registra os testes mais lentos. JUnit em `pytest-results.xml`, preservado em sucesso/falha
   por 14 dias. O arquivo so existe se pytest alcancar sua geracao; timeout do
   processo ou falha de setup nao equivalem a teste aprovado.
-- Reteste local final da rodada A-E: `5b75f8f8`, 2969 passed, 9 skipped,
-  34 warnings e 11 subtests passed em 706,03s, retorno 0. O log e os metadados
-  estao em [`pytest-final-full.log`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-full.log),
-  [`pytest-final-result.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-result.json)
-  e [`pytest-final-metadata.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-metadata.json).
-  Esse resultado pertence ao SHA indicado e nao substitui a validacao de
-  alteracoes posteriores.
+- Resultados historicos da auditoria: consultar a
+  [secao L4 do relatorio](AUDIT_FIXES_REPORT.md#l4-fechamento-da-rodada-a-e).
+  O registro identifica o commit testado e os limites da evidencia; nao
+  substitui verificacao pertinente a alteracoes posteriores.
 - Runner local: `run_tests.sh` valida aspas com shlex e deixa pytest consumir
   `PYTEST_ADDOPTS` pelo ambiente uma vez. Variavel vazia funciona no Bash 3.2;
   tokens vazios e LF sao preservados. Sintaxe invalida encerra com retorno 2.

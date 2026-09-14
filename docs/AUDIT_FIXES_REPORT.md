@@ -1,5 +1,12 @@
 # Relatorio de Correcoes  -  Auditoria SSA Consulta Rapida
 
+## Leitura e escopo
+
+As secoes datadas preservam o estado das respectivas rodadas, incluindo falhas
+e limites. Seus pedidos de proxima atividade nao sao autorizacoes permanentes.
+Para entregas de binarios, seguir [o procedimento de builds](BUILD_WINDOWS_ARM64_AMD64.md);
+este historico nao acrescenta novos requisitos nem exige recompilar por docs.
+
 **Branch:** `fix/audit-surgical-fixes`. A primeira entrega foi publicada nos tres destinos em `0beceb58` (codigo ate `1ef9edaf`), seguida da correcao de fixture em `39e7c16a`. A rodada K parte de `39e7c16a`; seu codigo foi publicado ate `0f239dac`, com documentacao em `c30f87da`. A rodada A-E da secao L parte de `c30f87da`; seu fechamento e registrado em L4. Obtenha o HEAD com `git rev-parse HEAD`. Base da implementacao: `ca542fb5`; base da auditoria historica: `dev` em `e62a85bf`.
 **Historico anterior:** `e62a85bf..ca542fb5` contem 21 commits; o intervalo exclusivo `36dc3137..ca542fb5` tem 20. A reescrita anterior preservou 12 hashes e alterou 9, com arvores equivalentes. A primeira implementacao acrescentou quatro commits de codigo e um documental, sem reescrever ancestrais; `39e7c16a` ajustou a preparacao de um teste e a passagem.
 **Validacao historica anterior a 0beceb58:** 2924 passed, 9 skipped. Revisao independente: 83 aprovacoes focadas; py_compile/Ruff passaram; ty falhou (um erro novo no teste, outros diagnosticos fora do patch); Semgrep parcial por dois timeouts.
@@ -675,22 +682,13 @@ falha.
 Os resultados historicos de K e a primeira execucao global com falha ficam
 preservados. O placar aprovado acima pertence exclusivamente ao reteste final.
 Ambiente: macOS 27.0 arm64, Python 3.13.12, PyQt/Qt 6.11.0, pytest 9.1.1.
-Artefatos locais: `/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/`.
-`pytest-final-full.log`, `pytest-final-result.json` e
-`pytest-final-source-hashes.json` preservam log, retorno e conteudo verificado.
-
-Links diretos para os artefatos locais desta execucao:
-
-- [`pytest-final-full.log`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-full.log)
-- [`pytest-final-result.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-result.json)
-- [`pytest-final-metadata.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-metadata.json)
-- [`pytest-final-source-hashes.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-source-hashes.json)
-- [`final-static-checks.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/final-static-checks.json)
-- [`scanners-results.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/scanners-results.json)
-
-Os caminhos sao artefatos locais do host que executou a validacao. Se nao
-existirem em outro ambiente, o resultado verificavel continua sendo o SHA,
-o comando, o retorno e o resumo transcrito acima.
+Os artefatos desta rodada foram gerados em armazenamento temporario local:
+`pytest-final-full.log`, `pytest-final-result.json`, `pytest-final-metadata.json`,
+`pytest-final-source-hashes.json`, `final-static-checks.json` e
+`scanners-results.json`. Este repositorio nao fornece uma copia desses arquivos.
+O resumo acima e um registro historico; sem os originais, nao permite auditar
+novamente o log integral ou os hashes. Nao presumir sua disponibilidade nem
+apresentar esse resultado como validacao de outro commit.
 
 ### L5. Durabilidade e pendencias
 
@@ -704,9 +702,9 @@ A afirmacao de que todas as falhas de fsync propagam estava incorreta.
 A suite local esta aprovada em L4. Permanecem pendentes: scanners amplos,
 uso visual nativo e capturas, SAM real, Windows/Linux e comparacoes CPU/RSS.
 Cancelamento dentro do parser, inventario de APIs, mensagens Git historicas e
-limitacoes de regras online continuam no backlog. A proxima atividade e executar
-os ensaios restantes da passagem, sem deduzir cobertura integral
-de um genero de falha a partir de sites corrigidos ou testes selecionados.
+limitacoes de regras online continuam no backlog. Esses limites pertencem a
+esta rodada historica. Ensaios adicionais dependem do escopo solicitado ou de
+falha ou risco concreto; nao bloqueiam automaticamente uma entrega posterior.
 
 
 ## M. Correcao de CI/CD e preparacao da PR
@@ -731,8 +729,8 @@ worktree, merge ou reescrita do historico.
 | Autoria no intervalo da PR | Mensagens antigas violam a regra vigente | Verificador preservado; a PR nao recebe excecao | BLOQUEADO PELO HISTORICO |
 
 Backups timestamp das configuracoes e artefatos desta rodada ficam em
-`/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-ci-review-vlgu4m7x/`.
-O backup do shell e `/tmp/ci_quality_gates.sh.20260913-151431.bak`.
+diretorio temporario local da execucao, sem copia fornecida neste repositorio.
+O backup do shell tambem foi salvo em armazenamento temporario local.
 
 ### M2. Validacao local e do agendamento
 

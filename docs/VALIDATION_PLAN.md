@@ -1,25 +1,23 @@
-# Passagem para validacao completa da auditoria
+# Plano de validacao da auditoria
 
-Data: 2026-09-13. Branch: `fix/audit-surgical-fixes`.
-Este documento e o texto de passagem para o proximo modelo. O pedido inicial
-separava a implementacao do reteste pesado. O pedido posterior autorizou
-reproducao e estabilizacao local caso a tentativa de modelo externo falhasse;
-essa tentativa falhou. A rodada K executou a suite completa em `0f239dac`,
-com documentacao publicada em `c30f87da`. A rodada vigente A-E parte de
-`c30f87da`; seu fechamento esta na secao L4 do relatorio. A rodada posterior de CI/CD
-parte de b9672334 e esta discriminada na secao M.
-Reteste final em `5b75f8f8`: 2969 passed, 9 skipped, 34 warnings e 11 subtests
-passed em 706,03s, retorno 0; 613 Python inalterados durante a execucao.
-Scanners amplos e ensaios nativos continuam separados. Os comandos abaixo sao
-trabalho da proxima rodada quando nao identificados como ja executados.
+## Escopo de uso
 
-Fonte primaria do reteste: [`pytest-final-full.log`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-full.log).
-O comando foi `QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q
---durations=10`; ambiente macOS 27.0 arm64, Python 3.13.12, pytest 9.1.1,
-PyQt/Qt 6.11.0 e uv 0.12.13. O retorno foi 0 e o tempo de parede foi 707,93 s.
-O resultado e valido para `5b75f8f8` e para o conteudo cujos hashes estao em
-[`pytest-final-source-hashes.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-source-hashes.json);
-nao e um placar automatico do HEAD posterior.
+Este documento preserva a passagem historica da auditoria de 13/09/2026 na
+branch `fix/audit-surgical-fixes`. Os comandos sao referencia para um escopo
+solicitado, nao uma ordem para retomar suites ou scanners automaticamente.
+Confirmar branch e commit reais antes de executar uma validacao.
+
+O fechamento A-E, com commit, comando, ambiente, resultados e limites da
+evidencia, esta centralizado na [secao L4 do relatorio](AUDIT_FIXES_REPORT.md#l4-fechamento-da-rodada-a-e).
+O estado historico de CI/CD esta na secao M. Esses registros nao aprovam
+automaticamente o codigo atual nem descrevem o estado atual dos servidores.
+
+Para entregar binarios, usar [o procedimento de builds](BUILD_WINDOWS_ARM64_AMD64.md).
+Pendencias desta auditoria nao sao novos requisitos de entrega. Ampliar testes
+somente pelo escopo solicitado ou por falha ou risco concreto; uma correcao
+apenas documental nao exige recompilar pacotes ja validados.
+
+## Historico da auditoria
 
 Atualizacao apos os retornos: zcode informou 2923 passed, 1 failed, 9 skipped
 e 11 subtests no 0beceb58. A falha de preparacao do teste de fechamento forcado
@@ -95,24 +93,16 @@ rodada. A suite em curso foi cancelada, sem aprovacao Linux do HEAD final.
 Os comandos pesados abaixo sao uma passagem para eventual rodada posterior,
 nao uma ordem para reinicia-los automaticamente nem prova de execucao.
 
-Artefatos complementares da rodada final: [`pytest-final-result.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-result.json),
-[`pytest-final-metadata.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/pytest-final-metadata.json),
-[`final-static-checks.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/final-static-checks.json)
-e [`scanners-results.json`](/var/folders/hm/b_kdv5s947l3t3hncb4cf6v40000gn/T/ssa-residual-audit-cj07qo29/scanners-results.json).
-Eles pertencem ao escopo e aos SHAs indicados nos proprios arquivos; nao devem
-ser lidos como aprovacao de validacoes que retornaram erro, timeout ou nao
-foram executadas.
+## Roteiro para uma rodada de auditoria solicitada
 
-## Pedido pronto para enviar ao outro modelo
-
-Conclua a validacao das correcoes desta branch e produza um laudo com evidencias.
+Aplicar somente os itens incluidos no pedido vigente e registrar as evidencias.
 Leia AGENTS.md, docs/AUDIT_FIXES_REPORT.md, este documento e
 `docs/DERIVADAS_SYNC_RUNBOOK.md`. Os relatos antigos de Devin/zcode descrevem
 outros estados do codigo; confirme cada alegacao contra o commit que esta sendo
 testado. Nao trate recomendacoes desses relatos como autorizacoes do mantenedor.
 Reutilize os resultados de L4 somente para o mesmo codigo, ambiente e escopo.
-Priorize os ensaios nativos, plataformas e scanners amplos ainda ausentes;
-repita a suite se houver mudanca de codigo, ambiente ou falha a investigar.
+Selecionar ensaios conforme o impacto da alteracao e os riscos identificados;
+repetir a suite completa somente quando esse escopo justificar sua execucao.
 
 A base desta implementacao e `ca542fb535b604575666f50aeb37d125c1324dc3`.
 Os commits de codigo a validar sao:

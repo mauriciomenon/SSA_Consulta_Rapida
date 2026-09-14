@@ -31,18 +31,19 @@ Os comandos locais e detalhes dos artefatos estao em
 [TESTING_STRATEGY.md](../docs/TESTING_STRATEGY.md). A validacao nativa de um
 build nao pode ser substituida por analise de YAML ou PowerShell.
 
-## Resultado da PR 131
+## Registro historico da PR 131 (13/09/2026)
 
 As anotacoes dos oito jobs GitHub em 7015e6fd confirmam bloqueio de faturamento
 antes de iniciar. Isso exige regularizacao da conta, nao mudanca dos gates.
 A pipeline GitLab e o estado dos commits estao na secao M de
 [AUDIT_FIXES_REPORT.md](../docs/AUDIT_FIXES_REPORT.md).
 
-O reteste local final da rodada A-E foi executado no commit `5b75f8f8`:
-2969 passed, 9 skipped, 34 warnings e 11 subtests passed em 706,03s, retorno 0.
-O resultado e historico em relacao ao HEAD posterior. O log e os metadados
-estao apontados na secao L4 do relatorio; nenhuma suite Linux foi executada
-na rodada documental posterior.
+O reteste local historico e seus limites estao centralizados na
+[secao L4 do relatorio](../docs/AUDIT_FIXES_REPORT.md#l4-fechamento-da-rodada-a-e).
+Esse registro nao comprova execucao de CI nem aprovacao do HEAD atual.
+A entrega de binarios segue [seu procedimento](../docs/BUILD_WINDOWS_ARM64_AMD64.md);
+pendencias historicas nao acrescentam gates, e ajustes apenas documentais nao
+exigem recompilacao. Os gates existentes permanecem com seus contratos.
 
 CodeFactor passou apos corrigir caminhos temporarios e limpeza dos testes;
 quatro avisos de complexidade permanecem nao bloqueantes. GitGuardian reportou
