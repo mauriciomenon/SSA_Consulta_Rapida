@@ -40,10 +40,25 @@ def database_operation_in_progress(window: Any) -> bool:
     return False
 
 
+def _current_db_basename() -> str:
+    """Nome do banco em uso, lido do estado global da janela principal."""
+    try:
+        from gui import gui_ssa
+        return os.path.basename(str(getattr(gui_ssa, "DB_PATH", "")))
+    except Exception:
+        return ""
+
+
 def refresh_database_actions(window: Any) -> None:
     enabled = not database_operation_in_progress(window)
     for action in getattr(window, "_database_operation_actions", ()):
         action.setEnabled(enabled)
+    indicator = getattr(window, "_db_indicator_action", None)
+    if indicator is not None:
+        basename = _current_db_basename()
+        set_text = getattr(indicator, "setText", None)
+        if basename and callable(set_text):
+            set_text(f"Banco em uso: {basename}")
     button = getattr(window, "api_button", None)
     if button is not None:
         button.setEnabled(enabled)
@@ -105,6 +120,29 @@ def _add_import_menu(
     *,
     project_root: str,
 ) -> None:
+    # Operacoes de dia a dia no topo: sao acoes de arquivos->banco.
+    _add_action(
+        importacao_menu,
+        action_cls,
+        window,
+        "Atualizar dados (arquivos novos ou alterados)",
+        window.rescan_diff_data,
+        requires_idle=True,
+        status_tip=(
+            "Procura arquivos novos ou alterados na pasta de entrada e"
+            " atualiza o banco."
+        ),
+    )
+    _add_action(
+        importacao_menu,
+        action_cls,
+        window,
+        "Reimportar tudo (recria o banco do zero)",
+        window.rescan_full_data,
+        requires_idle=True,
+        status_tip="Reprocessa todas as planilhas e recria o banco de dados.",
+    )
+    importacao_menu.addSeparator()
     _add_action(
         importacao_menu,
         action_cls,
@@ -121,10 +159,10 @@ def _add_import_menu(
         window.consolidate_input_files,
         requires_idle=True,
     )
-    advanced_menu = importacao_menu.addMenu("Avancado")
+    pastas_menu = importacao_menu.addMenu("Pastas")
     _add_folder_actions(
         window,
-        advanced_menu,
+        pastas_menu,
         action_cls,
         project_root=project_root,
     )
@@ -137,6 +175,31 @@ def _add_database_menu(
     *,
     project_root: str,
 ) -> None:
+    # Indicador nao-interativo: refresh_database_actions mantem o texto
+    # atualizado quando outro banco e carregado.
+    db_name = _current_db_basename() or "?"
+    indicator = action_cls(f"Banco em uso: {db_name}", window)
+    indicator.setEnabled(False)
+    db_menu.addAction(indicator)
+    window._db_indicator_action = indicator
+    _add_action(
+        db_menu,
+        action_cls,
+        window,
+        "Carregar outro banco de dados...",
+        window.load_other_database,
+        requires_idle=True,
+    )
+    _add_action(
+        db_menu,
+        action_cls,
+        window,
+        "Recarregar visualizacao",
+        window.load_data,
+        requires_idle=True,
+        status_tip="Rele os dados do banco em uso sem reprocessar arquivos.",
+    )
+    db_menu.addSeparator()
     _add_action(
         db_menu,
         action_cls,
@@ -153,39 +216,21 @@ def _add_database_menu(
         window.export_derivadas_report,
         status_tip="Salvar a ultima sincronizacao deste banco em JSON, CSV ou TSV.",
     )
-    _add_action(db_menu, action_cls, window, "Recarregar dados", window.load_data, requires_idle=True)
-    _add_action(db_menu, action_cls, window, "Compactar DB", window.run_vacuum_analyze, requires_idle=True)
+    _add_action(
+        db_menu,
+        action_cls,
+        window,
+        "Compactar banco de dados",
+        window.run_vacuum_analyze,
+        requires_idle=True,
+    )
     advanced_menu = db_menu.addMenu("Avancado")
     _add_action(
         advanced_menu,
         action_cls,
         window,
-        "Atualizar Dados",
-        window.rescan_diff_data,
-        requires_idle=True,
-    )
-    _add_action(
-        advanced_menu,
-        action_cls,
-        window,
-        "Reescaneamento Completo",
-        window.rescan_full_data,
-        requires_idle=True,
-    )
-    _add_action(advanced_menu, action_cls, window, "Reescanear", window.rescan_data, requires_idle=True)
-    _add_action(
-        advanced_menu,
-        action_cls,
-        window,
-        "Carregar outro DB",
-        window.load_other_database,
-        requires_idle=True,
-    )
-    _add_folder_actions(
-        window,
-        advanced_menu,
-        action_cls,
-        project_root=project_root,
+        "Abrir pasta do banco de dados",
+        window.open_data_folder,
     )
 
 
@@ -200,7 +245,7 @@ def _add_folder_actions(
         menu,
         action_cls,
         window,
-        "Abrir Pasta de Arquivos",
+        "Abrir pasta de entrada",
         window.open_docs_folder,
         status_tip=(
             f"Pasta atual de entrada: {os.path.join(project_root, 'docs_entrada')}"
@@ -210,14 +255,14 @@ def _add_folder_actions(
         menu,
         action_cls,
         window,
-        "Abrir Pasta Arquivos Processados",
+        "Abrir pasta de processados",
         window.open_processadas_folder,
     )
     _add_action(
         menu,
         action_cls,
         window,
-        "Abrir Pasta Arquivos Redundantes",
+        "Abrir pasta de redundantes",
         window.open_nosurvivor_folder,
     )
 

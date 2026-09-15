@@ -1827,6 +1827,60 @@ def sync_derivadas(
             raise
 
 
+def mark_latest_sync_run_failed(
+    db_path: str,
+    *,
+    message: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> bool:
+    """Mark the latest derivadas sync run as failed.
+
+    Used when a post-commit validation (evidence check or consistency scan)
+    fails after sync_derivadas already committed the run as 'ok', so that
+    subsequent runs can detect the need to resync.
+    """
+
+    try:
+        safe_db_path = str(
+            ensure_path_is_allowed(
+                db_path,
+                purpose="derivadas mark failed database",
+                expect_directory=False,
+                extra_allowed_roots=extra_allowed_roots,
+            )
+        )
+        with get_db_connection(safe_db_path, write=True) as conn:
+            _configure_derivadas_connection(conn)
+            _begin_derivadas_write_transaction(conn)
+            cursor = conn.execute(
+                """
+                UPDATE ssa_derivada_sync_run
+                SET status = 'error', message = ?
+                WHERE sync_run_id = (
+                    SELECT sync_run_id
+                    FROM ssa_derivada_sync_run
+                    ORDER BY sync_run_id DESC
+                    LIMIT 1
+                )
+                AND status = 'ok'
+                """,
+                (str(message)[:512],),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+    except (
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        sqlite3.Error,
+    ) as exc:
+        logger.warning(
+            "Nao foi possivel marcar o run de derivadas como falho: %s", exc
+        )
+        return False
+
+
 def get_sync_stats(
     db_path: str,
     extra_allowed_roots: Iterable[str | os.PathLike] | None = None,

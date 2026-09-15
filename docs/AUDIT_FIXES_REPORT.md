@@ -1623,3 +1623,75 @@ reproducoes empiricas. Tres achados, todos confirmados e corrigidos:
   atraso no encerramento. O handler agora so faz terminate(); a colheita
   (wait + kill de reforco) fica no atexit, que roda apos o unwind
   liberar o lock. Repro: 0.01s, exit 143, filho terminado.
+
+### O15. Rodada 6 - CodeRabbit (app_logic/database_operations/backlog), menus e auditoria de importacao/derivadas
+
+Achados do CodeRabbit validados e corrigidos:
+
+- **Pre-flight de derivadas antes da preparacao do banco**: validacao das
+  planilhas especiais e resolucao dos itens de importacao agora ocorrem
+  antes de `_prepare_working_database_for_import` — uma planilha rejeitada
+  nao deixa mais candidato escrito para cleanup.
+- **Origem UNC em somente-leitura**: fallback de autoridade UNC usa URI
+  `file:////host/share/...` com `mode=ro` (o Windows resolve `//host/share`
+  como `\\host\share`); o fallback final adiciona `PRAGMA query_only = ON`.
+  Teste de regressao cobre backup read-only de origem com WAL quente.
+- **Data do RECOVERY_BACKLOG** atualizada para 2026-09-14.
+
+Auditoria pesada do processo de importacao e derivadas — achados e fixes:
+
+- **`-journal` nao era rotacionado** em `core/import_database_rotation.py`:
+  um rollback journal quente do banco antigo permanecia no caminho
+  principal e o SQLite o aplicaria sobre o candidato promovido
+  (corrupcao). `-journal` incluido na rotacao e na limpeza; regressao
+  coberta em `test_app_logic_full_rescan_lock.py`.
+- **`-journal` ausente do cache key** de `_sqlite_file_state_key`
+  (preflight DB-only): incluido por consistencia.
+- **Falha pos-commit do sync nao disparava re-sync**: quando
+  `sync_derivadas` commitava o run como 'ok' mas a verificacao posterior
+  (scan de consistencia ou evidencia) falhava, a mensagem prometia
+  "refeito automaticamente" — mas `_needs_db_only_derivadas_sync` so
+  olhava o ultimo run 'ok' e contagens, nao detectando o estado. Novo
+  `mark_latest_sync_run_failed` em `armazenamento/derivadas_sync.py`
+  (best-effort, nunca propaga) marca o run comitado como 'error' nos dois
+  caminhos pos-commit (retorno sync_ok=False e excecao pos-commit); o
+  preflight agora exige que o ultimo run seja 'ok'. Regressao coberta por
+  `test_db_only_preflight_retries_when_latest_run_marked_failed`.
+
+Verificado sem alteracao (comportamento correto):
+
+- `derivada_de` no upsert: delete+insert por delta garante que reimport
+  sem o relacionamento remove a aresta; sync posterior desativa na matriz.
+- Controller GUI de derivadas: lock serializa estado, resultado tardio e
+  descartado quando running=False; overlaps recusados.
+- Upsert por arquivo e atomico via savepoint; writer lock cross-processo
+  por path normalizado; `busy_timeout` e `foreign_keys` ativos.
+- `sync_derivadas` e transacional com run 'running'→'ok'/'error';
+  falha interna registra 'error' com mensagem sanitizada (sem paths).
+- `self_heal_derivadas`/`run_derivadas_maintenance`: guarda de intervalo
+  e heal somente sob inconsistencia.
+
+Reorganizacao de menus aplicada conforme diretrizes do usuario:
+
+- `Arquivo`: abrir pastas com rotulos amigaveis (sem nomes internos como
+  `docs_entrada`), Exportar lista, Sair; novo `open_data_folder`.
+- `Importacao`: Atualizar dados (diff), Reimportar tudo (full),
+  Importar XLSX externo, Consolidar; resposta do dialogo-seletor
+  "Reescanear" removida como redundante (metodo orfao `rescan_data`
+  removido de `gui_ssa.py`; o worker homonimo em `ssa_gui_workers`
+  permanece em uso).
+- `Banco de dados` (ex-"Database"): sincronizacao e relatorio de
+  derivadas, recarregar visualizacao, carregar outro banco, compactar
+  banco de dados; opcoes tecnicas em `Avancado`.
+- Testes de estrutura de menus atualizados para o novo layout.
+
+`dev_env/streamlit_app.py` (somente ele): painel "Fonte de dados
+avancada" extraido em funcao reutilizavel e oferecido tambem no caminho
+de banco vazio/indisponivel (antes era beco sem saida); estado persistido
+so grava em disco quando o payload muda e a assinatura so e atualizada
+apos escrita bem-sucedida (falha de I/O nao suprime retry); bloco de
+outcome bloqueante preservado para os testes AST.
+
+Validacao: ruff limpo; 206 testes focados + 21 testes de derivadas +
+801 testes da bateria app_logic/import/database + suite completa
+3012 passaram (9 skipped), 0 falhas.

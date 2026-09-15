@@ -8,7 +8,7 @@ nao autoriza nova execucao nem impede automaticamente outra entrega.
 Para pacotes, aplicar [os criterios de entrega](BUILD_WINDOWS_ARM64_AMD64.md#encerramento).
 Correcao apenas documental nao exige rebuild, suite completa ou novos scanners.
 
-Atualizado em 2026-09-13. Documento versionado; cada rodada abaixo identifica
+Atualizado em 2026-09-14. Documento versionado; cada rodada abaixo identifica
 seu escopo e sua evidencia. Estado de CI/CD na ultima secao e na PR 131.
 
 ## 2026-09-09 - Historico da limpeza uv

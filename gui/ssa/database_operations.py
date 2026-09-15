@@ -116,14 +116,17 @@ def stage_database_copy(src: Path, dest: Path) -> dict[str, Any]:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     staged = dest.with_name(f"{dest.name}.copy-{timestamp}")
     try:
-        source_uri = src.as_uri() + "?mode=ro"
-        # URIs com authority (caminhos UNC -> file://servidor/...) sao
-        # rejeitadas pelo SQLite; nesse caso abre-se pelo caminho direto.
-        if urlparse(source_uri).netloc not in ("", "localhost"):
-            source_conn_ctx = closing(sqlite3.connect(str(src)))
-        else:
-            source_conn_ctx = closing(sqlite3.connect(source_uri, uri=True))
-        with source_conn_ctx as source_conn:
+        source_uri = src.as_uri()
+        parsed = urlparse(source_uri)
+        if parsed.netloc not in ("", "localhost"):
+            # Caminho UNC (file://servidor/compartilhamento/...): o SQLite
+            # rejeita authority nao-localhost, entao o host e reescrito no
+            # inicio do path (file:////servidor/share/...), que o Windows
+            # resolve como \\servidor\share. Assim mode=ro vale tambem para
+            # origens UNC e impede recuperacao de journal quente na origem.
+            source_uri = f"file:////{parsed.netloc}{parsed.path}"
+        source_uri += "?mode=ro"
+        with closing(sqlite3.connect(source_uri, uri=True)) as source_conn:
             with closing(sqlite3.connect(str(staged))) as staged_conn:
                 source_conn.backup(staged_conn)
     except (OSError, sqlite3.Error, ValueError) as exc:

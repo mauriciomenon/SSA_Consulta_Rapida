@@ -99,6 +99,32 @@ def test_rotate_preexisting_database_for_full_rescan_moves_existing_sidecars(
     assert Path(f"{backup_path}-shm").exists()
 
 
+def test_rotate_moves_journal_sidecar_out_of_primary_path(
+    tmp_path: Path,
+) -> None:
+    """Um -journal quente do banco antigo nao pode ficar no caminho principal:
+    apos a promocao o SQLite o aplicaria sobre o banco novo."""
+    db_path = tmp_path / "ssas.db"
+    _build_value_db(db_path, "primary_old")
+    journal_sidecar = Path(f"{db_path}-journal")
+    journal_sidecar.write_bytes(b"journal quente de crash")
+
+    rotate_preexisting_database_for_full_rescan(str(db_path))
+
+    backups = sorted(
+        p
+        for p in tmp_path.glob("ssas.db.full_rescan_backup_*")
+        if not p.name.endswith(("-wal", "-shm", "-journal"))
+    )
+    assert len(backups) == 1
+    backup_path = backups[0]
+
+    # O caminho principal fica livre de -journal: o checkpoint/recovery do
+    # SQLite consome um journal invalido e o placeholder de backup e inerte.
+    assert not journal_sidecar.exists()
+    assert Path(f"{backup_path}-journal").exists()
+
+
 def test_promote_full_rescan_candidate_restores_primary_when_replace_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

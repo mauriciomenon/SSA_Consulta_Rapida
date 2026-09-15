@@ -103,8 +103,12 @@ def _rotate_database_for_full_rescan_locked(db_path: str) -> Optional[str]:
     if not os.path.exists(db_path):
         return None
     logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
+    # Inclui -journal: um rollback journal quente deixado por crash do banco
+    # antigo nao pode ficar no caminho principal — apos a promocao o SQLite
+    # o aplicaria sobre o banco NOVO, corrompendo-o.
     preexisting_sidecars = {
-        suffix: os.path.exists(f"{db_path}{suffix}") for suffix in ("-wal", "-shm")
+        suffix: os.path.exists(f"{db_path}{suffix}")
+        for suffix in ("-wal", "-shm", "-journal")
     }
     ensure_wal_checkpointed(
         db_path,
@@ -131,7 +135,7 @@ def _rotate_database_for_full_rescan_locked(db_path: str) -> Optional[str]:
             "Banco anterior movido para backup de full rescan: %s",
             os.path.basename(backup_path),
         )
-        for suffix in ("-wal", "-shm"):
+        for suffix in ("-wal", "-shm", "-journal"):
             sidecar = f"{db_path}{suffix}"
             sidecar_backup = f"{backup_path}{suffix}"
             if preexisting_sidecars.get(suffix) and os.path.exists(sidecar):
@@ -186,7 +190,7 @@ def _rotate_database_for_full_rescan_locked(db_path: str) -> Optional[str]:
 
 def cleanup_sqlite_sidecars(db_path: str) -> None:
     """Remove sqlite sidecars for a detached database file when they exist."""
-    for suffix in ("-wal", "-shm"):
+    for suffix in ("-wal", "-shm", "-journal"):
         sidecar = f"{db_path}{suffix}"
         if not os.path.exists(sidecar):
             continue

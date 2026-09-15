@@ -4812,24 +4812,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "result_scope": "queue",
         }
 
-    def rescan_data(self):
-        """Abre o fluxo de reescaneamento/importacao com feedback visual."""
-        from gui.widgets import RescanProgressDialog
-        from gui.workers import RescanWorker
-
-        return ssa_gui_workers.rescan_data(
-            self,
-            project_root=project_root,
-            rescan_worker_cls=RescanWorker,
-            rescan_dialog_cls=RescanProgressDialog,
-            qmessagebox=QMessageBox,
-            **_rescan_retention_kwargs(),
-            sip_module=sip,
-            rescan_mode="prompt",
-            db_path=DB_PATH,
-            reload_on_success=True,
-        )
-
     def rescan_diff_data(self):
         """Reprocessa somente arquivos alterados por hash (modo diff)."""
         from gui.widgets import RescanProgressDialog
@@ -4875,6 +4857,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             cast(Any, self),
             folder_path=docs_path,
             folder_label="pasta de entrada",
+        )
+
+    def open_data_folder(self):
+        """Abre a pasta data/ (onde ficam os bancos) no explorador de arquivos."""
+        data_path = os.path.join(project_root, "data")
+        SSAMainWindow._open_folder_non_blocking(
+            cast(Any, self),
+            folder_path=data_path,
+            folder_label="pasta do banco de dados",
         )
 
     def open_processadas_folder(self):

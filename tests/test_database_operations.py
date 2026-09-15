@@ -217,3 +217,39 @@ def test_copy_database_into_data_dir_missing_source(tmp_path):
 
     assert result["ok"] is False
     assert "nao existe" in result["error"]
+
+
+def test_stage_database_copy_never_modifies_source_with_hot_wal(tmp_path):
+    """Origem WAL com transacao aberta: copia deve sair sem tocar na origem.
+
+    mode=ro impede que a leitura dispare recuperacao/checkpoint na origem
+    (CodeRabbit): nenhum arquivo do diretorio de origem pode mudar.
+    """
+    import hashlib
+
+    from gui.ssa.database_operations import stage_database_copy
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "src.db", ["a", "b"], wal=True)
+    writer = sqlite3.connect(str(src))
+    writer.execute("BEGIN")
+    writer.execute("INSERT INTO ssa_table VALUES ('quente')")
+    try:
+        before = {
+            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in src_dir.iterdir()
+        }
+        dest_dir = tmp_path / "data"
+        dest_dir.mkdir()
+        result = stage_database_copy(src, dest_dir / "src.db")
+        assert result["ok"] is True, result
+        after = {
+            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in src_dir.iterdir()
+        }
+        assert after == before, "origem foi modificada pela copia"
+        staged_rows = _read_rows(Path(result["staged"]))
+        assert {"a", "b"} <= set(staged_rows)
+    finally:
+        writer.close()

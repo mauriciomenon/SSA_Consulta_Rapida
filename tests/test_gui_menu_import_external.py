@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -122,6 +123,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def open_nosurvivor_folder(self) -> None:
             return None
 
+        def open_data_folder(self) -> None:
+            return None
+
         def open_settings_file_with_backup(self) -> None:
             return None
 
@@ -171,11 +175,11 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Ajuda" in window._menu_bar.menus
     assert "SAM API" in window._menu_bar.menus["Opcoes"].submenus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 2
-    assert len(window._menu_bar.menus["Importacao"].actions) == 2
-    assert len(window._menu_bar.menus["Database"].actions) == 4
+    assert len(window._menu_bar.menus["Importacao"].actions) == 4
+    assert len(window._menu_bar.menus["Database"].actions) == 6
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert len(window._menu_bar.menus["Ajuda"].actions) == 2
-    assert "Avancado" in window._menu_bar.menus["Importacao"].submenus
+    assert "Pastas" in window._menu_bar.menus["Importacao"].submenus
     assert "Avancado" in window._menu_bar.menus["Database"].submenus
 
     arquivo_labels = [
@@ -204,38 +208,37 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "Sair",
     ]
     assert importacao_labels == [
+        "Atualizar dados (arquivos novos ou alterados)",
+        "Reimportar tudo (recria o banco do zero)",
         "Importar XLSX externo",
         "Consolidar arquivos de entrada",
     ]
+    expected_db_name = os.path.basename(str(gui_ssa.DB_PATH))
     assert database_labels == [
+        f"Banco em uso: {expected_db_name}",
+        "Carregar outro banco de dados...",
+        "Recarregar visualizacao",
         "Atualizar derivadas",
         "Exportar relatorio de derivadas...",
-        "Recarregar dados",
-        "Compactar DB",
+        "Compactar banco de dados",
     ]
-    importacao_advanced_labels = [
+    importacao_pastas_labels = [
         getattr(action, "_text", "")
         for action in window._menu_bar.menus["Importacao"].submenus[
-            "Avancado"
+            "Pastas"
         ].actions
     ]
     database_advanced_labels = [
         getattr(action, "_text", "")
         for action in window._menu_bar.menus["Database"].submenus["Avancado"].actions
     ]
-    assert importacao_advanced_labels == [
-        "Abrir Pasta de Arquivos",
-        "Abrir Pasta Arquivos Processados",
-        "Abrir Pasta Arquivos Redundantes",
+    assert importacao_pastas_labels == [
+        "Abrir pasta de entrada",
+        "Abrir pasta de processados",
+        "Abrir pasta de redundantes",
     ]
     assert database_advanced_labels == [
-        "Atualizar Dados",
-        "Reescaneamento Completo",
-        "Reescanear",
-        "Carregar outro DB",
-        "Abrir Pasta de Arquivos",
-        "Abrir Pasta Arquivos Processados",
-        "Abrir Pasta Arquivos Redundantes",
+        "Abrir pasta do banco de dados",
     ]
     assert opcoes_labels == [
         "Preparar arquivo de opcoes",

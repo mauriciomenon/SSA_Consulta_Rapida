@@ -33,6 +33,7 @@ project_root_path = Path(
 
 from armazenamento import database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
+    mark_latest_sync_run_failed,
     scan_derivadas_consistency,
     sync_derivadas,
 )
@@ -107,7 +108,7 @@ class FileProcessAction(str, Enum):
 
 def _sqlite_file_state_key(db_path: str) -> tuple[tuple[str, int, int], ...]:
     states: list[tuple[str, int, int]] = []
-    for suffix in ("", "-wal", "-shm"):
+    for suffix in ("", "-wal", "-shm", "-journal"):
         side_path = f"{db_path}{suffix}"
         try:
             stat = os.stat(side_path)
@@ -443,9 +444,8 @@ def _needs_db_only_derivadas_sync(
             )
             latest = conn.execute(
                 """
-                SELECT db_edges
+                SELECT status, db_edges
                 FROM ssa_derivada_sync_run
-                WHERE status = 'ok'
                 ORDER BY sync_run_id DESC
                 LIMIT 1
                 """
@@ -453,9 +453,11 @@ def _needs_db_only_derivadas_sync(
 
             if latest is None:
                 return _finish(True)
-            latest_db_edges = int(latest[0] or 0)
+            latest_status = str(latest[0] or "")
+            latest_db_edges = int(latest[1] or 0)
             return _finish(
-                matrix_active <= 0
+                latest_status != "ok"
+                or matrix_active <= 0
                 or summary_total <= 0
                 or latest_db_edges != db_edges_count
             )
@@ -1219,6 +1221,12 @@ def _run_optional_derivadas_sync(
             )
         if not sync_ok:
             derivadas_sync_blocking_error = True
+            if sync_report.get("sync_run_id") is not None:
+                mark_latest_sync_run_failed(
+                    db_path=working_db_path,
+                    message="post_commit_validation_failed",
+                    extra_allowed_roots=extra_allowed_roots,
+                )
             consistency_scan = sync_report.get("consistency_scan") or {}
             issue_counts = consistency_scan.get("issue_counts") or {}
             missing_files = sorted(
@@ -1266,6 +1274,11 @@ def _run_optional_derivadas_sync(
                 " no proximo rescan."
             )
         else:
+            mark_latest_sync_run_failed(
+                db_path=working_db_path,
+                message="post_commit_validation_failed",
+                extra_allowed_roots=extra_allowed_roots,
+            )
             error_message = (
                 f"{exc} | Falha na verificacao apos o commit do sync de"
                 " derivadas; dados importados preservados. O proximo"
@@ -2130,6 +2143,17 @@ def run_importer_logic(
             files_to_process = cast(List[str], work_items["files_to_process"])
             derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
 
+            # Pre-flight das planilhas de derivadas ANTES de criar o
+            # candidato: um arquivo rejeitado aqui nao deixa nenhum
+            # artefato de banco no disco.
+            for derivadas_sheet_file in derivadas_sheet_files:
+                ensure_path_is_allowed(
+                    derivadas_sheet_file,
+                    purpose="derivadas sheet file preflight",
+                    expect_directory=False,
+                    extra_allowed_roots=extra_allowed_roots,
+                )
+
             # Registra se o candidato de full rescan ja existia: a limpeza do
             # pre-flight so pode remover um arquivo criado nesta rodada.
             candidate_preexisting = bool(
@@ -2148,8 +2172,7 @@ def run_importer_logic(
                 )
             )
 
-            # Pre-flight: a fase de derivadas revalida db_path e planilhas de
-            # forma isolada; rejeitar aqui evita gravacao parcial no banco.
+            # Revalida o banco de trabalho apos a criacao do candidato.
             try:
                 ensure_path_is_allowed(
                     working_db_path,
@@ -2157,13 +2180,6 @@ def run_importer_logic(
                     expect_directory=False,
                     extra_allowed_roots=extra_allowed_roots,
                 )
-                for derivadas_sheet_file in derivadas_sheet_files:
-                    ensure_path_is_allowed(
-                        derivadas_sheet_file,
-                        purpose="derivadas sheet file preflight",
-                        expect_directory=False,
-                        extra_allowed_roots=extra_allowed_roots,
-                    )
             except PathSafetyError:
                 # Remove apenas um candidato criado nesta rodada; candidatos
                 # pre-existentes podem ser evidencia de runs anteriores.

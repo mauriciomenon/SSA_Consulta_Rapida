@@ -483,6 +483,57 @@ def test_needs_db_only_derivadas_sync_returns_false_on_runtime_error(
     assert app_logic._needs_db_only_derivadas_sync("/tmp/ssa.db", "ssa_table") is False
 
 
+def test_db_only_preflight_retries_when_latest_run_marked_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Falha pos-commit (scan de consistencia) marca o run como 'error' e o
+    preflight DB-only passa a pedir resync, cumprindo a promessa de refazer
+    automaticamente o sync no proximo rescan."""
+    import sqlite3
+
+    import core.app_logic as app_logic
+    from armazenamento import database
+    from armazenamento.derivadas_sync import (
+        mark_latest_sync_run_failed,
+        sync_derivadas,
+    )
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = str(data_dir / "test.db")
+    assert database.initialize_database(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO ssa_table "
+            "(numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+            [
+                ("202500001", None, "SSA pai"),
+                ("202500002", "202500001", "SSA filha"),
+            ],
+        )
+        conn.commit()
+
+    report = sync_derivadas(db_path, table_name="ssa_table")
+    assert report["sync_run_id"] is not None
+    assert app_logic._needs_db_only_derivadas_sync(db_path, "ssa_table") is False
+
+    assert mark_latest_sync_run_failed(
+        db_path, message="post_commit_validation_failed"
+    ) is True
+    assert app_logic._needs_db_only_derivadas_sync(db_path, "ssa_table") is True
+
+    with sqlite3.connect(db_path) as conn:
+        latest_status = conn.execute(
+            "SELECT status FROM ssa_derivada_sync_run "
+            "ORDER BY sync_run_id DESC LIMIT 1"
+        ).fetchone()[0]
+    assert latest_status == "error"
+
+
 def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> None:
     import core.app_logic as app_logic
 
