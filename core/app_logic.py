@@ -2079,6 +2079,14 @@ def run_importer_logic(
     # The filelock singleton makes the inner per-connection locks reentrant.
     try:
         try:
+            # Registra se o candidato de full rescan ja existia: a limpeza do
+            # pre-flight so pode remover um arquivo criado nesta rodada.
+            candidate_preexisting = bool(
+                force_import
+                and os.path.exists(
+                    _build_full_rescan_candidate_path(primary_db_path, run_id)
+                )
+            )
             working_db_path, candidate_db_path, integrity_report = (
                 _prepare_working_database_for_import(
                     data_dir=data_dir,
@@ -2105,19 +2113,37 @@ def run_importer_logic(
             derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
             # Pre-flight: a fase de derivadas revalida db_path e planilhas de
             # forma isolada; rejeitar aqui evita gravacao parcial no banco.
-            ensure_path_is_allowed(
-                working_db_path,
-                purpose="derivadas database preflight",
-                expect_directory=False,
-                extra_allowed_roots=extra_allowed_roots,
-            )
-            for derivadas_sheet_file in derivadas_sheet_files:
+            try:
                 ensure_path_is_allowed(
-                    derivadas_sheet_file,
-                    purpose="derivadas sheet file preflight",
+                    working_db_path,
+                    purpose="derivadas database preflight",
                     expect_directory=False,
                     extra_allowed_roots=extra_allowed_roots,
                 )
+                for derivadas_sheet_file in derivadas_sheet_files:
+                    ensure_path_is_allowed(
+                        derivadas_sheet_file,
+                        purpose="derivadas sheet file preflight",
+                        expect_directory=False,
+                        extra_allowed_roots=extra_allowed_roots,
+                    )
+            except PathSafetyError:
+                # Remove apenas um candidato criado nesta rodada; candidatos
+                # pre-existentes podem ser evidencia de runs anteriores.
+                if candidate_db_path and not candidate_preexisting:
+                    for suffix in ("-wal", "-shm", ""):
+                        stale_path = candidate_db_path + suffix
+                        try:
+                            os.remove(stale_path)
+                        except FileNotFoundError:
+                            continue
+                        except OSError as exc:
+                            logger.warning(
+                                "Falha ao remover candidato orfao %s: %s",
+                                stale_path,
+                                exc,
+                            )
+                raise
             import_batch_files = list(
                 dict.fromkeys([*files_to_process, *derivadas_sheet_files])
             )

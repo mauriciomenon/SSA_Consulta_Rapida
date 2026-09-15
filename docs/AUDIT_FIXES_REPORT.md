@@ -1306,3 +1306,57 @@ corrigidos; demais apontamentos eram cosmeticos ou falsos positivos.
 `.github/CODE_QUALITY.md` esta em portugues desde antes do branch;
 conteudo identico nos dois branches). Nao corrigida por estar fora do
 escopo; requer decisao sobre qual lado do contrato prevalece.
+
+### O9. Revisao externa (rodada 3) - fatiada por codigo e modelo
+
+Ciclo de estabilizacao com revisores externos **fatiados** (cada modelo
+revisou uma fatia de codigo, nao o diff inteiro) e propostas de correcao
+revisadas antes da implementacao. Ferramentas: codex (fatia derivadas +
+revisao de propostas), omp (fatia CLI + revisao da proposta P-C), hermes
+(ciclo de vida streamlit + arquivamento WAL), bitoreview (diff completo).
+claude/kimi/pi/opencode falharam por autenticacao/conexao/modelo
+deprecado — sem achados.
+
+Achados confirmados e corrigidos nesta rodada:
+
+- **[MEDIA] `x <termo>` reaplicava o termo removido apos `ord`/`ordn`**
+  (`interface/cli.py`, pre-existente): `ord` empilha `(df_ordenado,
+  mesmos_termos)`; o atalho LIFO usava `stack[-2]` como base, que ja
+  estava filtrada pelo termo removido — o filtro "removido" seguia
+  aplicado em silencio. Corrigido com a variante V3 revisada pelo omp:
+  `x` pousa na entrada mais recente cujos termos == `remaining` (e loop
+  de pop no caso vazio). Reproducao local dos 9 cenarios que a variante
+  V1 falhava: 9/9 corretos apos V3.
+- **[MEDIA] ordem de arquivamento do WAL ainda insegura** (hermes):
+  o loop `("", "-wal", "-shm")` renomeava o `.db` primeiro; um kill no
+  meio deixava WAL orfao a ser reaplicado sobre o banco novo. Corrigido
+  para `("-wal", "-shm", "")` — WAL orfao sem `.db` e inocuo. Verificado
+  com conexao WAL aberta e commit pendente.
+- **[BAIXA] filho streamlit orfao em SIGTERM** (hermes): `SIGTERM` nao
+  executa `atexit`, logo o filho ficava segurando `:8501`. Corrigido com
+  handler em `wait_for_streamlit` que termina o filho e sai 143; falha
+  ao registrar o handler e tolerada (ex.: thread nao-principal).
+- **[BAIXA] `--db '~/ssas.db'` rejeitado** (codex): `_db_extra_roots`
+  fazia `resolve()` sem `expanduser()`, gerando raiz literal `~`.
+  Corrigido em `scripts/derivadas_cli.py` e no call site de
+  `gui/gui_ssa.py`; docstring tambem corrigida (a raiz do `--db` cobre
+  planilhas sob o mesmo diretorio — mesmo criterio do rescan_worker).
+- **[BAIXA] candidato orfao em falha de pre-flight** (revisao propria,
+  ressalvas do codex aplicadas): em `force_import`, o candidato era
+  criado antes do pre-flight e sobrava no disco quando ele falhava.
+  Corrigido removendo `candidate±wal±shm` **somente se criado nesta
+  rodada** (guard `candidate_preexisting`, pois o prepare reutiliza
+  arquivo existente no path), com log em falhas de remocao e `raise`
+  preservando `PathSafetyError` → `ImporterError`.
+
+Proposta **adiada por decisao de escopo** (veredito codex: flawed):
+autorizar caminhos digitados na UI Streamlit (`dev_env/streamlit_app.py`).
+A correcao parcial seria incompleta — `get_filtered_data` e
+`import_files_to_database` revalidam sem raizes — e o perfil de
+confianca de caminho digitado em UI web difere do CLI local. Registrado
+como limitacao conhecida para a rodada futura de paths externos.
+
+**Validacao desta rodada**: 167 testes focados aprovados; reproducoes
+manuais dos 9 cenarios de `x`/`ord`, do trio WAL, do handler SIGTERM
+(exit 143, filho terminado), de `expanduser` e do cleanup do candidato;
+`ruff` e `ty` limpos nos arquivos alterados.

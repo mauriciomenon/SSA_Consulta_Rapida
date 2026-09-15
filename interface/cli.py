@@ -985,18 +985,16 @@ def _handle_remove_filter(
     if not current_terms:
         print("Nenhum termo de filtro atual para remover.")
         return
-    remaining = [t for t in current_terms if t.lower() != term_to_remove.lower()]
-    # Otimizacao: remocao LIFO pode reaplicar do estado anterior (menor).
-    # Para remocao fora de ordem, reaplica da base para nao manter filtro removido.
     remove_key = term_to_remove.lower()
-    is_lifo_remove = bool(current_terms) and (
-        current_terms[-1].lower() == remove_key
-        and all(t.lower() != remove_key for t in current_terms[:-1])
-    )
-    if is_lifo_remove and len(results_stack) >= 2:
-        base_df = results_stack[-2][0]
-    else:
-        base_df = results_stack[0][0] if results_stack else current_df
+    remaining = [t for t in current_terms if t.lower() != remove_key]
+    # O estado alvo e a entrada mais recente cujos termos equivalem ao filtro
+    # resultante. Entradas de ordenacao repetem os termos do topo, entao um
+    # atalho cego em results_stack[-2] manteria o termo removido aplicado.
+    base_df = results_stack[0][0]
+    for entry_df, entry_terms in reversed(results_stack):
+        if list(entry_terms or []) == remaining:
+            base_df = entry_df
+            break
     if remaining:
         new_df = filter_dataframe(base_df, remaining)
         results_stack[-1] = (new_df, remaining)
@@ -1014,8 +1012,12 @@ def _handle_remove_filter(
             start_page=0,
         )
     else:
-        # Sem termos restantes, volta ao estado anterior
-        _handle_back(results_stack)
+        # Sem termos restantes, recua ate a entrada sem o termo removido
+        while len(results_stack) > 1 and list(results_stack[-1][1] or []) != remaining:
+            popped_df, _ = results_stack.pop()
+            _release_pagination_state(popped_df)
+        _prune_pagination_tracker_for_stack(results_stack, force=True)
+        print(f"Removido termo '{term_to_remove}'. Nenhum filtro restante.")
         if results_stack:
             top_df, top_terms = results_stack[-1]
             _prune_pagination_tracker_for_stack(results_stack, force=True)

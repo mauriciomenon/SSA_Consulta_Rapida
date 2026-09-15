@@ -81,7 +81,9 @@ def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
         backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
         # Arquiva o trio SQLite junto: o WAL/ShM orfaos perderiam commits
         # pendentes e poderiam ser aplicados sobre o banco recriado.
-        for suffix in ("", "-wal", "-shm"):
+        # Ordem WAL/ShM antes do .db: um WAL orfao sem .db e inocuo, mas um
+        # .db movido com WAL restante reaplicaria commits sobre o banco novo.
+        for suffix in ("-wal", "-shm", ""):
             src = db_path + suffix
             if os.path.exists(src):
                 os.replace(src, backup_path + suffix)

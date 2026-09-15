@@ -5250,7 +5250,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             sync_derivadas_fn=sync_derivadas,
             scan_derivadas_consistency_fn=scan_derivadas_consistency,
             status_callback=status_callback,
-            extra_allowed_roots=[str(Path(db_path).resolve().parent)],
+            extra_allowed_roots=[str(Path(db_path).expanduser().resolve().parent)],
         )
 
     def _finalize_derivadas_sync_result(

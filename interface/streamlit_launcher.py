@@ -4,6 +4,7 @@ import atexit
 import importlib.util
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from typing import Optional
@@ -21,6 +22,17 @@ def wait_for_streamlit() -> None:
     process = _STREAMLIT_PROCESSES[-1] if _STREAMLIT_PROCESSES else None
     if process is None:
         return
+
+    def _terminate_child(*_args):
+        if _is_process_running(process):
+            process.terminate()
+        sys.exit(143)
+
+    # SIGTERM nao dispara atexit: sem handler o filho ficaria orfao na porta.
+    try:
+        signal.signal(signal.SIGTERM, _terminate_child)
+    except (OSError, RuntimeError, ValueError):
+        pass
     try:
         process.wait()
     except KeyboardInterrupt:

@@ -51,10 +51,11 @@ def _as_json(data: Any) -> None:
 def _db_extra_roots(args: argparse.Namespace) -> list[str]:
     """O banco nomeado via --db auto-autoriza o proprio diretorio.
 
-    Planilhas e destinos de relatorio seguem validados pelas raizes padrao;
-    para libera-los usar SSA_EXTRA_ALLOWED_PATHS.
+    A raiz cobre o banco e as planilhas sob o mesmo diretorio, mesmo
+    criterio do rescan_worker (db_parent autoriza todos os usos). Outros
+    diretorios exigem SSA_EXTRA_ALLOWED_PATHS.
     """
-    return [str(Path(args.db).resolve().parent)]
+    return [str(Path(args.db).expanduser().resolve().parent)]
 
 
 def _print_list(title: str, values: list[str]) -> None:
