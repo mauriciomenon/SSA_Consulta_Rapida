@@ -83,5 +83,9 @@ Settings > Advanced Security > Dependency graph no GitHub e registrar o efeito.
   historicos e nao descrevem automaticamente o host atual.
 - SONAR_TOKEN e SNYK_TOKEN so devem ser configurados quando um fluxo aprovado
   realmente precisar deles; nao foram incluidos segredos nesta entrega.
+- Smoke do pacote com runtime no TEMP nao cobre banco/planilhas fora das
+  raizes padrao de path safety. A falha de 14/09/2026 (`sync derivadas
+  database ... fora das bases permitidas`, secao N de AUDIT_FIXES_REPORT.md)
+  exige cenario com diretorio arbitrario do usuario na validacao do pacote.
 - Qualquer mudanca futura de regras, Apps ou criterio de aprovacao deve ser
   registrada aqui junto da configuracao correspondente.

@@ -382,3 +382,37 @@ individual de 45s e reprovacao por falha preservados.
   permanece configurada, com cancelamento do job nesta publicacao.
 - Proxima atividade: triagem tecnica delimitada dos comentarios restantes;
   GitHub depende de regularizacao da conta e a PR permanece rascunho.
+
+
+## 2026-09-14 - Falha de importacao no pacote Windows (derivadas)
+
+- [x] Corrigir propagacao de `extra_allowed_roots` para a fase de derivadas.
+  Incidente real no executavel PyInstaller Windows: importacao com banco em
+  `C:\Users\menon\Downloads\Telegram Desktop\ssas.db` gravou 31/42 arquivos e
+  falhou com `PathSafetyError` em `sync derivadas database`
+  (`armazenamento/derivadas_sync.py:1558`). O pipeline de importacao aceita
+  o banco externo via `extra_allowed_roots` (`rescan_worker.py`,
+  `app_logic.py:1923`), mas `_run_optional_derivadas_sync` ->
+  `_run_derivadas_sync_phase` -> `sync_derivadas` revalida somente com raizes
+  globais. Resultado: `blocking_derivadas_sync_error` com banco parcialmente
+  alterado. Corrigido em `devin_review`: parametro opcional
+  `extra_allowed_roots` propagado por toda a cadeia (derivadas_sync,
+  derivadas_schema, app_logic, derivadas_sync_job, derivadas_sync_controller,
+  gui_ssa, derivadas_cli). Detalhes na secao N de AUDIT_FIXES_REPORT.md.
+- [x] Pre-flight de caminhos no inicio da importacao (N5.1 do relatorio):
+  `run_importer_logic` valida `working_db_path` e `derivadas_sheet_files`
+  antes de qualquer escrita; caminho invalido aborta como `ImporterError`
+  com `PathSafetyError` como causa, sem linhas gravadas.
+- [ ] Decidir a politica de consistencia para falhas de derivadas nao
+  relacionadas a caminho (N5.2): progresso parcial declarado + retry, ou
+  candidato/promocao tambem no rescan comum. Mudanca estrutural; exige
+  pedido proprio.
+- [ ] Estender a validacao do pacote Windows com importacao usando banco e
+  planilhas fora do diretorio de instalacao; o smoke atual nao cobre esse
+  cenario (ver BUILD_WINDOWS_ARM64_AMD64.md, secao de validacao).
+- [x] Mesma lacuna nos caminhos manuais: botao de derivadas da GUI
+  (`derivadas_sync_job.py` + `derivadas_sync_controller.py`, com raiz do
+  banco autorizada em `gui_ssa.py`), `derivadas_cli.py --db` externo
+  (diretorio do banco auto-autorizado) e `scan_derivadas_consistency`/
+  `get_sync_stats`/`self_heal_derivadas`/`run_derivadas_maintenance`/
+  `derivadas_schema.py`. Cobertos pelo mesmo parametro opcional da secao N4.

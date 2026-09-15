@@ -139,6 +139,14 @@ e o marcador de smoke. Remover essa variavel antes do teste visual da GUI.
 Abrir a GUI, conferir About, redimensionamento, resposta da janela e encerramento.
 Registrar quais interacoes foram verificadas e quais nao foram executadas.
 
+Adicional obrigatorio apos o incidente de 14/09/2026: exercitar importacao e o
+botao de derivadas com banco e planilhas em diretorio arbitrario do usuario
+(ex.: `Downloads`), fora do diretorio de instalacao. O defeito de propagacao
+de `extra_allowed_roots` (secao N de AUDIT_FIXES_REPORT.md) nao aparece quando
+o banco esta dentro das raizes padrao; um pacote validado apenas com runtime
+no TEMP nao cobre esse caminho. Resultado exigido: a fase de derivadas nao
+emite `fora das bases permitidas` e nao retorna `blocking_derivadas_sync_error`.
+
 ## Entrega no sistema de arquivos do Mac
 
 Copiar os ZIPs Windows finais da VM para os diretorios correspondentes da tabela.

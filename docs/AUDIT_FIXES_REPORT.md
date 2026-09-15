@@ -1025,3 +1025,175 @@ tambem deve ser cancelado. Nao confundir cancelamento solicitado com sucesso.
 Validacoes pesadas e novas varreduras encerradas. A proxima atividade tecnica
 e tratar o backlog da revisao ampla em escopo proprio; regularizacao da conta
 GitHub e autorizacao especifica para reescrita continuam pendencias separadas.
+
+
+## N. Falha de importacao no build empacotado Windows (path safety em derivadas)
+
+### N1. Incidente e evidencia
+
+Importacao pelo executavel PyInstaller no Windows 11 falhou na fase de
+derivadas apos gravar dados parciais. Log do usuario (`erro import.txt`,
+14/09/2026): 42 arquivos estagiados, 31 processados, 20.706 SSAs atualizadas e
+56 inseridas; banco cresceu de 99.538 para 99.594 linhas; erro final
+`sync derivadas database: 'C:\Users\menon\Downloads\Telegram Desktop\ssas.db'
+fora das bases permitidas (...)`, status `derivadas_sync_error` /
+`blocking_derivadas_sync_error` e aviso explicito `O banco recebeu alteracoes
+parciais`.
+
+### N2. Cadeia causal confirmada no codigo
+
+1. `gui/workers/rescan_worker.py` (~linhas 479-496) monta
+   `extra_allowed_roots = [project_root, db_parent]` e chama
+   `run_importer_logic(extra_allowed_roots=tuple(...))`. O banco externo e
+   legitimamente permitido nesta camada.
+2. `core/app_logic.py:1923` recebe `extra_allowed_roots` e o repassa a
+   `_initialize_import_run_context` (:1950), que valida `docs_dir`, `data_dir`
+   e `db_path` com essas raizes. A fase regular de importacao grava no banco
+   externo com sucesso.
+3. `core/app_logic.py:2163` chama `_run_optional_derivadas_sync` sem repassar
+   as raizes; `:1175` chama `_run_derivadas_sync_phase` tambem sem elas.
+4. `armazenamento/derivadas_sync.py:1558-1564` revalida `db_path` via
+   `ensure_path_is_allowed` somente com as raizes globais
+   (`utils/path_safety.py`), que nao incluem o diretorio do banco externo.
+5. `PathSafetyError` (subclasse de `ValueError`, `path_safety.py:20`) e
+   capturada pelo `except (OSError, RuntimeError, ..., ValueError,
+   sqlite3.Error)` de `app_logic.py:1235`, vira `derivadas_sync_blocking_error`
+   e retorna `False` em `app_logic.py:2213-2217`.
+
+A mesma revalidacao isolada existe em `_normalize_sheet_file_path`
+(`derivadas_sync.py:228-234`), `_open_derivadas_read_connection`
+(:159-166, usado por `scan_derivadas_consistency` :1929 e `get_sync_stats`
+:1811), `self_heal_derivadas` (:2036), `run_derivadas_maintenance` (:2078) e
+`armazenamento/derivadas_schema.py` (:440, :484, :526). O fluxo manual da GUI
+(`gui/ssa/derivadas_sync_job.py` -> `sync_derivadas_fn`) e a CLI
+`scripts/derivadas_cli.py` tem a mesma lacuna para `--db` externo.
+
+Defeito arquitetural: o contexto de politica de caminho nao e propagado
+pelo pipeline; cada camada revalida contra raizes globais. Em desenvolvimento
+o banco fica dentro do projeto e o bug e invisivel; ele so aparece no pacote
+com banco em diretorio arbitrario do usuario.
+
+### N3. Reproducao controlada (macOS, sem alterar o repo)
+
+Em `/tmp/ssa_repro`, com banco vazio fora das raizes permitidas:
+
+- `ensure_path_is_allowed('/tmp/ssa_repro/ext/ssas.db',
+  purpose='sync derivadas database')` -> `PathSafetyError` com a mesma
+  mensagem do log do usuario.
+- Mesma chamada com `extra_allowed_roots=('/tmp/ssa_repro/ext',)` -> aceito.
+- `inspect.signature(sync_derivadas)` confirma ausencia de parametro
+  `extra_allowed_roots`.
+
+### N4. Implementacao exata (entregue na branch devin_review)
+
+Objetivo: propagar as mesmas raizes explicitas por toda a cadeia, sem
+enfraquecer `ensure_path_is_allowed` nem ampliar `ALLOWED_ROOTS` global.
+
+`armazenamento/derivadas_sync.py`:
+
+- `_normalize_sheet_file_path(value)` -> acrescentar
+  `extra_allowed_roots: Iterable[str | os.PathLike] | None = None` e repassar
+  a `ensure_path_is_allowed(..., extra_allowed_roots=extra_allowed_roots)`.
+- `_open_derivadas_read_connection(db_path)` -> idem.
+- `sync_derivadas(...)` -> acrescentar keyword-only `extra_allowed_roots=None`;
+  repassar a `_normalize_sheet_file_path` (:1540, :1545) e a
+  `ensure_path_is_allowed` do `db_path` (:1559).
+- `get_sync_stats(db_path)`, `scan_derivadas_consistency(db_path)` -> idem,
+  repassando a `_open_derivadas_read_connection`.
+- `self_heal_derivadas(...)` -> idem, repassando as duas chamadas de
+  `scan_derivadas_consistency` (:2052, :2069) e a `sync_derivadas` (:2056).
+- `run_derivadas_maintenance(...)` -> idem, repassando a
+  `_open_derivadas_read_connection` (:2090), `scan_derivadas_consistency`
+  (:2129) e `self_heal_derivadas` (:2165).
+
+`armazenamento/derivadas_schema.py`:
+
+- `ensure_derivadas_schema` (:440), `scan_derivadas_schema_readiness_from_path`
+  (:484) e `scan_derivadas_read_schema_readiness_from_path` (:526) -> mesmo
+  parametro opcional repassado a `ensure_path_is_allowed`.
+
+`core/app_logic.py`:
+
+- `_run_derivadas_sync_phase` (:485) -> parametro `extra_allowed_roots=None`;
+  incluir em `sync_kwargs` (:503) e repassar a
+  `scan_derivadas_consistency(db_path=db_path,
+  extra_allowed_roots=extra_allowed_roots)` (:620).
+- `_run_optional_derivadas_sync` (:1145) -> mesmo parametro repassado a
+  `_run_derivadas_sync_phase` (:1175).
+- `run_importer_logic` -> no call site :2163, passar
+  `extra_allowed_roots=extra_allowed_roots`.
+
+`gui/ssa/derivadas_sync_job.py` e `gui/gui_ssa.py`:
+
+- `execute_derivadas_sync_job` -> parametro `extra_allowed_roots=None`
+  repassado a `sync_derivadas_fn` e `scan_derivadas_consistency_fn`.
+- `gui_ssa.py:_execute_derivadas_sync_job` (:5239) -> passar
+  `extra_allowed_roots=[str(Path(db_path).resolve().parent)]`, replicando o
+  padrao ja usado em `rescan_worker.py` para `db_parent`.
+
+`scripts/derivadas_cli.py`:
+
+- Nos handlers que recebem `--db`, passar
+  `extra_allowed_roots=[str(Path(args.db).resolve().parent)]`. O banco
+  nomeado pelo operador auto-autoriza seu diretorio; planilhas e destinos de
+  relatorio continuam validados. Alternativa documentada: exigir
+  `SSA_EXTRA_ALLOWED_PATHS`, mantida como opcao, nao como obrigatoria.
+
+Compatibilidade: todos os parametros novos sao opcionais com default `None`;
+assinaturas e contratos publicos preservados.
+
+Estado: implementado em `devin_review`. Adicionalmente, `run_importer_logic`
+ganhou pre-flight que valida `working_db_path` e cada
+`derivadas_sheet_files` com as mesmas raizes antes de qualquer escrita,
+fechando a janela de mutacao parcial para falhas de caminho (item N5.1).
+Excecao na entrada invalida aborta como `ImporterError` com
+`PathSafetyError` como causa, antes de `_import_single_file`.
+
+### N5. Segundo defeito: mutacao parcial antes da fase de derivadas
+
+O log prova que 31 arquivos foram gravados no banco primario antes do
+bloqueio. O retorno `False` nao desfaz essas escritas; o mecanismo de
+candidato/promocao so existe no full-rescan. Duas medidas:
+
+1. Fail-fast (barata, entregue): `run_importer_logic` executa
+   `ensure_path_is_allowed` em `working_db_path` e em cada planilha de
+   derivadas antes do processamento, com as mesmas `extra_allowed_roots`.
+   Caminho invalido agora aborta antes de qualquer linha gravada.
+2. Decisao de consistencia (separada, PENDENTE): para falhas de derivadas
+   nao relacionadas a caminho, decidir entre (a) aceitar progresso parcial
+   com status/report honesto e caminho de retry (ja existe
+   `db_only_derivadas_sync`), ou (b) estender o fluxo candidato/promocao ao
+   rescan comum, promovendo so apos sync+consistencia. A opcao (b) e a mais
+   segura, porem estrutural; nao implementar junto do hotfix N4 sem pedido
+   proprio.
+
+### N6. Cobertura de testes adicionada e executada
+
+Novos casos (todos aprovados):
+
+- `tests/test_derivadas_sync.py` (4): db externo exige raiz explicita;
+  scan/stats/heal/maintenance propagam raizes; planilha externa segue a
+  mesma politica.
+- `tests/test_derivadas_schema.py` (1): `ensure_derivadas_schema` e os dois
+  `scan_*_from_path` respeitam `extra_allowed_roots`.
+- `tests/test_derivadas_sync_job.py` (1): `execute_derivadas_sync_job`
+  repassa as raizes a `sync_derivadas_fn` e `scan_derivadas_consistency_fn`.
+- `tests/test_import_derivadas_trigger.py` (2): `run_importer_logic` com db
+  externo + raizes executa a fase de derivadas e propaga as raizes;
+  planilha externa sem raiz aborta em pre-flight antes de qualquer
+  `_import_single_file` (zero escritas).
+
+Resultado registrado: 177 testes focados + 100 (workers/menu/queries) + 79
+(filtros/derivadas GUI) aprovados em macOS arm64 offscreen; ruff e ty sem
+achados nos arquivos alterados; dois stubs antigos de
+`ensure_path_is_allowed` em testes foram alargados com `**_kwargs`. Suite
+completa, scanners e validacao nativa Windows nao executados nesta rodada.
+
+### N7. Origem e limite da evidencia
+
+O mecanismo `extra_allowed_roots` existe desde antes da rodada de build
+Windows; a sessao Codex de 10/09/2026 leu esses simbolos mas nao introduziu
+a propagacao. O defeito so se manifesta com banco fora das raizes padrao,
+cenario que a validacao do pacote nao exercitava. Correcao implementada em
+`devin_review`; validacao do pacote Windows com banco externo continua
+pendente (ver BUILD_WINDOWS_ARM64_AMD64.md).
