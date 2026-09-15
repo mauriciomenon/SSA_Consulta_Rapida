@@ -1197,3 +1197,74 @@ a propagacao. O defeito so se manifesta com banco fora das raizes padrao,
 cenario que a validacao do pacote nao exercitava. Correcao implementada em
 `devin_review`; validacao do pacote Windows com banco externo continua
 pendente (ver BUILD_WINDOWS_ARM64_AMD64.md).
+
+## O. Correcao dos achados remanescentes da auditoria read-only (rodada 2026-09-15)
+
+A auditoria read-only original listou seis achados (1 alta, 2 medias,
+3 baixas). Esta rodada corrigiu cinco deles em `devin_review`; o sexto
+permanece como decisao pendente por envolver empacotamento.
+
+### O1. ALTA - `--streamlit` encerrava o servidor ao sair de `main()`
+
+- `interface/streamlit_launcher.py`: nova funcao `wait_for_streamlit()`,
+  que bloqueia em `process.wait()` sobre o processo Streamlit mais recente.
+  Em `KeyboardInterrupt` retorna; a limpeza `atexit` existente encerra o
+  filho na saida do interpretador. `launch_streamlit()` segue nao
+  bloqueante (contrato preservado, testes existentes intactos).
+- `main.py::_launch_interface`: apos lancamento bem-sucedido chama
+  `wait_for_streamlit()`, entao o processo-pai permanece vivo enquanto o
+  servidor estiver ativo e CTRL+C passa a funcionar como anunciado.
+
+### O2. MEDIA - `logs/` crescia sem limite
+
+- `core/import_run_report.py`: `_prune_import_run_reports()` descarta os
+  `import_run_*.json` mais antigos (por mtime), retendo os 50 mais
+  recentes a cada nova gravacao. Falhas de poda sao ignoradas (OSError),
+  nunca bloqueiam o relatorio.
+- `interface/streamlit_launcher.py`: `streamlit.log` acima de 5 MiB e
+  rotacionado para `streamlit.log.1` (backup unico) antes da abertura.
+
+### O3. MEDIA - `utils/fallback/emergency_import.py` apagava o banco real
+
+- Removido o `os.remove(db_path)` silencioso. Banco existente agora aborta
+  com mensagem, a menos que `--force` seja passado; com `--force` o banco
+  e arquivado como `ssas.db.bak-<timestamp>` em vez de apagado. Novo
+  argumento `--db` permite escolher o caminho de destino. O banner
+  explicita que o script insere dados de TESTE.
+
+### O4. BAIXA - `_parse_cache` e `results_stack` sem limite na CLI
+
+- `interface/cli.py`: `_parse_cache` virou `OrderedDict` com evicao FIFO
+  em 256 entradas. `results_stack` passa por `_push_result_state()` nos
+  tres pontos de push (filtro, `ord`, `ordn`), com teto de 100 niveis; ao
+  estourar, descarta o item mais antigo apos a base (indice 0 preservado
+  para os comandos de reset). `_print_cache` ja tinha teto proprio
+  (limpa aos 20) e nao foi alterado.
+
+### O5. BAIXA - `except Exception` mascarando falhas
+
+- `utils/remote_itaipu.py::map_to_dataframe`: restrito a
+  `(ImportError, ValueError, TypeError, AttributeError)` com `logger.debug`
+  da causa.
+- `utils/path_safety.py::_is_within`: restrito a
+  `(OSError, RuntimeError, ValueError)`, cobrindo `resolve()` e
+  `relative_to()` sem engolir excecoes inesperadas.
+
+### O6. BAIXA - `sys.path.insert` em runtime - PENDENTE
+
+Nao alterado: `main.py` e `interface/cli.py` dependem dele no modo
+desenvolvimento e em cenarios de launcher nao empacotado. Remover exige
+garantir `pip install -e .` ou `PYTHONPATH` em todos os entry points;
+decisao de empacotamento, nao de corretude. Registrado como backlog.
+
+### O7. Validacao executada nesta rodada
+
+- `pytest`: test_main_streamlit_launcher, test_cli_loop_filter_rounds,
+  test_cli_config_preserve_session, test_path_safety (53), mais
+  test_import_run_report (27) e demais modulos test_cli_* (38) - todos
+  aprovados em macOS arm64.
+- Verificacoes manuais: emergency_import (cria/recusa/arquiva),
+  rotacao de streamlit.log, `wait_for_streamlit` com fake process, prune
+  de relatorios (60 -> 50 mais recentes), `map_to_dataframe`.
+- `py_compile` e `ruff check` limpos em todos os arquivos alterados.
+- Nao executado: suite completa, scanners, validacao no pacote Windows.

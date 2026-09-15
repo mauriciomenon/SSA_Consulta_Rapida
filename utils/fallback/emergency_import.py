@@ -3,8 +3,10 @@
 Script de importação de emergência - sem dependências pesadas
 """
 
+import argparse
 import os
 import sqlite3
+from datetime import datetime
 
 
 def create_basic_table(cursor):
@@ -62,14 +64,23 @@ def create_basic_table(cursor):
     """)
 
 
-def emergency_import():
+def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
     """Importação de emergência usando apenas SQLite"""
-    db_path = "data/ssas.db"
-    os.makedirs("data", exist_ok=True)
+    parent_dir = os.path.dirname(db_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
 
-    # Remove banco anterior se existir
+    # Nunca apaga banco existente: exige --force e arquiva como .bak-<timestamp>
     if os.path.exists(db_path):
-        os.remove(db_path)
+        if not force:
+            print(
+                f"ERRO: {db_path} ja existe. "
+                "Use --force para arquiva-lo como .bak antes de recriar."
+            )
+            return False
+        backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        os.replace(db_path, backup_path)
+        print(f"Banco existente arquivado em {backup_path}")
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -210,8 +221,21 @@ def emergency_import():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Importacao de emergencia - cria banco com dados de TESTE."
+    )
+    parser.add_argument(
+        "--db", default="data/ssas.db", help="Caminho do banco a criar"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Arquiva banco existente como .bak-<timestamp> antes de recriar",
+    )
+    args = parser.parse_args()
     print("Importação de emergência iniciada...")
-    success = emergency_import()
+    print("ATENCAO: este script insere dados de TESTE, nao dados reais.")
+    success = emergency_import(args.db, force=args.force)
     if success:
         print(" Banco de dados criado com dados de teste")
         print(" Agora você pode testar o CLI e GUI")

@@ -9,6 +9,22 @@ import sys
 from typing import Optional
 
 _STREAMLIT_PROCESSES: list[subprocess.Popen] = []
+_STREAMLIT_LOG_MAX_BYTES = 5 * 1024 * 1024
+
+
+def wait_for_streamlit() -> None:
+    """Bloqueia ate o processo Streamlit mais recente encerrar.
+
+    Em CTRL+C retorna imediatamente; a limpeza registrada em atexit
+    encerra o processo filho na saida do interpretador.
+    """
+    process = _STREAMLIT_PROCESSES[-1] if _STREAMLIT_PROCESSES else None
+    if process is None:
+        return
+    try:
+        process.wait()
+    except KeyboardInterrupt:
+        pass
 
 
 def _is_process_running(process) -> bool:
@@ -70,6 +86,11 @@ def launch_streamlit(
     logs_dir = os.path.join(log_root or project_root, "logs")
     os.makedirs(logs_dir, exist_ok=True)
     log_path = os.path.join(logs_dir, "streamlit.log")
+    try:
+        if os.path.getsize(log_path) > _STREAMLIT_LOG_MAX_BYTES:
+            os.replace(log_path, f"{log_path}.1")
+    except OSError:
+        pass
 
     try:
         with open(log_path, "ab") as log_file:

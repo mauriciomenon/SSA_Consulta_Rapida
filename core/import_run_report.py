@@ -15,6 +15,28 @@ project_root_path = Path(__file__).resolve().parents[1]
 project_root = str(project_root_path)
 logger = logging.getLogger(__name__)
 
+_MAX_IMPORT_RUN_REPORTS = 50
+
+
+def _prune_import_run_reports(logs_dir: str) -> None:
+    """Descarta relatorios import_run_*.json antigos, mantendo os mais recentes."""
+    try:
+        entries = [
+            os.path.join(logs_dir, name)
+            for name in os.listdir(logs_dir)
+            if name.startswith("import_run_") and name.endswith(".json")
+        ]
+        if len(entries) <= _MAX_IMPORT_RUN_REPORTS:
+            return
+        entries.sort(key=lambda p: (os.path.getmtime(p), p))
+        for stale_path in entries[: len(entries) - _MAX_IMPORT_RUN_REPORTS]:
+            try:
+                os.remove(stale_path)
+            except OSError:
+                continue
+    except OSError:
+        return
+
 
 def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
     """Grava resumo estruturado de uma execucao de importacao em JSON."""
@@ -52,6 +74,7 @@ def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
         report_path = os.path.join(logs_dir, f"import_run_{run_id}.json")
         with open(report_path, "w", encoding="utf-8") as fp:
             json.dump(payload, fp, ensure_ascii=False, indent=2, default=str)
+        _prune_import_run_reports(logs_dir)
         return report_path
     except (OSError, TypeError, ValueError) as exc:
         logger.warning("Falha ao gravar relatorio JSON de importacao: %s", exc)

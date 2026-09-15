@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import os
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _import_requests() -> Any:
@@ -190,7 +193,8 @@ def map_to_dataframe(items: Iterable[Dict[str, Any]]):
         if cols:
             df = df.rename(columns=cols)
         return df
-    except Exception:
+    except (ImportError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("Falha ao mapear resposta para DataFrame: %s", exc)
         return None
 
 

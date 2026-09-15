@@ -19,7 +19,7 @@ from collections.abc import Mapping
 from logging.handlers import RotatingFileHandler
 
 from interface.cli_args import build_argument_parser
-from interface.streamlit_launcher import launch_streamlit
+from interface.streamlit_launcher import launch_streamlit, wait_for_streamlit
 from launchers.main_runtime import (
     _get_project_root,
     ensure_runtime_environment,
@@ -635,6 +635,7 @@ def _launch_interface(
         )
         if launched:
             print("Interface web ativa. Pressione CTRL+C quando desejar encerrar este processo.")
+            wait_for_streamlit()
         return
 
     if args.gui:

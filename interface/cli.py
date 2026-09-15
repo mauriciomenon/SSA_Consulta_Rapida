@@ -14,7 +14,7 @@ import re
 import sys
 import textwrap
 import unicodedata
-from collections import Counter
+from collections import Counter, OrderedDict
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import pandas as pd
@@ -51,6 +51,19 @@ APP_VERSION_LONG = get_app_version_long()
 CLI_PAGINATION_TRACKER: Dict[int, Dict[str, Any]] = {}
 DEFAULT_FILTER_TERMS_CACHE: Dict[str, Any] = {}
 RAW_ANSI_ESCAPE = "\x1b"
+_MAX_PARSE_CACHE_ENTRIES = 256
+_MAX_RESULTS_STACK_DEPTH = 100
+
+
+def _push_result_state(results_stack: list, entry) -> None:
+    """Empilha estado de resultado limitando a profundidade.
+
+    Ao atingir o teto, descarta o item mais antigo apos a base (indice 0),
+    que e preservada para os comandos de reset.
+    """
+    results_stack.append(entry)
+    if len(results_stack) > _MAX_RESULTS_STACK_DEPTH:
+        del results_stack[1]
 
 
 class _CLIPaginationTrackerManager:
@@ -882,7 +895,7 @@ def _handle_sort(
                 by=col_name, ascending=ascending, na_position="last"
             )
             # Empilha o resultado ordenado
-            results_stack.append((sorted_df, current_filter_terms))
+            _push_result_state(results_stack, (sorted_df, current_filter_terms))
             _reset_pagination_state(sorted_df)
             print(
                 f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'})."
@@ -930,7 +943,7 @@ def _handle_sort_by_name(
         sorted_df = current_df.sort_values(
             by=col_name, ascending=ascending, na_position="last"
         )
-        results_stack.append((sorted_df, current_filter_terms))
+        _push_result_state(results_stack, (sorted_df, current_filter_terms))
         _reset_pagination_state(sorted_df)
         print(
             f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'})."
@@ -1182,7 +1195,7 @@ def start_cli_loop(db_path: str, table_name: str):
 
     # Flags para controle de cache
     _config_changed = False
-    _parse_cache = {}  # Cache para parse_search_terms
+    _parse_cache = OrderedDict()  # Cache para parse_search_terms (limitado)
     _print_cache = {}  # Cache para pretty_print_df
 
     # --- Estado Inicial ---
@@ -1441,6 +1454,8 @@ def start_cli_loop(db_path: str, table_name: str):
                         # OTIMIZAÇÃO: Cache para parse_search_terms
                         cache_key = f"{','.join(processed_search_terms)}:{default_mode}"
                         if cache_key not in _parse_cache:
+                            if len(_parse_cache) >= _MAX_PARSE_CACHE_ENTRIES:
+                                _parse_cache.popitem(last=False)
                             _parse_cache[cache_key] = parse_search_terms(
                                 processed_search_terms, default_mode=default_mode
                             )
@@ -1457,8 +1472,9 @@ def start_cli_loop(db_path: str, table_name: str):
                             combined_filter_terms = (
                                 current_filter_terms + processed_search_terms
                             )
-                            results_stack.append(
-                                (new_filtered_df, combined_filter_terms)
+                            _push_result_state(
+                                results_stack,
+                                (new_filtered_df, combined_filter_terms),
                             )
                             _reset_pagination_state(new_filtered_df)
                             _render_cli_page(
