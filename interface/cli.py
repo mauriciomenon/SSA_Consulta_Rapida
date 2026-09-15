@@ -1013,14 +1013,30 @@ def _handle_remove_filter(
         )
     else:
         # Sem termos restantes, recua ate a entrada sem o termo removido
+        popped_any = False
         while len(results_stack) > 1 and list(results_stack[-1][1] or []) != remaining:
             popped_df, _ = results_stack.pop()
             _release_pagination_state(popped_df)
+            popped_any = True
         _prune_pagination_tracker_for_stack(results_stack, force=True)
-        print(f"Removido termo '{term_to_remove}'. Nenhum filtro restante.")
         if results_stack:
             top_df, top_terms = results_stack[-1]
-            _prune_pagination_tracker_for_stack(results_stack, force=True)
+            if not popped_any and top_terms:
+                # Stack so com a base filtrada (filtro inicial): nao ha
+                # estado sem o termo para onde recuar.
+                print(
+                    f"O termo '{term_to_remove}' pertence ao filtro base; "
+                    "nada a remover."
+                )
+            elif top_terms:
+                # O recuo parou numa base ja filtrada (filtro inicial):
+                # o termo saiu, mas a base segue aplicada.
+                print(
+                    f"Removido termo '{term_to_remove}'. "
+                    f"Filtro atual: {', '.join(top_terms)}"
+                )
+            else:
+                print(f"Removido termo '{term_to_remove}'. Nenhum filtro restante.")
             _render_cli_page(
                 top_df,
                 display_map,
