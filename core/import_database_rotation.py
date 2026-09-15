@@ -138,7 +138,10 @@ def _rotate_database_for_full_rescan_locked(db_path: str) -> Optional[str]:
         for suffix in ("-wal", "-shm", "-journal"):
             sidecar = f"{db_path}{suffix}"
             sidecar_backup = f"{backup_path}{suffix}"
-            if preexisting_sidecars.get(suffix) and os.path.exists(sidecar):
+            # Move pelo estado atual: um sidecar criado apos o snapshot
+            # (ex.: journal de crash tardio) tambem precisa sair do caminho
+            # principal antes da promocao do candidato.
+            if os.path.exists(sidecar):
                 replace_sqlite_file_with_retry(sidecar, sidecar_backup)
                 moved_sidecars.append((sidecar, sidecar_backup))
                 logger.info(

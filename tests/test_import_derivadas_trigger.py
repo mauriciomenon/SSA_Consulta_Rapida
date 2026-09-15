@@ -578,7 +578,7 @@ def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> 
         (
             "file_error",
             {
-                "filename": "SSAs Derivadas e Relacionadas",
+                "filename": "Sincronizacao de derivadas",
                 "error": error_message,
             },
         )
@@ -1070,7 +1070,7 @@ def test_run_importer_rejects_special_sheet_without_individual_evidence(
     assert updated is False
     file_errors = [payload for event, payload in events if event == "file_error"]
     assert file_errors
-    assert "files_without_evidence=" in file_errors[-1]["error"]
+    assert "Arquivos sem evidencia de leitura:" in file_errors[-1]["error"]
     assert special.name in file_errors[-1]["error"]
 
 

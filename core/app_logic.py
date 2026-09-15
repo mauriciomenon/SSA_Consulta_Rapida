@@ -1206,10 +1206,10 @@ def _run_optional_derivadas_sync(
                 progress_filename = os.path.basename(synced_sheets[0])
             elif synced_sheets:
                 progress_filename = (
-                    f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
+                    f"Sincronizacao de derivadas ({len(synced_sheets)} arquivos)"
                 )
             else:
-                progress_filename = "SSAs Derivadas e Relacionadas (banco atual)"
+                progress_filename = "Sincronizacao de derivadas (banco atual)"
             emit_progress(
                 "file_success",
                 {
@@ -1232,24 +1232,30 @@ def _run_optional_derivadas_sync(
             missing_files = sorted(
                 sync_report.get("sheet_files_without_evidence") or []
             )
-            issue_text = json.dumps(issue_counts, ensure_ascii=True)
+            issue_text = ", ".join(
+                f"{key}={value}" for key, value in sorted(issue_counts.items())
+            )
             error_message = (
-                f"Sync de derivadas sem evidencia valida (consistency={issue_text})"
+                "A sincronizacao de derivadas nao confirmou a consistencia "
+                f"dos dados gravados ({issue_text})."
                 if issue_counts
-                else "Sync de derivadas sem evidencia valida"
+                else "A sincronizacao de derivadas nao confirmou os dados gravados."
             )
             if missing_files:
-                error_message += f" | files_without_evidence={','.join(missing_files)}"
+                error_message += (
+                    " Arquivos sem evidencia de leitura: "
+                    + ", ".join(missing_files)
+                    + "."
+                )
             error_message += (
-                " | Dados importados preservados; a verificacao de evidencias"
-                " falhou apos o sync. O sync e refeito automaticamente no"
-                " proximo rescan."
+                " Os dados importados foram preservados e o sync sera"
+                " refeito automaticamente no proximo rescan."
             )
             critical_errors.append(("derivadas_sync", docs_dir, error_message))
             emit_progress(
                 "file_error",
                 {
-                    "filename": "SSAs Derivadas e Relacionadas",
+                    "filename": "Sincronizacao de derivadas",
                     "error": error_message,
                 },
             )
@@ -1269,9 +1275,9 @@ def _run_optional_derivadas_sync(
         )
         if getattr(exc, "_derivadas_sync_rolled_back", False):
             error_message = (
-                f"{exc} | Alteracoes de derivadas revertidas; dados"
-                " importados preservados. O sync e refeito automaticamente"
-                " no proximo rescan."
+                f"{exc}. As alteracoes de derivadas foram revertidas e os"
+                " dados importados foram preservados. O sync sera refeito"
+                " automaticamente no proximo rescan."
             )
         else:
             mark_latest_sync_run_failed(
@@ -1280,14 +1286,14 @@ def _run_optional_derivadas_sync(
                 extra_allowed_roots=extra_allowed_roots,
             )
             error_message = (
-                f"{exc} | Falha na verificacao apos o commit do sync de"
-                " derivadas; dados importados preservados. O proximo"
-                " rescan refaz a verificacao."
+                f"{exc}. A verificacao falhou apos o commit do sync de"
+                " derivadas; os dados importados foram preservados. O"
+                " proximo rescan refaz a verificacao."
             )
         critical_errors.append(("derivadas_sync", docs_dir, error_message))
         emit_progress(
             "file_error",
-            {"filename": "SSAs Derivadas e Relacionadas", "error": error_message},
+            {"filename": "Sincronizacao de derivadas", "error": error_message},
         )
     return sync_materialized, derivadas_sync_blocking_error, synced_success_files
 

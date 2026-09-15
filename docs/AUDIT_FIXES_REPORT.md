@@ -1695,3 +1695,53 @@ outcome bloqueante preservado para os testes AST.
 Validacao: ruff limpo; 206 testes focados + 21 testes de derivadas +
 801 testes da bateria app_logic/import/database + suite completa
 3012 passaram (9 skipped), 0 falhas.
+
+### O16. Rodada 7 - mensagens aprovadas, export de derivadas e rotacao
+
+Mensagens de derivadas melhoradas (aprovadas pelo usuario):
+
+- `Sync de derivadas sem evidencia valida (consistency={...})` virou
+  frase em pt-BR: "A sincronizacao de derivadas nao confirmou a
+  consistencia dos dados gravados (chave=valor, ...)." — detalhes
+  tecnicos preservados como `chave=valor` ordenados.
+- `files_without_evidence=a,b` virou "Arquivos sem evidencia de leitura:
+  ...".
+- Separadores `|` substituidos por frases curtas; "dados importados"
+  preservado como substring exigida por teste.
+- Filenames sinteticos de progresso/erro: "SSAs Derivadas e
+  Relacionadas" -> "Sincronizacao de derivadas" (com "(N arquivos)" /
+  "(banco atual)" quando aplicavel). Assercoes de teste atualizadas.
+
+Verificacao de exports JSON/TSV/CSV de derivadas — NAO estao orfaos:
+
+- Chamados por `scripts/derivadas_cli.py` (subcomando report) e por
+  `gui/ssa/derivadas_sync_controller.py` (menu Banco de dados).
+- `_report_output` grava via temporario + fsync + `os.replace` (atomico),
+  revalida destino antes do replace e protege contra overwrite de
+  fontes (`protected_paths`: db + -wal/-shm/-journal + planilhas).
+- CSV/TSV incluem contagens de orfaos (`orphan_parents_count`,
+  `orphan_children_count`), multiparent, ciclos e conflitos por fase;
+  JSON preserva o relatorio completo.
+- Export GUI revalida `last_report`/db contra corrida com o dialogo de
+  salvar (state.report_invalidated + re-check pos-dialogo).
+
+Rotacao endurecida: o loop de sidecars passou a mover pelo estado
+**atual** do arquivo (e nao apenas pelo snapshot pre-checkpoint) — um
+`-journal`/`-wal` criado entre o snapshot e o move (crash tardio) tambem
+sai do caminho principal antes da promocao.
+
+Auditoria do fluxo de importacao concluida nesta frente:
+
+- Ordem correta: pre-flight -> candidato -> arquivos -> sync derivadas
+  (no candidato) -> gate de erros bloqueantes -> promocao -> move/cache.
+- `derivadas_sync_blocking_error` retorna antes da promocao: dados do
+  primario preservados, candidato fica como evidencia, cache nao
+  atualizado, e o run 'error' agora garante re-sync no proximo rescan.
+- Erros de arquivo classificados: deterministicos pulam (cache marcado
+  para evitar retrabalho), infra aborta, corrupcao/schema tentam reparo.
+- `record_import_outcome` propaga status parcial/bloqueante para GUI e
+  Streamlit com `primary_database_actually_changed` correto.
+
+Validacao: ruff limpo; testes focados (derivadas trigger 21, promotion
+gate, outcome isolation, run report, cancellation, rescan workers,
+rotation) verdes; suite completa anterior 3012/0 falhas.
