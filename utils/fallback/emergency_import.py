@@ -85,9 +85,38 @@ def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
         # .db movido com WAL restante reaplicaria commits sobre o banco novo.
         for suffix in ("-wal", "-shm", ""):
             src = db_path + suffix
-            if os.path.exists(src):
+            if not os.path.exists(src):
+                continue
+            try:
                 os.replace(src, backup_path + suffix)
+            except OSError as exc:
+                # Falha aqui aborta antes de criar o banco novo: o estado
+                # resultante (arquivamento parcial, nada recriado) e seguro.
+                raise OSError(
+                    f"Falha ao arquivar {src} para {backup_path + suffix}: {exc}"
+                ) from exc
         print(f"Banco existente arquivado em {backup_path}")
+    else:
+        # Sidecars orfaos sem .db (versao antiga so removia o .db) seriam
+        # re-aplicados quando o banco novo ativar journal_mode=WAL.
+        orphan_sidecars = [
+            db_path + suffix
+            for suffix in ("-wal", "-shm")
+            if os.path.exists(db_path + suffix)
+        ]
+        if orphan_sidecars:
+            backup_path = (
+                f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+            )
+            for src in orphan_sidecars:
+                suffix = src[len(db_path) :]
+                try:
+                    os.replace(src, backup_path + suffix)
+                except OSError as exc:
+                    raise OSError(
+                        f"Falha ao arquivar sidecar orfao {src}: {exc}"
+                    ) from exc
+            print(f"Sidecars orfaos arquivados em {backup_path}-wal/-shm")
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()

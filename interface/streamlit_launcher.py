@@ -13,6 +13,30 @@ _STREAMLIT_PROCESSES: list[subprocess.Popen] = []
 _STREAMLIT_LOG_MAX_BYTES = 5 * 1024 * 1024
 
 
+def _terminate_children_and_exit(*_args) -> None:
+    """Handler de SIGTERM: encerra os filhos rastreados e sai com 143.
+
+    SIGTERM nao dispara atexit; sem este handler o filho ficaria orfao
+    segurando a porta do servidor.
+    """
+    for process in list(_STREAMLIT_PROCESSES):
+        terminate = getattr(process, "terminate", None)
+        if callable(terminate) and _is_process_running(process):
+            try:
+                terminate()
+            except OSError:
+                continue
+    sys.exit(143)
+
+
+def _install_sigterm_handler() -> None:
+    try:
+        signal.signal(signal.SIGTERM, _terminate_children_and_exit)
+    except (OSError, RuntimeError, ValueError):
+        # Fora da main thread ou sem suporte a sinais: atexit segue como rede.
+        pass
+
+
 def wait_for_streamlit() -> None:
     """Bloqueia ate o processo Streamlit mais recente encerrar.
 
@@ -22,17 +46,7 @@ def wait_for_streamlit() -> None:
     process = _STREAMLIT_PROCESSES[-1] if _STREAMLIT_PROCESSES else None
     if process is None:
         return
-
-    def _terminate_child(*_args):
-        if _is_process_running(process):
-            process.terminate()
-        sys.exit(143)
-
-    # SIGTERM nao dispara atexit: sem handler o filho ficaria orfao na porta.
-    try:
-        signal.signal(signal.SIGTERM, _terminate_child)
-    except (OSError, RuntimeError, ValueError):
-        pass
+    _install_sigterm_handler()
     try:
         process.wait()
     except KeyboardInterrupt:
@@ -113,6 +127,9 @@ def launch_streamlit(
             )
         _prune_streamlit_processes()
         _STREAMLIT_PROCESSES.append(process)
+        # Instalado no launch (nao so no wait) para fechar a janela em que
+        # um SIGTERM entre o Popen e o wait deixaria o filho orfao.
+        _install_sigterm_handler()
         display_port = port or 8501
         print(f"Origem do launcher Streamlit: {launcher_source}")
         print(

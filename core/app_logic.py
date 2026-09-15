@@ -488,6 +488,12 @@ def _run_derivadas_sync_phase(
     derivadas_sheet_files: List[str],
     extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> tuple[bool, List[str], Dict[str, Any]]:
+    # Materializa: o parametro alimenta sync_derivadas e a consistencia,
+    # e um iteravel esgotavel falharia na segunda validacao.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
+
     def _has_sheet_parse_evidence(entry: Dict[str, Any]) -> bool:
         raw_stats = entry.get("stats")
         stats: Dict[str, Any] = raw_stats if isinstance(raw_stats, dict) else {}
@@ -1753,6 +1759,10 @@ def _initialize_import_run_context(
     extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> Dict[str, Any]:
     """Resolve caminhos e inicializa o estado mutavel da rodada de importacao."""
+    # Materializa: tres validacoes consomem o parametro abaixo.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     try:
         docs_dir_path = ensure_path_is_allowed(
             docs_dir,

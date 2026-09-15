@@ -986,6 +986,9 @@ def _handle_remove_filter(
         print("Nenhum termo de filtro atual para remover.")
         return
     remove_key = term_to_remove.lower()
+    if not any(t.lower() == remove_key for t in current_terms):
+        print(f"O termo '{term_to_remove}' nao esta no filtro atual.")
+        return
     remaining = [t for t in current_terms if t.lower() != remove_key]
     # O estado alvo e a entrada mais recente cujos termos equivalem ao filtro
     # resultante. Entradas de ordenacao repetem os termos do topo, entao um
@@ -996,7 +999,14 @@ def _handle_remove_filter(
             base_df = entry_df
             break
     if remaining:
-        new_df = filter_dataframe(base_df, remaining)
+        # Re-aplica os termos restantes com o mesmo modo de filtro usado na
+        # busca original (settings), nao o default "contains".
+        default_mode = (settings.get("user_preferences") or {}).get(
+            "filter_mode_default", "contains"
+        )
+        new_df = filter_dataframe(
+            base_df, parse_search_terms(remaining, default_mode=default_mode)
+        )
         results_stack[-1] = (new_df, remaining)
         _reset_pagination_state(new_df)
         _prune_pagination_tracker_for_stack(results_stack, force=True)
@@ -1289,7 +1299,13 @@ def start_cli_loop(db_path: str, table_name: str):
                 db_path, table_name, settings
             )
             if preserved_user_terms:
-                refreshed_df = filter_dataframe(refreshed_base_df, preserved_user_terms)
+                default_mode = (settings.get("user_preferences") or {}).get(
+                    "filter_mode_default", "contains"
+                )
+                refreshed_df = filter_dataframe(
+                    refreshed_base_df,
+                    parse_search_terms(preserved_user_terms, default_mode=default_mode),
+                )
                 refreshed_terms = refreshed_base_terms + preserved_user_terms
             else:
                 refreshed_df = refreshed_base_df

@@ -1360,3 +1360,46 @@ como limitacao conhecida para a rodada futura de paths externos.
 manuais dos 9 cenarios de `x`/`ord`, do trio WAL, do handler SIGTERM
 (exit 143, filho terminado), de `expanduser` e do cleanup do candidato;
 `ruff` e `ty` limpos nos arquivos alterados.
+
+### O10. Verificacao por subagente (Fusion) - ressalvas enderecadas
+
+Revisao estatica independente sobre o estado do branch: veredito
+APROVADO-COM-RESSALVAS, sem bloqueantes. Follow-ups aplicados:
+
+- **`x <termo ausente>` imprimia "Removido" sem remover nada** —
+  corrigido: verifica presenca do termo antes de processar e informa
+  "nao esta no filtro atual".
+- **`x` re-aplicava termos com modo `contains` ignorando
+  `filter_mode_default` do usuario** (pre-existente) — corrigido em
+  `_handle_remove_filter` e no refresh de filtros padrao: os termos
+  restantes sao parseados com `parse_search_terms(..., default_mode)`
+  antes de `filter_dataframe`. Dois testes ajustados para o contrato
+  novo (termos parseados preservam `raw`).
+- **Janela SIGTERM Popen→wait** — o handler `_terminate_children_and_exit`
+  (termina todos os processos rastreados, exit 143) agora e instalado em
+  `launch_streamlit`, fechando a janela em que o filho ficava orfao.
+- **Sidecars `-wal`/`-shm` orfaos sem `.db`** — deixados por versoes
+  antigas que so removiam o `.db`; seriam re-aplicados quando o banco
+  novo ativasse `journal_mode=WAL`. Corrigido: sao arquivados como
+  `.bak` mesmo sem `--force` (renomear preserva; nada e apagado).
+  Falhas de `os.replace` agora abortam com contexto do arquivo que
+  falhou — o estado resultante (arquivamento parcial, nada recriado)
+  e seguro.
+- **Materializacao defensiva** — `tuple(extra_allowed_roots)` tambem em
+  `_run_derivadas_sync_phase` e `_initialize_import_run_context`
+  (pontos multi-uso que hoje sempre recebem tuple, mas esgotariam um
+  gerador silenciosamente).
+- **Mensagem de `x` ao recuar para base com filtro inicial** — coberto
+  por commit anterior: distingue "pertence ao filtro base", "Filtro
+  atual: ..." e "Nenhum filtro restante".
+
+Decisoes registradas (nao aplicadas, por escopo):
+
+- Candidato criado em `_prepare_working_database_for_import` que falha
+  DEPOIS da criacao (ex.: integrity check) nao passa pelo cleanup do
+  pre-flight — mantido como evidencia diagnostica, mesmo criterio do
+  codigo existente para cancelamento.
+- `except Exception` remanescentes em `utils/remote_itaipu.py` sao de
+  loops de retry (semantica "tentar de novo qualquer erro"), mantidos.
+- `dev_env/streamlit_app.py` com paths digitados continua limitacao
+  conhecida (ver O9).
