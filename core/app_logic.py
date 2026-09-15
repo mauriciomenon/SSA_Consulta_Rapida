@@ -96,17 +96,6 @@ logger = logging.getLogger(__name__)
 
 QUERYABLE_FILTER_COLUMNS = frozenset(get_default_column_mappings())
 
-_DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
-    "ssa_table": """
-        SELECT COUNT(*)
-        FROM (
-            SELECT numero_ssa, derivada_de
-            FROM "ssa_table"
-            WHERE derivada_de IS NOT NULL
-            GROUP BY numero_ssa, derivada_de
-        ) AS db_edges
-    """,
-}
 _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE: dict[
     tuple[str, str, tuple[tuple[str, int, int], ...]], bool
 ] = {}
@@ -1462,10 +1451,6 @@ def _resolve_import_work_items(
         )
 
     discovery_settings = _load_import_discovery_settings()
-    upsert_policy = str(
-        discovery_settings.get("upsert_short_circuit_policy", "consulta_only")
-    )
-    database.configure_upsert_short_circuit_policy(upsert_policy)
 
     include_processadas = bool(discovery_settings.get("include_processadas", False))
     ignore_subdirs = list(discovery_settings.get("ignore_subdirs", []))
@@ -1799,11 +1784,17 @@ def _initialize_import_run_context(
         raise
 
     run_started_at = datetime.now()
+    # Cache por banco: bancos alternativos copiados para data/ nao podem
+    # herdar o file_cache de outro banco (um arquivo importado so no banco
+    # B seria pulado no diff do banco A). O nome canonico fica reservado
+    # ao banco padrao para preservar o contrato existente.
+    db_stem = Path(str(db_name)).stem
+    cache_name = "file_cache.json" if db_stem == "ssas" else f"file_cache.{db_stem}.json"
     return {
         "docs_dir_path": docs_dir_path,
         "data_dir_path": data_dir_path,
         "db_path": str(db_path_obj),
-        "cache_file": os.path.join(str(data_dir_path), "file_cache.json"),
+        "cache_file": os.path.join(str(data_dir_path), cache_name),
         "docs_dir": str(docs_dir_path),
         "data_dir": str(data_dir_path),
         "run_started_at": run_started_at,
@@ -2090,6 +2081,23 @@ def run_importer_logic(
     # The filelock singleton makes the inner per-connection locks reentrant.
     try:
         try:
+            # Resolve os itens de trabalho antes de criar o candidato:
+            # falhas aqui nao deixam artefatos orfaos no diretorio.
+            work_items = _resolve_import_work_items(
+                docs_dir=docs_dir,
+                docs_dir_path=docs_dir_path,
+                cache_file=cache_file,
+                force_import=force_import,
+                explicit_files=explicit_files,
+            )
+            ignored_legacy_excel_files = cast(
+                List[str],
+                work_items["ignored_legacy_excel_files"],
+            )
+            discovery_settings = cast(Dict[str, Any], work_items["discovery_settings"])
+            files_to_process = cast(List[str], work_items["files_to_process"])
+            derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
+
             # Registra se o candidato de full rescan ja existia: a limpeza do
             # pre-flight so pode remover um arquivo criado nesta rodada.
             candidate_preexisting = bool(
@@ -2108,20 +2116,6 @@ def run_importer_logic(
                 )
             )
 
-            work_items = _resolve_import_work_items(
-                docs_dir=docs_dir,
-                docs_dir_path=docs_dir_path,
-                cache_file=cache_file,
-                force_import=force_import,
-                explicit_files=explicit_files,
-            )
-            ignored_legacy_excel_files = cast(
-                List[str],
-                work_items["ignored_legacy_excel_files"],
-            )
-            discovery_settings = cast(Dict[str, Any], work_items["discovery_settings"])
-            files_to_process = cast(List[str], work_items["files_to_process"])
-            derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
             # Pre-flight: a fase de derivadas revalida db_path e planilhas de
             # forma isolada; rejeitar aqui evita gravacao parcial no banco.
             try:
@@ -2155,6 +2149,16 @@ def run_importer_logic(
                                 exc,
                             )
                 raise
+            # Politica de upsert e mutacao global de processo: so e aplicada
+            # depois que o pre-flight passou, para nao deixar residuo quando
+            # a rodada aborta antes de escrever qualquer dado.
+            database.configure_upsert_short_circuit_policy(
+                str(
+                    discovery_settings.get(
+                        "upsert_short_circuit_policy", "consulta_only"
+                    )
+                )
+            )
             import_batch_files = list(
                 dict.fromkeys([*files_to_process, *derivadas_sheet_files])
             )

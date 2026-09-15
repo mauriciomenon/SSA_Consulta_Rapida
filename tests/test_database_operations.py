@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from gui.ssa.database_operations import validate_database_candidate
 
@@ -132,6 +133,64 @@ def test_copy_database_into_data_dir_captures_wal_pending_commits(tmp_path):
 
     assert result["ok"] is True, result
     assert _read_rows(data_dir / "wal.db") == ["pendente"]
+
+
+def test_copy_database_into_data_dir_case_alias_source_is_noop(tmp_path):
+    """Em FS case-insensitive, data dir com case diferente nao deve
+    arquivar/destruir a propria origem (bug reproduzido em APFS)."""
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    data_dir = tmp_path / "Dados"
+    data_dir.mkdir()
+    src = _make_db(data_dir / "ssas.db", ["orig"])
+    alias_dir = tmp_path / "dados"
+    if not (alias_dir.exists() and alias_dir.samefile(data_dir)):
+        pytest.skip("filesystem diferencia maiusculas")
+    result = copy_database_into_data_dir(str(src), data_dir=str(alias_dir))
+    assert result["ok"] is True
+    assert result["copied"] is False
+    assert src.exists()
+    assert _read_rows(src) == ["orig"]
+
+
+def test_copy_database_into_data_dir_failed_copy_preserves_dest(tmp_path):
+    """Falha na copia nao pode remover nem arquivar o destino existente."""
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    dest = _make_db(data_dir / "x.db", ["antigo"])
+    bad_src = tmp_path / "bad.db"
+    bad_src.write_bytes(b"not a sqlite database at all")
+
+    result = copy_database_into_data_dir(str(bad_src), data_dir=str(data_dir))
+
+    assert result["ok"] is False
+    assert _read_rows(dest) == ["antigo"]
+    assert not list(data_dir.glob("*.bak-*"))
+    assert not list(data_dir.glob("*.copy-*"))
+
+
+def test_copy_database_into_data_dir_archives_orphan_dest_sidecars(tmp_path):
+    """dest-wal/-shm orfaos (sem o .db) nao podem contaminar o destino novo."""
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "x.db", ["novo"])
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "x.db-wal").write_text("wal orfao")
+    (data_dir / "x.db-shm").write_text("shm orfao")
+
+    result = copy_database_into_data_dir(str(src), data_dir=str(data_dir))
+
+    assert result["ok"] is True, result
+    assert result["archived"]
+    baks = sorted(p.name for p in data_dir.iterdir() if ".bak-" in p.name)
+    assert len(baks) == 2 and all(p.endswith(("-wal", "-shm")) for p in baks)
+    assert not (data_dir / "x.db-wal").exists()
+    assert _read_rows(data_dir / "x.db") == ["novo"]
 
 
 def test_copy_database_into_data_dir_rejects_non_sqlite_source(tmp_path):

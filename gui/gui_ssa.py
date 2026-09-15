@@ -5327,10 +5327,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 derivadas_state = self._get_derivadas_sync_state()
                 # Banco externo e copiado para data/ (snapshot consistente,
                 # origem intocada); banco ja dentro de data/ passa direto.
-                copy_result = ssa_database_operations.copy_database_into_data_dir(
-                    db_file,
-                    data_dir=os.path.join(project_root, "data"),
-                )
+                # No fluxo assincrono a copia ja ocorreu no worker; o
+                # caminho sincrono (testes) copia aqui.
+                copy_result = result.get("_copy_result")
+                if copy_result is None:
+                    copy_result = ssa_database_operations.copy_database_into_data_dir(
+                        db_file,
+                        data_dir=os.path.join(project_root, "data"),
+                    )
                 if not copy_result.get("ok"):
                     self._other_db_validation_running = False
                     ssa_app_menus.refresh_database_actions(self)
@@ -5368,7 +5372,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         if copy_result.get("archived"):
                             copy_note += (
                                 "\nO banco anterior em data/ foi preservado como "
-                                f"{os.path.basename(str(copy_result['archived']))}.*"
+                                f"{os.path.basename(str(copy_result['archived']))}"
+                                " (e eventuais arquivos -wal/-shm)."
                             )
                     QMessageBox.information(
                         self,
@@ -5477,6 +5482,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 nonlocal pending_result
                 try:
                     result = SSAMainWindow._validate_database_candidate(db_file)
+                    if bool(result.get("ok")):
+                        # A copia pode bloquear por segundos (I/O + locks do
+                        # SQLite); executa no worker para nao congelar a UI.
+                        result["_copy_result"] = (
+                            ssa_database_operations.copy_database_into_data_dir(
+                                db_file,
+                                data_dir=os.path.join(project_root, "data"),
+                            )
+                        )
                 except Exception as exc:
                     logger.exception(
                         "Falha inesperada na validacao de banco alternativo: %s",

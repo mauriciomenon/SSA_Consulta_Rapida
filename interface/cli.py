@@ -990,6 +990,15 @@ def _handle_remove_filter(
     if not any(t.lower() == remove_key for t in current_terms):
         print(f"O termo '{term_to_remove}' nao esta no filtro atual.")
         return
+    base_terms = list(results_stack[0][1] or [])
+    if any(t.lower() == remove_key for t in base_terms):
+        # Termo do filtro base nao e removivel: a entrada base seguiria
+        # aplicada e o topo exibiria um filtro que omite o termo real.
+        print(
+            f"O termo '{term_to_remove}' pertence ao filtro base; "
+            "nada a remover."
+        )
+        return
     remaining = [t for t in current_terms if t.lower() != remove_key]
     # O estado alvo e a entrada mais recente cujos termos equivalem ao filtro
     # resultante. Entradas de ordenacao repetem os termos do topo, entao um

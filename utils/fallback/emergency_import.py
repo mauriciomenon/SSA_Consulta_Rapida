@@ -85,10 +85,10 @@ def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
         # .db movido com WAL restante reaplicaria commits sobre o banco novo.
         for suffix in ("-wal", "-shm", ""):
             src = db_path + suffix
-            if not os.path.exists(src):
-                continue
             try:
                 os.replace(src, backup_path + suffix)
+            except FileNotFoundError:
+                continue
             except OSError as exc:
                 # Falha aqui aborta antes de criar o banco novo: o estado
                 # resultante (arquivamento parcial, nada recriado) e seguro.
@@ -112,6 +112,8 @@ def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
                 suffix = src[len(db_path) :]
                 try:
                     os.replace(src, backup_path + suffix)
+                except FileNotFoundError:
+                    continue
                 except OSError as exc:
                     raise OSError(
                         f"Falha ao arquivar sidecar orfao {src}: {exc}"

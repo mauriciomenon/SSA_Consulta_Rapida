@@ -740,7 +740,9 @@ def test_inno_excludes_preserve_nested_runtime_database_only_when_requested() ->
     runtime_excludes = create_distribution._build_inno_excludes_str(True).split(",")
 
     assert "data\\*" in default_excludes
-    assert "data\\*" not in runtime_excludes
+    # data\* segue excluido mesmo com runtime db: so ssas.db entra via
+    # linha Source dedicada; file_cache/historico_backups nao vazam.
+    assert "data\\*" in runtime_excludes
     assert "docs_entrada\\*" in runtime_excludes
 
 
@@ -1378,7 +1380,9 @@ def test_create_inno_setup_script_accepts_only_external_runtime_database(
 
     assert iss_path is not None
     content = iss_path.read_text(encoding="utf-8")
-    assert "data\\*" not in content
+    assert "data\\*" in content
+    assert 'Source: "{#SourceDir}\\data\\ssas.db"' in content
+    assert 'DestDir: "{app}\\data"' in content
     assert 'Parameters: "--gui --runtime-home"' in content
 
 

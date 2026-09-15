@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 def execute_vacuum_analyze(
@@ -75,7 +80,17 @@ def copy_database_into_data_dir(
             "error": f"falha ao preparar diretorio de dados: {exc}",
         }
     dest = dest_dir / src.name
-    if dest == src:
+    # Identidade precisa considerar aliases do filesystem: em volumes
+    # case-insensitive (APFS/NTFS padrao) "data" e "Data" resolvem para o
+    # mesmo inode, e a comparacao de strings deixaria a propria origem ser
+    # arquivada como destino antigo.
+    same_file = dest == src
+    if not same_file and dest.exists():
+        try:
+            same_file = os.path.samefile(dest, src)
+        except OSError:
+            same_file = False
+    if same_file:
         return {
             "ok": True,
             "db_file": str(src),
@@ -84,17 +99,68 @@ def copy_database_into_data_dir(
             "error": None,
         }
 
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    staged = dest.with_name(f"{dest.name}.copy-{timestamp}")
+
+    def _remove_staging() -> None:
+        for suffix in ("-wal", "-shm", ""):
+            partial = Path(f"{staged}{suffix}")
+            if partial.exists():
+                try:
+                    os.remove(partial)
+                except OSError as exc:
+                    logger.warning("Falha ao remover copia parcial %s: %s", partial, exc)
+
+    # Etapa 1: snapshot da origem no arquivo de staging. O destino nao e
+    # tocado nesta etapa, entao uma falha nao deixa o caminho sem banco.
+    try:
+        source_uri = src.as_uri() + "?mode=ro"
+        # URIs com authority (caminhos UNC -> file://servidor/...) sao
+        # rejeitadas pelo SQLite; nesse caso abre-se pelo caminho direto.
+        if urlparse(source_uri).netloc not in ("", "localhost"):
+            source_conn_ctx = closing(sqlite3.connect(str(src)))
+        else:
+            source_conn_ctx = closing(sqlite3.connect(source_uri, uri=True))
+        with source_conn_ctx as source_conn:
+            with closing(sqlite3.connect(str(staged))) as staged_conn:
+                source_conn.backup(staged_conn)
+    except (OSError, sqlite3.Error, ValueError) as exc:
+        _remove_staging()
+        return {
+            "ok": False,
+            "db_file": str(dest),
+            "copied": False,
+            "archived": None,
+            "error": f"falha ao copiar banco: {exc}",
+        }
+
+    # Etapa 2: arquiva o trio destino existente (WAL/ShM antes do .db, como
+    # no emergency_import; sidecars orfaos tambem sao arquivados). Se o
+    # arquivamento falhar no meio, o que ja foi movido e restaurado.
     archived_base: str | None = None
-    if dest.exists():
-        archived_base = f"{dest}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
-        # Mesma ordem segura do emergency_import: WAL/ShM antes do .db.
+    moved: list[tuple[str, str]] = []
+    dest_sidecars = [dest] + [Path(f"{dest}{s}") for s in ("-wal", "-shm")]
+    if any(p.exists() for p in dest_sidecars):
+        archived_base = f"{dest}.bak-{timestamp}"
         for suffix in ("-wal", "-shm", ""):
             stale = Path(f"{dest}{suffix}")
             if not stale.exists():
                 continue
+            target = f"{archived_base}{suffix}"
             try:
-                os.replace(stale, f"{archived_base}{suffix}")
+                os.replace(stale, target)
             except OSError as exc:
+                for orig, archived_name in reversed(moved):
+                    try:
+                        os.replace(archived_name, orig)
+                    except OSError as restore_exc:
+                        logger.error(
+                            "Falha ao restaurar %s de %s: %s",
+                            orig,
+                            archived_name,
+                            restore_exc,
+                        )
+                _remove_staging()
                 return {
                     "ok": False,
                     "db_file": str(dest),
@@ -102,31 +168,30 @@ def copy_database_into_data_dir(
                     "archived": archived_base,
                     "error": f"falha ao arquivar banco existente {stale}: {exc}",
                 }
+            moved.append((str(stale), target))
 
-    dest_created = False
+    # Etapa 3: promocao atomica do staging para o destino. Em falha, o
+    # trio arquivado e restaurado para manter o banco anterior utilizavel.
     try:
-        source_uri = src.as_uri() + "?mode=ro"
-        with sqlite3.connect(source_uri, uri=True) as source_conn:
-            with sqlite3.connect(str(dest)) as dest_conn:
-                dest_created = True
-                source_conn.backup(dest_conn)
-    except (OSError, sqlite3.Error, ValueError) as exc:
-        if dest_created or dest.exists():
-            # O destino neste path e produto desta chamada: a copia
-            # original foi arquivada acima ou nunca existiu.
-            for suffix in ("-wal", "-shm", ""):
-                partial = Path(f"{dest}{suffix}")
-                if partial.exists():
-                    try:
-                        os.remove(partial)
-                    except OSError:
-                        continue
+        os.replace(staged, dest)
+    except OSError as exc:
+        for orig, archived_name in reversed(moved):
+            try:
+                os.replace(archived_name, orig)
+            except OSError as restore_exc:
+                logger.error(
+                    "Falha ao restaurar %s de %s: %s",
+                    orig,
+                    archived_name,
+                    restore_exc,
+                )
+        _remove_staging()
         return {
             "ok": False,
             "db_file": str(dest),
             "copied": False,
             "archived": archived_base,
-            "error": f"falha ao copiar banco: {exc}",
+            "error": f"falha ao promover copia para {dest}: {exc}",
         }
 
     return {

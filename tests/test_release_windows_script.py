@@ -162,10 +162,9 @@ def test_release_windows_runtime_db_hash_compares_sqlite_snapshots_between_bundl
         "function Invoke-DistributionPackage",
     )
 
-    assert "$sourceHash" not in runtime_body
-    assert "$expectedRuntimeHash = $null" in runtime_body
-    assert "$expectedRuntimeHash = $runtimeHash['sha256']" in runtime_body
-    assert "Hash do banco de runtime diverge entre bundles" in runtime_body
+    assert "$sourceHash" in runtime_body
+    assert "$runtimeHash['sha256'] -ne $sourceHash" in runtime_body
+    assert "Hash do banco de runtime diverge da origem" in runtime_body
 
 
 def test_release_windows_smoke_uses_isolated_user_environment() -> None:

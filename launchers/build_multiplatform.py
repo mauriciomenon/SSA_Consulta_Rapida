@@ -66,14 +66,19 @@ class MultiPlatformBuilder:
 
         # Carregar versao
         self.version = self._load_version()
-        default_python = (
-            "cpython-3.13-windows-x86_64-none" if sys.platform == "win32" else "3.13"
-        )
-        self.runtime_python = os.environ.get("UV_PYTHON", default_python)
+        self.runtime_python = os.environ.get("UV_PYTHON")
         self.uv_cmd = shutil.which("uv") or "uv"
 
         logger.info(f"Iniciando build para SSA Consulta Rapida v{self.version}")
-        logger.info(f"Runtime Python padrao (uv): {self.runtime_python}")
+
+    def _python_spec_for(self, platform_name: str) -> str:
+        """Identificador uv do runtime Python adequado a plataforma alvo."""
+        if self.runtime_python:
+            return self.runtime_python
+        return {
+            "windows_amd64": "cpython-3.13-windows-x86_64-none",
+            "windows_arm64": "cpython-3.13-windows-aarch64-none",
+        }.get(platform_name, "3.13")
 
     @staticmethod
     def _run_command(cmd, *, timeout, cwd=None, capture_output=True, text=True):
@@ -394,7 +399,7 @@ VSVersionInfo(
             self.uv_cmd,
             "venv",
             "--python",
-            self.runtime_python,
+            self._python_spec_for(platform_name),
             str(venv_dir),
         ]
         result = self._run_command(cmd, timeout=600, capture_output=True, text=True)

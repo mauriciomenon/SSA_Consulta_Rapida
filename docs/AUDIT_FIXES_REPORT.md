@@ -1441,3 +1441,67 @@ Parse do ps1 verificado com pwsh.
 falhas, ~762s) rodou sobre o estado pos-O10, **antes** das mudancas
 de O11. O11 foi validado pelos testes focados acima; reexecucao da
 suite completa fica para o fechamento da rodada.
+
+### O12. Revisao externa do diff agregado (codex + CodeRabbit + bitoreview + Fusion)
+
+Quatro canais revisaram o diff completo `dev..devin_review` ou o commit
+`243c0b06`. Defeitos confirmados e corrigidos:
+
+- **Identidade por caixa (APFS/NTFS)**: `dest == src` por string nao
+  capturava `Dados/` vs `dados/`; a rotacao arquivava a **propria
+  origem**. Reproduzido pelo codex (`source_still_exists False`).
+  Corrigido com `os.path.samefile` quando o destino existe; teste de
+  regressao `test_copy_database_into_data_dir_case_alias_source_is_noop`.
+- **Substituicao nao atomica**: arquivar o destino antes do `backup()`
+  deixava o caminho sem banco em falha de I/O. Reescrito em 3 etapas:
+  backup para `*.copy-<ts>` (staging), arquivamento do trio com
+  rollback de movimentos parciais, promocao via `os.replace` com
+  restauracao dos `.bak` em falha. Teste `failed_copy_preserves_dest`.
+- **Freeze da GUI**: a copia rodava no event loop Qt (codex mediu
+  ~7s com 0 eventos de timer sob lock de escritor). Movida para dentro
+  do worker `_work` (`result["_copy_result"]`); `_finalize` consome o
+  resultado ou copia inline no caminho sincrono de testes.
+- **Conexoes abertas no cleanup**: `with sqlite3.connect` gerencia
+  transacao, nao fecha. Trocado por `contextlib.closing`.
+- **UNC**: `file://server/share` e rejeitado pelo SQLite
+  (`invalid uri authority`); fallback para `sqlite3.connect(str(src))`
+  quando a URI tem authority.
+- **Runtime Python no build arm64**: `runtime_python` era fixo
+  `x86_64` no Windows; agora `_python_spec_for(platform_name)` deriva
+  `cpython-3.13-windows-aarch64-none` para `windows_arm64`, mantendo
+  `UV_PYTHON` como override.
+- **`x <termo>` na base**: `remaining` sem casamento caia no fallback e
+  exibia "Removido" com o termo base ainda aplicado (Fusion #1/#2).
+  Guard `base_terms` recusa antes de qualquer mutacao.
+- **Politica de upsert residual**: `configure_upsert_short_circuit_policy`
+  era mutacao global dentro de `_resolve_import_work_items`; movida para
+  depois do pre-flight em `run_importer_logic` (Fusion #4).
+- **`file_cache.json` compartilhado**: bancos alternativos em `data/`
+  herdariam o cache de outro banco e pulariam arquivos nunca importados
+  nele. Agora `file_cache.<stem>.json` por banco; `ssas.db` mantem o
+  nome canonico (Fusion #5).
+- **Assert-RuntimeDatabase**: so comparava bundles entre si; agora
+  compara o hash com `data\ssas.db` de origem (Fusion #6).
+- **Prompt do instalador**: so aparece quando `pyinstaller` esta nos
+  backends e o build/package nao foram ambos pulados (Fusion #6).
+- **Assimetria instalador x ZIP**: `data\*` era removido do exclude Inno,
+  vazando `file_cache.json`/`historico_backups`; agora o exclude fica e
+  uma linha `[Files]` dedicada inclui so `data\ssas.db` (Fusion #7).
+- **TOCTOU no arquivamento**: `exists()` + `os.replace` virou
+  `os.replace` com `FileNotFoundError` -> continue (bitoreview).
+- **Constante morta**: `_DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE`
+  removida; a contagem real usa `count_distinct_derivada_edges`
+  (Fusion #10).
+
+**Decisoes mantidas**: `x` substitui o topo em vez de empilhar
+(`v` nao desfaz remocao — semantica consistente com V3); micro-janela
+SIGTERM entre `Popen` e `signal.signal` aceita (impraticavel);
+`x`/`ord`/`v` sem teste novo para o caminho de filtro base — gap de
+cobertura anotado.
+
+**Validacao O12**: reproducoes manuais (case-alias, falha preserva
+destino, staging/promocao, troca com .bak, UNC netloc, guard de
+filtro base, matriz do prompt ps1 em 7 cenarios pelo codex) +
+11 testes em `test_database_operations.py`, 46 em
+`test_create_distribution.py`, suite GUI 613 passaram, bateria
+focada 162 passaram. Suite completa em background no fechamento.
