@@ -55,7 +55,9 @@ _MAX_PARSE_CACHE_ENTRIES = 256
 _MAX_RESULTS_STACK_DEPTH = 100
 
 
-def _push_result_state(results_stack: list, entry) -> None:
+def _push_result_state(
+    results_stack: list, entry: Tuple["pd.DataFrame", List[str]]
+) -> None:
     """Empilha estado de resultado limitando a profundidade.
 
     Ao atingir o teto, descarta o item mais antigo apos a base (indice 0),

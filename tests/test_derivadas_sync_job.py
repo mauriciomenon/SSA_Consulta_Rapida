@@ -140,4 +140,6 @@ def test_derivadas_sync_job_forwards_extra_allowed_roots(
 
     assert result["ok"] is True
     assert len(captured) == 2
-    assert all(call.get("extra_allowed_roots") == roots for call in captured)
+    assert all(
+        list(call.get("extra_allowed_roots") or []) == roots for call in captured
+    )

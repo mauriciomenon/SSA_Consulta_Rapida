@@ -20,6 +20,12 @@ def execute_derivadas_sync_job(
     phase_callback: Callable[[str, dict[str, Any]], None] | None = None,
     extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
+    # Materializa: o valor alimenta duas fases de sync e a verificacao de
+    # consistencia; iteravel de uso unico esgotaria na primeira chamada.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
+
     def _emit_phase(name: str, **payload: Any) -> None:
         if callable(phase_callback):
             phase_callback(name, payload)

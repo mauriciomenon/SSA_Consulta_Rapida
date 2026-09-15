@@ -89,8 +89,10 @@ def launch_streamlit(
     try:
         if os.path.getsize(log_path) > _STREAMLIT_LOG_MAX_BYTES:
             os.replace(log_path, f"{log_path}.1")
-    except OSError:
+    except FileNotFoundError:
         pass
+    except OSError as exc:
+        print(f"Aviso: rotacao de {log_path} falhou ({exc}); log seguira em append")
 
     try:
         with open(log_path, "ab") as log_file:

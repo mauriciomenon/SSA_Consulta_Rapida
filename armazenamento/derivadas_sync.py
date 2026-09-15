@@ -1543,6 +1543,11 @@ def sync_derivadas(
 ) -> dict[str, Any]:
     """Run a full derivadas sync/validation cycle."""
 
+    # Materializa: iteraveis de uso unico (geradores) esgotariam na primeira
+    # validacao e rejeitariam caminhos autorizados nas seguintes.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     normalized_sheet_files: list[str] = []
     seen_sheet_files: set[str] = set()
     for candidate in [sheet_file] if sheet_file else []:
@@ -2074,6 +2079,9 @@ def self_heal_derivadas(
 ) -> dict[str, Any]:
     """Attempt self-healing by running sync only when scan indicates issues."""
 
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     before = scan_derivadas_consistency(
         db_path, extra_allowed_roots=extra_allowed_roots
     )
@@ -2117,6 +2125,9 @@ def run_derivadas_maintenance(
 ) -> dict[str, Any]:
     """Background-friendly maintenance trigger with interval guard."""
 
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     try:
         with _open_derivadas_read_connection(
             db_path, extra_allowed_roots=extra_allowed_roots

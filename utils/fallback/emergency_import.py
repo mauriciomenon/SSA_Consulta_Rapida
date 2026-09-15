@@ -78,8 +78,13 @@ def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
                 "Use --force para arquiva-lo como .bak antes de recriar."
             )
             return False
-        backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        os.replace(db_path, backup_path)
+        backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+        # Arquiva o trio SQLite junto: o WAL/ShM orfaos perderiam commits
+        # pendentes e poderiam ser aplicados sobre o banco recriado.
+        for suffix in ("", "-wal", "-shm"):
+            src = db_path + suffix
+            if os.path.exists(src):
+                os.replace(src, backup_path + suffix)
         print(f"Banco existente arquivado em {backup_path}")
 
     conn = sqlite3.connect(db_path)

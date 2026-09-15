@@ -1950,6 +1950,11 @@ def run_importer_logic(
     """
     logger.info("=== Iniciando processo de importacao ===")
 
+    # Materializa: o valor e reutilizado em varias validacoes ao longo do run;
+    # um iteravel de uso unico esgotaria na primeira e falharia nas seguintes.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     context = _initialize_import_run_context(
         docs_dir=docs_dir,
         data_dir=data_dir,

@@ -1268,3 +1268,41 @@ decisao de empacotamento, nao de corretude. Registrado como backlog.
   de relatorios (60 -> 50 mais recentes), `map_to_dataframe`.
 - `py_compile` e `ruff check` limpos em todos os arquivos alterados.
 - Nao executado: suite completa, scanners, validacao no pacote Windows.
+
+### O8. Revisao externa (rodada 2) - codex e bitoreview sobre o diff
+
+Revisao externa executada sobre `dev..devin_review` apos os testes de borda
+da rodada 1. Resultado: 2 defeitos reais introduzidos/encontrados foram
+corrigidos; demais apontamentos eram cosmeticos ou falsos positivos.
+
+- **[P1] `emergency_import --force` perdia commits do WAL**
+  (`utils/fallback/emergency_import.py`): renomear apenas `ssas.db`
+  deixava `ssas.db-wal`/`-shm` orfaos — commits pendentes se perdiam e o
+  WAL antigo poderia ser aplicado sobre o banco recriado. Corrigido: o
+  trio (`db`, `-wal`, `-shm`) e arquivado junto. Reproduzido com WAL
+  aberto: backup resultante abre com os dados preservados.
+- **[P2] `extra_allowed_roots` como `Iterable` esgotavel**
+  (`armazenamento/derivadas_sync.py`, `core/app_logic.py`,
+  `gui/ssa/derivadas_sync_job.py`): gerador passado pelo chamador era
+  consumido na primeira validacao e as seguintes recebiam o iterador
+  esgotado, rejeitando caminhos autorizados. Corrigido materializando em
+  `tuple(...)` nos pontos de entrada com multiplas validacoes:
+  `sync_derivadas`, `self_heal_derivadas`, `run_derivadas_maintenance`,
+  `execute_derivadas_sync_job` e `run_importer_logic`. Funcoes de uso
+  unico (scan/stats/pass-through) nao precisam.
+- **[LOW] bitoreview**: aplicados `entry: Tuple[pd.DataFrame, List[str]]`
+  em `_push_result_state` e aviso impresso quando a rotacao de
+  `streamlit.log` falha por erro real (FileNotFoundError segue esperado).
+  Nao aplicados (falsos positivos/cosmeticos): appends pos-`clear()` na
+  results_stack (profundidade 1, helper seria no-op), docstring do
+  parametro no job, nome de helper no CLI.
+- Bug de borda proprio encontrado na rodada 1: dois `--force` no mesmo
+  segundo colidiam no `.bak-<timestamp>`; timestamp agora inclui
+  microssegundos.
+
+**Suite completa** executada nesta rodada: **2777 passaram, 1 falhou** —
+`test_code_quality_documents_dynamic_dependency_submission_status`, que e
+**falha pre-existente em `dev`** (o teste exige frase em ingles e o
+`.github/CODE_QUALITY.md` esta em portugues desde antes do branch;
+conteudo identico nos dois branches). Nao corrigida por estar fora do
+escopo; requer decisao sobre qual lado do contrato prevalece.
