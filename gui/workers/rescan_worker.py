@@ -3,7 +3,6 @@
 
 import logging
 import sqlite3
-import sys
 import threading
 from dataclasses import replace
 from datetime import datetime
@@ -52,15 +51,6 @@ except Exception:
     pyqtSignal = cast(Any, _fallback_pyqt_signal)
     QThread = cast(Any, _FallbackQThread)
 
-
-# Add project root to path for imports
-def _get_project_root() -> str:
-    return str(Path(__file__).resolve().parents[2])
-
-
-project_root = _get_project_root()
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 
 from utils.path_safety import ensure_path_is_allowed  # noqa: E402
 from utils.robust_logging import get_robust_logger  # noqa: E402

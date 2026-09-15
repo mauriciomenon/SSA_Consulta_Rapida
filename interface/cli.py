@@ -19,10 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import pandas as pd
 
-# Adiciona o diretório raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 
 # Importações relativas
 from armazenamento.database import get_ssa_query, query_db

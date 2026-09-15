@@ -812,6 +812,44 @@ def _normalize_render_stats(raw_stats: Any) -> dict[str, dict[str, Any]]:
     return normalized
 
 
+def _append_extra_allowed_root(root: Path) -> None:
+    """Registra uma raiz extra autorizada pela escolha explicita do usuario.
+
+    Usa SSA_EXTRA_ALLOWED_PATHS: a decisao do usuario na UI tem a mesma
+    semantica do --db no CLI (o diretorio de um caminho explicito passa a
+    ser autorizado). get_allowed_roots() rele a variavel a cada chamada,
+    entao nenhum outro ponto precisa ser tocado.
+    """
+    root_str = str(root)
+    current = [
+        entry.strip()
+        for entry in os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "").split(os.pathsep)
+        if entry.strip()
+    ]
+    if root_str not in current:
+        current.append(root_str)
+        os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(current)
+        path_safety_module.refresh_allowed_roots()
+
+
+def _resolve_user_source_path(
+    raw_path: str, *, purpose: str, expect_directory: bool
+) -> str:
+    """Valida um caminho digitado na UI, autorizando a pasta escolhida."""
+    candidate = Path(raw_path.strip()).expanduser()
+    if not candidate.is_absolute():
+        candidate = project_root / candidate
+    candidate = candidate.resolve()
+    _append_extra_allowed_root(candidate if expect_directory else candidate.parent)
+    return str(
+        ensure_path_is_allowed(
+            candidate,
+            purpose=purpose,
+            expect_directory=expect_directory,
+        )
+    )
+
+
 def _resolve_streamlit_ui_state_path() -> Path:
     cfg_dir_raw = os.environ.get("SSA_CONFIG_DIR", "config")
     try:
@@ -2038,19 +2076,15 @@ if REAL_RUNTIME:
     db_path_candidate = str(source_state.get("db_path", DB_PATH_DEFAULT))
     docs_dir_candidate = str(source_state.get("docs_dir", DOCS_DIR_DEFAULT))
     try:
-        db_path = str(
-            ensure_path_is_allowed(
-                db_path_candidate,
-                purpose="Arquivo do banco",
-                expect_directory=False,
-            )
+        db_path = _resolve_user_source_path(
+            db_path_candidate,
+            purpose="Arquivo do banco",
+            expect_directory=False,
         )
-        docs_dir = str(
-            ensure_path_is_allowed(
-                docs_dir_candidate,
-                purpose="Pasta com planilhas",
-                expect_directory=True,
-            )
+        docs_dir = _resolve_user_source_path(
+            docs_dir_candidate,
+            purpose="Pasta com planilhas",
+            expect_directory=True,
         )
     except PathSafetyError:
         db_path = DB_PATH_DEFAULT
@@ -3373,19 +3407,15 @@ if REAL_RUNTIME and not raw_df.empty:
                 )
                 if apply_source:
                     try:
-                        resolved_db = str(
-                            ensure_path_is_allowed(
-                                source_db_input,
-                                purpose="Arquivo do banco",
-                                expect_directory=False,
-                            )
+                        resolved_db = _resolve_user_source_path(
+                            source_db_input,
+                            purpose="Arquivo do banco",
+                            expect_directory=False,
                         )
-                        resolved_docs = str(
-                            ensure_path_is_allowed(
-                                source_docs_input,
-                                purpose="Pasta com planilhas",
-                                expect_directory=True,
-                            )
+                        resolved_docs = _resolve_user_source_path(
+                            source_docs_input,
+                            purpose="Pasta com planilhas",
+                            expect_directory=True,
                         )
                         st.session_state["streamlit_source_state"] = {
                             "db_path": resolved_db,

@@ -37,6 +37,29 @@ def _install_sigterm_handler() -> None:
         pass
 
 
+def _block_sigterm():
+    """Bloqueia SIGTERM nesta thread (POSIX) e retorna a mascara anterior.
+
+    Sem pthread_sigmask (Windows), retorna None: a janela residual e
+    tratada pelo handler instalado antes do Popen.
+    """
+    mask = getattr(signal, "pthread_sigmask", None)
+    if not callable(mask):
+        return None
+    try:
+        return mask(signal.SIG_BLOCK, [signal.SIGTERM])
+    except (OSError, ValueError):
+        return None
+
+
+def _restore_sigterm_mask(old_mask) -> None:
+    if old_mask is None:
+        return
+    mask = getattr(signal, "pthread_sigmask", None)
+    if callable(mask):
+        mask(signal.SIG_SETMASK, old_mask)
+
+
 def wait_for_streamlit() -> None:
     """Bloqueia ate o processo Streamlit mais recente encerrar.
 
@@ -121,15 +144,21 @@ def launch_streamlit(
         print(f"Aviso: rotacao de {log_path} falhou ({exc}); log seguira em append")
 
     try:
-        with open(log_path, "ab") as log_file:
-            process = subprocess.Popen(
-                cmd, stdout=log_file, stderr=log_file, cwd=project_root
-            )
-        _prune_streamlit_processes()
-        _STREAMLIT_PROCESSES.append(process)
-        # Instalado no launch (nao so no wait) para fechar a janela em que
-        # um SIGTERM entre o Popen e o wait deixaria o filho orfao.
+        # Handler antes do Popen: cobre a janela entre o append e o wait.
         _install_sigterm_handler()
+        # SIGTERM bloqueado ate o filho estar rastreado: um sinal nesse
+        # intervalo fica pendente e dispara o handler apos o desbloqueio,
+        # com o processo ja em _STREAMLIT_PROCESSES.
+        old_mask = _block_sigterm()
+        try:
+            with open(log_path, "ab") as log_file:
+                process = subprocess.Popen(
+                    cmd, stdout=log_file, stderr=log_file, cwd=project_root
+                )
+            _prune_streamlit_processes()
+            _STREAMLIT_PROCESSES.append(process)
+        finally:
+            _restore_sigterm_mask(old_mask)
         display_port = port or 8501
         print(f"Origem do launcher Streamlit: {launcher_source}")
         print(

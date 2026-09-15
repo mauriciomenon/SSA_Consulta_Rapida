@@ -517,16 +517,121 @@ def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> 
     assert sync_materialized is False
     assert blocking_error is True
     assert synced_files == []
-    assert critical_errors == [("derivadas_sync", "/tmp/docs", "sync down")]
+    assert len(critical_errors) == 1
+    error_type, error_path, error_message = critical_errors[0]
+    assert error_type == "derivadas_sync"
+    assert error_path == "/tmp/docs"
+    assert error_message.startswith("sync down")
+    assert "dados importados" in error_message
     assert progress_events == [
         (
             "file_error",
             {
                 "filename": "SSAs Derivadas e Relacionadas",
-                "error": "sync down",
+                "error": error_message,
             },
         )
     ]
+
+
+def test_common_rescan_sync_failure_keeps_imports_and_reverts_derivadas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """N5.2: no rescan comum (sem candidato), falha nao-caminho no sync de
+    derivadas desfaz apenas as escritas de derivadas; os dados importados no
+    banco primario permanecem commitados."""
+    import sqlite3
+
+    import armazenamento.derivadas_sync as derivadas_sync_module
+    import core.app_logic as app_logic
+    from armazenamento import database
+
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    regular = docs_dir / "Consulta SSA - 13-02-2026_0121PM.xlsx"
+    regular.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = str(data_dir / "test.db")
+    assert database.initialize_database(db_path)
+
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
+    _patch_integrity_ok(monkeypatch)
+
+    monkeypatch.setattr(
+        app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)]
+    )
+
+    def _fake_import(
+        file_path: str, working_db: str, table_name: str, *args, **kwargs
+    ):
+        with sqlite3.connect(working_db) as conn:
+            conn.executemany(
+                f"INSERT INTO {table_name} "
+                "(numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+                [
+                    ("202500001", None, "SSA pai"),
+                    ("202500002", "202500001", "SSA filha"),
+                ],
+            )
+            conn.commit()
+        metrics_out = kwargs.get("_metrics_out")
+        assert isinstance(metrics_out, dict)
+        metrics_out.update({"counts": {"ssa_inserted": 2, "ssa_updated": 0}})
+        return True, 2
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _fake_import)
+
+    def _raise_on_summary(*args, **kwargs):
+        raise RuntimeError("forced summary failure")
+
+    monkeypatch.setattr(
+        derivadas_sync_module, "_replace_summary", _raise_on_summary
+    )
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is False
+
+    with sqlite3.connect(db_path) as conn:
+        imported_rows = conn.execute(
+            "SELECT COUNT(*) FROM ssa_table"
+        ).fetchone()[0]
+        matrix_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix"
+        ).fetchone()[0]
+        closure_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_closure"
+        ).fetchone()[0]
+        summary_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_summary"
+        ).fetchone()[0]
+        source_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_source"
+        ).fetchone()[0]
+        latest_run = conn.execute(
+            """
+            SELECT status FROM ssa_derivada_sync_run
+            ORDER BY sync_run_id DESC LIMIT 1
+            """
+        ).fetchone()
+
+    assert imported_rows == 2
+    assert matrix_total == 0
+    assert closure_total == 0
+    assert summary_total == 0
+    assert source_total == 0
+    assert latest_run == ("error",)
 
 
 def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges(

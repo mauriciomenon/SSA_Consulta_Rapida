@@ -19,7 +19,6 @@ import logging
 import os
 import re
 import sqlite3
-import sys
 import time
 from datetime import datetime
 from enum import Enum
@@ -28,11 +27,9 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, cast
 
 import pandas as pd
 
-# Adiciona o diretorio raiz do projeto ao sys.path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-project_root_path = Path(project_root)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+project_root_path = Path(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 from armazenamento import database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
@@ -1227,6 +1224,11 @@ def _run_optional_derivadas_sync(
             )
             if missing_files:
                 error_message += f" | files_without_evidence={','.join(missing_files)}"
+            error_message += (
+                " | Dados importados preservados; a verificacao de evidencias"
+                " falhou apos o sync. O sync e refeito automaticamente no"
+                " proximo rescan."
+            )
             critical_errors.append(("derivadas_sync", docs_dir, error_message))
             emit_progress(
                 "file_error",
@@ -1249,10 +1251,14 @@ def _run_optional_derivadas_sync(
             exc,
             exc_info=True,
         )
-        critical_errors.append(("derivadas_sync", docs_dir, str(exc)))
+        error_message = (
+            f"{exc} | Alteracoes de derivadas revertidas; dados importados"
+            " preservados. O sync e refeito automaticamente no proximo rescan."
+        )
+        critical_errors.append(("derivadas_sync", docs_dir, error_message))
         emit_progress(
             "file_error",
-            {"filename": "SSAs Derivadas e Relacionadas", "error": str(exc)},
+            {"filename": "SSAs Derivadas e Relacionadas", "error": error_message},
         )
     return sync_materialized, derivadas_sync_blocking_error, synced_success_files
 
@@ -2277,7 +2283,9 @@ def run_importer_logic(
             if derivadas_sync_blocking_error:
                 logger.error(
                     "Importacao concluida com falha bloqueante de integridade em derivadas. "
-                    "Cache nao sera atualizado nesta execucao."
+                    "As alteracoes de derivadas foram revertidas; os dados ja"
+                    " importados foram preservados. O cache nao sera atualizado"
+                    " nesta execucao; o proximo rescan refaz o sync."
                 )
                 return _finalize_and_return(
                     False,

@@ -87,6 +87,21 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: D401
         shutil.rmtree(_TEST_SSA_CONFIG_DIR, ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def _resync_path_safety_roots() -> Iterator[None]:
+    """Re-sincroniza utils.path_safety apos cada teste.
+
+    Testes que alteram SSA_EXTRA_ALLOWED_PATHS via monkeypatch deixam
+    _ALLOWED_ROOTS_ENV_VALUE stale; sem refresh, a proxima chamada a
+    get_allowed_roots() reconstruiria ALLOWED_ROOTS e anularia o
+    monkeypatch.setattr(ALLOWED_ROOTS, ...) do teste seguinte.
+    """
+    yield
+    from utils import path_safety
+
+    path_safety.refresh_allowed_roots()
+
+
 @pytest.fixture(scope="function")
 def temp_db() -> Iterator[str]:
     """Fornece caminho para DB SQLite temporário com schema aplicado."""
