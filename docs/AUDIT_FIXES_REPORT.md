@@ -1745,3 +1745,38 @@ Auditoria do fluxo de importacao concluida nesta frente:
 Validacao: ruff limpo; testes focados (derivadas trigger 21, promotion
 gate, outcome isolation, run report, cancellation, rescan workers,
 rotation) verdes; suite completa anterior 3012/0 falhas.
+
+### O17. Rodada 8 - exportadores standalone e injecao de formula no TSV da GUI
+
+Inventario real dos exportadores standalone (todos integrados):
+
+- `exportacao/exporter.py` — exportador multi-formato do CLI
+  (`interface/cli.py:658`): CSV+XLSX+JSON com sanitizacao anti-injecao
+  de formula, validacao de basename e confinamento ao diretorio de
+  saida. Sanitizadores reutilizados pelo `streamlit_app.py`.
+- `gui/ssa/list_exporter.py` + `list_export_controller.py` +
+  `workers/list_export_worker.py` — "Exportar lista" da GUI (TSV):
+  QThread com escrita atomica (temp + `os.replace`), cancel antes de
+  publicar, lock de estado, deleteLater no finished.
+- `gui/ssa/details_graph_export.py` — export do grafo de derivadas no
+  dialogo de detalhes (PNG/SVG/Mermaid gerados internamente).
+- `armazenamento/derivadas_sync.py` — relatorios de derivadas
+  (JSON/CSV/TSV), ja verificados na O16.
+
+Achado corrigido:
+
+- **TSV da GUI sem sanitizacao de formula**: `write_prepared_list_tsv`
+  gravava `to_csv` direto, enquanto o exportador CLI neutraliza celulas
+  iniciadas por `= + - @` ou controles (`\t\r\n`). Como os dados vem de
+  planilhas importadas, um xlsx com `=cmd|...` virava payload no TSV
+  aberto no Excel. Aplicado `sanitize_spreadsheet_dataframe` no ponto
+  unico de gravacao — verificado empiricamente: `=cmd|' /C calc'!A0`
+  sai como `'=cmd|...` e `\t=1+1` como `'\t=1+1`.
+
+Residual aceito (nao alterado): `_write_text_export` do grafo escreve
+direto sem temp+replace — falha deixaria arquivo truncado no destino
+escolhido pelo usuario; risco baixo e sem dados sensiveis.
+
+Validacao: ruff limpo; test_list_exporter + test_exporter +
+test_gui_details_graph_export verdes; verificacao manual de payload
+malicioso neutralizado no TSV.

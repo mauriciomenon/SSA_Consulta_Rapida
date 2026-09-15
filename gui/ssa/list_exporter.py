@@ -8,6 +8,7 @@ from typing import Callable
 
 import pandas as pd
 
+from exportacao.exporter import sanitize_spreadsheet_dataframe
 from utils.formatting import format_dataframe_for_display
 
 
@@ -53,6 +54,9 @@ def write_prepared_list_tsv(
         raise ValueError("No data to export")
     export_path = str(Path(path).expanduser())
     formatted_df = formatter(dataframe)
+    # Neutraliza injecao de formula como no exportador CLI (celulas vindas
+    # de planilhas importadas podem comecar com = + - @ ou controles).
+    formatted_df = sanitize_spreadsheet_dataframe(formatted_df)
     formatted_df.to_csv(export_path, sep="\t", index=False)
     return ListExportResult(
         path=export_path,
