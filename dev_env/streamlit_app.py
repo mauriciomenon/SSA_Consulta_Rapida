@@ -812,6 +812,14 @@ def _normalize_render_stats(raw_stats: Any) -> dict[str, dict[str, Any]]:
     return normalized
 
 
+def _read_extra_allowed_roots() -> list[str]:
+    return [
+        entry.strip()
+        for entry in os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "").split(os.pathsep)
+        if entry.strip()
+    ]
+
+
 def _append_extra_allowed_root(root: Path) -> None:
     """Registra uma raiz extra autorizada pela escolha explicita do usuario.
 
@@ -821,33 +829,84 @@ def _append_extra_allowed_root(root: Path) -> None:
     entao nenhum outro ponto precisa ser tocado.
     """
     root_str = str(root)
-    current = [
-        entry.strip()
-        for entry in os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "").split(os.pathsep)
-        if entry.strip()
-    ]
+    if os.pathsep in root_str:
+        # Um separador de lista dentro do nome corromperia o parsing do
+        # allowlist e poderia autorizar raizes nao pretendidas.
+        raise PathSafetyError(
+            f"raiz '{root_str}' contem separador de lista ({os.pathsep!r})"
+        )
+    current = _read_extra_allowed_roots()
     if root_str not in current:
         current.append(root_str)
         os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(current)
         path_safety_module.refresh_allowed_roots()
 
 
+def _remove_extra_allowed_root(root: Path) -> None:
+    """Desfaz uma autorizacao concedida por _append_extra_allowed_root."""
+    root_str = str(root)
+    current = _read_extra_allowed_roots()
+    if root_str in current:
+        current.remove(root_str)
+        if current:
+            os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(current)
+        else:
+            os.environ.pop("SSA_EXTRA_ALLOWED_PATHS", None)
+        path_safety_module.refresh_allowed_roots()
+
+
 def _resolve_user_source_path(
     raw_path: str, *, purpose: str, expect_directory: bool
 ) -> str:
-    """Valida um caminho digitado na UI, autorizando a pasta escolhida."""
+    """Valida um caminho digitado na UI.
+
+    Tenta primeiro a validacao padrao: caminhos ja cobertos pelas raizes
+    permitidas passam sem ampliar o allowlist. So um caminho externo
+    existente dispara a autorizacao explicita (mesma semantica do --db no
+    CLI) — e ela e revogada se a validacao final falhar, para que uma
+    tentativa malsucedida nao deixe raiz residual no processo.
+    """
     candidate = Path(raw_path.strip()).expanduser()
     if not candidate.is_absolute():
         candidate = project_root / candidate
     candidate = candidate.resolve()
-    _append_extra_allowed_root(candidate if expect_directory else candidate.parent)
-    return str(
-        ensure_path_is_allowed(
-            candidate,
-            purpose=purpose,
-            expect_directory=expect_directory,
+    try:
+        return str(
+            ensure_path_is_allowed(
+                candidate,
+                purpose=purpose,
+                expect_directory=expect_directory,
+            )
         )
-    )
+    except PathSafetyError:
+        pass  # caminho externo: segue para a autorizacao explicita abaixo
+
+    # Restringe a caminhos existentes: digitar um path inexistente nao
+    # pode servir para ampliar o allowlist.
+    if not candidate.exists():
+        raise PathSafetyError(f"{purpose}: '{candidate}' nao existe.")
+    if expect_directory and not candidate.is_dir():
+        raise PathSafetyError(
+            f"{purpose}: '{candidate}' precisa ser um diretorio."
+        )
+    if not expect_directory and candidate.is_dir():
+        raise PathSafetyError(
+            f"{purpose}: '{candidate}' deve ser um arquivo, nao um diretorio."
+        )
+
+    root = candidate if expect_directory else candidate.parent
+    _append_extra_allowed_root(root)
+    try:
+        return str(
+            ensure_path_is_allowed(
+                candidate,
+                purpose=purpose,
+                expect_directory=expect_directory,
+            )
+        )
+    except Exception:
+        _remove_extra_allowed_root(root)
+        raise
 
 
 def _resolve_streamlit_ui_state_path() -> Path:

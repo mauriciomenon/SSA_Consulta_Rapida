@@ -26,7 +26,7 @@ def test_launch_streamlit_prefers_current_python_module(
         def terminate(self):
             return None
 
-    def fake_popen(cmd, stdout, stderr, cwd):
+    def fake_popen(cmd, stdout, stderr, cwd, **_kwargs):
         captured["cmd"] = cmd
         captured["cwd"] = cwd
         captured["log_path"] = stdout.name
@@ -62,6 +62,7 @@ def test_launch_streamlit_prefers_current_python_module(
         "run",
         str(script_path),
         "--server.headless=true",
+        "--server.address=127.0.0.1",
         "--server.port=8765",
     ]
 
@@ -98,7 +99,7 @@ def test_launch_streamlit_falls_back_to_path_when_module_missing(
     class DummyProcess:
         pid = 12345
 
-    def fake_popen(cmd, stdout, stderr, cwd):
+    def fake_popen(cmd, stdout, stderr, cwd, **_kwargs):
         captured["cmd"] = cmd
         captured["cwd"] = cwd
         return DummyProcess()
@@ -122,6 +123,7 @@ def test_launch_streamlit_falls_back_to_path_when_module_missing(
         "run",
         str(script_path),
         "--server.headless=true",
+        "--server.address=127.0.0.1",
         "--server.port=8765",
     ]
 

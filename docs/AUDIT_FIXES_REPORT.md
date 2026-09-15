@@ -1349,12 +1349,27 @@ Achados confirmados e corrigidos nesta rodada:
   arquivo existente no path), com log em falhas de remocao e `raise`
   preservando `PathSafetyError` → `ImporterError`.
 
-Proposta **adiada por decisao de escopo** (veredito codex: flawed):
-autorizar caminhos digitados na UI Streamlit (`dev_env/streamlit_app.py`).
-A correcao parcial seria incompleta — `get_filtered_data` e
-`import_files_to_database` revalidam sem raizes — e o perfil de
-confianca de caminho digitado em UI web difere do CLI local. Registrado
-como limitacao conhecida para a rodada futura de paths externos.
+**[IMPLEMENTADO nesta rodada, com endurecimento]** — a proposta de
+autorizar caminhos digitados na UI Streamlit foi retomada a pedido do
+usuario (o Streamlit e prova de conceito, loopback-only). A
+implementacao final difere da versao rejeitada pelo codex:
+
+- validacao padrao roda **antes** de qualquer autorizacao — caminhos ja
+  cobertos pelas raizes nao ampliam o allowlist;
+- so caminho externo **existente** e do **tipo esperado** (arquivo vs
+  diretorio) dispara a autorizacao explicita — digitar path inexistente
+  nao serve para widar;
+- a autorizacao e **revogada** se a validacao final falhar — nenhuma raiz
+  residual fica no processo apos erro;
+- raiz contendo `os.pathsep` e rejeitada (corromperia o parsing do
+  allowlist);
+- o launcher fixa `--server.address=127.0.0.1`, pois a autorizacao e
+  process-global e vale para qualquer cliente que alcance a porta.
+
+Limite assumido (documentado): a autorizacao cobre o diretorio do
+arquivo escolhido (mesma semantica do `--db` no CLI) e e global ao
+processo do servidor Streamlit — aceitavel para PoC em loopback, nao
+para exposicao em rede.
 
 **Validacao desta rodada**: 167 testes focados aprovados; reproducoes
 manuais dos 9 cenarios de `x`/`ord`, do trio WAL, do handler SIGTERM
@@ -1505,3 +1520,82 @@ filtro base, matriz do prompt ps1 em 7 cenarios pelo codex) +
 11 testes em `test_database_operations.py`, 46 em
 `test_create_distribution.py`, suite GUI 613 passaram, bateria
 focada 162 passaram. Suite completa em background no fechamento.
+
+### O13. Revisao externa (rodada 4) - z.ai glm-5.3 + glm-5.3-flash + OMP + CodeRabbit
+
+Quatro reviews sobre o diff `dev..devin_review` no commit `ff3beb1e`.
+Achados validados contra o codigo e corrigidos:
+
+- **[SEVERO, glm-flash + CodeRabbit] mascara SIGTERM herdada pelo filho**:
+  `_block_sigterm` + `Popen` sem restore deixava o Streamlit nascer com
+  SIGTERM bloqueado — `terminate()` ficava pendente para sempre. Corrigido
+  com `preexec_fn` que restaura a mascara original no filho antes do exec
+  (so em POSIX; Windows nao recebe o kwarg).
+- **[SEVERO, glm-5.3 + OMP + CodeRabbit] autorizacao antes de validar no
+  Streamlit**: `_resolve_user_source_path` acrescentava a raiz ao
+  allowlist ANTES de `ensure_path_is_allowed` — falhas deixavam a raiz
+  autorizada permanentemente, e paths inexistentes tambem widiavam.
+  Reescrito: validacao padrao primeiro (paths ja cobertos nao ampliam),
+  so path externo **existente** e de **tipo correto** autoriza, com
+  **revogacao** se a validacao final falhar; raiz com `os.pathsep`
+  rejeitada; launcher agora fixa `--server.address=127.0.0.1`.
+- **[MEDIA, OMP] regressao: `x` recusava termos do usuario apos refresh**
+  de filtros. O refresh colapsava base+usuario numa unica entrada, e
+  `results_stack[0][0]` passava a ser o df ja filtrado — remover um termo
+  seria recusado ou refiltraria sobre frame filtrado. Corrigido: refresh
+  mantem base e topo em entradas separadas quando ha termos preservados.
+- **[MEDIA, OMP] mensagem afirmava rollback inexistente**: o `except` de
+  `_run_optional_derivadas_sync` cobre tambem falhas pos-commit (scan de
+  consistencia). Agora a excecao vinda de dentro do `sync_derivadas`
+  transacional e marcada (`_derivadas_sync_rolled_back`) e a mensagem so
+  afirma "revertidas" nesse caso; o resumo de run deixou de afirmar
+  rollback incondicional.
+- **[MEDIA, CodeRabbit] colisao de stem no file_cache**: `archive.db` e
+  `archive.sqlite` mapeavam para o mesmo `file_cache.archive.json`. O
+  cache agora usa o nome completo do arquivo (`file_cache.<nome>.json`);
+  `ssas.db` (case-insensitive) mantem o nome canonico.
+- **[MEDIA, glm-flash] file_cache.<nome>.json fora do cleanup de build**:
+  `build_multiplatform.py` so conhecia o nome literal; globs ampliados
+  para `file_cache*.json`. O ZIP/instalador seguem cobertos pelo exclude
+  `data\*` + linha dedicada a `ssas.db`.
+- **[MEDIA, glm-flash] terminate() sem wait/kill**: `_terminate_process`
+  agora faz `terminate()` + `wait(timeout=5)` + `kill()` de reforco,
+  evitando zombie e filho que ignore SIGTERM.
+- **[MEDIA, glm-flash] handler SIGTERM nunca restaurado**:
+  `wait_for_streamlit` salva o handler anterior e o restaura quando nao
+  restam filhos rastreados.
+- **[BAIXA] `-journal` no cleanup de pre-flight** (`app_logic`) e no
+  arquivamento/restore da copia (`database_operations`) — paridade com o
+  emergency_import.
+- **[BAIXA] fallback de interprete**: `_python_specs_for` retorna a cadeia
+  3.13→3.12→3.11→3.10 por plataforma e `uv venv` tenta em ordem
+  (politica do repositorio); `runtime_python` explicito segue override
+  unico.
+- **[BAIXA] eviction da pilha CLI** liberava entrada sem
+  `_release_pagination_state` — corrigido em `_push_result_state`.
+- **[BAIXA] branch morta** em `_handle_remove_filter` removida
+  (`popped_any` era sempre True no path).
+- **[BAIXA] OSError silencioso** na poda de `import_run_*.json` e no
+  mapeamento DataFrame remoto (`remote_itaipu`) — agora `logger.warning`.
+- **[BAIXA] race staging/timeout**: `_poll_delivery` agora invalida o
+  `request_id` no timeout e na morte da janela — um staging que termine
+  tarde e descartado pelo proprio worker em vez de vazar `.copy-*` ou ser
+  promovido apos o timeout declarado (teste de regressao:
+  `test_other_db_timeout_discards_late_staging`, red/green verificado).
+- **[BAIXA] fixture conftest mascarava a classe de bug**: adicionado
+  teste direcionado `test_get_allowed_roots_tracks_env_var_changes`
+  provando o mecanismo de refresh por env.
+
+**Decisoes mantidas**: `preexec_fn` retido (mecanismo documentado para
+restaurar mascara no filho; a funcao e uma unica syscall; unico chamador
+e a main thread — documentado); `--streamlit` bloqueante e intencional
+(o pai precisa viver para encerrar o filho no CTRL+C; nenhum script do
+repo depende do retorno imediato); exposicao Streamlit limitada a
+loopback por `--server.address=127.0.0.1`.
+
+**Ferramentas indisponiveis nesta rodada**: codex (usage limit), grok
+(free-tier limit), pi (connection error), cursor-agent (exige trust
+interativo; retry silencioso), hermes (2 processos disparados, sem
+output ao fechamento). bitoreview rodou 2x sobre o diff: 6+10 achados,
+todos LOW/cosmeticos exceto um MEDIUM vago sobre UNC ja coberto pelo
+fallback de netloc.

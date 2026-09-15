@@ -194,7 +194,7 @@ def map_to_dataframe(items: Iterable[Dict[str, Any]]):
             df = df.rename(columns=cols)
         return df
     except (ImportError, ValueError, TypeError, AttributeError) as exc:
-        logger.debug("Falha ao mapear resposta para DataFrame: %s", exc)
+        logger.warning("Falha ao mapear resposta para DataFrame: %s", exc)
         return None
 
 

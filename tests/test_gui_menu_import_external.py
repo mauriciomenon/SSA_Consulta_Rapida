@@ -929,6 +929,30 @@ def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, op
             "error": None,
         },
     )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations,
+        "stage_database_copy",
+        lambda _src, _dest: {
+            "ok": True,
+            "staged": str(tmp_path / "candidate.staged"),
+            "dest": str(copied_candidate),
+            "db_file": str(copied_candidate),
+            "copied": True,
+            "archived": None,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations,
+        "commit_staged_database_copy",
+        lambda _staged, _dest: {
+            "ok": True,
+            "db_file": str(copied_candidate),
+            "copied": True,
+            "archived": None,
+            "error": None,
+        },
+    )
     window = SimpleNamespace(status_label=_DummyLabel(), _get_derivadas_sync_state=get_state,
                              load_data=reload)
     execute = getattr(gui_ssa.SSAMainWindow, operation)
@@ -954,3 +978,83 @@ def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, op
     getattr(window, prefix + "_thread").alive = False
     scheduled.pop(0)()
     assert outcomes[-1]["ok"] is True
+
+
+def test_other_db_timeout_discards_late_staging(monkeypatch, tmp_path):
+    """Timeout invalida o request: staging tardio e descartado, nao promovido."""
+    current = tmp_path / "current.db"
+    candidate = tmp_path / "candidate.db"
+    current.touch()
+    candidate.touch()
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(current))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    scheduled: list[Any] = []
+    staged_file = tmp_path / "candidate.db.copy-1"
+    staged_file.touch()
+    discarded: list[str] = []
+    threads: list[Any] = []
+
+    class _SlowThread:
+        def __init__(self, target, **_kwargs):
+            self.target = target
+            threads.append(self)
+
+        def start(self):
+            return None  # worker nao termina: simula staging lento
+
+        def is_alive(self):
+            return True
+
+    now = [0.0]
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=_SlowThread))
+    monkeypatch.setattr(gui_ssa, "QTimer", SimpleNamespace(
+        singleShot=lambda _ms, cb: scheduled.append(cb)))
+    monkeypatch.setattr(gui_ssa.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(gui_ssa, "QMessageBox", SimpleNamespace(
+        question=lambda *_a: 1, information=lambda *_a: None,
+        critical=lambda *_a: None, warning=lambda *_a: None,
+        StandardButton=SimpleNamespace(Yes=1, No=2)))
+    monkeypatch.setattr(gui_ssa, "QFileDialog", lambda: SimpleNamespace(
+        getOpenFileName=lambda *_a: (str(candidate), "")))
+    monkeypatch.setattr(
+        gui_ssa.SSAMainWindow, "_validate_database_candidate",
+        staticmethod(lambda path: {"ok": True, "db_file": path}),
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "stage_database_copy",
+        lambda _s, dest: {
+            "ok": True, "staged": str(staged_file), "dest": str(dest),
+            "db_file": str(dest), "copied": True, "archived": None,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "discard_staged_copy",
+        lambda staged: discarded.append(str(staged)),
+    )
+    promoted: list[str] = []
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "commit_staged_database_copy",
+        lambda _staged, dest: promoted.append(str(dest)) or {"ok": True},
+    )
+
+    window = SimpleNamespace(
+        status_label=_DummyLabel(),
+        _get_derivadas_sync_state=lambda: SimpleNamespace(
+            last_report=None, report_invalidated=False),
+    )
+    out = gui_ssa.SSAMainWindow.load_other_database(window)
+    assert out["started"] is True
+    request_id = window._other_db_validation_request_id
+
+    # Prazo expira sem resultado do worker.
+    now[0] = gui_ssa.OTHER_DB_VALIDATION_TIMEOUT_SEC + 1
+    scheduled.pop(0)()
+    assert window._other_db_validation_request_id != request_id
+    assert window._other_db_validation_running is False
+
+    # Worker termina tarde: o staging virou stale e deve ser descartado.
+    threads[0].target()
+    assert discarded == [str(staged_file)]
+    assert promoted == []
+    assert gui_ssa.DB_PATH == str(current)

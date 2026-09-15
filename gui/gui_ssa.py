@@ -5312,6 +5312,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "Resultado de validacao de banco alternativo expirado descartado: %s",
                 result.get("db_file"),
             )
+            staged_path = (result.get("_copy_result") or {}).get("staged")
+            if staged_path:
+                ssa_database_operations.discard_staged_copy(staged_path)
             return {
                 "ok": False,
                 "reason": "stale_result",
@@ -5334,6 +5337,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     copy_result = ssa_database_operations.copy_database_into_data_dir(
                         db_file,
                         data_dir=os.path.join(project_root, "data"),
+                    )
+                elif copy_result.get("ok") and copy_result.get("staged"):
+                    # Promocao: arquivamento do destino + os.replace sao
+                    # operacoes de metadados (rapididas) — seguras na UI.
+                    copy_result = (
+                        ssa_database_operations.commit_staged_database_copy(
+                            str(copy_result["staged"]),
+                            str(copy_result["dest"]),
+                        )
                     )
                 if not copy_result.get("ok"):
                     self._other_db_validation_running = False
@@ -5483,14 +5495,52 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 try:
                     result = SSAMainWindow._validate_database_candidate(db_file)
                     if bool(result.get("ok")):
-                        # A copia pode bloquear por segundos (I/O + locks do
-                        # SQLite); executa no worker para nao congelar a UI.
-                        result["_copy_result"] = (
-                            ssa_database_operations.copy_database_into_data_dir(
-                                db_file,
-                                data_dir=os.path.join(project_root, "data"),
+                        # O snapshot (I/O pesada) roda no worker para nao
+                        # congelar a UI; a promocao para o destino so
+                        # acontece no finalize, apos o check de identidade —
+                        # um request que expirar nao muta data/.
+                        src = Path(db_file).expanduser().resolve()
+                        data_dir = Path(project_root, "data")
+                        dest_dir = data_dir.expanduser().resolve()
+                        dest_dir.mkdir(parents=True, exist_ok=True)
+                        dest = dest_dir / src.name
+                        if dest == src or (
+                            dest.exists() and os.path.samefile(dest, src)
+                        ):
+                            staged_result: dict[str, Any] = {
+                                "ok": True,
+                                "staged": None,
+                                "dest": str(src),
+                                "db_file": str(src),
+                                "copied": False,
+                                "archived": None,
+                                "error": None,
+                            }
+                        else:
+                            staged_result = (
+                                ssa_database_operations.stage_database_copy(
+                                    src, dest
+                                )
                             )
-                        )
+                            # Se o request expirou durante o staging, descarta
+                            # o arquivo em vez de deixar .copy-* orfao.
+                            if (
+                                staged_result.get("ok")
+                                and staged_result.get("staged")
+                                and request_id
+                                != self._other_db_validation_request_id
+                            ):
+                                ssa_database_operations.discard_staged_copy(
+                                    staged_result["staged"]
+                                )
+                                staged_result = {
+                                    "ok": False,
+                                    "db_file": str(dest),
+                                    "copied": False,
+                                    "archived": None,
+                                    "error": "request expirado durante a copia",
+                                }
+                        result["_copy_result"] = staged_result
                 except Exception as exc:
                     logger.exception(
                         "Falha inesperada na validacao de banco alternativo: %s",
@@ -5510,6 +5560,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     return
                 if not _window_alive():
                     pending_result = None
+                    # Invalida o request: se o worker ainda estiver em
+                    # staging, o resultado tardio vira stale e o arquivo
+                    # .copy-* e descartado em vez de vazar.
+                    self._other_db_validation_request_id += 1
                     self._other_db_validation_thread = None
                     self._other_db_validation_running = False
                     return
@@ -5523,6 +5577,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                             OTHER_DB_VALIDATION_TIMEOUT_SEC,
                         )
                         pending_result = None
+                        # Mesmo motivo do caminho de janela destruida:
+                        # invalida o request para que um staging tardio
+                        # seja descartado, nao promovido nem vazado.
+                        self._other_db_validation_request_id += 1
                         self._other_db_validation_thread = None
                         self._other_db_validation_running = False
                         ssa_app_menus.refresh_database_actions(self)

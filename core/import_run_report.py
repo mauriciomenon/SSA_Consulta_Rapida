@@ -32,10 +32,18 @@ def _prune_import_run_reports(logs_dir: str) -> None:
         for stale_path in entries[: len(entries) - _MAX_IMPORT_RUN_REPORTS]:
             try:
                 os.remove(stale_path)
-            except OSError:
-                continue
-    except OSError:
-        return
+            except OSError as exc:
+                logger.warning(
+                    "Falha ao descartar relatorio antigo %s: %s",
+                    stale_path,
+                    exc,
+                )
+    except OSError as exc:
+        logger.warning(
+            "Falha ao podar relatorios de importacao em %s: %s",
+            logs_dir,
+            exc,
+        )
 
 
 def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:

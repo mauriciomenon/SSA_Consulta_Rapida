@@ -63,7 +63,9 @@ def _push_result_state(
     """
     results_stack.append(entry)
     if len(results_stack) > _MAX_RESULTS_STACK_DEPTH:
-        del results_stack[1]
+        evicted = results_stack.pop(1)
+        if evicted:
+            _release_pagination_state(evicted[0])
 
 
 class _CLIPaginationTrackerManager:
@@ -1030,22 +1032,13 @@ def _handle_remove_filter(
         )
     else:
         # Sem termos restantes, recua ate a entrada sem o termo removido
-        popped_any = False
         while len(results_stack) > 1 and list(results_stack[-1][1] or []) != remaining:
             popped_df, _ = results_stack.pop()
             _release_pagination_state(popped_df)
-            popped_any = True
         _prune_pagination_tracker_for_stack(results_stack, force=True)
         if results_stack:
             top_df, top_terms = results_stack[-1]
-            if not popped_any and top_terms:
-                # Stack so com a base filtrada (filtro inicial): nao ha
-                # estado sem o termo para onde recuar.
-                print(
-                    f"O termo '{term_to_remove}' pertence ao filtro base; "
-                    "nada a remover."
-                )
-            elif top_terms:
+            if top_terms:
                 # O recuo parou numa base ja filtrada (filtro inicial):
                 # o termo saiu, mas a base segue aplicada.
                 print(
@@ -1317,7 +1310,17 @@ def start_cli_loop(db_path: str, table_name: str):
             else:
                 refreshed_df = refreshed_base_df
                 refreshed_terms = refreshed_base_terms
-            results_stack = [(refreshed_df, refreshed_terms)]
+            if preserved_user_terms:
+                # Base e topo em entradas separadas: a entrada base precisa
+                # ser o df SEM os termos do usuario, senao 'x <termo>'
+                # refiltraria um frame ja filtrado e manteria o termo
+                # aplicado invisivelmente.
+                results_stack = [
+                    (refreshed_base_df, refreshed_base_terms),
+                    (refreshed_df, refreshed_terms),
+                ]
+            else:
+                results_stack = [(refreshed_df, refreshed_terms)]
         else:
             refreshed_df, refreshed_terms = results_stack[-1]
 

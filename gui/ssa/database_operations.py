@@ -99,20 +99,22 @@ def copy_database_into_data_dir(
             "error": None,
         }
 
+    staged_result = stage_database_copy(src, dest)
+    if not staged_result.get("ok"):
+        return staged_result
+    return commit_staged_database_copy(
+        str(staged_result["staged"]), str(staged_result["dest"])
+    )
+
+
+def stage_database_copy(src: Path, dest: Path) -> dict[str, Any]:
+    """Grava o snapshot da origem em arquivo de staging ao lado do destino.
+
+    Nao toca no destino: a promocao acontece em commit_staged_database_copy,
+    o que permite ao chamador decidir (ou descartar) depois da copia pesada.
+    """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     staged = dest.with_name(f"{dest.name}.copy-{timestamp}")
-
-    def _remove_staging() -> None:
-        for suffix in ("-wal", "-shm", "-journal", ""):
-            partial = Path(f"{staged}{suffix}")
-            if partial.exists():
-                try:
-                    os.remove(partial)
-                except OSError as exc:
-                    logger.warning("Falha ao remover copia parcial %s: %s", partial, exc)
-
-    # Etapa 1: snapshot da origem no arquivo de staging. O destino nao e
-    # tocado nesta etapa, entao uma falha nao deixa o caminho sem banco.
     try:
         source_uri = src.as_uri() + "?mode=ro"
         # URIs com authority (caminhos UNC -> file://servidor/...) sao
@@ -125,7 +127,7 @@ def copy_database_into_data_dir(
             with closing(sqlite3.connect(str(staged))) as staged_conn:
                 source_conn.backup(staged_conn)
     except (OSError, sqlite3.Error, ValueError) as exc:
-        _remove_staging()
+        discard_staged_copy(staged)
         return {
             "ok": False,
             "db_file": str(dest),
@@ -133,16 +135,50 @@ def copy_database_into_data_dir(
             "archived": None,
             "error": f"falha ao copiar banco: {exc}",
         }
+    return {
+        "ok": True,
+        "staged": str(staged),
+        "dest": str(dest),
+        "timestamp": timestamp,
+        "db_file": str(dest),
+        "copied": True,
+        "archived": None,
+        "error": None,
+    }
 
-    # Etapa 2: arquiva o trio destino existente (WAL/ShM antes do .db, como
-    # no emergency_import; sidecars orfaos tambem sao arquivados). Se o
-    # arquivamento falhar no meio, o que ja foi movido e restaurado.
+
+def discard_staged_copy(staged: str | Path) -> None:
+    """Remove arquivo de staging e sidecars orfaos (best-effort)."""
+    for suffix in ("-wal", "-shm", "-journal", ""):
+        partial = Path(f"{staged}{suffix}")
+        if partial.exists():
+            try:
+                os.remove(partial)
+            except OSError as exc:
+                logger.warning(
+                    "Falha ao remover copia parcial %s: %s", partial, exc
+                )
+
+
+def commit_staged_database_copy(staged: str, dest_str: str) -> dict[str, Any]:
+    """Arquiva o destino existente e promove o staging atomicamente.
+
+    Apenas renames (metadados), entao e seguro rodar na thread de UI. Em
+    falha, restaura o que foi arquivado para manter o banco anterior
+    utilizavel.
+    """
+    dest = Path(dest_str)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     archived_base: str | None = None
     moved: list[tuple[str, str]] = []
-    dest_sidecars = [dest] + [Path(f"{dest}{s}") for s in ("-wal", "-shm")]
+    # Arquiva o destino existente (sidecars antes do .db, como no
+    # emergency_import; sidecars orfaos tambem sao arquivados).
+    dest_sidecars = [dest] + [
+        Path(f"{dest}{s}") for s in ("-wal", "-shm", "-journal")
+    ]
     if any(p.exists() for p in dest_sidecars):
         archived_base = f"{dest}.bak-{timestamp}"
-        for suffix in ("-wal", "-shm", ""):
+        for suffix in ("-wal", "-shm", "-journal", ""):
             stale = Path(f"{dest}{suffix}")
             if not stale.exists():
                 continue
@@ -160,7 +196,7 @@ def copy_database_into_data_dir(
                             archived_name,
                             restore_exc,
                         )
-                _remove_staging()
+                discard_staged_copy(staged)
                 return {
                     "ok": False,
                     "db_file": str(dest),
@@ -170,8 +206,6 @@ def copy_database_into_data_dir(
                 }
             moved.append((str(stale), target))
 
-    # Etapa 3: promocao atomica do staging para o destino. Em falha, o
-    # trio arquivado e restaurado para manter o banco anterior utilizavel.
     try:
         os.replace(staged, dest)
     except OSError as exc:
@@ -185,7 +219,7 @@ def copy_database_into_data_dir(
                     archived_name,
                     restore_exc,
                 )
-        _remove_staging()
+        discard_staged_copy(staged)
         return {
             "ok": False,
             "db_file": str(dest),

@@ -504,7 +504,15 @@ def _run_derivadas_sync_phase(
     if existing_files:
         sync_kwargs["sheet_files"] = existing_files
 
-    report = sync_derivadas(**sync_kwargs)
+    try:
+        report = sync_derivadas(**sync_kwargs)
+    except Exception as exc:
+        # sync_derivadas e transacional: uma excecao que sai dele ja
+        # passou por rollback interno. A marca distingue esse caso de
+        # falhas pos-commit (ex.: scan de consistencia), onde nao ha
+        # nada revertido a declarar.
+        exc._derivadas_sync_rolled_back = True  # type: ignore[attr-defined]
+        raise
     sheet_stats = report.get("sheet_stats") or {}
     reported_files = report.get("sheet_files") or []
     sheet_file_reports = report.get("sheet_file_reports") or []
@@ -1251,10 +1259,18 @@ def _run_optional_derivadas_sync(
             exc,
             exc_info=True,
         )
-        error_message = (
-            f"{exc} | Alteracoes de derivadas revertidas; dados importados"
-            " preservados. O sync e refeito automaticamente no proximo rescan."
-        )
+        if getattr(exc, "_derivadas_sync_rolled_back", False):
+            error_message = (
+                f"{exc} | Alteracoes de derivadas revertidas; dados"
+                " importados preservados. O sync e refeito automaticamente"
+                " no proximo rescan."
+            )
+        else:
+            error_message = (
+                f"{exc} | Falha na verificacao apos o commit do sync de"
+                " derivadas; dados importados preservados. O proximo"
+                " rescan refaz a verificacao."
+            )
         critical_errors.append(("derivadas_sync", docs_dir, error_message))
         emit_progress(
             "file_error",
@@ -1794,8 +1810,16 @@ def _initialize_import_run_context(
     # herdar o file_cache de outro banco (um arquivo importado so no banco
     # B seria pulado no diff do banco A). O nome canonico fica reservado
     # ao banco padrao para preservar o contrato existente.
-    db_stem = Path(str(db_name)).stem
-    cache_name = "file_cache.json" if db_stem == "ssas" else f"file_cache.{db_stem}.json"
+    # Nome completo (nao so o stem): archive.db e archive.sqlite sao
+    # bancos distintos e nao podem compartilhar file_cache.archive.json.
+    db_filename = Path(str(db_name)).name
+    # casefold: em volumes case-insensitive SSAS.db e ssas.db sao o mesmo
+    # arquivo e devem compartilhar o cache canonico.
+    cache_name = (
+        "file_cache.json"
+        if db_filename.casefold() == "ssas.db"
+        else f"file_cache.{db_filename}.json"
+    )
     return {
         "docs_dir_path": docs_dir_path,
         "data_dir_path": data_dir_path,
@@ -2142,7 +2166,7 @@ def run_importer_logic(
                 # Remove apenas um candidato criado nesta rodada; candidatos
                 # pre-existentes podem ser evidencia de runs anteriores.
                 if candidate_db_path and not candidate_preexisting:
-                    for suffix in ("-wal", "-shm", ""):
+                    for suffix in ("-wal", "-shm", "-journal", ""):
                         stale_path = candidate_db_path + suffix
                         try:
                             os.remove(stale_path)
@@ -2281,11 +2305,13 @@ def run_importer_logic(
                     )
 
             if derivadas_sync_blocking_error:
+                # O detalhe por caminho (rollback real vs falha pos-commit)
+                # ja esta no erro registrado; aqui so o que vale para todos.
                 logger.error(
                     "Importacao concluida com falha bloqueante de integridade em derivadas. "
-                    "As alteracoes de derivadas foram revertidas; os dados ja"
-                    " importados foram preservados. O cache nao sera atualizado"
-                    " nesta execucao; o proximo rescan refaz o sync."
+                    "Os dados ja importados foram preservados. O cache nao"
+                    " sera atualizado nesta execucao; o proximo rescan refaz"
+                    " o sync."
                 )
                 return _finalize_and_return(
                     False,

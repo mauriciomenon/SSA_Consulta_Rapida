@@ -71,14 +71,26 @@ class MultiPlatformBuilder:
 
         logger.info(f"Iniciando build para SSA Consulta Rapida v{self.version}")
 
-    def _python_spec_for(self, platform_name: str) -> str:
-        """Identificador uv do runtime Python adequado a plataforma alvo."""
+    def _python_specs_for(self, platform_name: str) -> list[str]:
+        """Identificadores uv do runtime Python, em ordem de preferencia.
+
+        Politica do repositorio: 3.13 primeiro, com fallback para
+        3.12/3.11/3.10 quando o uv nao consegue prover o preferido.
+        Um runtime_python explicito sobrepoe a cadeia (override unico).
+        """
         if self.runtime_python:
-            return self.runtime_python
-        return {
-            "windows_amd64": "cpython-3.13-windows-x86_64-none",
-            "windows_arm64": "cpython-3.13-windows-aarch64-none",
-        }.get(platform_name, "3.13")
+            return [self.runtime_python]
+        arch_map = {
+            "windows_amd64": "windows-x86_64-none",
+            "windows_arm64": "windows-aarch64-none",
+        }
+        suffix = arch_map.get(platform_name)
+        if suffix:
+            return [
+                f"cpython-{version}-{suffix}"
+                for version in ("3.13", "3.12", "3.11", "3.10")
+            ]
+        return ["3.13", "3.12", "3.11", "3.10"]
 
     @staticmethod
     def _run_command(cmd, *, timeout, cwd=None, capture_output=True, text=True):
@@ -395,16 +407,36 @@ VSVersionInfo(
 
         logger.info(f"Criando novo ambiente virtual: {venv_dir}")
 
-        cmd = [
-            self.uv_cmd,
-            "venv",
-            "--python",
-            self._python_spec_for(platform_name),
-            str(venv_dir),
-        ]
-        result = self._run_command(cmd, timeout=600, capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error("Erro criando venv via uv: %s", result.stderr.strip())
+        venv_created = False
+        last_venv_error = ""
+        python_specs = self._python_specs_for(platform_name)
+        for python_spec in python_specs:
+            cmd = [
+                self.uv_cmd,
+                "venv",
+                "--python",
+                python_spec,
+                str(venv_dir),
+            ]
+            result = self._run_command(cmd, timeout=600, capture_output=True, text=True)
+            if result.returncode == 0:
+                venv_created = True
+                if python_spec != python_specs[0]:
+                    logger.warning(
+                        "Python preferido indisponivel; venv criado com %s",
+                        python_spec,
+                    )
+                break
+            last_venv_error = result.stderr.strip()
+            logger.warning(
+                "uv venv falhou com %s: %s; tentando proximo spec",
+                python_spec,
+                last_venv_error,
+            )
+            if venv_dir.exists():
+                shutil.rmtree(venv_dir)
+        if not venv_created:
+            logger.error("Erro criando venv via uv: %s", last_venv_error)
             return False
         if not self._is_python_executable_ok(python_exe, platform_name):
             logger.error("Python do novo ambiente e incompativel com %s", platform_name)
@@ -1301,8 +1333,9 @@ VSVersionInfo(
         ]
 
         unnecessary_patterns = [
-            # Arquivos de controle
-            "file_cache.json",
+            # Arquivos de controle (file_cache.<stem>.json cobre bancos
+            # alternativos; file_cache.json segue coberto pelo glob)
+            "file_cache*.json",
             "*.backup_*",
             # Cache e temporarios
             "*.pyc",
@@ -1373,7 +1406,8 @@ VSVersionInfo(
         # Escopo restrito para dados: arquivos explicitos para evitar varredura ampla
         data_dir = self.base_dir / "data"
         if data_dir.exists():
-            collect_for_cleanup(data_dir / "file_cache.json")
+            for file_path in data_dir.glob("file_cache*.json"):
+                collect_for_cleanup(file_path)
             for file_path in data_dir.glob("*.backup_*"):
                 collect_for_cleanup(file_path)
             historico_backups = data_dir / "historico_backups"

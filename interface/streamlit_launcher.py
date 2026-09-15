@@ -13,6 +13,30 @@ _STREAMLIT_PROCESSES: list[subprocess.Popen] = []
 _STREAMLIT_LOG_MAX_BYTES = 5 * 1024 * 1024
 
 
+def _terminate_process(process) -> None:
+    """terminate() com espera curta e kill() de reforco.
+
+    Um filho que ignore SIGTERM sobreviveria segurando a porta; o wait
+    tambem colhe o processo para nao deixar zombie.
+    """
+    terminate = getattr(process, "terminate", None)
+    if not callable(terminate) or not _is_process_running(process):
+        return
+    try:
+        terminate()
+    except OSError:
+        return
+    try:
+        process.wait(timeout=5)
+    except Exception:
+        kill = getattr(process, "kill", None)
+        if callable(kill):
+            try:
+                kill()
+            except OSError:
+                pass
+
+
 def _terminate_children_and_exit(*_args) -> None:
     """Handler de SIGTERM: encerra os filhos rastreados e sai com 143.
 
@@ -20,12 +44,7 @@ def _terminate_children_and_exit(*_args) -> None:
     segurando a porta do servidor.
     """
     for process in list(_STREAMLIT_PROCESSES):
-        terminate = getattr(process, "terminate", None)
-        if callable(terminate) and _is_process_running(process):
-            try:
-                terminate()
-            except OSError:
-                continue
+        _terminate_process(process)
     sys.exit(143)
 
 
@@ -60,6 +79,21 @@ def _restore_sigterm_mask(old_mask) -> None:
         mask(signal.SIG_SETMASK, old_mask)
 
 
+def _make_child_sigmask_restorer(old_mask):
+    """Retorna preexec_fn que restaura a mascara de sinais no filho.
+
+    Sem isso o filho herdaria SIGTERM bloqueado (a mascara e herdada no
+    fork e sobrevive ao exec): terminate() ficaria pendente para sempre.
+    """
+    if old_mask is None or not callable(getattr(signal, "pthread_sigmask", None)):
+        return None
+
+    def _restore() -> None:
+        signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+
+    return _restore
+
+
 def wait_for_streamlit() -> None:
     """Bloqueia ate o processo Streamlit mais recente encerrar.
 
@@ -69,11 +103,26 @@ def wait_for_streamlit() -> None:
     process = _STREAMLIT_PROCESSES[-1] if _STREAMLIT_PROCESSES else None
     if process is None:
         return
+    previous_handler = None
+    try:
+        previous_handler = signal.getsignal(signal.SIGTERM)
+    except (OSError, ValueError):
+        pass
     _install_sigterm_handler()
     try:
         process.wait()
     except KeyboardInterrupt:
         pass
+    finally:
+        # Restaura o handler anterior quando nao restam filhos vivos:
+        # manter o nosso faria um SIGTERM posterior sair com 143 sem
+        # nada para encerrar, ignorando o handler original do chamador.
+        _prune_streamlit_processes()
+        if previous_handler is not None and not _STREAMLIT_PROCESSES:
+            try:
+                signal.signal(signal.SIGTERM, previous_handler)
+            except (OSError, RuntimeError, ValueError):
+                pass
 
 
 def _is_process_running(process) -> bool:
@@ -89,11 +138,7 @@ def _prune_streamlit_processes() -> None:
 
 def _cleanup_streamlit_processes() -> None:
     for process in list(_STREAMLIT_PROCESSES):
-        terminate = getattr(process, "terminate", None)
-        if not callable(terminate):
-            continue
-        if _is_process_running(process):
-            terminate()
+        _terminate_process(process)
     _STREAMLIT_PROCESSES.clear()
 
 
@@ -128,7 +173,16 @@ def launch_streamlit(
         print("Streamlit nao encontrado no ambiente atual nem no PATH.")
         return False
 
-    cmd = [*launcher_cmd, "run", script_path, "--server.headless=true"]
+    # 127.0.0.1 explicito: a autorizacao de caminhos digitados na UI usa o
+    # allowlist global do processo, entao o servidor nao pode ficar
+    # acessivel fora de loopback.
+    cmd = [
+        *launcher_cmd,
+        "run",
+        script_path,
+        "--server.headless=true",
+        "--server.address=127.0.0.1",
+    ]
     if port:
         cmd.append(f"--server.port={port}")
 
@@ -151,9 +205,19 @@ def launch_streamlit(
         # com o processo ja em _STREAMLIT_PROCESSES.
         old_mask = _block_sigterm()
         try:
+            popen_kwargs: dict = {}
+            restorer = _make_child_sigmask_restorer(old_mask)
+            if restorer is not None:
+                # Sem o restore no filho, o processo herdaria SIGTERM
+                # bloqueado e terminate() ficaria pendente para sempre.
+                popen_kwargs["preexec_fn"] = restorer
             with open(log_path, "ab") as log_file:
                 process = subprocess.Popen(
-                    cmd, stdout=log_file, stderr=log_file, cwd=project_root
+                    cmd,
+                    stdout=log_file,
+                    stderr=log_file,
+                    cwd=project_root,
+                    **popen_kwargs,
                 )
             _prune_streamlit_processes()
             _STREAMLIT_PROCESSES.append(process)
