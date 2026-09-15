@@ -5325,6 +5325,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             db_file = str(result.get("db_file") or "").strip()
             if bool(result.get("ok")) and db_file:
                 derivadas_state = self._get_derivadas_sync_state()
+                # Banco externo e copiado para data/ (snapshot consistente,
+                # origem intocada); banco ja dentro de data/ passa direto.
+                copy_result = ssa_database_operations.copy_database_into_data_dir(
+                    db_file,
+                    data_dir=os.path.join(project_root, "data"),
+                )
+                if not copy_result.get("ok"):
+                    self._other_db_validation_running = False
+                    ssa_app_menus.refresh_database_actions(self)
+                    copy_error = str(copy_result.get("error") or "falha ao copiar")
+                    if not os.environ.get("PYTEST_CURRENT_TEST"):
+                        QMessageBox.critical(
+                            self,
+                            "Erro",
+                            f"Erro ao copiar o banco para a pasta de dados: {copy_error}",
+                        )
+                    self.status_label.setText(
+                        "Status: Falha ao copiar banco alternativo para data/."
+                    )
+                    return {
+                        **result,
+                        "ok": False,
+                        "reason": "copy_failed",
+                        "error": copy_error,
+                    }
+                db_file = str(copy_result["db_file"])
                 derivadas_state.last_report = None
                 derivadas_state.report_invalidated = True
                 DB_PATH = db_file
@@ -5333,11 +5359,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}"
                 )
                 if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    copy_note = ""
+                    if copy_result.get("copied"):
+                        copy_note = (
+                            f"\n\nUma copia foi criada em data/{os.path.basename(db_file)};"
+                            " o arquivo original nao foi alterado."
+                        )
+                        if copy_result.get("archived"):
+                            copy_note += (
+                                "\nO banco anterior em data/ foi preservado como "
+                                f"{os.path.basename(str(copy_result['archived']))}.*"
+                            )
                     QMessageBox.information(
                         self,
                         "Sucesso",
                         (
-                            f"Banco de dados selecionado: {os.path.basename(db_file)}.\n\n"
+                            f"Banco de dados selecionado: {os.path.basename(db_file)}."
+                            f"{copy_note}\n\n"
                             "Os dados do banco selecionado serao recarregados "
                             "automaticamente."
                         ),

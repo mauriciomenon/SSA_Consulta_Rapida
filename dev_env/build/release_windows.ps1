@@ -905,6 +905,13 @@ if (-not $Yes) {
     if ($confirm.ToLowerInvariant() -ne "s") {
         throw "Operacao cancelada pelo usuario."
     }
+    if (-not $PSBoundParameters.ContainsKey('IncludeRuntimeDb')) {
+        # Default seguro: nao incluir o banco operacional no pacote.
+        $includeDbAnswer = Read-Host "Incluir data\ssas.db no pacote? [s/N]"
+        if ($includeDbAnswer.Trim().ToLowerInvariant() -eq "s") {
+            $IncludeRuntimeDb = $true
+        }
+    }
 }
 
 $configs = Get-BackendConfig $repoRoot $version $Platform

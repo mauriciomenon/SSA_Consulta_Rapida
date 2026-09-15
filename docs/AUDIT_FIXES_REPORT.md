@@ -1403,3 +1403,41 @@ Decisoes registradas (nao aplicadas, por escopo):
   loops de retry (semantica "tentar de novo qualquer erro"), mantidos.
 - `dev_env/streamlit_app.py` com paths digitados continua limitacao
   conhecida (ver O9).
+
+### O11. Mudanca de comportamento aprovada: copia de banco externo
+
+Solicitado pelo usuario: o banco selecionado em "Carregar outro banco"
+passa a ser **copiado para `data/`** em vez de usado in-place.
+
+- `gui/ssa/database_operations.py::copy_database_into_data_dir`:
+  snapshot consistente via backup API do SQLite com origem `mode=ro`
+  (captura commits pendentes no WAL sem alterar a origem). Destino
+  existente e arquivado como `.bak-<ts>` (ordem wal/shm/db). Origem ja
+  dentro de `data/` e no-op. Falha na copia remove o destino parcial.
+- `gui/gui_ssa.py::_finalize_database_candidate_validation`: `DB_PATH`
+  passa a apontar para a copia em `data/`; falha de copia aborta a
+  selecao com `reason="copy_failed"`. A copia so ocorre apos
+  `_get_derivadas_sync_state` (preparacao sem efeito colateral primeiro).
+- `dev_env/build/release_windows.ps1`: prompt interativo
+  "Incluir data\ssas.db no pacote? [s/N]" quando `-IncludeRuntimeDb`
+  nao foi passado; default N. `-Yes` (nao-interativo) mantem o default.
+- `sys.path.insert` em `interface/cli.py` e `core/app_logic.py` agora
+  condicional (`if project_root not in sys.path`), mesmo padrao do
+  `streamlit_app.py`. Remocao completa segue pendente (empacotamento).
+- `.github/CODE_QUALITY.md`: frase canonica em ingles restaurada,
+  corrigindo a falha pre-existente do contrato de documentacao
+  (teste `test_code_quality_documents_dynamic_dependency_submission_status`).
+
+**Validacao O11**: 8 testes novos em `tests/test_database_operations.py`
+(copia, WAL pendente, arquivo destino, origem dentro de data/, fonte
+nao-sqlite, origem ausente) + 8 variacoes manuais de caminho (espacos/
+acentos, `~`, symlink, auto-selecao, colisao com trio wal/shm, data/
+inexistente, caminho relativo). 4 testes de GUI atualizados para o
+contrato novo (DB_PATH aponta para a copia); a copia e stubada neles —
+o comportamento real e coberto pelos testes de unidade do modulo.
+Parse do ps1 verificado com pwsh.
+
+**Ordem temporal**: a suite completa (2997 passaram, 9 skipped, 0
+falhas, ~762s) rodou sobre o estado pos-O10, **antes** das mudancas
+de O11. O11 foi validado pelos testes focados acima; reexecucao da
+suite completa fica para o fechamento da rodada.

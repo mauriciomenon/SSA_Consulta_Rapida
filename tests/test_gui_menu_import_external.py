@@ -917,6 +917,18 @@ def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, op
                         lambda _path: {"ok": True})
     monkeypatch.setattr(gui_ssa.SSAMainWindow, "_validate_database_candidate",
                         lambda path: {"ok": True, "db_file": path})
+    copied_candidate = tmp_path / "data" / candidate.name
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations,
+        "copy_database_into_data_dir",
+        lambda source, **_kwargs: {
+            "ok": True,
+            "db_file": str(copied_candidate),
+            "copied": True,
+            "archived": None,
+            "error": None,
+        },
+    )
     window = SimpleNamespace(status_label=_DummyLabel(), _get_derivadas_sync_state=get_state,
                              load_data=reload)
     execute = getattr(gui_ssa.SSAMainWindow, operation)
@@ -933,7 +945,7 @@ def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, op
     assert getattr(window, prefix + "_running") is False
     assert getattr(window, prefix + "_thread") is None
     selected = operation == "load_other_database" and stage != "prepare"
-    assert gui_ssa.DB_PATH == str(candidate if selected else current)
+    assert gui_ssa.DB_PATH == str(copied_candidate if selected else current)
     if selected:
         assert state.last_report is None
         assert state.report_invalidated is True

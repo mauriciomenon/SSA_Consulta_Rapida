@@ -64,7 +64,7 @@ Nao instalar pacotes Python/npm em gates apenas para gerar metadados
 consultivos. O ambiente do projeto usa o lock; bibliotecas Qt do sistema e
 Inno Setup no build Windows sao dependencias funcionais dos respectivos jobs.
 
-Automatic Dependency Submission e um fluxo dinamico gerido pelo GitHub,
+Automatic Dependency Submission is a dynamic GitHub-managed workflow,
 nao um YAML deste repo. Registro historico de 13/05/2026: a variavel
 GH_DEPENDENCY_SUBMISSION_SKIP_CACHE=true estava aplicada; a tentativa de
 alterar o workflow dinamico por API retornou HTTP 422. Nao foi feita nova

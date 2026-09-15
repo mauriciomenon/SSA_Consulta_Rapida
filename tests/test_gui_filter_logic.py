@@ -9879,6 +9879,7 @@ class TestGUIFilterLogic:
     ):
         db_file = tmp_path / "other.db"
         db_file.write_text("stub", encoding="utf-8")
+        copied_db = tmp_path / "data" / "other.db"
         original_db_path = gui_ssa.DB_PATH
 
         monkeypatch.setattr(
@@ -9891,11 +9892,22 @@ class TestGUIFilterLogic:
             "query_db",
             lambda *_args, **_kwargs: pd.DataFrame({"numero_ssa": ["1"]}),
         )
+        monkeypatch.setattr(
+            gui_ssa.ssa_database_operations,
+            "copy_database_into_data_dir",
+            lambda *_args, **_kwargs: {
+                "ok": True,
+                "db_file": str(copied_db),
+                "copied": True,
+                "archived": None,
+                "error": None,
+            },
+        )
 
         try:
             result = self.window.load_other_database()
             assert bool(result["ok"]) is True
-            assert gui_ssa.DB_PATH == str(db_file)
+            assert gui_ssa.DB_PATH == str(copied_db)
             assert "Banco alternativo selecionado" in self.window.status_label.text()
         finally:
             gui_ssa.DB_PATH = original_db_path
@@ -9905,6 +9917,7 @@ class TestGUIFilterLogic:
     ):
         db_file = tmp_path / "other_reload.db"
         db_file.write_text("stub", encoding="utf-8")
+        copied_db = tmp_path / "data" / "other_reload.db"
         original_db_path = gui_ssa.DB_PATH
         reload_calls: list[str] = []
 
@@ -9917,6 +9930,17 @@ class TestGUIFilterLogic:
             gui_ssa,
             "query_db",
             lambda *_args, **_kwargs: pd.DataFrame({"numero_ssa": ["1"]}),
+        )
+        monkeypatch.setattr(
+            gui_ssa.ssa_database_operations,
+            "copy_database_into_data_dir",
+            lambda *_args, **_kwargs: {
+                "ok": True,
+                "db_file": str(copied_db),
+                "copied": True,
+                "archived": None,
+                "error": None,
+            },
         )
         monkeypatch.setattr(
             SSAMainWindow,
@@ -14778,14 +14802,26 @@ class TestGUIFilterLogic:
         assert worker.disconnected is True
 
     def test_finalize_database_candidate_validation_discards_stale_result(
-        self, tmp_path
+        self, tmp_path, monkeypatch
     ):
         """Resultado de validacao expirada nao pode selecionar outro banco."""
         original_db_path = gui_ssa.DB_PATH
         old_db_path = str(tmp_path / "velho.db")
         new_db_path = str(tmp_path / "novo.db")
+        copied_new = str(tmp_path / "data" / "novo.db")
         self.window._other_db_validation_request_id = 2
         self.window._other_db_validation_running = True
+        monkeypatch.setattr(
+            gui_ssa.ssa_database_operations,
+            "copy_database_into_data_dir",
+            lambda source, **_kwargs: {
+                "ok": True,
+                "db_file": copied_new,
+                "copied": True,
+                "archived": None,
+                "error": None,
+            },
+        )
 
         try:
             outcome = self.window._finalize_database_candidate_validation(
@@ -14800,7 +14836,7 @@ class TestGUIFilterLogic:
                 {"_request_id": 2, "ok": True, "db_file": new_db_path}
             )
             assert bool(current.get("ok")) is True
-            assert gui_ssa.DB_PATH == new_db_path
+            assert gui_ssa.DB_PATH == copied_new
             assert self.window._other_db_validation_running is False
         finally:
             gui_ssa.DB_PATH = original_db_path

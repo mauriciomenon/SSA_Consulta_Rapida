@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sqlite3
+from pathlib import Path
+
 import pandas as pd
 
 from gui.ssa.database_operations import validate_database_candidate
@@ -37,3 +40,121 @@ def test_validate_database_candidate_accepts_non_empty_table():
     )
 
     assert result == {"ok": True, "db_file": "/tmp/candidate.db"}
+
+
+def _make_db(path: Path, rows: list[str], wal: bool = False) -> Path:
+    conn = sqlite3.connect(str(path))
+    if wal:
+        conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+    conn.executemany("INSERT INTO ssa_table VALUES (?)", [(r,) for r in rows])
+    conn.commit()
+    conn.close()
+    return path
+
+
+def _read_rows(path: Path) -> list[str]:
+    with sqlite3.connect(str(path)) as conn:
+        return [r[0] for r in conn.execute("SELECT numero_ssa FROM ssa_table")]
+
+
+def test_copy_database_into_data_dir_copies_external_db(tmp_path):
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "meu_banco.db", ["202600001", "202600002"])
+    data_dir = tmp_path / "data"
+
+    result = copy_database_into_data_dir(str(src), data_dir=str(data_dir))
+
+    assert result["ok"] is True
+    assert result["copied"] is True
+    assert result["archived"] is None
+    dest = data_dir / "meu_banco.db"
+    assert result["db_file"] == str(dest.resolve())
+    assert _read_rows(dest) == ["202600001", "202600002"]
+    # Origem intocada
+    assert _read_rows(src) == ["202600001", "202600002"]
+
+
+def test_copy_database_into_data_dir_noop_when_source_inside_data_dir(tmp_path):
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    src = _make_db(data_dir / "ssas.db", ["202600001"])
+
+    result = copy_database_into_data_dir(str(src), data_dir=str(data_dir))
+
+    assert result["ok"] is True
+    assert result["copied"] is False
+    assert result["db_file"] == str(src.resolve())
+
+
+def test_copy_database_into_data_dir_archives_existing_dest(tmp_path):
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "ssas.db", ["novo"])
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    _make_db(data_dir / "ssas.db", ["antigo"])
+
+    result = copy_database_into_data_dir(str(src), data_dir=str(data_dir))
+
+    assert result["ok"] is True
+    assert result["copied"] is True
+    assert result["archived"]
+    archived = [p for p in data_dir.iterdir() if ".bak-" in p.name]
+    assert len(archived) == 1
+    assert _read_rows(archived[0]) == ["antigo"]
+    assert _read_rows(data_dir / "ssas.db") == ["novo"]
+
+
+def test_copy_database_into_data_dir_captures_wal_pending_commits(tmp_path):
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = src_dir / "wal.db"
+    conn = sqlite3.connect(str(src))
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+    conn.execute("INSERT INTO ssa_table VALUES ('pendente')")
+    conn.commit()
+    assert (src_dir / "wal.db-wal").exists()
+
+    data_dir = tmp_path / "data"
+    result = copy_database_into_data_dir(str(src), data_dir=str(data_dir))
+    conn.close()
+
+    assert result["ok"] is True, result
+    assert _read_rows(data_dir / "wal.db") == ["pendente"]
+
+
+def test_copy_database_into_data_dir_rejects_non_sqlite_source(tmp_path):
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    src = tmp_path / "externo.db"
+    src.write_text("isto nao e um sqlite")
+    data_dir = tmp_path / "data"
+
+    result = copy_database_into_data_dir(str(src), data_dir=str(data_dir))
+
+    assert result["ok"] is False
+    assert result["copied"] is False
+    assert result["error"]
+    assert not (data_dir / "externo.db").exists()
+
+
+def test_copy_database_into_data_dir_missing_source(tmp_path):
+    from gui.ssa.database_operations import copy_database_into_data_dir
+
+    result = copy_database_into_data_dir(
+        str(tmp_path / "inexistente.db"), data_dir=str(tmp_path / "data")
+    )
+
+    assert result["ok"] is False
+    assert "nao existe" in result["error"]
