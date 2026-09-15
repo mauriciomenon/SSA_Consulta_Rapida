@@ -7,10 +7,15 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 from typing import Optional
 
 _STREAMLIT_PROCESSES: list[subprocess.Popen] = []
 _STREAMLIT_LOG_MAX_BYTES = 5 * 1024 * 1024
+# Capturado na primeira instalacao do handler: chamadas seguintes de
+# wait_for_streamlit veriam o nosso proprio handler como "anterior" e
+# nunca restaurariam o original do processo.
+_STREAMLIT_ORIGINAL_SIGTERM_HANDLER = None
 
 
 def _terminate_process(process, *, reap: bool = True) -> None:
@@ -57,7 +62,11 @@ def _terminate_children_and_exit(*_args) -> None:
 
 
 def _install_sigterm_handler() -> None:
+    global _STREAMLIT_ORIGINAL_SIGTERM_HANDLER
     try:
+        current = signal.getsignal(signal.SIGTERM)
+        if current is not _terminate_children_and_exit:
+            _STREAMLIT_ORIGINAL_SIGTERM_HANDLER = current
         signal.signal(signal.SIGTERM, _terminate_children_and_exit)
     except (OSError, RuntimeError, ValueError):
         # Fora da main thread ou sem suporte a sinais: atexit segue como rede.
@@ -111,24 +120,22 @@ def wait_for_streamlit() -> None:
     process = _STREAMLIT_PROCESSES[-1] if _STREAMLIT_PROCESSES else None
     if process is None:
         return
-    previous_handler = None
-    try:
-        previous_handler = signal.getsignal(signal.SIGTERM)
-    except (OSError, ValueError):
-        pass
     _install_sigterm_handler()
     try:
         process.wait()
     except KeyboardInterrupt:
         pass
     finally:
-        # Restaura o handler anterior quando nao restam filhos vivos:
+        # Restaura o handler original quando nao restam filhos vivos:
         # manter o nosso faria um SIGTERM posterior sair com 143 sem
         # nada para encerrar, ignorando o handler original do chamador.
         _prune_streamlit_processes()
-        if previous_handler is not None and not _STREAMLIT_PROCESSES:
+        if (
+            _STREAMLIT_ORIGINAL_SIGTERM_HANDLER is not None
+            and not _STREAMLIT_PROCESSES
+        ):
             try:
-                signal.signal(signal.SIGTERM, previous_handler)
+                signal.signal(signal.SIGTERM, _STREAMLIT_ORIGINAL_SIGTERM_HANDLER)
             except (OSError, RuntimeError, ValueError):
                 pass
 
@@ -211,7 +218,11 @@ def launch_streamlit(
         # SIGTERM bloqueado ate o filho estar rastreado: um sinal nesse
         # intervalo fica pendente e dispara o handler apos o desbloqueio,
         # com o processo ja em _STREAMLIT_PROCESSES.
-        old_mask = _block_sigterm()
+        # So na main thread: bloquear a mascara de uma thread qualquer nao
+        # impede a entrega do sinal (vai para outra thread desbloqueada) e
+        # ainda exigiria preexec_fn num processo possivelmente multi-thread.
+        is_main_thread = threading.current_thread() is threading.main_thread()
+        old_mask = _block_sigterm() if is_main_thread else None
         try:
             popen_kwargs: dict = {}
             restorer = _make_child_sigmask_restorer(old_mask)

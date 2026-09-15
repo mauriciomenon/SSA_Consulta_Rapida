@@ -1780,3 +1780,48 @@ escolhido pelo usuario; risco baixo e sem dados sensiveis.
 Validacao: ruff limpo; test_list_exporter + test_exporter +
 test_gui_details_graph_export verdes; verificacao manual de payload
 malicioso neutralizado no TSV.
+
+### O18. Rodada 9 - CodeRabbit (6 achados) + auditoria profunda CLI/DB
+
+Achados do CodeRabbit validados e corrigidos:
+
+- **streamlit_launcher**: `preexec_fn` + bloqueio de sinais agora so na
+  main thread (bloquear em thread nao-main nao protege: sinais de
+  processo vao para qualquer thread desbloqueada). Handler SIGTERM
+  original capturado uma vez no escopo do modulo (nao perde/reembrulha
+  em reinstalacao).
+- **app_logic**: mensagem de falha pos-commit do sync de derivadas so
+  promete re-sync automatico quando `mark_latest_sync_run_failed`
+  confirma persistencia do marcador (retorno bool).
+- **gui_ssa**: thread de validacao de banco alternativo agora entra no
+  tracking de shutdown (GUI nao fecha enquanto ela roda).
+- **build_multiplatform**: cleanup de `file_cache*.json` restrito a
+  `file_cache.json` exato e `file_cache.<nome-db>.json` gerados —
+  arquivos de usuario (`file_cache.notas.json`) preservados.
+- **database.py**: `get_db_connection(write=False)` nao cria mais
+  diretorio/arquivo ausente — leitura de caminho inexistente falha em
+  vez de materializar banco vazio como efeito colateral.
+- **recovery_backlog**: data do cabecalho ja estava correta (achado
+  defasado, sem alteracao).
+
+Achado proprio da auditoria profunda (CLI):
+
+- **Chave de paginacao herdada via attrs**: pandas propaga `attrs` em
+  filtro/slice/copia — `filter_dataframe` retorna copias que herdavam
+  `_cli_pagination_key` do pai, fazendo `_reset_pagination_state`
+  zerar o estado de paginacao do pai; `b` (voltar) resumia com estado
+  errado. `key_for` agora grava `(key, id(df))` e so confia na chave
+  quando o id bate; escrita usa dict novo (nunca muta attrs
+  compartilhado). Teste antigo reescrito para fixar a semantica
+  corrigida + 2 testes novos de isolamento.
+
+Auditoria profunda sem achado (verificado e correto): upsert com
+savepoint externo e rollback por chunk; fast-path de append exige
+numero_ssa unicos/ausentes; `numero_ssa` normalizado para Int64 no
+extractor e `normalize_strict` (9 digitos) nas arestas de derivadas;
+pipeline PAI com argv-list, runner allowlist e freshness check de
+artefatos; `import_postprocess` com moves sem overwrite (O_EXCL/
+hardlink), contencao em docs_root e retry por colisao.
+
+Validacao: 1121 testes cli/filter/paginacao verdes (0 falhas);
+bateria focada app_logic/derivadas 36 verdes; ruff limpo.

@@ -134,10 +134,13 @@ def get_db_connection(db_path: str, *, write: bool = False):
     with lock_context:
         conn = None
         try:
-            # Verifica se o diretorio do DB existe
-            db_dir = os.path.dirname(db_path)
-            if db_dir:
-                os.makedirs(db_dir, exist_ok=True)
+            # So a escrita cria o diretorio: uma leitura num caminho
+            # inexistente deve falhar, nao criar arvore de diretorios
+            # e um .db vazio como efeito colateral.
+            if write:
+                db_dir = os.path.dirname(db_path)
+                if db_dir:
+                    os.makedirs(db_dir, exist_ok=True)
 
             conn = sqlite3.connect(db_path)
             # Configuracoes recomendadas para performance e seguranca (FKs, etc.)

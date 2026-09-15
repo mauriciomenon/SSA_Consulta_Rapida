@@ -54,13 +54,16 @@ def test_remove_filter_prunes_replaced_top_state(monkeypatch):
     assert current_key not in cli.CLI_PAGINATION_TRACKER
 
 
-def test_pagination_state_survives_dataframe_copy_via_attrs_key():
+def test_dataframe_copy_gets_independent_pagination_key():
     cli.CLI_PAGINATION_TRACKER.clear()
     df = pd.DataFrame({"numero_ssa": ["202500001"]})
     cli._update_pagination_state(df, {"next_page": 3, "total_pages": 10})
 
+    # Uma copia herda attrs do pandas, mas nao e o mesmo df logico:
+    # recebe chave propria em vez de aliasar o estado do original.
     df_copy = df.copy()
-    assert cli._next_page_for(df_copy) == 3
+    assert cli._next_page_for(df_copy) == 0
+    assert cli._next_page_for(df) == 3
 
 
 def test_next_page_for_missing_next_page_restarts_from_first_page():
@@ -107,3 +110,34 @@ def test_last_rendered_page_for_finished_state_uses_rendered_page_count():
     )
 
     assert cli._last_rendered_page_for(df) == 3
+
+
+def test_filtered_dataframe_gets_own_pagination_key():
+    cli.CLI_PAGINATION_TRACKER.clear()
+    parent = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
+    parent_key = cli._PAGINATION_TRACKER_MANAGER.key_for(parent)
+    cli._update_pagination_state(
+        parent, {"next_page": 2, "total_pages": 5, "page_size": 20}
+    )
+
+    child = parent[parent.numero_ssa == "202500002"]
+    child_key = cli._PAGINATION_TRACKER_MANAGER.key_for(child)
+
+    assert child_key != parent_key
+    cli._update_pagination_state(
+        child, {"next_page": 0, "total_pages": 1, "page_size": 20}
+    )
+    assert cli._PAGINATION_TRACKER_MANAGER.state_for(parent)["next_page"] == 2
+
+
+def test_inherited_pagination_attr_does_not_mutate_parent():
+    cli.CLI_PAGINATION_TRACKER.clear()
+    parent = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
+    cli._PAGINATION_TRACKER_MANAGER.key_for(parent)
+
+    shallow = parent.copy(deep=False)
+    cli._PAGINATION_TRACKER_MANAGER.key_for(shallow)
+
+    parent_entry = parent.attrs["_cli_pagination_key"]
+    shallow_entry = shallow.attrs["_cli_pagination_key"]
+    assert parent_entry[0] != shallow_entry[0]

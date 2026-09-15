@@ -78,12 +78,22 @@ class _CLIPaginationTrackerManager:
         attrs = getattr(df, "attrs", None)
         if isinstance(attrs, dict):
             existing = attrs.get("_cli_pagination_key")
-            if isinstance(existing, int):
-                return existing
+            # pandas propaga attrs em filtros/copias: a chave so vale para o
+            # df dono (id registrado), senao filhos herdariam o estado de
+            # paginacao do pai.
+            if (
+                isinstance(existing, tuple)
+                and len(existing) == 2
+                and isinstance(existing[0], int)
+                and existing[1] == id(df)
+            ):
+                return existing[0]
             if create:
                 key = self._next_key
                 self._next_key += 1
-                attrs["_cli_pagination_key"] = key
+                # Novo dict: nunca mutar attrs possivelmente compartilhado
+                # com o df pai.
+                df.attrs = {**attrs, "_cli_pagination_key": (key, id(df))}
                 return key
         return id(df) if create else None
 

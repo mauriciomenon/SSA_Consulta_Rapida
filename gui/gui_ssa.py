@@ -5823,6 +5823,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Falha ao consultar thread de derivadas no shutdown: %s", exc
                 )
 
+        # Thread daemon de staging de banco alternativo: sem rastreio ela
+        # morreria no meio do sqlite3.backup() deixando .copy-* parcial.
+        db_copy_thread = getattr(self, "_other_db_validation_thread", None)
+        if db_copy_thread is not None:
+            try:
+                if db_copy_thread.is_alive():
+                    running_operations.append(db_copy_thread)
+                    running_labels.append("db_copy_validation")
+            except (RuntimeError, AttributeError) as exc:
+                running_operations.append(db_copy_thread)
+                running_labels.append("db_copy_validation")
+                logger.warning(
+                    "Falha ao consultar thread de copia de banco no shutdown: %s",
+                    exc,
+                )
+
         previous_pending_ids = {
             id(pending_worker)
             for pending_worker in getattr(self, "_shutdown_pending_operations", ())

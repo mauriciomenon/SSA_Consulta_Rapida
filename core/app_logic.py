@@ -1221,12 +1221,18 @@ def _run_optional_derivadas_sync(
             )
         if not sync_ok:
             derivadas_sync_blocking_error = True
+            retry_marked = True
             if sync_report.get("sync_run_id") is not None:
-                mark_latest_sync_run_failed(
+                retry_marked = mark_latest_sync_run_failed(
                     db_path=working_db_path,
                     message="post_commit_validation_failed",
                     extra_allowed_roots=extra_allowed_roots,
                 )
+                if not retry_marked:
+                    logger.warning(
+                        "Run de derivadas comitado nao foi marcado como falho; "
+                        "o re-sync automatico no proximo rescan pode nao ocorrer."
+                    )
             consistency_scan = sync_report.get("consistency_scan") or {}
             issue_counts = consistency_scan.get("issue_counts") or {}
             missing_files = sorted(
@@ -1247,10 +1253,16 @@ def _run_optional_derivadas_sync(
                     + ", ".join(missing_files)
                     + "."
                 )
-            error_message += (
-                " Os dados importados foram preservados e o sync sera"
-                " refeito automaticamente no proximo rescan."
-            )
+            if retry_marked:
+                error_message += (
+                    " Os dados importados foram preservados e o sync sera"
+                    " refeito automaticamente no proximo rescan."
+                )
+            else:
+                error_message += (
+                    " Os dados importados foram preservados; execute"
+                    " 'Atualizar derivadas' no banco para refazer o sync."
+                )
             critical_errors.append(("derivadas_sync", docs_dir, error_message))
             emit_progress(
                 "file_error",
@@ -1280,15 +1292,24 @@ def _run_optional_derivadas_sync(
                 " automaticamente no proximo rescan."
             )
         else:
-            mark_latest_sync_run_failed(
+            retry_marked = mark_latest_sync_run_failed(
                 db_path=working_db_path,
                 message="post_commit_validation_failed",
                 extra_allowed_roots=extra_allowed_roots,
             )
+            if not retry_marked:
+                logger.warning(
+                    "Run de derivadas comitado nao foi marcado como falho; "
+                    "o re-sync automatico no proximo rescan pode nao ocorrer."
+                )
             error_message = (
                 f"{exc}. A verificacao falhou apos o commit do sync de"
-                " derivadas; os dados importados foram preservados. O"
-                " proximo rescan refaz a verificacao."
+                " derivadas; os dados importados foram preservados."
+                + (
+                    " O proximo rescan refaz a verificacao."
+                    if retry_marked
+                    else " Execute 'Atualizar derivadas' no banco para refazer o sync."
+                )
             )
         critical_errors.append(("derivadas_sync", docs_dir, error_message))
         emit_progress(

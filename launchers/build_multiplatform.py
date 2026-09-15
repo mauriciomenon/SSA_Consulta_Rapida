@@ -1333,9 +1333,12 @@ VSVersionInfo(
         ]
 
         unnecessary_patterns = [
-            # Arquivos de controle (file_cache.<stem>.json cobre bancos
-            # alternativos; file_cache.json segue coberto pelo glob)
-            "file_cache*.json",
+            # Arquivos de controle: o nome gerado e file_cache.<db>.json
+            # (sempre com a extensao do banco embutida), entao o glob
+            # exige dois pontos internos — um file_cache.notas.json de
+            # usuario nao casa.
+            "file_cache.json",
+            "file_cache.*.*.json",
             "*.backup_*",
             # Cache e temporarios
             "*.pyc",
@@ -1406,8 +1409,9 @@ VSVersionInfo(
         # Escopo restrito para dados: arquivos explicitos para evitar varredura ampla
         data_dir = self.base_dir / "data"
         if data_dir.exists():
-            for file_path in data_dir.glob("file_cache*.json"):
-                collect_for_cleanup(file_path)
+            for cache_pattern in ("file_cache.json", "file_cache.*.*.json"):
+                for file_path in data_dir.glob(cache_pattern):
+                    collect_for_cleanup(file_path)
             for file_path in data_dir.glob("*.backup_*"):
                 collect_for_cleanup(file_path)
             historico_backups = data_dir / "historico_backups"
