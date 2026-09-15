@@ -1599,3 +1599,27 @@ interativo; retry silencioso), hermes (2 processos disparados, sem
 output ao fechamento). bitoreview rodou 2x sobre o diff: 6+10 achados,
 todos LOW/cosmeticos exceto um MEDIUM vago sobre UNC ja coberto pelo
 fallback de netloc.
+
+### O14. Revisao externa (rodada 5) - codex sobre o commit de fixes
+
+`codex review --base ff3beb1e` sobre o commit `99f4bb2d`, com
+reproducoes empiricas. Tres achados, todos confirmados e corrigidos:
+
+- **[P2] casefold no file_cache colidia bancos distintos em volume
+  case-sensitive**: `SSAS.db` e `ssas.db` sao arquivos separados no
+  Linux mas ganhavam o mesmo `file_cache.json`. Match exato agora — em
+  volume case-insensitive um alias so gera cache redundante (reimport
+  seguro), nunca cache errado. Regressao coberta por
+  `test_file_cache_name_is_unique_per_database_filename`.
+- **[P2] staging publicado vazava na morte da janela**: se o worker
+  concluia a copia e publicava `pending_result` antes da janela ser
+  destruida, o ramo `_window_alive()==False` apagava a unica referencia
+  sem `discard_staged_copy`. Corrigido descartando o staging presente no
+  resultado publicado (a invalidacao de request_id continua cobrindo o
+  caso do worker ainda em staging).
+- **[P2] wait() dentro do handler SIGTERM esgotava o timeout**:
+  `process.wait(timeout=5)` no handler disputava `_waitpid_lock` com o
+  wait() interrompido na main thread — reproducao media 5.02s de
+  atraso no encerramento. O handler agora so faz terminate(); a colheita
+  (wait + kill de reforco) fica no atexit, que roda apos o unwind
+  liberar o lock. Repro: 0.01s, exit 143, filho terminado.

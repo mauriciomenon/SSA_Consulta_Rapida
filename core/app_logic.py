@@ -1812,12 +1812,14 @@ def _initialize_import_run_context(
     # ao banco padrao para preservar o contrato existente.
     # Nome completo (nao so o stem): archive.db e archive.sqlite sao
     # bancos distintos e nao podem compartilhar file_cache.archive.json.
+    # Match exato, nao casefold: em volumes case-sensitive (Linux) SSAS.db
+    # e ssas.db sao arquivos distintos e precisam de caches separados; em
+    # volumes case-insensitive um alias com caixa diferente apenas gera um
+    # cache redundante (reimport seguro), nunca cache errado.
     db_filename = Path(str(db_name)).name
-    # casefold: em volumes case-insensitive SSAS.db e ssas.db sao o mesmo
-    # arquivo e devem compartilhar o cache canonico.
     cache_name = (
         "file_cache.json"
-        if db_filename.casefold() == "ssas.db"
+        if db_filename == "ssas.db"
         else f"file_cache.{db_filename}.json"
     )
     return {

@@ -13,11 +13,15 @@ _STREAMLIT_PROCESSES: list[subprocess.Popen] = []
 _STREAMLIT_LOG_MAX_BYTES = 5 * 1024 * 1024
 
 
-def _terminate_process(process) -> None:
+def _terminate_process(process, *, reap: bool = True) -> None:
     """terminate() com espera curta e kill() de reforco.
 
     Um filho que ignore SIGTERM sobreviveria segurando a porta; o wait
-    tambem colhe o processo para nao deixar zombie.
+    tambem colhe o processo para nao deixar zombie. Com reap=False o
+    terminate sai imediato — usado no handler de sinal, onde um wait
+    disputaria o _waitpid_lock com o wait() interrompido na main thread
+    e esgotaria o timeout sem necessidade (o atexit faz a colheita apos
+    o unwind liberar o lock).
     """
     terminate = getattr(process, "terminate", None)
     if not callable(terminate) or not _is_process_running(process):
@@ -25,6 +29,8 @@ def _terminate_process(process) -> None:
     try:
         terminate()
     except OSError:
+        return
+    if not reap:
         return
     try:
         process.wait(timeout=5)
@@ -41,10 +47,12 @@ def _terminate_children_and_exit(*_args) -> None:
     """Handler de SIGTERM: encerra os filhos rastreados e sai com 143.
 
     SIGTERM nao dispara atexit; sem este handler o filho ficaria orfao
-    segurando a porta do servidor.
+    segurando a porta do servidor. Nao faz wait aqui: o handler pode
+    interromper um process.wait() em andamento, cujo _waitpid_lock esta
+    preso ate o unwind; a limpeza via atexit colhe e mata depois dele.
     """
     for process in list(_STREAMLIT_PROCESSES):
-        _terminate_process(process)
+        _terminate_process(process, reap=False)
     sys.exit(143)
 
 

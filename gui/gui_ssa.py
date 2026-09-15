@@ -5559,11 +5559,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if request_id != self._other_db_validation_request_id:
                     return
                 if not _window_alive():
+                    pending = pending_result
                     pending_result = None
                     # Invalida o request: se o worker ainda estiver em
                     # staging, o resultado tardio vira stale e o arquivo
                     # .copy-* e descartado em vez de vazar.
                     self._other_db_validation_request_id += 1
+                    # Se o worker JA publicou o resultado, a invalidacao
+                    # nao o alcanca — o staging tem que ser descartado aqui.
+                    staged_path = (
+                        (pending or {}).get("_copy_result") or {}
+                    ).get("staged")
+                    if staged_path:
+                        ssa_database_operations.discard_staged_copy(staged_path)
                     self._other_db_validation_thread = None
                     self._other_db_validation_running = False
                     return
