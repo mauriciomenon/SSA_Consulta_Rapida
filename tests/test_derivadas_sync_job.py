@@ -105,3 +105,39 @@ def test_derivadas_sync_job_reports_schema_not_ready_separately(
     assert result["ok"] is False
     assert "Schema de derivadas indisponivel" in str(result["error"])
     assert "missing_table" in str(result["error"])
+
+
+def test_derivadas_sync_job_forwards_extra_allowed_roots(
+    tmp_path: Path,
+) -> None:
+    captured: list[dict[str, Any]] = []
+    roots = [str(tmp_path)]
+
+    def _sync_derivadas(**kwargs: Any) -> dict[str, Any]:
+        captured.append(kwargs)
+        return {
+            "merge_stats": {"merged_edges": 1},
+            "db_stats": {"accepted_edges": 1},
+            "sheet_stats": {"accepted_edges": 0},
+        }
+
+    def _scan_consistency(**kwargs: Any) -> dict[str, Any]:
+        captured.append(kwargs)
+        return {
+            "schema_ready": True,
+            "is_consistent": True,
+            "issue_counts": {},
+        }
+
+    result = execute_derivadas_sync_job(
+        db_path=str(tmp_path / "ssas.db"),
+        table_name="ssa_table",
+        special_files=[],
+        sync_derivadas_fn=_sync_derivadas,
+        scan_derivadas_consistency_fn=_scan_consistency,
+        extra_allowed_roots=roots,
+    )
+
+    assert result["ok"] is True
+    assert len(captured) == 2
+    assert all(call.get("extra_allowed_roots") == roots for call in captured)

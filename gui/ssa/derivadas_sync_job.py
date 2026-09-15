@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 DERIVADAS_SYNC_PHASE_DB = "db"
 DERIVADAS_SYNC_PHASE_SHEETS = "sheets"
@@ -18,6 +18,7 @@ def execute_derivadas_sync_job(
     sync_derivadas_fn: Callable[..., dict[str, Any]],
     scan_derivadas_consistency_fn: Callable[..., dict[str, Any]],
     phase_callback: Callable[[str, dict[str, Any]], None] | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
     def _emit_phase(name: str, **payload: Any) -> None:
         if callable(phase_callback):
@@ -31,6 +32,7 @@ def execute_derivadas_sync_job(
             include_db_source=True,
             verify_only=False,
             actor="gui-derivadas-db-phase",
+            extra_allowed_roots=extra_allowed_roots,
         )
 
         phase_reports = [db_phase_report]
@@ -45,6 +47,7 @@ def execute_derivadas_sync_job(
                 sheet_files=special_files,
                 verify_only=False,
                 actor="gui-derivadas-sheet-phase",
+                extra_allowed_roots=extra_allowed_roots,
             )
             phase_reports.append(sheet_phase_report)
             _verify_special_sheet_coverage(sheet_phase_report, special_files)
@@ -58,7 +61,10 @@ def execute_derivadas_sync_job(
         sheet_stats = sheet_phase_report.get("sheet_stats") if sheet_phase_report else {}
         sheet_edges = int((sheet_stats or {}).get("accepted_edges", 0) or 0)
         try:
-            consistency = scan_derivadas_consistency_fn(db_path=db_path)
+            consistency = scan_derivadas_consistency_fn(
+                db_path=db_path,
+                extra_allowed_roots=extra_allowed_roots,
+            )
         except Exception as exc:
             return {
                 "ok": False,

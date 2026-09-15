@@ -156,12 +156,16 @@ def _configure_derivadas_connection(conn: sqlite3.Connection) -> None:
 
 
 @contextmanager
-def _open_derivadas_read_connection(db_path: str):
+def _open_derivadas_read_connection(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+):
     safe_db_path = str(
         ensure_path_is_allowed(
             db_path,
             purpose="derivadas read database",
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     )
     with get_db_connection(safe_db_path) as conn:
@@ -220,7 +224,10 @@ def _validate_table_name(table_name: str) -> str:
     return table_name
 
 
-def _normalize_sheet_file_path(value: Any) -> str:
+def _normalize_sheet_file_path(
+    value: Any,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> str:
     normalized = str(value).strip()
     if not normalized:
         return ""
@@ -230,6 +237,7 @@ def _normalize_sheet_file_path(value: Any) -> str:
             expanded,
             purpose="sync derivadas sheet file",
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     )
 
@@ -1531,18 +1539,23 @@ def sync_derivadas(
     full_rebuild: bool = False,
     verify_only: bool = False,
     actor: str | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
     """Run a full derivadas sync/validation cycle."""
 
     normalized_sheet_files: list[str] = []
     seen_sheet_files: set[str] = set()
     for candidate in [sheet_file] if sheet_file else []:
-        normalized = _normalize_sheet_file_path(candidate)
+        normalized = _normalize_sheet_file_path(
+            candidate, extra_allowed_roots=extra_allowed_roots
+        )
         if normalized and normalized not in seen_sheet_files:
             normalized_sheet_files.append(normalized)
             seen_sheet_files.add(normalized)
     for candidate in sheet_files or []:
-        normalized = _normalize_sheet_file_path(candidate)
+        normalized = _normalize_sheet_file_path(
+            candidate, extra_allowed_roots=extra_allowed_roots
+        )
         if normalized and normalized not in seen_sheet_files:
             normalized_sheet_files.append(normalized)
             seen_sheet_files.add(normalized)
@@ -1560,6 +1573,7 @@ def sync_derivadas(
             db_path,
             purpose="sync derivadas database",
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     )
 
@@ -1808,10 +1822,15 @@ def sync_derivadas(
             raise
 
 
-def get_sync_stats(db_path: str) -> dict[str, Any]:
+def get_sync_stats(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> dict[str, Any]:
     """Return compact stats for matrix, closure, summary and latest sync run."""
 
-    with _open_derivadas_read_connection(db_path) as conn:
+    with _open_derivadas_read_connection(
+        db_path, extra_allowed_roots=extra_allowed_roots
+    ) as conn:
         schema_readiness = scan_derivadas_read_schema_readiness(conn)
         if not schema_readiness["is_ready"]:
             return {
@@ -1926,13 +1945,18 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
         }
 
 
-def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
+def scan_derivadas_consistency(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> dict[str, Any]:
     """Independent low-cost consistency scan for derivadas materialization.
 
     This scan does not read source spreadsheets and does not modify data.
     """
 
-    with _open_derivadas_read_connection(db_path) as conn:
+    with _open_derivadas_read_connection(
+        db_path, extra_allowed_roots=extra_allowed_roots
+    ) as conn:
         schema_readiness = scan_derivadas_read_schema_readiness(conn)
         if not schema_readiness["is_ready"]:
             return {
@@ -2046,10 +2070,13 @@ def self_heal_derivadas(
     full_rebuild: bool = False,
     force: bool = False,
     actor: str | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
     """Attempt self-healing by running sync only when scan indicates issues."""
 
-    before = scan_derivadas_consistency(db_path)
+    before = scan_derivadas_consistency(
+        db_path, extra_allowed_roots=extra_allowed_roots
+    )
     if before["is_consistent"] and not force:
         return {"healed": False, "reason": "already_consistent", "before": before}
 
@@ -2065,8 +2092,11 @@ def self_heal_derivadas(
         full_rebuild=full_rebuild,
         verify_only=False,
         actor=actor,
+        extra_allowed_roots=extra_allowed_roots,
     )
-    after = scan_derivadas_consistency(db_path)
+    after = scan_derivadas_consistency(
+        db_path, extra_allowed_roots=extra_allowed_roots
+    )
     return {
         "healed": True,
         "before": before,
@@ -2083,11 +2113,14 @@ def run_derivadas_maintenance(
     auto_heal: bool = True,
     full_rebuild: bool = False,
     actor: str | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
     """Background-friendly maintenance trigger with interval guard."""
 
     try:
-        with _open_derivadas_read_connection(db_path) as conn:
+        with _open_derivadas_read_connection(
+            db_path, extra_allowed_roots=extra_allowed_roots
+        ) as conn:
             schema_readiness = scan_derivadas_read_schema_readiness(conn)
             latest = (
                 conn.execute(
@@ -2126,7 +2159,9 @@ def run_derivadas_maintenance(
             }
 
     try:
-        scan_report = scan_derivadas_consistency(db_path)
+        scan_report = scan_derivadas_consistency(
+            db_path, extra_allowed_roots=extra_allowed_roots
+        )
     except sqlite3.OperationalError as exc:
         if _is_sqlite_locked_error(exc):
             return {
@@ -2167,6 +2202,7 @@ def run_derivadas_maintenance(
             table_name=table_name,
             full_rebuild=full_rebuild,
             actor=actor or "maintenance",
+            extra_allowed_roots=extra_allowed_roots,
         )
     except sqlite3.OperationalError as exc:
         if _is_sqlite_locked_error(exc):

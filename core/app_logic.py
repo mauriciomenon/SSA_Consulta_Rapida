@@ -486,6 +486,7 @@ def _run_derivadas_sync_phase(
     db_path: str,
     table_name: str,
     derivadas_sheet_files: List[str],
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> tuple[bool, List[str], Dict[str, Any]]:
     def _has_sheet_parse_evidence(entry: Dict[str, Any]) -> bool:
         raw_stats = entry.get("stats")
@@ -505,6 +506,7 @@ def _run_derivadas_sync_phase(
         "table_name": table_name,
         "include_db_source": True,
         "actor": "importer-derivadas-sync",
+        "extra_allowed_roots": extra_allowed_roots,
     }
     if existing_files:
         sync_kwargs["sheet_files"] = existing_files
@@ -617,7 +619,10 @@ def _run_derivadas_sync_phase(
             "Sync de derivadas concluido sem arestas materializadas no grafo."
         )
 
-    consistency = scan_derivadas_consistency(db_path=db_path)
+    consistency = scan_derivadas_consistency(
+        db_path=db_path,
+        extra_allowed_roots=extra_allowed_roots,
+    )
     report = dict(report)
     report["consistency_scan"] = consistency
     if not bool(consistency.get("schema_ready")) or not bool(
@@ -1154,6 +1159,7 @@ def _run_optional_derivadas_sync(
     docs_dir: str,
     critical_errors: List[tuple[str, str, str]],
     emit_progress: Callable[[str, Dict[str, Any]], None],
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> tuple[bool, bool, list[str]]:
     """Executa sync opcional de derivadas e retorna resultado e arquivos especiais."""
     sync_materialized = False
@@ -1176,6 +1182,7 @@ def _run_optional_derivadas_sync(
             db_path=working_db_path,
             table_name=table_name,
             derivadas_sheet_files=derivadas_sheet_files,
+            extra_allowed_roots=extra_allowed_roots,
         )
         if sync_ok and not derivadas_sync_blocking_error:
             existing_success = set(successfully_processed_files)
@@ -2091,6 +2098,21 @@ def run_importer_logic(
             discovery_settings = cast(Dict[str, Any], work_items["discovery_settings"])
             files_to_process = cast(List[str], work_items["files_to_process"])
             derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
+            # Pre-flight: a fase de derivadas revalida db_path e planilhas de
+            # forma isolada; rejeitar aqui evita gravacao parcial no banco.
+            ensure_path_is_allowed(
+                working_db_path,
+                purpose="derivadas database preflight",
+                expect_directory=False,
+                extra_allowed_roots=extra_allowed_roots,
+            )
+            for derivadas_sheet_file in derivadas_sheet_files:
+                ensure_path_is_allowed(
+                    derivadas_sheet_file,
+                    purpose="derivadas sheet file preflight",
+                    expect_directory=False,
+                    extra_allowed_roots=extra_allowed_roots,
+                )
             import_batch_files = list(
                 dict.fromkeys([*files_to_process, *derivadas_sheet_files])
             )
@@ -2171,6 +2193,7 @@ def run_importer_logic(
                         docs_dir=docs_dir,
                         critical_errors=critical_errors,
                         emit_progress=_emit_progress,
+                        extra_allowed_roots=extra_allowed_roots,
                     )
                 )
                 successfully_processed_files.extend(synced_special_files)

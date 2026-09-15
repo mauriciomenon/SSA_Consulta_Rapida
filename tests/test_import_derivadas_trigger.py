@@ -969,3 +969,110 @@ def test_run_importer_rejects_special_sheet_when_aggregate_evidence_is_incomplet
     )
 
     assert updated is False
+
+
+def test_run_importer_propagates_extra_roots_to_derivadas_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    docs_dir = project / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    special = docs_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
+    special.write_bytes(b"x")
+    external_data = tmp_path / "external_data"
+    external_data.mkdir()
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [project])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic, "_update_cache_after_import", lambda *a, **k: None
+    )
+
+    sync_calls: list[dict] = []
+
+    def _fake_sync(**kwargs):
+        sync_calls.append(kwargs)
+        return {
+            "merge_stats": {"merged_edges": 2},
+            "sheet_files": [str(special)],
+            "sheet_stats": {"accepted_edges": 2, "special_layout_detected": 1},
+            "sheet_file_reports": [
+                {
+                    "sheet_file": str(special),
+                    "has_parse_evidence": True,
+                    "stats": {"accepted_edges": 2},
+                }
+            ],
+            "db_stats": {"accepted_edges": 0},
+        }
+
+    monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(external_data),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+        extra_allowed_roots=(str(external_data),),
+    )
+
+    assert updated is True
+    assert len(sync_calls) == 1
+    assert sync_calls[0]["extra_allowed_roots"] == (str(external_data),)
+
+
+def test_run_importer_preflight_rejects_derivadas_sheet_outside_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    docs_dir = project / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    data_dir = project / "data"
+    data_dir.mkdir()
+    external_sheets_dir = tmp_path / "external_sheets"
+    external_sheets_dir.mkdir()
+    external_sheet = (
+        external_sheets_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
+    )
+    external_sheet.write_bytes(b"x")
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [project])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *a, **k: [str(external_sheet)],
+    )
+    imported_files: list[str] = []
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        lambda *a, **k: imported_files.append("x") or (True, 0),
+    )
+
+    from core.import_errors import ImporterError
+
+    with pytest.raises(ImporterError) as excinfo:
+        run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+
+    assert isinstance(excinfo.value.__cause__, path_safety.PathSafetyError)
+    assert imported_files == []

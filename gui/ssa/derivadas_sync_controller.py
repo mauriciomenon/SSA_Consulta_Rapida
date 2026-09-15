@@ -6,7 +6,7 @@ import os
 import threading
 from dataclasses import dataclass, field
 from time import monotonic
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from gui.ssa.app_menus import database_operation_in_progress, refresh_database_actions
 from gui.ssa.derivadas_sync_job import (
@@ -409,6 +409,7 @@ def execute_derivadas_sync_job(
     sync_derivadas_fn: Callable[..., dict[str, Any]],
     scan_derivadas_consistency_fn: Callable[..., dict[str, Any]],
     status_callback=None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
     def _status_from_phase(phase_name: str, payload: dict[str, Any]) -> None:
         if not callable(status_callback):
@@ -430,6 +431,7 @@ def execute_derivadas_sync_job(
         sync_derivadas_fn=sync_derivadas_fn,
         scan_derivadas_consistency_fn=scan_derivadas_consistency_fn,
         phase_callback=_status_from_phase,
+        extra_allowed_roots=extra_allowed_roots,
     )
 
 
