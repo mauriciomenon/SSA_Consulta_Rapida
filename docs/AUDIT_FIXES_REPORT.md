@@ -1825,3 +1825,30 @@ hardlink), contencao em docs_root e retry por colisao.
 
 Validacao: 1121 testes cli/filter/paginacao verdes (0 falhas);
 bateria focada app_logic/derivadas 36 verdes; ruff limpo.
+
+### O19. Rodada 10 - auditoria profunda (path_safety, staging, manutencao)
+
+Verificado sem alteracao: `utils/path_safety.py` (resolve+containment,
+O_EXCL no touch de reserve_unique_path), `import_staging.py` (validacao
+de path externo, copia O_EXCL, rollback de lote), `import_consolidation`
+(reserva atomica + replace + cleanup), workers GUI (cancel duplo,
+receiver-check, catch-all), `config_manager` (escrita atomica completa),
+pipeline PAI, upsert com savepoint.
+
+Achados corrigidos em `scripts_manutencao/gerenciar_banco.py`:
+
+- **reset_database nao removia `-journal`**: rollback journal quente
+  sobrevivia ao reset e seria aplicado sobre o banco recem-criado.
+  Incluido na remocao de sidecars. Verificado manualmente.
+- **clean_old_backups apagava qualquer arquivo em data/backups/**
+  com mais de 7 dias, sem checar padrao de backup (o loop da pasta
+  principal checa). Arquivo do usuario colocado ali sumia
+  silenciosamente. Agora aplica o mesmo filtro de padroes.
+  Verificado: `notas_importantes.txt` preservado, backup removido.
+
+Reversao consciente: `get_db_connection(write=False)` ganhou teste de
+`mode=ro` URI — 39 testes falharam porque o contrato estabelecido usa
+conexao de leitura para criar/escrever o banco. Revertido; mantido
+apenas o gate de makedirs na escrita (ja commitado). Registrado como
+residual: leitura em caminho inexistente ainda cria arquivo vazio
+quando o diretorio existe — mudar exige revisar o contrato publico.
