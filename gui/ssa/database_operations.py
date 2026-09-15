@@ -103,7 +103,7 @@ def copy_database_into_data_dir(
     staged = dest.with_name(f"{dest.name}.copy-{timestamp}")
 
     def _remove_staging() -> None:
-        for suffix in ("-wal", "-shm", ""):
+        for suffix in ("-wal", "-shm", "-journal", ""):
             partial = Path(f"{staged}{suffix}")
             if partial.exists():
                 try:
