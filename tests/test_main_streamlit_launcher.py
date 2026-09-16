@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 import importlib.util
+import signal
+import subprocess
 from typing import Any, cast
 
+import pytest
+
 from interface import streamlit_launcher
+
+
+@pytest.fixture(autouse=True)
+def isolate_streamlit_lifecycle(monkeypatch):
+    previous = signal.getsignal(signal.SIGTERM)
+    monkeypatch.setattr(streamlit_launcher, "_STREAMLIT_PROCESSES", [])
+    monkeypatch.setattr(streamlit_launcher, "_STREAMLIT_ORIGINAL_SIGTERM_HANDLER", None)
+    monkeypatch.setattr(streamlit_launcher, "_STREAMLIT_LAUNCHING", False)
+    monkeypatch.setattr(streamlit_launcher, "_STREAMLIT_SIGTERM_PENDING", False)
+    yield
+    signal.signal(signal.SIGTERM, previous)
 
 
 def test_launch_streamlit_prefers_current_python_module(
@@ -167,3 +182,82 @@ def test_launch_streamlit_reports_missing_launcher(
 
     out = capsys.readouterr().out
     assert "Streamlit nao encontrado no ambiente atual nem no PATH." in out
+
+
+def test_failed_launch_restores_sigterm_handler(monkeypatch, tmp_path):
+    script = tmp_path / "dev_env" / "streamlit_app.py"
+    script.parent.mkdir()
+    script.write_text("", encoding="utf-8")
+    previous = signal.getsignal(signal.SIGTERM)
+    monkeypatch.setattr(streamlit_launcher, "_resolve_streamlit_launch_command", lambda: (["streamlit"], "PATH"))
+
+    def fail_popen(*args, **kwargs):
+        raise OSError("criacao recusada")
+
+    monkeypatch.setattr(streamlit_launcher.subprocess, "Popen", fail_popen)
+    assert streamlit_launcher.launch_streamlit(str(tmp_path)) is False
+    assert signal.getsignal(signal.SIGTERM) is previous
+    assert not streamlit_launcher._STREAMLIT_PROCESSES
+    assert streamlit_launcher._STREAMLIT_LAUNCHING is False
+
+
+def test_sigterm_during_launch_waits_for_child_registration(monkeypatch, tmp_path):
+    script = tmp_path / "dev_env" / "streamlit_app.py"
+    script.parent.mkdir()
+    script.write_text("", encoding="utf-8")
+    terminated = []
+
+    class Process:
+        pid = 321
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            terminated.append(self.pid)
+
+    process = Process()
+
+    def popen_with_signal(*args, **kwargs):
+        assert "preexec_fn" not in kwargs
+        streamlit_launcher._terminate_children_and_exit()
+        assert terminated == []
+        return process
+
+    monkeypatch.setattr(streamlit_launcher, "_resolve_streamlit_launch_command", lambda: (["streamlit"], "PATH"))
+    monkeypatch.setattr(streamlit_launcher.subprocess, "Popen", popen_with_signal)
+    with pytest.raises(SystemExit) as exc:
+        streamlit_launcher.launch_streamlit(str(tmp_path))
+    assert exc.value.code == 143
+    assert terminated == [321]
+    assert streamlit_launcher._STREAMLIT_PROCESSES == [process]
+
+
+def test_forced_termination_reaps_child():
+    calls = []
+
+    class Process:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            calls.append("terminate")
+
+        def wait(self, timeout):
+            calls.append("wait")
+            if calls.count("wait") == 1:
+                raise subprocess.TimeoutExpired("streamlit", timeout)
+            return -9
+
+        def kill(self):
+            calls.append("kill")
+
+    streamlit_launcher._terminate_process(Process())
+    assert calls == ["terminate", "wait", "kill", "wait"]
+
+
+def test_launch_rejects_worker_thread(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(streamlit_launcher.threading, "current_thread", lambda: object())
+    assert streamlit_launcher.launch_streamlit(str(tmp_path)) is False
+    assert "thread principal" in capsys.readouterr().out
+    assert not streamlit_launcher._STREAMLIT_PROCESSES

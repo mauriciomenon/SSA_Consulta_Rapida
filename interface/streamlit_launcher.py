@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import importlib.util
+import logging
 import os
 import shutil
 import signal
@@ -16,6 +17,9 @@ _STREAMLIT_LOG_MAX_BYTES = 5 * 1024 * 1024
 # wait_for_streamlit veriam o nosso proprio handler como "anterior" e
 # nunca restaurariam o original do processo.
 _STREAMLIT_ORIGINAL_SIGTERM_HANDLER = None
+_STREAMLIT_LAUNCHING = False
+_STREAMLIT_SIGTERM_PENDING = False
+logger = logging.getLogger(__name__)
 
 
 def _terminate_process(process, *, reap: bool = True) -> None:
@@ -33,19 +37,21 @@ def _terminate_process(process, *, reap: bool = True) -> None:
         return
     try:
         terminate()
-    except OSError:
+    except OSError as exc:
+        logger.warning("Falha ao encerrar Streamlit: %s", exc)
         return
     if not reap:
         return
     try:
         process.wait(timeout=5)
-    except Exception:
-        kill = getattr(process, "kill", None)
-        if callable(kill):
-            try:
-                kill()
-            except OSError:
-                pass
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+            process.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            logger.error("Encerramento forcado do Streamlit incompleto: %s", exc)
+    except OSError as exc:
+        logger.warning("Falha ao aguardar Streamlit: %s", exc)
 
 
 def _terminate_children_and_exit(*_args) -> None:
@@ -56,6 +62,10 @@ def _terminate_children_and_exit(*_args) -> None:
     interromper um process.wait() em andamento, cujo _waitpid_lock esta
     preso ate o unwind; a limpeza via atexit colhe e mata depois dele.
     """
+    global _STREAMLIT_SIGTERM_PENDING
+    if _STREAMLIT_LAUNCHING:
+        _STREAMLIT_SIGTERM_PENDING = True
+        return
     for process in list(_STREAMLIT_PROCESSES):
         _terminate_process(process, reap=False)
     sys.exit(143)
@@ -63,52 +73,19 @@ def _terminate_children_and_exit(*_args) -> None:
 
 def _install_sigterm_handler() -> None:
     global _STREAMLIT_ORIGINAL_SIGTERM_HANDLER
-    try:
-        current = signal.getsignal(signal.SIGTERM)
-        if current is not _terminate_children_and_exit:
-            _STREAMLIT_ORIGINAL_SIGTERM_HANDLER = current
-        signal.signal(signal.SIGTERM, _terminate_children_and_exit)
-    except (OSError, RuntimeError, ValueError):
-        # Fora da main thread ou sem suporte a sinais: atexit segue como rede.
-        pass
+    current = signal.getsignal(signal.SIGTERM)
+    if current is not _terminate_children_and_exit:
+        _STREAMLIT_ORIGINAL_SIGTERM_HANDLER = current
+    signal.signal(signal.SIGTERM, _terminate_children_and_exit)
 
 
-def _block_sigterm():
-    """Bloqueia SIGTERM nesta thread (POSIX) e retorna a mascara anterior.
-
-    Sem pthread_sigmask (Windows), retorna None: a janela residual e
-    tratada pelo handler instalado antes do Popen.
-    """
-    mask = getattr(signal, "pthread_sigmask", None)
-    if not callable(mask):
-        return None
-    try:
-        return mask(signal.SIG_BLOCK, [signal.SIGTERM])
-    except (OSError, ValueError):
-        return None
-
-
-def _restore_sigterm_mask(old_mask) -> None:
-    if old_mask is None:
-        return
-    mask = getattr(signal, "pthread_sigmask", None)
-    if callable(mask):
-        mask(signal.SIG_SETMASK, old_mask)
-
-
-def _make_child_sigmask_restorer(old_mask):
-    """Retorna preexec_fn que restaura a mascara de sinais no filho.
-
-    Sem isso o filho herdaria SIGTERM bloqueado (a mascara e herdada no
-    fork e sobrevive ao exec): terminate() ficaria pendente para sempre.
-    """
-    if old_mask is None or not callable(getattr(signal, "pthread_sigmask", None)):
-        return None
-
-    def _restore() -> None:
-        signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
-
-    return _restore
+def _restore_sigterm_handler_if_idle() -> None:
+    _prune_streamlit_processes()
+    if _STREAMLIT_ORIGINAL_SIGTERM_HANDLER is not None and not _STREAMLIT_PROCESSES:
+        try:
+            signal.signal(signal.SIGTERM, _STREAMLIT_ORIGINAL_SIGTERM_HANDLER)
+        except (OSError, RuntimeError, ValueError) as exc:
+            logger.warning("Falha ao restaurar handler SIGTERM: %s", exc)
 
 
 def wait_for_streamlit() -> None:
@@ -126,18 +103,7 @@ def wait_for_streamlit() -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        # Restaura o handler original quando nao restam filhos vivos:
-        # manter o nosso faria um SIGTERM posterior sair com 143 sem
-        # nada para encerrar, ignorando o handler original do chamador.
-        _prune_streamlit_processes()
-        if (
-            _STREAMLIT_ORIGINAL_SIGTERM_HANDLER is not None
-            and not _STREAMLIT_PROCESSES
-        ):
-            try:
-                signal.signal(signal.SIGTERM, _STREAMLIT_ORIGINAL_SIGTERM_HANDLER)
-            except (OSError, RuntimeError, ValueError):
-                pass
+        _restore_sigterm_handler_if_idle()
 
 
 def _is_process_running(process) -> bool:
@@ -179,6 +145,10 @@ def _resolve_streamlit_launch_command() -> tuple[Optional[list[str]], str]:
 def launch_streamlit(
     project_root: str, port: Optional[int] = None, log_root: Optional[str] = None
 ) -> bool:
+    global _STREAMLIT_LAUNCHING, _STREAMLIT_SIGTERM_PENDING
+    if threading.current_thread() is not threading.main_thread():
+        print("Streamlit deve ser iniciado pela thread principal para tratar sinais.")
+        return False
     script_path = os.path.join(project_root, "dev_env", "streamlit_app.py")
     if not os.path.exists(script_path):
         print("Streamlit app nao encontrado em dev_env/streamlit_app.py")
@@ -188,9 +158,6 @@ def launch_streamlit(
         print("Streamlit nao encontrado no ambiente atual nem no PATH.")
         return False
 
-    # 127.0.0.1 explicito: a autorizacao de caminhos digitados na UI usa o
-    # allowlist global do processo, entao o servidor nao pode ficar
-    # acessivel fora de loopback.
     cmd = [
         *launcher_cmd,
         "run",
@@ -213,35 +180,25 @@ def launch_streamlit(
         print(f"Aviso: rotacao de {log_path} falhou ({exc}); log seguira em append")
 
     try:
-        # Handler antes do Popen: cobre a janela entre o append e o wait.
         _install_sigterm_handler()
-        # SIGTERM bloqueado ate o filho estar rastreado: um sinal nesse
-        # intervalo fica pendente e dispara o handler apos o desbloqueio,
-        # com o processo ja em _STREAMLIT_PROCESSES.
-        # So na main thread: bloquear a mascara de uma thread qualquer nao
-        # impede a entrega do sinal (vai para outra thread desbloqueada) e
-        # ainda exigiria preexec_fn num processo possivelmente multi-thread.
-        is_main_thread = threading.current_thread() is threading.main_thread()
-        old_mask = _block_sigterm() if is_main_thread else None
+        # Adia apenas a saida do handler ate registrar o filho. Nao altera
+        # a mascara herdada nem executa Python entre fork e exec.
+        _STREAMLIT_LAUNCHING = True
         try:
-            popen_kwargs: dict = {}
-            restorer = _make_child_sigmask_restorer(old_mask)
-            if restorer is not None:
-                # Sem o restore no filho, o processo herdaria SIGTERM
-                # bloqueado e terminate() ficaria pendente para sempre.
-                popen_kwargs["preexec_fn"] = restorer
             with open(log_path, "ab") as log_file:
                 process = subprocess.Popen(
                     cmd,
                     stdout=log_file,
                     stderr=log_file,
                     cwd=project_root,
-                    **popen_kwargs,
                 )
+                _STREAMLIT_PROCESSES.append(process)
             _prune_streamlit_processes()
-            _STREAMLIT_PROCESSES.append(process)
         finally:
-            _restore_sigterm_mask(old_mask)
+            _STREAMLIT_LAUNCHING = False
+            if _STREAMLIT_SIGTERM_PENDING:
+                _STREAMLIT_SIGTERM_PENDING = False
+                _terminate_children_and_exit()
         display_port = port or 8501
         print(f"Origem do launcher Streamlit: {launcher_source}")
         print(
@@ -250,5 +207,6 @@ def launch_streamlit(
         print(f"Logs: {log_path}")
         return True
     except Exception as exc:  # noqa: BLE001
+        _restore_sigterm_handler_if_idle()
         print(f"Falha ao iniciar Streamlit: {exc}")
         return False

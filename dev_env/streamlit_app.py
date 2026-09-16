@@ -533,7 +533,9 @@ STREAMLIT_THEME_PALETTES: dict[str, dict[str, str]] = {
 }
 
 
-def load_dataframe(db_path: str) -> pd.DataFrame:
+def load_dataframe(
+    db_path: str, extra_allowed_roots: tuple[str, ...] = ()
+) -> pd.DataFrame:
     """
     Carrega dados do banco de dados com tratamento de erros.
 
@@ -545,7 +547,7 @@ def load_dataframe(db_path: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        df = get_filtered_data(db_path)
+        df = get_filtered_data(db_path, extra_allowed_roots=extra_allowed_roots)
         if df.empty:
             logger.info(f"Database query returned empty result: {db_path}")
         else:
@@ -811,110 +813,28 @@ def _normalize_render_stats(raw_stats: Any) -> dict[str, dict[str, Any]]:
     return normalized
 
 
-def _read_extra_allowed_roots() -> list[str]:
-    return [
-        entry.strip()
-        for entry in os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "").split(os.pathsep)
-        if entry.strip()
-    ]
-
-
-def _append_extra_allowed_root(root: Path) -> bool:
-    """Registra uma raiz extra autorizada pela escolha explicita do usuario.
-
-    Usa SSA_EXTRA_ALLOWED_PATHS: a decisao do usuario na UI tem a mesma
-    semantica do --db no CLI (o diretorio de um caminho explicito passa a
-    ser autorizado). get_allowed_roots() rele a variavel a cada chamada,
-    entao nenhum outro ponto precisa ser tocado.
-
-    Retorna True quando a raiz foi adicionada por esta chamada; False
-    quando ela ja constava no allowlist.
-    """
-    root_str = str(root)
-    if os.pathsep in root_str:
-        # Um separador de lista dentro do nome corromperia o parsing do
-        # allowlist e poderia autorizar raizes nao pretendidas.
-        raise PathSafetyError(
-            f"raiz '{root_str}' contem separador de lista ({os.pathsep!r})"
-        )
-    current = _read_extra_allowed_roots()
-    if root_str in current:
-        # Raiz ja autorizada (ex.: SSA_EXTRA_ALLOWED_PATHS de ambiente):
-        # retorna False para que o rollback nao revogue uma autorizacao
-        # que esta chamada nao concedeu.
-        return False
-    current.append(root_str)
-    os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(current)
-    path_safety_module.refresh_allowed_roots()
-    return True
-
-
-def _remove_extra_allowed_root(root: Path) -> None:
-    """Desfaz uma autorizacao concedida por _append_extra_allowed_root."""
-    root_str = str(root)
-    current = _read_extra_allowed_roots()
-    if root_str in current:
-        current.remove(root_str)
-        if current:
-            os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(current)
-        else:
-            os.environ.pop("SSA_EXTRA_ALLOWED_PATHS", None)
-        path_safety_module.refresh_allowed_roots()
-
-
 def _resolve_user_source_path(
     raw_path: str, *, purpose: str, expect_directory: bool
 ) -> str:
-    """Valida um caminho digitado na UI.
-
-    Tenta primeiro a validacao padrao: caminhos ja cobertos pelas raizes
-    permitidas passam sem ampliar o allowlist. So um caminho externo
-    existente dispara a autorizacao explicita (mesma semantica do --db no
-    CLI) — e ela e revogada se a validacao final falhar, para que uma
-    tentativa malsucedida nao deixe raiz residual no processo.
-    """
+    """Valida a escolha explicita sem ampliar permissoes de outras sessoes."""
+    if not raw_path.strip():
+        raise PathSafetyError(f"{purpose}: caminho vazio nao permitido.")
     candidate = Path(raw_path.strip()).expanduser()
     if not candidate.is_absolute():
         candidate = project_root / candidate
     candidate = candidate.resolve()
-    try:
-        return str(
-            ensure_path_is_allowed(
-                candidate,
-                purpose=purpose,
-                expect_directory=expect_directory,
-            )
-        )
-    except PathSafetyError:
-        pass  # caminho externo: segue para a autorizacao explicita abaixo
-
-    # Restringe a caminhos existentes: digitar um path inexistente nao
-    # pode servir para ampliar o allowlist.
-    if not candidate.exists():
-        raise PathSafetyError(f"{purpose}: '{candidate}' nao existe.")
-    if expect_directory and not candidate.is_dir():
-        raise PathSafetyError(
-            f"{purpose}: '{candidate}' precisa ser um diretorio."
-        )
-    if not expect_directory and candidate.is_dir():
-        raise PathSafetyError(
-            f"{purpose}: '{candidate}' deve ser um arquivo, nao um diretorio."
-        )
-
     root = candidate if expect_directory else candidate.parent
-    added = _append_extra_allowed_root(root)
-    try:
-        return str(
-            ensure_path_is_allowed(
-                candidate,
-                purpose=purpose,
-                expect_directory=expect_directory,
-            )
+    if not root.is_dir():
+        raise PathSafetyError(f"{purpose}: diretorio '{root}' nao existe.")
+    return str(
+        ensure_path_is_allowed(
+            candidate,
+            purpose=purpose,
+            expect_directory=expect_directory,
+            must_exist=expect_directory,
+            extra_allowed_roots=(root,),
         )
-    except Exception:
-        if added:
-            _remove_extra_allowed_root(root)
-        raise
+    )
 
 
 def _resolve_streamlit_ui_state_path() -> Path:
@@ -1195,6 +1115,7 @@ def _render_source_ops_panel(db_path: str, docs_dir: str) -> None:
                 st.session_state["streamlit_source_state"] = {
                     "db_path": resolved_db,
                     "docs_dir": resolved_docs,
+                    "extra_allowed_roots": (str(Path(resolved_db).parent), resolved_docs),
                 }
                 st.success(
                     "Fonte aplicada. Recarregue dados para refletir mudancas."
@@ -1214,6 +1135,7 @@ def _render_source_ops_panel(db_path: str, docs_dir: str) -> None:
                     db_path=op_db,
                     force_import=bool(run_reimport),
                     raise_on_error=True,
+                    extra_allowed_roots=tuple(source_state.get("extra_allowed_roots", ())),
                 )
                 _outcome_after = _import_outcome.get_last_import_outcome()
                 outcome = (
@@ -2330,6 +2252,11 @@ if REAL_RUNTIME:
             purpose="Pasta com planilhas",
             expect_directory=True,
         )
+        st.session_state["streamlit_source_state"] = {
+            "db_path": db_path,
+            "docs_dir": docs_dir,
+            "extra_allowed_roots": (str(Path(db_path).parent), docs_dir),
+        }
     except PathSafetyError as exc:
         db_path = DB_PATH_DEFAULT
         docs_dir = DOCS_DIR_DEFAULT
@@ -2376,7 +2303,13 @@ if REAL_RUNTIME:
         st.caption(f"DB: {'ok' if db_exists else 'ausente'} | {db_size_mb:.1f} MB")
         st.caption(f"Arquivos de entrada: {sheet_files_count}")
 
-raw_df = load_dataframe(db_path) if REAL_RUNTIME else pd.DataFrame()
+raw_df = (
+    load_dataframe(
+        db_path,
+        tuple(st.session_state["streamlit_source_state"].get("extra_allowed_roots", ())),
+    )
+    if REAL_RUNTIME else pd.DataFrame()
+)
 sidebar_filtered_metric_slot: Any = None
 base_derivada_context_map: Optional[pd.DataFrame] = None
 if REAL_RUNTIME and raw_df.empty:
