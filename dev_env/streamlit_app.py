@@ -819,13 +819,16 @@ def _read_extra_allowed_roots() -> list[str]:
     ]
 
 
-def _append_extra_allowed_root(root: Path) -> None:
+def _append_extra_allowed_root(root: Path) -> bool:
     """Registra uma raiz extra autorizada pela escolha explicita do usuario.
 
     Usa SSA_EXTRA_ALLOWED_PATHS: a decisao do usuario na UI tem a mesma
     semantica do --db no CLI (o diretorio de um caminho explicito passa a
     ser autorizado). get_allowed_roots() rele a variavel a cada chamada,
     entao nenhum outro ponto precisa ser tocado.
+
+    Retorna True quando a raiz foi adicionada por esta chamada; False
+    quando ela ja constava no allowlist.
     """
     root_str = str(root)
     if os.pathsep in root_str:
@@ -835,10 +838,15 @@ def _append_extra_allowed_root(root: Path) -> None:
             f"raiz '{root_str}' contem separador de lista ({os.pathsep!r})"
         )
     current = _read_extra_allowed_roots()
-    if root_str not in current:
-        current.append(root_str)
-        os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(current)
-        path_safety_module.refresh_allowed_roots()
+    if root_str in current:
+        # Raiz ja autorizada (ex.: SSA_EXTRA_ALLOWED_PATHS de ambiente):
+        # retorna False para que o rollback nao revogue uma autorizacao
+        # que esta chamada nao concedeu.
+        return False
+    current.append(root_str)
+    os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(current)
+    path_safety_module.refresh_allowed_roots()
+    return True
 
 
 def _remove_extra_allowed_root(root: Path) -> None:
@@ -894,7 +902,7 @@ def _resolve_user_source_path(
         )
 
     root = candidate if expect_directory else candidate.parent
-    _append_extra_allowed_root(root)
+    added = _append_extra_allowed_root(root)
     try:
         return str(
             ensure_path_is_allowed(
@@ -904,7 +912,8 @@ def _resolve_user_source_path(
             )
         )
     except Exception:
-        _remove_extra_allowed_root(root)
+        if added:
+            _remove_extra_allowed_root(root)
         raise
 
 

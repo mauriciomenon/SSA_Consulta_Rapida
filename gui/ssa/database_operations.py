@@ -9,7 +9,8 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlparse
+
+from armazenamento.database import read_only_sqlite_uri
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,9 @@ def validate_database_candidate(
     query_db_fn: Callable[..., Any],
 ) -> dict[str, Any]:
     try:
-        test_df = query_db_fn(db_file, table_name, raise_on_error=True)
+        # read_only: a validacao de um arquivo escolhido pelo usuario nao
+        # pode escrever no .db dele (ex.: recuperacao de -journal quente).
+        test_df = query_db_fn(db_file, table_name, raise_on_error=True, read_only=True)
     except Exception as exc:
         return {"ok": False, "error": str(exc), "db_file": db_file}
     has_rows = bool(test_df is not None and not test_df.empty)
@@ -116,16 +119,9 @@ def stage_database_copy(src: Path, dest: Path) -> dict[str, Any]:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     staged = dest.with_name(f"{dest.name}.copy-{timestamp}")
     try:
-        source_uri = src.as_uri()
-        parsed = urlparse(source_uri)
-        if parsed.netloc not in ("", "localhost"):
-            # Caminho UNC (file://servidor/compartilhamento/...): o SQLite
-            # rejeita authority nao-localhost, entao o host e reescrito no
-            # inicio do path (file:////servidor/share/...), que o Windows
-            # resolve como \\servidor\share. Assim mode=ro vale tambem para
-            # origens UNC e impede recuperacao de journal quente na origem.
-            source_uri = f"file:////{parsed.netloc}{parsed.path}"
-        source_uri += "?mode=ro"
+        # mode=ro (inclusive em UNC): a leitura nao pode disparar
+        # recuperacao de journal quente na origem.
+        source_uri = read_only_sqlite_uri(str(src))
         with closing(sqlite3.connect(source_uri, uri=True)) as source_conn:
             with closing(sqlite3.connect(str(staged))) as staged_conn:
                 source_conn.backup(staged_conn)

@@ -119,13 +119,46 @@ def _store_resolved_table_cache(
 DEFAULT_SCHEMA_FILE = "schema.sql"
 
 
+def read_only_sqlite_uri(db_path: str) -> str:
+    """URI ``file:...?mode=ro`` para abrir um SQLite sem alterar o .db.
+
+    ``mode=ro`` impede writes no arquivo e a recuperacao de ``-journal``
+    quente na origem. Limitacao conhecida do SQLite: em banco WAL o shm
+    precisa existir ou ser criado — a abertura pode materializar
+    ``-shm``/``-wal`` ao lado da origem quando o diretorio e gravavel, e
+    falha em midia somente-leitura (nesse caso copie o banco antes).
+
+    Caminhos UNC (``\\\\servidor\\share`` -> ``file://servidor/...``) sao
+    reescritos como ``file:////servidor/share/...``: o SQLite rejeita
+    authority nao-localhost, e o Windows resolve ``//servidor/share`` no
+    inicio do path como ``\\\\servidor\\share``. Assim ``mode=ro`` vale
+    tambem para origens UNC.
+    """
+    from pathlib import Path
+    from urllib.parse import urlparse
+
+    resolved = Path(db_path).expanduser().resolve()
+    uri = resolved.as_uri()
+    parsed = urlparse(uri)
+    if parsed.netloc not in ("", "localhost"):
+        uri = f"file:////{parsed.netloc}{parsed.path}"
+    return f"{uri}?mode=ro"
+
+
 @contextmanager
-def get_db_connection(db_path: str, *, write: bool = False):
+def get_db_connection(db_path: str, *, write: bool = False, read_only: bool = False):
     """
     Gerenciador de contexto para obter uma conexao com o banco de dados.
 
     Args:
         db_path (str): Caminho para o arquivo do banco de dados SQLite.
+        write (bool): Serializa via lock de escritor e permite criar
+            diretorio/arquivo.
+        read_only (bool): Abre com ``mode=ro``: falha se o arquivo nao
+            existir e nunca escreve no .db da origem (sem recuperacao de
+            journal quente). Em banco WAL o SQLite ainda pode materializar
+            ``-shm``/``-wal`` no diretorio da origem (ver
+            :func:`read_only_sqlite_uri`). Ignorado quando ``write=True``.
 
     Yields:
         sqlite3.Connection: Uma conexao ativa com o banco de dados.
@@ -142,7 +175,10 @@ def get_db_connection(db_path: str, *, write: bool = False):
                 if db_dir:
                     os.makedirs(db_dir, exist_ok=True)
 
-            conn = sqlite3.connect(db_path)
+            if read_only and not write and db_path != ":memory:":
+                conn = sqlite3.connect(read_only_sqlite_uri(db_path), uri=True)
+            else:
+                conn = sqlite3.connect(db_path)
             # Configuracoes recomendadas para performance e seguranca (FKs, etc.)
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute("PRAGMA busy_timeout = 5000")
@@ -247,6 +283,7 @@ def query_db(
     params: tuple = (),
     raise_on_error: bool = False,
     cancel_callback: Callable[[], bool] | None = None,
+    read_only: bool = False,
 ) -> pd.DataFrame:
     """
     Consulta o banco de dados e retorna um DataFrame.
@@ -262,6 +299,11 @@ def query_db(
             retorna True. O callback deve ser uma funcao sem argumentos que
             retorna bool. A interrupcao e propagada como InterruptedError,
             inclusive quando pandas encapsula o SQLITE_INTERRUPT (codigo 9).
+        read_only (bool, optional): Se True, abre a conexao com
+            ``mode=ro`` — nunca escreve no .db da origem (sem recuperacao
+            de journal quente) e falha se o arquivo nao existir. Em banco
+            WAL pode ainda materializar ``-shm``/``-wal`` ao lado da
+            origem (limitacao do SQLite).
 
     Returns:
         pd.DataFrame: Resultado da consulta.
@@ -269,7 +311,7 @@ def query_db(
     cancel_requested = False
     cancel_callback_error: Exception | None = None
     try:
-        with get_db_connection(db_path) as conn:
+        with get_db_connection(db_path, read_only=read_only) as conn:
             effective_query = query
             if not effective_query:
                 if params:

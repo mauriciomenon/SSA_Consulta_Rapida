@@ -399,6 +399,35 @@ def _needs_db_only_derivadas_sync(
                     "Cancelamento solicitado durante preflight DB-only de derivadas."
                 )
                 return False
+            ready_tables = {
+                "ssa_derivada_matrix",
+                "ssa_derivada_summary",
+                "ssa_derivada_sync_run",
+            }
+            existing_tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            if "ssa_derivada_sync_run" in existing_tables:
+                latest = conn.execute(
+                    """
+                    SELECT status, db_edges
+                    FROM ssa_derivada_sync_run
+                    ORDER BY sync_run_id DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+            else:
+                latest = None
+
+            # Um run marcado como erro precisa ser refeito mesmo quando o
+            # banco nao tem arestas DB: sem esta checagem antecipada, o
+            # early-return de edges==0 deixava a falha sem retry.
+            if latest is not None and str(latest[0] or "") != "ok":
+                return _finish(True)
+
             db_edges_count = int(
                 database.count_distinct_derivada_edges(
                     cast(sqlite3.Connection, conn),
@@ -414,17 +443,6 @@ def _needs_db_only_derivadas_sync(
                 )
                 return False
 
-            ready_tables = {
-                "ssa_derivada_matrix",
-                "ssa_derivada_summary",
-                "ssa_derivada_sync_run",
-            }
-            existing_tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                ).fetchall()
-            }
             if not ready_tables.issubset(existing_tables):
                 return _finish(True)
 
@@ -442,22 +460,12 @@ def _needs_db_only_derivadas_sync(
             summary_total = int(
                 conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0]
             )
-            latest = conn.execute(
-                """
-                SELECT status, db_edges
-                FROM ssa_derivada_sync_run
-                ORDER BY sync_run_id DESC
-                LIMIT 1
-                """
-            ).fetchone()
 
             if latest is None:
                 return _finish(True)
-            latest_status = str(latest[0] or "")
             latest_db_edges = int(latest[1] or 0)
             return _finish(
-                latest_status != "ok"
-                or matrix_active <= 0
+                matrix_active <= 0
                 or summary_total <= 0
                 or latest_db_edges != db_edges_count
             )

@@ -27,7 +27,7 @@ def test_validate_database_candidate_raises_query_errors_explicitly():
         "error": "db open failed",
         "db_file": "/tmp/candidate.db",
     }
-    assert calls[0]["kwargs"] == {"raise_on_error": True}
+    assert calls[0]["kwargs"] == {"raise_on_error": True, "read_only": True}
 
 
 def test_validate_database_candidate_accepts_non_empty_table():
@@ -217,6 +217,75 @@ def test_copy_database_into_data_dir_missing_source(tmp_path):
 
     assert result["ok"] is False
     assert "nao existe" in result["error"]
+
+
+def test_validate_database_candidate_never_modifies_source_with_hot_journal(
+    tmp_path,
+):
+    """Validacao usa mode=ro: um -journal quente nao pode ser recuperado
+    (escrito) no arquivo do usuario — a leitura falha ou le o estado
+    anterior, mas a origem fica byte-a-byte intacta.
+
+    O journal quente e produzido num subprocesso morto com os._exit: um
+    writer vivo manteria lock RESERVED e o journal nao seria quente.
+    """
+    import hashlib
+    import subprocess
+    import sys
+
+    from armazenamento.database import query_db
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = src_dir / "orig.db"
+    conn = sqlite3.connect(str(src))
+    conn.execute("PRAGMA journal_mode=DELETE")
+    conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+    conn.execute("INSERT INTO ssa_table VALUES ('ok')")
+    conn.commit()
+    conn.close()
+
+    # Writer morre sem commit/rollback com cache_size=1: o spill forca
+    # paginas sujas no .db, deixando -journal genuinamente quente (writer
+    # vivo seguraria lock RESERVED e o journal nao seria quente).
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import os, sqlite3, sys\n"
+                "c = sqlite3.connect(sys.argv[1])\n"
+                "c.execute('PRAGMA cache_size=1')\n"
+                "c.execute('BEGIN IMMEDIATE')\n"
+                "for i in range(200):\n"
+                "    c.execute(\n"
+                "        \"INSERT INTO ssa_table VALUES (?)\",\n"
+                "        (('q' + str(i)) * 100,),\n"
+                "    )\n"
+                "os._exit(0)\n"
+            ),
+            str(src),
+        ],
+        check=True,
+    )
+    assert (src_dir / "orig.db-journal").exists()
+
+    before = {
+        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in src_dir.iterdir()
+    }
+    result = validate_database_candidate(
+        str(src),
+        table_name="ssa_table",
+        query_db_fn=query_db,
+    )
+    after = {
+        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in src_dir.iterdir()
+    }
+
+    assert after == before, "validacao modificou a origem"
+    assert "ok" in result
 
 
 def test_stage_database_copy_never_modifies_source_with_hot_wal(tmp_path):

@@ -1852,3 +1852,47 @@ conexao de leitura para criar/escrever o banco. Revertido; mantido
 apenas o gate de makedirs na escrita (ja commitado). Registrado como
 residual: leitura em caminho inexistente ainda cria arquivo vazio
 quando o diretorio existe — mudar exige revisar o contrato publico.
+
+### O20. Rodada 11 - pente fino #2 + revisao externa dupla
+
+Revisao externa do diff acumulado (codex sobre 6d64a20a..HEAD + working
+tree; bitoreview sobre working tree; omp sobre diff acumulado):
+
+- codex: sem defeitos acionaveis no diff comitado.
+- bitoreview: 0 issues, validou a reordenacao do preflight.
+- omp: 4 achados — 1 real corrigido (docstrings de read_only
+  prometiam "nunca escreve", mas WAL ainda materializa -shm/-wal no
+  diretorio da origem e falha em midia somente-leitura); 3 triados
+  como nao-defeitos com evidencia (UNC rewrite correto no Windows;
+  retry de run falho e a semantica pretendida; ref de thread mantida
+  propositalmente para rastreio no shutdown).
+- codex (2a passada, working tree): achou que o teste novo de journal
+  quente nao produzia journal quente (writer vivo = lock RESERVED).
+  Confirmado e corrigido: journal agora criado em subprocesso morto
+  com os._exit apos spill de paginas (cache_size=1 + 200 inserts).
+
+Achados proprios corrigidos:
+
+- **Preflight DB-only nao retentava run falho com 0 edges**
+  (`core/app_logic.py`): `db_edges_count <= 0` retornava False antes de
+  olhar o status do ultimo run — um sync que falhou sem arestas DB
+  nunca era refeito. Reordenado: status do ultimo run checado antes do
+  early-return. bitoreview confirmou.
+- **Validacao de banco externo mutava a origem**
+  (`gui/ssa/database_operations.py`): `validate_database_candidate`
+  abria conexao normal — um `-journal` quente disparava recuperacao
+  (escrita) no arquivo escolhido pelo usuario. Novo param opt-in
+  `read_only` em `get_db_connection`/`query_db` (URI `mode=ro`, com
+  rewrite UNC `file:////host/share` compartilhado via
+  `read_only_sqlite_uri`); validacao agora e estritamente leitura.
+  `stage_database_copy` reuso do mesmo helper (dedup do rewrite UNC).
+- **Rollback de autorizacao Streamlit revogava raiz preexistente**
+  (`dev_env/streamlit_app.py`): `_append_extra_allowed_root` era no-op
+  quando a raiz ja constava (ex.: env `SSA_EXTRA_ALLOWED_PATHS`), mas o
+  rollback removia incondicionalmente — uma revalidacao falha
+  revogaria autorizacao que a chamada nao concedeu. Append agora
+  retorna bool e o rollback so desfaz o que esta chamada adicionou.
+
+Validacao: teste novo de journal quente via subprocesso morto (prova
+empirica: leitura rw modifica a origem, ro nao); 141 testes focados
+verdes; bateria database/filter/streamlit 617 verdes; ruff limpo.
