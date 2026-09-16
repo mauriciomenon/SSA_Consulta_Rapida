@@ -2236,3 +2236,25 @@ a analise inicial somente de leitura fica identificada como historica.
 Proxima atividade: conferir o HEAD publicado e os checks correspondentes.
 Falha de servico/conta deve ser reportada separadamente de falha de teste;
 nao ha merge autorizado nesta rodada.
+
+### Complemento apos os comentarios recebidos no push
+
+- Comentario `4031568439`: confirmado que sidecars forenses de banco ausente
+  eram excluidos imediatamente porque nao havia principal na lista retida.
+  A poda agora agrupa principal/sidecars pela mesma familia e conserva as
+  familias mais recentes, incluindo as sem `.db`. Falha em sidecar interrompe
+  a exclusao da familia. O teste existente foi corrigido para demonstrar
+  preservacao recente e remocao somente apos exceder o limite.
+- `pytest -q -p no:cacheprovider tests/test_database_integrity_ensure.py`:
+  12 passaram. py_compile, Ruff, ty e diff --check do complemento passaram.
+  O escopo acumulado passa a 45 arquivos Python, incluindo esse teste.
+- Comentario `4031569023`: nao confirmado. Probe com PyQt/Qt 6.11.0 em
+  offscreen demonstrou que, apos `sip.delete`, ler/incrementar o atributo
+  Python do request e atribuir o estado running continua funcionando;
+  `windowTitle()` levanta RuntimeError por acessar C++. Nao foi adicionado
+  `except pass` ao caminho de descarte.
+- No HEAD `2d8e44dd`, oito jobs Actions nao iniciaram por bloqueio de
+  faturamento da conta. CodeFactor apresentou cinco apontamentos de
+  complexidade e um alerta B108 em teste; os outros servicos tinham
+  resultados aprovados, pendentes ou erro de servico. Isso nao constitui
+  CI integral aprovado. O estado remoto posterior e registrado no PR.

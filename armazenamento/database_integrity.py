@@ -160,45 +160,42 @@ def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | N
 
 
 def _prune_forensic_backups(db_path: str) -> None:
-    backups = _backup_paths(db_path, "corrupt")
-    keep = set(backups[-INTEGRITY_SNAPSHOT_MAX_COUNT:])
-    for stale in backups[:-INTEGRITY_SNAPSHOT_MAX_COUNT]:
-        for candidate in (
-            stale,
-            Path(f"{stale}-wal"),
-            Path(f"{stale}-shm"),
-            Path(f"{stale}-journal"),
-        ):
+    db = Path(db_path).resolve()
+    backup_dir = db.parent / "historico_backups"
+    prefix = f"{db.name}.corrupt_"
+    try:
+        families = {path: [path] for path in _backup_paths(db_path, "corrupt")}
+        for path in backup_dir.iterdir():
+            if not path.is_file() or not path.name.endswith(("-wal", "-shm", "-journal")):
+                continue
+            principal = path.with_name(path.name.rsplit("-", 1)[0])
+            if (
+                principal.name.startswith(prefix)
+                and principal.name.endswith(".db")
+                and _BACKUP_TIMESTAMP_PATTERN.fullmatch(
+                    principal.name[len(prefix) : -len(".db")]
+                )
+            ):
+                families.setdefault(principal, []).append(path)
+        ordered = sorted(
+            families,
+            key=lambda principal: max(path.stat().st_mtime for path in families[principal]),
+        )
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        logger.warning("Falha ao listar familias forenses '%s': %s", backup_dir, exc)
+        return
+    # A retencao conta familias, mesmo quando so os sidecars sobreviveram.
+    for stale in ordered[:-INTEGRITY_SNAPSHOT_MAX_COUNT]:
+        for candidate in sorted(families[stale], key=lambda path: path == stale):
             try:
                 candidate.unlink(missing_ok=True)
             except OSError as exc:
                 logger.warning(
                     "Falha ao remover backup forense antigo '%s': %s", candidate, exc
                 )
-    # Sidecars forenses orfaos: quando o .db original nao existia, os
-    # -wal/-shm arquivados nao tem principal corrupt_*.db correspondente
-    # e nunca entrariam na retencao acima.
-    db = Path(db_path).resolve()
-    backup_dir = db.parent / "historico_backups"
-    prefix = f"{db.name}.corrupt_"
-    try:
-        orphans = [
-            path
-            for path in backup_dir.iterdir()
-            if path.is_file()
-            and path.name.startswith(prefix)
-            and path.name.endswith(("-wal", "-shm", "-journal"))
-            and path.with_name(path.name.rsplit("-", 1)[0]) not in keep
-        ]
-    except FileNotFoundError:
-        return
-    for orphan in orphans:
-        try:
-            orphan.unlink()
-        except OSError as exc:
-            logger.warning(
-                "Falha ao remover sidecar forense orfao '%s': %s", orphan, exc
-            )
+                break
 
 
 def _restore_latest_valid_snapshot(

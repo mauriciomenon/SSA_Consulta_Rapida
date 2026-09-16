@@ -202,23 +202,28 @@ def test_restore_keeps_recency_among_snapshots_with_data(tmp_path):
 
 
 def test_orphan_forensic_sidecars_are_pruned(tmp_path):
-    """Sidecar arquivado sem .db original (corrupt_*-wal/-shm sem o
-    principal) nao pode escapar da retencao."""
+    """Preserva evidencia recente sem principal e limita as familias antigas."""
     db_path = _seeded_db_with_snapshot(tmp_path)
-    Path(db_path).unlink()
-    # -wal orfao do banco deletado: sera arquivado como forense sem
-    # arquivo principal durante a restauracao.
-    Path(f"{db_path}-wal").write_bytes(b"orphan wal")
-
-    ok, _report = ensure_database_integrity(db_path, SCHEMA_FILE)
-
-    assert ok is True
     backup_dir = Path(db_path).resolve().parent / "historico_backups"
-    leftovers = [
-        p.name for p in backup_dir.iterdir()
-        if ".corrupt_" in p.name and p.name.endswith(("-wal", "-shm"))
-    ]
-    assert leftovers == []
+    suffixes = ("-wal", "-shm", "-journal")
+    limit = database_integrity.INTEGRITY_SNAPSHOT_MAX_COUNT
+    for index in range(limit + 1):
+        Path(db_path).unlink()
+        for suffix in suffixes:
+            Path(f"{db_path}{suffix}").write_bytes(f"{index}:{suffix}".encode())
+
+        ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+        assert ok is True
+        assert report["restored_from_snapshot"] is True
+        leftovers = [
+            path for path in backup_dir.iterdir()
+            if ".corrupt_" in path.name and path.name.endswith(suffixes)
+        ]
+        assert len(leftovers) == min(index + 1, limit) * len(suffixes)
+        contents = {path.read_bytes() for path in leftovers}
+        assert all(f"{index}:{suffix}".encode() in contents for suffix in suffixes)
+    assert all(not path.read_bytes().startswith(b"0:") for path in leftovers)
 
 
 def test_ensure_missing_db_without_snapshot_still_bootstraps(tmp_path):
