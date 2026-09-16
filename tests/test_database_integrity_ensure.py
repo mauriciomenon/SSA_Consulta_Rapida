@@ -113,6 +113,127 @@ def test_restore_returns_actual_schema_and_row_report(tmp_path, monkeypatch):
         assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [("202600001",)]
 
 
+def _seeded_db_with_snapshot(tmp_path: Path) -> str:
+    """Banco saudavel com uma linha e snapshot forcado em historico_backups."""
+    db_path = _healthy_db(tmp_path)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute("INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                     "VALUES ('202600001', 'ADM', '2026-01-01 00:00:00')")
+    assert database_integrity._create_integrity_snapshot(db_path, force=True)
+    return db_path
+
+
+def test_ensure_missing_db_restores_snapshot_instead_of_empty(tmp_path):
+    """Delecao manual do .db: reaplica o snapshot, nao cria schema vazio."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        Path(f"{db_path}{suffix}").unlink(missing_ok=True)
+    assert not os.path.exists(db_path)
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is True
+    assert report["restored_from_snapshot"] is True
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
+
+
+def test_ensure_zero_byte_db_restores_snapshot(tmp_path):
+    """Arquivo truncado a 0 bytes (ex.: leitura que criou .db vazio ou
+    disco cheio) segue a mesma politica de restauracao."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    Path(db_path).write_bytes(b"")
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is True
+    assert report["restored_from_snapshot"] is True
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
+
+
+def test_restore_prefers_snapshot_with_data_over_empty(tmp_path):
+    """Um snapshot vazio (banco recem-inicializado) nao deve esconder
+    snapshots mais antigos que contem dados."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute("DELETE FROM ssa_table")
+    # Snapshot mais recente, porem vazio.
+    assert database_integrity._create_integrity_snapshot(db_path, force=True)
+    Path(db_path).unlink()
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is True
+    assert report["restored_from_snapshot"] is True
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
+
+
+def test_restore_keeps_recency_among_snapshots_with_data(tmp_path):
+    """Entre snapshots com dados vale o mais recente — um antigo com
+    mais linhas nao pode ressuscitar registros removidos depois."""
+    db_path = _healthy_db(tmp_path)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute("INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                     "VALUES ('202600001', 'ADM', '2026-01-01 00:00:00')")
+        conn.execute("INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+                     "VALUES ('202600002', 'ADM', '2026-01-02 00:00:00')")
+    assert database_integrity._create_integrity_snapshot(db_path, force=True)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute("DELETE FROM ssa_table WHERE numero_ssa = '202600002'")
+    assert database_integrity._create_integrity_snapshot(db_path, force=True)
+    Path(db_path).unlink()
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is True
+    assert report["restored_from_snapshot"] is True
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
+
+
+def test_orphan_forensic_sidecars_are_pruned(tmp_path):
+    """Sidecar arquivado sem .db original (corrupt_*-wal/-shm sem o
+    principal) nao pode escapar da retencao."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    Path(db_path).unlink()
+    # -wal orfao do banco deletado: sera arquivado como forense sem
+    # arquivo principal durante a restauracao.
+    Path(f"{db_path}-wal").write_bytes(b"orphan wal")
+
+    ok, _report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is True
+    backup_dir = Path(db_path).resolve().parent / "historico_backups"
+    leftovers = [
+        p.name for p in backup_dir.iterdir()
+        if ".corrupt_" in p.name and p.name.endswith(("-wal", "-shm"))
+    ]
+    assert leftovers == []
+
+
+def test_ensure_missing_db_without_snapshot_still_bootstraps(tmp_path):
+    """Primeiro uso (sem snapshots): criacao inicial segue funcionando."""
+    db_path = str(tmp_path / "fresh" / "ssas.db")
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is True
+    assert report["is_valid"] is True
+    assert "restored_from_snapshot" not in report
+    assert os.path.exists(db_path)
+
+
 def test_prepare_working_database_runs_heavy_check_once(tmp_path, monkeypatch):
     from core import app_logic
     from armazenamento import database as database_module

@@ -1931,3 +1931,41 @@ Achado medio corrigido — injecao de escape ANSI/OSC no terminal:
 Validacao: 473 testes display/format/export/details verdes; fix do
 header de details usa caminho generico (sem normalizacao estrita de
 numero_ssa — SSAs de 7 digitos continuam visiveis); ruff limpo.
+
+### O22. Rodada 13 - restauracao de snapshot em banco ausente/zerado
+
+Politica de falha do banco revista ponta-a-ponta
+(`ensure_database_integrity` -> `_repair_database_if_needed_locked`):
+
+- Antes: `.db` ausente ou 0 bytes (`needs_creation`) criava schema
+  vazio — snapshots validos em `historico_backups/` eram ignorados e
+  o app subia "zerado" ate a proxima reimportacao. Alem disso o
+  snapshot forcado do banco vazio recem-criado virava o mais recente
+  da cadeia e escondia snapshots antigos com dados.
+- Agora: `needs_creation` tenta `_restore_latest_valid_snapshot_locked`
+  primeiro (forense condicional quando nao havia original, rollback
+  removendo o arquivo promovido); so cria schema quando nao ha
+  snapshot utilizavel. Delecao manual e arquivo truncado voltam com
+  dados sem reimportacao.
+- Selecao de candidatos: snapshots integros ordenados novo->velho,
+  com preferencia por snapshots que contem dados (particao booleana
+  estavel — recencia preservada dentro de cada grupo; um snapshot
+  vazio so e usado como ultimo recurso).
+- Falha critica de rollback agora retorna status "critical" e aborta
+  o bootstrap (antes retornava False indistinguivel de "sem
+  snapshot", o que criaria schema sobre estado indeterminado).
+- `_prune_forensic_backups` remove sidecars forenses orfaos
+  (`corrupt_*-wal/-shm` sem principal), cobrindo o arquivamento feito
+  quando o .db original nao existia.
+
+Revisao externa (bitoreview 0 issues + codex): codex apontou 3
+problemas no fix inicial — ordenacao por contagem absoluta podia
+ressuscitar registros removidos (corrigido para particao
+vazio/nao-vazio), falha critica de rollback indistinguivel de
+esgotamento (corrigido com status tri-state), e sidecars forenses
+fora da retencao (corrigido no prune). Todos validados e corrigidos.
+
+Validacao: 6 testes novos (delecao manual, arquivo zerado,
+preferencia por dados, recencia entre snapshots com dados, bootstrap
+sem snapshot, prune de sidecar orfao); 192 testes focados verdes;
+ruff/py_compile limpos.

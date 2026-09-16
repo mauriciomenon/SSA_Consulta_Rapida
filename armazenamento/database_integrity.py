@@ -161,6 +161,7 @@ def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | N
 
 def _prune_forensic_backups(db_path: str) -> None:
     backups = _backup_paths(db_path, "corrupt")
+    keep = set(backups[-INTEGRITY_SNAPSHOT_MAX_COUNT:])
     for stale in backups[:-INTEGRITY_SNAPSHOT_MAX_COUNT]:
         for candidate in (stale, Path(f"{stale}-wal"), Path(f"{stale}-shm")):
             try:
@@ -169,33 +170,92 @@ def _prune_forensic_backups(db_path: str) -> None:
                 logger.warning(
                     "Falha ao remover backup forense antigo '%s': %s", candidate, exc
                 )
+    # Sidecars forenses orfaos: quando o .db original nao existia, os
+    # -wal/-shm arquivados nao tem principal corrupt_*.db correspondente
+    # e nunca entrariam na retencao acima.
+    db = Path(db_path).resolve()
+    backup_dir = db.parent / "historico_backups"
+    prefix = f"{db.name}.corrupt_"
+    try:
+        orphans = [
+            path
+            for path in backup_dir.iterdir()
+            if path.is_file()
+            and path.name.startswith(prefix)
+            and path.name.endswith(("-wal", "-shm"))
+            and path.with_name(path.name.rsplit("-", 1)[0]) not in keep
+        ]
+    except FileNotFoundError:
+        return
+    for orphan in orphans:
+        try:
+            orphan.unlink()
+        except OSError as exc:
+            logger.warning(
+                "Falha ao remover sidecar forense orfao '%s': %s", orphan, exc
+            )
 
 
 def _restore_latest_valid_snapshot(
     db_path: str, table_name: str, *, report_out: Dict[str, Any] | None = None
 ) -> bool:
     with database_writer_lock(db_path):
-        return _restore_latest_valid_snapshot_locked(db_path, table_name, report_out=report_out)
+        return (
+            _restore_latest_valid_snapshot_locked(
+                db_path, table_name, report_out=report_out
+            )
+            == "restored"
+        )
+
+
+def _snapshot_data_rows(snapshot: Path, table_name: str) -> int:
+    """Linhas da tabela alvo no snapshot; 0 se ilegivel/sem a tabela."""
+    try:
+        with closing(_read_only_connection(snapshot)) as conn:
+            resolved = _resolve_report_table_name(conn, table_name)
+            row = conn.execute(
+                f"SELECT COUNT(*) FROM {_quote_identifier(resolved)}"  # nosec B608
+            ).fetchone()
+        return int(row[0]) if row else 0
+    except (OSError, sqlite3.Error, ValueError):
+        return 0
 
 
 def _restore_latest_valid_snapshot_locked(
     db_path: str, table_name: str, *, report_out: Dict[str, Any] | None = None
-) -> bool:
+) -> str:
+    """Retorna "restored", "unavailable" (sem candidato utilizavel) ou
+    "critical" (rollback falhou; estado indeterminado — o chamador nao
+    deve prosseguir com criacao/reparo por cima)."""
     db = Path(db_path).resolve()
+    had_existing_db = db.exists()
     backup_dir = db.parent / "historico_backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
+
+    candidates: list[Path] = []
     for snapshot in reversed(_snapshot_paths(db_path)):
         if not _raw_sqlite_integrity_ok(snapshot):
             logger.error("Snapshot ignorado por falha de integridade: %s", snapshot)
             continue
+        candidates.append(snapshot)
+    # Snapshots com dados primeiro, preservando a ordem novo->velho
+    # dentro de cada grupo (sort estavel com chave booleana). Um
+    # snapshot de banco recem-criado e valido mas vazio; preferi-lo
+    # esconderia snapshots antigos com dados.
+    candidates.sort(
+        key=lambda path: _snapshot_data_rows(path, table_name) > 0,
+        reverse=True,
+    )
 
+    for snapshot in candidates:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         temporary = Path(f"{db}.restore_{timestamp}.tmp")
         forensic = backup_dir / f"{db.name}.corrupt_{timestamp}.db"
         moved_sidecars: list[tuple[Path, Path]] = []
         try:
             shutil.copy2(snapshot, temporary)
-            shutil.copy2(db, forensic)
+            if had_existing_db:
+                shutil.copy2(db, forensic)
             for suffix in ("-wal", "-shm"):
                 sidecar = Path(f"{db}{suffix}")
                 if sidecar.exists():
@@ -215,7 +275,7 @@ def _restore_latest_valid_snapshot_locked(
                     "Falha ao recompor sidecars apos restauracao abortada: %s",
                     rollback_error,
                 )
-                return False
+                return "critical"
             _prune_forensic_backups(db_path)
             continue
 
@@ -224,11 +284,18 @@ def _restore_latest_valid_snapshot_locked(
             if report_out is not None:
                 report_out.update(final_report)
             _prune_forensic_backups(db_path)
-            logger.warning(
-                "Banco restaurado do ultimo snapshot valido; original preservado em: %s",
-                forensic,
-            )
-            return True
+            if had_existing_db:
+                logger.warning(
+                    "Banco restaurado do ultimo snapshot valido; "
+                    "original preservado em: %s",
+                    forensic,
+                )
+            else:
+                logger.warning(
+                    "Banco ausente restaurado do snapshot valido: %s",
+                    snapshot,
+                )
+            return "restored"
 
         logger.error(
             "Snapshot restaurado falhou na validacao funcional: %s",
@@ -241,17 +308,22 @@ def _restore_latest_valid_snapshot_locked(
                 if archived.exists():
                     _replace_file_with_retry(archived, original)
                     restored_sidecars.append((original, archived))
-            shutil.copy2(forensic, rollback_temporary)
-            _replace_file_with_retry(rollback_temporary, db)
+            if had_existing_db:
+                shutil.copy2(forensic, rollback_temporary)
+                _replace_file_with_retry(rollback_temporary, db)
+            else:
+                # Sem original: remover o snapshot promovido devolve o
+                # banco ao estado ausente em que estava.
+                db.unlink(missing_ok=True)
         except OSError as exc:
             rollback_temporary.unlink(missing_ok=True)
             for original, archived in restored_sidecars:
                 if original.exists():
                     _replace_file_with_retry(original, archived)
             logger.critical("Falha ao restaurar banco original apos rollback: %s", exc)
-            return False
+            return "critical"
         _prune_forensic_backups(db_path)
-    return False
+    return "unavailable"
 
 
 def _validate_ssa_data(
@@ -533,7 +605,31 @@ def _repair_database_if_needed_locked(
             return True, report
 
         if report["needs_creation"]:
-            logger.info("Banco ausente em bootstrap; criacao inicial sera executada")
+            # Banco ausente ou zerado: se houver snapshot integro em
+            # historico_backups, restaurar — delecao manual ou arquivo
+            # truncado nao devem descartar dados recuperaveis nem
+            # exigir reimportacao para o app voltar a funcionar.
+            restored_report: Dict[str, Any] = {}
+            restore_status = _restore_latest_valid_snapshot_locked(
+                db_path, table_name, report_out=restored_report
+            )
+            if restore_status == "restored":
+                restored_report["restored_from_snapshot"] = True
+                return True, restored_report
+            if restore_status == "critical":
+                # Rollback de restauracao falhou: o estado em disco e
+                # indeterminado. Nao criar schema por cima — preserva
+                # evidencias e evita esconder a falha.
+                return False, {
+                    "is_valid": False,
+                    "issues": [
+                        "Falha critica ao tentar restaurar snapshot "
+                        "do banco ausente; estado em disco indeterminado"
+                    ],
+                }
+            logger.info(
+                "Banco ausente sem snapshot utilizavel; criacao inicial sera executada"
+            )
             from .database import initialize_database
 
             initialize_database(db_path, schema_file)
