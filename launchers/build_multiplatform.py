@@ -403,7 +403,11 @@ VSVersionInfo(
         # Remover venv antigo se existir
         if venv_dir.exists():
             logger.info("Removendo ambiente virtual antigo")
-            shutil.rmtree(venv_dir)
+            try:
+                shutil.rmtree(venv_dir)
+            except OSError as exc:
+                logger.error("Falha removendo ambiente virtual %s: %s", venv_dir, exc)
+                return False
 
         logger.info(f"Criando novo ambiente virtual: {venv_dir}")
 
@@ -434,7 +438,16 @@ VSVersionInfo(
                 last_venv_error,
             )
             if venv_dir.exists():
-                shutil.rmtree(venv_dir)
+                try:
+                    shutil.rmtree(venv_dir)
+                except OSError as exc:
+                    logger.error(
+                        "Falha removendo venv parcial %s apos uv falhar com %s: %s",
+                        venv_dir,
+                        python_spec,
+                        exc,
+                    )
+                    return False
         if not venv_created:
             logger.error("Erro criando venv via uv: %s", last_venv_error)
             return False
@@ -1333,12 +1346,9 @@ VSVersionInfo(
         ]
 
         unnecessary_patterns = [
-            # Arquivos de controle: o nome gerado e file_cache.<db>.json
-            # (sempre com a extensao do banco embutida), entao o glob
-            # exige dois pontos internos — um file_cache.notas.json de
-            # usuario nao casa.
+            # Artefatos gerados, incluindo bancos com nome sem extensao.
             "file_cache.json",
-            "file_cache.*.*.json",
+            "file_cache.*.json",
             "*.backup_*",
             # Cache e temporarios
             "*.pyc",
@@ -1411,6 +1421,10 @@ VSVersionInfo(
         if data_dir.exists():
             for cache_pattern in ("file_cache.json", "file_cache.*.*.json"):
                 for file_path in data_dir.glob(cache_pattern):
+                    collect_for_cleanup(file_path)
+            for file_path in data_dir.glob("file_cache.*.json"):
+                database_name = file_path.name[len("file_cache.") : -len(".json")]
+                if "." not in database_name and (data_dir / database_name).is_file():
                     collect_for_cleanup(file_path)
             for file_path in data_dir.glob("*.backup_*"):
                 collect_for_cleanup(file_path)

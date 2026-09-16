@@ -8,7 +8,8 @@ import pytest
 from interface import cli
 
 
-def test_config_command_reloads_initial_state_after_config(monkeypatch):
+@pytest.mark.parametrize("change_mode_only", [False, True])
+def test_config_command_reloads_initial_state_after_config(monkeypatch, change_mode_only):
     call_count = {"initial_state": 0}
     sample_df_before = pd.DataFrame({"numero_ssa": ["202500001"]})
     sample_df_after = pd.DataFrame({"numero_ssa": ["202500002"]})
@@ -18,7 +19,7 @@ def test_config_command_reloads_initial_state_after_config(monkeypatch):
         call_count["initial_state"] += 1
         if call_count["initial_state"] == 1:
             return sample_df_before, ["old_default"]
-        return sample_df_after, ["new_default"]
+        return sample_df_after, ["old_default" if change_mode_only else "new_default"]
 
     input_state = {"called": False}
 
@@ -35,7 +36,10 @@ def test_config_command_reloads_initial_state_after_config(monkeypatch):
         settings_call["count"] += 1
         if settings_call["count"] == 1:
             return {"default_filters": ["old_default"], "user_preferences": {}}
-        return {"default_filters": ["new_default"], "user_preferences": {}}
+        return {
+            "default_filters": ["old_default" if change_mode_only else "new_default"],
+            "user_preferences": {"filter_mode_default": "exact"},
+        }
 
     monkeypatch.setattr(cli, "load_settings", _fake_load_settings)
     monkeypatch.setattr(
@@ -61,7 +65,7 @@ def test_config_command_reloads_initial_state_after_config(monkeypatch):
     assert render_calls
     last_df, last_terms = render_calls[-1]
     assert last_df is sample_df_after
-    assert last_terms == ["new_default"]
+    assert last_terms == ["old_default" if change_mode_only else "new_default"]
 
 
 def test_config_command_without_default_filter_change_skips_requery(monkeypatch):

@@ -137,6 +137,41 @@ def test_setup_virtual_environment_rejects_wrong_architecture_before_install(tmp
     assert not (platform_dir / "venv" / ".requirements_signature").exists()
 
 
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_venv_fallback_requires_successful_partial_cleanup(tmp_path, monkeypatch, caplog, cleanup_fails):
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.platforms_dir = tmp_path
+    builder.runtime_python = None
+    builder.uv_cmd = "uv"
+    venv_dir = tmp_path / "windows_amd64" / "venv"
+    attempts = []
+
+    def run_command(cmd, **_kwargs):
+        attempts.append(cmd)
+        venv_dir.mkdir(parents=True)
+        return subprocess.CompletedProcess(cmd, int(len(attempts) == 1), stderr="indisponivel")
+
+    def fail_cleanup(_path):
+        raise PermissionError("arquivo bloqueado")
+
+    monkeypatch.setattr(builder, "_run_command", run_command)
+    monkeypatch.setattr(builder, "_is_venv_compatible", lambda *_args: False)
+    monkeypatch.setattr(builder, "_is_python_executable_ok", lambda *_args: True)
+    if cleanup_fails:
+        monkeypatch.setattr("launchers.build_multiplatform.shutil.rmtree", fail_cleanup)
+
+    result = builder.setup_virtual_environment("windows_amd64")
+
+    if cleanup_fails:
+        assert result is False
+        assert len(attempts) == 1
+        assert "Falha removendo venv parcial" in caplog.text
+        assert "arquivo bloqueado" in caplog.text
+    else:
+        assert result == builder._python_executable("windows_amd64")
+        assert len(attempts) == 2
+
+
 def test_command_stdout_logs_metadata_command_failure(monkeypatch):
     builder = MultiPlatformBuilder()
     warnings = []
@@ -1056,6 +1091,13 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
 
     (build_dir / "artifact.pyc").write_text("stub", encoding="utf-8")
     (builds_dir / "old.pyo").write_text("stub", encoding="utf-8")
+    (build_dir / "file_cache.archive.json").write_text("{}", encoding="utf-8")
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "archive").write_bytes(b"SQLite format 3\x00")
+    (data_dir / "file_cache.archive.json").write_text("{}", encoding="utf-8")
+    (data_dir / "file_cache.notas.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "file_cache.archive.json").write_text("{}", encoding="utf-8")
 
     git_rm_batches: list[list[str]] = []
 
@@ -1072,6 +1114,10 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
                 "launchers/dist_simple/gui/SSA_GUI.exe",
                 "build/artifact.pyc",
                 "builds/old.pyo",
+                "build/file_cache.archive.json",
+                "data/file_cache.archive.json",
+                "data/file_cache.notas.json",
+                "file_cache.archive.json",
                 "other/ignored.txt",
             ]
             return _FakeResult(stdout="\n".join(tracked) + "\n")
@@ -1095,6 +1141,10 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
     assert "launchers/dist_simple/gui/SSA_GUI.exe" in removed
     assert "build/artifact.pyc" in removed
     assert "builds/old.pyo" in removed
+    assert "build/file_cache.archive.json" in removed
+    assert "data/file_cache.archive.json" in removed
+    assert "data/file_cache.notas.json" not in removed
+    assert "file_cache.archive.json" not in removed
 
 
 def test_auto_cleanup_preserves_final_distribution_outputs(tmp_path):

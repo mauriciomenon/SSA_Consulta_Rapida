@@ -62,6 +62,8 @@ def test_dataframe_copy_gets_independent_pagination_key():
     # Uma copia herda attrs do pandas, mas nao e o mesmo df logico:
     # recebe chave propria em vez de aliasar o estado do original.
     df_copy = df.copy()
+    copy_key = cli._PAGINATION_TRACKER_MANAGER.key_for(df_copy)
+    assert copy_key != cli._pagination_state_key_for_df(df)
     assert cli._next_page_for(df_copy) == 0
     assert cli._next_page_for(df) == 3
 

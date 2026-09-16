@@ -56,3 +56,13 @@ def test_details_uses_shared_formatter_for_dates_and_nulls():
     # Nullish as '-'
     assert "Nulo:" in out and " -" in out
     assert "NaNstr:" in out and " -" in out
+
+
+def test_details_header_is_single_line_and_description_preserves_lines(capsys):
+    pretty_print_details(
+        {"numero_ssa": "123\n45\t6", "descricao_ssa": "linha 1\nlinha 2"},
+        {"descricao_ssa": "Descricao"},
+    )
+    output = capsys.readouterr().out
+    assert " DETALHES DA SSA: 123 45 6\n" in output
+    assert "linha 1\nlinha 2" in output

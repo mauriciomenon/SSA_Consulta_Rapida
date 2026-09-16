@@ -1286,16 +1286,25 @@ def start_cli_loop(db_path: str, table_name: str):
     def _refresh_after_config_change() -> None:
         nonlocal settings, display_map, results_stack, _config_changed
         previous_default_filters = list(settings.get("default_filters") or [])
+        previous_filter_mode = (settings.get("user_preferences") or {}).get(
+            "filter_mode_default", "contains"
+        )
         handle_config_command()
         _config_changed = True
         settings = load_settings()
         display_map = load_display_mappings_integrity()
         current_default_filters = list(settings.get("default_filters") or [])
+        current_filter_mode = (settings.get("user_preferences") or {}).get(
+            "filter_mode_default", "contains"
+        )
         if not results_stack:
             return
 
-        # Recarrega base apenas quando filtros padrao mudam; evita custo desnecessario.
-        if current_default_filters != previous_default_filters:
+        # Reconstroi a pilha quando os filtros ou sua semantica mudam.
+        if (
+            current_default_filters != previous_default_filters
+            or current_filter_mode != previous_filter_mode
+        ):
             previous_base_terms = list(results_stack[0][1] or [])
             previous_current_terms = list(results_stack[-1][1] or [])
             preserved_user_terms: list[str] = []
@@ -1516,6 +1525,7 @@ def start_cli_loop(db_path: str, table_name: str):
                                 processed_search_terms, default_mode=default_mode
                             )
                         parsed_terms = _parse_cache[cache_key]
+                        _parse_cache.move_to_end(cache_key)
 
                         # Aplica filtro acumulativo sobre os dados atuais
                         new_filtered_df = filter_dataframe(current_df, parsed_terms)

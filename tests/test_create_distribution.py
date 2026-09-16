@@ -664,6 +664,39 @@ def test_create_zip_package_preserves_only_external_runtime_database(
         assert not any(name.endswith("note.txt") for name in zf.namelist())
 
 
+@pytest.mark.parametrize("has_database", [True, False])
+def test_pyoxidizer_zip_includes_only_requested_runtime_database(
+    tmp_path: Path, monkeypatch, has_database: bool
+) -> None:
+    build_dir = tmp_path / "builds" / "pyoxidizer" / "windows_amd64"
+    data_dir = build_dir / "data"
+    data_dir.mkdir(parents=True)
+    (build_dir / "SSA_Consulta_Rapida.exe").write_bytes(b"exe")
+    (data_dir / "file_cache.json").write_text("{}", encoding="utf-8")
+    (data_dir / "other.db").write_bytes(b"private")
+    if has_database:
+        (data_dir / "ssas.db").write_bytes(b"runtime db")
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", tmp_path)
+
+    result = create_distribution.create_zip_package(
+        "pyoxidizer", "1.0.0", include_runtime_db=True
+    )
+
+    if not has_database:
+        assert result is None
+        assert not list((tmp_path / "builds" / "packages").rglob("*.zip"))
+        return
+    assert result is not None
+    with zipfile.ZipFile(result) as archive:
+        data_files = [
+            name for name in archive.namelist()
+            if "/data/" in name and not name.endswith("/.gitkeep")
+        ]
+        assert len(data_files) == 1
+        assert data_files[0].endswith("/data/ssas.db")
+        assert archive.read(data_files[0]) == b"runtime db"
+
+
 def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
     tmp_path: Path,
     monkeypatch,
@@ -1345,18 +1378,24 @@ def test_create_inno_setup_script_includes_sample_db_when_option_enabled(
     )
 
 
+@pytest.mark.parametrize("app_subdir", ["", "SSA_GUI_v1_windows_amd64"])
+@pytest.mark.parametrize("has_database", [True, False])
 def test_create_inno_setup_script_accepts_only_external_runtime_database(
     tmp_path: Path,
     monkeypatch,
+    app_subdir: str,
+    has_database: bool,
 ) -> None:
     project_root = tmp_path / "project"
     canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
     dist_output = project_root / "dist_packages"
-    runtime_data = canonical_dir / "data"
+    app_dir = canonical_dir / app_subdir
+    runtime_data = app_dir / "data"
     runtime_data.mkdir(parents=True)
     dist_output.mkdir(parents=True)
-    (canonical_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
-    (runtime_data / "ssas.db").write_text("runtime db", encoding="utf-8")
+    (app_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
+    if has_database:
+        (runtime_data / "ssas.db").write_text("runtime db", encoding="utf-8")
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
@@ -1378,11 +1417,16 @@ def test_create_inno_setup_script_accepts_only_external_runtime_database(
         "pyinstaller", "1.0.0", include_runtime_db=True
     )
 
+    if not has_database:
+        assert iss_path is None
+        assert not (dist_output / "installer_pyinstaller.iss").exists()
+        return
     assert iss_path is not None
     content = iss_path.read_text(encoding="utf-8")
     assert "data\\*" in content
-    assert 'Source: "{#SourceDir}\\data\\ssas.db"' in content
-    assert 'DestDir: "{app}\\data"' in content
+    relative_data = f"{app_subdir}\\data" if app_subdir else "data"
+    assert f'Source: "{{#SourceDir}}\\{relative_data}\\ssas.db"' in content
+    assert f'DestDir: "{{app}}\\{relative_data}"' in content
     assert 'Parameters: "--gui --runtime-home"' in content
 
 

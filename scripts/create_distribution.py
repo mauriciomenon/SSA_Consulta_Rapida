@@ -899,6 +899,13 @@ def _copy_runtime_bundle(
             logger.error("Executavel nao encontrado para empacotamento: %s", exe_src)
             return False
         shutil.copy2(exe_src, package_dir / exe_src.name)
+        if include_runtime_db:
+            runtime_db = exe_src.parent / "data" / "ssas.db"
+            if not runtime_db.is_file():
+                logger.error("Banco de runtime ausente: %s", runtime_db)
+                return False
+            (package_dir / "data").mkdir(exist_ok=True)
+            shutil.copy2(runtime_db, package_dir / "data" / "ssas.db")
 
         internal_dir_name = build_info.get("internal_dir")
         if isinstance(internal_dir_name, str) and internal_dir_name:
@@ -1186,18 +1193,19 @@ def _build_inno_local_db_blocks(
     return dirs_block, files_block
 
 
-def _build_inno_runtime_db_files_block(include_runtime_db: bool) -> str:
+def _build_inno_runtime_db_files_block(
+    runtime_databases: list[Path], source_dir: Path
+) -> str:
     """Linha [Files] dedicada a data\\ssas.db quando o banco e incluido.
 
     O exclude global data\\* segue ativo para nao vazar file_cache.json,
     historico_backups e outros artefatos; so o banco e empacotado,
     espelhando o conteudo do ZIP.
     """
-    if not include_runtime_db:
-        return ""
-    return (
-        'Source: "{#SourceDir}\\data\\ssas.db"; '
-        'DestDir: "{app}\\data"; Flags: ignoreversion'
+    return "\n".join(
+        f'Source: "{{#SourceDir}}\\{_normalize_windows_path(str(path.relative_to(source_dir)))}"; '
+        f'DestDir: "{{app}}\\{_normalize_windows_path(str(path.parent.relative_to(source_dir)))}"; Flags: ignoreversion'
+        for path in runtime_databases
     )
 
 
@@ -1320,6 +1328,7 @@ def create_inno_setup_script(
         return None
 
     source_dir, exe_name = resolved
+    runtime_databases: list[Path] = []
     if include_runtime_db:
         sensitive_files = [
             path
@@ -1394,7 +1403,7 @@ def create_inno_setup_script(
         sample_db_files_block,
         local_db_dirs_block,
         local_db_files_block,
-        _build_inno_runtime_db_files_block(include_runtime_db),
+        _build_inno_runtime_db_files_block(runtime_databases, source_dir),
     )
 
     iss_path = DIST_OUTPUT / f"installer_{build_system}.iss"

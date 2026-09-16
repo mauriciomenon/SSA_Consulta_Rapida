@@ -193,7 +193,7 @@ def map_to_dataframe(items: Iterable[Dict[str, Any]]):
         if cols:
             df = df.rename(columns=cols)
         return df
-    except (ImportError, ValueError, TypeError, AttributeError) as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Falha ao mapear resposta para DataFrame: %s", exc)
         return None
 
