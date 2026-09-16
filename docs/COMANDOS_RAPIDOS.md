@@ -44,6 +44,11 @@ uv run --python $PY_RUNTIME main.py --gui
 
 # Streamlit
 uv run --python $PY_RUNTIME main.py --streamlit
+
+# Streamlit com banco/planilhas fora das pastas permitidas
+# (a UI pede autorizacao; para pre-autorizar, liste raizes extras
+# separadas por os.pathsep — ":" no macOS/Linux, ";" no Windows):
+SSA_EXTRA_ALLOWED_PATHS="/caminho/um:/caminho/dois" uv run --python $PY_RUNTIME main.py --streamlit
 ```
 
 ## Importacao e banco

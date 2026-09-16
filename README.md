@@ -28,8 +28,16 @@ No Windows, use PowerShell e o ambiente nativo descrito no [guia de ambiente](de
 
 - O startup nao importa planilhas automaticamente.
 - A importacao incremental preserva o contrato de atualizacao por SSA.
-- Sincronizacao de derivadas ocorre no full rescan ou por acao manual dedicada.
-- O full rescan recria o banco. Preserve backup antes de executa-lo.
+- Sincronizacao de derivadas ocorre apos a importacao quando ha planilhas
+  especiais (`SSAs Derivadas e Relacionadas*.xlsx`) ou divergencia no banco,
+  no full rescan, e por acao manual dedicada (menu `Atualizar derivadas`
+  ou `scripts/derivadas_cli.py`).
+- Se o banco estiver ausente ou zerado, a inicializacao restaura o snapshot
+  valido mais recente de `data/historico_backups/` em vez de iniciar vazio;
+  sem snapshot utilizavel, o schema e criado. Banco corrompido e preservado
+  como evidencia forense antes da restauracao.
+- O full rescan constroi um banco candidato isolado e so o promove apos
+  passar na verificacao de integridade; o banco anterior fica arquivado.
 - Bancos, planilhas e configuracoes pessoais ficam fora do controle de versao.
 
 [Importacao](docs/ARQUITETURA_IMPORTACAO.md) | [Regras de atualizacao](docs/ARCH_DB_UPSERT.md) | [Diagnostico](docs/TROUBLESHOOTING_IMPORTACAO.md)

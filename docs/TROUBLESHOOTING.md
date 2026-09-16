@@ -43,6 +43,19 @@ Guia ativo de diagnostico rapido para operacao diaria.
 2. Verificar mensagens no dialog/log de importacao.
 3. Validar DB com comando de integridade (sqlite pragma) antes de novo rescan.
 
+### Banco ausente, zerado ou corrompido
+
+1. Na proxima importacao, o app tenta restaurar automaticamente o snapshot
+   valido mais recente de `data/historico_backups/` — nenhuma acao manual
+   e necessaria. Snapshots com dados tem prioridade sobre vazios.
+2. Se o banco estava corrompido, o original fica preservado em
+   `data/historico_backups/<nome>.corrupt_<timestamp>.db` para analise.
+3. Se nao houver snapshot utilizavel, o schema e recriado vazio e os dados
+   voltam com a proxima reimportacao das planilhas-fonte.
+4. Uma falha critica no processo de restauracao aborta a importacao e
+   preserva o estado em disco — nao force recriacao manual antes de
+   copiar os artefatos para analise.
+
 ### Divergencia de docs
 
 1. Validar baseline em `VERSION` e `config/version.json`.

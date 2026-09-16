@@ -4,6 +4,30 @@
 de dados. A politica A5 permite continuar a importacao com inconsistencias de
 conteudo para que uma reimportacao possa corrigi-las, com diagnostico preservado.
 
+## Recuperacao de banco ausente, zerado ou corrompido
+
+`ensure_database_integrity` decide por estado do arquivo:
+
+- **Ausente ou 0 bytes** (`needs_creation`): primeiro tenta restaurar o
+  snapshot integro mais recente de `historico_backups/` — delecao manual ou
+  arquivo truncado nao descartam dados recuperaveis. Entre snapshots com
+  dados vale o mais recente; um snapshot vazio so e usado como ultimo
+  recurso. Sem snapshot utilizavel, cria o schema e segue (bootstrap).
+- **Corrompido** (falha no `integrity_check`): o original e preservado como
+  forense `.corrupt_<timestamp>.db` (com sidecars) e o snapshot valido mais
+  recente e promovido com revalidacao funcional; em falha, o original volta
+  e o proximo snapshot e tentado.
+- **Falha critica no rollback** da restauracao: o bootstrap e abortado e o
+  estado em disco e preservado como evidencia — nao se cria schema por cima
+  de estado indeterminado.
+- **Tabela ausente ou coluna obrigatoria faltando**: reparo automatico
+  bloqueado; exige migracao explicita.
+
+A leitura com `read_only=True` (`mode=ro`) nunca escreve no `.db` da origem
+e falha se o arquivo nao existir — usada na validacao de bancos externos.
+Limitacao do SQLite: em banco WAL, a abertura ainda pode materializar
+`-shm`/`-wal` ao lado da origem.
+
 ## Reparo conservador e bloqueios
 
 Apos um reparo, a decisao usa os mesmos requisitos estruturais: banco acessivel,

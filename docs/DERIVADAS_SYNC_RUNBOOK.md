@@ -67,6 +67,24 @@ completas; CSV/TSV incluem uma linha por fase executada, com a coluna adicional
 `phase` (`db` ou `sheets`). Isso preserva a distincao entre reconciliar o banco e
 aplicar as planilhas. CSV/TSV nao resumem fases que nao foram executadas.
 
+## Quando a sincronizacao acontece
+
+- **Apos a importacao de planilhas**: arquivos cujo nome comeca com
+  `SSAs Derivadas e Relacionadas` (`.xlsx`) sao detectados e pulam a fase
+  de importacao comum — suas arestas entram na fase dedicada de sync, que
+  mescla as arestas da planilha com as do campo `derivada_de` do banco.
+- **Preflight DB-only**: quando nenhum arquivo mudou, o sync roda se o
+  ultimo run falhou, se ha arestas no banco sem matriz/sumario
+  materializado, ou se a contagem divergiu do ultimo run. A decisao e
+  cacheada por estado do arquivo do banco — sem custo quando nada mudou.
+- **Full rescan**: o sync roda dentro do banco candidato antes da
+  promocao; um sync quebrado nao toca o banco ativo.
+- **Manual**: menu `Banco de dados > Atualizar derivadas` na GUI, ou
+  `scripts/derivadas_cli.py sync` na CLI.
+- Se um run falha, ele fica registrado como `error` em
+  `ssa_derivada_sync_run` e e refeito automaticamente na proxima
+  importacao — inclusive quando o banco nao tem arestas proprias.
+
 ## Consultas e manutencao
 
 ```sh
