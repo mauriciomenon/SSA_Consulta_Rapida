@@ -2045,3 +2045,33 @@ derivadas, recuperacao, exportacoes), runbook de derivadas com secao de
 staging, ARCH_VALIDATION com o ciclo de vida do staging e
 TROUBLESHOOTING com sintomas visiveis (janela nao fecha, `.copy-*`
 sobrando).
+
+### O25. Rodada 16 - pos-processamento nao gera hardlinks orfaos e merged_edges nao conta em dobro
+
+Dois achados confirmados no pente fino desta rodada:
+
+- `core/import_postprocess.py` `_move_without_overwrite`: o
+  `source.unlink()` ficava dentro do mesmo `try` do `os.link()`. Se o
+  hardlink era criado mas o unlink da origem falhava com errno
+  "recuperavel" (`EACCES`/`EPERM` — arquivo aberto no Excel/antivirus
+  no Windows, diretorio de origem sem permissao de delete), o codigo
+  caia no fallback de copia, o `os.open(O_EXCL)` explodia como
+  `FileExistsError` (falso conflito de nome) e o laco retentava com
+  `__1`, `__2`... criando ate 10000 hardlinks orfaos em `processadas/`
+  enquanto o source permanecia em `docs_dir` e era reimportado a cada
+  scan. Correcao: o unlink da origem agora roda em bloco `else` (so
+  quando o link sucedeu); em falha, o link criado e desfeito e o erro
+  real propaga. O caminho de copia continua com sua propria limpeza.
+- `gui/ssa/derivadas_sync_job.py`: `merged_edges` somava
+  `merge_stats.merged_edges` das duas fases — cada fase reporta o merge
+  apenas das arestas que ela coletou, entao uma aresta presente no
+  campo `derivada_de` E na planilha especial contava duas vezes no
+  `total=` exibido na GUI. Correcao: o total passa a ser
+  `active_edges` do ultimo relatorio de fase (a matriz materializada =
+  uniao das fontes), com fallback a soma quando o relatorio nao traz
+  `active_edges` (ex.: verify_only).
+
+Validacao: 2 testes novos (unlink falho desfaz o link sem orfao e sem
+falso conflito; merged_edges usa a uniao materializada); 96 testes
+focados verdes; ruff/py_compile/`git diff --check` limpos; revisao
+externa por dois modelos sem achados P0-P2.

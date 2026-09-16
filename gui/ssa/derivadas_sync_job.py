@@ -60,10 +60,17 @@ def execute_derivadas_sync_job(
         else:
             sheet_phase_report = None
 
-        merged_edges = 0
-        for phase_report in phase_reports:
-            merge_stats = phase_report.get("merge_stats") or {}
-            merged_edges += int(merge_stats.get("merged_edges", 0) or 0)
+        # Somar merge_stats.merged_edges das fases conta em dobro arestas
+        # presentes nas duas fontes (DB + planilha): cada fase reporta o
+        # merge apenas das arestas que ela coletou. O total real e a
+        # matriz materializada do ultimo relatorio (uniao das fontes).
+        merged_edges_raw = phase_reports[-1].get("active_edges")
+        if merged_edges_raw is None:
+            merged_edges_raw = sum(
+                int((report.get("merge_stats") or {}).get("merged_edges", 0) or 0)
+                for report in phase_reports
+            )
+        merged_edges = int(merged_edges_raw or 0)
         sheet_stats = sheet_phase_report.get("sheet_stats") if sheet_phase_report else {}
         sheet_edges = int((sheet_stats or {}).get("accepted_edges", 0) or 0)
         try:

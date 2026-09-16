@@ -254,6 +254,33 @@ def test_move_file_after_import_retries_next_suffix_after_generated_name_collisi
     assert not source.exists()
 
 
+def test_move_without_overwrite_undoes_link_when_source_unlink_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    destination_root = docs_dir / "processadas"
+    destination_root.mkdir(parents=True)
+    source = docs_dir / "locked.xlsx"
+    source.write_text("data", encoding="utf-8")
+
+    real_unlink = import_postprocess.Path.unlink
+
+    def _unlink_fails_for_source(path_obj: Path, *args, **kwargs) -> None:
+        if path_obj == source:
+            raise OSError(errno.EACCES, "source locked")
+        real_unlink(path_obj, *args, **kwargs)
+
+    monkeypatch.setattr(import_postprocess.Path, "unlink", _unlink_fails_for_source)
+
+    with pytest.raises(OSError):
+        import_postprocess._move_without_overwrite(
+            source, destination_root / "locked.xlsx"
+        )
+
+    assert source.exists()
+    assert not (destination_root / "locked.xlsx").exists()
+
+
 def test_move_to_available_destination_repeated_name_error_has_context(
     tmp_path: Path, monkeypatch
 ) -> None:
