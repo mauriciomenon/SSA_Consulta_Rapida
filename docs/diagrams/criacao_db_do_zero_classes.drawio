@@ -1,0 +1,97 @@
+<mxfile host="app.diagrams.net" modified="2026-09-16T13:00:00.000Z" agent="devin" version="24.0.0" type="device">
+  <diagram name="Full Rescan - Classes" id="fullrescan-classes">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Entry points -->
+        <mxCell id="cli" value="cli&#10;&#171;module interface/cli.py&#187;&#10;————————————&#10;+ run_importer_logic(force_import=True)" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="worker" value="RescanWorker&#10;&#171;worker gui/workers/rescan_worker.py&#187;&#10;————————————&#10;- force_import: bool = True&#10;————————————&#10;+ run()" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="260" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- app_logic orchestrator -->
+        <mxCell id="applogic" value="app_logic&#10;&#171;module core/app_logic.py&#187;&#10;————————————&#10;+ run_importer_logic() : bool&#10;- _prepare_working_database_for_import()&#10;- _resolve_import_work_items()&#10;- _process_regular_files_phase()&#10;- _run_optional_derivadas_sync()&#10;- _validate_and_promote_candidate_if_needed()&#10;- _finalize_import_run_outcome()" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="360" y="60" width="320" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- database_writer_lock -->
+        <mxCell id="lock" value="database_writer_lock&#10;&#171;FileLock por db_path&#187;&#10;————————————&#10;+ __enter__ / __exit__&#10;+ Timeout -&gt; import_busy&#10;(cobre a rodada inteira)" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="720" y="40" width="250" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- import_database_rotation -->
+        <mxCell id="rotation" value="import_database_rotation&#10;&#171;module core/import_database_rotation.py&#187;&#10;————————————&#10;+ build_full_rescan_candidate_path()&#10;+ prune_full_rescan_artifacts()&#10;+ rotate_database_for_full_rescan()&#10;+ promote_full_rescan_candidate()&#10;+ ensure_wal_checkpointed()&#10;+ replace_sqlite_file_with_retry()" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="720" y="160" width="300" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- database -->
+        <mxCell id="db" value="database&#10;&#171;module armazenamento/database.py&#187;&#10;————————————&#10;+ initialize_database(path, schema)&#10;+ ensure_database_integrity() : report&#10;+ verify_database_integrity() : report&#10;+ get_db_connection(path, write)" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="360" y="280" width="300" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- derivadas_sync -->
+        <mxCell id="dsync" value="derivadas_sync&#10;&#171;module armazenamento/derivadas_sync.py&#187;&#10;————————————&#10;+ sync_derivadas() : dict&#10;(roda no candidato)" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="360" y="420" width="280" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Artifacts -->
+        <mxCell id="cand" value="candidate_db&#10;&#171;artifact ssas.db.full_rescan_candidate_*&#187;&#10;————————————&#10;schema aplicado do zero&#10;recebe todo o processamento&#10;evidencia se o run falha&#10;poda: 2 mais recentes" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="720" y="340" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="prim" value="primary_db&#10;&#171;artifact data/ssas.db&#187;&#10;————————————&#10;intocado ate a promocao&#10;rotacionado para backup" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="720" y="480" width="270" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="bkp" value="backup_db&#10;&#171;artifact ssas.db.full_rescan_backup_*&#187;&#10;————————————&#10;criado na rotacao&#10;restaurado se a promocao falhar&#10;poda: 2 mais recentes" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="480" width="280" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="cli" target="applogic">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="force_import=True" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="worker" target="applogic">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="run_importer_logic()" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="applogic" target="lock">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="round lock" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="applogic" target="rotation">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="candidato, poda, rotacao, promocao" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="applogic" target="db">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="init/ensure/verify" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="applogic" target="dsync">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="sync no candidato" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;dashed=1;" edge="1" parent="1" source="rotation" target="cand">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="build path + init" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="rotation" target="prim">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="rotate -> backup" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;endFill=0;dashed=1;" edge="1" parent="1" source="rotation" target="bkp">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="restaura se falha" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=0;dashed=1;" edge="1" parent="1" source="cand" target="prim">
+          <mxGeometry relative="1" as="geometry" />
+          <mxCell value="promovido no final" style="edgeLabel;html=1;fontSize=10;" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

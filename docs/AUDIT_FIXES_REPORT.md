@@ -2124,3 +2124,39 @@ candidato corrente, ignora arquivos de outros bancos/nomes, sobrevive
 falha de unlink, metacaracteres glob, sidecar orfao); 11 testes do
 arquivo + 122 da bateria de rotacao/promocao verdes; ruff/py_compile/
 ty limpos.
+
+### O28. Rodada 19 - verificacao pesada com dados reais (import + derivadas)
+
+Teste de ponta a ponta com planilhas XLSX reais de `~/Downloads`
+reproduzindo o fluxo do botao "Adicionar XLS", sobre uma copia isolada
+do banco de producao (134MB, 99.538 SSAs) — `data/ssas.db` nao foi
+tocado.
+
+- Staging (`stage_external_import_files`): 3 arquivos copiados;
+  casos mistos (inexistente, extensao errada, ja-staged) contados
+  corretamente em `summary`.
+- Importacao explicita: 4 XLSX -> `updated` (2162 linhas, 1468 SSAs
+  atualizados); re-run -> `no_changes` via cache; `Consulta SSA` ->
+  +1 insercao; corrompidos rejeitados com warning claro; 2 imports
+  concorrentes serializados pelo round lock sem corrupcao;
+  cancelamento sem artefatos orfaos.
+- Derivadas: sync automatico no import (run 53, `ok`), sync explicito
+  `sync_derivadas` (19288 arestas aceitas, 26 multiparents, 2 pais
+  orfaos, 0 ciclos) e `execute_derivadas_sync_job` da GUI
+  (`ok=True`, `is_consistent=True`, todos os issue_counts zerados).
+  Spot-check manual confirmou arestas planilha -> `ssa_table` ->
+  `ssa_derivada_source`, com historico multiparent preservado.
+- Integridade: `PRAGMA integrity_check` ok e 0 violacoes de FK em
+  todas as rodadas, inclusive pos-cancelamento.
+
+Investigacao paralela (duplo clique -> detalhes): caminho identico ao
+`dev`, sem regressao de codigo; custo concentrado em render sincrono
+na thread da GUI com caches frias pos-import (chave inclui db_mtime)
+e `_render_cache` por instancia de presenter. Observacao menor de
+staging: arquivo ja-staged aparece duplicado na lista retornada —
+inofensivo pela dedup de `_resolve_explicit_import_files`.
+
+Documentacao nova: `docs/TESTE_REAL_IMPORTACAO_DERIVADAS.md` (processo
+e evidencias), `docs/CRIACAO_DB_DO_ZERO.md` (full rescan schema-first
+-> promocao), ambos com diagramas de fluxo e de classes UML em mermaid
+mais versoes editaveis em `docs/diagrams/*.drawio`.
