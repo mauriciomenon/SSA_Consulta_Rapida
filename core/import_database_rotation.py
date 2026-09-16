@@ -26,9 +26,112 @@ def rotate_preexisting_database_for_full_rescan(db_path: str) -> Optional[str]:
     return rotate_database_for_full_rescan(db_path)
 
 
+FULL_RESCAN_ARTIFACT_KEEP_COUNT = 2
+_FULL_RESCAN_ARTIFACT_MARKERS = ("full_rescan_candidate_", "full_rescan_backup_")
+_SQLITE_SIDECAR_SUFFIXES = ("-wal", "-shm", "-journal")
+
+
 def build_full_rescan_candidate_path(db_path: str, run_id: str) -> str:
     """Build an isolated DB path for a full-rescan candidate run."""
     return f"{db_path}.full_rescan_candidate_{run_id}"
+
+
+def prune_full_rescan_artifacts(
+    db_path: str,
+    *,
+    keep: int = FULL_RESCAN_ARTIFACT_KEEP_COUNT,
+    preserve: Optional[str] = None,
+) -> None:
+    """Remove artefatos antigos de full rescan, mantendo os `keep` mais recentes.
+
+    Candidatos de runs abortados e backups de runs promovidos ficam no
+    disco como evidencia — sem poda eles acumulam ~140MB por rodada. A
+    chamada acontece dentro do writer lock da rodada, entao nenhum
+    artefato removido pertence a um run ativo. `preserve` protege o
+    candidato da rodada corrente quando ele ja existe (retry).
+    """
+    parent = Path(os.path.dirname(db_path) or ".")
+    base_name = os.path.basename(db_path)
+    preserved = os.path.realpath(preserve) if preserve else None
+
+    def _mtime(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    for marker in _FULL_RESCAN_ARTIFACT_MARKERS:
+        # startswith literal em vez de glob: metacaracteres no nome do
+        # banco (ex.: "ssas[1].db") nao podem casar artefatos de outro
+        # banco — os locks sao por caminho e a poda cruzada apagaria um
+        # candidato ativo.
+        prefix = f"{base_name}.{marker}"
+        try:
+            siblings = [p for p in parent.iterdir() if p.is_file()]
+        except OSError as exc:
+            logger.warning(
+                "Falha ao listar artefatos de full rescan '%s*': %s", marker, exc
+            )
+            continue
+        artifacts = [
+            path
+            for path in siblings
+            if path.name.startswith(prefix)
+            and not path.name.endswith(_SQLITE_SIDECAR_SUFFIXES)
+            and os.path.realpath(path) != preserved
+        ]
+        artifacts.sort(key=_mtime, reverse=True)
+        stale_set = set(artifacts[keep:])
+        handled: set[Path] = set()
+        for stale in stale_set:
+            removed_any = False
+            # Sidecars antes do principal: um sidecar que falha na
+            # remocao continua coberto pelo principal existente na
+            # proxima poda; o inverso criaria orfao permanente.
+            for suffix in (*_SQLITE_SIDECAR_SUFFIXES, ""):
+                partial = Path(f"{stale}{suffix}")
+                try:
+                    partial.unlink(missing_ok=True)
+                    removed_any = True
+                except OSError as exc:
+                    logger.warning(
+                        "Falha ao remover artefato antigo de full rescan '%s': %s",
+                        partial,
+                        exc,
+                    )
+                else:
+                    handled.add(partial)
+            if removed_any:
+                logger.info(
+                    "Artefato antigo de full rescan removido: %s", stale.name
+                )
+        # Sidecars orfaos (principal ja removido ou nunca criado por
+        # crash parcial): seguro sob o writer lock — um run ativo sempre
+        # tem o arquivo principal presente.
+        kept = set(artifacts[:keep]) - stale_set
+        for path in siblings:
+            if path in handled:
+                continue
+            if not path.name.startswith(prefix):
+                continue
+            if not path.name.endswith(_SQLITE_SIDECAR_SUFFIXES):
+                continue
+            if os.path.realpath(path) == preserved:
+                continue
+            principal_name = path.name.rsplit("-", 1)[0]
+            principal = path.with_name(principal_name)
+            if principal.exists() or principal in kept:
+                continue
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                logger.warning(
+                    "Falha ao remover sidecar orfao de full rescan '%s': %s",
+                    path,
+                    exc,
+                )
 
 
 def promote_full_rescan_candidate(

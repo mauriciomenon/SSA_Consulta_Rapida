@@ -63,6 +63,7 @@ from filelock import Timeout  # noqa: E402
 from core.import_database_rotation import (  # noqa: E402
     build_full_rescan_candidate_path as _build_full_rescan_candidate_path,
     promote_full_rescan_candidate as _promote_full_rescan_candidate,
+    prune_full_rescan_artifacts as _prune_full_rescan_artifacts,
 )
 from core.import_postprocess import (  # noqa: E402
     route_and_move_processed_files as _apply_postprocess_file_moves,
@@ -1457,6 +1458,9 @@ def _prepare_working_database_for_import(
     if force_import:
         candidate_db_path = _build_full_rescan_candidate_path(primary_db_path, run_id)
         working_db_path = candidate_db_path
+        # Dentro do round lock nenhum outro run usa estes artefatos; poda
+        # os antigos mantendo os mais recentes como evidencia.
+        _prune_full_rescan_artifacts(primary_db_path, preserve=candidate_db_path)
         logger.info(
             "Full rescan configurado para DB candidato isolado: %s",
             os.path.basename(candidate_db_path),

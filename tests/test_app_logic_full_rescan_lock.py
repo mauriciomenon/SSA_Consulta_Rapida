@@ -8,6 +8,7 @@ import pytest
 
 from core.import_database_rotation import (
     promote_full_rescan_candidate,
+    prune_full_rescan_artifacts,
     rotate_preexisting_database_for_full_rescan,
 )
 from core.import_errors import DatabaseError
@@ -182,3 +183,144 @@ def test_rotate_restores_primary_and_sidecars_when_sidecar_move_fails(
     assert wal_sidecar.exists()
     assert shm_sidecar.exists()
     assert not list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
+
+
+def _make_artifact(path: Path, age_seconds: float) -> Path:
+    path.write_bytes(b"x")
+    past = path.stat().st_mtime - age_seconds
+    os.utime(path, (past, past))
+    return path
+
+
+def test_prune_full_rescan_artifacts_keeps_newest_and_removes_sidecars(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "ssas.db"
+    candidates = [
+        _make_artifact(tmp_path / f"ssas.db.full_rescan_candidate_{i}", age)
+        for i, age in enumerate((400, 300, 200, 100))
+    ]
+    backups = [
+        _make_artifact(tmp_path / f"ssas.db.full_rescan_backup_{i}", age)
+        for i, age in enumerate((300, 200, 100))
+    ]
+    old_wal = Path(f"{candidates[0]}-wal")
+    old_journal = Path(f"{candidates[0]}-journal")
+    old_wal.write_bytes(b"w")
+    old_journal.write_bytes(b"j")
+
+    prune_full_rescan_artifacts(str(db_path))
+
+    remaining_candidates = sorted(
+        tmp_path.glob("ssas.db.full_rescan_candidate_*")
+    )
+    remaining_backups = sorted(tmp_path.glob("ssas.db.full_rescan_backup_*"))
+    assert remaining_candidates == [candidates[2], candidates[3]]
+    assert remaining_backups == [backups[1], backups[2]]
+    assert not old_wal.exists()
+    assert not old_journal.exists()
+
+
+def test_prune_full_rescan_artifacts_preserves_current_candidate(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "ssas.db"
+    current = _make_artifact(
+        tmp_path / "ssas.db.full_rescan_candidate_current", 1000
+    )
+    olders = [
+        _make_artifact(tmp_path / f"ssas.db.full_rescan_candidate_old{i}", age)
+        for i, age in enumerate((500, 400, 300))
+    ]
+
+    prune_full_rescan_artifacts(str(db_path), preserve=str(current))
+
+    remaining = sorted(tmp_path.glob("ssas.db.full_rescan_candidate_*"))
+    # O candidato da rodada corrente (retry) nunca entra na poda; alem
+    # dele ficam os 2 mais recentes.
+    assert current in remaining
+    assert olders[1] in remaining
+    assert olders[2] in remaining
+    assert olders[0] not in remaining
+
+
+def test_prune_full_rescan_artifacts_ignores_unrelated_files(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "ssas.db"
+    db_path.write_bytes(b"db")
+    unrelated = [
+        _make_artifact(tmp_path / "ssas.db", 10),
+        _make_artifact(tmp_path / "ssas.db.backup_20260101_000000", 10),
+        _make_artifact(tmp_path / "ssas.db.bak-20260101_000000", 10),
+        _make_artifact(tmp_path / "other.db.full_rescan_candidate_x", 10),
+    ]
+
+    prune_full_rescan_artifacts(str(db_path))
+
+    for path in unrelated:
+        assert path.exists()
+
+
+def test_prune_full_rescan_artifacts_survives_unlink_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "ssas.db"
+    for i in range(4):
+        _make_artifact(
+            tmp_path / f"ssas.db.full_rescan_candidate_{i}", 400 - i * 100
+        )
+
+    original_unlink = Path.unlink
+
+    def _flaky_unlink(self: Path, missing_ok: bool = False) -> None:
+        if self.name.endswith("_0"):
+            raise PermissionError("simulated locked artifact")
+        original_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", _flaky_unlink)
+
+    prune_full_rescan_artifacts(str(db_path))
+
+    remaining = sorted(tmp_path.glob("ssas.db.full_rescan_candidate_*"))
+    assert len(remaining) == 3  # 2 kept + 1 remocao que falhou
+
+
+def test_prune_full_rescan_artifacts_does_not_match_other_db_names(
+    tmp_path: Path,
+) -> None:
+    """Metacaracteres glob no nome do banco nao podem casar outro banco."""
+    db_path = tmp_path / "ssas[1].db"
+    for i in range(4):
+        _make_artifact(tmp_path / f"ssas[1].db.full_rescan_candidate_{i}", 400 - i * 100)
+    _make_artifact(tmp_path / "ssas1.db.full_rescan_candidate_other", 10)
+
+    prune_full_rescan_artifacts(str(db_path))
+
+    remaining = sorted(p.name for p in tmp_path.iterdir())
+    assert "ssas1.db.full_rescan_candidate_other" in remaining
+    own = [n for n in remaining if n.startswith("ssas[1].db.full_rescan_candidate_")]
+    assert own == [
+        "ssas[1].db.full_rescan_candidate_2",
+        "ssas[1].db.full_rescan_candidate_3",
+    ]
+
+
+def test_prune_full_rescan_artifacts_removes_orphan_sidecar(
+    tmp_path: Path,
+) -> None:
+    """Sidecar cujo principal nao existe mais entra na poda de orfaos."""
+    db_path = tmp_path / "ssas.db"
+    orphan_wal = tmp_path / "ssas.db.full_rescan_candidate_dead-wal"
+    orphan_wal.write_bytes(b"w")
+    kept = _make_artifact(
+        tmp_path / "ssas.db.full_rescan_candidate_live", 10
+    )
+    Path(f"{kept}-wal").write_bytes(b"w")
+
+    prune_full_rescan_artifacts(str(db_path))
+
+    assert not orphan_wal.exists()
+    assert kept.exists()
+    assert Path(f"{kept}-wal").exists()

@@ -2097,3 +2097,30 @@ paridade com a GUI; nenhum prefixo de ano nem padding sao fabricados.
 Validacao: teste novo cobre 9 digitos, ID curto, vazio e None;
 `test_cli_formatting.py` + `test_cli_pagination_prompt.py` verdes;
 ruff/py_compile limpos.
+
+### O27. Rodada 18 - poda de artefatos de full rescan (limite de espaco)
+
+Candidatos `*.full_rescan_candidate_*` de runs abortados e backups
+`*.full_rescan_backup_*` de runs promovidos ficavam no disco como
+evidencia permanente — sem nenhuma poda, cada rodada acumulava ~140MB.
+`data/` tinha um candidato de 142MB parado desde 12/09.
+
+Correcao: `prune_full_rescan_artifacts()` em
+`core/import_database_rotation.py` mantem os 2 mais recentes de cada
+marcador e roda dentro do writer lock da rodada (antes de criar o
+candidato novo), entao nenhum artefato removido pertence a run ativo.
+`preserve=` protege o candidato da rodada corrente em retry. Sidecars
+`-wal`/`-shm`/`-journal` sao removidos antes do principal e um sweep de
+sidecars orfaos cobre remocoes parciais anteriores.
+
+Revisao externa (Codex + BitoReview) encontrou e foi enderecado:
+glob com metacaracteres no nome do banco (`ssas[1].db` casava
+artefatos de `ssas1.db` — lock por caminho nao protegia) trocado por
+`startswith` literal; sidecar orfao permanente coberto pelo sweep; log
+de remocao so em sucesso real; assinatura de `unlink` no teste tipada.
+
+Validacao: 5 testes novos (keeps-newest+sidecars, preserve do
+candidato corrente, ignora arquivos de outros bancos/nomes, sobrevive
+falha de unlink, metacaracteres glob, sidecar orfao); 11 testes do
+arquivo + 122 da bateria de rotacao/promocao verdes; ruff/py_compile/
+ty limpos.
