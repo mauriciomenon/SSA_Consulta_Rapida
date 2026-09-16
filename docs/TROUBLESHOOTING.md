@@ -56,6 +56,23 @@ Guia ativo de diagnostico rapido para operacao diaria.
    preserva o estado em disco — nao force recriacao manual antes de
    copiar os artefatos para analise.
 
+### Janela nao fecha ao clicar em X
+
+1. Se houver operacao em andamento (carga, rescan, derivadas, compactacao,
+   copia de banco externo), o fechamento e adiado ate a operacao concluir —
+   o status mostra `Encerramento aguardando operacoes em andamento.`.
+2. A copia de banco externo (staging `.copy-*`) nunca e abandonada: nem o
+   fechamento forcado aceita o evento enquanto a thread de copia estiver
+   viva. Aguarde a conclusao; se o processo for morto, o `.copy-*` parcial
+   e removido na proxima selecao de banco.
+
+### Arquivo `.copy-*` sobrando em `data/`
+
+E o staging de uma copia de banco externo interrompida (processo morto ou
+falha). E inofensivo: na proxima selecao de banco ele e removido se tiver
+mais de ~2 minutos e nao pertencer a uma copia ativa. Nao o renomeie para
+`.db` manualmente — pode ser uma copia truncada.
+
 ### Divergencia de docs
 
 1. Validar baseline em `VERSION` e `config/version.json`.

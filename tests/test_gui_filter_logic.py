@@ -14801,6 +14801,101 @@ class TestGUIFilterLogic:
         assert event.isAccepted() is True
         assert worker.disconnected is True
 
+    def test_forced_close_never_abandons_active_db_copy_thread(self):
+        """Thread de staging viva bloqueia o fechamento forcado.
+
+        A copia e daemon: aceitar o evento a mataria no meio do
+        sqlite3.backup() deixando .copy-* parcial. Apos o grace o evento
+        continua ignorado enquanto a thread estiver viva.
+        """
+        class _CopyThread:
+            def __init__(self):
+                self.alive = True
+                self.join_calls = 0
+
+            def is_alive(self):
+                return self.alive
+
+            def join(self, timeout=None):
+                self.join_calls += 1
+
+        copy_thread = _CopyThread()
+        self.window._other_db_validation_thread = copy_thread
+        # Episodio ja em andamento: pending_ops contem a thread para que
+        # shutdown() nao resete o deadline como episodio novo.
+        self.window._shutdown_pending_operations = (copy_thread,)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert copy_thread.join_calls == 1
+        assert self.window._is_shutting_down is False
+
+        # Nova tentativa: ainda viva, segue bloqueado com novo grace.
+        retry = QCloseEvent()
+        self.window.closeEvent(retry)
+        assert retry.isAccepted() is False
+        assert copy_thread.join_calls == 2
+
+        # Copia concluida: o proximo X fecha normalmente.
+        copy_thread.alive = False
+        final = QCloseEvent()
+        self.window.closeEvent(final)
+        assert final.isAccepted() is True
+
+    def test_forced_close_conservative_when_copy_thread_state_unknown(self):
+        """Falha ao consultar a thread de staging nao pode liberar o X."""
+        class _BrokenCopyThread:
+            def is_alive(self):
+                raise RuntimeError("thread query failed")
+
+            def join(self, timeout=None):
+                return None
+
+        broken = _BrokenCopyThread()
+        self.window._other_db_validation_thread = broken
+        self.window._shutdown_pending_operations = (broken,)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert self.window._is_shutting_down is False
+
+    def test_forced_close_blocked_by_registered_staging_without_thread_ref(
+        self, tmp_path
+    ):
+        """Staging registrado bloqueia o X mesmo sem referencia da thread.
+
+        Cobre o caso em que o timeout da validacao (ou um novo pedido)
+        descartou `_other_db_validation_thread` com a copia ainda ativa:
+        o registro de stagings e a fonte de verdade do shutdown.
+        """
+        staged = tmp_path / "banco.db.copy-1"
+        staged.touch()
+        gui_ssa.ssa_database_operations._register_staged_copy(staged)
+        try:
+            first = QCloseEvent()
+            self.window.closeEvent(first)
+            assert first.isAccepted() is False
+
+            # Episodio de shutdown ja consolidado: forca o caminho de
+            # fechamento forcado — que tambem nao pode abandonar staging.
+            self.window._shutdown_started_at = time.monotonic() - 9999
+            second = QCloseEvent()
+            self.window.closeEvent(second)
+            assert second.isAccepted() is False
+            assert self.window._is_shutting_down is False
+        finally:
+            gui_ssa.ssa_database_operations._unregister_staged_copy(staged)
+
+        final = QCloseEvent()
+        self.window.closeEvent(final)
+        assert final.isAccepted() is True
+
     def test_finalize_database_candidate_validation_discards_stale_result(
         self, tmp_path, monkeypatch
     ):

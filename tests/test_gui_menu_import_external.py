@@ -1061,3 +1061,83 @@ def test_other_db_timeout_discards_late_staging(monkeypatch, tmp_path):
     assert discarded == [str(staged_file)]
     assert promoted == []
     assert gui_ssa.DB_PATH == str(current)
+
+
+def test_other_db_publish_after_invalidation_discards_staged(
+    monkeypatch, tmp_path
+):
+    """Corrida timeout x publicacao: se o request expira entre a checagem
+    do staging e a publicacao do resultado, o proprio worker descarta o
+    .copy-* — nenhum poll vai consumir esse resultado."""
+    current = tmp_path / "current.db"
+    candidate = tmp_path / "candidate.db"
+    current.touch()
+    candidate.touch()
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(current))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    scheduled: list[Any] = []
+    staged_file = tmp_path / "candidate.db.copy-9"
+    staged_file.touch()
+    discarded: list[str] = []
+
+    window = SimpleNamespace(
+        status_label=_DummyLabel(),
+        _get_derivadas_sync_state=lambda: SimpleNamespace(
+            last_report=None, report_invalidated=False),
+    )
+
+    class _InlineThread:
+        def __init__(self, target, **_kwargs):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+        def is_alive(self):
+            return False
+
+    class _InvalidateOnRequestId(dict):
+        # Simula a invalidacao do request exatamente na janela entre a
+        # checagem do staging e a publicacao do resultado.
+        def __setitem__(self, key, value):
+            super().__setitem__(key, value)
+            if key == "_request_id":
+                window._other_db_validation_request_id += 1
+
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=_InlineThread))
+    monkeypatch.setattr(gui_ssa, "QTimer", SimpleNamespace(
+        singleShot=lambda _ms, cb: scheduled.append(cb)))
+    monkeypatch.setattr(gui_ssa, "QMessageBox", SimpleNamespace(
+        question=lambda *_a: 1, information=lambda *_a: None,
+        critical=lambda *_a: None, warning=lambda *_a: None,
+        StandardButton=SimpleNamespace(Yes=1, No=2)))
+    monkeypatch.setattr(gui_ssa, "QFileDialog", lambda: SimpleNamespace(
+        getOpenFileName=lambda *_a: (str(candidate), "")))
+    monkeypatch.setattr(
+        gui_ssa.SSAMainWindow, "_validate_database_candidate",
+        staticmethod(lambda path: _InvalidateOnRequestId(
+            {"ok": True, "db_file": path})),
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "stage_database_copy",
+        lambda _s, dest: {
+            "ok": True, "staged": str(staged_file), "dest": str(dest),
+            "db_file": str(dest), "copied": True, "archived": None,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "discard_staged_copy",
+        lambda staged: discarded.append(str(staged)),
+    )
+    promoted: list[str] = []
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "commit_staged_database_copy",
+        lambda _staged, dest: promoted.append(str(dest)) or {"ok": True},
+    )
+
+    out = gui_ssa.SSAMainWindow.load_other_database(window)
+    assert out["started"] is True
+    assert discarded == [str(staged_file)]
+    assert promoted == []
+    assert gui_ssa.DB_PATH == str(current)

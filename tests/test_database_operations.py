@@ -296,7 +296,7 @@ def test_stage_database_copy_never_modifies_source_with_hot_wal(tmp_path):
     """
     import hashlib
 
-    from gui.ssa.database_operations import stage_database_copy
+    from gui.ssa import database_operations as ssa_ops
 
     src_dir = tmp_path / "externo"
     src_dir.mkdir()
@@ -304,6 +304,7 @@ def test_stage_database_copy_never_modifies_source_with_hot_wal(tmp_path):
     writer = sqlite3.connect(str(src))
     writer.execute("BEGIN")
     writer.execute("INSERT INTO ssa_table VALUES ('quente')")
+    result: dict = {}
     try:
         before = {
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
@@ -311,7 +312,7 @@ def test_stage_database_copy_never_modifies_source_with_hot_wal(tmp_path):
         }
         dest_dir = tmp_path / "data"
         dest_dir.mkdir()
-        result = stage_database_copy(src, dest_dir / "src.db")
+        result = ssa_ops.stage_database_copy(src, dest_dir / "src.db")
         assert result["ok"] is True, result
         after = {
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
@@ -322,6 +323,10 @@ def test_stage_database_copy_never_modifies_source_with_hot_wal(tmp_path):
         assert {"a", "b"} <= set(staged_rows)
     finally:
         writer.close()
+        if result.get("staged"):
+            # Desregistra alem de remover o arquivo: uma entrada orfa no
+            # registro bloquearia o fechamento da GUI em testes seguintes.
+            ssa_ops.discard_staged_copy(result["staged"])
 
 
 def test_get_db_connection_rejects_read_only_memory():
@@ -340,6 +345,7 @@ def test_stage_database_copy_sweeps_stale_partial(tmp_path):
     import os
     import time
 
+    from gui.ssa import database_operations as ssa_ops
     from gui.ssa.database_operations import (
         STALE_STAGED_COPY_MIN_AGE_SEC,
         stage_database_copy,
@@ -366,4 +372,114 @@ def test_stage_database_copy_sweeps_stale_partial(tmp_path):
         assert recent.exists()
     finally:
         if result.get("staged"):
-            Path(result["staged"]).unlink(missing_ok=True)
+            # Desregistra + remove: unlink sozinho deixaria o staging
+            # registrado como ativo e bloquearia o close da GUI depois.
+            ssa_ops.discard_staged_copy(result["staged"])
+
+
+def test_stage_database_copy_never_sweeps_active_staged(tmp_path):
+    """Staging registrado como ativo neste processo nao e removido nem
+    quando seu mtime parece antigo (copia lenta, promocao lenta)."""
+    import os
+    import time
+
+    from gui.ssa import database_operations as ssa_ops
+    from gui.ssa.database_operations import (
+        STALE_STAGED_COPY_MIN_AGE_SEC,
+        _register_staged_copy,
+        _unregister_staged_copy,
+        stage_database_copy,
+    )
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "src.db", ["a"])
+    dest_dir = tmp_path / "data"
+    dest_dir.mkdir()
+    dest = dest_dir / "src.db"
+
+    active = dest_dir / "src.db.copy-20000101_000000_000001"
+    active.write_bytes(b"active copy in progress")
+    active_journal = Path(f"{active}-journal")
+    active_journal.write_bytes(b"journal of the active copy")
+    old = time.time() - STALE_STAGED_COPY_MIN_AGE_SEC - 60
+    os.utime(active, (old, old))
+    os.utime(active_journal, (old, old))
+    _register_staged_copy(active)
+    try:
+        result = stage_database_copy(src, dest)
+        assert result["ok"] is True, result
+        assert active.exists()
+        assert active_journal.exists()
+    finally:
+        _unregister_staged_copy(active)
+        if result.get("staged"):
+            ssa_ops.discard_staged_copy(result["staged"])
+
+
+def test_sweep_removes_stale_sidecar_of_unregistered_copy(tmp_path):
+    """Sidecar orfao de staging morto ainda e varrido pela idade."""
+    import os
+    import time
+
+    from gui.ssa import database_operations as ssa_ops
+    from gui.ssa.database_operations import (
+        STALE_STAGED_COPY_MIN_AGE_SEC,
+        stage_database_copy,
+    )
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "src.db", ["a"])
+    dest_dir = tmp_path / "data"
+    dest_dir.mkdir()
+    dest = dest_dir / "src.db"
+
+    orphan_journal = dest_dir / "src.db.copy-20000101_000000_000009-journal"
+    orphan_journal.write_bytes(b"journal of a dead copy")
+    old = time.time() - STALE_STAGED_COPY_MIN_AGE_SEC - 60
+    os.utime(orphan_journal, (old, old))
+
+    result = stage_database_copy(src, dest)
+    try:
+        assert result["ok"] is True, result
+        assert not orphan_journal.exists()
+    finally:
+        if result.get("staged"):
+            ssa_ops.discard_staged_copy(result["staged"])
+
+
+def test_stage_database_copy_blocked_while_staging_barred(tmp_path):
+    """Apos a barreira de encerramento, nenhum staging novo inicia.
+
+    E a contagem atomica reflete o staging vivo ate ele ser descartado.
+    """
+    from gui.ssa import database_operations as ssa_ops
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "src.db", ["a"])
+    dest_dir = tmp_path / "data"
+    dest_dir.mkdir()
+    dest = dest_dir / "src.db"
+
+    live = ssa_ops.stage_database_copy(src, dest)
+    try:
+        assert live["ok"] is True, live
+        assert ssa_ops.bar_new_staged_copies() == 1
+        blocked = ssa_ops.stage_database_copy(src, dest)
+        assert blocked["ok"] is False
+        assert blocked.get("staged") is None
+        assert "encerramento" in str(blocked.get("error"))
+    finally:
+        ssa_ops.allow_new_staged_copies()
+        if live.get("staged"):
+            ssa_ops.discard_staged_copy(live["staged"])
+
+    # Barreira reaberta: staging volta a funcionar.
+    again = ssa_ops.stage_database_copy(src, dest)
+    try:
+        assert again["ok"] is True, again
+    finally:
+        if again.get("staged"):
+            ssa_ops.discard_staged_copy(again["staged"])

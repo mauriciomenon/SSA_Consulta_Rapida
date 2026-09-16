@@ -29,6 +29,7 @@ import socket
 import subprocess  # nosec B404
 import sys
 import threading
+from threading import Lock
 import time
 from collections import OrderedDict
 from typing import Any, TypedDict, cast
@@ -471,6 +472,9 @@ DETAILS_DIALOG_FONT_SIZE = 10  # pt
 OTHER_DB_VALIDATION_TIMEOUT_SEC = 120.0
 SHUTDOWN_FORCE_TIMEOUT_SEC = 30.0
 SHUTDOWN_DB_COPY_GRACE_SEC = 5.0
+# Marcador estavel para "staging de banco em andamento" quando a thread
+# que o criou ja nao e mais rastreavel (request expirado/substituido).
+_DB_COPY_STAGING_PENDING = object()
 DETAILS_DIALOG_TABLE_PADDING = 8  # px
 DETAILS_DIALOG_BORDER_COLOR = "#ccc"
 HIGHLIGHT_BACKGROUND_COLOR = "yellow"
@@ -5427,6 +5431,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.exception("Falha ao aplicar validacao do banco alternativo: %s", exc)
             self._other_db_validation_running = False
+            # Um staging entregue pelo worker mas nao promovido (falha
+            # antes do commit) nao pode ficar registrado: bloquearia o
+            # fechamento da janela para sempre.
+            orphan_staged = (result.get("_copy_result") or {}).get("staged")
+            if orphan_staged:
+                ssa_database_operations.discard_staged_copy(orphan_staged)
             try:
                 self.status_label.setText(
                     "Status: Banco selecionado, mas houve falha ao concluir sua abertura. "
@@ -5469,6 +5479,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             request_id = getattr(self, "_other_db_validation_request_id", 0) + 1
             self._other_db_validation_request_id = request_id
             validation_deadline = time.monotonic() + OTHER_DB_VALIDATION_TIMEOUT_SEC
+            # Coordena publicacao do worker com a invalidacao do poll: sem
+            # o lock, um resultado publicado entre a leitura e a
+            # invalidacao do poll virava orfao registrado como staging
+            # ativo — e travaria o fechamento da janela para sempre.
+            # Protocolo: pending_result e escrito/lido sob o lock nos
+            # pontos de decisao (publicar, invalidar, reivindicar);
+            # request_id e lido dentro do lock ao validar a publicacao.
+            delivery_lock = Lock()
 
             def _window_alive() -> bool:
                 if self is None:
@@ -5484,6 +5502,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             def _work() -> None:
                 nonlocal pending_result
+                staged_created: str | None = None
                 try:
                     result = SSAMainWindow._validate_database_candidate(db_file)
                     if bool(result.get("ok")):
@@ -5514,16 +5533,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                                     src, dest
                                 )
                             )
+                            staged_created = (
+                                staged_result.get("staged") or None
+                            )
                             # Se o request expirou durante o staging, descarta
                             # o arquivo em vez de deixar .copy-* orfao.
                             if (
                                 staged_result.get("ok")
-                                and staged_result.get("staged")
+                                and staged_created
                                 and request_id
                                 != self._other_db_validation_request_id
                             ):
                                 ssa_database_operations.discard_staged_copy(
-                                    staged_result["staged"]
+                                    staged_created
                                 )
                                 staged_result = {
                                     "ok": False,
@@ -5538,25 +5560,55 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         "Falha inesperada na validacao de banco alternativo: %s",
                         db_file,
                     )
+                    # Sem esta limpeza um .copy-* criado ficaria registrado
+                    # como ativo e o arquivo orfao nunca entraria no sweep.
+                    if staged_created:
+                        ssa_database_operations.discard_staged_copy(
+                            staged_created
+                        )
                     result = {
                         "ok": False,
                         "error": f"{type(exc).__name__}: {exc}",
                         "db_file": db_file,
                     }
-                result["_request_id"] = request_id
-                pending_result = result
+                with delivery_lock:
+                    result["_request_id"] = request_id
+                    pending_result = result
+                    still_valid = (
+                        request_id == self._other_db_validation_request_id
+                    )
+                # O pedido pode ter expirado entre a checagem do staging e a
+                # publicacao: nesse caso nenhum poll consome o resultado e o
+                # .copy-* ficaria orfao registrado como ativo.
+                late_staged = (result.get("_copy_result") or {}).get("staged")
+                if late_staged and not still_valid:
+                    ssa_database_operations.discard_staged_copy(late_staged)
 
             def _poll_delivery() -> None:
                 nonlocal pending_result
                 if request_id != self._other_db_validation_request_id:
+                    with delivery_lock:
+                        stale_pending = pending_result
+                        pending_result = None
+                    # Um resultado publicado depois da invalidacao nao sera
+                    # consumido por ninguem — o staging sai do registro e do
+                    # disco aqui.
+                    stale_staged = (
+                        (stale_pending or {}).get("_copy_result") or {}
+                    ).get("staged")
+                    if stale_staged:
+                        ssa_database_operations.discard_staged_copy(
+                            stale_staged
+                        )
                     return
                 if not _window_alive():
-                    pending = pending_result
-                    pending_result = None
-                    # Invalida o request: se o worker ainda estiver em
-                    # staging, o resultado tardio vira stale e o arquivo
-                    # .copy-* e descartado em vez de vazar.
-                    self._other_db_validation_request_id += 1
+                    with delivery_lock:
+                        pending = pending_result
+                        pending_result = None
+                        # Invalida o request: se o worker ainda estiver em
+                        # staging, o resultado tardio vira stale e o arquivo
+                        # .copy-* e descartado em vez de vazar.
+                        self._other_db_validation_request_id += 1
                     # Se o worker JA publicou o resultado, a invalidacao
                     # nao o alcanca — o staging tem que ser descartado aqui.
                     staged_path = (
@@ -5564,32 +5616,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     ).get("staged")
                     if staged_path:
                         ssa_database_operations.discard_staged_copy(staged_path)
-                    self._other_db_validation_thread = None
+                    # A referencia da thread e mantida: ela pode seguir viva
+                    # em sqlite3.backup() mesmo com a janela destruida.
                     self._other_db_validation_running = False
                     return
                 pending = pending_result
                 if pending is None:
                     if not bool(getattr(self, "_other_db_validation_running", False)):
                         return
-                    if time.monotonic() >= validation_deadline:
+                    if time.monotonic() < validation_deadline:
+                        QTimer.singleShot(100, _poll_delivery)
+                        return
+                    # Releitura sob o lock: um resultado publicado entre a
+                    # primeira leitura e a invalidacao nao pode ser perdido.
+                    with delivery_lock:
+                        pending = pending_result
+                        if pending is None:
+                            self._other_db_validation_request_id += 1
+                    if pending is None:
                         logger.error(
                             "Validacao de banco alternativo excedeu %ss sem resultado.",
                             OTHER_DB_VALIDATION_TIMEOUT_SEC,
                         )
-                        pending_result = None
                         # Mesmo motivo do caminho de janela destruida:
                         # invalida o request para que um staging tardio
                         # seja descartado, nao promovido nem vazado.
-                        self._other_db_validation_request_id += 1
-                        self._other_db_validation_thread = None
+                        # A referencia da thread e mantida: ela pode seguir
+                        # viva no sqlite3.backup() e o shutdown usa o
+                        # registro de stagings ativos para nao abandona-la.
                         self._other_db_validation_running = False
                         ssa_app_menus.refresh_database_actions(self)
                         self.status_label.setText(
                             "Status: Validacao de banco alternativo excedeu o tempo limite."
                         )
                         return
-                    QTimer.singleShot(100, _poll_delivery)
-                    return
+                    # Um resultado chegou na janela da decisao: entrega no
+                    # fluxo normal em vez de invalidar.
                 if worker.is_alive():
                     QTimer.singleShot(100, _poll_delivery)
                     return
@@ -5839,6 +5901,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Falha ao consultar thread de copia de banco no shutdown: %s",
                     exc,
                 )
+        # O registro de stagings ativos e a fonte de verdade: cobre threads
+        # cuja referencia ja foi substituida (request expirado/novo).
+        try:
+            staging_active = (
+                ssa_database_operations.active_staged_copy_count() > 0
+            )
+        except NameError:
+            # Modo headless: database_operations nao foi importado e nenhum
+            # staging pode existir.
+            staging_active = False
+        except Exception as exc:
+            staging_active = True  # conservador: nao fecha na duvida
+            logger.warning(
+                "Falha ao consultar stagings ativos no shutdown: %s", exc
+            )
+        if staging_active:
+            running_operations.append(_DB_COPY_STAGING_PENDING)
+            running_labels.append("db_copy_staging")
 
         previous_pending_ids = {
             id(pending_worker)
@@ -5902,20 +5982,50 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if elapsed < SHUTDOWN_FORCE_TIMEOUT_SEC:
                 return
             self._is_shutting_down = True
-            # Copia de banco alternativo em andamento e daemon: o exit a
-            # mataria no meio do sqlite3.backup(). Concede uma janela
-            # curta para concluir; se nao terminar, o .copy-* parcial e
-            # varrido na proxima rodada de stage_database_copy.
+            # Copia de banco alternativo em andamento e daemon: aceitar o
+            # evento mataria a copia no meio do sqlite3.backup(). Concede
+            # uma janela curta para concluir; se ainda estiver viva, o evento
+            # continua ignorado — o fechamento forcado nao abandona um
+            # staging ativo (o .copy-* parcial de um processo morto e
+            # varrido na proxima rodada de stage_database_copy).
             db_copy_thread = getattr(self, "_other_db_validation_thread", None)
+            still_alive = False
             if db_copy_thread is not None:
                 try:
                     if db_copy_thread.is_alive():
                         db_copy_thread.join(timeout=SHUTDOWN_DB_COPY_GRACE_SEC)
+                    still_alive = db_copy_thread.is_alive()
                 except (RuntimeError, AttributeError) as exc:
+                    still_alive = True  # conservador: nao fecha na duvida
                     logger.debug(
                         "Falha ao aguardar copia de banco no fechamento forcado: %s",
                         exc,
                     )
+            if not still_alive:
+                # Staging pode estar ativo em thread cuja referencia ja foi
+                # perdida (request expirado/substituido): o registro e a
+                # fonte de verdade.
+                try:
+                    still_alive = (
+                        ssa_database_operations.active_staged_copy_count() > 0
+                    )
+                except NameError:
+                    still_alive = False  # headless: nenhum staging possivel
+                except Exception as exc:
+                    still_alive = True
+                    logger.debug(
+                        "Falha ao consultar stagings ativos no fechamento: %s",
+                        exc,
+                    )
+            if still_alive:
+                logger.warning(
+                    "Shutdown segue adiado; copia de banco alternativo "
+                    "ainda em andamento."
+                )
+                self._is_shutting_down = False
+                ssa_app_menus.refresh_database_actions(self)
+                event.ignore()
+                return
             for pending_worker in getattr(self, "_shutdown_pending_workers", []) or []:
                 disconnect = getattr(pending_worker, "disconnect", None)
                 if callable(disconnect):
@@ -5930,6 +6040,28 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "Shutdown forcado apos %.1fs; workers ainda ativos foram retidos em background.",
                 elapsed,
             )
+        # Barreira final atomica: impede novos stagings e conta os vivos
+        # sob o mesmo lock — um backup iniciado entre a ultima checagem e
+        # o accept morreria no meio, deixando .copy-* parcial.
+        try:
+            staging_pending = ssa_database_operations.bar_new_staged_copies()
+        except NameError:
+            staging_pending = 0  # headless: nenhum staging possivel
+        except Exception as exc:
+            staging_pending = 1  # conservador: nao fecha na duvida
+            logger.debug(
+                "Falha ao verificar stagings antes do fechamento: %s", exc
+            )
+        if staging_pending:
+            ssa_database_operations.allow_new_staged_copies()
+            logger.warning(
+                "Shutdown segue adiado; copia de banco alternativo "
+                "ainda em andamento."
+            )
+            self._is_shutting_down = False
+            ssa_app_menus.refresh_database_actions(self)
+            event.ignore()
+            return
         try:
             from gui.ssa.gui_preferences_persistence import (
                 shutdown_gui_preferences_writer,

@@ -102,6 +102,23 @@ def _resync_path_safety_roots() -> Iterator[None]:
     path_safety.refresh_allowed_roots()
 
 
+@pytest.fixture(autouse=True)
+def _reset_db_staging_state() -> Iterator[None]:
+    """Zera o registro de stagings `.copy-*` entre testes.
+
+    Um closeEvent aceito barra novos stagings e um teste que esquecer de
+    desregistrar deixaria `active_staged_copy_count() > 0`, fazendo
+    testes de shutdown seguintes nunca aceitarem o fechamento.
+    """
+    yield
+    with suppress(Exception):
+        from gui.ssa import database_operations as ssa_ops
+
+        ssa_ops.allow_new_staged_copies()
+        with ssa_ops._ACTIVE_STAGED_LOCK:
+            ssa_ops._ACTIVE_STAGED_COPIES.clear()
+
+
 @pytest.fixture(scope="function")
 def temp_db() -> Iterator[str]:
     """Fornece caminho para DB SQLite temporário com schema aplicado."""

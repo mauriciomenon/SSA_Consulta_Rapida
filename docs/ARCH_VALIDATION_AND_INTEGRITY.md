@@ -28,6 +28,27 @@ e falha se o arquivo nao existir — usada na validacao de bancos externos.
 Limitacao do SQLite: em banco WAL, a abertura ainda pode materializar
 `-shm`/`-wal` ao lado da origem.
 
+## Selecao de banco externo (staging)
+
+`gui/ssa/database_operations.py` copia o arquivo escolhido para `data/` em
+duas fases: `stage_database_copy` grava o snapshot em
+`<destino>.copy-<timestamp>` via `sqlite3.Connection.backup` com a origem
+em `mode=ro`, e `commit_staged_database_copy` promove com `os.replace`
+apos arquivar o destino anterior (com rollback se a promocao falhar). O
+arquivo do usuario nunca e modificado.
+
+Stagings vivos sao registrados em processo (`_ACTIVE_STAGED_COPIES`): o
+varredor de `.copy-*` orfaos so remove arquivo nao registrado (nem
+sidecar de registrado) e com mtime alem da janela minima — uma copia
+lenta nunca e apagada pela idade. No encerramento, a GUI nao aceita o
+fechamento enquanto existir staging ativo: a barreira
+`bar_new_staged_copies()` trava novos stagings e conta os vivos sob o
+mesmo lock do registro, entao nenhum `sqlite3.backup()` pode comecar
+entre a ultima checagem e o `accept`. A entrega do resultado do worker
+(`pending_result`) e a invalidacao por timeout/janela destruida sao
+coordenadas por `delivery_lock` — um resultado publicado na janela da
+decisao nunca vira orfao nem e perdido.
+
 ## Reparo conservador e bloqueios
 
 Apos um reparo, a decisao usa os mesmos requisitos estruturais: banco acessivel,

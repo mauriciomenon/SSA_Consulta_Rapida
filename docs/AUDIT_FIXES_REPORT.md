@@ -1988,3 +1988,60 @@ ruff/py_compile limpos.
 
 Validacao: 2 testes novos (rejeicao :memory:, sweep de .copy-*);
 bateria database/gui-shutdown 184 testes verdes; ruff/py_compile.
+
+### O24. Rodada 15 - staging ativo nao e removido por mtime e shutdown nao abandona copia
+
+Achado do usuario sobre `database_operations.py`: o sweep de `.copy-*`
+por mtime podia apagar uma copia em andamento (backup lento) e seus
+sidecars. E `gui_ssa.py`: o fechamento forcado aceitava o evento com a
+thread daemon de staging viva, matando o `sqlite3.backup()` no meio.
+
+Correcoes:
+
+- `gui/ssa/database_operations.py`: registro em processo
+  `_ACTIVE_STAGED_COPIES` (set protegido por lock). O sweep so remove
+  `.copy-*` que nao esta registrado (nem e sidecar de registrado) E tem
+  mtime alem da janela minima — idade vira criterio secundario, nunca
+  autoridade. `stage_database_copy` registra antes de copiar e
+  desregistra em sucesso/falha; `commit_staged_database_copy` desregistra
+  apos o `os.replace`; `discard_staged_copy` desregistra sempre.
+  `active_staged_copy_count()` expoe a contagem como fonte de verdade.
+- `gui/gui_ssa.py` `_work`/`_poll_delivery`: publicacao do resultado,
+  invalidacao por timeout/janela morta e consumo agora sao coordenados
+  por `delivery_lock` (threading.Lock). O worker calcula `still_valid`
+  dentro do lock e descarta staging publicado apos invalidacao; o poll
+  rele `pending_result` sob o lock antes de invalidar e descarta staging
+  de resultado stale; excecao do worker descarta o staging criado.
+- Timeout de validacao nao zera mais `_other_db_validation_thread` com a
+  thread viva (a referencia era perdida e o close nao a via).
+- `shutdown()` e o caminho de fechamento forcado consultam
+  `active_staged_copy_count()` alem da referencia da thread — cobre
+  staging de thread cuja referencia foi substituida. Com copia ativa o
+  evento segue ignorado (grace de `SHUTDOWN_DB_COPY_GRACE_SEC` por
+  tentativa); em modo headless a consulta degrada para inativo.
+
+Revisao externa por dois modelos em tres passadas: a primeira confirmou
+o desenho do registro; a segunda reproduziu (i) o timeout zerando a
+referencia da thread viva e (ii) a corrida residual publicacao x
+invalidacao — corrigidos com `delivery_lock`; alem de (iii) testes que
+removiam `.copy-*` com unlink sem desregistrar — corrigidos para
+`discard_staged_copy`. A terceira reproduziu (iv) `finalize_failed`
+mantendo staging registrado para sempre — corrigido com descarte no
+except da finalizacao — e (v) a janela TOCTOU entre a ultima checagem e
+o `accept` (worker substituido podia iniciar backup depois do check) —
+corrigida com `bar_new_staged_copies()`, que trava novos stagings e
+conta os vivos sob o mesmo lock do registro.
+
+Validacao: 4 testes novos (staging ativo nunca varrido mesmo com mtime
+velho, sidecar orfao removido, publish-apos-invalidacao descarta,
+close bloqueado por staging registrado sem referencia de thread e
+conservador em falha de consulta); fixture autouse em conftest zera o
+estado de staging entre testes (barreira e registro); 51 testes focados
++ arquivo GUI completo (580) verdes; ruff/py_compile/`git diff --check`
+limpos.
+
+Documentacao alinhada: README reescrito (interfaces, importacao,
+derivadas, recuperacao, exportacoes), runbook de derivadas com secao de
+staging, ARCH_VALIDATION com o ciclo de vida do staging e
+TROUBLESHOOTING com sintomas visiveis (janela nao fecha, `.copy-*`
+sobrando).
