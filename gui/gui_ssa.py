@@ -470,6 +470,7 @@ TSM_DEBUG_ENABLED = str(os.environ.get("SSA_TSM_DEBUG", "")).strip().lower() in 
 DETAILS_DIALOG_FONT_SIZE = 10  # pt
 OTHER_DB_VALIDATION_TIMEOUT_SEC = 120.0
 SHUTDOWN_FORCE_TIMEOUT_SEC = 30.0
+SHUTDOWN_DB_COPY_GRACE_SEC = 5.0
 DETAILS_DIALOG_TABLE_PADDING = 8  # px
 DETAILS_DIALOG_BORDER_COLOR = "#ccc"
 HIGHLIGHT_BACKGROUND_COLOR = "yellow"
@@ -5901,6 +5902,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if elapsed < SHUTDOWN_FORCE_TIMEOUT_SEC:
                 return
             self._is_shutting_down = True
+            # Copia de banco alternativo em andamento e daemon: o exit a
+            # mataria no meio do sqlite3.backup(). Concede uma janela
+            # curta para concluir; se nao terminar, o .copy-* parcial e
+            # varrido na proxima rodada de stage_database_copy.
+            db_copy_thread = getattr(self, "_other_db_validation_thread", None)
+            if db_copy_thread is not None:
+                try:
+                    if db_copy_thread.is_alive():
+                        db_copy_thread.join(timeout=SHUTDOWN_DB_COPY_GRACE_SEC)
+                except (RuntimeError, AttributeError) as exc:
+                    logger.debug(
+                        "Falha ao aguardar copia de banco no fechamento forcado: %s",
+                        exc,
+                    )
             for pending_worker in getattr(self, "_shutdown_pending_workers", []) or []:
                 disconnect = getattr(pending_worker, "disconnect", None)
                 if callable(disconnect):

@@ -1624,9 +1624,9 @@ reproducoes empiricas. Tres achados, todos confirmados e corrigidos:
   (wait + kill de reforco) fica no atexit, que roda apos o unwind
   liberar o lock. Repro: 0.01s, exit 143, filho terminado.
 
-### O15. Rodada 6 - CodeRabbit (app_logic/database_operations/backlog), menus e auditoria de importacao/derivadas
+### O15. Rodada 6 - revisao externa (app_logic/database_operations/backlog), menus e auditoria de importacao/derivadas
 
-Achados do CodeRabbit validados e corrigidos:
+Achados de revisao externa validados e corrigidos:
 
 - **Pre-flight de derivadas antes da preparacao do banco**: validacao das
   planilhas especiais e resolucao dos itens de importacao agora ocorrem
@@ -1781,9 +1781,9 @@ Validacao: ruff limpo; test_list_exporter + test_exporter +
 test_gui_details_graph_export verdes; verificacao manual de payload
 malicioso neutralizado no TSV.
 
-### O18. Rodada 9 - CodeRabbit (6 achados) + auditoria profunda CLI/DB
+### O18. Rodada 9 - revisao externa (6 achados) + auditoria profunda CLI/DB
 
-Achados do CodeRabbit validados e corrigidos:
+Achados de revisao externa validados e corrigidos:
 
 - **streamlit_launcher**: `preexec_fn` + bloqueio de sinais agora so na
   main thread (bloquear em thread nao-main nao protege: sinais de
@@ -1855,18 +1855,18 @@ quando o diretorio existe — mudar exige revisar o contrato publico.
 
 ### O20. Rodada 11 - pente fino #2 + revisao externa dupla
 
-Revisao externa do diff acumulado (codex sobre 6d64a20a..HEAD + working
-tree; bitoreview sobre working tree; omp sobre diff acumulado):
+Revisao externa do diff acumulado por modelos independentes
+(commits recentes e working tree):
 
-- codex: sem defeitos acionaveis no diff comitado.
-- bitoreview: 0 issues, validou a reordenacao do preflight.
-- omp: 4 achados — 1 real corrigido (docstrings de read_only
+- revisor A: sem defeitos acionaveis no diff comitado.
+- revisor B: 0 issues, validou a reordenacao do preflight.
+- revisor C: 4 achados — 1 real corrigido (docstrings de read_only
   prometiam "nunca escreve", mas WAL ainda materializa -shm/-wal no
   diretorio da origem e falha em midia somente-leitura); 3 triados
   como nao-defeitos com evidencia (UNC rewrite correto no Windows;
   retry de run falho e a semantica pretendida; ref de thread mantida
   propositalmente para rastreio no shutdown).
-- codex (2a passada, working tree): achou que o teste novo de journal
+- revisor A (2a passada, working tree): achou que o teste novo de journal
   quente nao produzia journal quente (writer vivo = lock RESERVED).
   Confirmado e corrigido: journal agora criado em subprocesso morto
   com os._exit apos spill de paginas (cache_size=1 + 200 inserts).
@@ -1877,7 +1877,7 @@ Achados proprios corrigidos:
   (`core/app_logic.py`): `db_edges_count <= 0` retornava False antes de
   olhar o status do ultimo run — um sync que falhou sem arestas DB
   nunca era refeito. Reordenado: status do ultimo run checado antes do
-  early-return. bitoreview confirmou.
+  early-return. Confirmado em revisao externa.
 - **Validacao de banco externo mutava a origem**
   (`gui/ssa/database_operations.py`): `validate_database_candidate`
   abria conexao normal — um `-journal` quente disparava recuperacao
@@ -1919,8 +1919,8 @@ Achado medio corrigido — injecao de escape ANSI/OSC no terminal:
   vira espaco; \t e \n preservados. Cobertos: retorno generico,
   fallbacks de numero_ssa, `_format_number` (bypass `semana*`),
   `_format_date_like` (bypass `data*`) e cabecalho de details view.
-- Revisao externa (omp + codex, 2 modelos sobre o diff): codex achou
-  o bypass `semana*` com prova empirica; omp catalogou 7 pontos —
+- Revisao externa por dois modelos sobre o diff: um achou
+  o bypass `semana*` com prova empirica; outro catalogou 7 pontos —
   corrigidos: bypass semana, \r reescrevendo linha em display.py,
   assimetria de fallbacks, teste reforcado (igualdade exata, CRLF,
   C1), mojibake cp1252 agora vira U+FFFD em vez de apagar
@@ -1958,7 +1958,7 @@ Politica de falha do banco revista ponta-a-ponta
   (`corrupt_*-wal/-shm` sem principal), cobrindo o arquivamento feito
   quando o .db original nao existia.
 
-Revisao externa (bitoreview 0 issues + codex): codex apontou 3
+Revisao externa por dois modelos (0 issues + 3 achados): um apontou 3
 problemas no fix inicial — ordenacao por contagem absoluta podia
 ressuscitar registros removidos (corrigido para particao
 vazio/nao-vazio), falha critica de rollback indistinguivel de
@@ -1969,3 +1969,22 @@ Validacao: 6 testes novos (delecao manual, arquivo zerado,
 preferencia por dados, recencia entre snapshots com dados, bootstrap
 sem snapshot, prune de sidecar orfao); 192 testes focados verdes;
 ruff/py_compile limpos.
+
+### O23. Rodada 14 - hardening pos-restore + revisao externa
+
+- `get_db_connection`: `read_only=True` combinado com `:memory:` agora
+  falha explicito (ValueError) em vez de abrir banco vazio que
+  esconderia erro de caminho.
+- Shutdown forcado da GUI aguarda a thread daemon de staging de banco
+  alternativo por `SHUTDOWN_DB_COPY_GRACE_SEC` (5s) — antes o exit a
+  matava no meio do `sqlite3.backup()`, deixando `.copy-*` parcial.
+- `stage_database_copy` varre `.copy-*` com mtime alem de
+  `STALE_STAGED_COPY_MIN_AGE_SEC` (120s) antes de criar novo staging —
+  parciais de copias interrompidas nao acumulam mais; arquivos
+  recentes aguardando promocao sao preservados.
+- Relatorio: nomes de ferramentas de revisao removidos das secoes
+  O15+ desta auditoria (revisao externa permanece registrada como
+  processo, sem credito nominal); historico anterior preservado.
+
+Validacao: 2 testes novos (rejeicao :memory:, sweep de .copy-*);
+bateria database/gui-shutdown 184 testes verdes; ruff/py_compile.

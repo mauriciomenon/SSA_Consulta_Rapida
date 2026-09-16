@@ -159,10 +159,18 @@ def get_db_connection(db_path: str, *, write: bool = False, read_only: bool = Fa
             journal quente). Em banco WAL o SQLite ainda pode materializar
             ``-shm``/``-wal`` no diretorio da origem (ver
             :func:`read_only_sqlite_uri`). Ignorado quando ``write=True``.
+            Rejeitado para ``:memory:`` — um banco em memoria novo e
+            sempre vazio, o que contradiz a semantica de "ler origem
+            existente" e esconderia erros de caminho.
 
     Yields:
         sqlite3.Connection: Uma conexao ativa com o banco de dados.
     """
+    if read_only and not write and db_path == ":memory:":
+        raise ValueError(
+            "read_only=True nao se aplica a banco :memory: "
+            "(nao ha arquivo de origem para ler)"
+        )
     lock_context = database_writer_lock(db_path) if write else nullcontext()
     with lock_context:
         conn = None

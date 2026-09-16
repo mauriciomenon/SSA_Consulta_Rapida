@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import time
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
@@ -110,12 +111,35 @@ def copy_database_into_data_dir(
     )
 
 
+# Um .copy-* so e legitimo enquanto aguarda a promocao na mesma
+# validacao (segundos). Alem da janela de validacao e parcial de uma
+# copia interrompida (processo morto, fechamento forcado).
+STALE_STAGED_COPY_MIN_AGE_SEC = 120.0
+
+
+def _sweep_stale_staged_copies(dest: Path) -> None:
+    """Remove `.copy-*` antigos do destino (best-effort)."""
+    cutoff = time.time() - STALE_STAGED_COPY_MIN_AGE_SEC
+    try:
+        siblings = list(dest.parent.glob(f"{dest.name}.copy-*"))
+    except OSError as exc:
+        logger.warning("Falha ao listar copias de staging antigas: %s", exc)
+        return
+    for stale in siblings:
+        try:
+            if stale.stat().st_mtime < cutoff:
+                discard_staged_copy(stale)
+        except OSError as exc:
+            logger.warning("Falha ao inspecionar copia parcial %s: %s", stale, exc)
+
+
 def stage_database_copy(src: Path, dest: Path) -> dict[str, Any]:
     """Grava o snapshot da origem em arquivo de staging ao lado do destino.
 
     Nao toca no destino: a promocao acontece em commit_staged_database_copy,
     o que permite ao chamador decidir (ou descartar) depois da copia pesada.
     """
+    _sweep_stale_staged_copies(dest)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     staged = dest.with_name(f"{dest.name}.copy-{timestamp}")
     try:

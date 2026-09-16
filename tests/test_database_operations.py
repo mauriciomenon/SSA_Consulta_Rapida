@@ -322,3 +322,48 @@ def test_stage_database_copy_never_modifies_source_with_hot_wal(tmp_path):
         assert {"a", "b"} <= set(staged_rows)
     finally:
         writer.close()
+
+
+def test_get_db_connection_rejects_read_only_memory():
+    """read_only=True em :memory: contradiz a semantica de origem —
+    deve falhar explicito, nao abrir banco vazio."""
+    from armazenamento.database import get_db_connection
+
+    with pytest.raises(ValueError, match=":memory:"):
+        with get_db_connection(":memory:", read_only=True):
+            pass
+
+
+def test_stage_database_copy_sweeps_stale_partial(tmp_path):
+    """Um .copy-* antigo (parcial de copia interrompida) e removido no
+    proximo staging; um recente e preservado."""
+    import os
+    import time
+
+    from gui.ssa.database_operations import (
+        STALE_STAGED_COPY_MIN_AGE_SEC,
+        stage_database_copy,
+    )
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "src.db", ["a"])
+    dest_dir = tmp_path / "data"
+    dest_dir.mkdir()
+    dest = dest_dir / "src.db"
+
+    stale = dest_dir / "src.db.copy-20000101_000000_000000"
+    stale.write_bytes(b"partial")
+    old = time.time() - STALE_STAGED_COPY_MIN_AGE_SEC - 60
+    os.utime(stale, (old, old))
+    recent = dest_dir / "src.db.copy-29990101_000000_000000"
+    recent.write_bytes(b"awaiting promotion")
+
+    result = stage_database_copy(src, dest)
+    try:
+        assert result["ok"] is True, result
+        assert not stale.exists()
+        assert recent.exists()
+    finally:
+        if result.get("staged"):
+            Path(result["staged"]).unlink(missing_ok=True)
