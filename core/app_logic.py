@@ -62,8 +62,10 @@ from armazenamento.database_lock import (  # noqa: E402
 from filelock import Timeout  # noqa: E402
 from core.import_database_rotation import (  # noqa: E402
     build_full_rescan_candidate_path as _build_full_rescan_candidate_path,
+    discard_full_rescan_artifact_marker as _discard_full_rescan_artifact_marker,
     promote_full_rescan_candidate as _promote_full_rescan_candidate,
     prune_full_rescan_artifacts as _prune_full_rescan_artifacts,
+    register_full_rescan_artifact as _register_full_rescan_artifact,
 )
 from core.import_postprocess import (  # noqa: E402
     route_and_move_processed_files as _apply_postprocess_file_moves,
@@ -127,7 +129,12 @@ __all__ = [
 ]
 
 
-def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
+def _resolve_import_targets(
+    docs_dir: str,
+    db_path: str,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
+) -> tuple[Path, Path]:
     """Normaliza e valida caminhos sensiveis antes da importacao."""
     docs_dir_path = ensure_path_is_allowed(
         docs_dir,
@@ -135,6 +142,7 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
         base=project_root_path,
         must_exist=True,
         expect_directory=True,
+        extra_allowed_roots=extra_allowed_roots,
     )
     db_path_path = ensure_path_is_allowed(
         db_path,
@@ -142,6 +150,7 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
         base=project_root_path,
         must_exist=False,
         expect_directory=False,
+        extra_allowed_roots=extra_allowed_roots,
     )
     return docs_dir_path, db_path_path
 
@@ -485,6 +494,8 @@ def _run_derivadas_sync_phase(
     table_name: str,
     derivadas_sheet_files: List[str],
     extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
+    *,
+    report_out: Optional[Dict[str, Any]] = None,
 ) -> tuple[bool, List[str], Dict[str, Any]]:
     # Materializa: o parametro alimenta sync_derivadas e a consistencia,
     # e um iteravel esgotavel falharia na segunda validacao.
@@ -521,9 +532,12 @@ def _run_derivadas_sync_phase(
         # sync_derivadas e transacional: uma excecao que sai dele ja
         # passou por rollback interno. A marca distingue esse caso de
         # falhas pos-commit (ex.: scan de consistencia), onde nao ha
-        # nada revertido a declarar.
-        exc._derivadas_sync_rolled_back = True  # type: ignore[attr-defined]
+        # nada revertido a declarar. setattr dinamico: o tipo estatico
+        # de Exception nao declara o atributo.
+        setattr(exc, "_derivadas_sync_rolled_back", True)
         raise
+    if report_out is not None:
+        report_out.update(report)
     sheet_stats = report.get("sheet_stats") or {}
     reported_files = report.get("sheet_files") or []
     sheet_file_reports = report.get("sheet_file_reports") or []
@@ -1189,12 +1203,14 @@ def _run_optional_derivadas_sync(
             "Cancelamento solicitado; sync de derivadas especiais nao sera executado."
         )
         return sync_materialized, derivadas_sync_blocking_error, synced_success_files
+    sync_report: Dict[str, Any] = {}
     try:
         sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
             db_path=working_db_path,
             table_name=table_name,
             derivadas_sheet_files=derivadas_sheet_files,
             extra_allowed_roots=extra_allowed_roots,
+            report_out=sync_report,
         )
         if sync_ok and not derivadas_sync_blocking_error:
             existing_success = set(successfully_processed_files)
@@ -1230,12 +1246,13 @@ def _run_optional_derivadas_sync(
             )
         if not sync_ok:
             derivadas_sync_blocking_error = True
-            retry_marked = True
+            retry_marked = False
             if sync_report.get("sync_run_id") is not None:
                 retry_marked = mark_latest_sync_run_failed(
                     db_path=working_db_path,
                     message="post_commit_validation_failed",
                     extra_allowed_roots=extra_allowed_roots,
+                    sync_run_id=sync_report.get("sync_run_id"),
                 )
                 if not retry_marked:
                     logger.warning(
@@ -1301,10 +1318,15 @@ def _run_optional_derivadas_sync(
                 " automaticamente no proximo rescan."
             )
         else:
-            retry_marked = mark_latest_sync_run_failed(
-                db_path=working_db_path,
-                message="post_commit_validation_failed",
-                extra_allowed_roots=extra_allowed_roots,
+            failed_run_id = sync_report.get("sync_run_id")
+            retry_marked = (
+                mark_latest_sync_run_failed(
+                    db_path=working_db_path,
+                    message="post_commit_validation_failed",
+                    extra_allowed_roots=extra_allowed_roots,
+                    sync_run_id=failed_run_id,
+                )
+                if failed_run_id is not None else False
             )
             if not retry_marked:
                 logger.warning(
@@ -1470,6 +1492,7 @@ def _prepare_working_database_for_import(
                 raise DatabaseSchemaError(
                     f"Falha ao inicializar DB candidato de full rescan: {working_db_path}"
                 )
+            _register_full_rescan_artifact(primary_db_path, working_db_path)
 
     db_ok, integrity_report = database.ensure_database_integrity(
         working_db_path, table_name=table_name
@@ -2235,6 +2258,11 @@ def run_importer_logic(
                                 stale_path,
                                 exc,
                             )
+                            break
+                    else:
+                        _discard_full_rescan_artifact_marker(
+                            primary_db_path, candidate_db_path
+                        )
                 raise
             # Politica de upsert e mutacao global de processo: so e aplicada
             # depois que o pre-flight passou, para nao deixar residuo quando
@@ -2438,6 +2466,8 @@ def import_files_to_database(
     db_path: str = "data/ssas.db",
     force_import: bool = False,
     raise_on_error: bool = False,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> bool:
     """
     Importa arquivos de um diretorio para o banco de dados.
@@ -2451,7 +2481,9 @@ def import_files_to_database(
         bool: True se importacao foi bem-sucedida
     """
     try:
-        safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
+        safe_docs_dir, safe_db_path = _resolve_import_targets(
+            docs_dir, db_path, extra_allowed_roots=extra_allowed_roots
+        )
 
         # Extrair diretorio e nome do banco
         data_dir = safe_db_path.parent
@@ -2467,6 +2499,7 @@ def import_files_to_database(
             db_name=db_name,
             table_name="ssa_table",
             force_import=force_import,
+            extra_allowed_roots=extra_allowed_roots,
         )
 
         return success
@@ -2534,6 +2567,8 @@ def import_explicit_files_to_database(
 def get_filtered_data(
     db_path: str = "data/ssas.db",
     filters: Dict[str, Any] | None = None,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> pd.DataFrame:
     """
     Obtem dados filtrados do banco de dados.
@@ -2552,6 +2587,7 @@ def get_filtered_data(
             base=project_root_path,
             must_exist=False,
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     except PathSafetyError as e:
         logger.error(f"Caminho rejeitado ao acessar banco: {e}")

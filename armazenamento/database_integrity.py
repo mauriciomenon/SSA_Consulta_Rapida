@@ -163,7 +163,12 @@ def _prune_forensic_backups(db_path: str) -> None:
     backups = _backup_paths(db_path, "corrupt")
     keep = set(backups[-INTEGRITY_SNAPSHOT_MAX_COUNT:])
     for stale in backups[:-INTEGRITY_SNAPSHOT_MAX_COUNT]:
-        for candidate in (stale, Path(f"{stale}-wal"), Path(f"{stale}-shm")):
+        for candidate in (
+            stale,
+            Path(f"{stale}-wal"),
+            Path(f"{stale}-shm"),
+            Path(f"{stale}-journal"),
+        ):
             try:
                 candidate.unlink(missing_ok=True)
             except OSError as exc:
@@ -182,7 +187,7 @@ def _prune_forensic_backups(db_path: str) -> None:
             for path in backup_dir.iterdir()
             if path.is_file()
             and path.name.startswith(prefix)
-            and path.name.endswith(("-wal", "-shm"))
+            and path.name.endswith(("-wal", "-shm", "-journal"))
             and path.with_name(path.name.rsplit("-", 1)[0]) not in keep
         ]
     except FileNotFoundError:
@@ -256,7 +261,9 @@ def _restore_latest_valid_snapshot_locked(
             shutil.copy2(snapshot, temporary)
             if had_existing_db:
                 shutil.copy2(db, forensic)
-            for suffix in ("-wal", "-shm"):
+            # Inclui -journal: um rollback journal quente deixado no caminho
+            # principal seria aplicado pelo SQLite sobre o snapshot promovido.
+            for suffix in ("-wal", "-shm", "-journal"):
                 sidecar = Path(f"{db}{suffix}")
                 if sidecar.exists():
                     forensic_sidecar = Path(f"{forensic}{suffix}")

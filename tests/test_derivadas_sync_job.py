@@ -159,13 +159,18 @@ def test_derivadas_sync_job_forwards_extra_allowed_roots(
 ) -> None:
     captured: list[dict[str, Any]] = []
     roots = [str(tmp_path)]
+    sheet = str(tmp_path / "derivadas.xlsx")
 
     def _sync_derivadas(**kwargs: Any) -> dict[str, Any]:
         captured.append(kwargs)
         return {
             "merge_stats": {"merged_edges": 1},
             "db_stats": {"accepted_edges": 1},
-            "sheet_stats": {"accepted_edges": 0},
+            "sheet_stats": {"accepted_edges": 1},
+            "sheet_files": [sheet] if not kwargs["include_db_source"] else [],
+            "sheet_file_reports": [
+                {"sheet_file": sheet, "has_parse_evidence": True}
+            ],
         }
 
     def _scan_consistency(**kwargs: Any) -> dict[str, Any]:
@@ -179,14 +184,17 @@ def test_derivadas_sync_job_forwards_extra_allowed_roots(
     result = execute_derivadas_sync_job(
         db_path=str(tmp_path / "ssas.db"),
         table_name="ssa_table",
-        special_files=[],
+        special_files=[sheet],
         sync_derivadas_fn=_sync_derivadas,
         scan_derivadas_consistency_fn=_scan_consistency,
         extra_allowed_roots=roots,
     )
 
     assert result["ok"] is True
-    assert len(captured) == 2
+    assert len(captured) == 3
+    assert captured[0]["include_db_source"] is True
+    assert captured[1]["include_db_source"] is False
+    assert captured[1]["sheet_files"] == [sheet]
     assert all(
         list(call.get("extra_allowed_roots") or []) == roots for call in captured
     )

@@ -12,7 +12,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from filelock import Timeout
+
 from armazenamento.database import read_only_sqlite_uri
+from armazenamento.database_lock import database_writer_lock
 
 logger = logging.getLogger(__name__)
 
@@ -273,10 +276,30 @@ def discard_staged_copy(staged: str | Path) -> None:
 def commit_staged_database_copy(staged: str, dest_str: str) -> dict[str, Any]:
     """Arquiva o destino existente e promove o staging atomicamente.
 
-    Apenas renames (metadados), entao e seguro rodar na thread de UI. Em
-    falha, restaura o que foi arquivado para manter o banco anterior
-    utilizavel.
+    O lock e adquirido sem espera para nao bloquear a thread de UI. Ele
+    cobre arquivamento+promocao+rollback: sem ele,
+    um escritor concorrente (CLI ou outra GUI) poderia observar .db e
+    sidecars de geracoes diferentes. Em falha, restaura o que foi
+    arquivado para manter o banco anterior utilizavel.
     """
+    try:
+        with database_writer_lock(dest_str, timeout=0):
+            return _commit_staged_database_copy_locked(staged, dest_str)
+    except (Timeout, OSError) as exc:
+        logger.warning("Destino indisponivel para promocao %s: %s", dest_str, exc)
+        discard_staged_copy(staged)
+        return {
+            "ok": False,
+            "db_file": dest_str,
+            "copied": False,
+            "archived": None,
+            "error": f"destino indisponivel para promocao: {exc}",
+        }
+
+
+def _commit_staged_database_copy_locked(
+    staged: str, dest_str: str
+) -> dict[str, Any]:
     dest = Path(dest_str)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     archived_base: str | None = None

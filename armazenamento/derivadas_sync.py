@@ -1832,12 +1832,15 @@ def mark_latest_sync_run_failed(
     *,
     message: str,
     extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+    sync_run_id: int | None = None,
 ) -> bool:
     """Mark the latest derivadas sync run as failed.
 
     Used when a post-commit validation (evidence check or consistency scan)
     fails after sync_derivadas already committed the run as 'ok', so that
-    subsequent runs can detect the need to resync.
+    subsequent runs can detect the need to resync. Quando `sync_run_id` e
+    informado, marca exatamente esse run; a selecao pelo mais recente
+    poderia marcar um run concorrente e deixar o run que falhou como 'ok'.
     """
 
     try:
@@ -1852,20 +1855,31 @@ def mark_latest_sync_run_failed(
         with get_db_connection(safe_db_path, write=True) as conn:
             _configure_derivadas_connection(conn)
             _begin_derivadas_write_transaction(conn)
-            cursor = conn.execute(
-                """
-                UPDATE ssa_derivada_sync_run
-                SET status = 'error', message = ?
-                WHERE sync_run_id = (
-                    SELECT sync_run_id
-                    FROM ssa_derivada_sync_run
-                    ORDER BY sync_run_id DESC
-                    LIMIT 1
+            if sync_run_id is not None:
+                cursor = conn.execute(
+                    """
+                    UPDATE ssa_derivada_sync_run
+                    SET status = 'error', message = ?
+                    WHERE sync_run_id = ?
+                    AND status = 'ok'
+                    """,
+                    (str(message)[:512], int(sync_run_id)),
                 )
-                AND status = 'ok'
-                """,
-                (str(message)[:512],),
-            )
+            else:
+                cursor = conn.execute(
+                    """
+                    UPDATE ssa_derivada_sync_run
+                    SET status = 'error', message = ?
+                    WHERE sync_run_id = (
+                        SELECT sync_run_id
+                        FROM ssa_derivada_sync_run
+                        ORDER BY sync_run_id DESC
+                        LIMIT 1
+                    )
+                    AND status = 'ok'
+                    """,
+                    (str(message)[:512],),
+                )
             conn.commit()
             return cursor.rowcount > 0
     except (

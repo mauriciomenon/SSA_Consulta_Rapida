@@ -281,6 +281,43 @@ def test_move_without_overwrite_undoes_link_when_source_unlink_fails(
     assert not (destination_root / "locked.xlsx").exists()
 
 
+def test_move_without_overwrite_preserves_original_error_when_cleanup_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Se a remocao do hardlink tambem falha, a excecao original do
+    unlink da origem e a que propaga; a falha de limpeza vira log."""
+    docs_dir = tmp_path / "docs_entrada"
+    destination_root = docs_dir / "processadas"
+    destination_root.mkdir(parents=True)
+    source = docs_dir / "locked.xlsx"
+    source.write_text("data", encoding="utf-8")
+    destination = destination_root / "locked.xlsx"
+
+    real_unlink = import_postprocess.Path.unlink
+
+    def _unlink_fails_for_source_and_dest(
+        path_obj: Path, *args, **kwargs
+    ) -> None:
+        if path_obj == source:
+            raise OSError(errno.EACCES, "source locked")
+        if path_obj == destination:
+            raise OSError(errno.EPERM, "cleanup locked")
+        real_unlink(path_obj, *args, **kwargs)
+
+    monkeypatch.setattr(
+        import_postprocess.Path, "unlink", _unlink_fails_for_source_and_dest
+    )
+
+    with pytest.raises(OSError) as exc_info:
+        import_postprocess._move_without_overwrite(source, destination)
+
+    assert exc_info.value.errno == errno.EACCES
+    assert source.exists()
+    # O hardlink orfao permanece para diagnostico, em vez de esconder o
+    # erro original atras da falha de limpeza.
+    assert destination.exists()
+
+
 def test_move_to_available_destination_repeated_name_error_has_context(
     tmp_path: Path, monkeypatch
 ) -> None:

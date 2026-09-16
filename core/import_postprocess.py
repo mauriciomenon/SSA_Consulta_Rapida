@@ -288,7 +288,19 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
         try:
             source.unlink()
         except OSError:
-            destination.unlink(missing_ok=True)
+            # A falha de limpeza do destino nao pode substituir o erro
+            # original: sem isso o hardlink orfao seria reportado como
+            # conflito de nome, escondendo a causa real.
+            try:
+                destination.unlink(missing_ok=True)
+            except OSError as cleanup_exc:
+                logger.warning(
+                    "Falha ao remover destino '%s' apos erro no unlink de "
+                    "'%s': %s",
+                    destination,
+                    source,
+                    cleanup_exc,
+                )
             raise
         return
 

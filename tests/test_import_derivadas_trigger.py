@@ -534,6 +534,62 @@ def test_db_only_preflight_retries_when_latest_run_marked_failed(
     assert latest_status == "error"
 
 
+def test_mark_latest_sync_run_failed_marks_given_run_not_newest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Com sync_run_id explicito, apenas o run que falhou e marcado:
+    um run concorrente mais recente permanece 'ok'."""
+    import sqlite3
+
+    from armazenamento import database
+    from armazenamento.derivadas_sync import (
+        mark_latest_sync_run_failed,
+        sync_derivadas,
+    )
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = str(data_dir / "test.db")
+    assert database.initialize_database(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO ssa_table "
+            "(numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+            ("202500001", None, "SSA pai"),
+        )
+        conn.commit()
+
+    failed_report = sync_derivadas(db_path, table_name="ssa_table")
+    failed_id = failed_report["sync_run_id"]
+    assert failed_id is not None
+    # Um run 'ok' mais recente simula o sync concorrente que a selecao
+    # por "mais recente" marcaria indevidamente.
+    with sqlite3.connect(db_path) as conn:
+        newer_id = conn.execute(
+            "INSERT INTO ssa_derivada_sync_run (mode, started_at, status) "
+            "VALUES ('manual', '2026-01-02T00:00:00', 'ok')"
+        ).lastrowid
+        conn.commit()
+    assert newer_id is not None and newer_id != failed_id
+
+    assert mark_latest_sync_run_failed(
+        db_path, message="post_commit_validation_failed", sync_run_id=failed_id
+    ) is True
+
+    with sqlite3.connect(db_path) as conn:
+        statuses = dict(
+            conn.execute(
+                "SELECT sync_run_id, status FROM ssa_derivada_sync_run"
+            ).fetchall()
+        )
+    assert statuses[failed_id] == "error"
+    assert statuses[newer_id] == "ok"
+
+
 def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> None:
     import core.app_logic as app_logic
 
