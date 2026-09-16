@@ -1634,7 +1634,8 @@ Achados de revisao externa validados e corrigidos:
   nao deixa mais candidato escrito para cleanup.
 - **Origem UNC em somente-leitura**: fallback de autoridade UNC usa URI
   `file:////host/share/...` com `mode=ro` (o Windows resolve `//host/share`
-  como `\\host\share`); o fallback final adiciona `PRAGMA query_only = ON`.
+  como `\\host\share`); a origem e aberta com `read_only_sqlite_uri` e
+  `mode=ro`, sem fallback de conexao gravavel com `PRAGMA query_only`.
   Teste de regressao cobre backup read-only de origem com WAL quente.
 - **Data do RECOVERY_BACKLOG** atualizada para 2026-09-14.
 
@@ -2160,3 +2161,78 @@ Documentacao nova: `docs/TESTE_REAL_IMPORTACAO_DERIVADAS.md` (processo
 e evidencias), `docs/CRIACAO_DB_DO_ZERO.md` (full rescan schema-first
 -> promocao), ambos com diagramas de fluxo e de classes UML em mermaid
 mais versoes editaveis em `docs/diagrams/*.drawio`.
+
+## PR 132 - Correcao dos comentarios da revisao
+
+Solicitacao: revisar o PR destinado a `dev`, responder os comentarios e,
+apos a rodada somente de leitura, corrigir os apontamentos confirmados.
+Base desta rodada: `6432dcc30e034d9e5463d43a62a291a997e25473`, branch
+`devin_review`. A revisao inicial inventariou 54 threads inline, 13
+comentarios gerais e cinco resumos de revisao com texto; cada item recebeu
+resposta, incluindo duplicatas e alegacoes nao confirmadas.
+
+| Pedido | Antes | Depois | Estado |
+| --- | --- | --- | --- |
+| Integridade SQLite | Checkpoint falho podia limpar journal; arquivamento/promocao separavam principal e sidecars | Journal preservado na falha, movimentos recompostos, backup preservado se restaurar o principal falhar | Entregue |
+| Concorrencia | Promocao GUI sem lock; falha pos-sync podia marcar o run mais recente | Lock por destino sem espera na GUI; ID do sync preservado inclusive se scan levantar excecao | Entregue |
+| Poda de full rescan | Nome/prefixo era tratado como propriedade suficiente | Timestamp ASCII e marcador persistente com identidade; legado, symlink e identidade divergente preservados | Entregue |
+| Detalhes GUI | Prefetch podia usar linha antiga com revisao nova; consultas repetidas por selecao | Prefetch removido, pendencia cancelada na revisao, debounce e um fingerprint por render | Entregue |
+| Exportacao | Numero negativo formatado podia receber apostrofo | Origem numerica preservada e resultado final sanitizado, inclusive formulas introduzidas pelo formatador | Entregue |
+| Streamlit | Autorizacao global no ambiente; novo destino externo rejeitado; lacunas no encerramento | Raizes por sessao encaminhadas explicitamente, selecao atomica, destino novo aceito, sinais coordenados sem preexec_fn, wait apos kill | Entregue; comportamento nativo Windows nao medido |
+| CLI e pacotes | Modo de filtro antigo na pilha, cache FIFO, cabecalho multilinha, DB aninhado omitido | Pilha reconstruida ao mudar modo, LRU no hit, cabecalho normalizado, banco externo copiado e Inno derivado do layout | Entregue; sem recompilacao |
+| Testes e documentacao | Assercoes e diagramas nao demonstravam os contratos alegados; oito diagnosticos ty na revisao | Casos focados fortalecidos, diagramas/textos alinhados e tipagem corrigida | Entregue |
+
+Validacao executada, com `uv run --no-sync`, sem somar reexecucoes:
+
+- SQLite: `python -m pytest tests/test_app_logic_full_rescan_lock.py
+  tests/test_database_operations.py tests/test_app_logic_postprocess_moves.py
+  tests/test_emergency_import.py -x -q`: 49 passaram antes do complemento
+  de propriedade/rollback. `tests/test_import_derivadas_trigger.py -x -q -k
+  'derivadas or mark or sync'`: 22 passaram. `tests/test_database_integrity_ensure.py
+  tests/test_database_integrity_identifier_guards.py tests/test_derivadas_sync.py
+  -x -q`: 46 passaram.
+- GUI: seis modulos de detalhes/exportacao/menu/facade, 57 passaram;
+  selecao/navegacao em `test_gui_filter_logic.py`, tres passaram. Reexecucoes
+  apos ajustes finais: quatro em `test_gui_details_tree_cache.py` e oito em
+  `test_list_exporter.py`. Sao 61 casos distintos. As primeiras execucoes
+  tiveram duas expectativas de teste incorretas (tab e ponto observado no
+  debounce), corrigidas antes desses resultados.
+- CLI/empacotamento: 77 casos distintos passaram. Houve uma expectativa
+  inicial incorreta sobre `.gitkeep`, corrigida no teste; nao foi omitida
+  como sucesso inicial.
+- Integracao Streamlit/lock/run ID: `pytest -q -p no:cacheprovider
+  tests/test_main_streamlit_launcher.py tests/test_streamlit_source_selection.py
+  tests/test_import_derivadas_run_identity.py tests/test_derivadas_sync_job.py
+  tests/test_database_operations_contention.py`: 27 passaram. Contratos de
+  API: `pytest -q tests/test_app_logic_filter_contract.py -k
+  'get_filtered_data or import_files_to_database'`: seis passaram, 51
+  desmarcados. Os casos de fontes incluem a fronteira real de autorizacao
+  das APIs de leitura e importacao.
+- Complemento final de propriedade/rollback: `pytest -q
+  tests/test_app_logic_full_rescan_lock.py`, 22 passaram. Integracao do
+  lifecycle: `pytest -q -p no:cacheprovider tests/test_import_run_report.py
+  -k full_rescan`, seis passaram, 21 desmarcados.
+- Verificacao final dos 44 arquivos Python alterados/novos desta rodada:
+  `python -m py_compile`, `ruff check` e `ty check` passaram. XML do diagrama
+  validado e `git diff --check` aprovado. Os oito diagnosticos de tipagem
+  encontrados na revisao inicial nao aparecem nos arquivos corrigidos.
+
+Ha testes novos somente para defeitos e lacunas confirmados. Nao foram
+executados suite completa, scanners pesados, builds, validacao visual nem
+benchmark de CPU/memoria. Testes locais nao comprovam funcionamento nativo
+em todas as arquiteturas. Pendencias delimitadas em `RECOVERY_BACKLOG.md`.
+
+Os commits desta rodada usam a identidade humana configurada e preservam
+os hooks existentes. Publicacao somente na branch do PR existente no
+GitHub pessoal; sem branch/PR novo, merge, reescrita ou publicacao nos
+outros destinos de push do remote `origin`.
+
+Commits de codigo: `a70ee9fc` (GUI), `0360358d` (CLI/empacotamento),
+`fac14d7a` (SQLite, lock e fronteira de autorizacao), `9aa0e7e6`
+(Streamlit). A autoria e a mensagem completa do intervalo sao conferidas
+antes do push. As conversas do PR recebem o estado posterior a correcao;
+a analise inicial somente de leitura fica identificada como historica.
+
+Proxima atividade: conferir o HEAD publicado e os checks correspondentes.
+Falha de servico/conta deve ser reportada separadamente de falha de teste;
+nao ha merge autorizado nesta rodada.

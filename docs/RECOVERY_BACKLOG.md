@@ -401,8 +401,9 @@ individual de 45s e reprovacao por falha preservados.
   gui_ssa, derivadas_cli). Detalhes na secao N de AUDIT_FIXES_REPORT.md.
 - [x] Pre-flight de caminhos no inicio da importacao (N5.1 do relatorio):
   `run_importer_logic` valida `working_db_path` e `derivadas_sheet_files`
-  antes de qualquer escrita; caminho invalido aborta como `ImporterError`
-  com `PathSafetyError` como causa, sem linhas gravadas.
+  antes da gravacao de linhas importadas; caminho invalido aborta como
+  `ImporterError` com `PathSafetyError` como causa. A preparacao do banco
+  pode criar ou inicializar artefatos antes de validar `working_db_path`.
 - [ ] Decidir a politica de consistencia para falhas de derivadas nao
   relacionadas a caminho (N5.2): progresso parcial declarado + retry, ou
   candidato/promocao tambem no rescan comum. Mudanca estrutural; exige
@@ -416,3 +417,25 @@ individual de 45s e reprovacao por falha preservados.
   (diretorio do banco auto-autorizado) e `scan_derivadas_consistency`/
   `get_sync_stats`/`self_heal_derivadas`/`run_derivadas_maintenance`/
   `derivadas_schema.py`. Cobertos pelo mesmo parametro opcional da secao N4.
+
+## PR 132 - Limites da rodada de correcao dos comentarios
+
+- [ ] Validacao nativa do encerramento do Streamlit em Windows. O codigo
+  remove preexec_fn, coordena criacao/registro e colhe o filho apos kill;
+  os testes focados simulam sinais, sem comprovar entrega nativa nesse alvo.
+- [ ] Medicao visual de latencia, CPU e memoria do painel de detalhes.
+  Prefetch especulativo removido; fingerprint reutilizado por render com
+  debounce e invalidacao por revisao. Testes nao substituem essa medicao.
+- [ ] Artefatos antigos de full rescan sem prova persistente de propriedade
+  e sidecars orfaos ficam preservados. Remocao exige inspecao e escopo
+  explicito; nomes/timestamps sozinhos nao autorizam a poda.
+- [ ] Caches `data/file_cache.<banco-sem-extensao>.json` sem banco
+  correspondente ficam preservados na limpeza de build, por falta de prova
+  de origem. Os gerados em diretorios de artefatos sao reconhecidos.
+- [ ] Conferir checks do novo HEAD no PR. A consulta anterior encontrou
+  Actions sem iniciar por bloqueio de faturamento/conta, alem de resultados
+  consultivos de CodeFactor e DeepSource com falha. Nao equivalem a testes
+  locais reprovados, nem autorizam declarar CI aprovado.
+
+Suite completa, scanners pesados, builds e validacao visual nao integram
+esta rodada. Os testes novos cobrem os defeitos e lacunas confirmados.

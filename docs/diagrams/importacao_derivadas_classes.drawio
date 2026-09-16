@@ -6,8 +6,8 @@
         <mxCell id="1" parent="0" />
 
         <!-- SSAMainWindow -->
-        <mxCell id="gui" value="SSAMainWindow&#10;&#171;GUI&#187;&#10;————————————&#10;+ import_external_excel_files()&#10;+ prepare_external_import_selection()" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="40" y="40" width="260" height="80" as="geometry" />
+        <mxCell id="gui" value="SSAMainWindow&#10;&#171;GUI&#187;&#10;------------&#10;+ import_external_excel_files()&#10;delega prepare_external_import_selection()&#10;a main_window_system_controller" style="swimlane;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="300" height="100" as="geometry" />
         </mxCell>
 
         <!-- RescanWorker -->

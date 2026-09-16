@@ -13,15 +13,17 @@ conteudo para que uma reimportacao possa corrigi-las, com diagnostico preservado
   arquivo truncado nao descartam dados recuperaveis. Entre snapshots com
   dados vale o mais recente; um snapshot vazio so e usado como ultimo
   recurso. Sem snapshot utilizavel, cria o schema e segue (bootstrap).
-- **Corrompido** (falha no `integrity_check`): o original e preservado como
-  forense `.corrupt_<timestamp>.db` (com sidecars) e o snapshot valido mais
-  recente e promovido com revalidacao funcional; em falha, o original volta
-  e o proximo snapshot e tentado.
+- **Corrompido** (falha no `integrity_check`): havendo snapshot utilizavel,
+  o original e preservado como forense `.corrupt_<timestamp>.db` (com
+  sidecars), e o snapshot e promovido com revalidacao funcional; em falha,
+  o original volta e o proximo snapshot e tentado. Sem snapshot utilizavel,
+  o reparo falha e mantem o original, sem prometer uma nova copia forense.
 - **Falha critica no rollback** da restauracao: o bootstrap e abortado e o
   estado em disco e preservado como evidencia — nao se cria schema por cima
   de estado indeterminado.
-- **Tabela ausente ou coluna obrigatoria faltando**: reparo automatico
-  bloqueado; exige migracao explicita.
+- **Tabela ausente ou coluna obrigatoria sem mapeamento seguro**: reparo
+  automatico bloqueado; exige migracao explicita. A coluna legada `status`
+  possui migracao automatica suportada para `situacao`, preservando valores.
 
 A leitura com `read_only=True` (`mode=ro`) nunca escreve no `.db` da origem
 e falha se o arquivo nao existir — usada na validacao de bancos externos.
