@@ -2075,3 +2075,25 @@ Validacao: 2 testes novos (unlink falho desfaz o link sem orfao e sem
 falso conflito; merged_edges usa a uniao materializada); 96 testes
 focados verdes; ruff/py_compile/`git diff --check` limpos; revisao
 externa por dois modelos sem achados P0-P2.
+
+### O26. Rodada 17 - normalizador da CLI nao fabrica mais ano de SSA
+
+`interface/cli_width_manager.py` `normalize_ssa_number`: valores de ate
+5 digitos eram reescritos como `f"2025{digits}"` (ano hardcoded) e
+valores de 6-8 digitos passavam por `zfill(9)`. Uma SSA curta `12345`
+era exibida como `202512345` — um numero plausivel porem diferente do
+identificador armazenado, divergente de `shared/numero_ssa.py` (que
+rejeita o valor em vez de fabricar) e de `gui_details._normalize_ssa_value`
+(que preserva IDs numericos curtos como estao).
+
+O caminho vivo (`_prepare_page_dataframe`) roda apos
+`format_dataframe_for_display`, que ja canonicaliza ou esvazia o valor,
+entao o ramo fabricante era alcancavel apenas por codigo hoje sem
+callers (`_apply_default_order`, `format_dataframe_for_cli_enhanced`) —
+mas continuava sendo uma armadilha caso reativados. Correcao: valores
+fora do formato canonico de 9 digitos sao exibidos como estao, em
+paridade com a GUI; nenhum prefixo de ano nem padding sao fabricados.
+
+Validacao: teste novo cobre 9 digitos, ID curto, vazio e None;
+`test_cli_formatting.py` + `test_cli_pagination_prompt.py` verdes;
+ruff/py_compile limpos.
