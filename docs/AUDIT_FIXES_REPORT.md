@@ -1896,3 +1896,38 @@ Achados proprios corrigidos:
 Validacao: teste novo de journal quente via subprocesso morto (prova
 empirica: leitura rw modifica a origem, ro nao); 141 testes focados
 verdes; bateria database/filter/streamlit 617 verdes; ruff limpo.
+
+### O21. Rodada 12 - superficies de display/build + revisao externa dupla
+
+Scan das superficies restantes (table_printer, enhanced_table_printer,
+enhanced_importer, robust_importer, dev_env build scripts):
+
+- `enhanced_importer.py`: codigo sem uso em producao (so testes);
+  `_apply_format_transformations` e stub no-op. Nada acionavel.
+- `robust_importer.py`: usado por derivadas_sync — leitura sempre via
+  `open_validated_excel_source` (limites de tamanho/zip-bomb). Correto.
+- `source_protection.py`/`write_build_info.py`/`build_simple.py`:
+  argv-list, timeouts, rmtree so do proprio dist_simple. Corretos.
+
+Achado medio corrigido — injecao de escape ANSI/OSC no terminal:
+
+- Dados de planilhas importadas com ESC/C1 iam crus para `print` via
+  `format_cell` (tabelas CLI, details view). Um xlsx com `\x1b]52;...`
+  (OSC 52 grava clipboard) ou CSI poderia spoofar a tela.
+- Fix no funil raiz: `_safe_str` remove C0 perigosos + DEL + C1 →
+  U+FFFD (visivel, inerte); \r removido (CRLF vira LF); \x85 (NEL)
+  vira espaco; \t e \n preservados. Cobertos: retorno generico,
+  fallbacks de numero_ssa, `_format_number` (bypass `semana*`),
+  `_format_date_like` (bypass `data*`) e cabecalho de details view.
+- Revisao externa (omp + codex, 2 modelos sobre o diff): codex achou
+  o bypass `semana*` com prova empirica; omp catalogou 7 pontos —
+  corrigidos: bypass semana, \r reescrevendo linha em display.py,
+  assimetria de fallbacks, teste reforcado (igualdade exata, CRLF,
+  C1), mojibake cp1252 agora vira U+FFFD em vez de apagar
+  silenciosamente. Triados sem mudanca: convencao local de
+  table_printer:275 (camada de layout, upstream cobre C1) e o stub de
+  enhanced_importer.
+
+Validacao: 473 testes display/format/export/details verdes; fix do
+header de details usa caminho generico (sem normalizacao estrita de
+numero_ssa — SSAs de 7 digitos continuam visiveis); ruff limpo.
