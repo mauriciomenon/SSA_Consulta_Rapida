@@ -47,6 +47,7 @@ from gui.ssa.details_dialog_constants import (
 from gui.ssa.details_dialog_presenter import (
     DetailsDialogCallbacks,
     DetailsDialogPresenter,
+    warm_details_render_payload,
 )
 from gui.ssa.details_graph_export import load_svg_render_dependencies
 from gui.ssa.details_graph_export import render_graph_svg_pixmap
@@ -598,7 +599,24 @@ def _get_details_frame_fingerprint(window, df) -> str:
 
 def _get_details_db_signature():
     db_path = _resolve_current_db_path()
-    return details_data_provider.get_db_mtime(db_path)
+    return details_data_provider.get_derivadas_graph_cache_token(db_path)
+
+
+def _details_render_payload_context(window, normalized, style):
+    """Contexto de invalidacao do cache de payload do dialogo de detalhes."""
+    try:
+        terms = tuple(_collect_highlight_terms(window))
+    except Exception as exc:
+        logger.debug(
+            "Falha ao coletar termos de realce para o cache de detalhes: %s", exc
+        )
+        terms = ()
+    return (
+        _derivadas_frame_cache_token(window),
+        _get_details_db_signature(),
+        tuple(style),
+        terms,
+    )
 
 
 def _get_details_render_signature(window, series):
@@ -657,6 +675,7 @@ def update_details_from_selection(window):
             and render_signature == current_signature
         ):
             return
+    _schedule_details_prefetch(window, series)
     _schedule_details_update(window, series)
 
 
@@ -684,6 +703,52 @@ def _schedule_details_update(window, series) -> None:
         timer.timeout.connect(_flush_pending_details_update)
     window._pending_details_series = series
     timer.start()
+
+
+def _schedule_details_prefetch(window, series) -> None:
+    """Agenda aquecimento do payload do dialogo de detalhes da SSA selecionada."""
+    if series is None:
+        return
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        _warm_details_render_payload(window, series)
+        return
+    timer = getattr(window, "_details_prefetch_timer", None)
+    if timer is None:
+        timer = QTimer(window)
+        timer.setSingleShot(True)
+        timer.setInterval(120)
+        window._details_prefetch_timer = timer
+
+        def _flush_pending_details_prefetch() -> None:
+            pending_series = getattr(window, "_pending_prefetch_series", None)
+            window._pending_prefetch_series = None
+            _warm_details_render_payload(window, pending_series)
+
+        timer.timeout.connect(_flush_pending_details_prefetch)
+    window._pending_prefetch_series = series
+    timer.start()
+
+
+def _warm_details_render_payload(window, series) -> None:
+    if series is None:
+        return
+    try:
+        normalized = _normalize_ssa_value(window, series.get("numero_ssa"))
+    except Exception as exc:
+        logger.debug("Falha ao normalizar SSA para prefetch de detalhes: %s", exc)
+        return
+    if not normalized:
+        return
+    try:
+        if warm_details_render_payload(
+            window=window,
+            normalized=normalized,
+            series_target=series,
+            callbacks=_build_details_dialog_callbacks(window),
+        ):
+            logger.debug("Prefetch de detalhes aquecido para %s", normalized)
+    except Exception as exc:
+        logger.debug("Falha no prefetch de detalhes para %s: %s", normalized, exc)
 
 
 def _clear_main_details_state(window) -> None:
@@ -1930,13 +1995,13 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         return details_derivadas_model.empty_tree_data()
 
     db_path = _resolve_current_db_path()
-    db_mtime = details_data_provider.get_db_mtime(db_path)
+    graph_token = details_data_provider.get_derivadas_graph_cache_token(db_path)
     data_uuid = getattr(window, "_data_uuid", None)
     cache_owner = getattr(window, "cache_manager", None)
     cache_get = getattr(cache_owner, "get_cached_value", None)
     cache_put = getattr(cache_owner, "cache_value", None)
     data_token = data_uuid if data_uuid is not None else _derivadas_frame_cache_token(window)
-    cache_key = (db_path, db_mtime, data_token, target)
+    cache_key = (db_path, graph_token, data_token, target)
     if callable(cache_get):
         cached = cast(Any, cache_get)("details_derivadas_tree_data", cache_key)
         if isinstance(cached, dict):
@@ -2428,6 +2493,7 @@ def _build_details_dialog_callbacks(window) -> DetailsDialogCallbacks:
         logger=logger,
         normalize_ssa_value=_normalize_ssa_value,
         resolve_style=_resolve_details_dialog_style,
+        render_payload_context=_details_render_payload_context,
     )
 
 

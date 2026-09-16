@@ -36,6 +36,49 @@ def get_db_mtime(db_path: str | None) -> float | None:
         return None
 
 
+def get_derivadas_graph_cache_token(db_path: str | None) -> tuple[str, object]:
+    """Token de invalidacao para dados derivados do grafo de derivadas.
+
+    Usa o graph_fingerprint do ultimo sync_run com status 'ok'; cai para o
+    mtime do arquivo quando a tabela nao existe, o ultimo run falhou ou o
+    fingerprint esta ausente.
+    """
+    fingerprint = _latest_derivadas_graph_fingerprint(db_path)
+    if fingerprint:
+        return ("graph", fingerprint)
+    return ("mtime", get_db_mtime(db_path))
+
+
+def _latest_derivadas_graph_fingerprint(db_path: str | None) -> str | None:
+    if not db_path or not os.path.exists(db_path):
+        return None
+    try:
+        from armazenamento.database import get_db_connection
+    except Exception as exc:
+        logger.debug("Falha ao importar conexao para fingerprint: %s", exc)
+        return None
+    try:
+        with get_db_connection(db_path) as conn:
+            conn.execute("PRAGMA query_only = ON")
+            row = conn.execute(
+                """
+                SELECT graph_fingerprint, status
+                FROM ssa_derivada_sync_run
+                ORDER BY sync_run_id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+    except Exception as exc:
+        logger.debug("Falha ao ler fingerprint do grafo de derivadas: %s", exc)
+        return None
+    if not row or row[1] != "ok":
+        return None
+    fingerprint = row[0]
+    if not fingerprint:
+        return None
+    return str(fingerprint)
+
+
 def load_derivadas_snapshot(
     db_path: str | None,
     target: str,
