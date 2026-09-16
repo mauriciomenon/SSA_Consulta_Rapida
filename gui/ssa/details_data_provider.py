@@ -58,8 +58,7 @@ def _latest_derivadas_graph_fingerprint(db_path: str | None) -> str | None:
         logger.debug("Falha ao importar conexao para fingerprint: %s", exc)
         return None
     try:
-        with get_db_connection(db_path) as conn:
-            conn.execute("PRAGMA query_only = ON")
+        with get_db_connection(db_path, read_only=True) as conn:
             row = conn.execute(
                 """
                 SELECT graph_fingerprint, status

@@ -47,7 +47,6 @@ from gui.ssa.details_dialog_constants import (
 from gui.ssa.details_dialog_presenter import (
     DetailsDialogCallbacks,
     DetailsDialogPresenter,
-    warm_details_render_payload,
 )
 from gui.ssa.details_graph_export import load_svg_render_dependencies
 from gui.ssa.details_graph_export import render_graph_svg_pixmap
@@ -597,9 +596,12 @@ def _get_details_frame_fingerprint(window, df) -> str:
     return fingerprint
 
 
-def _get_details_db_signature():
-    db_path = _resolve_current_db_path()
-    return details_data_provider.get_derivadas_graph_cache_token(db_path)
+def _get_details_db_signature(window=None):
+    db_path = getattr(window, "db_path", None) or _resolve_current_db_path()
+    active_signature = getattr(window, "_details_active_db_signature", None)
+    if active_signature is not None and active_signature[0] == db_path:
+        return active_signature
+    return db_path, details_data_provider.get_derivadas_graph_cache_token(db_path)
 
 
 def _details_render_payload_context(window, normalized, style):
@@ -613,7 +615,7 @@ def _details_render_payload_context(window, normalized, style):
         terms = ()
     return (
         _derivadas_frame_cache_token(window),
-        _get_details_db_signature(),
+        _get_details_db_signature(window),
         tuple(style),
         terms,
     )
@@ -647,7 +649,7 @@ def _get_details_render_signature(window, series):
                 fallback_exc,
             )
             series_signature = ""
-    return (selected_ssa, search_terms, _get_details_db_signature(), series_signature)
+    return (selected_ssa, search_terms, _get_details_db_signature(window), series_signature)
 
 
 def update_details_from_selection(window):
@@ -661,21 +663,6 @@ def update_details_from_selection(window):
         return
     row = selected_rows[0].row()
     series = window._get_series_from_row(row)
-    render_signature = _get_details_render_signature(window, series)
-    current_signature = window.details_text.property("details_render_signature")
-    try:
-        if (
-            not window.details_text.document().isEmpty()
-            and render_signature == current_signature
-        ):
-            return
-    except Exception:
-        if (
-            window.details_text.toPlainText().strip()
-            and render_signature == current_signature
-        ):
-            return
-    _schedule_details_prefetch(window, series)
     _schedule_details_update(window, series)
 
 
@@ -703,52 +690,6 @@ def _schedule_details_update(window, series) -> None:
         timer.timeout.connect(_flush_pending_details_update)
     window._pending_details_series = series
     timer.start()
-
-
-def _schedule_details_prefetch(window, series) -> None:
-    """Agenda aquecimento do payload do dialogo de detalhes da SSA selecionada."""
-    if series is None:
-        return
-    if os.environ.get("PYTEST_CURRENT_TEST"):
-        _warm_details_render_payload(window, series)
-        return
-    timer = getattr(window, "_details_prefetch_timer", None)
-    if timer is None:
-        timer = QTimer(window)
-        timer.setSingleShot(True)
-        timer.setInterval(120)
-        window._details_prefetch_timer = timer
-
-        def _flush_pending_details_prefetch() -> None:
-            pending_series = getattr(window, "_pending_prefetch_series", None)
-            window._pending_prefetch_series = None
-            _warm_details_render_payload(window, pending_series)
-
-        timer.timeout.connect(_flush_pending_details_prefetch)
-    window._pending_prefetch_series = series
-    timer.start()
-
-
-def _warm_details_render_payload(window, series) -> None:
-    if series is None:
-        return
-    try:
-        normalized = _normalize_ssa_value(window, series.get("numero_ssa"))
-    except Exception as exc:
-        logger.debug("Falha ao normalizar SSA para prefetch de detalhes: %s", exc)
-        return
-    if not normalized:
-        return
-    try:
-        if warm_details_render_payload(
-            window=window,
-            normalized=normalized,
-            series_target=series,
-            callbacks=_build_details_dialog_callbacks(window),
-        ):
-            logger.debug("Prefetch de detalhes aquecido para %s", normalized)
-    except Exception as exc:
-        logger.debug("Falha no prefetch de detalhes para %s: %s", normalized, exc)
 
 
 def _clear_main_details_state(window) -> None:
@@ -857,23 +798,33 @@ def _update_details_from_series(window, series):
         _clear_main_details_state(window)
         return
     render_signature = _get_details_render_signature(window, series)
+    current_signature = window.details_text.property("details_render_signature")
+    try:
+        has_content = not window.details_text.document().isEmpty()
+    except AttributeError:
+        has_content = bool(window.details_text.toPlainText().strip())
+    if has_content and render_signature == current_signature:
+        return
     try:
         setattr(window, "_details_current_ssa", series.get("numero_ssa"))
     except Exception:
         setattr(window, "_details_current_ssa", None)
 
+    window._details_active_db_signature = render_signature[2]
     try:
-        _render_main_details_html(window, series, render_signature)
-        return
-    except Exception as exc:
-        logger.debug(
-            "Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc
-        )
-
-    try:
-        _render_main_details_plaintext(window, series, render_signature)
-    except Exception as exc:
-        logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
+        try:
+            _render_main_details_html(window, series, render_signature)
+            return
+        except Exception as exc:
+            logger.debug(
+                "Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc
+            )
+        try:
+            _render_main_details_plaintext(window, series, render_signature)
+        except Exception as exc:
+            logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
+    finally:
+        window._details_active_db_signature = None
 
 
 def _clear_main_details_derivadas_panel(window) -> None:
@@ -1984,7 +1935,7 @@ def _derivadas_frame_cache_token(window) -> object:
     shape = tuple(getattr(df, "shape", (0, 0)))
     if data_uuid is not None:
         if revision is not None:
-            return ("revision", revision, shape)
+            return ("revision", data_uuid, revision, shape)
         return ("uuid", data_uuid, shape, _get_details_frame_fingerprint(window, df))
     return ("uncached", id(df), shape, object())
 
@@ -1994,8 +1945,7 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     if not target:
         return details_derivadas_model.empty_tree_data()
 
-    db_path = _resolve_current_db_path()
-    graph_token = details_data_provider.get_derivadas_graph_cache_token(db_path)
+    db_path, graph_token = _get_details_db_signature(window)
     data_uuid = getattr(window, "_data_uuid", None)
     cache_owner = getattr(window, "cache_manager", None)
     cache_get = getattr(cache_owner, "get_cached_value", None)

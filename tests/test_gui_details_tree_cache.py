@@ -4,12 +4,14 @@ import os
 import sqlite3
 import time
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pandas as pd
 
+from gui.gui_ssa import SSAMainWindow
 from gui.ssa import details_data_provider
 from gui.ssa import gui_details
-from gui.ssa.details_dialog_presenter import DetailsDialogCallbacks
+from tests._helpers.db_utils import make_sync_run_db
 
 
 class _Cache:
@@ -86,26 +88,11 @@ def test_build_derivadas_link_state_uses_index_without_dataframe_scan(monkeypatc
     assert status_by_ssa["202600101"] == "ASE"
 
 
-def _make_sync_run_db(db_path, rows) -> None:
-    conn = sqlite3.connect(str(db_path))
-    conn.execute(
-        "CREATE TABLE ssa_derivada_sync_run ("
-        "sync_run_id INTEGER PRIMARY KEY, status TEXT, graph_fingerprint TEXT)"
-    )
-    conn.executemany(
-        "INSERT INTO ssa_derivada_sync_run "
-        "(sync_run_id, status, graph_fingerprint) VALUES (?, ?, ?)",
-        rows,
-    )
-    conn.commit()
-    conn.close()
-
-
 def test_collect_derivadas_tree_data_survives_db_mtime_change(
     tmp_path, monkeypatch
 ) -> None:
     db_path = tmp_path / "ssa-cache.db"
-    _make_sync_run_db(db_path, [(1, "ok", "fp-stable")])
+    make_sync_run_db(db_path, [(1, "ok", "fp-stable")])
     calls = {"load": 0}
     window = SimpleNamespace(
         cache_manager=_Cache(),
@@ -143,100 +130,124 @@ def test_collect_derivadas_tree_data_survives_db_mtime_change(
     assert calls["load"] == 1
     assert second == first
 
+    writer = sqlite3.connect(db_path)
+    try:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        previous_mtime = db_path.stat().st_mtime_ns
+        writer.execute(
+            "INSERT INTO ssa_derivada_sync_run VALUES (?, ?, ?)",
+            (2, "ok", "fp-alterado"),
+        )
+        writer.commit()
+        assert db_path.stat().st_mtime_ns == previous_mtime
 
-def _prefetch_window() -> SimpleNamespace:
-    return SimpleNamespace(
-        _data_uuid="data-1",
+        gui_details._collect_derivadas_tree_data(window, "202600100")
+
+        assert calls["load"] == 2
+    finally:
+        writer.close()
+
+
+def test_selection_debounces_graph_probe_and_cancels_pending_data_on_reload(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    timers = []
+
+    class _Timer:
+        def __init__(self, _window):
+            self.callback = lambda: None
+            self.active = False
+            self.timeout = SimpleNamespace(connect=self._connect)
+            timers.append(self)
+
+        def _connect(self, callback):
+            self.callback = callback
+
+        def setSingleShot(self, _value):
+            return None
+
+        def setInterval(self, _value):
+            return None
+
+        def start(self):
+            self.active = True
+
+        def stop(self):
+            self.active = False
+
+    monkeypatch.setattr(gui_details, "QTimer", _Timer)
+    probes = []
+    rendered = []
+    graph_token = ["fp-1"]
+    properties = {}
+    series = pd.Series({"numero_ssa": "202600100", "descricao_ssa": "antes"})
+    window = SimpleNamespace(
+        db_path=str(tmp_path / "db.sqlite"),
+        _data_uuid="d1",
         _data_revision=1,
-        df_completo=pd.DataFrame({"numero_ssa": ["202600100"]}),
-        df_exibido=pd.DataFrame({"numero_ssa": ["202600100"]}),
+        df_completo=pd.DataFrame([series]),
         _active_column_filters={},
         search_input=SimpleNamespace(text=lambda: ""),
-        db_path="/tmp/ssa-prefetch-missing.db",
-    )
-
-
-def _prefetch_callbacks(builds: dict) -> DetailsDialogCallbacks:
-    def _format(*_args, **_kwargs) -> str:
-        builds["count"] += 1
-        return "details"
-
-    return DetailsDialogCallbacks(
-        apply_geometry=lambda *_args, **_kwargs: None,
-        build_graph_html=lambda *_args, **_kwargs: "graph",
-        build_mermaid_text=lambda *_args, **_kwargs: "mermaid",
-        build_tree_html=lambda *_args, **_kwargs: "tree",
-        collect_tree_data=lambda *_args, **_kwargs: {"children": []},
-        copy_ssa_to_clipboard=lambda *_args, **_kwargs: None,
-        extract_svg_markup=lambda *_args, **_kwargs: "svg",
-        format_details_html=_format,
-        get_series_for_ssa=lambda *_args, **_kwargs: None,
-        logger=gui_details.logger,
-        normalize_ssa_value=gui_details._normalize_ssa_value,
-        resolve_style=lambda *_args, **_kwargs: (
-            "#000",
-            10.0,
-            10.0,
-            10.0,
-            "monospace",
+        table_widget=SimpleNamespace(
+            rowCount=lambda: 1,
+            selectionModel=lambda: SimpleNamespace(
+                selectedRows=lambda: [SimpleNamespace(row=lambda: 0)]
+            ),
         ),
-        render_payload_context=gui_details._details_render_payload_context,
+        _get_series_from_row=lambda _row: series,
+        clear_filter_cache=lambda: None,
+        details_text=SimpleNamespace(
+            property=lambda key: properties.get(key),
+            setProperty=lambda key, value: properties.update({key: value}),
+            document=lambda: SimpleNamespace(isEmpty=lambda: not rendered),
+        ),
+        cache_manager=_Cache(),
     )
 
+    def probe(path):
+        probes.append(path)
+        return "graph", graph_token[0]
 
-def test_prefetch_warms_payload_cache_once_per_ssa(monkeypatch) -> None:
-    builds = {"count": 0}
-    window = _prefetch_window()
-    callbacks = _prefetch_callbacks(builds)
-    monkeypatch.setattr(
-        gui_details, "_build_details_dialog_callbacks", lambda _w: callbacks
-    )
-    series = pd.Series({"numero_ssa": "202600100"})
+    def render(_window, current, signature):
+        gui_details._collect_derivadas_tree_data(window, current["numero_ssa"])
+        rendered.append(current["descricao_ssa"])
+        properties["details_render_signature"] = signature
 
-    gui_details._schedule_details_prefetch(window, series)
-    gui_details._schedule_details_prefetch(window, series)
+    monkeypatch.setattr(details_data_provider, "get_derivadas_graph_cache_token", probe)
+    monkeypatch.setattr(details_data_provider, "load_derivadas_snapshot", lambda *_a, **_k: None)
+    monkeypatch.setattr(gui_details, "_get_series_for_ssa", lambda *_a: None)
+    monkeypatch.setattr(gui_details, "_render_main_details_html", render)
 
-    normalized = gui_details._normalize_ssa_value(window, "202600100")
-    cache = getattr(window, "_details_render_payload_cache", {})
-    assert builds["count"] == 1
-    assert normalized in cache
+    gui_details.update_details_from_selection(window)
+    gui_details.update_details_from_selection(window)
+    assert probes == []
+    assert rendered == []
+    assert len(timers) == 1
 
+    timers[0].callback()
+    assert len(probes) == 1
+    assert rendered == ["antes"]
+    assert getattr(window, "_details_render_payload_cache", {}) == {}
+    assert window._details_active_db_signature is None
 
-def test_prefetch_ignores_missing_series() -> None:
-    window = _prefetch_window()
+    gui_details.update_details_from_selection(window)
+    timers[0].callback()
+    assert len(probes) == 2
+    assert rendered == ["antes"]
 
-    gui_details._schedule_details_prefetch(window, None)
+    graph_token[0] = "fp-2"
+    gui_details.update_details_from_selection(window)
+    timers[0].callback()
+    assert len(probes) == 3
+    assert rendered == ["antes", "antes"]
 
-    assert getattr(window, "_details_render_payload_cache", None) is None
-
-
-def test_prefetch_swallows_builder_errors(monkeypatch) -> None:
-    window = _prefetch_window()
-
-    def _raise(**_kwargs):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(gui_details, "warm_details_render_payload", _raise)
-
-    gui_details._schedule_details_prefetch(
-        window, pd.Series({"numero_ssa": "202600100"})
-    )
-
-    assert getattr(window, "_details_render_payload_cache", None) is None
-
-
-def test_prefetch_does_not_warm_invalid_ssa(monkeypatch) -> None:
-    builds = {"count": 0}
-    window = _prefetch_window()
-    monkeypatch.setattr(
-        gui_details,
-        "_build_details_dialog_callbacks",
-        lambda _w: _prefetch_callbacks(builds),
-    )
-
-    gui_details._schedule_details_prefetch(
-        window, pd.Series({"numero_ssa": "   "})
-    )
-
-    assert builds["count"] == 0
-    assert getattr(window, "_details_render_payload_cache", None) is None
+    gui_details.update_details_from_selection(window)
+    SSAMainWindow._bump_data_revision(cast(Any, window), "reload")
+    assert not timers[0].active
+    assert window._pending_details_series is None
+    series = pd.Series({"numero_ssa": "202600100", "descricao_ssa": "depois"})
+    gui_details.update_details_from_selection(window)
+    timers[0].callback()
+    assert rendered == ["antes", "antes", "depois"]

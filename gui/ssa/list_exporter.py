@@ -53,11 +53,20 @@ def write_prepared_list_tsv(
     if dataframe is None or dataframe.empty:
         raise ValueError("No data to export")
     export_path = str(Path(path).expanduser())
-    formatted_df = formatter(dataframe)
-    # Neutraliza injecao de formula como no exportador CLI (celulas vindas
-    # de planilhas importadas podem comecar com = + - @ ou controles).
-    formatted_df = sanitize_spreadsheet_dataframe(formatted_df)
-    formatted_df.to_csv(export_path, sep="\t", index=False)
+    numeric_origins = dataframe.map(pd.api.types.is_number)
+    formatted_df = formatter(dataframe.copy())
+    safe_df = sanitize_spreadsheet_dataframe(formatted_df)
+    if formatted_df.index.equals(dataframe.index) and formatted_df.columns.equals(dataframe.columns):
+        for position in range(len(formatted_df.columns)):
+            rendered = formatted_df.iloc[:, position]
+            numeric_text = rendered.astype(str).str.fullmatch(
+                r"[+-]?(?:[0-9]+(?:[.,][0-9]+)*|[.,][0-9]+)(?:[eE][+-]?[0-9]+)?"
+            )
+            preserve_number = numeric_origins.iloc[:, position] & numeric_text
+            safe_df.iloc[:, position] = safe_df.iloc[:, position].where(
+                ~preserve_number, rendered
+            )
+    safe_df.to_csv(export_path, sep="\t", index=False)
     return ListExportResult(
         path=export_path,
         rows=int(len(formatted_df.index)),

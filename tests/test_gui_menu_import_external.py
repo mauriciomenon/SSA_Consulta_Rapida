@@ -1046,7 +1046,7 @@ def test_other_db_timeout_discards_late_staging(monkeypatch, tmp_path):
         _get_derivadas_sync_state=lambda: SimpleNamespace(
             last_report=None, report_invalidated=False),
     )
-    out = gui_ssa.SSAMainWindow.load_other_database(window)
+    out = gui_ssa.SSAMainWindow.load_other_database(cast(Any, window))
     assert out["started"] is True
     request_id = window._other_db_validation_request_id
 
@@ -1136,7 +1136,7 @@ def test_other_db_publish_after_invalidation_discards_staged(
         lambda _staged, dest: promoted.append(str(dest)) or {"ok": True},
     )
 
-    out = gui_ssa.SSAMainWindow.load_other_database(window)
+    out = gui_ssa.SSAMainWindow.load_other_database(cast(Any, window))
     assert out["started"] is True
     assert discarded == [str(staged_file)]
     assert promoted == []

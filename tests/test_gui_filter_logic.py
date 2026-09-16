@@ -10122,8 +10122,8 @@ class TestGUIFilterLogic:
 
         with patch.object(
             ssa_gui_details,
-            "_update_details_from_series",
-            wraps=ssa_gui_details._update_details_from_series,
+            "_render_main_details_html",
+            wraps=ssa_gui_details._render_main_details_html,
         ) as update_details_mock:
             self.window.update_details_from_selection()
             assert update_details_mock.call_count == 0
@@ -10182,8 +10182,8 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(self.window.table_widget, "selectRow", spy_select_row)
         with patch.object(
             ssa_gui_details,
-            "_update_details_from_series",
-            wraps=ssa_gui_details._update_details_from_series,
+            "_render_main_details_html",
+            wraps=ssa_gui_details._render_main_details_html,
         ) as update_details_mock:
             self.window._jump_to_ssa(target_ssa)
 

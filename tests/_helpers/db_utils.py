@@ -21,6 +21,24 @@ CONFIG_DIR = PROJECT_ROOT / "config"
 DEFAULT_SCHEMA = CONFIG_DIR / "schema.sql"
 
 
+def make_sync_run_db(db_path: Path, rows: Iterable[tuple]) -> None:
+    """Cria apenas os metadados de sincronizacao usados nos testes de cache."""
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute(
+            "CREATE TABLE ssa_derivada_sync_run ("
+            "sync_run_id INTEGER PRIMARY KEY, status TEXT, graph_fingerprint TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO ssa_derivada_sync_run "
+            "(sync_run_id, status, graph_fingerprint) VALUES (?, ?, ?)",
+            rows,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def create_temp_db(schema_path: str | os.PathLike | None = None) -> tuple[str, str]:
     """Create a temporary sqlite database applying the project schema.
 

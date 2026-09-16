@@ -123,51 +123,6 @@ def build_details_render_payload(
     )
 
 
-def warm_details_render_payload(
-    *,
-    window: Any,
-    normalized: str,
-    series_target: pd.Series,
-    callbacks: DetailsDialogCallbacks,
-) -> bool:
-    """Aquece o payload do dialogo de detalhes no cache da janela.
-
-    Retorna True quando um payload novo foi construido e armazenado.
-    """
-    context_fn = callbacks.render_payload_context
-    if not callable(context_fn):
-        return False
-    try:
-        series_ssa = callbacks.normalize_ssa_value(
-            window, series_target.get("numero_ssa")
-        )
-    except (AttributeError, KeyError, TypeError):
-        series_ssa = ""
-    if series_ssa != normalized:
-        return False
-    style = callbacks.resolve_style(
-        window, DetailsDialogPresenter._palette_cls()
-    )
-    context = context_fn(window, normalized, style)
-    if context is None:
-        return False
-    cache = _details_payload_cache(window)
-    if cache is None:
-        return False
-    entry = cache.get(normalized)
-    if entry is not None and entry[0] == context:
-        return False
-    payload = build_details_render_payload(
-        window=window,
-        normalized=normalized,
-        series_target=series_target,
-        style=style,
-        callbacks=callbacks,
-    )
-    _details_payload_cache_put(cache, normalized, context, payload)
-    return True
-
-
 class DetailsDialogPresenter:
     def __init__(
         self,

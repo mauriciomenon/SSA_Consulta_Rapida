@@ -967,6 +967,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._data_revision_df_ids = None
         self._details_ssa_index_sources = None
         self._details_ssa_series_index = None
+        self._details_render_payload_cache = {}
+        self._pending_details_series = None
+        details_timer = getattr(self, "_details_update_timer", None)
+        if details_timer is not None:
+            details_timer.stop()
+        details_text = getattr(self, "details_text", None)
+        if details_text is not None:
+            details_text.setProperty("details_render_signature", None)
         self._canonical_available_columns_cache_key = None
         self._canonical_available_columns_cache = None
         self._adv_values_cache = {}
@@ -5580,7 +5588,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # O pedido pode ter expirado entre a checagem do staging e a
                 # publicacao: nesse caso nenhum poll consome o resultado e o
                 # .copy-* ficaria orfao registrado como ativo.
-                late_staged = (result.get("_copy_result") or {}).get("staged")
+                copy_result = result.get("_copy_result")
+                late_staged = (
+                    copy_result.get("staged") if isinstance(copy_result, dict) else None
+                )
                 if late_staged and not still_valid:
                     ssa_database_operations.discard_staged_copy(late_staged)
 
@@ -5593,9 +5604,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     # Um resultado publicado depois da invalidacao nao sera
                     # consumido por ninguem — o staging sai do registro e do
                     # disco aqui.
+                    copy_result = (stale_pending or {}).get("_copy_result")
                     stale_staged = (
-                        (stale_pending or {}).get("_copy_result") or {}
-                    ).get("staged")
+                        copy_result.get("staged") if isinstance(copy_result, dict) else None
+                    )
                     if stale_staged:
                         ssa_database_operations.discard_staged_copy(
                             stale_staged
@@ -5611,9 +5623,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         self._other_db_validation_request_id += 1
                     # Se o worker JA publicou o resultado, a invalidacao
                     # nao o alcanca — o staging tem que ser descartado aqui.
+                    copy_result = (pending or {}).get("_copy_result")
                     staged_path = (
-                        (pending or {}).get("_copy_result") or {}
-                    ).get("staged")
+                        copy_result.get("staged") if isinstance(copy_result, dict) else None
+                    )
                     if staged_path:
                         ssa_database_operations.discard_staged_copy(staged_path)
                     # A referencia da thread e mantida: ela pode seguir viva

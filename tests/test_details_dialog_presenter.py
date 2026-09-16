@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pandas as pd
@@ -279,17 +280,22 @@ def test_window_payload_cache_shared_across_presenter_instances() -> None:
 def test_window_payload_cache_invalidates_on_context_change() -> None:
     builds = {"count": 0}
     window = SimpleNamespace(_data_uuid="d1", _data_revision=1)
-    series = pd.Series({"numero_ssa": "202600100"})
-    callbacks = _counting_callbacks(_Logger(), builds)
+    series = pd.Series({"numero_ssa": "202600100", "descricao_ssa": "antes"})
+    callbacks = replace(
+        _counting_callbacks(_Logger(), builds),
+        format_details_html=lambda _window, current, **_kwargs: current["descricao_ssa"],
+    )
     presenter = DetailsDialogPresenter(
         window=window, target="202600100", series=series, callbacks=callbacks
     )
 
-    presenter._get_render_payload(**_render_kwargs(series))
+    before = presenter._get_render_payload(**_render_kwargs(series))
     window._data_revision = 2
-    presenter._get_render_payload(**_render_kwargs(series))
+    series = pd.Series({"numero_ssa": "202600100", "descricao_ssa": "depois"})
+    after = presenter._get_render_payload(**_render_kwargs(series))
 
-    assert builds["count"] == 2
+    assert before.details_html == "antes"
+    assert after.details_html == "depois"
 
 
 def test_window_payload_cache_is_bounded() -> None:
@@ -323,45 +329,3 @@ def test_render_payload_falls_back_to_instance_cache_without_context() -> None:
 
     assert first is second
     assert getattr(window, "_details_render_payload_cache", {}) == {}
-
-
-def test_warm_details_render_payload_populates_window_cache() -> None:
-    builds = {"count": 0}
-    window = SimpleNamespace(_data_uuid="d1", _data_revision=1)
-    series = pd.Series({"numero_ssa": "202600100"})
-    callbacks = _counting_callbacks(_Logger(), builds)
-
-    warmed = presenter_module.warm_details_render_payload(
-        window=window,
-        normalized="202600100",
-        series_target=series,
-        callbacks=callbacks,
-    )
-    warmed_again = presenter_module.warm_details_render_payload(
-        window=window,
-        normalized="202600100",
-        series_target=series,
-        callbacks=callbacks,
-    )
-
-    assert warmed is True
-    assert warmed_again is False
-    assert builds["count"] == 1
-
-    presenter = DetailsDialogPresenter(
-        window=window, target="202600100", series=series, callbacks=callbacks
-    )
-    payload = presenter._get_render_payload(**_render_kwargs(series))
-    assert builds["count"] == 1
-    assert payload.details_html == "details"
-
-
-def test_warm_details_render_payload_noop_without_context_callback() -> None:
-    warmed = presenter_module.warm_details_render_payload(
-        window=SimpleNamespace(),
-        normalized="1",
-        series_target=pd.Series({"numero_ssa": "1"}),
-        callbacks=_callbacks(_Logger()),
-    )
-
-    assert warmed is False
