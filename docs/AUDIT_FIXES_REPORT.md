@@ -2261,8 +2261,11 @@ nao ha merge autorizado nesta rodada.
 
 ### Complemento 2 - correcoes dos comentarios posteriores (fase local)
 
-Base: `9a75a086`, branch `devin_review`. Sem commit, push ou publicacao
-nesta fase; a entrega aguarda a conferencia do coordenador.
+Base: `9a75a086`, branch `devin_review`. As correcoes desta secao foram
+publicadas em sete commits ate o HEAD `31667a7c`, com oito respostas de
+thread e o comentario consolidado
+[`issuecomment-5707133852`](https://github.com/mauriciomenon/SSA_Consulta_Rapida/pull/132#issuecomment-5707133852)
+ja publicados no PR.
 
 - Comentario `4031654822`: confirmado. `_terminate_process` com
   `reap=False` roda dentro do handler de SIGTERM e logava no `except

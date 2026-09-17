@@ -298,7 +298,7 @@ def test_prune_forensic_backups_preserves_family_on_unlink_failure(
     real_unlink = Path.unlink
 
     def flaky_unlink(self, *args, **kwargs):
-        if self.name.endswith("-wal") and "_000001" in self.name:
+        if self.name.endswith(".db") and "_000001" in self.name:
             raise OSError("falha simulada de remocao")
         return real_unlink(self, *args, **kwargs)
 
@@ -310,10 +310,12 @@ def test_prune_forensic_backups_preserves_family_on_unlink_failure(
     remaining = sorted(
         path.name for path in backup_dir.iterdir() if ".corrupt_" in path.name
     )
-    # O -wal da familia mais antiga falhou: a poda dessa familia parou e
-    # os outros 3 membros ficaram como evidencia; a segunda mais antiga
-    # foi podada por completo.
-    assert sum("_000001" in name for name in remaining) == 3
+    # O principal da familia mais antiga e sempre o ultimo a ser removido:
+    # a falha nele deixa o .db como evidencia apos os 3 sidecars ja terem
+    # saido, sem depender da ordem do readdir; a segunda familia foi
+    # podada por completo e as duas mais novas ficaram retidas.
+    assert sum("_000001" in name for name in remaining) == 1
+    assert any(name.endswith("_000001.db") for name in remaining)
     assert not any("_000002" in name for name in remaining)
     assert sum("_000003" in name for name in remaining) == 4
     assert sum("_000004" in name for name in remaining) == 4

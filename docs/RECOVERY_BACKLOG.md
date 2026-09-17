@@ -8,8 +8,8 @@ nao autoriza nova execucao nem impede automaticamente outra entrega.
 Para pacotes, aplicar [os criterios de entrega](BUILD_WINDOWS_ARM64_AMD64.md#encerramento).
 Correcao apenas documental nao exige rebuild, suite completa ou novos scanners.
 
-Atualizado em 2026-09-14. Documento versionado; cada rodada abaixo identifica
-seu escopo e sua evidencia. Estado de CI/CD na ultima secao e na PR 131.
+Atualizado em 2026-09-16. Documento versionado; cada rodada abaixo identifica
+seu escopo e sua evidencia. Estado de CI/CD na ultima secao e na PR 132.
 
 ## 2026-09-09 - Historico da limpeza uv
 
@@ -460,6 +460,11 @@ individual de 45s e reprovacao por falha preservados.
 - [ ] Snapshot com WAL ativo nao e produzido pelo backup/close atuais;
   se algum dia surgir, o restore precisa considerar os sidecars do
   snapshot tambem. Hipotese fora do fluxo atual, sem codigo.
+
+Followup desta secao: os comentarios 4032312590, 4032312595 e
+4032312630 (cubic, HEAD `31667a7c`) foram tratados nesta rodada -
+teste de falha de unlink tornado deterministico no principal da familia
+e textos de estado atualizados no report e neste cabecalho.
 
 Suite completa, scanners pesados, builds e validacao visual nao integram
 esta rodada. Os testes novos cobrem os defeitos e lacunas confirmados.
