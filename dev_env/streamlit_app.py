@@ -816,7 +816,16 @@ def _normalize_render_stats(raw_stats: Any) -> dict[str, dict[str, Any]]:
 def _resolve_user_source_path(
     raw_path: str, *, purpose: str, expect_directory: bool
 ) -> str:
-    """Valida a escolha explicita sem ampliar permissoes de outras sessoes."""
+    """Valida a escolha explicita sem ampliar permissoes de outras sessoes.
+
+    Modelo local/confiado: o launcher vincula o servidor a 127.0.0.1 e a
+    sessao pertence ao operador desta maquina; autorizar a raiz do caminho
+    que ele digitou e o comportamento desejado, nao um sandbox. A
+    validacao de tipo, existencia e canonicalizacao permanece em
+    ``ensure_path_is_allowed``, e a concessao vale apenas para esta
+    chamada (``extra_allowed_roots`` nao persiste entre sessoes). Uso
+    remoto ou multiusuario nao e um contrato seguro desta interface.
+    """
     if not raw_path.strip():
         raise PathSafetyError(f"{purpose}: caminho vazio nao permitido.")
     candidate = Path(raw_path.strip()).expanduser()
@@ -824,6 +833,8 @@ def _resolve_user_source_path(
         candidate = project_root / candidate
     candidate = candidate.resolve()
     root = candidate if expect_directory else candidate.parent
+    if root.exists() and not root.is_dir():
+        raise PathSafetyError(f"{purpose}: '{root}' existe e nao e um diretorio.")
     if not root.is_dir():
         raise PathSafetyError(f"{purpose}: diretorio '{root}' nao existe.")
     return str(

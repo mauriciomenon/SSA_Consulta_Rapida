@@ -89,6 +89,18 @@ def test_source_directory_must_exist(tmp_path):
     assert not missing.exists()
 
 
+def test_source_directory_existing_file_is_not_reported_as_missing(tmp_path):
+    """Um caminho que existe como arquivo nao pode ser reportado como
+    'nao existe': a mensagem precisa distinguir os dois casos."""
+    file_path = tmp_path / "planilhas.txt"
+    file_path.write_text("x", encoding="utf-8")
+
+    with pytest.raises(path_safety.PathSafetyError, match="nao e um diretorio"):
+        app._resolve_user_source_path(
+            str(file_path), purpose="Planilhas", expect_directory=True
+        )
+
+
 @pytest.mark.parametrize("valid_docs", [False, True])
 def test_source_selection_updates_state_only_after_both_paths_validate(
     tmp_path, monkeypatch, source_ui, valid_docs
