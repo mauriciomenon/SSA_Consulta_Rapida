@@ -437,5 +437,29 @@ individual de 45s e reprovacao por falha preservados.
   consultivos de CodeFactor e DeepSource com falha. Nao equivalem a testes
   locais reprovados, nem autorizam declarar CI aprovado.
 
+## PR 132 - Limites do complemento 2 (comentarios posteriores)
+
+- [ ] Geracao do cache de detalhes observa metadados do conjunto
+  .db/-wal/-journal com resolucao de nanossegundos; uma reescrita com
+  conteudo diferente mantendo TODOS os metadados identicos (FS grosseiro
+  ou restauracao de metadados) nao seria detectada. O -shm nao entra na
+  geracao porque leitores do WAL o atualizam.
+- [ ] Bancos sem `graph_fingerprint` nao ganham a memoizacao do token de
+  detalhes: o fallback "mtime" nunca e memoizado, pois tambem representa
+  falha transitoria de consulta. Custo: uma leitura pequena por render
+  nesse perfil de banco.
+- [ ] DeepSource `9d666986` reportou "Analysis failed: Blocking issues or
+  failing metrics found" sem detalhe auditado nesta fase; o detalhamento
+  do dashboard ficou pendente por nao haver sessao autenticada exercida.
+- [ ] Validacao nativa Windows do pacote continua pendente: os ZIPs
+  v4.50 amd64/arm64 existem localmente e a VM VMware Windows 11 ARM64 e
+  documentada, mas nenhuma execucao nativa do HEAD foi verificada nesta
+  sessao. Requisito: acesso a VM existente para rodar o smoke nativo.
+- [ ] Marcadores/artefatos orfaos sem prova persistente de propriedade
+  ficam preservados; remocao exige escopo explicito (mantido).
+- [ ] Snapshot com WAL ativo nao e produzido pelo backup/close atuais;
+  se algum dia surgir, o restore precisa considerar os sidecars do
+  snapshot tambem. Hipotese fora do fluxo atual, sem codigo.
+
 Suite completa, scanners pesados, builds e validacao visual nao integram
 esta rodada. Os testes novos cobrem os defeitos e lacunas confirmados.

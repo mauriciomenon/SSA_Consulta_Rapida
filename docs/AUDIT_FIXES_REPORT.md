@@ -2258,3 +2258,111 @@ nao ha merge autorizado nesta rodada.
   complexidade e um alerta B108 em teste; os outros servicos tinham
   resultados aprovados, pendentes ou erro de servico. Isso nao constitui
   CI integral aprovado. O estado remoto posterior e registrado no PR.
+
+### Complemento 2 - correcoes dos comentarios posteriores (fase local)
+
+Base: `9a75a086`, branch `devin_review`. Sem commit, push ou publicacao
+nesta fase; a entrega aguarda a conferencia do coordenador.
+
+- Comentario `4031654822`: confirmado. `_terminate_process` com
+  `reap=False` roda dentro do handler de SIGTERM e logava no `except
+  OSError`; o logging pode bloquear no lock interno do handler e impedir
+  o `sys.exit(143)`. O caminho do handler nao loga mais; o diagnostico e
+  mantido na limpeza normal (`reap=True`). Teste: falha de `terminate()`
+  nao produz warning com `reap=False` e produz com `reap=True`.
+- Comentario `4031654877`: confirmado. `wait_for_streamlit` instalava
+  `signal.signal` mesmo fora da thread principal (onde so levanta
+  ValueError). Agora ha guard explicito `threading.current_thread() is
+  threading.main_thread()`: fora da main a espera continua, sem instalar
+  nem restaurar handler (o handler do lancamento e o atexit cobrem o
+  filho). Sem `except pass` novo. Teste em thread real.
+- Comentario `4031654864`: confirmado como lacuna de cobertura. Teste
+  novo dirige o fluxo CLI completo (busca do usuario + `c`): ao trocar
+  somente `filter_mode_default`, os termos do usuario sao re-parseados
+  no modo novo e reaplicados sobre a base recarregada, e os termos da
+  base sao preservados. Nenhum patch de producao foi necessario.
+- Comentario `4031654901`: confirmado. O fake convertia `terms` para
+  lista antes da assercao, tornando `isinstance(list)` trivial. O fake
+  agora captura o argumento bruto e a assercao verifica o contrato real
+  de `parse_search_terms` (lista de dicts).
+- Comentario `4031654913`: confirmado. `_prune_forensic_backups`
+  ordenava por `max(mtime)`, cujo empate dependia da ordem do iterdir.
+  A ordem agora vem do timestamp validado do basename (largura fixa,
+  ordenacao lexica = cronologica). Dois testes novos: mtimes empatados
+  com criacao invertida (sem sleeps), familia sem principal contando na
+  retencao, e falha de unlink preservando o resto da familia sem impedir
+  a poda das demais.
+- Comentario `4031654923`: confirmado. `_resolve_user_source_path`
+  dizia "nao existe" quando o caminho existia como arquivo. Mensagem
+  distinta "existe e nao e um diretorio" para esse caso; teste adjacente
+  acrescentado.
+- Comentario `4031594673` (+ `4031595053`): comportamento preservado por
+  design. O docstring de `_resolve_user_source_path` registra o modelo
+  local/confiado: launcher vinculado a 127.0.0.1, concessao por chamada
+  (`extra_allowed_roots` nao persiste), validacao de tipo/existencia/
+  canonicalizacao mantida; uso remoto ou multiusuario nao e contrato
+  seguro. Nenhuma mudanca global em `path_safety`.
+- Comentario `4031654890`: fail-fast `timeout=0` mantido (resposta no PR
+  detalha o tradeoff: recopia como custo, origem preservada, lifecycle
+  sem retry seguro). Alem disso, o `except` foi dividido: `Timeout`
+  reporta escrita em curso; `OSError` reporta a causa real como falha de
+  IO na promocao, sem afirmar lock ocupado - o try cobre aquisicao,
+  corpo e liberacao.
+- Reviews `5226866162`/`5229345021`: confirmado. `_get_details_db_signature`
+  consultava o SQLite em toda chamada e `_details_active_db_signature`
+  so vivia durante um render. Agora ha memo por geracao do conjunto
+  .db/-wal/-journal (identidade dev/ino, tamanho, mtime_ns/ctime_ns) +
+  revisao local; `-shm` fica fora porque leitores do WAL o atualizam. So
+  o token "graph" (fingerprint confirmado) e memoizado - o fallback
+  "mtime" tambem cobre falha transitoria e nao pode ser reutilizado por
+  tempo indeterminado. Testes focados: renders repetidos sem nova
+  consulta, commit externo em WAL com .db imutavel invalida (spy sobre o
+  provider real, fp-1 -> fp-2), troca de banco e reload de revisao
+  invalidam, falha transitoria nao memoiza, OSError de stat nao reutiliza.
+- Nitpick CodeAnt #4 (`test_database_operations.py:374`): nao confirmado
+  como residual - a atribuicao `result: dict = {}` antes do try no caso
+  `active_staged` ja havia sido corrigida em `fac14d7a`. Alegacao stale.
+- Tres alegacoes menores avaliadas: marcadores orfaos sem prova nao sao
+  removidos automaticamente (ja e o comportamento - poda exige sufixo
+  run_id validado); snapshot com WAL ativo e hipotese fora do que o
+  backup/close produz (`sqlite3.Connection.backup` gera arquivo
+  consolidado, sem -wal); `mark_latest_sync_run_failed` sem ID mantem
+  compatibilidade, e os callers de producao passam o ID.
+
+Validacao deste complemento, com `uv run --no-sync`:
+
+- `py_compile`, `ruff check` e `ty check` nos 11 arquivos tocados
+  passaram. Houve falhas iniciais ja corrigidas: 3 diagnosticos ty nos
+  testes novos, patch de `signal.signal` que atingia o teardown da
+  fixture (substituido por observacao dos helpers), `clear_filter_cache`
+  ausente no window fake e criacao tardia do -wal pela primeira leitura
+  (warmup neutro antes do baseline).
+- `pytest tests/test_main_streamlit_launcher.py
+  tests/test_cli_config_preserve_session.py
+  tests/test_cli_remove_filter_non_lifo.py
+  tests/test_streamlit_source_selection.py -x -q`: 29 passaram.
+- `pytest tests/test_database_integrity_ensure.py
+  tests/test_gui_details_tree_cache.py tests/test_database_operations.py
+  tests/test_database_operations_contention.py -x -q`: 41 passaram;
+  apos o reforco do teste WAL e dos casos de fallback/stat, a selecao
+  `tests/test_gui_details_tree_cache.py tests/test_database_operations.py
+  tests/test_database_operations_contention.py` passou com 29.
+
+Checks externos no HEAD `9a75a086` (evidencia fornecida pelo
+coordenador, sem nova consulta nesta fase): CodeFactor
+`105011990926` lista cinco Complex Method - `core/app_logic.py`
+(regioes ~1162 e ~2007), `armazenamento/database_integrity.py` (~224),
+`gui/gui_ssa.py` (~5300 e ~5970) - mais um B108 em
+`tests/test_import_derivadas_trigger.py`. Os seis estao em arquivos
+tocados pelo PR (diff dev...HEAD), mas as linhas reportadas podem vir
+do diff/base: o B108 refere os literais `/tmp/` atuais em 483 e
+612/616/618/630, num teste que substitui `_run_derivadas_sync_phase`
+por excecao sem escrita demonstrada - alerta de teste, nao
+vulnerabilidade provada. Complexidade mantida fora do escopo, sem
+refatoracao de funcoes inteiras por metrica. Snyk code parou por quota.
+DeepSource `9d666986` reportou "Analysis failed: Blocking issues or
+failing metrics found"; o detalhe segue nao auditado - a abertura
+direta do URL retornou bloqueio tecnico de URL, sem evidencia de que
+exija login. Os oito jobs Actions nao iniciaram por bloqueio de
+faturamento. Nada disso equivale a CI aprovado nem a teste local
+reprovado.
