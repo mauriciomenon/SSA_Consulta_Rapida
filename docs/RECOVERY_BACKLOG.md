@@ -8,7 +8,7 @@ nao autoriza nova execucao nem impede automaticamente outra entrega.
 Para pacotes, aplicar [os criterios de entrega](BUILD_WINDOWS_ARM64_AMD64.md#encerramento).
 Correcao apenas documental nao exige rebuild, suite completa ou novos scanners.
 
-Atualizado em 2026-09-16. Documento versionado; cada rodada abaixo identifica
+Atualizado em 2026-09-17. Documento versionado; cada rodada abaixo identifica
 seu escopo e sua evidencia. Estado de CI/CD na ultima secao e na PR 132.
 
 ## 2026-09-09 - Historico da limpeza uv
@@ -466,5 +466,30 @@ Followup desta secao: os comentarios 4032312590, 4032312595 e
 teste de falha de unlink tornado deterministico no principal da familia
 e textos de estado atualizados no report e neste cabecalho.
 
-Suite completa, scanners pesados, builds e validacao visual nao integram
-esta rodada. Os testes novos cobrem os defeitos e lacunas confirmados.
+## 2026-09-17 - Pendencias externas e guards headless (PR 132)
+
+- [x] CodeFactor voltou a SUCCESS em `2197be49` apos a remocao dos
+  literais `/tmp/` dos testes (alvo do B108); os 5 Complex Method
+  permanecem como avisos reais de complexidade em metodos modificados
+  pelo PR, sem refatoracao por metrica.
+- [x] Comentarios 4039423445 e 4039425853 (codereviewbot): os 3 guards
+  de staging no shutdown/closeEvent agora tratam
+  `ssa_database_operations is None` explicitamente; falhas reais do
+  modulo seguem fail-closed com log. Regressao coberta em
+  `test_gui_filter_logic.py` (modulo None aceita closeEvent nos caminhos
+  normal e forcado). Contexto: `__init__` barra GUI sem Qt - e
+  inconsistencia do caminho headless/teste, nao crash de GUI operante.
+- [ ] DeepSource run `c923b1e8`: detalhe do dashboard nao auditado; as
+  leituras foram rejeitadas na sessao e o pedido de confirmacao segue
+  pendente com o usuario.
+- [ ] Actions: bloqueio de faturamento confirmado no HEAD `fd2e742f`
+  pelas annotations dos check-runs (quality-gates/core e secret-scan).
+  Exige desbloqueio da conta pelo dono; nada de codigo.
+- [ ] Snyk code: "Code test limit reached" - quota do servico.
+- [ ] Validacao nativa Windows: ZIPs v4.50 em `builds/packages/` tem
+  origem no commit `37b2f59b` (2026-09-14) e nao evidenciam o HEAD.
+  Requisito: pacote construido a partir da fonte certa na VM existente.
+
+Validacao desta rodada: py_compile/Ruff/ty limpos nos arquivos tocados;
+22 testes focados de shutdown/staging + revalidacao do teste novo
+(1 passed). Sem suite completa, scanners, builds ou acesso a VM.

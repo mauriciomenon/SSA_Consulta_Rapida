@@ -2369,3 +2369,33 @@ direta do URL retornou bloqueio tecnico de URL, sem evidencia de que
 exija login. Os oito jobs Actions nao iniciaram por bloqueio de
 faturamento. Nada disso equivale a CI aprovado nem a teste local
 reprovado.
+
+### Complemento 3 - pendencias externas e guards headless (2026-09-17)
+
+- **CodeFactor**: voltou a `SUCCESS` em `2197be49` apos a troca dos
+  literais `/tmp/` dos dois testes por caminhos de `tmp_path` (alvo do
+  B108). Os 5 Complex Method permanecem como avisos reais de
+  complexidade em metodos modificados pelo PR; sao consultivos e nao
+  reprovam o check. Sem refatoracao por metrica.
+- **Comentarios 4039423445 e 4039425853** (codereviewbot, procedentes):
+  em headless `ssa_database_operations = cast(Any, None)` e a consulta
+  de stagings lancava `AttributeError` - nao `NameError` - caindo nos
+  ramos conservadores (staging fantasma) e podendo atingir
+  `allow_new_staged_copies()` sobre `None`. Os 3 guards (shutdown,
+  closeEvent forcado e barreira `bar_new_staged_copies`) agora checam
+  `is None` explicitamente; falhas reais do modulo seguem fail-closed
+  com log. Contexto: `__init__` barra GUI sem Qt - e inconsistencia do
+  caminho headless/teste, nao crash de GUI operante.
+- **Actions**: bloqueio de faturamento confirmado no HEAD `fd2e742f`
+  pelas annotations reais dos check-runs (quality-gates/core e
+  secret-scan): "account locked due to a billing issue". Exige acao na
+  conta; nada de codigo.
+- **Snyk code**: "Code test limit reached" - quota do servico.
+- **DeepSource** run `c923b1e8`: detalhe nao auditado; leituras do
+  dashboard rejeitadas na sessao, confirmacao pendente com o usuario.
+- **Windows**: ZIPs v4.50 em `builds/packages/` tem origem no commit
+  `37b2f59b` (2026-09-14) e nao evidenciam o HEAD atual.
+
+Validacao: py_compile/Ruff/ty limpos nos arquivos tocados; 22 testes
+focados de shutdown/staging + revalidacao do teste novo (1 passed).
+Sem suite completa, scanners pesados, builds ou acesso a VM.
