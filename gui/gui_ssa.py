@@ -5916,19 +5916,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
         # O registro de stagings ativos e a fonte de verdade: cobre threads
         # cuja referencia ja foi substituida (request expirado/novo).
-        try:
-            staging_active = (
-                ssa_database_operations.active_staged_copy_count() > 0
-            )
-        except NameError:
+        if ssa_database_operations is None:
             # Modo headless: database_operations nao foi importado e nenhum
             # staging pode existir.
             staging_active = False
-        except Exception as exc:
-            staging_active = True  # conservador: nao fecha na duvida
-            logger.warning(
-                "Falha ao consultar stagings ativos no shutdown: %s", exc
-            )
+        else:
+            try:
+                staging_active = (
+                    ssa_database_operations.active_staged_copy_count() > 0
+                )
+            except Exception as exc:
+                staging_active = True  # conservador: nao fecha na duvida
+                logger.warning(
+                    "Falha ao consultar stagings ativos no shutdown: %s", exc
+                )
         if staging_active:
             running_operations.append(_DB_COPY_STAGING_PENDING)
             running_labels.append("db_copy_staging")
@@ -6018,18 +6019,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # Staging pode estar ativo em thread cuja referencia ja foi
                 # perdida (request expirado/substituido): o registro e a
                 # fonte de verdade.
-                try:
-                    still_alive = (
-                        ssa_database_operations.active_staged_copy_count() > 0
-                    )
-                except NameError:
+                if ssa_database_operations is None:
                     still_alive = False  # headless: nenhum staging possivel
-                except Exception as exc:
-                    still_alive = True
-                    logger.debug(
-                        "Falha ao consultar stagings ativos no fechamento: %s",
-                        exc,
-                    )
+                else:
+                    try:
+                        still_alive = (
+                            ssa_database_operations.active_staged_copy_count() > 0
+                        )
+                    except Exception as exc:
+                        still_alive = True
+                        logger.debug(
+                            "Falha ao consultar stagings ativos no fechamento: %s",
+                            exc,
+                        )
             if still_alive:
                 logger.warning(
                     "Shutdown segue adiado; copia de banco alternativo "
@@ -6056,15 +6058,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Barreira final atomica: impede novos stagings e conta os vivos
         # sob o mesmo lock — um backup iniciado entre a ultima checagem e
         # o accept morreria no meio, deixando .copy-* parcial.
-        try:
-            staging_pending = ssa_database_operations.bar_new_staged_copies()
-        except NameError:
+        if ssa_database_operations is None:
             staging_pending = 0  # headless: nenhum staging possivel
-        except Exception as exc:
-            staging_pending = 1  # conservador: nao fecha na duvida
-            logger.debug(
-                "Falha ao verificar stagings antes do fechamento: %s", exc
-            )
+        else:
+            try:
+                staging_pending = ssa_database_operations.bar_new_staged_copies()
+            except Exception as exc:
+                staging_pending = 1  # conservador: nao fecha na duvida
+                logger.debug(
+                    "Falha ao verificar stagings antes do fechamento: %s", exc
+                )
         if staging_pending:
             ssa_database_operations.allow_new_staged_copies()
             logger.warning(

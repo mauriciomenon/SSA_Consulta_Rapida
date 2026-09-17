@@ -14896,6 +14896,32 @@ class TestGUIFilterLogic:
         self.window.closeEvent(final)
         assert final.isAccepted() is True
 
+    def test_close_event_accepts_when_database_operations_module_is_none(
+        self, monkeypatch
+    ):
+        """Modulo database_operations None (headless) nao trava o fechamento.
+
+        Em headless o modulo e cast(Any, None) e a consulta de stagings
+        levantaria AttributeError - nao NameError. Os guards devem tratar o
+        modulo ausente como "nenhum staging possivel" sem cair nos ramos
+        conservadores nem chamar allow_new_staged_copies sobre None.
+        """
+        monkeypatch.setattr(gui_ssa, "ssa_database_operations", None)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        first = QCloseEvent()
+        self.window.closeEvent(first)
+        assert first.isAccepted() is True
+
+        # Caminho forcado: shutdown() precisa recusar com deadline vencido
+        # para alcancar as consultas de staging do closeEvent.
+        monkeypatch.setattr(self.window, "shutdown", lambda: False)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        forced = QCloseEvent()
+        self.window.closeEvent(forced)
+        assert forced.isAccepted() is True
+
     def test_finalize_database_candidate_validation_discards_stale_result(
         self, tmp_path, monkeypatch
     ):
