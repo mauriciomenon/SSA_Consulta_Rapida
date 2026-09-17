@@ -479,17 +479,35 @@ e textos de estado atualizados no report e neste cabecalho.
   `test_gui_filter_logic.py` (modulo None aceita closeEvent nos caminhos
   normal e forcado). Contexto: `__init__` barra GUI sem Qt - e
   inconsistencia do caminho headless/teste, nao crash de GUI operante.
-- [ ] DeepSource run `c923b1e8`: detalhe do dashboard nao auditado; as
-  leituras foram rejeitadas na sessao e o pedido de confirmacao segue
-  pendente com o usuario.
+- [x] DeepSource run `8bfa5a7f` (HEAD `18471640`) triado via acesso
+  publico: 37 achados avaliados contra `dev` (16 Critical, 13 Major
+  bug-risk, 8 Security) - falsos positivos de fluxo, herdados de `dev`
+  por funcao/conteudo, advisory ou padroes de teste corretos. Nenhum
+  achado novo acionavel entre os 37 avaliados. Limites: 584 issues
+  restantes nao auditadas; metricas exibidas sao variacoes/valores,
+  nao thresholds provados; warning de baseline imprecisa e limitacao.
 - [ ] Actions: bloqueio de faturamento confirmado no HEAD `fd2e742f`
   pelas annotations dos check-runs (quality-gates/core e secret-scan).
   Exige desbloqueio da conta pelo dono; nada de codigo.
 - [ ] Snyk code: "Code test limit reached" - quota do servico.
-- [ ] Validacao nativa Windows: ZIPs v4.50 em `builds/packages/` tem
-  origem no commit `37b2f59b` (2026-09-14) e nao evidenciam o HEAD.
-  Requisito: pacote construido a partir da fonte certa na VM existente.
+- [x] Validacao nativa Windows concluida com pacote temporario do
+  HEAD: checkout detached em `18471640` na VM existente, builds
+  ARM64 CLI/GUI rc=0 com saida/work/spec em TEMP, PE `0xaa64` nos
+  dois executaveis, `BUILD_INFO.json` com o SHA do HEAD. Smoke CLI
+  `SMOKE_CLI_OK` v4.50 rc=0; GUI abriu com banco sintetico (3 SSAs,
+  resize ok), importacao regular +2 SSAs (total 5) e sync da
+  planilha especial com banner verde; `ssa_derivada_matrix` com as
+  3 arestas esperadas e ultimo sync `ok` (leitura `mode=ro`).
+  Painel observado: `202600004->202600005`, `QtdDer` 1/2; `202600006`
+  confirmado na matriz, sem linha visivel - observacao registrada,
+  sem nova falha declarada. Checkout restaurado para `dev`
+  (`37b2f59b`) limpo; pacotes de release, dist, configs e
+  relatorios existentes preservados. Pacote temporario ARM64
+  apenas; nao certifica AMD64 nem os ZIPs de release. Sem
+  scanners, suites ou testes novos nesta etapa.
 
-Validacao desta rodada: py_compile/Ruff/ty limpos nos arquivos tocados;
-22 testes focados de shutdown/staging + revalidacao do teste novo
-(1 passed). Sem suite completa, scanners, builds ou acesso a VM.
+Validacao da rodada anterior de correcoes: py_compile/Ruff/ty limpos
+nos arquivos tocados; 22 testes focados de shutdown/staging +
+revalidacao do teste novo (1 passed). Rodada atual: somente build
+temporario ARM64 + smoke + GUI nativa; sem suite, scanners ou acesso
+ampliado.

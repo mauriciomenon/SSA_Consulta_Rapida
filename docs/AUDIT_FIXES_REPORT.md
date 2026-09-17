@@ -2391,11 +2391,52 @@ reprovado.
   secret-scan): "account locked due to a billing issue". Exige acao na
   conta; nada de codigo.
 - **Snyk code**: "Code test limit reached" - quota do servico.
-- **DeepSource** run `c923b1e8`: detalhe nao auditado; leituras do
-  dashboard rejeitadas na sessao, confirmacao pendente com o usuario.
+- **DeepSource** run `8bfa5a7f` (HEAD `18471640`): triado via acesso
+  publico do dashboard (sem login; a alegacao anterior de acesso
+  bloqueado estava errada). 37 achados avaliados contra `dev` por
+  funcao/conteudo:
+  - 16 Critical: 3 de producao (`PYL-E0601` falso positivo de fluxo em
+    `database_operations.py:304`; `PYL-E1133`/`PYL-E1102` com guardas
+    `isinstance`/`callable` identicas em `dev`) e 13 `PTC-W0063`
+    (`next()` em testes) herdados - mesmas funcoes em `dev`, total
+    `next()` 15->15, nenhum novo.
+  - 13 Major/bug-risk: 5 identicos em `dev` (reimports `sys`/`pandas`/
+    `time`, `accept_mode`) e 8 em testes (padroes semanticamente
+    corretos, ex. `with closing() as conn, conn` inicia transacao).
+  - 8 Security: todos pre-existentes em `dev` e/ou advisory
+    (`PY-A6006` logging audit, `PTC-W6004` open(), `BAN-B608`/`B101`
+    em helper de teste ja guardado por `_quote_identifier` + allowlist).
+  - Limites: 584 issues restantes nao auditadas (621 totais menos as
+    37 avaliadas); metricas Doc Coverage +0.7%/16.3% e Deps +11/22 sao
+    variacoes/valores exibidos, nao thresholds provados nem causa da
+    falha; warning de baseline imprecisa registrado como limitacao,
+    nao prova de heranca.
+  - Veredito: nenhum achado novo acionavel entre os 37 avaliados;
+    consultivo por `CODE_QUALITY.md`.
 - **Windows**: ZIPs v4.50 em `builds/packages/` tem origem no commit
-  `37b2f59b` (2026-09-14) e nao evidenciam o HEAD atual.
+  `37b2f59b` (2026-09-14) e nao evidenciam o HEAD atual. Na VM
+  existente, checkout detached em `18471640` gerou builds temporarios
+  ARM64 com saida/work/spec em TEMP (CLI e GUI rc=0). Validacao
+  nativa desta rodada (todas confirmadas no console): smoke do CLI
+  congelado `SMOKE_CLI_OK` v4.50 rc=0; PE Machine `0xaa64` nos
+  executaveis CLI e GUI; `BUILD_INFO.json` do bundle com SHA
+  `18471640`; GUI abriu com as 3 SSAs sinteticas (resize/
+  maximizacao ok); importacao XLSX externa da planilha regular
+  adicionou 2 SSAs (total 5); planilha especial de derivadas
+  sincronizou (banner verde, 1/1, sem erro). Leitura final em
+  `mode=ro`: 5 linhas em `ssa_table`; `ssa_derivada_matrix` com
+  as arestas `202600001->202600002`, `202600004->202600005` e
+  `202600005->202600006`; ultimo `ssa_derivada_sync_run` = `ok`.
+  O painel de derivadas exibiu `202600004->202600005` e contagens
+  `QtdDer` 1 (005) / 2 (004); `202600006` nao apareceu como linha
+  na tela e foi confirmado apenas na matriz de derivadas - fica
+  registrada a observacao, sem declarar nova falha. GUI encerrada
+  com Alt+F4. Checkout do guest restaurado para `dev` (`37b2f59b`)
+  com workspace limpo. Pacote temporario ARM64 apenas; nao certifica
+  AMD64 nem os ZIPs de release. Sem scanners, suites ou testes novos.
 
-Validacao: py_compile/Ruff/ty limpos nos arquivos tocados; 22 testes
-focados de shutdown/staging + revalidacao do teste novo (1 passed).
-Sem suite completa, scanners pesados, builds ou acesso a VM.
+Validacao da rodada anterior de correcoes: py_compile/Ruff/ty limpos
+nos arquivos tocados; 22 testes focados de shutdown/staging +
+revalidacao do teste novo (1 passed). Rodada atual: somente build
+temporario ARM64 + smoke + GUI nativa; sem suite completa, scanners
+pesados ou testes novos.
