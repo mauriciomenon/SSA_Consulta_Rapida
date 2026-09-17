@@ -177,9 +177,13 @@ def _prune_forensic_backups(db_path: str) -> None:
                 )
             ):
                 families.setdefault(principal, []).append(path)
+        # Ordem cronologica deterministica: o sufixo do basename ja foi
+        # validado por _BACKUP_TIMESTAMP_PATTERN e tem largura fixa, logo
+        # a ordenacao lexica e cronologica - sem depender de mtime (que
+        # copias preservam) nem da ordem do iterdir em empates.
         ordered = sorted(
             families,
-            key=lambda principal: max(path.stat().st_mtime for path in families[principal]),
+            key=lambda principal: principal.name[len(prefix) : -len(".db")],
         )
     except FileNotFoundError:
         return

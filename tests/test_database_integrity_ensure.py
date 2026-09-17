@@ -226,6 +226,99 @@ def test_orphan_forensic_sidecars_are_pruned(tmp_path):
     assert all(not path.read_bytes().startswith(b"0:") for path in leftovers)
 
 
+def _forensic_family(backup_dir: Path, db_name: str, timestamp: str, *, with_db: bool):
+    base = backup_dir / f"{db_name}.corrupt_{timestamp}.db"
+    members = []
+    if with_db:
+        base.write_bytes(b"db-" + timestamp.encode())
+        members.append(base)
+    for suffix in ("-wal", "-shm", "-journal"):
+        sidecar = Path(f"{base}{suffix}")
+        sidecar.write_bytes(f"{timestamp}:{suffix}".encode())
+        members.append(sidecar)
+    return members
+
+
+def test_prune_forensic_backups_orders_by_name_timestamp(tmp_path):
+    """A ordem cronologica vem do timestamp validado do basename, nao do
+    mtime: familias criadas em ordem inversa e com mtimes empatados sao
+    podadas da mais antiga para a mais nova, e familia sem principal
+    (so sidecars) conta na retencao."""
+    db_path = _healthy_db(tmp_path)
+    backup_dir = Path(db_path).resolve().parent / "historico_backups"
+    backup_dir.mkdir(exist_ok=True)
+    db_name = Path(db_path).name
+    limit = database_integrity.INTEGRITY_SNAPSHOT_MAX_COUNT
+
+    timestamps = [
+        "20260101_000000_000004",
+        "20260101_000000_000003",
+        "20260101_000000_000002",
+        "20260101_000000_000001",
+    ]
+    created = [
+        _forensic_family(
+            backup_dir, db_name, ts, with_db=(ts != "20260101_000000_000002")
+        )
+        for ts in timestamps
+    ]
+    # Mtimes empatados e identidade invertida em relacao ao nome: so o
+    # timestamp do basename desempata de forma cronologica.
+    fixed_ns = 1_700_000_000_000_000_000
+    for members in created:
+        for member in members:
+            os.utime(member, ns=(fixed_ns, fixed_ns))
+
+    database_integrity._prune_forensic_backups(db_path)
+
+    remaining = sorted(
+        path.name for path in backup_dir.iterdir() if ".corrupt_" in path.name
+    )
+    assert not any("_000001" in name or "_000002" in name for name in remaining)
+    assert sum("_000003" in name for name in remaining) == 4
+    assert sum("_000004" in name for name in remaining) == 4
+    assert len(remaining) == limit * 4
+
+
+def test_prune_forensic_backups_preserves_family_on_unlink_failure(
+    tmp_path, monkeypatch
+):
+    """Falha ao remover um membro preserva o resto da familia como
+    evidencia e nao impede a poda das demais familias excedentes."""
+    db_path = _healthy_db(tmp_path)
+    backup_dir = Path(db_path).resolve().parent / "historico_backups"
+    backup_dir.mkdir(exist_ok=True)
+    db_name = Path(db_path).name
+
+    for index in range(4):
+        _forensic_family(
+            backup_dir, db_name, f"20260101_000000_00000{index + 1}", with_db=True
+        )
+
+    real_unlink = Path.unlink
+
+    def flaky_unlink(self, *args, **kwargs):
+        if self.name.endswith("-wal") and "_000001" in self.name:
+            raise OSError("falha simulada de remocao")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", flaky_unlink)
+
+    database_integrity._prune_forensic_backups(db_path)
+
+    monkeypatch.setattr(Path, "unlink", real_unlink)
+    remaining = sorted(
+        path.name for path in backup_dir.iterdir() if ".corrupt_" in path.name
+    )
+    # O -wal da familia mais antiga falhou: a poda dessa familia parou e
+    # os outros 3 membros ficaram como evidencia; a segunda mais antiga
+    # foi podada por completo.
+    assert sum("_000001" in name for name in remaining) == 3
+    assert not any("_000002" in name for name in remaining)
+    assert sum("_000003" in name for name in remaining) == 4
+    assert sum("_000004" in name for name in remaining) == 4
+
+
 def test_ensure_missing_db_without_snapshot_still_bootstraps(tmp_path):
     """Primeiro uso (sem snapshots): criacao inicial segue funcionando."""
     db_path = str(tmp_path / "fresh" / "ssas.db")
