@@ -285,16 +285,24 @@ def commit_staged_database_copy(staged: str, dest_str: str) -> dict[str, Any]:
     try:
         with database_writer_lock(dest_str, timeout=0):
             return _commit_staged_database_copy_locked(staged, dest_str)
-    except (Timeout, OSError) as exc:
-        logger.warning("Destino indisponivel para promocao %s: %s", dest_str, exc)
-        discard_staged_copy(staged)
-        return {
-            "ok": False,
-            "db_file": dest_str,
-            "copied": False,
-            "archived": None,
-            "error": f"destino indisponivel para promocao: {exc}",
-        }
+    except Timeout as exc:
+        logger.warning(
+            "Promocao recusada, escrita em curso no destino %s: %s", dest_str, exc
+        )
+        error = f"destino indisponivel para promocao (escrita em curso): {exc}"
+    except OSError as exc:
+        # O try cobre aquisicao, corpo e liberacao do lock: nao da para
+        # afirmar que o lock estava ocupado - reporta a causa real.
+        logger.warning("Falha de IO na promocao para %s: %s", dest_str, exc)
+        error = f"falha de IO na promocao do banco para {dest_str}: {exc}"
+    discard_staged_copy(staged)
+    return {
+        "ok": False,
+        "db_file": dest_str,
+        "copied": False,
+        "archived": None,
+        "error": error,
+    }
 
 
 def _commit_staged_database_copy_locked(
