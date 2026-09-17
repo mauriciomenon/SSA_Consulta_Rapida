@@ -470,7 +470,7 @@ def test_run_importer_runs_special_derivadas_sync_for_explicit_file_import(
 
 
 def test_needs_db_only_derivadas_sync_returns_false_on_runtime_error(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import core.app_logic as app_logic
 
@@ -480,7 +480,12 @@ def test_needs_db_only_derivadas_sync_returns_false_on_runtime_error(
         lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("db down")),
     )
 
-    assert app_logic._needs_db_only_derivadas_sync("/tmp/ssa.db", "ssa_table") is False
+    assert (
+        app_logic._needs_db_only_derivadas_sync(
+            str(tmp_path / "ssa.db"), "ssa_table"
+        )
+        is False
+    )
 
 
 def test_db_only_preflight_retries_when_latest_run_marked_failed(
@@ -590,11 +595,14 @@ def test_mark_latest_sync_run_failed_marks_given_run_not_newest(
     assert statuses[newer_id] == "ok"
 
 
-def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> None:
+def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error(
+    tmp_path: Path,
+) -> None:
     import core.app_logic as app_logic
 
     critical_errors: list[tuple[str, str, str]] = []
     progress_events: list[tuple[str, dict[str, object]]] = []
+    docs_dir = str(tmp_path / "docs")
 
     def _emit_progress(event_type: str, data: dict[str, object]) -> None:
         progress_events.append((event_type, data))
@@ -609,13 +617,13 @@ def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> 
         sync_materialized, blocking_error, synced_files = (
             app_logic._run_optional_derivadas_sync(
                 auto_derivadas_sync_enabled=True,
-                successfully_processed_files=["/tmp/regular.xlsx"],
+                successfully_processed_files=[str(tmp_path / "regular.xlsx")],
                 derivadas_sheet_files=[],
                 db_only_derivadas_sync=False,
                 should_cancel=None,
-                working_db_path="/tmp/ssa.db",
+                working_db_path=str(tmp_path / "ssa.db"),
                 table_name="ssa_table",
-                docs_dir="/tmp/docs",
+                docs_dir=docs_dir,
                 critical_errors=critical_errors,
                 emit_progress=_emit_progress,
             )
@@ -627,7 +635,7 @@ def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> 
     assert len(critical_errors) == 1
     error_type, error_path, error_message = critical_errors[0]
     assert error_type == "derivadas_sync"
-    assert error_path == "/tmp/docs"
+    assert error_path == docs_dir
     assert error_message.startswith("sync down")
     assert "dados importados" in error_message
     assert progress_events == [
