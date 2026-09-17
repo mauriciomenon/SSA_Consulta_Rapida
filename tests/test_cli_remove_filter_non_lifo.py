@@ -21,7 +21,7 @@ def test_remove_filter_non_lifo_reapplies_from_base(monkeypatch):
 
     def _fake_filter_dataframe(df: pd.DataFrame, terms):
         calls["df"] = df
-        calls["terms"] = list(terms)
+        calls["terms"] = terms
         return target_df
 
     monkeypatch.setattr(cli, "filter_dataframe", _fake_filter_dataframe)
@@ -54,7 +54,7 @@ def test_remove_filter_lifo_reapplies_from_previous_state(monkeypatch):
 
     def _fake_filter_dataframe(df: pd.DataFrame, terms):
         calls["df"] = df
-        calls["terms"] = list(terms)
+        calls["terms"] = terms
         return target_df
 
     monkeypatch.setattr(cli, "filter_dataframe", _fake_filter_dataframe)
