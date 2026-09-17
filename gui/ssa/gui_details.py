@@ -596,12 +596,103 @@ def _get_details_frame_fingerprint(window, df) -> str:
     return fingerprint
 
 
+def _details_db_file_generation(db_path):
+    """Metadados que identificam a geracao do conjunto .db + sidecars.
+
+    Cada slot carrega identidade (dev/ino), tamanho e timestamps em
+    nanossegundos; slot None significa arquivo ausente (somente
+    FileNotFoundError). Cobre a escrita externa via -wal, que nao
+    altera o .db principal, e a troca do arquivo por rename (dev/ino
+    mudam). O -shm fica fora da geracao porque leitores do WAL o
+    atualizam, o que invalidaria o memo a cada consulta. Qualquer outra
+    falha de stat ou de resolucao de caminho retorna None e o chamador
+    nao reutiliza assinatura anterior.
+
+    Limite real: uma reescrita com conteudo diferente que mantenha TODOS
+    os metadados observados identicos (FS com granularidade grosseira ou
+    restauracao de metadados) nao seria detectada; na pratica, commits
+    em WAL alteram tamanho ou mtime_ns do -wal.
+    """
+    if not db_path:
+        return None
+    try:
+        canonical = os.path.realpath(db_path)
+    except (OSError, TypeError, ValueError):
+        return None
+    parts: list[tuple[int, int, int, int, int] | None] = []
+    for suffix in ("", "-wal", "-journal"):
+        try:
+            stat_result = os.stat(f"{canonical}{suffix}")
+        except FileNotFoundError:
+            parts.append(None)
+        except OSError as exc:
+            logger.debug(
+                "Falha ao inspecionar geracao do banco de detalhes %s%s: %s",
+                canonical,
+                suffix,
+                exc,
+            )
+            return None
+        else:
+            parts.append(
+                (
+                    stat_result.st_dev,
+                    stat_result.st_ino,
+                    stat_result.st_size,
+                    stat_result.st_mtime_ns,
+                    stat_result.st_ctime_ns,
+                )
+            )
+    return canonical, tuple(parts)
+
+
 def _get_details_db_signature(window=None):
+    """Assinatura (db_path, token) do estado do banco para o painel.
+
+    A consulta SQLite do token fica memoizada por geracao do conjunto
+    .db/-wal/-journal + revisao local: renders e selecoes repetidas sem
+    mudanca de geracao nao reabrem o banco. Falha ao obter a geracao nao
+    reutiliza assinatura - o token e consultado de novo. So o token
+    "graph" (fingerprint confirmado) e memoizado: o fallback "mtime"
+    tambem cobre falha transitoria de consulta e nao pode ser reutilizado
+    por tempo indeterminado; bancos sem fingerprint nao ganham essa
+    memoizacao.
+    """
     db_path = getattr(window, "db_path", None) or _resolve_current_db_path()
     active_signature = getattr(window, "_details_active_db_signature", None)
     if active_signature is not None and active_signature[0] == db_path:
         return active_signature
-    return db_path, details_data_provider.get_derivadas_graph_cache_token(db_path)
+    generation = _details_db_file_generation(db_path)
+    revision_key = (
+        getattr(window, "_data_uuid", None),
+        getattr(window, "_data_revision", None),
+    )
+    memo = getattr(window, "_details_db_signature_cache", None)
+    if (
+        generation is not None
+        and isinstance(memo, tuple)
+        and len(memo) == 3
+        and memo[0] == generation
+        and memo[1] == revision_key
+    ):
+        return memo[2]
+    signature = (
+        db_path,
+        details_data_provider.get_derivadas_graph_cache_token(db_path),
+    )
+    token = signature[1]
+    if (
+        generation is not None
+        and window is not None
+        and isinstance(token, tuple)
+        and token[0] == "graph"
+    ):
+        setattr(
+            window,
+            "_details_db_signature_cache",
+            (generation, revision_key, signature),
+        )
+    return signature
 
 
 def _details_render_payload_context(window, normalized, style):
