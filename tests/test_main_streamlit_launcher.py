@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import signal
 import subprocess
+import threading
 from typing import Any, cast
 
 import pytest
@@ -261,3 +262,70 @@ def test_launch_rejects_worker_thread(monkeypatch, tmp_path, capsys):
     assert streamlit_launcher.launch_streamlit(str(tmp_path)) is False
     assert "thread principal" in capsys.readouterr().out
     assert not streamlit_launcher._STREAMLIT_PROCESSES
+
+
+def test_terminate_process_logs_only_outside_signal_path(monkeypatch):
+    """Com reap=False (dentro do handler de sinal) a falha de terminate()
+    nao pode logar — o logging poderia bloquear e impedir o sys.exit do
+    handler. O caminho normal reap=True mantem o diagnostico."""
+    warnings = []
+
+    class Process:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            raise OSError("encerramento recusado")
+
+    monkeypatch.setattr(
+        streamlit_launcher.logger,
+        "warning",
+        lambda *args, **kwargs: warnings.append(args),
+    )
+
+    streamlit_launcher._terminate_process(Process(), reap=False)
+    assert warnings == []
+
+    streamlit_launcher._terminate_process(Process(), reap=True)
+    assert len(warnings) == 1
+    assert "Falha ao encerrar Streamlit" in warnings[0][0]
+
+
+def test_wait_for_streamlit_in_worker_thread_skips_signal_handlers(monkeypatch):
+    """Fora da thread principal a espera continua, mas signal.signal nao
+    pode ser chamado — o guard impede instalar/restaurar handler ali."""
+
+    class Process:
+        waited = False
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            self.waited = True
+            return 0
+
+    process = Process()
+    streamlit_launcher._STREAMLIT_PROCESSES.append(cast(Any, process))
+
+    handler_calls: list[str] = []
+    monkeypatch.setattr(
+        streamlit_launcher,
+        "_install_sigterm_handler",
+        lambda: handler_calls.append("install"),
+    )
+    monkeypatch.setattr(
+        streamlit_launcher,
+        "_restore_sigterm_handler_if_idle",
+        lambda: handler_calls.append("restore"),
+    )
+
+    def runner():
+        streamlit_launcher.wait_for_streamlit()
+
+    worker = threading.Thread(target=runner)
+    worker.start()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert handler_calls == []
+    assert process.waited is True

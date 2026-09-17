@@ -30,7 +30,9 @@ def _terminate_process(process, *, reap: bool = True) -> None:
     terminate sai imediato — usado no handler de sinal, onde um wait
     disputaria o _waitpid_lock com o wait() interrompido na main thread
     e esgotaria o timeout sem necessidade (o atexit faz a colheita apos
-    o unwind liberar o lock).
+    o unwind liberar o lock). Pelo mesmo motivo esse caminho nao loga:
+    o logging pode bloquear no lock interno do handler de log e
+    impediria o sys.exit do handler de sinal.
     """
     terminate = getattr(process, "terminate", None)
     if not callable(terminate) or not _is_process_running(process):
@@ -38,7 +40,8 @@ def _terminate_process(process, *, reap: bool = True) -> None:
     try:
         terminate()
     except OSError as exc:
-        logger.warning("Falha ao encerrar Streamlit: %s", exc)
+        if reap:
+            logger.warning("Falha ao encerrar Streamlit: %s", exc)
         return
     if not reap:
         return
@@ -97,13 +100,19 @@ def wait_for_streamlit() -> None:
     process = _STREAMLIT_PROCESSES[-1] if _STREAMLIT_PROCESSES else None
     if process is None:
         return
-    _install_sigterm_handler()
+    # signal.signal so existe na thread principal. Fora dela a espera
+    # continua util, mas sem instalar/restaurar handler aqui: o handler
+    # instalado no lancamento e o atexit seguem cobrindo o filho.
+    in_main_thread = threading.current_thread() is threading.main_thread()
+    if in_main_thread:
+        _install_sigterm_handler()
     try:
         process.wait()
     except KeyboardInterrupt:
         pass
     finally:
-        _restore_sigterm_handler_if_idle()
+        if in_main_thread:
+            _restore_sigterm_handler_if_idle()
 
 
 def _is_process_running(process) -> bool:
