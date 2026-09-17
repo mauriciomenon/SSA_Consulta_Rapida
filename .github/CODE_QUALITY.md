@@ -89,3 +89,46 @@ Settings > Advanced Security > Dependency graph no GitHub e registrar o efeito.
   exige cenario com diretorio arbitrario do usuario na validacao do pacote.
 - Qualquer mudanca futura de regras, Apps ou criterio de aprovacao deve ser
   registrada aqui junto da configuracao correspondente.
+
+## Registro da PR 132 (17/09/2026) - rota local sem depender de faturamento
+
+HEAD `dbf33d04`, base `639b5bf`. Os jobs GitHub Actions do HEAD falham por
+bloqueio de faturamento da conta (annotations em `quality-gates (core)` e
+`secret-scan`, check-runs 105338406808/105338405938) e seguem falhos como
+registro de infraestrutura - nao foram marcados como sucesso. `gh pr checks
+--required` nao reporta checks obrigatorios, portanto nenhum workflow ou
+protecao precisou mudar. Faturamento nao e pre-requisito de merge quando a
+validacao local equivalente e suficiente nesta rodada.
+
+Gates locais executados com os mesmos contratos do CI, em macOS arm64
+(Darwin arm64) com Python 3.13.12; o CI Linux do Actions nao foi executado
+neste HEAD. Execucao inicial sobre `dbf33d04` puro; o reteste do grupo core
+correu na mesma arvore acrescida do patch de teste descrito abaixo, nao
+sobre `dbf33d04` limpo. Uma passagem por grupo, logs em /tmp/pr132_*:
+
+- `ci_quality_gates.sh` (validate_configs + smoke_cli + check_docs): rc=0.
+- Ruff, ty e py_compile nos 66 arquivos Python do diff
+  (lista em /tmp/pr132_changed_py.txt): rc=0.
+- pytest na particao da matriz (`--timeout=45 --timeout-method=thread`,
+  `QT_QPA_PLATFORM=offscreen`): data-import 724 passed; cli-release
+  371 passed + 6 skipped; core 816 passed + 1 skipped (reteste apos
+  correcao; a passagem inicial teve 2 falhas de captura de log);
+  gui-filter 581 passed + 1 skipped; gui-other 62 arquivos isolados,
+  620 passed + 1 skipped + 11 subtests agregados. Total da matriz:
+  3112 passed, 9 skipped, 11 subtests.
+- `scan_secrets.sh workspace` e `pr-diff 639b5bf`: rc=0.
+- `validate_git_authorship.py range 639b5bf dbf33d04`: OK (47 commits).
+
+Correcao nesta rodada: `test_remote_itaipu_dataframe.py` ganhou
+`caplog.set_level(logging.WARNING)` - testes anteriores que chamam
+`main.main --log-level CRITICAL` deixam root e handlers (incluindo o
+LogCaptureHandler do caplog) em nivel 50; a captura explicita declara a
+pre-condicao do teste sem remover asserts nem alterar logging de producao.
+
+Limites: DeepSource consultivo permanece failure - 37 achados triados,
+incluindo os 16 Critical (3 em producao: 1 PYL-E0601 falso positivo e 2
+guardadas PYL-E1133/E1102 identicas a dev; 13 PTC-W0063 `next()` em
+testes herdados de dev), e 584 issues restantes nao auditadas. Snyk code
+segue em quota; validacao nativa foi Windows ARM64 temporario - AMD64 e
+ZIPs de release nao certificados nesta rodada; dependency-review e
+prechecks nao tem equivalente local executado.

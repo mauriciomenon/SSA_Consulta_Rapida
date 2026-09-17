@@ -2437,6 +2437,55 @@ reprovado.
 
 Validacao da rodada anterior de correcoes: py_compile/Ruff/ty limpos
 nos arquivos tocados; 22 testes focados de shutdown/staging +
-revalidacao do teste novo (1 passed). Rodada atual: somente build
+revalidacao do teste novo (1 passed). Rodada Windows: somente build
 temporario ARM64 + smoke + GUI nativa; sem suite completa, scanners
 pesados ou testes novos.
+
+### Complemento 4 - gates locais equivalentes ao CI (2026-09-17)
+
+Os jobs GitHub Actions do HEAD `dbf33d04` falham por bloqueio de
+faturamento da conta (annotations re-lidas neste HEAD: check-runs
+105338406808 `quality-gates (core)` e 105338405938 `secret-scan`,
+"account locked due to a billing issue"). Ficam falhos como registro
+de infraestrutura. `gh pr checks --required` nao reporta checks
+obrigatorios; nenhum workflow ou protecao foi alterado.
+
+Gates locais executados com os mesmos contratos do CI
+(base `639b5bf`, HEAD `dbf33d04`, uma passagem por grupo), em macOS
+arm64 (Darwin arm64) com Python 3.13.12. O CI Linux do Actions nao
+foi executado neste HEAD. A execucao inicial correu sobre `dbf33d04`
+puro; o reteste do grupo core correu na mesma arvore acrescida do
+patch de teste descrito abaixo, nao sobre `dbf33d04` limpo.
+
+- `ci_quality_gates.sh` (validate_configs + smoke_cli + check_docs):
+  rc=0; smoke com importacao funcional (`imported_rows=1`).
+- Ruff, ty e py_compile nos 66 arquivos Python do diff
+  (lista em /tmp/pr132_changed_py.txt): rc=0.
+- pytest na particao da matriz do workflow
+  (`--timeout=45 --timeout-method=thread`, `QT_QPA_PLATFORM=offscreen`,
+  listas em /tmp/pr132_pytest_<grupo>.txt):
+  - data-import: 724 passed (rc=0)
+  - cli-release: 371 passed, 6 skipped (rc=0)
+  - core: 816 passed, 1 skipped (rc=0 no reteste apos correcao; a
+    passagem inicial teve 2 falhas de captura de log)
+  - gui-filter: 581 passed, 1 skipped (rc=0)
+  - gui-other: 62 arquivos isolados, agregado 620 passed, 1 skipped,
+    11 subtests, 0 falhas
+  - total da matriz: 3112 passed, 9 skipped, 11 subtests
+- `scan_secrets.sh workspace` e `pr-diff 639b5bf`: rc=0, sem padroes.
+- `validate_git_authorship.py range 639b5bf dbf33d04`: OK (47 commits).
+
+Correcao de teste nesta rodada: `tests/test_remote_itaipu_dataframe.py`
+ganhou `caplog.set_level(logging.WARNING)`. Testes que chamam
+`main.main --log-level CRITICAL` deixam root e todos os handlers
+(incluindo o LogCaptureHandler do caplog) em nivel 50 sem restaurar;
+a captura explicita declara a pre-condicao do teste sem remover
+asserts e sem alterar o logging de producao.
+
+Limites: DeepSource consultivo permanece failure - 37 achados triados,
+incluindo os 16 Critical (3 em producao: 1 PYL-E0601 falso positivo e
+2 guardadas PYL-E1133/E1102 identicas a dev; 13 PTC-W0063 `next()` em
+testes herdados de dev), e 584 issues restantes nao auditadas. Snyk
+code em quota; validacao nativa foi Windows ARM64 temporario - AMD64 e
+ZIPs de release nao certificados; dependency-review e prechecks do
+Actions nao tem equivalente local executado.

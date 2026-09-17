@@ -508,6 +508,28 @@ e textos de estado atualizados no report e neste cabecalho.
 
 Validacao da rodada anterior de correcoes: py_compile/Ruff/ty limpos
 nos arquivos tocados; 22 testes focados de shutdown/staging +
-revalidacao do teste novo (1 passed). Rodada atual: somente build
+revalidacao do teste novo (1 passed). Rodada Windows: somente build
 temporario ARM64 + smoke + GUI nativa; sem suite, scanners ou acesso
 ampliado.
+
+## 2026-09-17 - Gates locais equivalentes ao CI (PR 132)
+
+- [x] Faturamento do GitHub Actions bloqueia os jobs no HEAD
+  `dbf33d04` (annotations confirmadas neste HEAD); nao e
+  pre-requisito de merge - nenhum check obrigatorio existe
+  (`--required` vazio) e nenhum workflow/protecao mudou.
+- [x] Gates locais com os mesmos contratos do CI, base `639b5bf`,
+  em macOS arm64 (Python 3.13.12); CI Linux do Actions nao executado:
+  quality-gates script rc=0; Ruff/ty/py_compile nos 66 arquivos do
+  diff rc=0; pytest particionado - data-import 724, cli-release
+  371 (+6 skip), core 816 (+1 skip, reteste apos patch de teste),
+  gui-filter 581 (+1 skip), gui-other 620 agregado (+1 skip, 62
+  arquivos isolados); total 3112 passed, 9 skipped, 11 subtests;
+  secret-scan workspace+pr-diff rc=0; autoria 47 commits OK.
+- [x] Correcao: `caplog.set_level(logging.WARNING)` em
+  `tests/test_remote_itaipu_dataframe.py` - vazamento de nivel
+  CRITICAL de testes `main.main` anteriores esvaziava a captura;
+  sem remover asserts nem alterar producao.
+- [ ] Fora do criterio desta entrega (opcional, decisao do dono):
+  regularizacao de faturamento reabilitaria o CI online; quota Snyk
+  code; DeepSource consultivo com 584 issues nao auditadas.
