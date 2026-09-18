@@ -44,6 +44,17 @@ uv run --python $PY_RUNTIME main.py --gui
 
 # Streamlit
 uv run --python $PY_RUNTIME main.py --streamlit
+
+# Streamlit com banco/planilhas fora das pastas permitidas
+# A escolha na UI vale para a sessao. Para pre-autorizar no PowerShell:
+$env:SSA_EXTRA_ALLOWED_PATHS = "C:\Dados;D:\Planilhas"
+uv run --python $PY_RUNTIME main.py --streamlit
+```
+
+Em Bash (macOS/Linux), o separador de raizes e `:`:
+
+```bash
+SSA_EXTRA_ALLOWED_PATHS="/caminho/um:/caminho/dois" uv run --python 3.13 main.py --streamlit
 ```
 
 ## Importacao e banco

@@ -87,6 +87,38 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: D401
         shutil.rmtree(_TEST_SSA_CONFIG_DIR, ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def _resync_path_safety_roots() -> Iterator[None]:
+    """Re-sincroniza utils.path_safety apos cada teste.
+
+    Testes que alteram SSA_EXTRA_ALLOWED_PATHS via monkeypatch deixam
+    _ALLOWED_ROOTS_ENV_VALUE stale; sem refresh, a proxima chamada a
+    get_allowed_roots() reconstruiria ALLOWED_ROOTS e anularia o
+    monkeypatch.setattr(ALLOWED_ROOTS, ...) do teste seguinte.
+    """
+    yield
+    from utils import path_safety
+
+    path_safety.refresh_allowed_roots()
+
+
+@pytest.fixture(autouse=True)
+def _reset_db_staging_state() -> Iterator[None]:
+    """Zera o registro de stagings `.copy-*` entre testes.
+
+    Um closeEvent aceito barra novos stagings e um teste que esquecer de
+    desregistrar deixaria `active_staged_copy_count() > 0`, fazendo
+    testes de shutdown seguintes nunca aceitarem o fechamento.
+    """
+    yield
+    with suppress(Exception):
+        from gui.ssa import database_operations as ssa_ops
+
+        ssa_ops.allow_new_staged_copies()
+        with ssa_ops._ACTIVE_STAGED_LOCK:
+            ssa_ops._ACTIVE_STAGED_COPIES.clear()
+
+
 @pytest.fixture(scope="function")
 def temp_db() -> Iterator[str]:
     """Fornece caminho para DB SQLite temporário com schema aplicado."""

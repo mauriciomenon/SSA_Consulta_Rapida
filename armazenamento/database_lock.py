@@ -23,7 +23,9 @@ def _lock_path(db_path: str) -> Path:
 
 
 @contextmanager
-def database_writer_lock(db_path: str) -> Iterator[None]:
+def database_writer_lock(
+    db_path: str, *, timeout: float | None = None
+) -> Iterator[None]:
     """Serialize project writers for one database across threads and processes."""
     if db_path == ":memory:":
         yield
@@ -35,5 +37,5 @@ def database_writer_lock(db_path: str) -> Iterator[None]:
         thread_local=True,
         is_singleton=True,
     )
-    with lock:
+    with lock.acquire(timeout=timeout):
         yield

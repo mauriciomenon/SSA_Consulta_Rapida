@@ -899,6 +899,13 @@ def _copy_runtime_bundle(
             logger.error("Executavel nao encontrado para empacotamento: %s", exe_src)
             return False
         shutil.copy2(exe_src, package_dir / exe_src.name)
+        if include_runtime_db:
+            runtime_db = exe_src.parent / "data" / "ssas.db"
+            if not runtime_db.is_file():
+                logger.error("Banco de runtime ausente: %s", runtime_db)
+                return False
+            (package_dir / "data").mkdir(exist_ok=True)
+            shutil.copy2(runtime_db, package_dir / "data" / "ssas.db")
 
         internal_dir_name = build_info.get("internal_dir")
         if isinstance(internal_dir_name, str) and internal_dir_name:
@@ -1139,8 +1146,6 @@ def _build_inno_excludes_str(include_runtime_db: bool = False) -> str:
         ]
     )
     for item in sorted(EXCLUDED_BUNDLE_ITEMS):
-        if include_runtime_db and item == "data":
-            continue
         inno_excludes.append(f"{item}\\*")
     return ",".join(inno_excludes)
 
@@ -1188,6 +1193,22 @@ def _build_inno_local_db_blocks(
     return dirs_block, files_block
 
 
+def _build_inno_runtime_db_files_block(
+    runtime_databases: list[Path], source_dir: Path
+) -> str:
+    """Linha [Files] dedicada a data\\ssas.db quando o banco e incluido.
+
+    O exclude global data\\* segue ativo para nao vazar file_cache.json,
+    historico_backups e outros artefatos; so o banco e empacotado,
+    espelhando o conteudo do ZIP.
+    """
+    return "\n".join(
+        f'Source: "{{#SourceDir}}\\{_normalize_windows_path(str(path.relative_to(source_dir)))}"; '
+        f'DestDir: "{{app}}\\{_normalize_windows_path(str(path.parent.relative_to(source_dir)))}"; Flags: ignoreversion'
+        for path in runtime_databases
+    )
+
+
 def _build_inno_iss_content(
     build_system: str,
     version: str,
@@ -1200,6 +1221,7 @@ def _build_inno_iss_content(
     sample_db_files_block: str,
     local_db_dirs_block: str,
     local_db_files_block: str,
+    runtime_db_files_block: str = "",
 ) -> str:
     """Renderiza conteudo do arquivo ISS."""
     setup_icon_line = f"SetupIconFile={setup_icon_spec}" if setup_icon_spec else ""
@@ -1209,6 +1231,9 @@ def _build_inno_iss_content(
     )
     local_db_dirs_section = f"{local_db_dirs_block}\n" if local_db_dirs_block else ""
     local_db_files_section = f"{local_db_files_block}\n" if local_db_files_block else ""
+    runtime_db_files_section = (
+        f"{runtime_db_files_block}\n" if runtime_db_files_block else ""
+    )
     return f"""
 ; Script Inno Setup para SSA Consulta Rapida
 ; Build System: {BUILD_SYSTEMS[build_system]["name"]}
@@ -1252,6 +1277,7 @@ Source: "{{#SourceDir}}\\{exe_name}"; DestDir: "{{app}}"; Flags: ignoreversion
 Source: "{{#SourceDir}}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{inno_excludes_str}"
 {sample_db_files_section}
 {local_db_files_section}
+{runtime_db_files_section}
 
 [Dirs]
 {sample_db_dirs_section}
@@ -1302,6 +1328,7 @@ def create_inno_setup_script(
         return None
 
     source_dir, exe_name = resolved
+    runtime_databases: list[Path] = []
     if include_runtime_db:
         sensitive_files = [
             path
@@ -1376,6 +1403,7 @@ def create_inno_setup_script(
         sample_db_files_block,
         local_db_dirs_block,
         local_db_files_block,
+        _build_inno_runtime_db_files_block(runtime_databases, source_dir),
     )
 
     iss_path = DIST_OUTPUT / f"installer_{build_system}.iss"

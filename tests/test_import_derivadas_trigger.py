@@ -470,7 +470,7 @@ def test_run_importer_runs_special_derivadas_sync_for_explicit_file_import(
 
 
 def test_needs_db_only_derivadas_sync_returns_false_on_runtime_error(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import core.app_logic as app_logic
 
@@ -480,14 +480,129 @@ def test_needs_db_only_derivadas_sync_returns_false_on_runtime_error(
         lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("db down")),
     )
 
-    assert app_logic._needs_db_only_derivadas_sync("/tmp/ssa.db", "ssa_table") is False
+    assert (
+        app_logic._needs_db_only_derivadas_sync(
+            str(tmp_path / "ssa.db"), "ssa_table"
+        )
+        is False
+    )
 
 
-def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> None:
+def test_db_only_preflight_retries_when_latest_run_marked_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Falha pos-commit (scan de consistencia) marca o run como 'error' e o
+    preflight DB-only passa a pedir resync, cumprindo a promessa de refazer
+    automaticamente o sync no proximo rescan."""
+    import sqlite3
+
+    import core.app_logic as app_logic
+    from armazenamento import database
+    from armazenamento.derivadas_sync import (
+        mark_latest_sync_run_failed,
+        sync_derivadas,
+    )
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = str(data_dir / "test.db")
+    assert database.initialize_database(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO ssa_table "
+            "(numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+            [
+                ("202500001", None, "SSA pai"),
+                ("202500002", "202500001", "SSA filha"),
+            ],
+        )
+        conn.commit()
+
+    report = sync_derivadas(db_path, table_name="ssa_table")
+    assert report["sync_run_id"] is not None
+    assert app_logic._needs_db_only_derivadas_sync(db_path, "ssa_table") is False
+
+    assert mark_latest_sync_run_failed(
+        db_path, message="post_commit_validation_failed"
+    ) is True
+    assert app_logic._needs_db_only_derivadas_sync(db_path, "ssa_table") is True
+
+    with sqlite3.connect(db_path) as conn:
+        latest_status = conn.execute(
+            "SELECT status FROM ssa_derivada_sync_run "
+            "ORDER BY sync_run_id DESC LIMIT 1"
+        ).fetchone()[0]
+    assert latest_status == "error"
+
+
+def test_mark_latest_sync_run_failed_marks_given_run_not_newest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Com sync_run_id explicito, apenas o run que falhou e marcado:
+    um run concorrente mais recente permanece 'ok'."""
+    import sqlite3
+
+    from armazenamento import database
+    from armazenamento.derivadas_sync import (
+        mark_latest_sync_run_failed,
+        sync_derivadas,
+    )
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = str(data_dir / "test.db")
+    assert database.initialize_database(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO ssa_table "
+            "(numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+            ("202500001", None, "SSA pai"),
+        )
+        conn.commit()
+
+    failed_report = sync_derivadas(db_path, table_name="ssa_table")
+    failed_id = failed_report["sync_run_id"]
+    assert failed_id is not None
+    # Um run 'ok' mais recente simula o sync concorrente que a selecao
+    # por "mais recente" marcaria indevidamente.
+    with sqlite3.connect(db_path) as conn:
+        newer_id = conn.execute(
+            "INSERT INTO ssa_derivada_sync_run (mode, started_at, status) "
+            "VALUES ('manual', '2026-01-02T00:00:00', 'ok')"
+        ).lastrowid
+        conn.commit()
+    assert newer_id is not None and newer_id != failed_id
+
+    assert mark_latest_sync_run_failed(
+        db_path, message="post_commit_validation_failed", sync_run_id=failed_id
+    ) is True
+
+    with sqlite3.connect(db_path) as conn:
+        statuses = dict(
+            conn.execute(
+                "SELECT sync_run_id, status FROM ssa_derivada_sync_run"
+            ).fetchall()
+        )
+    assert statuses[failed_id] == "error"
+    assert statuses[newer_id] == "ok"
+
+
+def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error(
+    tmp_path: Path,
+) -> None:
     import core.app_logic as app_logic
 
     critical_errors: list[tuple[str, str, str]] = []
     progress_events: list[tuple[str, dict[str, object]]] = []
+    docs_dir = str(tmp_path / "docs")
 
     def _emit_progress(event_type: str, data: dict[str, object]) -> None:
         progress_events.append((event_type, data))
@@ -502,13 +617,13 @@ def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> 
         sync_materialized, blocking_error, synced_files = (
             app_logic._run_optional_derivadas_sync(
                 auto_derivadas_sync_enabled=True,
-                successfully_processed_files=["/tmp/regular.xlsx"],
+                successfully_processed_files=[str(tmp_path / "regular.xlsx")],
                 derivadas_sheet_files=[],
                 db_only_derivadas_sync=False,
                 should_cancel=None,
-                working_db_path="/tmp/ssa.db",
+                working_db_path=str(tmp_path / "ssa.db"),
                 table_name="ssa_table",
-                docs_dir="/tmp/docs",
+                docs_dir=docs_dir,
                 critical_errors=critical_errors,
                 emit_progress=_emit_progress,
             )
@@ -517,16 +632,121 @@ def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> 
     assert sync_materialized is False
     assert blocking_error is True
     assert synced_files == []
-    assert critical_errors == [("derivadas_sync", "/tmp/docs", "sync down")]
+    assert len(critical_errors) == 1
+    error_type, error_path, error_message = critical_errors[0]
+    assert error_type == "derivadas_sync"
+    assert error_path == docs_dir
+    assert error_message.startswith("sync down")
+    assert "dados importados" in error_message
     assert progress_events == [
         (
             "file_error",
             {
-                "filename": "SSAs Derivadas e Relacionadas",
-                "error": "sync down",
+                "filename": "Sincronizacao de derivadas",
+                "error": error_message,
             },
         )
     ]
+
+
+def test_common_rescan_sync_failure_keeps_imports_and_reverts_derivadas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """N5.2: no rescan comum (sem candidato), falha nao-caminho no sync de
+    derivadas desfaz apenas as escritas de derivadas; os dados importados no
+    banco primario permanecem commitados."""
+    import sqlite3
+
+    import armazenamento.derivadas_sync as derivadas_sync_module
+    import core.app_logic as app_logic
+    from armazenamento import database
+
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    regular = docs_dir / "Consulta SSA - 13-02-2026_0121PM.xlsx"
+    regular.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = str(data_dir / "test.db")
+    assert database.initialize_database(db_path)
+
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
+    _patch_integrity_ok(monkeypatch)
+
+    monkeypatch.setattr(
+        app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)]
+    )
+
+    def _fake_import(
+        file_path: str, working_db: str, table_name: str, *args, **kwargs
+    ):
+        with sqlite3.connect(working_db) as conn:
+            conn.executemany(
+                f"INSERT INTO {table_name} "
+                "(numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+                [
+                    ("202500001", None, "SSA pai"),
+                    ("202500002", "202500001", "SSA filha"),
+                ],
+            )
+            conn.commit()
+        metrics_out = kwargs.get("_metrics_out")
+        assert isinstance(metrics_out, dict)
+        metrics_out.update({"counts": {"ssa_inserted": 2, "ssa_updated": 0}})
+        return True, 2
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _fake_import)
+
+    def _raise_on_summary(*args, **kwargs):
+        raise RuntimeError("forced summary failure")
+
+    monkeypatch.setattr(
+        derivadas_sync_module, "_replace_summary", _raise_on_summary
+    )
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is False
+
+    with sqlite3.connect(db_path) as conn:
+        imported_rows = conn.execute(
+            "SELECT COUNT(*) FROM ssa_table"
+        ).fetchone()[0]
+        matrix_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix"
+        ).fetchone()[0]
+        closure_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_closure"
+        ).fetchone()[0]
+        summary_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_summary"
+        ).fetchone()[0]
+        source_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_source"
+        ).fetchone()[0]
+        latest_run = conn.execute(
+            """
+            SELECT status FROM ssa_derivada_sync_run
+            ORDER BY sync_run_id DESC LIMIT 1
+            """
+        ).fetchone()
+
+    assert imported_rows == 2
+    assert matrix_total == 0
+    assert closure_total == 0
+    assert summary_total == 0
+    assert source_total == 0
+    assert latest_run == ("error",)
 
 
 def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges(
@@ -914,7 +1134,7 @@ def test_run_importer_rejects_special_sheet_without_individual_evidence(
     assert updated is False
     file_errors = [payload for event, payload in events if event == "file_error"]
     assert file_errors
-    assert "files_without_evidence=" in file_errors[-1]["error"]
+    assert "Arquivos sem evidencia de leitura:" in file_errors[-1]["error"]
     assert special.name in file_errors[-1]["error"]
 
 
@@ -969,3 +1189,110 @@ def test_run_importer_rejects_special_sheet_when_aggregate_evidence_is_incomplet
     )
 
     assert updated is False
+
+
+def test_run_importer_propagates_extra_roots_to_derivadas_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    docs_dir = project / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    special = docs_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
+    special.write_bytes(b"x")
+    external_data = tmp_path / "external_data"
+    external_data.mkdir()
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [project])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic, "_update_cache_after_import", lambda *a, **k: None
+    )
+
+    sync_calls: list[dict] = []
+
+    def _fake_sync(**kwargs):
+        sync_calls.append(kwargs)
+        return {
+            "merge_stats": {"merged_edges": 2},
+            "sheet_files": [str(special)],
+            "sheet_stats": {"accepted_edges": 2, "special_layout_detected": 1},
+            "sheet_file_reports": [
+                {
+                    "sheet_file": str(special),
+                    "has_parse_evidence": True,
+                    "stats": {"accepted_edges": 2},
+                }
+            ],
+            "db_stats": {"accepted_edges": 0},
+        }
+
+    monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(external_data),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+        extra_allowed_roots=(str(external_data),),
+    )
+
+    assert updated is True
+    assert len(sync_calls) == 1
+    assert sync_calls[0]["extra_allowed_roots"] == (str(external_data),)
+
+
+def test_run_importer_preflight_rejects_derivadas_sheet_outside_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    docs_dir = project / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    data_dir = project / "data"
+    data_dir.mkdir()
+    external_sheets_dir = tmp_path / "external_sheets"
+    external_sheets_dir.mkdir()
+    external_sheet = (
+        external_sheets_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
+    )
+    external_sheet.write_bytes(b"x")
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [project])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *a, **k: [str(external_sheet)],
+    )
+    imported_files: list[str] = []
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        lambda *a, **k: imported_files.append("x") or (True, 0),
+    )
+
+    from core.import_errors import ImporterError
+
+    with pytest.raises(ImporterError) as excinfo:
+        run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+
+    assert isinstance(excinfo.value.__cause__, path_safety.PathSafetyError)
+    assert imported_files == []

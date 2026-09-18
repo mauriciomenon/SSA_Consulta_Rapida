@@ -9879,6 +9879,7 @@ class TestGUIFilterLogic:
     ):
         db_file = tmp_path / "other.db"
         db_file.write_text("stub", encoding="utf-8")
+        copied_db = tmp_path / "data" / "other.db"
         original_db_path = gui_ssa.DB_PATH
 
         monkeypatch.setattr(
@@ -9891,11 +9892,22 @@ class TestGUIFilterLogic:
             "query_db",
             lambda *_args, **_kwargs: pd.DataFrame({"numero_ssa": ["1"]}),
         )
+        monkeypatch.setattr(
+            gui_ssa.ssa_database_operations,
+            "copy_database_into_data_dir",
+            lambda *_args, **_kwargs: {
+                "ok": True,
+                "db_file": str(copied_db),
+                "copied": True,
+                "archived": None,
+                "error": None,
+            },
+        )
 
         try:
             result = self.window.load_other_database()
             assert bool(result["ok"]) is True
-            assert gui_ssa.DB_PATH == str(db_file)
+            assert gui_ssa.DB_PATH == str(copied_db)
             assert "Banco alternativo selecionado" in self.window.status_label.text()
         finally:
             gui_ssa.DB_PATH = original_db_path
@@ -9905,6 +9917,7 @@ class TestGUIFilterLogic:
     ):
         db_file = tmp_path / "other_reload.db"
         db_file.write_text("stub", encoding="utf-8")
+        copied_db = tmp_path / "data" / "other_reload.db"
         original_db_path = gui_ssa.DB_PATH
         reload_calls: list[str] = []
 
@@ -9917,6 +9930,17 @@ class TestGUIFilterLogic:
             gui_ssa,
             "query_db",
             lambda *_args, **_kwargs: pd.DataFrame({"numero_ssa": ["1"]}),
+        )
+        monkeypatch.setattr(
+            gui_ssa.ssa_database_operations,
+            "copy_database_into_data_dir",
+            lambda *_args, **_kwargs: {
+                "ok": True,
+                "db_file": str(copied_db),
+                "copied": True,
+                "archived": None,
+                "error": None,
+            },
         )
         monkeypatch.setattr(
             SSAMainWindow,
@@ -10098,8 +10122,8 @@ class TestGUIFilterLogic:
 
         with patch.object(
             ssa_gui_details,
-            "_update_details_from_series",
-            wraps=ssa_gui_details._update_details_from_series,
+            "_render_main_details_html",
+            wraps=ssa_gui_details._render_main_details_html,
         ) as update_details_mock:
             self.window.update_details_from_selection()
             assert update_details_mock.call_count == 0
@@ -10158,8 +10182,8 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(self.window.table_widget, "selectRow", spy_select_row)
         with patch.object(
             ssa_gui_details,
-            "_update_details_from_series",
-            wraps=ssa_gui_details._update_details_from_series,
+            "_render_main_details_html",
+            wraps=ssa_gui_details._render_main_details_html,
         ) as update_details_mock:
             self.window._jump_to_ssa(target_ssa)
 
@@ -14777,15 +14801,148 @@ class TestGUIFilterLogic:
         assert event.isAccepted() is True
         assert worker.disconnected is True
 
-    def test_finalize_database_candidate_validation_discards_stale_result(
+    def test_forced_close_never_abandons_active_db_copy_thread(self):
+        """Thread de staging viva bloqueia o fechamento forcado.
+
+        A copia e daemon: aceitar o evento a mataria no meio do
+        sqlite3.backup() deixando .copy-* parcial. Apos o grace o evento
+        continua ignorado enquanto a thread estiver viva.
+        """
+        class _CopyThread:
+            def __init__(self):
+                self.alive = True
+                self.join_calls = 0
+
+            def is_alive(self):
+                return self.alive
+
+            def join(self, timeout=None):
+                self.join_calls += 1
+
+        copy_thread = _CopyThread()
+        self.window._other_db_validation_thread = copy_thread
+        # Episodio ja em andamento: pending_ops contem a thread para que
+        # shutdown() nao resete o deadline como episodio novo.
+        self.window._shutdown_pending_operations = (copy_thread,)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert copy_thread.join_calls == 1
+        assert self.window._is_shutting_down is False
+
+        # Nova tentativa: ainda viva, segue bloqueado com novo grace.
+        retry = QCloseEvent()
+        self.window.closeEvent(retry)
+        assert retry.isAccepted() is False
+        assert copy_thread.join_calls == 2
+
+        # Copia concluida: o proximo X fecha normalmente.
+        copy_thread.alive = False
+        final = QCloseEvent()
+        self.window.closeEvent(final)
+        assert final.isAccepted() is True
+
+    def test_forced_close_conservative_when_copy_thread_state_unknown(self):
+        """Falha ao consultar a thread de staging nao pode liberar o X."""
+        class _BrokenCopyThread:
+            def is_alive(self):
+                raise RuntimeError("thread query failed")
+
+            def join(self, timeout=None):
+                return None
+
+        broken = _BrokenCopyThread()
+        self.window._other_db_validation_thread = broken
+        self.window._shutdown_pending_operations = (broken,)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert self.window._is_shutting_down is False
+
+    def test_forced_close_blocked_by_registered_staging_without_thread_ref(
         self, tmp_path
+    ):
+        """Staging registrado bloqueia o X mesmo sem referencia da thread.
+
+        Cobre o caso em que o timeout da validacao (ou um novo pedido)
+        descartou `_other_db_validation_thread` com a copia ainda ativa:
+        o registro de stagings e a fonte de verdade do shutdown.
+        """
+        staged = tmp_path / "banco.db.copy-1"
+        staged.touch()
+        gui_ssa.ssa_database_operations._register_staged_copy(staged)
+        try:
+            first = QCloseEvent()
+            self.window.closeEvent(first)
+            assert first.isAccepted() is False
+
+            # Episodio de shutdown ja consolidado: forca o caminho de
+            # fechamento forcado — que tambem nao pode abandonar staging.
+            self.window._shutdown_started_at = time.monotonic() - 9999
+            second = QCloseEvent()
+            self.window.closeEvent(second)
+            assert second.isAccepted() is False
+            assert self.window._is_shutting_down is False
+        finally:
+            gui_ssa.ssa_database_operations._unregister_staged_copy(staged)
+
+        final = QCloseEvent()
+        self.window.closeEvent(final)
+        assert final.isAccepted() is True
+
+    def test_close_event_accepts_when_database_operations_module_is_none(
+        self, monkeypatch
+    ):
+        """Modulo database_operations None (headless) nao trava o fechamento.
+
+        Em headless o modulo e cast(Any, None) e a consulta de stagings
+        levantaria AttributeError - nao NameError. Os guards devem tratar o
+        modulo ausente como "nenhum staging possivel" sem cair nos ramos
+        conservadores nem chamar allow_new_staged_copies sobre None.
+        """
+        monkeypatch.setattr(gui_ssa, "ssa_database_operations", None)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        first = QCloseEvent()
+        self.window.closeEvent(first)
+        assert first.isAccepted() is True
+
+        # Caminho forcado: shutdown() precisa recusar com deadline vencido
+        # para alcancar as consultas de staging do closeEvent.
+        monkeypatch.setattr(self.window, "shutdown", lambda: False)
+        self.window._shutdown_started_at = time.monotonic() - 9999
+
+        forced = QCloseEvent()
+        self.window.closeEvent(forced)
+        assert forced.isAccepted() is True
+
+    def test_finalize_database_candidate_validation_discards_stale_result(
+        self, tmp_path, monkeypatch
     ):
         """Resultado de validacao expirada nao pode selecionar outro banco."""
         original_db_path = gui_ssa.DB_PATH
         old_db_path = str(tmp_path / "velho.db")
         new_db_path = str(tmp_path / "novo.db")
+        copied_new = str(tmp_path / "data" / "novo.db")
         self.window._other_db_validation_request_id = 2
         self.window._other_db_validation_running = True
+        monkeypatch.setattr(
+            gui_ssa.ssa_database_operations,
+            "copy_database_into_data_dir",
+            lambda source, **_kwargs: {
+                "ok": True,
+                "db_file": copied_new,
+                "copied": True,
+                "archived": None,
+                "error": None,
+            },
+        )
 
         try:
             outcome = self.window._finalize_database_candidate_validation(
@@ -14800,7 +14957,7 @@ class TestGUIFilterLogic:
                 {"_request_id": 2, "ok": True, "db_file": new_db_path}
             )
             assert bool(current.get("ok")) is True
-            assert gui_ssa.DB_PATH == new_db_path
+            assert gui_ssa.DB_PATH == copied_new
             assert self.window._other_db_validation_running is False
         finally:
             gui_ssa.DB_PATH = original_db_path

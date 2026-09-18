@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -122,6 +123,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def open_nosurvivor_folder(self) -> None:
             return None
 
+        def open_data_folder(self) -> None:
+            return None
+
         def open_settings_file_with_backup(self) -> None:
             return None
 
@@ -171,11 +175,11 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Ajuda" in window._menu_bar.menus
     assert "SAM API" in window._menu_bar.menus["Opcoes"].submenus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 2
-    assert len(window._menu_bar.menus["Importacao"].actions) == 2
-    assert len(window._menu_bar.menus["Database"].actions) == 4
+    assert len(window._menu_bar.menus["Importacao"].actions) == 4
+    assert len(window._menu_bar.menus["Database"].actions) == 6
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert len(window._menu_bar.menus["Ajuda"].actions) == 2
-    assert "Avancado" in window._menu_bar.menus["Importacao"].submenus
+    assert "Pastas" in window._menu_bar.menus["Importacao"].submenus
     assert "Avancado" in window._menu_bar.menus["Database"].submenus
 
     arquivo_labels = [
@@ -204,38 +208,37 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "Sair",
     ]
     assert importacao_labels == [
+        "Atualizar dados (arquivos novos ou alterados)",
+        "Reimportar tudo (recria o banco do zero)",
         "Importar XLSX externo",
         "Consolidar arquivos de entrada",
     ]
+    expected_db_name = os.path.basename(str(gui_ssa.DB_PATH))
     assert database_labels == [
+        f"Banco em uso: {expected_db_name}",
+        "Carregar outro banco de dados...",
+        "Recarregar visualizacao",
         "Atualizar derivadas",
         "Exportar relatorio de derivadas...",
-        "Recarregar dados",
-        "Compactar DB",
+        "Compactar banco de dados",
     ]
-    importacao_advanced_labels = [
+    importacao_pastas_labels = [
         getattr(action, "_text", "")
         for action in window._menu_bar.menus["Importacao"].submenus[
-            "Avancado"
+            "Pastas"
         ].actions
     ]
     database_advanced_labels = [
         getattr(action, "_text", "")
         for action in window._menu_bar.menus["Database"].submenus["Avancado"].actions
     ]
-    assert importacao_advanced_labels == [
-        "Abrir Pasta de Arquivos",
-        "Abrir Pasta Arquivos Processados",
-        "Abrir Pasta Arquivos Redundantes",
+    assert importacao_pastas_labels == [
+        "Abrir pasta de entrada",
+        "Abrir pasta de processados",
+        "Abrir pasta de redundantes",
     ]
     assert database_advanced_labels == [
-        "Atualizar Dados",
-        "Reescaneamento Completo",
-        "Reescanear",
-        "Carregar outro DB",
-        "Abrir Pasta de Arquivos",
-        "Abrir Pasta Arquivos Processados",
-        "Abrir Pasta Arquivos Redundantes",
+        "Abrir pasta do banco de dados",
     ]
     assert opcoes_labels == [
         "Preparar arquivo de opcoes",
@@ -917,6 +920,42 @@ def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, op
                         lambda _path: {"ok": True})
     monkeypatch.setattr(gui_ssa.SSAMainWindow, "_validate_database_candidate",
                         lambda path: {"ok": True, "db_file": path})
+    copied_candidate = tmp_path / "data" / candidate.name
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations,
+        "copy_database_into_data_dir",
+        lambda source, **_kwargs: {
+            "ok": True,
+            "db_file": str(copied_candidate),
+            "copied": True,
+            "archived": None,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations,
+        "stage_database_copy",
+        lambda _src, _dest: {
+            "ok": True,
+            "staged": str(tmp_path / "candidate.staged"),
+            "dest": str(copied_candidate),
+            "db_file": str(copied_candidate),
+            "copied": True,
+            "archived": None,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations,
+        "commit_staged_database_copy",
+        lambda _staged, _dest: {
+            "ok": True,
+            "db_file": str(copied_candidate),
+            "copied": True,
+            "archived": None,
+            "error": None,
+        },
+    )
     window = SimpleNamespace(status_label=_DummyLabel(), _get_derivadas_sync_state=get_state,
                              load_data=reload)
     execute = getattr(gui_ssa.SSAMainWindow, operation)
@@ -933,7 +972,7 @@ def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, op
     assert getattr(window, prefix + "_running") is False
     assert getattr(window, prefix + "_thread") is None
     selected = operation == "load_other_database" and stage != "prepare"
-    assert gui_ssa.DB_PATH == str(candidate if selected else current)
+    assert gui_ssa.DB_PATH == str(copied_candidate if selected else current)
     if selected:
         assert state.last_report is None
         assert state.report_invalidated is True
@@ -942,3 +981,163 @@ def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, op
     getattr(window, prefix + "_thread").alive = False
     scheduled.pop(0)()
     assert outcomes[-1]["ok"] is True
+
+
+def test_other_db_timeout_discards_late_staging(monkeypatch, tmp_path):
+    """Timeout invalida o request: staging tardio e descartado, nao promovido."""
+    current = tmp_path / "current.db"
+    candidate = tmp_path / "candidate.db"
+    current.touch()
+    candidate.touch()
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(current))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    scheduled: list[Any] = []
+    staged_file = tmp_path / "candidate.db.copy-1"
+    staged_file.touch()
+    discarded: list[str] = []
+    threads: list[Any] = []
+
+    class _SlowThread:
+        def __init__(self, target, **_kwargs):
+            self.target = target
+            threads.append(self)
+
+        def start(self):
+            return None  # worker nao termina: simula staging lento
+
+        def is_alive(self):
+            return True
+
+    now = [0.0]
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=_SlowThread))
+    monkeypatch.setattr(gui_ssa, "QTimer", SimpleNamespace(
+        singleShot=lambda _ms, cb: scheduled.append(cb)))
+    monkeypatch.setattr(gui_ssa.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(gui_ssa, "QMessageBox", SimpleNamespace(
+        question=lambda *_a: 1, information=lambda *_a: None,
+        critical=lambda *_a: None, warning=lambda *_a: None,
+        StandardButton=SimpleNamespace(Yes=1, No=2)))
+    monkeypatch.setattr(gui_ssa, "QFileDialog", lambda: SimpleNamespace(
+        getOpenFileName=lambda *_a: (str(candidate), "")))
+    monkeypatch.setattr(
+        gui_ssa.SSAMainWindow, "_validate_database_candidate",
+        staticmethod(lambda path: {"ok": True, "db_file": path}),
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "stage_database_copy",
+        lambda _s, dest: {
+            "ok": True, "staged": str(staged_file), "dest": str(dest),
+            "db_file": str(dest), "copied": True, "archived": None,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "discard_staged_copy",
+        lambda staged: discarded.append(str(staged)),
+    )
+    promoted: list[str] = []
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "commit_staged_database_copy",
+        lambda _staged, dest: promoted.append(str(dest)) or {"ok": True},
+    )
+
+    window = SimpleNamespace(
+        status_label=_DummyLabel(),
+        _get_derivadas_sync_state=lambda: SimpleNamespace(
+            last_report=None, report_invalidated=False),
+    )
+    out = gui_ssa.SSAMainWindow.load_other_database(cast(Any, window))
+    assert out["started"] is True
+    request_id = window._other_db_validation_request_id
+
+    # Prazo expira sem resultado do worker.
+    now[0] = gui_ssa.OTHER_DB_VALIDATION_TIMEOUT_SEC + 1
+    scheduled.pop(0)()
+    assert window._other_db_validation_request_id != request_id
+    assert window._other_db_validation_running is False
+
+    # Worker termina tarde: o staging virou stale e deve ser descartado.
+    threads[0].target()
+    assert discarded == [str(staged_file)]
+    assert promoted == []
+    assert gui_ssa.DB_PATH == str(current)
+
+
+def test_other_db_publish_after_invalidation_discards_staged(
+    monkeypatch, tmp_path
+):
+    """Corrida timeout x publicacao: se o request expira entre a checagem
+    do staging e a publicacao do resultado, o proprio worker descarta o
+    .copy-* — nenhum poll vai consumir esse resultado."""
+    current = tmp_path / "current.db"
+    candidate = tmp_path / "candidate.db"
+    current.touch()
+    candidate.touch()
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(current))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    scheduled: list[Any] = []
+    staged_file = tmp_path / "candidate.db.copy-9"
+    staged_file.touch()
+    discarded: list[str] = []
+
+    window = SimpleNamespace(
+        status_label=_DummyLabel(),
+        _get_derivadas_sync_state=lambda: SimpleNamespace(
+            last_report=None, report_invalidated=False),
+    )
+
+    class _InlineThread:
+        def __init__(self, target, **_kwargs):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+        def is_alive(self):
+            return False
+
+    class _InvalidateOnRequestId(dict):
+        # Simula a invalidacao do request exatamente na janela entre a
+        # checagem do staging e a publicacao do resultado.
+        def __setitem__(self, key, value):
+            super().__setitem__(key, value)
+            if key == "_request_id":
+                window._other_db_validation_request_id += 1
+
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=_InlineThread))
+    monkeypatch.setattr(gui_ssa, "QTimer", SimpleNamespace(
+        singleShot=lambda _ms, cb: scheduled.append(cb)))
+    monkeypatch.setattr(gui_ssa, "QMessageBox", SimpleNamespace(
+        question=lambda *_a: 1, information=lambda *_a: None,
+        critical=lambda *_a: None, warning=lambda *_a: None,
+        StandardButton=SimpleNamespace(Yes=1, No=2)))
+    monkeypatch.setattr(gui_ssa, "QFileDialog", lambda: SimpleNamespace(
+        getOpenFileName=lambda *_a: (str(candidate), "")))
+    monkeypatch.setattr(
+        gui_ssa.SSAMainWindow, "_validate_database_candidate",
+        staticmethod(lambda path: _InvalidateOnRequestId(
+            {"ok": True, "db_file": path})),
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "stage_database_copy",
+        lambda _s, dest: {
+            "ok": True, "staged": str(staged_file), "dest": str(dest),
+            "db_file": str(dest), "copied": True, "archived": None,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "discard_staged_copy",
+        lambda staged: discarded.append(str(staged)),
+    )
+    promoted: list[str] = []
+    monkeypatch.setattr(
+        gui_ssa.ssa_database_operations, "commit_staged_database_copy",
+        lambda _staged, dest: promoted.append(str(dest)) or {"ok": True},
+    )
+
+    out = gui_ssa.SSAMainWindow.load_other_database(cast(Any, window))
+    assert out["started"] is True
+    assert discarded == [str(staged_file)]
+    assert promoted == []
+    assert gui_ssa.DB_PATH == str(current)

@@ -48,8 +48,10 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
     # --- Impressão ---
     try:
         print("\n" + "=" * 50)
-        ssa_number = series.get("numero_ssa", "N/A")
-        print(f" DETALHES DA SSA: {ssa_number}")
+        # Sem coluna: so sanitiza controles, sem a normalizacao estrita
+        # de numero_ssa (SSAs curtos continuam visiveis no cabecalho).
+        ssa_number = " ".join(format_cell(series.get("numero_ssa", "N/A")).split())
+        print(f" DETALHES DA SSA: {ssa_number or 'N/A'}")
         print("=" * 50)
 
         # Itera sobre os itens da Series

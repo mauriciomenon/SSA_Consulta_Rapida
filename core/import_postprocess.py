@@ -229,8 +229,6 @@ def _advance_suffix_cache_after_conflict(
 def _move_without_overwrite(source: Path, destination: Path) -> None:
     try:
         os.link(source, destination)
-        source.unlink()
-        return
     except FileExistsError:
         raise
     except OSError as exc:
@@ -282,6 +280,29 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
             if destination_created:
                 destination.unlink(missing_ok=True)
             raise
+    else:
+        # Link criado: falha no unlink da origem NAO pode cair no
+        # fallback de copia (o destino ja existe e seria confundido com
+        # conflito de nome, gerando hardlinks orfaos e mantendo o source
+        # para reprocessamento). Desfaz o link e propaga o erro real.
+        try:
+            source.unlink()
+        except OSError:
+            # A falha de limpeza do destino nao pode substituir o erro
+            # original: sem isso o hardlink orfao seria reportado como
+            # conflito de nome, escondendo a causa real.
+            try:
+                destination.unlink(missing_ok=True)
+            except OSError as cleanup_exc:
+                logger.warning(
+                    "Falha ao remover destino '%s' apos erro no unlink de "
+                    "'%s': %s",
+                    destination,
+                    source,
+                    cleanup_exc,
+                )
+            raise
+        return
 
 
 def route_and_move_processed_files(

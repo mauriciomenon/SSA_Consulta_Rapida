@@ -52,6 +52,7 @@ def reset_database(db_path="data/ssas.db"):
             Path(db_path),
             Path(f"{db_path}-wal"),
             Path(f"{db_path}-shm"),
+            Path(f"{db_path}-journal"),
         ):
             database_file.unlink(missing_ok=True)
         print(f" Arquivo do banco removido: {db_path}")
@@ -130,11 +131,17 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
                     removed_count += 1
                     total_size_removed += file_size
 
-    # Limpa pasta backups
+    # Limpa pasta backups (mesmo filtro de padrao da pasta principal:
+    # arquivo solto ali que nao seja backup nao pode ser removido)
     backups_path = data_path / "backups"
     if backups_path.exists():
         for file_path in backups_path.glob("*"):
             if file_path.is_file():
+                is_backup = any(
+                    pattern in file_path.name.lower() for pattern in backup_patterns
+                )
+                if not is_backup:
+                    continue
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
                 if file_time < cutoff_date:
                     file_size = file_path.stat().st_size

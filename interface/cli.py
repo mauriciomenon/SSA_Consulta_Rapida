@@ -14,14 +14,12 @@ import re
 import sys
 import textwrap
 import unicodedata
-from collections import Counter
+from collections import Counter, OrderedDict
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import pandas as pd
 
-# Adiciona o diretório raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
 
 # Importações relativas
 from armazenamento.database import get_ssa_query, query_db
@@ -51,6 +49,23 @@ APP_VERSION_LONG = get_app_version_long()
 CLI_PAGINATION_TRACKER: Dict[int, Dict[str, Any]] = {}
 DEFAULT_FILTER_TERMS_CACHE: Dict[str, Any] = {}
 RAW_ANSI_ESCAPE = "\x1b"
+_MAX_PARSE_CACHE_ENTRIES = 256
+_MAX_RESULTS_STACK_DEPTH = 100
+
+
+def _push_result_state(
+    results_stack: list, entry: Tuple["pd.DataFrame", List[str]]
+) -> None:
+    """Empilha estado de resultado limitando a profundidade.
+
+    Ao atingir o teto, descarta o item mais antigo apos a base (indice 0),
+    que e preservada para os comandos de reset.
+    """
+    results_stack.append(entry)
+    if len(results_stack) > _MAX_RESULTS_STACK_DEPTH:
+        evicted = results_stack.pop(1)
+        if evicted:
+            _release_pagination_state(evicted[0])
 
 
 class _CLIPaginationTrackerManager:
@@ -63,12 +78,22 @@ class _CLIPaginationTrackerManager:
         attrs = getattr(df, "attrs", None)
         if isinstance(attrs, dict):
             existing = attrs.get("_cli_pagination_key")
-            if isinstance(existing, int):
-                return existing
+            # pandas propaga attrs em filtros/copias: a chave so vale para o
+            # df dono (id registrado), senao filhos herdariam o estado de
+            # paginacao do pai.
+            if (
+                isinstance(existing, tuple)
+                and len(existing) == 2
+                and isinstance(existing[0], int)
+                and existing[1] == id(df)
+            ):
+                return existing[0]
             if create:
                 key = self._next_key
                 self._next_key += 1
-                attrs["_cli_pagination_key"] = key
+                # Novo dict: nunca mutar attrs possivelmente compartilhado
+                # com o df pai.
+                df.attrs = {**attrs, "_cli_pagination_key": (key, id(df))}
                 return key
         return id(df) if create else None
 
@@ -882,7 +907,7 @@ def _handle_sort(
                 by=col_name, ascending=ascending, na_position="last"
             )
             # Empilha o resultado ordenado
-            results_stack.append((sorted_df, current_filter_terms))
+            _push_result_state(results_stack, (sorted_df, current_filter_terms))
             _reset_pagination_state(sorted_df)
             print(
                 f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'})."
@@ -930,7 +955,7 @@ def _handle_sort_by_name(
         sorted_df = current_df.sort_values(
             by=col_name, ascending=ascending, na_position="last"
         )
-        results_stack.append((sorted_df, current_filter_terms))
+        _push_result_state(results_stack, (sorted_df, current_filter_terms))
         _reset_pagination_state(sorted_df)
         print(
             f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'})."
@@ -970,20 +995,37 @@ def _handle_remove_filter(
     if not current_terms:
         print("Nenhum termo de filtro atual para remover.")
         return
-    remaining = [t for t in current_terms if t.lower() != term_to_remove.lower()]
-    # Otimizacao: remocao LIFO pode reaplicar do estado anterior (menor).
-    # Para remocao fora de ordem, reaplica da base para nao manter filtro removido.
     remove_key = term_to_remove.lower()
-    is_lifo_remove = bool(current_terms) and (
-        current_terms[-1].lower() == remove_key
-        and all(t.lower() != remove_key for t in current_terms[:-1])
-    )
-    if is_lifo_remove and len(results_stack) >= 2:
-        base_df = results_stack[-2][0]
-    else:
-        base_df = results_stack[0][0] if results_stack else current_df
+    if not any(t.lower() == remove_key for t in current_terms):
+        print(f"O termo '{term_to_remove}' nao esta no filtro atual.")
+        return
+    base_terms = list(results_stack[0][1] or [])
+    if any(t.lower() == remove_key for t in base_terms):
+        # Termo do filtro base nao e removivel: a entrada base seguiria
+        # aplicada e o topo exibiria um filtro que omite o termo real.
+        print(
+            f"O termo '{term_to_remove}' pertence ao filtro base; "
+            "nada a remover."
+        )
+        return
+    remaining = [t for t in current_terms if t.lower() != remove_key]
+    # O estado alvo e a entrada mais recente cujos termos equivalem ao filtro
+    # resultante. Entradas de ordenacao repetem os termos do topo, entao um
+    # atalho cego em results_stack[-2] manteria o termo removido aplicado.
+    base_df = results_stack[0][0]
+    for entry_df, entry_terms in reversed(results_stack):
+        if list(entry_terms or []) == remaining:
+            base_df = entry_df
+            break
     if remaining:
-        new_df = filter_dataframe(base_df, remaining)
+        # Re-aplica os termos restantes com o mesmo modo de filtro usado na
+        # busca original (settings), nao o default "contains".
+        default_mode = (settings.get("user_preferences") or {}).get(
+            "filter_mode_default", "contains"
+        )
+        new_df = filter_dataframe(
+            base_df, parse_search_terms(remaining, default_mode=default_mode)
+        )
         results_stack[-1] = (new_df, remaining)
         _reset_pagination_state(new_df)
         _prune_pagination_tracker_for_stack(results_stack, force=True)
@@ -999,11 +1041,22 @@ def _handle_remove_filter(
             start_page=0,
         )
     else:
-        # Sem termos restantes, volta ao estado anterior
-        _handle_back(results_stack)
+        # Sem termos restantes, recua ate a entrada sem o termo removido
+        while len(results_stack) > 1 and list(results_stack[-1][1] or []) != remaining:
+            popped_df, _ = results_stack.pop()
+            _release_pagination_state(popped_df)
+        _prune_pagination_tracker_for_stack(results_stack, force=True)
         if results_stack:
             top_df, top_terms = results_stack[-1]
-            _prune_pagination_tracker_for_stack(results_stack, force=True)
+            if top_terms:
+                # O recuo parou numa base ja filtrada (filtro inicial):
+                # o termo saiu, mas a base segue aplicada.
+                print(
+                    f"Removido termo '{term_to_remove}'. "
+                    f"Filtro atual: {', '.join(top_terms)}"
+                )
+            else:
+                print(f"Removido termo '{term_to_remove}'. Nenhum filtro restante.")
             _render_cli_page(
                 top_df,
                 display_map,
@@ -1182,7 +1235,7 @@ def start_cli_loop(db_path: str, table_name: str):
 
     # Flags para controle de cache
     _config_changed = False
-    _parse_cache = {}  # Cache para parse_search_terms
+    _parse_cache = OrderedDict()  # Cache para parse_search_terms (limitado)
     _print_cache = {}  # Cache para pretty_print_df
 
     # --- Estado Inicial ---
@@ -1233,16 +1286,25 @@ def start_cli_loop(db_path: str, table_name: str):
     def _refresh_after_config_change() -> None:
         nonlocal settings, display_map, results_stack, _config_changed
         previous_default_filters = list(settings.get("default_filters") or [])
+        previous_filter_mode = (settings.get("user_preferences") or {}).get(
+            "filter_mode_default", "contains"
+        )
         handle_config_command()
         _config_changed = True
         settings = load_settings()
         display_map = load_display_mappings_integrity()
         current_default_filters = list(settings.get("default_filters") or [])
+        current_filter_mode = (settings.get("user_preferences") or {}).get(
+            "filter_mode_default", "contains"
+        )
         if not results_stack:
             return
 
-        # Recarrega base apenas quando filtros padrao mudam; evita custo desnecessario.
-        if current_default_filters != previous_default_filters:
+        # Reconstroi a pilha quando os filtros ou sua semantica mudam.
+        if (
+            current_default_filters != previous_default_filters
+            or current_filter_mode != previous_filter_mode
+        ):
             previous_base_terms = list(results_stack[0][1] or [])
             previous_current_terms = list(results_stack[-1][1] or [])
             preserved_user_terms: list[str] = []
@@ -1256,12 +1318,28 @@ def start_cli_loop(db_path: str, table_name: str):
                 db_path, table_name, settings
             )
             if preserved_user_terms:
-                refreshed_df = filter_dataframe(refreshed_base_df, preserved_user_terms)
+                default_mode = (settings.get("user_preferences") or {}).get(
+                    "filter_mode_default", "contains"
+                )
+                refreshed_df = filter_dataframe(
+                    refreshed_base_df,
+                    parse_search_terms(preserved_user_terms, default_mode=default_mode),
+                )
                 refreshed_terms = refreshed_base_terms + preserved_user_terms
             else:
                 refreshed_df = refreshed_base_df
                 refreshed_terms = refreshed_base_terms
-            results_stack = [(refreshed_df, refreshed_terms)]
+            if preserved_user_terms:
+                # Base e topo em entradas separadas: a entrada base precisa
+                # ser o df SEM os termos do usuario, senao 'x <termo>'
+                # refiltraria um frame ja filtrado e manteria o termo
+                # aplicado invisivelmente.
+                results_stack = [
+                    (refreshed_base_df, refreshed_base_terms),
+                    (refreshed_df, refreshed_terms),
+                ]
+            else:
+                results_stack = [(refreshed_df, refreshed_terms)]
         else:
             refreshed_df, refreshed_terms = results_stack[-1]
 
@@ -1441,10 +1519,13 @@ def start_cli_loop(db_path: str, table_name: str):
                         # OTIMIZAÇÃO: Cache para parse_search_terms
                         cache_key = f"{','.join(processed_search_terms)}:{default_mode}"
                         if cache_key not in _parse_cache:
+                            if len(_parse_cache) >= _MAX_PARSE_CACHE_ENTRIES:
+                                _parse_cache.popitem(last=False)
                             _parse_cache[cache_key] = parse_search_terms(
                                 processed_search_terms, default_mode=default_mode
                             )
                         parsed_terms = _parse_cache[cache_key]
+                        _parse_cache.move_to_end(cache_key)
 
                         # Aplica filtro acumulativo sobre os dados atuais
                         new_filtered_df = filter_dataframe(current_df, parsed_terms)
@@ -1457,8 +1538,9 @@ def start_cli_loop(db_path: str, table_name: str):
                             combined_filter_terms = (
                                 current_filter_terms + processed_search_terms
                             )
-                            results_stack.append(
-                                (new_filtered_df, combined_filter_terms)
+                            _push_result_state(
+                                results_stack,
+                                (new_filtered_df, combined_filter_terms),
                             )
                             _reset_pagination_state(new_filtered_df)
                             _render_cli_page(

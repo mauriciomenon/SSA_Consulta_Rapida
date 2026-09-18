@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pandas as pd
@@ -216,3 +217,115 @@ def test_handle_anchor_logs_unknown_action(monkeypatch: pytest.MonkeyPatch) -> N
     assert logger.warning_messages == [
         "Unknown details dialog anchor action: unexpected"
     ]
+
+
+def _counting_callbacks(logger: _Logger, builds: dict) -> DetailsDialogCallbacks:
+    def _format(*_args, **_kwargs) -> str:
+        builds["count"] += 1
+        return "details"
+
+    return DetailsDialogCallbacks(
+        apply_geometry=lambda *_args, **_kwargs: None,
+        build_graph_html=lambda *_args, **_kwargs: "graph",
+        build_mermaid_text=lambda *_args, **_kwargs: "mermaid",
+        build_tree_html=lambda *_args, **_kwargs: "tree",
+        collect_tree_data=lambda *_args, **_kwargs: {"children": []},
+        copy_ssa_to_clipboard=lambda *_args, **_kwargs: None,
+        extract_svg_markup=lambda *_args, **_kwargs: "svg",
+        format_details_html=_format,
+        get_series_for_ssa=lambda *_args, **_kwargs: None,
+        logger=logger,
+        normalize_ssa_value=lambda _window, value: str(value or ""),
+        resolve_style=lambda *_args, **_kwargs: ("#000", 10.0, 10.0, 10.0, "monospace"),
+        render_payload_context=lambda window, normalized, style: (
+            getattr(window, "_data_uuid", None),
+            getattr(window, "_data_revision", None),
+            tuple(style),
+            tuple(getattr(window, "_test_terms", ())),
+        ),
+    )
+
+
+def _render_kwargs(series: pd.Series, normalized: str = "202600100") -> dict:
+    return {
+        "normalized": normalized,
+        "series_target": series,
+        "link_color": "#000",
+        "font_pt": 10.0,
+        "label_font_pt": 10.0,
+        "tree_font_pt": 10.0,
+        "font_family": "monospace",
+    }
+
+
+def test_window_payload_cache_shared_across_presenter_instances() -> None:
+    builds = {"count": 0}
+    window = SimpleNamespace(_data_uuid="d1", _data_revision=1)
+    series = pd.Series({"numero_ssa": "202600100"})
+    callbacks = _counting_callbacks(_Logger(), builds)
+    first = DetailsDialogPresenter(
+        window=window, target="202600100", series=series, callbacks=callbacks
+    )
+    second = DetailsDialogPresenter(
+        window=window, target="202600100", series=series, callbacks=callbacks
+    )
+
+    payload_one = first._get_render_payload(**_render_kwargs(series))
+    payload_two = second._get_render_payload(**_render_kwargs(series))
+
+    assert builds["count"] == 1
+    assert payload_one is payload_two
+
+
+def test_window_payload_cache_invalidates_on_context_change() -> None:
+    builds = {"count": 0}
+    window = SimpleNamespace(_data_uuid="d1", _data_revision=1)
+    series = pd.Series({"numero_ssa": "202600100", "descricao_ssa": "antes"})
+    callbacks = replace(
+        _counting_callbacks(_Logger(), builds),
+        format_details_html=lambda _window, current, **_kwargs: current["descricao_ssa"],
+    )
+    presenter = DetailsDialogPresenter(
+        window=window, target="202600100", series=series, callbacks=callbacks
+    )
+
+    before = presenter._get_render_payload(**_render_kwargs(series))
+    window._data_revision = 2
+    series = pd.Series({"numero_ssa": "202600100", "descricao_ssa": "depois"})
+    after = presenter._get_render_payload(**_render_kwargs(series))
+
+    assert before.details_html == "antes"
+    assert after.details_html == "depois"
+
+
+def test_window_payload_cache_is_bounded() -> None:
+    builds = {"count": 0}
+    window = SimpleNamespace(_data_uuid="d1", _data_revision=1)
+    series = pd.Series({"numero_ssa": "1"})
+    callbacks = _counting_callbacks(_Logger(), builds)
+    presenter = DetailsDialogPresenter(
+        window=window, target="1", series=series, callbacks=callbacks
+    )
+
+    for index in range(20):
+        presenter._get_render_payload(
+            **_render_kwargs(series, normalized=f"2026001{index:02d}")
+        )
+
+    cache = window._details_render_payload_cache
+    assert len(cache) == presenter_module._DETAILS_PAYLOAD_CACHE_MAX_ENTRIES
+    assert builds["count"] == 20
+
+
+def test_render_payload_falls_back_to_instance_cache_without_context() -> None:
+    window = SimpleNamespace()
+    series = pd.Series({"numero_ssa": "1"})
+    presenter = DetailsDialogPresenter(
+        window=window, target="1", series=series, callbacks=_callbacks(_Logger())
+    )
+
+    first = presenter._get_render_payload(**_render_kwargs(series, normalized="1"))
+    second = presenter._get_render_payload(**_render_kwargs(series, normalized="1"))
+
+    assert first is second
+    assert getattr(window, "_details_render_payload_cache", {}) == {}

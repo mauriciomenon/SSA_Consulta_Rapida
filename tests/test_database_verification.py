@@ -1459,7 +1459,7 @@ class TestDatabaseRepair:
 
         assert result is True
         assert "Problemas detectados no banco" not in caplog.text
-        assert "Banco ausente em bootstrap" in caplog.text
+        assert "criacao inicial sera executada" in caplog.text
 
     def test_repair_valid_database(self, tmp_path):
         """Testa reparo de banco já válido."""

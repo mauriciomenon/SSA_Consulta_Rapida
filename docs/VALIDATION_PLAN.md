@@ -427,3 +427,43 @@ Informe exatamente o que nao foi testado e por que. D1 (cancelamento dentro do
 parser), C3 (literais antigos), D5/compatibilidade e demais alegacoes D7 nao
 revalidadas continuam discriminados no relatorio principal. Nao declare todos
 os itens encerrados a partir de uma suite verde.
+
+## Rodada: propagacao de extra_allowed_roots em derivadas
+
+Motivacao e implementacao exata na secao N de AUDIT_FIXES_REPORT.md. A falha
+real do pacote Windows e reproduzida por `ensure_path_is_allowed` sem raizes
+extras; o fix adiciona parametro opcional `extra_allowed_roots=None` na cadeia
+`sync_derivadas`, `scan_derivadas_consistency`, `get_sync_stats`,
+`self_heal_derivadas`, `run_derivadas_maintenance`, helpers internos
+(`_open_derivadas_read_connection`, `_normalize_sheet_file_path`), funcoes de
+`derivadas_schema.py`, `_run_derivadas_sync_phase`,
+`_run_optional_derivadas_sync`, `execute_derivadas_sync_job` e call sites em
+`run_importer_logic`, `gui_ssa._execute_derivadas_sync_job` e
+`scripts/derivadas_cli.py`.
+
+Casos obrigatorios:
+
+| Caso | Resultado exigido |
+|---|---|
+| `sync_derivadas` com db em `tmp_path` fora das raizes + `extra_allowed_roots=[tmp_path]` | Sync executa sem `PathSafetyError` |
+| Mesmo db sem raizes extras | `PathSafetyError` preservado; nenhuma escrita |
+| Planilha externa com raiz da planilha liberada | Aceita; sem a raiz, rejeitada |
+| `run_importer_logic` com db externo + raizes (fluxo do worker) | Fase derivadas executa; nao retorna `blocking_derivadas_sync_error` |
+| `run_importer_logic` com db externo sem raizes | Falha em pre-flight antes de qualquer escrita no banco |
+| `scan_derivadas_consistency`/`get_sync_stats` com db externo + raizes | Leitura conclui; sem raizes, `PathSafetyError` |
+| `execute_derivadas_sync_job` | Repassa raizes a `sync_derivadas_fn` e `scan_derivadas_consistency_fn` |
+| `derivadas_cli.py sync --db <externo>` | Banco nomeado auto-autoriza seu diretorio; planilha externa continua exigindo raiz |
+| Caminhos internos ao projeto, sem raizes novas | Comportamento identico ao anterior; nenhum contrato publico quebrado |
+
+Selecao focada apos o fix:
+
+```sh
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_derivadas_sync.py tests/test_derivadas_schema.py tests/test_derivadas_sync_job.py tests/test_derivadas_sync_controller.py tests/test_import_derivadas_trigger.py tests/test_derivadas_cli.py tests/test_derivadas_maintenance.py tests/test_derivadas_queries.py
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q tests/test_gui_filter_logic.py -k 'derivadas or other_database or candidate'
+```
+
+Evidencia manual no pacote: importar com `SSA_DB_PATH` apontando para um
+diretorio fora da instalacao (ex.: pasta de downloads) e conferir que a fase
+de derivadas nao emite `sync derivadas database ... fora das bases
+permitidas`. Repetir o botao de atualizacao de derivadas da GUI com o mesmo
+banco. Registrar o resultado em AUDIT_FIXES_REPORT.md, secao N.

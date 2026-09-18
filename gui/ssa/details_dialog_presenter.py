@@ -34,6 +34,13 @@ class DetailsDialogCallbacks:
     logger: Any
     normalize_ssa_value: Callable[[Any, Any], str]
     resolve_style: Callable[[Any, Any], tuple[str, float, float, float, str]]
+    render_payload_context: (
+        Callable[
+            [Any, str, tuple[str, float, float, float, str]],
+            object,
+        ]
+        | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +50,77 @@ class DetailsDialogRenderPayload:
     graph_svg: str
     mermaid_text: str
     tree_html: str
+
+
+_DETAILS_PAYLOAD_CACHE_MAX_ENTRIES = 16
+
+
+def _details_payload_cache(window: Any) -> dict[str, tuple[object, DetailsDialogRenderPayload]] | None:
+    cache = getattr(window, "_details_render_payload_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        try:
+            setattr(window, "_details_render_payload_cache", cache)
+        except Exception:
+            return None
+    return cache
+
+
+def _details_payload_cache_put(
+    cache: dict[str, tuple[object, DetailsDialogRenderPayload]],
+    normalized: str,
+    context: object,
+    payload: DetailsDialogRenderPayload,
+) -> None:
+    if len(cache) >= _DETAILS_PAYLOAD_CACHE_MAX_ENTRIES:
+        cache.pop(next(iter(cache)))
+    cache[normalized] = (context, payload)
+
+
+def build_details_render_payload(
+    *,
+    window: Any,
+    normalized: str,
+    series_target: pd.Series,
+    style: tuple[str, float, float, float, str],
+    callbacks: DetailsDialogCallbacks,
+) -> DetailsDialogRenderPayload:
+    link_color, font_pt, label_font_pt, tree_font_pt, font_family = style
+    ssa_index: dict[str, pd.Series] = {}
+    tree_data = callbacks.collect_tree_data(window, normalized)
+    details_html = callbacks.format_details_html(
+        window,
+        series_target,
+        highlight_search_terms=True,
+        font_size_pt=font_pt,
+        linkify=True,
+        label_font_size_pt=label_font_pt,
+        font_family=font_family,
+        ssa_index=ssa_index,
+    )
+    tree_html = callbacks.build_tree_html(
+        window,
+        normalized,
+        link_color=link_color,
+        tree_font_pt=tree_font_pt,
+        font_family=font_family,
+        tree_data_override=tree_data,
+        ssa_index=ssa_index,
+    )
+    mermaid_text = callbacks.build_mermaid_text(tree_data)
+    graph_html = callbacks.build_graph_html(
+        window,
+        tree_data,
+        link_color=link_color,
+        font_family=font_family,
+    )
+    return DetailsDialogRenderPayload(
+        details_html=details_html,
+        graph_html=graph_html,
+        graph_svg=callbacks.extract_svg_markup(graph_html),
+        mermaid_text=mermaid_text,
+        tree_html=tree_html,
+    )
 
 
 class DetailsDialogPresenter:
@@ -193,6 +271,22 @@ class DetailsDialogPresenter:
         self._render_graph(widgets, payload, svg_render_deps)
         return True
 
+    def _payload_context(
+        self,
+        normalized: str,
+        style: tuple[str, float, float, float, str],
+    ) -> object | None:
+        context_fn = self.callbacks.render_payload_context
+        if not callable(context_fn):
+            return None
+        try:
+            return context_fn(self.window, normalized, style)
+        except Exception as exc:
+            self.callbacks.logger.debug(
+                "Falha ao montar contexto do cache de detalhes: %s", exc
+            )
+            return None
+
     def _get_render_payload(
         self,
         *,
@@ -204,43 +298,32 @@ class DetailsDialogPresenter:
         tree_font_pt: float,
         font_family: str,
     ) -> DetailsDialogRenderPayload:
+        style = (link_color, font_pt, label_font_pt, tree_font_pt, font_family)
+        context = self._payload_context(normalized, style)
+        if context is not None:
+            cache = _details_payload_cache(self.window)
+            if cache is not None:
+                entry = cache.get(normalized)
+                if entry is not None and entry[0] == context:
+                    return entry[1]
+                payload = build_details_render_payload(
+                    window=self.window,
+                    normalized=normalized,
+                    series_target=series_target,
+                    style=style,
+                    callbacks=self.callbacks,
+                )
+                _details_payload_cache_put(cache, normalized, context, payload)
+                return payload
         cached = self._render_cache.get(normalized)
         if cached is not None:
             return cached
-        ssa_index: dict[str, pd.Series] = {}
-        tree_data = self.callbacks.collect_tree_data(self.window, normalized)
-        details_html = self.callbacks.format_details_html(
-            self.window,
-            series_target,
-            highlight_search_terms=True,
-            font_size_pt=font_pt,
-            linkify=True,
-            label_font_size_pt=label_font_pt,
-            font_family=font_family,
-            ssa_index=ssa_index,
-        )
-        tree_html = self.callbacks.build_tree_html(
-            self.window,
-            normalized,
-            link_color=link_color,
-            tree_font_pt=tree_font_pt,
-            font_family=font_family,
-            tree_data_override=tree_data,
-            ssa_index=ssa_index,
-        )
-        mermaid_text = self.callbacks.build_mermaid_text(tree_data)
-        graph_html = self.callbacks.build_graph_html(
-            self.window,
-            tree_data,
-            link_color=link_color,
-            font_family=font_family,
-        )
-        payload = DetailsDialogRenderPayload(
-            details_html=details_html,
-            graph_html=graph_html,
-            graph_svg=self.callbacks.extract_svg_markup(graph_html),
-            mermaid_text=mermaid_text,
-            tree_html=tree_html,
+        payload = build_details_render_payload(
+            window=self.window,
+            normalized=normalized,
+            series_target=series_target,
+            style=style,
+            callbacks=self.callbacks,
         )
         self._render_cache[normalized] = payload
         return payload

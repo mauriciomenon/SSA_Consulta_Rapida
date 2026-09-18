@@ -102,3 +102,29 @@ def test_force_import_orders_snapshot_files_by_embedded_datetime(
         ).fetchone()
 
     assert row == ("202600654", "STE", newer.name)
+
+
+def test_file_cache_name_is_unique_per_database_filename(tmp_path: Path) -> None:
+    """Cada banco alternativo recebe cache proprio, sem colisao de stem.
+
+    archive.db e archive.sqlite sao bancos distintos; SSAS.db e ssas.db
+    tambem sao arquivos distintos em volumes case-sensitive (Linux).
+    """
+    from core.app_logic import _initialize_import_run_context
+
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    def cache_name(db_name: str) -> str:
+        ctx = _initialize_import_run_context(
+            docs_dir=str(docs_dir), data_dir=str(data_dir), db_name=db_name
+        )
+        return Path(ctx["cache_file"]).name
+
+    assert cache_name("ssas.db") == "file_cache.json"
+    assert cache_name("archive.db") == "file_cache.archive.db.json"
+    assert cache_name("archive.sqlite") == "file_cache.archive.sqlite.json"
+    # Case-sensitive: alias de caixa diferente nao reusa o cache canonico
+    assert cache_name("SSAS.db") != "file_cache.json"

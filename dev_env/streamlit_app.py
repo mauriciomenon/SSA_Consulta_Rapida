@@ -1,6 +1,5 @@
 """Streamlit frontend otimizado para explorar SSAs utilizando o banco local."""
 
-# Last modified: 2025-10-29T11:45:00 (improved arrow compatibility)
 from __future__ import annotations
 
 import hashlib
@@ -534,7 +533,9 @@ STREAMLIT_THEME_PALETTES: dict[str, dict[str, str]] = {
 }
 
 
-def load_dataframe(db_path: str) -> pd.DataFrame:
+def load_dataframe(
+    db_path: str, extra_allowed_roots: tuple[str, ...] = ()
+) -> pd.DataFrame:
     """
     Carrega dados do banco de dados com tratamento de erros.
 
@@ -546,7 +547,7 @@ def load_dataframe(db_path: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        df = get_filtered_data(db_path)
+        df = get_filtered_data(db_path, extra_allowed_roots=extra_allowed_roots)
         if df.empty:
             logger.info(f"Database query returned empty result: {db_path}")
         else:
@@ -812,6 +813,41 @@ def _normalize_render_stats(raw_stats: Any) -> dict[str, dict[str, Any]]:
     return normalized
 
 
+def _resolve_user_source_path(
+    raw_path: str, *, purpose: str, expect_directory: bool
+) -> str:
+    """Valida a escolha explicita sem ampliar permissoes de outras sessoes.
+
+    Modelo local/confiado: o launcher vincula o servidor a 127.0.0.1 e a
+    sessao pertence ao operador desta maquina; autorizar a raiz do caminho
+    que ele digitou e o comportamento desejado, nao um sandbox. A
+    validacao de tipo, existencia e canonicalizacao permanece em
+    ``ensure_path_is_allowed``, e a concessao vale apenas para esta
+    chamada (``extra_allowed_roots`` nao persiste entre sessoes). Uso
+    remoto ou multiusuario nao e um contrato seguro desta interface.
+    """
+    if not raw_path.strip():
+        raise PathSafetyError(f"{purpose}: caminho vazio nao permitido.")
+    candidate = Path(raw_path.strip()).expanduser()
+    if not candidate.is_absolute():
+        candidate = project_root / candidate
+    candidate = candidate.resolve()
+    root = candidate if expect_directory else candidate.parent
+    if root.exists() and not root.is_dir():
+        raise PathSafetyError(f"{purpose}: '{root}' existe e nao e um diretorio.")
+    if not root.is_dir():
+        raise PathSafetyError(f"{purpose}: diretorio '{root}' nao existe.")
+    return str(
+        ensure_path_is_allowed(
+            candidate,
+            purpose=purpose,
+            expect_directory=expect_directory,
+            must_exist=expect_directory,
+            extra_allowed_roots=(root,),
+        )
+    )
+
+
 def _resolve_streamlit_ui_state_path() -> Path:
     cfg_dir_raw = os.environ.get("SSA_CONFIG_DIR", "config")
     try:
@@ -906,6 +942,15 @@ def _persist_streamlit_state(
         "streamlit_render_stats": _normalize_render_stats(streamlit_render_stats),
         "updated_at": time.time(),
     }
+    signature: str | None = None
+    if hasattr(st, "session_state") and st.session_state is not None:
+        signature = json.dumps(
+            {k: v for k, v in payload.items() if k != "updated_at"},
+            sort_keys=True,
+            default=str,
+        )
+        if st.session_state.get("_ui_state_persist_sig") == signature:
+            return
     try:
         state_path = _resolve_streamlit_ui_state_path()
         state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -915,6 +960,8 @@ def _persist_streamlit_state(
             indent=2,
             ensure_ascii=False,
         )
+        if signature is not None:
+            st.session_state["_ui_state_persist_sig"] = signature
     except Exception as exc:
         logger.warning("Falha ao persistir estado opcional do Streamlit: %s", exc)
 
@@ -966,6 +1013,174 @@ def _clear_recent_api_snapshot() -> None:
     if not hasattr(st, "session_state") or st.session_state is None:
         return
     st.session_state["recent_api_df"] = None
+
+
+def _trigger_rerun() -> None:
+    rerun_fn = getattr(st, "rerun", None)
+    if callable(rerun_fn):
+        rerun_fn()
+        return
+    legacy_rerun_fn = getattr(st, "experimental_rerun", None)
+    if callable(legacy_rerun_fn):
+        legacy_rerun_fn()
+
+
+def _default_filter_state(
+    column_display_names: dict[str, str],
+    default_columns: list[str],
+    limit_rows: int = 500,
+) -> dict[str, Any]:
+    return {
+        "search_terms": "",
+        "consult_api": False,
+        "situacao_sel": [],
+        "executor_sel": [],
+        "emissor_sel": [],
+        "executor_resp_sel": [],
+        "executor_resp_manual": "",
+        "executor_resp_exclude": [],
+        "estado_sel": [],
+        "estado_manual": "",
+        "estado_exclude": [],
+        "ano_emissao_sel": [],
+        "ano_emissao_manual": "",
+        "ano_emissao_exclude": [],
+        "ano_execucao_sel": [],
+        "ano_execucao_manual": "",
+        "ano_execucao_exclude": [],
+        "ano_semana_emissao_sel": [],
+        "ano_semana_emissao_manual": "",
+        "ano_semana_emissao_exclude": [],
+        "ano_semana_execucao_sel": [],
+        "ano_semana_execucao_manual": "",
+        "ano_semana_execucao_exclude": [],
+        "num_reprogramacoes_sel": [],
+        "num_reprogramacoes_manual": "",
+        "num_reprogramacoes_exclude": [],
+        "data_emissao_inicio": "",
+        "data_emissao_fim": "",
+        "data_execucao_inicio": "",
+        "data_execucao_fim": "",
+        "tem_derivada_mode": "todos",
+        "tem_derivadas_mode": "todos",
+        "use_calendar_mode": False,
+        "limit_rows": limit_rows,
+        "selected_display": [
+            column_display_names[col] for col in default_columns
+        ],
+    }
+
+
+def _default_table_state(persisted: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "sort_column": "(Sem ordenacao)",
+        "sort_desc": False,
+        "page_size": 100,
+        "table_height": 600,
+        "auto_width": True,
+        "page_number": 1,
+        "width_profile": str(persisted.get("width_profile", "Padrao (1600)")),
+        "width_profile_by_bucket": _normalize_width_profile_memory(
+            persisted.get("width_profile_by_bucket", {})
+        ),
+        "table_mode": "Tabela + grafico",
+        "compact_mode": False,
+    }
+
+
+def _render_source_ops_panel(db_path: str, docs_dir: str) -> None:
+    """Fonte de dados avancada: selecao de banco/pasta e disparo de importacao."""
+    with st.expander("Fonte de dados avancada", expanded=False):
+        source_db_input = st.text_input(
+            "Arquivo do banco",
+            value=db_path,
+            key="ops_source_db_path",
+        )
+        source_docs_input = st.text_input(
+            "Pasta com planilhas",
+            value=docs_dir,
+            key="ops_source_docs_dir",
+        )
+        source_actions = st.columns([1.1, 1.1, 1.8])
+        apply_source = source_actions[0].button(
+            "Aplicar fonte", key="apply_source_paths"
+        )
+        run_load = source_actions[1].button(
+            "Carregar dados", key="load_data_ops"
+        )
+        run_reimport = source_actions[2].button(
+            "Reimportar planilhas", key="reimport_data_ops"
+        )
+        if apply_source:
+            try:
+                resolved_db = _resolve_user_source_path(
+                    source_db_input,
+                    purpose="Arquivo do banco",
+                    expect_directory=False,
+                )
+                resolved_docs = _resolve_user_source_path(
+                    source_docs_input,
+                    purpose="Pasta com planilhas",
+                    expect_directory=True,
+                )
+                st.session_state["streamlit_source_state"] = {
+                    "db_path": resolved_db,
+                    "docs_dir": resolved_docs,
+                    "extra_allowed_roots": (str(Path(resolved_db).parent), resolved_docs),
+                }
+                st.success(
+                    "Fonte aplicada. Recarregue dados para refletir mudancas."
+                )
+            except PathSafetyError as exc:
+                st.error(str(exc))
+        if run_load or run_reimport:
+            source_state = st.session_state.get("streamlit_source_state", {})
+            op_db = str(source_state.get("db_path", db_path))
+            op_docs = str(source_state.get("docs_dir", docs_dir))
+            try:
+                from core import import_outcome as _import_outcome
+
+                _outcome_before = _import_outcome.get_last_import_outcome()
+                ok = import_files_to_database(
+                    docs_dir=op_docs,
+                    db_path=op_db,
+                    force_import=bool(run_reimport),
+                    raise_on_error=True,
+                    extra_allowed_roots=tuple(source_state.get("extra_allowed_roots", ())),
+                )
+                _outcome_after = _import_outcome.get_last_import_outcome()
+                outcome = (
+                    _outcome_after
+                    if _outcome_after is not _outcome_before
+                    else None
+                )
+                if hasattr(load_dataframe, "clear"):
+                    load_dataframe.clear()
+                filter_cache.clear()
+                _clear_recent_api_snapshot()
+                status = getattr(outcome, "status", None)
+                status_value = getattr(status, "value", "")
+                if outcome is not None and _import_outcome.is_blocking_status(status):
+                    st.error(
+                        f"Importacao terminou com status bloqueante ({status_value})."
+                        + (
+                            " O banco recebeu alteracoes parciais."
+                            if outcome.primary_database_changed else ""
+                        )
+                    )
+                elif outcome is not None and outcome.primary_database_changed:
+                    st.success("Importacao concluida.")
+                elif status_value == "deterministic_rejections_only":
+                    st.info(
+                        "Arquivos rejeitados por regra deterministica; banco inalterado."
+                    )
+                elif ok:
+                    st.success("Importacao concluida.")
+                else:
+                    st.info("Nenhum arquivo novo processado.")
+                _trigger_rerun()
+            except Exception as exc:
+                st.error(f"Importacao falhou: {exc}")
 
 
 def _build_table_caption(
@@ -2038,27 +2253,29 @@ if REAL_RUNTIME:
     db_path_candidate = str(source_state.get("db_path", DB_PATH_DEFAULT))
     docs_dir_candidate = str(source_state.get("docs_dir", DOCS_DIR_DEFAULT))
     try:
-        db_path = str(
-            ensure_path_is_allowed(
-                db_path_candidate,
-                purpose="Arquivo do banco",
-                expect_directory=False,
-            )
+        db_path = _resolve_user_source_path(
+            db_path_candidate,
+            purpose="Arquivo do banco",
+            expect_directory=False,
         )
-        docs_dir = str(
-            ensure_path_is_allowed(
-                docs_dir_candidate,
-                purpose="Pasta com planilhas",
-                expect_directory=True,
-            )
+        docs_dir = _resolve_user_source_path(
+            docs_dir_candidate,
+            purpose="Pasta com planilhas",
+            expect_directory=True,
         )
-    except PathSafetyError:
+        st.session_state["streamlit_source_state"] = {
+            "db_path": db_path,
+            "docs_dir": docs_dir,
+            "extra_allowed_roots": (str(Path(db_path).parent), docs_dir),
+        }
+    except PathSafetyError as exc:
         db_path = DB_PATH_DEFAULT
         docs_dir = DOCS_DIR_DEFAULT
         st.session_state["streamlit_source_state"] = {
             "db_path": db_path,
             "docs_dir": docs_dir,
         }
+        st.warning(f"Fonte salva rejeitada ({exc}); usando caminhos padrao.")
 
     header_left, header_right = st.columns([5, 1])
     with header_left:
@@ -2085,9 +2302,7 @@ if REAL_RUNTIME:
                     st.session_state.get("streamlit_render_stats", {})
                 ),
             )
-            rerun_fn = getattr(st, "rerun", None)
-            if callable(rerun_fn):
-                rerun_fn()
+            _trigger_rerun()
         st.caption(f"Atualizado as {datetime.now().strftime('%H:%M:%S')}")
 
     with st.sidebar:
@@ -2099,13 +2314,21 @@ if REAL_RUNTIME:
         st.caption(f"DB: {'ok' if db_exists else 'ausente'} | {db_size_mb:.1f} MB")
         st.caption(f"Arquivos de entrada: {sheet_files_count}")
 
-raw_df = load_dataframe(db_path) if REAL_RUNTIME else pd.DataFrame()
+raw_df = (
+    load_dataframe(
+        db_path,
+        tuple(st.session_state["streamlit_source_state"].get("extra_allowed_roots", ())),
+    )
+    if REAL_RUNTIME else pd.DataFrame()
+)
 sidebar_filtered_metric_slot: Any = None
 base_derivada_context_map: Optional[pd.DataFrame] = None
 if REAL_RUNTIME and raw_df.empty:
     st.info(
-        "Banco nao encontrado ou sem dados. Use a aba 'Cache e API' em 'Fonte de dados avancada'."
+        "Banco nao encontrado ou sem dados. Ajuste a fonte abaixo ou importe"
+        " as planilhas para comecar."
     )
+    _render_source_ops_panel(db_path, docs_dir)
     st.stop()
 
 if REAL_RUNTIME and not raw_df.empty:
@@ -2186,45 +2409,9 @@ if REAL_RUNTIME and not raw_df.empty:
 
         state_key = "streamlit_filters_state"
         if state_key not in st.session_state:
-            st.session_state[state_key] = {
-                "search_terms": "",
-                "consult_api": False,
-                "situacao_sel": [],
-                "executor_sel": default_executor,
-                "emissor_sel": default_emissor,
-                "executor_resp_sel": [],
-                "executor_resp_manual": "",
-                "executor_resp_exclude": [],
-                "estado_sel": [],
-                "estado_manual": "",
-                "estado_exclude": [],
-                "ano_emissao_sel": [],
-                "ano_emissao_manual": "",
-                "ano_emissao_exclude": [],
-                "ano_execucao_sel": [],
-                "ano_execucao_manual": "",
-                "ano_execucao_exclude": [],
-                "ano_semana_emissao_sel": [],
-                "ano_semana_emissao_manual": "",
-                "ano_semana_emissao_exclude": [],
-                "ano_semana_execucao_sel": [],
-                "ano_semana_execucao_manual": "",
-                "ano_semana_execucao_exclude": [],
-                "num_reprogramacoes_sel": [],
-                "num_reprogramacoes_manual": "",
-                "num_reprogramacoes_exclude": [],
-                "data_emissao_inicio": "",
-                "data_emissao_fim": "",
-                "data_execucao_inicio": "",
-                "data_execucao_fim": "",
-                "tem_derivada_mode": "todos",
-                "tem_derivadas_mode": "todos",
-                "use_calendar_mode": False,
-                "limit_rows": limit_rows,
-                "selected_display": [
-                    column_display_names[col] for col in default_columns
-                ],
-            }
+            st.session_state[state_key] = _default_filter_state(
+                column_display_names, default_columns, limit_rows=limit_rows
+            )
         filter_state = st.session_state[state_key]
         filter_state.setdefault("executor_resp_exclude", [])
         filter_state.setdefault("estado_exclude", [])
@@ -2320,22 +2507,9 @@ if REAL_RUNTIME and not raw_df.empty:
 
         table_state_key = "streamlit_table_state"
         if table_state_key not in st.session_state:
-            st.session_state[table_state_key] = {
-                "sort_column": "(Sem ordenacao)",
-                "sort_desc": False,
-                "page_size": 100,
-                "table_height": 600,
-                "auto_width": True,
-                "page_number": 1,
-                "width_profile": str(
-                    persisted_streamlit_state.get("width_profile", "Padrao (1600)")
-                ),
-                "width_profile_by_bucket": _normalize_width_profile_memory(
-                    persisted_streamlit_state.get("width_profile_by_bucket", {})
-                ),
-                "table_mode": "Tabela + grafico",
-                "compact_mode": False,
-            }
+            st.session_state[table_state_key] = _default_table_state(
+                persisted_streamlit_state
+            )
         if "streamlit_render_stats" not in st.session_state:
             st.session_state["streamlit_render_stats"] = _normalize_render_stats(
                 persisted_streamlit_state.get("streamlit_render_stats", {})
@@ -2605,57 +2779,10 @@ if REAL_RUNTIME and not raw_df.empty:
                 "cal_data_execucao_fim",
             ):
                 st.session_state.pop(cal_key, None)
-            st.session_state[state_key] = {
-                "search_terms": "",
-                "consult_api": False,
-                "situacao_sel": [],
-                "executor_sel": [],
-                "emissor_sel": [],
-                "executor_resp_sel": [],
-                "executor_resp_manual": "",
-                "executor_resp_exclude": [],
-                "estado_sel": [],
-                "estado_manual": "",
-                "estado_exclude": [],
-                "ano_emissao_sel": [],
-                "ano_emissao_manual": "",
-                "ano_emissao_exclude": [],
-                "ano_execucao_sel": [],
-                "ano_execucao_manual": "",
-                "ano_execucao_exclude": [],
-                "ano_semana_emissao_sel": [],
-                "ano_semana_emissao_manual": "",
-                "ano_semana_emissao_exclude": [],
-                "ano_semana_execucao_sel": [],
-                "ano_semana_execucao_manual": "",
-                "ano_semana_execucao_exclude": [],
-                "num_reprogramacoes_sel": [],
-                "num_reprogramacoes_manual": "",
-                "num_reprogramacoes_exclude": [],
-                "data_emissao_inicio": "",
-                "data_emissao_fim": "",
-                "data_execucao_inicio": "",
-                "data_execucao_fim": "",
-                "tem_derivada_mode": "todos",
-                "tem_derivadas_mode": "todos",
-                "use_calendar_mode": False,
-                "limit_rows": 500,
-                "selected_display": [
-                    column_display_names[col] for col in default_columns
-                ],
-            }
-            st.session_state[table_state_key] = {
-                "sort_column": "(Sem ordenacao)",
-                "sort_desc": False,
-                "page_size": 100,
-                "table_height": 600,
-                "auto_width": True,
-                "page_number": 1,
-                "width_profile": "Padrao (1600)",
-                "width_profile_by_bucket": {},
-                "table_mode": "Tabela + grafico",
-                "compact_mode": False,
-            }
+            st.session_state[state_key] = _default_filter_state(
+                column_display_names, default_columns
+            )
+            st.session_state[table_state_key] = _default_table_state({})
             _persist_streamlit_state(
                 width_profile="Padrao (1600)",
                 width_profile_by_bucket={},
@@ -2663,13 +2790,7 @@ if REAL_RUNTIME and not raw_df.empty:
                     st.session_state.get("streamlit_render_stats", {})
                 ),
             )
-            rerun_fn = getattr(st, "rerun", None)
-            if callable(rerun_fn):
-                rerun_fn()
-            else:
-                legacy_rerun_fn = getattr(st, "experimental_rerun", None)
-                if callable(legacy_rerun_fn):
-                    legacy_rerun_fn()
+            _trigger_rerun()
 
         if preset_core:
             filter_state["selected_display"] = [
@@ -2921,21 +3042,15 @@ if REAL_RUNTIME and not raw_df.empty:
                 st.session_state[state_key]["selected_display"] = [
                     column_display_names[col] for col in column_presets["core"]
                 ]
-                rerun_fn = getattr(st, "rerun", None)
-                if callable(rerun_fn):
-                    rerun_fn()
+                _trigger_rerun()
             elif quick_all:
                 st.session_state[state_key]["selected_display"] = [
                     column_display_names[col] for col in column_presets["all"]
                 ]
-                rerun_fn = getattr(st, "rerun", None)
-                if callable(rerun_fn):
-                    rerun_fn()
+                _trigger_rerun()
             elif quick_apply:
                 st.session_state[state_key]["selected_display"] = quick_selected_display
-                rerun_fn = getattr(st, "rerun", None)
-                if callable(rerun_fn):
-                    rerun_fn()
+                _trigger_rerun()
 
         total_ssas = len(filtered_df)
         original_count = len(raw_df)
@@ -3141,10 +3256,7 @@ if REAL_RUNTIME and not raw_df.empty:
             filtered_len=len(table_view_df),
             render_ms=render_ms,
         )
-        if not compact_mode:
-            st.caption(table_caption)
-        else:
-            st.caption(table_caption)
+        st.caption(table_caption)
         if active_summary and not compact_mode:
             st.markdown("**Filtros ativos:** " + " | ".join(active_summary))
         if "numero_ssa" in filtered_df.columns and "derivada_de" in filtered_df.columns:
@@ -3350,101 +3462,7 @@ if REAL_RUNTIME and not raw_df.empty:
                     )
 
         with ops_right:
-            with st.expander("Fonte de dados avancada", expanded=False):
-                source_db_input = st.text_input(
-                    "Arquivo do banco",
-                    value=db_path,
-                    key="ops_source_db_path",
-                )
-                source_docs_input = st.text_input(
-                    "Pasta com planilhas",
-                    value=docs_dir,
-                    key="ops_source_docs_dir",
-                )
-                source_actions = st.columns([1.1, 1.1, 1.8])
-                apply_source = source_actions[0].button(
-                    "Aplicar fonte", key="apply_source_paths"
-                )
-                run_load = source_actions[1].button(
-                    "Carregar dados", key="load_data_ops"
-                )
-                run_reimport = source_actions[2].button(
-                    "Reimportar planilhas", key="reimport_data_ops"
-                )
-                if apply_source:
-                    try:
-                        resolved_db = str(
-                            ensure_path_is_allowed(
-                                source_db_input,
-                                purpose="Arquivo do banco",
-                                expect_directory=False,
-                            )
-                        )
-                        resolved_docs = str(
-                            ensure_path_is_allowed(
-                                source_docs_input,
-                                purpose="Pasta com planilhas",
-                                expect_directory=True,
-                            )
-                        )
-                        st.session_state["streamlit_source_state"] = {
-                            "db_path": resolved_db,
-                            "docs_dir": resolved_docs,
-                        }
-                        st.success(
-                            "Fonte aplicada. Recarregue dados para refletir mudancas."
-                        )
-                    except PathSafetyError as exc:
-                        st.error(str(exc))
-                if run_load or run_reimport:
-                    source_state = st.session_state.get("streamlit_source_state", {})
-                    op_db = str(source_state.get("db_path", db_path))
-                    op_docs = str(source_state.get("docs_dir", docs_dir))
-                    try:
-                        from core import import_outcome as _import_outcome
-
-                        _outcome_before = _import_outcome.get_last_import_outcome()
-                        ok = import_files_to_database(
-                            docs_dir=op_docs,
-                            db_path=op_db,
-                            force_import=bool(run_reimport),
-                            raise_on_error=True,
-                        )
-                        _outcome_after = _import_outcome.get_last_import_outcome()
-                        outcome = (
-                            _outcome_after
-                            if _outcome_after is not _outcome_before
-                            else None
-                        )
-                        if hasattr(load_dataframe, "clear"):
-                            load_dataframe.clear()
-                        filter_cache.clear()
-                        _clear_recent_api_snapshot()
-                        status = getattr(outcome, "status", None)
-                        status_value = getattr(status, "value", "")
-                        if outcome is not None and _import_outcome.is_blocking_status(status):
-                            st.error(
-                                f"Importacao terminou com status bloqueante ({status_value})."
-                                + (
-                                    " O banco recebeu alteracoes parciais."
-                                    if outcome.primary_database_changed else ""
-                                )
-                            )
-                        elif outcome is not None and outcome.primary_database_changed:
-                            st.success("Importacao concluida.")
-                        elif status_value == "deterministic_rejections_only":
-                            st.info(
-                                "Arquivos rejeitados por regra deterministica; banco inalterado."
-                            )
-                        elif ok:
-                            st.success("Importacao concluida.")
-                        else:
-                            st.info("Nenhum arquivo novo processado.")
-                        rerun_fn = getattr(st, "rerun", None)
-                        if callable(rerun_fn):
-                            rerun_fn()
-                    except Exception as exc:
-                        st.error(f"Importacao falhou: {exc}")
+            _render_source_ops_panel(db_path, docs_dir)
             st.subheader("API Itaipu")
             if consult_api:
                 if hasattr(st, "session_state") and st.session_state is not None:

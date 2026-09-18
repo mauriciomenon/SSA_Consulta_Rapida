@@ -66,14 +66,31 @@ class MultiPlatformBuilder:
 
         # Carregar versao
         self.version = self._load_version()
-        default_python = (
-            "cpython-3.13-windows-x86_64-none" if sys.platform == "win32" else "3.13"
-        )
-        self.runtime_python = os.environ.get("UV_PYTHON", default_python)
+        self.runtime_python = os.environ.get("UV_PYTHON")
         self.uv_cmd = shutil.which("uv") or "uv"
 
         logger.info(f"Iniciando build para SSA Consulta Rapida v{self.version}")
-        logger.info(f"Runtime Python padrao (uv): {self.runtime_python}")
+
+    def _python_specs_for(self, platform_name: str) -> list[str]:
+        """Identificadores uv do runtime Python, em ordem de preferencia.
+
+        Politica do repositorio: 3.13 primeiro, com fallback para
+        3.12/3.11/3.10 quando o uv nao consegue prover o preferido.
+        Um runtime_python explicito sobrepoe a cadeia (override unico).
+        """
+        if self.runtime_python:
+            return [self.runtime_python]
+        arch_map = {
+            "windows_amd64": "windows-x86_64-none",
+            "windows_arm64": "windows-aarch64-none",
+        }
+        suffix = arch_map.get(platform_name)
+        if suffix:
+            return [
+                f"cpython-{version}-{suffix}"
+                for version in ("3.13", "3.12", "3.11", "3.10")
+            ]
+        return ["3.13", "3.12", "3.11", "3.10"]
 
     @staticmethod
     def _run_command(cmd, *, timeout, cwd=None, capture_output=True, text=True):
@@ -386,20 +403,53 @@ VSVersionInfo(
         # Remover venv antigo se existir
         if venv_dir.exists():
             logger.info("Removendo ambiente virtual antigo")
-            shutil.rmtree(venv_dir)
+            try:
+                shutil.rmtree(venv_dir)
+            except OSError as exc:
+                logger.error("Falha removendo ambiente virtual %s: %s", venv_dir, exc)
+                return False
 
         logger.info(f"Criando novo ambiente virtual: {venv_dir}")
 
-        cmd = [
-            self.uv_cmd,
-            "venv",
-            "--python",
-            self.runtime_python,
-            str(venv_dir),
-        ]
-        result = self._run_command(cmd, timeout=600, capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error("Erro criando venv via uv: %s", result.stderr.strip())
+        venv_created = False
+        last_venv_error = ""
+        python_specs = self._python_specs_for(platform_name)
+        for python_spec in python_specs:
+            cmd = [
+                self.uv_cmd,
+                "venv",
+                "--python",
+                python_spec,
+                str(venv_dir),
+            ]
+            result = self._run_command(cmd, timeout=600, capture_output=True, text=True)
+            if result.returncode == 0:
+                venv_created = True
+                if python_spec != python_specs[0]:
+                    logger.warning(
+                        "Python preferido indisponivel; venv criado com %s",
+                        python_spec,
+                    )
+                break
+            last_venv_error = result.stderr.strip()
+            logger.warning(
+                "uv venv falhou com %s: %s; tentando proximo spec",
+                python_spec,
+                last_venv_error,
+            )
+            if venv_dir.exists():
+                try:
+                    shutil.rmtree(venv_dir)
+                except OSError as exc:
+                    logger.error(
+                        "Falha removendo venv parcial %s apos uv falhar com %s: %s",
+                        venv_dir,
+                        python_spec,
+                        exc,
+                    )
+                    return False
+        if not venv_created:
+            logger.error("Erro criando venv via uv: %s", last_venv_error)
             return False
         if not self._is_python_executable_ok(python_exe, platform_name):
             logger.error("Python do novo ambiente e incompativel com %s", platform_name)
@@ -1296,8 +1346,9 @@ VSVersionInfo(
         ]
 
         unnecessary_patterns = [
-            # Arquivos de controle
+            # Artefatos gerados, incluindo bancos com nome sem extensao.
             "file_cache.json",
+            "file_cache.*.json",
             "*.backup_*",
             # Cache e temporarios
             "*.pyc",
@@ -1368,7 +1419,13 @@ VSVersionInfo(
         # Escopo restrito para dados: arquivos explicitos para evitar varredura ampla
         data_dir = self.base_dir / "data"
         if data_dir.exists():
-            collect_for_cleanup(data_dir / "file_cache.json")
+            for cache_pattern in ("file_cache.json", "file_cache.*.*.json"):
+                for file_path in data_dir.glob(cache_pattern):
+                    collect_for_cleanup(file_path)
+            for file_path in data_dir.glob("file_cache.*.json"):
+                database_name = file_path.name[len("file_cache.") : -len(".json")]
+                if "." not in database_name and (data_dir / database_name).is_file():
+                    collect_for_cleanup(file_path)
             for file_path in data_dir.glob("*.backup_*"):
                 collect_for_cleanup(file_path)
             historico_backups = data_dir / "historico_backups"

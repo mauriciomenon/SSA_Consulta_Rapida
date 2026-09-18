@@ -56,6 +56,22 @@ fechamento, dialogos e mensagens; a execucao sem tela nao comprova essa etapa.
 Resultados de selecoes diferentes nao devem ser somados quando ha sobreposicao.
 O resultado da suite completa depende de sua propria execucao concluida.
 
+## Regressao de path safety em derivadas
+
+A politica de caminho aceita raizes extras explicitas
+(`extra_allowed_roots` em `utils/path_safety.ensure_path_is_allowed`). A fase
+de derivadas revalida `db_path` e planilhas de forma independente; toda
+delegacao deve repassar as mesmas raizes recebidas pelo caller. Exercitar os
+dois lados: db/planilha fora das raizes globais com `extra_allowed_roots`
+adequado conclui; sem a raiz, `PathSafetyError` continua obrigatorio. Cobrir
+`sync_derivadas`, `scan_derivadas_consistency`, `get_sync_stats`,
+`self_heal_derivadas`, `run_derivadas_maintenance`, as funcoes `*_from_path`
+de `derivadas_schema`, o fluxo `run_importer_logic` com db externo e o job
+manual da GUI. No importador, falha de caminho deve ocorrer em pre-flight,
+antes de qualquer escrita; nao aceitar "banco com alteracoes parciais" para
+essa classe de erro. Detalhes e casos na secao N de AUDIT_FIXES_REPORT.md e
+na rodada correspondente de VALIDATION_PLAN.md.
+
 ## Residuos A-E apos c30f87da
 
 Os 2938 passed e 9 skipped da rodada S1-S8 pertencem ao codigo `0f239dac`, com

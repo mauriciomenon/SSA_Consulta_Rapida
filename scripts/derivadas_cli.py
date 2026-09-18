@@ -9,6 +9,7 @@ import glob
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 # Resolve imports when executed as `python scripts/derivadas_cli.py`.
@@ -45,6 +46,16 @@ from armazenamento.derivadas_sync import (
 
 def _as_json(data: Any) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _db_extra_roots(args: argparse.Namespace) -> list[str]:
+    """O banco nomeado via --db auto-autoriza o proprio diretorio.
+
+    A raiz cobre o banco e as planilhas sob o mesmo diretorio, mesmo
+    criterio do rescan_worker (db_parent autoriza todos os usos). Outros
+    diretorios exigem SSA_EXTRA_ALLOWED_PATHS.
+    """
+    return [str(Path(args.db).expanduser().resolve().parent)]
 
 
 def _print_list(title: str, values: list[str]) -> None:
@@ -91,9 +102,13 @@ def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
         full_rebuild=args.full_rebuild,
         verify_only=args.verify_only,
         actor=args.actor,
+        extra_allowed_roots=_db_extra_roots(args),
     )
     if args.require_consistency and not args.verify_only:
-        scan = scan_derivadas_consistency(db_path=args.db)
+        scan = scan_derivadas_consistency(
+            db_path=args.db,
+            extra_allowed_roots=_db_extra_roots(args),
+        )
         report["consistency_scan"] = scan
         if not bool(scan.get("schema_ready")) or not bool(scan.get("is_consistent")):
             issue_counts = scan.get("issue_counts") or {}
@@ -104,15 +119,24 @@ def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _handle_stats(args: argparse.Namespace) -> dict[str, Any]:
-    return get_sync_stats(db_path=args.db)
+    return get_sync_stats(
+        db_path=args.db,
+        extra_allowed_roots=_db_extra_roots(args),
+    )
 
 
 def _handle_scan(args: argparse.Namespace) -> dict[str, Any]:
-    return scan_derivadas_consistency(db_path=args.db)
+    return scan_derivadas_consistency(
+        db_path=args.db,
+        extra_allowed_roots=_db_extra_roots(args),
+    )
 
 
 def _handle_schema_scan(args: argparse.Namespace) -> dict[str, Any]:
-    return scan_derivadas_schema_readiness_from_path(db_path=args.db)
+    return scan_derivadas_schema_readiness_from_path(
+        db_path=args.db,
+        extra_allowed_roots=_db_extra_roots(args),
+    )
 
 
 def _handle_heal(args: argparse.Namespace) -> dict[str, Any]:
@@ -128,6 +152,7 @@ def _handle_heal(args: argparse.Namespace) -> dict[str, Any]:
         full_rebuild=args.full_rebuild,
         force=args.force,
         actor=args.actor,
+        extra_allowed_roots=_db_extra_roots(args),
     )
 
 
@@ -139,6 +164,7 @@ def _handle_maintenance(args: argparse.Namespace) -> dict[str, Any]:
         auto_heal=not args.no_auto_heal,
         full_rebuild=args.full_rebuild,
         actor=args.actor,
+        extra_allowed_roots=_db_extra_roots(args),
     )
 
 

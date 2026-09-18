@@ -1025,3 +1025,1467 @@ tambem deve ser cancelado. Nao confundir cancelamento solicitado com sucesso.
 Validacoes pesadas e novas varreduras encerradas. A proxima atividade tecnica
 e tratar o backlog da revisao ampla em escopo proprio; regularizacao da conta
 GitHub e autorizacao especifica para reescrita continuam pendencias separadas.
+
+
+## N. Falha de importacao no build empacotado Windows (path safety em derivadas)
+
+### N1. Incidente e evidencia
+
+Importacao pelo executavel PyInstaller no Windows 11 falhou na fase de
+derivadas apos gravar dados parciais. Log do usuario (`erro import.txt`,
+14/09/2026): 42 arquivos estagiados, 31 processados, 20.706 SSAs atualizadas e
+56 inseridas; banco cresceu de 99.538 para 99.594 linhas; erro final
+`sync derivadas database: 'C:\Users\menon\Downloads\Telegram Desktop\ssas.db'
+fora das bases permitidas (...)`, status `derivadas_sync_error` /
+`blocking_derivadas_sync_error` e aviso explicito `O banco recebeu alteracoes
+parciais`.
+
+### N2. Cadeia causal confirmada no codigo
+
+1. `gui/workers/rescan_worker.py` (~linhas 479-496) monta
+   `extra_allowed_roots = [project_root, db_parent]` e chama
+   `run_importer_logic(extra_allowed_roots=tuple(...))`. O banco externo e
+   legitimamente permitido nesta camada.
+2. `core/app_logic.py:1923` recebe `extra_allowed_roots` e o repassa a
+   `_initialize_import_run_context` (:1950), que valida `docs_dir`, `data_dir`
+   e `db_path` com essas raizes. A fase regular de importacao grava no banco
+   externo com sucesso.
+3. `core/app_logic.py:2163` chama `_run_optional_derivadas_sync` sem repassar
+   as raizes; `:1175` chama `_run_derivadas_sync_phase` tambem sem elas.
+4. `armazenamento/derivadas_sync.py:1558-1564` revalida `db_path` via
+   `ensure_path_is_allowed` somente com as raizes globais
+   (`utils/path_safety.py`), que nao incluem o diretorio do banco externo.
+5. `PathSafetyError` (subclasse de `ValueError`, `path_safety.py:20`) e
+   capturada pelo `except (OSError, RuntimeError, ..., ValueError,
+   sqlite3.Error)` de `app_logic.py:1235`, vira `derivadas_sync_blocking_error`
+   e retorna `False` em `app_logic.py:2213-2217`.
+
+A mesma revalidacao isolada existe em `_normalize_sheet_file_path`
+(`derivadas_sync.py:228-234`), `_open_derivadas_read_connection`
+(:159-166, usado por `scan_derivadas_consistency` :1929 e `get_sync_stats`
+:1811), `self_heal_derivadas` (:2036), `run_derivadas_maintenance` (:2078) e
+`armazenamento/derivadas_schema.py` (:440, :484, :526). O fluxo manual da GUI
+(`gui/ssa/derivadas_sync_job.py` -> `sync_derivadas_fn`) e a CLI
+`scripts/derivadas_cli.py` tem a mesma lacuna para `--db` externo.
+
+Defeito arquitetural: o contexto de politica de caminho nao e propagado
+pelo pipeline; cada camada revalida contra raizes globais. Em desenvolvimento
+o banco fica dentro do projeto e o bug e invisivel; ele so aparece no pacote
+com banco em diretorio arbitrario do usuario.
+
+### N3. Reproducao controlada (macOS, sem alterar o repo)
+
+Em `/tmp/ssa_repro`, com banco vazio fora das raizes permitidas:
+
+- `ensure_path_is_allowed('/tmp/ssa_repro/ext/ssas.db',
+  purpose='sync derivadas database')` -> `PathSafetyError` com a mesma
+  mensagem do log do usuario.
+- Mesma chamada com `extra_allowed_roots=('/tmp/ssa_repro/ext',)` -> aceito.
+- `inspect.signature(sync_derivadas)` confirma ausencia de parametro
+  `extra_allowed_roots`.
+
+### N4. Implementacao exata (entregue na branch devin_review)
+
+Objetivo: propagar as mesmas raizes explicitas por toda a cadeia, sem
+enfraquecer `ensure_path_is_allowed` nem ampliar `ALLOWED_ROOTS` global.
+
+`armazenamento/derivadas_sync.py`:
+
+- `_normalize_sheet_file_path(value)` -> acrescentar
+  `extra_allowed_roots: Iterable[str | os.PathLike] | None = None` e repassar
+  a `ensure_path_is_allowed(..., extra_allowed_roots=extra_allowed_roots)`.
+- `_open_derivadas_read_connection(db_path)` -> idem.
+- `sync_derivadas(...)` -> acrescentar keyword-only `extra_allowed_roots=None`;
+  repassar a `_normalize_sheet_file_path` (:1540, :1545) e a
+  `ensure_path_is_allowed` do `db_path` (:1559).
+- `get_sync_stats(db_path)`, `scan_derivadas_consistency(db_path)` -> idem,
+  repassando a `_open_derivadas_read_connection`.
+- `self_heal_derivadas(...)` -> idem, repassando as duas chamadas de
+  `scan_derivadas_consistency` (:2052, :2069) e a `sync_derivadas` (:2056).
+- `run_derivadas_maintenance(...)` -> idem, repassando a
+  `_open_derivadas_read_connection` (:2090), `scan_derivadas_consistency`
+  (:2129) e `self_heal_derivadas` (:2165).
+
+`armazenamento/derivadas_schema.py`:
+
+- `ensure_derivadas_schema` (:440), `scan_derivadas_schema_readiness_from_path`
+  (:484) e `scan_derivadas_read_schema_readiness_from_path` (:526) -> mesmo
+  parametro opcional repassado a `ensure_path_is_allowed`.
+
+`core/app_logic.py`:
+
+- `_run_derivadas_sync_phase` (:485) -> parametro `extra_allowed_roots=None`;
+  incluir em `sync_kwargs` (:503) e repassar a
+  `scan_derivadas_consistency(db_path=db_path,
+  extra_allowed_roots=extra_allowed_roots)` (:620).
+- `_run_optional_derivadas_sync` (:1145) -> mesmo parametro repassado a
+  `_run_derivadas_sync_phase` (:1175).
+- `run_importer_logic` -> no call site :2163, passar
+  `extra_allowed_roots=extra_allowed_roots`.
+
+`gui/ssa/derivadas_sync_job.py` e `gui/gui_ssa.py`:
+
+- `execute_derivadas_sync_job` -> parametro `extra_allowed_roots=None`
+  repassado a `sync_derivadas_fn` e `scan_derivadas_consistency_fn`.
+- `gui_ssa.py:_execute_derivadas_sync_job` (:5239) -> passar
+  `extra_allowed_roots=[str(Path(db_path).resolve().parent)]`, replicando o
+  padrao ja usado em `rescan_worker.py` para `db_parent`.
+
+`scripts/derivadas_cli.py`:
+
+- Nos handlers que recebem `--db`, passar
+  `extra_allowed_roots=[str(Path(args.db).resolve().parent)]`. O banco
+  nomeado pelo operador auto-autoriza seu diretorio; planilhas e destinos de
+  relatorio continuam validados. Alternativa documentada: exigir
+  `SSA_EXTRA_ALLOWED_PATHS`, mantida como opcao, nao como obrigatoria.
+
+Compatibilidade: todos os parametros novos sao opcionais com default `None`;
+assinaturas e contratos publicos preservados.
+
+Estado: implementado em `devin_review`. Adicionalmente, `run_importer_logic`
+ganhou pre-flight que valida `working_db_path` e cada
+`derivadas_sheet_files` com as mesmas raizes antes de qualquer escrita,
+fechando a janela de mutacao parcial para falhas de caminho (item N5.1).
+Excecao na entrada invalida aborta como `ImporterError` com
+`PathSafetyError` como causa, antes de `_import_single_file`.
+
+### N5. Segundo defeito: mutacao parcial antes da fase de derivadas
+
+O log prova que 31 arquivos foram gravados no banco primario antes do
+bloqueio. O retorno `False` nao desfaz essas escritas; o mecanismo de
+candidato/promocao so existe no full-rescan. Duas medidas:
+
+1. Fail-fast (barata, entregue): `run_importer_logic` executa
+   `ensure_path_is_allowed` em `working_db_path` e em cada planilha de
+   derivadas antes do processamento, com as mesmas `extra_allowed_roots`.
+   Caminho invalido agora aborta antes de qualquer linha gravada.
+2. Decisao de consistencia (separada, PENDENTE): para falhas de derivadas
+   nao relacionadas a caminho, decidir entre (a) aceitar progresso parcial
+   com status/report honesto e caminho de retry (ja existe
+   `db_only_derivadas_sync`), ou (b) estender o fluxo candidato/promocao ao
+   rescan comum, promovendo so apos sync+consistencia. A opcao (b) e a mais
+   segura, porem estrutural; nao implementar junto do hotfix N4 sem pedido
+   proprio.
+
+### N6. Cobertura de testes adicionada e executada
+
+Novos casos (todos aprovados):
+
+- `tests/test_derivadas_sync.py` (4): db externo exige raiz explicita;
+  scan/stats/heal/maintenance propagam raizes; planilha externa segue a
+  mesma politica.
+- `tests/test_derivadas_schema.py` (1): `ensure_derivadas_schema` e os dois
+  `scan_*_from_path` respeitam `extra_allowed_roots`.
+- `tests/test_derivadas_sync_job.py` (1): `execute_derivadas_sync_job`
+  repassa as raizes a `sync_derivadas_fn` e `scan_derivadas_consistency_fn`.
+- `tests/test_import_derivadas_trigger.py` (2): `run_importer_logic` com db
+  externo + raizes executa a fase de derivadas e propaga as raizes;
+  planilha externa sem raiz aborta em pre-flight antes de qualquer
+  `_import_single_file` (zero escritas).
+
+Resultado registrado: 177 testes focados + 100 (workers/menu/queries) + 79
+(filtros/derivadas GUI) aprovados em macOS arm64 offscreen; ruff e ty sem
+achados nos arquivos alterados; dois stubs antigos de
+`ensure_path_is_allowed` em testes foram alargados com `**_kwargs`. Suite
+completa, scanners e validacao nativa Windows nao executados nesta rodada.
+
+### N7. Origem e limite da evidencia
+
+O mecanismo `extra_allowed_roots` existe desde antes da rodada de build
+Windows; a sessao Codex de 10/09/2026 leu esses simbolos mas nao introduziu
+a propagacao. O defeito so se manifesta com banco fora das raizes padrao,
+cenario que a validacao do pacote nao exercitava. Correcao implementada em
+`devin_review`; validacao do pacote Windows com banco externo continua
+pendente (ver BUILD_WINDOWS_ARM64_AMD64.md).
+
+## O. Correcao dos achados remanescentes da auditoria read-only (rodada 2026-09-15)
+
+A auditoria read-only original listou seis achados (1 alta, 2 medias,
+3 baixas). Esta rodada corrigiu cinco deles em `devin_review`; o sexto
+permanece como decisao pendente por envolver empacotamento.
+
+### O1. ALTA - `--streamlit` encerrava o servidor ao sair de `main()`
+
+- `interface/streamlit_launcher.py`: nova funcao `wait_for_streamlit()`,
+  que bloqueia em `process.wait()` sobre o processo Streamlit mais recente.
+  Em `KeyboardInterrupt` retorna; a limpeza `atexit` existente encerra o
+  filho na saida do interpretador. `launch_streamlit()` segue nao
+  bloqueante (contrato preservado, testes existentes intactos).
+- `main.py::_launch_interface`: apos lancamento bem-sucedido chama
+  `wait_for_streamlit()`, entao o processo-pai permanece vivo enquanto o
+  servidor estiver ativo e CTRL+C passa a funcionar como anunciado.
+
+### O2. MEDIA - `logs/` crescia sem limite
+
+- `core/import_run_report.py`: `_prune_import_run_reports()` descarta os
+  `import_run_*.json` mais antigos (por mtime), retendo os 50 mais
+  recentes a cada nova gravacao. Falhas de poda sao ignoradas (OSError),
+  nunca bloqueiam o relatorio.
+- `interface/streamlit_launcher.py`: `streamlit.log` acima de 5 MiB e
+  rotacionado para `streamlit.log.1` (backup unico) antes da abertura.
+
+### O3. MEDIA - `utils/fallback/emergency_import.py` apagava o banco real
+
+- Removido o `os.remove(db_path)` silencioso. Banco existente agora aborta
+  com mensagem, a menos que `--force` seja passado; com `--force` o banco
+  e arquivado como `ssas.db.bak-<timestamp>` em vez de apagado. Novo
+  argumento `--db` permite escolher o caminho de destino. O banner
+  explicita que o script insere dados de TESTE.
+
+### O4. BAIXA - `_parse_cache` e `results_stack` sem limite na CLI
+
+- `interface/cli.py`: `_parse_cache` virou `OrderedDict` com evicao FIFO
+  em 256 entradas. `results_stack` passa por `_push_result_state()` nos
+  tres pontos de push (filtro, `ord`, `ordn`), com teto de 100 niveis; ao
+  estourar, descarta o item mais antigo apos a base (indice 0 preservado
+  para os comandos de reset). `_print_cache` ja tinha teto proprio
+  (limpa aos 20) e nao foi alterado.
+
+### O5. BAIXA - `except Exception` mascarando falhas
+
+- `utils/remote_itaipu.py::map_to_dataframe`: restrito a
+  `(ImportError, ValueError, TypeError, AttributeError)` com `logger.debug`
+  da causa.
+- `utils/path_safety.py::_is_within`: restrito a
+  `(OSError, RuntimeError, ValueError)`, cobrindo `resolve()` e
+  `relative_to()` sem engolir excecoes inesperadas.
+
+### O6. BAIXA - `sys.path.insert` em runtime - PENDENTE
+
+Nao alterado: `main.py` e `interface/cli.py` dependem dele no modo
+desenvolvimento e em cenarios de launcher nao empacotado. Remover exige
+garantir `pip install -e .` ou `PYTHONPATH` em todos os entry points;
+decisao de empacotamento, nao de corretude. Registrado como backlog.
+
+### O7. Validacao executada nesta rodada
+
+- `pytest`: test_main_streamlit_launcher, test_cli_loop_filter_rounds,
+  test_cli_config_preserve_session, test_path_safety (53), mais
+  test_import_run_report (27) e demais modulos test_cli_* (38) - todos
+  aprovados em macOS arm64.
+- Verificacoes manuais: emergency_import (cria/recusa/arquiva),
+  rotacao de streamlit.log, `wait_for_streamlit` com fake process, prune
+  de relatorios (60 -> 50 mais recentes), `map_to_dataframe`.
+- `py_compile` e `ruff check` limpos em todos os arquivos alterados.
+- Nao executado: suite completa, scanners, validacao no pacote Windows.
+
+### O8. Revisao externa (rodada 2) - codex e bitoreview sobre o diff
+
+Revisao externa executada sobre `dev..devin_review` apos os testes de borda
+da rodada 1. Resultado: 2 defeitos reais introduzidos/encontrados foram
+corrigidos; demais apontamentos eram cosmeticos ou falsos positivos.
+
+- **[P1] `emergency_import --force` perdia commits do WAL**
+  (`utils/fallback/emergency_import.py`): renomear apenas `ssas.db`
+  deixava `ssas.db-wal`/`-shm` orfaos — commits pendentes se perdiam e o
+  WAL antigo poderia ser aplicado sobre o banco recriado. Corrigido: o
+  trio (`db`, `-wal`, `-shm`) e arquivado junto. Reproduzido com WAL
+  aberto: backup resultante abre com os dados preservados.
+- **[P2] `extra_allowed_roots` como `Iterable` esgotavel**
+  (`armazenamento/derivadas_sync.py`, `core/app_logic.py`,
+  `gui/ssa/derivadas_sync_job.py`): gerador passado pelo chamador era
+  consumido na primeira validacao e as seguintes recebiam o iterador
+  esgotado, rejeitando caminhos autorizados. Corrigido materializando em
+  `tuple(...)` nos pontos de entrada com multiplas validacoes:
+  `sync_derivadas`, `self_heal_derivadas`, `run_derivadas_maintenance`,
+  `execute_derivadas_sync_job` e `run_importer_logic`. Funcoes de uso
+  unico (scan/stats/pass-through) nao precisam.
+- **[LOW] bitoreview**: aplicados `entry: Tuple[pd.DataFrame, List[str]]`
+  em `_push_result_state` e aviso impresso quando a rotacao de
+  `streamlit.log` falha por erro real (FileNotFoundError segue esperado).
+  Nao aplicados (falsos positivos/cosmeticos): appends pos-`clear()` na
+  results_stack (profundidade 1, helper seria no-op), docstring do
+  parametro no job, nome de helper no CLI.
+- Bug de borda proprio encontrado na rodada 1: dois `--force` no mesmo
+  segundo colidiam no `.bak-<timestamp>`; timestamp agora inclui
+  microssegundos.
+
+**Suite completa** executada nesta rodada: **2777 passaram, 1 falhou** —
+`test_code_quality_documents_dynamic_dependency_submission_status`, que e
+**falha pre-existente em `dev`** (o teste exige frase em ingles e o
+`.github/CODE_QUALITY.md` esta em portugues desde antes do branch;
+conteudo identico nos dois branches). Nao corrigida por estar fora do
+escopo; requer decisao sobre qual lado do contrato prevalece.
+
+### O9. Revisao externa (rodada 3) - fatiada por codigo e modelo
+
+Ciclo de estabilizacao com revisores externos **fatiados** (cada modelo
+revisou uma fatia de codigo, nao o diff inteiro) e propostas de correcao
+revisadas antes da implementacao. Ferramentas: codex (fatia derivadas +
+revisao de propostas), omp (fatia CLI + revisao da proposta P-C), hermes
+(ciclo de vida streamlit + arquivamento WAL), bitoreview (diff completo).
+claude/kimi/pi/opencode falharam por autenticacao/conexao/modelo
+deprecado — sem achados.
+
+Achados confirmados e corrigidos nesta rodada:
+
+- **[MEDIA] `x <termo>` reaplicava o termo removido apos `ord`/`ordn`**
+  (`interface/cli.py`, pre-existente): `ord` empilha `(df_ordenado,
+  mesmos_termos)`; o atalho LIFO usava `stack[-2]` como base, que ja
+  estava filtrada pelo termo removido — o filtro "removido" seguia
+  aplicado em silencio. Corrigido com a variante V3 revisada pelo omp:
+  `x` pousa na entrada mais recente cujos termos == `remaining` (e loop
+  de pop no caso vazio). Reproducao local dos 9 cenarios que a variante
+  V1 falhava: 9/9 corretos apos V3.
+- **[MEDIA] ordem de arquivamento do WAL ainda insegura** (hermes):
+  o loop `("", "-wal", "-shm")` renomeava o `.db` primeiro; um kill no
+  meio deixava WAL orfao a ser reaplicado sobre o banco novo. Corrigido
+  para `("-wal", "-shm", "")` — WAL orfao sem `.db` e inocuo. Verificado
+  com conexao WAL aberta e commit pendente.
+- **[BAIXA] filho streamlit orfao em SIGTERM** (hermes): `SIGTERM` nao
+  executa `atexit`, logo o filho ficava segurando `:8501`. Corrigido com
+  handler em `wait_for_streamlit` que termina o filho e sai 143; falha
+  ao registrar o handler e tolerada (ex.: thread nao-principal).
+- **[BAIXA] `--db '~/ssas.db'` rejeitado** (codex): `_db_extra_roots`
+  fazia `resolve()` sem `expanduser()`, gerando raiz literal `~`.
+  Corrigido em `scripts/derivadas_cli.py` e no call site de
+  `gui/gui_ssa.py`; docstring tambem corrigida (a raiz do `--db` cobre
+  planilhas sob o mesmo diretorio — mesmo criterio do rescan_worker).
+- **[BAIXA] candidato orfao em falha de pre-flight** (revisao propria,
+  ressalvas do codex aplicadas): em `force_import`, o candidato era
+  criado antes do pre-flight e sobrava no disco quando ele falhava.
+  Corrigido removendo `candidate±wal±shm` **somente se criado nesta
+  rodada** (guard `candidate_preexisting`, pois o prepare reutiliza
+  arquivo existente no path), com log em falhas de remocao e `raise`
+  preservando `PathSafetyError` → `ImporterError`.
+
+**[IMPLEMENTADO nesta rodada, com endurecimento]** — a proposta de
+autorizar caminhos digitados na UI Streamlit foi retomada a pedido do
+usuario (o Streamlit e prova de conceito, loopback-only). A
+implementacao final difere da versao rejeitada pelo codex:
+
+- validacao padrao roda **antes** de qualquer autorizacao — caminhos ja
+  cobertos pelas raizes nao ampliam o allowlist;
+- so caminho externo **existente** e do **tipo esperado** (arquivo vs
+  diretorio) dispara a autorizacao explicita — digitar path inexistente
+  nao serve para widar;
+- a autorizacao e **revogada** se a validacao final falhar — nenhuma raiz
+  residual fica no processo apos erro;
+- raiz contendo `os.pathsep` e rejeitada (corromperia o parsing do
+  allowlist);
+- o launcher fixa `--server.address=127.0.0.1`, pois a autorizacao e
+  process-global e vale para qualquer cliente que alcance a porta.
+
+Limite assumido (documentado): a autorizacao cobre o diretorio do
+arquivo escolhido (mesma semantica do `--db` no CLI) e e global ao
+processo do servidor Streamlit — aceitavel para PoC em loopback, nao
+para exposicao em rede.
+
+**Validacao desta rodada**: 167 testes focados aprovados; reproducoes
+manuais dos 9 cenarios de `x`/`ord`, do trio WAL, do handler SIGTERM
+(exit 143, filho terminado), de `expanduser` e do cleanup do candidato;
+`ruff` e `ty` limpos nos arquivos alterados.
+
+### O10. Verificacao por subagente (Fusion) - ressalvas enderecadas
+
+Revisao estatica independente sobre o estado do branch: veredito
+APROVADO-COM-RESSALVAS, sem bloqueantes. Follow-ups aplicados:
+
+- **`x <termo ausente>` imprimia "Removido" sem remover nada** —
+  corrigido: verifica presenca do termo antes de processar e informa
+  "nao esta no filtro atual".
+- **`x` re-aplicava termos com modo `contains` ignorando
+  `filter_mode_default` do usuario** (pre-existente) — corrigido em
+  `_handle_remove_filter` e no refresh de filtros padrao: os termos
+  restantes sao parseados com `parse_search_terms(..., default_mode)`
+  antes de `filter_dataframe`. Dois testes ajustados para o contrato
+  novo (termos parseados preservam `raw`).
+- **Janela SIGTERM Popen→wait** — o handler `_terminate_children_and_exit`
+  (termina todos os processos rastreados, exit 143) agora e instalado em
+  `launch_streamlit`, fechando a janela em que o filho ficava orfao.
+- **Sidecars `-wal`/`-shm` orfaos sem `.db`** — deixados por versoes
+  antigas que so removiam o `.db`; seriam re-aplicados quando o banco
+  novo ativasse `journal_mode=WAL`. Corrigido: sao arquivados como
+  `.bak` mesmo sem `--force` (renomear preserva; nada e apagado).
+  Falhas de `os.replace` agora abortam com contexto do arquivo que
+  falhou — o estado resultante (arquivamento parcial, nada recriado)
+  e seguro.
+- **Materializacao defensiva** — `tuple(extra_allowed_roots)` tambem em
+  `_run_derivadas_sync_phase` e `_initialize_import_run_context`
+  (pontos multi-uso que hoje sempre recebem tuple, mas esgotariam um
+  gerador silenciosamente).
+- **Mensagem de `x` ao recuar para base com filtro inicial** — coberto
+  por commit anterior: distingue "pertence ao filtro base", "Filtro
+  atual: ..." e "Nenhum filtro restante".
+
+Decisoes registradas (nao aplicadas, por escopo):
+
+- Candidato criado em `_prepare_working_database_for_import` que falha
+  DEPOIS da criacao (ex.: integrity check) nao passa pelo cleanup do
+  pre-flight — mantido como evidencia diagnostica, mesmo criterio do
+  codigo existente para cancelamento.
+- `except Exception` remanescentes em `utils/remote_itaipu.py` sao de
+  loops de retry (semantica "tentar de novo qualquer erro"), mantidos.
+- `dev_env/streamlit_app.py` com paths digitados continua limitacao
+  conhecida (ver O9).
+
+### O11. Mudanca de comportamento aprovada: copia de banco externo
+
+Solicitado pelo usuario: o banco selecionado em "Carregar outro banco"
+passa a ser **copiado para `data/`** em vez de usado in-place.
+
+- `gui/ssa/database_operations.py::copy_database_into_data_dir`:
+  snapshot consistente via backup API do SQLite com origem `mode=ro`
+  (captura commits pendentes no WAL sem alterar a origem). Destino
+  existente e arquivado como `.bak-<ts>` (ordem wal/shm/db). Origem ja
+  dentro de `data/` e no-op. Falha na copia remove o destino parcial.
+- `gui/gui_ssa.py::_finalize_database_candidate_validation`: `DB_PATH`
+  passa a apontar para a copia em `data/`; falha de copia aborta a
+  selecao com `reason="copy_failed"`. A copia so ocorre apos
+  `_get_derivadas_sync_state` (preparacao sem efeito colateral primeiro).
+- `dev_env/build/release_windows.ps1`: prompt interativo
+  "Incluir data\ssas.db no pacote? [s/N]" quando `-IncludeRuntimeDb`
+  nao foi passado; default N. `-Yes` (nao-interativo) mantem o default.
+- `sys.path.insert` em `interface/cli.py` e `core/app_logic.py` agora
+  condicional (`if project_root not in sys.path`), mesmo padrao do
+  `streamlit_app.py`. Remocao completa segue pendente (empacotamento).
+- `.github/CODE_QUALITY.md`: frase canonica em ingles restaurada,
+  corrigindo a falha pre-existente do contrato de documentacao
+  (teste `test_code_quality_documents_dynamic_dependency_submission_status`).
+
+**Validacao O11**: 8 testes novos em `tests/test_database_operations.py`
+(copia, WAL pendente, arquivo destino, origem dentro de data/, fonte
+nao-sqlite, origem ausente) + 8 variacoes manuais de caminho (espacos/
+acentos, `~`, symlink, auto-selecao, colisao com trio wal/shm, data/
+inexistente, caminho relativo). 4 testes de GUI atualizados para o
+contrato novo (DB_PATH aponta para a copia); a copia e stubada neles —
+o comportamento real e coberto pelos testes de unidade do modulo.
+Parse do ps1 verificado com pwsh.
+
+**Ordem temporal**: a suite completa (2997 passaram, 9 skipped, 0
+falhas, ~762s) rodou sobre o estado pos-O10, **antes** das mudancas
+de O11. O11 foi validado pelos testes focados acima; reexecucao da
+suite completa fica para o fechamento da rodada.
+
+### O12. Revisao externa do diff agregado (codex + CodeRabbit + bitoreview + Fusion)
+
+Quatro canais revisaram o diff completo `dev..devin_review` ou o commit
+`243c0b06`. Defeitos confirmados e corrigidos:
+
+- **Identidade por caixa (APFS/NTFS)**: `dest == src` por string nao
+  capturava `Dados/` vs `dados/`; a rotacao arquivava a **propria
+  origem**. Reproduzido pelo codex (`source_still_exists False`).
+  Corrigido com `os.path.samefile` quando o destino existe; teste de
+  regressao `test_copy_database_into_data_dir_case_alias_source_is_noop`.
+- **Substituicao nao atomica**: arquivar o destino antes do `backup()`
+  deixava o caminho sem banco em falha de I/O. Reescrito em 3 etapas:
+  backup para `*.copy-<ts>` (staging), arquivamento do trio com
+  rollback de movimentos parciais, promocao via `os.replace` com
+  restauracao dos `.bak` em falha. Teste `failed_copy_preserves_dest`.
+- **Freeze da GUI**: a copia rodava no event loop Qt (codex mediu
+  ~7s com 0 eventos de timer sob lock de escritor). Movida para dentro
+  do worker `_work` (`result["_copy_result"]`); `_finalize` consome o
+  resultado ou copia inline no caminho sincrono de testes.
+- **Conexoes abertas no cleanup**: `with sqlite3.connect` gerencia
+  transacao, nao fecha. Trocado por `contextlib.closing`.
+- **UNC**: `file://server/share` e rejeitado pelo SQLite
+  (`invalid uri authority`); fallback para `sqlite3.connect(str(src))`
+  quando a URI tem authority.
+- **Runtime Python no build arm64**: `runtime_python` era fixo
+  `x86_64` no Windows; agora `_python_spec_for(platform_name)` deriva
+  `cpython-3.13-windows-aarch64-none` para `windows_arm64`, mantendo
+  `UV_PYTHON` como override.
+- **`x <termo>` na base**: `remaining` sem casamento caia no fallback e
+  exibia "Removido" com o termo base ainda aplicado (Fusion #1/#2).
+  Guard `base_terms` recusa antes de qualquer mutacao.
+- **Politica de upsert residual**: `configure_upsert_short_circuit_policy`
+  era mutacao global dentro de `_resolve_import_work_items`; movida para
+  depois do pre-flight em `run_importer_logic` (Fusion #4).
+- **`file_cache.json` compartilhado**: bancos alternativos em `data/`
+  herdariam o cache de outro banco e pulariam arquivos nunca importados
+  nele. Agora `file_cache.<stem>.json` por banco; `ssas.db` mantem o
+  nome canonico (Fusion #5).
+- **Assert-RuntimeDatabase**: so comparava bundles entre si; agora
+  compara o hash com `data\ssas.db` de origem (Fusion #6).
+- **Prompt do instalador**: so aparece quando `pyinstaller` esta nos
+  backends e o build/package nao foram ambos pulados (Fusion #6).
+- **Assimetria instalador x ZIP**: `data\*` era removido do exclude Inno,
+  vazando `file_cache.json`/`historico_backups`; agora o exclude fica e
+  uma linha `[Files]` dedicada inclui so `data\ssas.db` (Fusion #7).
+- **TOCTOU no arquivamento**: `exists()` + `os.replace` virou
+  `os.replace` com `FileNotFoundError` -> continue (bitoreview).
+- **Constante morta**: `_DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE`
+  removida; a contagem real usa `count_distinct_derivada_edges`
+  (Fusion #10).
+
+**Decisoes mantidas**: `x` substitui o topo em vez de empilhar
+(`v` nao desfaz remocao — semantica consistente com V3); micro-janela
+SIGTERM entre `Popen` e `signal.signal` aceita (impraticavel);
+`x`/`ord`/`v` sem teste novo para o caminho de filtro base — gap de
+cobertura anotado.
+
+**Validacao O12**: reproducoes manuais (case-alias, falha preserva
+destino, staging/promocao, troca com .bak, UNC netloc, guard de
+filtro base, matriz do prompt ps1 em 7 cenarios pelo codex) +
+11 testes em `test_database_operations.py`, 46 em
+`test_create_distribution.py`, suite GUI 613 passaram, bateria
+focada 162 passaram. Suite completa em background no fechamento.
+
+### O13. Revisao externa (rodada 4) - z.ai glm-5.3 + glm-5.3-flash + OMP + CodeRabbit
+
+Quatro reviews sobre o diff `dev..devin_review` no commit `ff3beb1e`.
+Achados validados contra o codigo e corrigidos:
+
+- **[SEVERO, glm-flash + CodeRabbit] mascara SIGTERM herdada pelo filho**:
+  `_block_sigterm` + `Popen` sem restore deixava o Streamlit nascer com
+  SIGTERM bloqueado — `terminate()` ficava pendente para sempre. Corrigido
+  com `preexec_fn` que restaura a mascara original no filho antes do exec
+  (so em POSIX; Windows nao recebe o kwarg).
+- **[SEVERO, glm-5.3 + OMP + CodeRabbit] autorizacao antes de validar no
+  Streamlit**: `_resolve_user_source_path` acrescentava a raiz ao
+  allowlist ANTES de `ensure_path_is_allowed` — falhas deixavam a raiz
+  autorizada permanentemente, e paths inexistentes tambem widiavam.
+  Reescrito: validacao padrao primeiro (paths ja cobertos nao ampliam),
+  so path externo **existente** e de **tipo correto** autoriza, com
+  **revogacao** se a validacao final falhar; raiz com `os.pathsep`
+  rejeitada; launcher agora fixa `--server.address=127.0.0.1`.
+- **[MEDIA, OMP] regressao: `x` recusava termos do usuario apos refresh**
+  de filtros. O refresh colapsava base+usuario numa unica entrada, e
+  `results_stack[0][0]` passava a ser o df ja filtrado — remover um termo
+  seria recusado ou refiltraria sobre frame filtrado. Corrigido: refresh
+  mantem base e topo em entradas separadas quando ha termos preservados.
+- **[MEDIA, OMP] mensagem afirmava rollback inexistente**: o `except` de
+  `_run_optional_derivadas_sync` cobre tambem falhas pos-commit (scan de
+  consistencia). Agora a excecao vinda de dentro do `sync_derivadas`
+  transacional e marcada (`_derivadas_sync_rolled_back`) e a mensagem so
+  afirma "revertidas" nesse caso; o resumo de run deixou de afirmar
+  rollback incondicional.
+- **[MEDIA, CodeRabbit] colisao de stem no file_cache**: `archive.db` e
+  `archive.sqlite` mapeavam para o mesmo `file_cache.archive.json`. O
+  cache agora usa o nome completo do arquivo (`file_cache.<nome>.json`);
+  `ssas.db` (case-insensitive) mantem o nome canonico.
+- **[MEDIA, glm-flash] file_cache.<nome>.json fora do cleanup de build**:
+  `build_multiplatform.py` so conhecia o nome literal; globs ampliados
+  para `file_cache*.json`. O ZIP/instalador seguem cobertos pelo exclude
+  `data\*` + linha dedicada a `ssas.db`.
+- **[MEDIA, glm-flash] terminate() sem wait/kill**: `_terminate_process`
+  agora faz `terminate()` + `wait(timeout=5)` + `kill()` de reforco,
+  evitando zombie e filho que ignore SIGTERM.
+- **[MEDIA, glm-flash] handler SIGTERM nunca restaurado**:
+  `wait_for_streamlit` salva o handler anterior e o restaura quando nao
+  restam filhos rastreados.
+- **[BAIXA] `-journal` no cleanup de pre-flight** (`app_logic`) e no
+  arquivamento/restore da copia (`database_operations`) — paridade com o
+  emergency_import.
+- **[BAIXA] fallback de interprete**: `_python_specs_for` retorna a cadeia
+  3.13→3.12→3.11→3.10 por plataforma e `uv venv` tenta em ordem
+  (politica do repositorio); `runtime_python` explicito segue override
+  unico.
+- **[BAIXA] eviction da pilha CLI** liberava entrada sem
+  `_release_pagination_state` — corrigido em `_push_result_state`.
+- **[BAIXA] branch morta** em `_handle_remove_filter` removida
+  (`popped_any` era sempre True no path).
+- **[BAIXA] OSError silencioso** na poda de `import_run_*.json` e no
+  mapeamento DataFrame remoto (`remote_itaipu`) — agora `logger.warning`.
+- **[BAIXA] race staging/timeout**: `_poll_delivery` agora invalida o
+  `request_id` no timeout e na morte da janela — um staging que termine
+  tarde e descartado pelo proprio worker em vez de vazar `.copy-*` ou ser
+  promovido apos o timeout declarado (teste de regressao:
+  `test_other_db_timeout_discards_late_staging`, red/green verificado).
+- **[BAIXA] fixture conftest mascarava a classe de bug**: adicionado
+  teste direcionado `test_get_allowed_roots_tracks_env_var_changes`
+  provando o mecanismo de refresh por env.
+
+**Decisoes mantidas**: `preexec_fn` retido (mecanismo documentado para
+restaurar mascara no filho; a funcao e uma unica syscall; unico chamador
+e a main thread — documentado); `--streamlit` bloqueante e intencional
+(o pai precisa viver para encerrar o filho no CTRL+C; nenhum script do
+repo depende do retorno imediato); exposicao Streamlit limitada a
+loopback por `--server.address=127.0.0.1`.
+
+**Ferramentas indisponiveis nesta rodada**: codex (usage limit), grok
+(free-tier limit), pi (connection error), cursor-agent (exige trust
+interativo; retry silencioso), hermes (2 processos disparados, sem
+output ao fechamento). bitoreview rodou 2x sobre o diff: 6+10 achados,
+todos LOW/cosmeticos exceto um MEDIUM vago sobre UNC ja coberto pelo
+fallback de netloc.
+
+### O14. Revisao externa (rodada 5) - codex sobre o commit de fixes
+
+`codex review --base ff3beb1e` sobre o commit `99f4bb2d`, com
+reproducoes empiricas. Tres achados, todos confirmados e corrigidos:
+
+- **[P2] casefold no file_cache colidia bancos distintos em volume
+  case-sensitive**: `SSAS.db` e `ssas.db` sao arquivos separados no
+  Linux mas ganhavam o mesmo `file_cache.json`. Match exato agora — em
+  volume case-insensitive um alias so gera cache redundante (reimport
+  seguro), nunca cache errado. Regressao coberta por
+  `test_file_cache_name_is_unique_per_database_filename`.
+- **[P2] staging publicado vazava na morte da janela**: se o worker
+  concluia a copia e publicava `pending_result` antes da janela ser
+  destruida, o ramo `_window_alive()==False` apagava a unica referencia
+  sem `discard_staged_copy`. Corrigido descartando o staging presente no
+  resultado publicado (a invalidacao de request_id continua cobrindo o
+  caso do worker ainda em staging).
+- **[P2] wait() dentro do handler SIGTERM esgotava o timeout**:
+  `process.wait(timeout=5)` no handler disputava `_waitpid_lock` com o
+  wait() interrompido na main thread — reproducao media 5.02s de
+  atraso no encerramento. O handler agora so faz terminate(); a colheita
+  (wait + kill de reforco) fica no atexit, que roda apos o unwind
+  liberar o lock. Repro: 0.01s, exit 143, filho terminado.
+
+### O15. Rodada 6 - revisao externa (app_logic/database_operations/backlog), menus e auditoria de importacao/derivadas
+
+Achados de revisao externa validados e corrigidos:
+
+- **Pre-flight de derivadas antes da preparacao do banco**: validacao das
+  planilhas especiais e resolucao dos itens de importacao agora ocorrem
+  antes de `_prepare_working_database_for_import` — uma planilha rejeitada
+  nao deixa mais candidato escrito para cleanup.
+- **Origem UNC em somente-leitura**: fallback de autoridade UNC usa URI
+  `file:////host/share/...` com `mode=ro` (o Windows resolve `//host/share`
+  como `\\host\share`); a origem e aberta com `read_only_sqlite_uri` e
+  `mode=ro`, sem fallback de conexao gravavel com `PRAGMA query_only`.
+  Teste de regressao cobre backup read-only de origem com WAL quente.
+- **Data do RECOVERY_BACKLOG** atualizada para 2026-09-14.
+
+Auditoria pesada do processo de importacao e derivadas — achados e fixes:
+
+- **`-journal` nao era rotacionado** em `core/import_database_rotation.py`:
+  um rollback journal quente do banco antigo permanecia no caminho
+  principal e o SQLite o aplicaria sobre o candidato promovido
+  (corrupcao). `-journal` incluido na rotacao e na limpeza; regressao
+  coberta em `test_app_logic_full_rescan_lock.py`.
+- **`-journal` ausente do cache key** de `_sqlite_file_state_key`
+  (preflight DB-only): incluido por consistencia.
+- **Falha pos-commit do sync nao disparava re-sync**: quando
+  `sync_derivadas` commitava o run como 'ok' mas a verificacao posterior
+  (scan de consistencia ou evidencia) falhava, a mensagem prometia
+  "refeito automaticamente" — mas `_needs_db_only_derivadas_sync` so
+  olhava o ultimo run 'ok' e contagens, nao detectando o estado. Novo
+  `mark_latest_sync_run_failed` em `armazenamento/derivadas_sync.py`
+  (best-effort, nunca propaga) marca o run comitado como 'error' nos dois
+  caminhos pos-commit (retorno sync_ok=False e excecao pos-commit); o
+  preflight agora exige que o ultimo run seja 'ok'. Regressao coberta por
+  `test_db_only_preflight_retries_when_latest_run_marked_failed`.
+
+Verificado sem alteracao (comportamento correto):
+
+- `derivada_de` no upsert: delete+insert por delta garante que reimport
+  sem o relacionamento remove a aresta; sync posterior desativa na matriz.
+- Controller GUI de derivadas: lock serializa estado, resultado tardio e
+  descartado quando running=False; overlaps recusados.
+- Upsert por arquivo e atomico via savepoint; writer lock cross-processo
+  por path normalizado; `busy_timeout` e `foreign_keys` ativos.
+- `sync_derivadas` e transacional com run 'running'→'ok'/'error';
+  falha interna registra 'error' com mensagem sanitizada (sem paths).
+- `self_heal_derivadas`/`run_derivadas_maintenance`: guarda de intervalo
+  e heal somente sob inconsistencia.
+
+Reorganizacao de menus aplicada conforme diretrizes do usuario:
+
+- `Arquivo`: abrir pastas com rotulos amigaveis (sem nomes internos como
+  `docs_entrada`), Exportar lista, Sair; novo `open_data_folder`.
+- `Importacao`: Atualizar dados (diff), Reimportar tudo (full),
+  Importar XLSX externo, Consolidar; resposta do dialogo-seletor
+  "Reescanear" removida como redundante (metodo orfao `rescan_data`
+  removido de `gui_ssa.py`; o worker homonimo em `ssa_gui_workers`
+  permanece em uso).
+- `Banco de dados` (ex-"Database"): sincronizacao e relatorio de
+  derivadas, recarregar visualizacao, carregar outro banco, compactar
+  banco de dados; opcoes tecnicas em `Avancado`.
+- Testes de estrutura de menus atualizados para o novo layout.
+
+`dev_env/streamlit_app.py` (somente ele): painel "Fonte de dados
+avancada" extraido em funcao reutilizavel e oferecido tambem no caminho
+de banco vazio/indisponivel (antes era beco sem saida); estado persistido
+so grava em disco quando o payload muda e a assinatura so e atualizada
+apos escrita bem-sucedida (falha de I/O nao suprime retry); bloco de
+outcome bloqueante preservado para os testes AST.
+
+Validacao: ruff limpo; 206 testes focados + 21 testes de derivadas +
+801 testes da bateria app_logic/import/database + suite completa
+3012 passaram (9 skipped), 0 falhas.
+
+### O16. Rodada 7 - mensagens aprovadas, export de derivadas e rotacao
+
+Mensagens de derivadas melhoradas (aprovadas pelo usuario):
+
+- `Sync de derivadas sem evidencia valida (consistency={...})` virou
+  frase em pt-BR: "A sincronizacao de derivadas nao confirmou a
+  consistencia dos dados gravados (chave=valor, ...)." — detalhes
+  tecnicos preservados como `chave=valor` ordenados.
+- `files_without_evidence=a,b` virou "Arquivos sem evidencia de leitura:
+  ...".
+- Separadores `|` substituidos por frases curtas; "dados importados"
+  preservado como substring exigida por teste.
+- Filenames sinteticos de progresso/erro: "SSAs Derivadas e
+  Relacionadas" -> "Sincronizacao de derivadas" (com "(N arquivos)" /
+  "(banco atual)" quando aplicavel). Assercoes de teste atualizadas.
+
+Verificacao de exports JSON/TSV/CSV de derivadas — NAO estao orfaos:
+
+- Chamados por `scripts/derivadas_cli.py` (subcomando report) e por
+  `gui/ssa/derivadas_sync_controller.py` (menu Banco de dados).
+- `_report_output` grava via temporario + fsync + `os.replace` (atomico),
+  revalida destino antes do replace e protege contra overwrite de
+  fontes (`protected_paths`: db + -wal/-shm/-journal + planilhas).
+- CSV/TSV incluem contagens de orfaos (`orphan_parents_count`,
+  `orphan_children_count`), multiparent, ciclos e conflitos por fase;
+  JSON preserva o relatorio completo.
+- Export GUI revalida `last_report`/db contra corrida com o dialogo de
+  salvar (state.report_invalidated + re-check pos-dialogo).
+
+Rotacao endurecida: o loop de sidecars passou a mover pelo estado
+**atual** do arquivo (e nao apenas pelo snapshot pre-checkpoint) — um
+`-journal`/`-wal` criado entre o snapshot e o move (crash tardio) tambem
+sai do caminho principal antes da promocao.
+
+Auditoria do fluxo de importacao concluida nesta frente:
+
+- Ordem correta: pre-flight -> candidato -> arquivos -> sync derivadas
+  (no candidato) -> gate de erros bloqueantes -> promocao -> move/cache.
+- `derivadas_sync_blocking_error` retorna antes da promocao: dados do
+  primario preservados, candidato fica como evidencia, cache nao
+  atualizado, e o run 'error' agora garante re-sync no proximo rescan.
+- Erros de arquivo classificados: deterministicos pulam (cache marcado
+  para evitar retrabalho), infra aborta, corrupcao/schema tentam reparo.
+- `record_import_outcome` propaga status parcial/bloqueante para GUI e
+  Streamlit com `primary_database_actually_changed` correto.
+
+Validacao: ruff limpo; testes focados (derivadas trigger 21, promotion
+gate, outcome isolation, run report, cancellation, rescan workers,
+rotation) verdes; suite completa anterior 3012/0 falhas.
+
+### O17. Rodada 8 - exportadores standalone e injecao de formula no TSV da GUI
+
+Inventario real dos exportadores standalone (todos integrados):
+
+- `exportacao/exporter.py` — exportador multi-formato do CLI
+  (`interface/cli.py:658`): CSV+XLSX+JSON com sanitizacao anti-injecao
+  de formula, validacao de basename e confinamento ao diretorio de
+  saida. Sanitizadores reutilizados pelo `streamlit_app.py`.
+- `gui/ssa/list_exporter.py` + `list_export_controller.py` +
+  `workers/list_export_worker.py` — "Exportar lista" da GUI (TSV):
+  QThread com escrita atomica (temp + `os.replace`), cancel antes de
+  publicar, lock de estado, deleteLater no finished.
+- `gui/ssa/details_graph_export.py` — export do grafo de derivadas no
+  dialogo de detalhes (PNG/SVG/Mermaid gerados internamente).
+- `armazenamento/derivadas_sync.py` — relatorios de derivadas
+  (JSON/CSV/TSV), ja verificados na O16.
+
+Achado corrigido:
+
+- **TSV da GUI sem sanitizacao de formula**: `write_prepared_list_tsv`
+  gravava `to_csv` direto, enquanto o exportador CLI neutraliza celulas
+  iniciadas por `= + - @` ou controles (`\t\r\n`). Como os dados vem de
+  planilhas importadas, um xlsx com `=cmd|...` virava payload no TSV
+  aberto no Excel. Aplicado `sanitize_spreadsheet_dataframe` no ponto
+  unico de gravacao — verificado empiricamente: `=cmd|' /C calc'!A0`
+  sai como `'=cmd|...` e `\t=1+1` como `'\t=1+1`.
+
+Residual aceito (nao alterado): `_write_text_export` do grafo escreve
+direto sem temp+replace — falha deixaria arquivo truncado no destino
+escolhido pelo usuario; risco baixo e sem dados sensiveis.
+
+Validacao: ruff limpo; test_list_exporter + test_exporter +
+test_gui_details_graph_export verdes; verificacao manual de payload
+malicioso neutralizado no TSV.
+
+### O18. Rodada 9 - revisao externa (6 achados) + auditoria profunda CLI/DB
+
+Achados de revisao externa validados e corrigidos:
+
+- **streamlit_launcher**: `preexec_fn` + bloqueio de sinais agora so na
+  main thread (bloquear em thread nao-main nao protege: sinais de
+  processo vao para qualquer thread desbloqueada). Handler SIGTERM
+  original capturado uma vez no escopo do modulo (nao perde/reembrulha
+  em reinstalacao).
+- **app_logic**: mensagem de falha pos-commit do sync de derivadas so
+  promete re-sync automatico quando `mark_latest_sync_run_failed`
+  confirma persistencia do marcador (retorno bool).
+- **gui_ssa**: thread de validacao de banco alternativo agora entra no
+  tracking de shutdown (GUI nao fecha enquanto ela roda).
+- **build_multiplatform**: cleanup de `file_cache*.json` restrito a
+  `file_cache.json` exato e `file_cache.<nome-db>.json` gerados —
+  arquivos de usuario (`file_cache.notas.json`) preservados.
+- **database.py**: `get_db_connection(write=False)` nao cria mais
+  diretorio/arquivo ausente — leitura de caminho inexistente falha em
+  vez de materializar banco vazio como efeito colateral.
+- **recovery_backlog**: data do cabecalho ja estava correta (achado
+  defasado, sem alteracao).
+
+Achado proprio da auditoria profunda (CLI):
+
+- **Chave de paginacao herdada via attrs**: pandas propaga `attrs` em
+  filtro/slice/copia — `filter_dataframe` retorna copias que herdavam
+  `_cli_pagination_key` do pai, fazendo `_reset_pagination_state`
+  zerar o estado de paginacao do pai; `b` (voltar) resumia com estado
+  errado. `key_for` agora grava `(key, id(df))` e so confia na chave
+  quando o id bate; escrita usa dict novo (nunca muta attrs
+  compartilhado). Teste antigo reescrito para fixar a semantica
+  corrigida + 2 testes novos de isolamento.
+
+Auditoria profunda sem achado (verificado e correto): upsert com
+savepoint externo e rollback por chunk; fast-path de append exige
+numero_ssa unicos/ausentes; `numero_ssa` normalizado para Int64 no
+extractor e `normalize_strict` (9 digitos) nas arestas de derivadas;
+pipeline PAI com argv-list, runner allowlist e freshness check de
+artefatos; `import_postprocess` com moves sem overwrite (O_EXCL/
+hardlink), contencao em docs_root e retry por colisao.
+
+Validacao: 1121 testes cli/filter/paginacao verdes (0 falhas);
+bateria focada app_logic/derivadas 36 verdes; ruff limpo.
+
+### O19. Rodada 10 - auditoria profunda (path_safety, staging, manutencao)
+
+Verificado sem alteracao: `utils/path_safety.py` (resolve+containment,
+O_EXCL no touch de reserve_unique_path), `import_staging.py` (validacao
+de path externo, copia O_EXCL, rollback de lote), `import_consolidation`
+(reserva atomica + replace + cleanup), workers GUI (cancel duplo,
+receiver-check, catch-all), `config_manager` (escrita atomica completa),
+pipeline PAI, upsert com savepoint.
+
+Achados corrigidos em `scripts_manutencao/gerenciar_banco.py`:
+
+- **reset_database nao removia `-journal`**: rollback journal quente
+  sobrevivia ao reset e seria aplicado sobre o banco recem-criado.
+  Incluido na remocao de sidecars. Verificado manualmente.
+- **clean_old_backups apagava qualquer arquivo em data/backups/**
+  com mais de 7 dias, sem checar padrao de backup (o loop da pasta
+  principal checa). Arquivo do usuario colocado ali sumia
+  silenciosamente. Agora aplica o mesmo filtro de padroes.
+  Verificado: `notas_importantes.txt` preservado, backup removido.
+
+Reversao consciente: `get_db_connection(write=False)` ganhou teste de
+`mode=ro` URI — 39 testes falharam porque o contrato estabelecido usa
+conexao de leitura para criar/escrever o banco. Revertido; mantido
+apenas o gate de makedirs na escrita (ja commitado). Registrado como
+residual: leitura em caminho inexistente ainda cria arquivo vazio
+quando o diretorio existe — mudar exige revisar o contrato publico.
+
+### O20. Rodada 11 - pente fino #2 + revisao externa dupla
+
+Revisao externa do diff acumulado por modelos independentes
+(commits recentes e working tree):
+
+- revisor A: sem defeitos acionaveis no diff comitado.
+- revisor B: 0 issues, validou a reordenacao do preflight.
+- revisor C: 4 achados — 1 real corrigido (docstrings de read_only
+  prometiam "nunca escreve", mas WAL ainda materializa -shm/-wal no
+  diretorio da origem e falha em midia somente-leitura); 3 triados
+  como nao-defeitos com evidencia (UNC rewrite correto no Windows;
+  retry de run falho e a semantica pretendida; ref de thread mantida
+  propositalmente para rastreio no shutdown).
+- revisor A (2a passada, working tree): achou que o teste novo de journal
+  quente nao produzia journal quente (writer vivo = lock RESERVED).
+  Confirmado e corrigido: journal agora criado em subprocesso morto
+  com os._exit apos spill de paginas (cache_size=1 + 200 inserts).
+
+Achados proprios corrigidos:
+
+- **Preflight DB-only nao retentava run falho com 0 edges**
+  (`core/app_logic.py`): `db_edges_count <= 0` retornava False antes de
+  olhar o status do ultimo run — um sync que falhou sem arestas DB
+  nunca era refeito. Reordenado: status do ultimo run checado antes do
+  early-return. Confirmado em revisao externa.
+- **Validacao de banco externo mutava a origem**
+  (`gui/ssa/database_operations.py`): `validate_database_candidate`
+  abria conexao normal — um `-journal` quente disparava recuperacao
+  (escrita) no arquivo escolhido pelo usuario. Novo param opt-in
+  `read_only` em `get_db_connection`/`query_db` (URI `mode=ro`, com
+  rewrite UNC `file:////host/share` compartilhado via
+  `read_only_sqlite_uri`); validacao agora e estritamente leitura.
+  `stage_database_copy` reuso do mesmo helper (dedup do rewrite UNC).
+- **Rollback de autorizacao Streamlit revogava raiz preexistente**
+  (`dev_env/streamlit_app.py`): `_append_extra_allowed_root` era no-op
+  quando a raiz ja constava (ex.: env `SSA_EXTRA_ALLOWED_PATHS`), mas o
+  rollback removia incondicionalmente — uma revalidacao falha
+  revogaria autorizacao que a chamada nao concedeu. Append agora
+  retorna bool e o rollback so desfaz o que esta chamada adicionou.
+
+Validacao: teste novo de journal quente via subprocesso morto (prova
+empirica: leitura rw modifica a origem, ro nao); 141 testes focados
+verdes; bateria database/filter/streamlit 617 verdes; ruff limpo.
+
+### O21. Rodada 12 - superficies de display/build + revisao externa dupla
+
+Scan das superficies restantes (table_printer, enhanced_table_printer,
+enhanced_importer, robust_importer, dev_env build scripts):
+
+- `enhanced_importer.py`: codigo sem uso em producao (so testes);
+  `_apply_format_transformations` e stub no-op. Nada acionavel.
+- `robust_importer.py`: usado por derivadas_sync — leitura sempre via
+  `open_validated_excel_source` (limites de tamanho/zip-bomb). Correto.
+- `source_protection.py`/`write_build_info.py`/`build_simple.py`:
+  argv-list, timeouts, rmtree so do proprio dist_simple. Corretos.
+
+Achado medio corrigido — injecao de escape ANSI/OSC no terminal:
+
+- Dados de planilhas importadas com ESC/C1 iam crus para `print` via
+  `format_cell` (tabelas CLI, details view). Um xlsx com `\x1b]52;...`
+  (OSC 52 grava clipboard) ou CSI poderia spoofar a tela.
+- Fix no funil raiz: `_safe_str` remove C0 perigosos + DEL + C1 →
+  U+FFFD (visivel, inerte); \r removido (CRLF vira LF); \x85 (NEL)
+  vira espaco; \t e \n preservados. Cobertos: retorno generico,
+  fallbacks de numero_ssa, `_format_number` (bypass `semana*`),
+  `_format_date_like` (bypass `data*`) e cabecalho de details view.
+- Revisao externa por dois modelos sobre o diff: um achou
+  o bypass `semana*` com prova empirica; outro catalogou 7 pontos —
+  corrigidos: bypass semana, \r reescrevendo linha em display.py,
+  assimetria de fallbacks, teste reforcado (igualdade exata, CRLF,
+  C1), mojibake cp1252 agora vira U+FFFD em vez de apagar
+  silenciosamente. Triados sem mudanca: convencao local de
+  table_printer:275 (camada de layout, upstream cobre C1) e o stub de
+  enhanced_importer.
+
+Validacao: 473 testes display/format/export/details verdes; fix do
+header de details usa caminho generico (sem normalizacao estrita de
+numero_ssa — SSAs de 7 digitos continuam visiveis); ruff limpo.
+
+### O22. Rodada 13 - restauracao de snapshot em banco ausente/zerado
+
+Politica de falha do banco revista ponta-a-ponta
+(`ensure_database_integrity` -> `_repair_database_if_needed_locked`):
+
+- Antes: `.db` ausente ou 0 bytes (`needs_creation`) criava schema
+  vazio — snapshots validos em `historico_backups/` eram ignorados e
+  o app subia "zerado" ate a proxima reimportacao. Alem disso o
+  snapshot forcado do banco vazio recem-criado virava o mais recente
+  da cadeia e escondia snapshots antigos com dados.
+- Agora: `needs_creation` tenta `_restore_latest_valid_snapshot_locked`
+  primeiro (forense condicional quando nao havia original, rollback
+  removendo o arquivo promovido); so cria schema quando nao ha
+  snapshot utilizavel. Delecao manual e arquivo truncado voltam com
+  dados sem reimportacao.
+- Selecao de candidatos: snapshots integros ordenados novo->velho,
+  com preferencia por snapshots que contem dados (particao booleana
+  estavel — recencia preservada dentro de cada grupo; um snapshot
+  vazio so e usado como ultimo recurso).
+- Falha critica de rollback agora retorna status "critical" e aborta
+  o bootstrap (antes retornava False indistinguivel de "sem
+  snapshot", o que criaria schema sobre estado indeterminado).
+- `_prune_forensic_backups` remove sidecars forenses orfaos
+  (`corrupt_*-wal/-shm` sem principal), cobrindo o arquivamento feito
+  quando o .db original nao existia.
+
+Revisao externa por dois modelos (0 issues + 3 achados): um apontou 3
+problemas no fix inicial — ordenacao por contagem absoluta podia
+ressuscitar registros removidos (corrigido para particao
+vazio/nao-vazio), falha critica de rollback indistinguivel de
+esgotamento (corrigido com status tri-state), e sidecars forenses
+fora da retencao (corrigido no prune). Todos validados e corrigidos.
+
+Validacao: 6 testes novos (delecao manual, arquivo zerado,
+preferencia por dados, recencia entre snapshots com dados, bootstrap
+sem snapshot, prune de sidecar orfao); 192 testes focados verdes;
+ruff/py_compile limpos.
+
+### O23. Rodada 14 - hardening pos-restore + revisao externa
+
+- `get_db_connection`: `read_only=True` combinado com `:memory:` agora
+  falha explicito (ValueError) em vez de abrir banco vazio que
+  esconderia erro de caminho.
+- Shutdown forcado da GUI aguarda a thread daemon de staging de banco
+  alternativo por `SHUTDOWN_DB_COPY_GRACE_SEC` (5s) — antes o exit a
+  matava no meio do `sqlite3.backup()`, deixando `.copy-*` parcial.
+- `stage_database_copy` varre `.copy-*` com mtime alem de
+  `STALE_STAGED_COPY_MIN_AGE_SEC` (120s) antes de criar novo staging —
+  parciais de copias interrompidas nao acumulam mais; arquivos
+  recentes aguardando promocao sao preservados.
+- Relatorio: nomes de ferramentas de revisao removidos das secoes
+  O15+ desta auditoria (revisao externa permanece registrada como
+  processo, sem credito nominal); historico anterior preservado.
+
+Validacao: 2 testes novos (rejeicao :memory:, sweep de .copy-*);
+bateria database/gui-shutdown 184 testes verdes; ruff/py_compile.
+
+### O24. Rodada 15 - staging ativo nao e removido por mtime e shutdown nao abandona copia
+
+Achado do usuario sobre `database_operations.py`: o sweep de `.copy-*`
+por mtime podia apagar uma copia em andamento (backup lento) e seus
+sidecars. E `gui_ssa.py`: o fechamento forcado aceitava o evento com a
+thread daemon de staging viva, matando o `sqlite3.backup()` no meio.
+
+Correcoes:
+
+- `gui/ssa/database_operations.py`: registro em processo
+  `_ACTIVE_STAGED_COPIES` (set protegido por lock). O sweep so remove
+  `.copy-*` que nao esta registrado (nem e sidecar de registrado) E tem
+  mtime alem da janela minima — idade vira criterio secundario, nunca
+  autoridade. `stage_database_copy` registra antes de copiar e
+  desregistra em sucesso/falha; `commit_staged_database_copy` desregistra
+  apos o `os.replace`; `discard_staged_copy` desregistra sempre.
+  `active_staged_copy_count()` expoe a contagem como fonte de verdade.
+- `gui/gui_ssa.py` `_work`/`_poll_delivery`: publicacao do resultado,
+  invalidacao por timeout/janela morta e consumo agora sao coordenados
+  por `delivery_lock` (threading.Lock). O worker calcula `still_valid`
+  dentro do lock e descarta staging publicado apos invalidacao; o poll
+  rele `pending_result` sob o lock antes de invalidar e descarta staging
+  de resultado stale; excecao do worker descarta o staging criado.
+- Timeout de validacao nao zera mais `_other_db_validation_thread` com a
+  thread viva (a referencia era perdida e o close nao a via).
+- `shutdown()` e o caminho de fechamento forcado consultam
+  `active_staged_copy_count()` alem da referencia da thread — cobre
+  staging de thread cuja referencia foi substituida. Com copia ativa o
+  evento segue ignorado (grace de `SHUTDOWN_DB_COPY_GRACE_SEC` por
+  tentativa); em modo headless a consulta degrada para inativo.
+
+Revisao externa por dois modelos em tres passadas: a primeira confirmou
+o desenho do registro; a segunda reproduziu (i) o timeout zerando a
+referencia da thread viva e (ii) a corrida residual publicacao x
+invalidacao — corrigidos com `delivery_lock`; alem de (iii) testes que
+removiam `.copy-*` com unlink sem desregistrar — corrigidos para
+`discard_staged_copy`. A terceira reproduziu (iv) `finalize_failed`
+mantendo staging registrado para sempre — corrigido com descarte no
+except da finalizacao — e (v) a janela TOCTOU entre a ultima checagem e
+o `accept` (worker substituido podia iniciar backup depois do check) —
+corrigida com `bar_new_staged_copies()`, que trava novos stagings e
+conta os vivos sob o mesmo lock do registro.
+
+Validacao: 4 testes novos (staging ativo nunca varrido mesmo com mtime
+velho, sidecar orfao removido, publish-apos-invalidacao descarta,
+close bloqueado por staging registrado sem referencia de thread e
+conservador em falha de consulta); fixture autouse em conftest zera o
+estado de staging entre testes (barreira e registro); 51 testes focados
++ arquivo GUI completo (580) verdes; ruff/py_compile/`git diff --check`
+limpos.
+
+Documentacao alinhada: README reescrito (interfaces, importacao,
+derivadas, recuperacao, exportacoes), runbook de derivadas com secao de
+staging, ARCH_VALIDATION com o ciclo de vida do staging e
+TROUBLESHOOTING com sintomas visiveis (janela nao fecha, `.copy-*`
+sobrando).
+
+### O25. Rodada 16 - pos-processamento nao gera hardlinks orfaos e merged_edges nao conta em dobro
+
+Dois achados confirmados no pente fino desta rodada:
+
+- `core/import_postprocess.py` `_move_without_overwrite`: o
+  `source.unlink()` ficava dentro do mesmo `try` do `os.link()`. Se o
+  hardlink era criado mas o unlink da origem falhava com errno
+  "recuperavel" (`EACCES`/`EPERM` — arquivo aberto no Excel/antivirus
+  no Windows, diretorio de origem sem permissao de delete), o codigo
+  caia no fallback de copia, o `os.open(O_EXCL)` explodia como
+  `FileExistsError` (falso conflito de nome) e o laco retentava com
+  `__1`, `__2`... criando ate 10000 hardlinks orfaos em `processadas/`
+  enquanto o source permanecia em `docs_dir` e era reimportado a cada
+  scan. Correcao: o unlink da origem agora roda em bloco `else` (so
+  quando o link sucedeu); em falha, o link criado e desfeito e o erro
+  real propaga. O caminho de copia continua com sua propria limpeza.
+- `gui/ssa/derivadas_sync_job.py`: `merged_edges` somava
+  `merge_stats.merged_edges` das duas fases — cada fase reporta o merge
+  apenas das arestas que ela coletou, entao uma aresta presente no
+  campo `derivada_de` E na planilha especial contava duas vezes no
+  `total=` exibido na GUI. Correcao: o total passa a ser
+  `active_edges` do ultimo relatorio de fase (a matriz materializada =
+  uniao das fontes), com fallback a soma quando o relatorio nao traz
+  `active_edges` (ex.: verify_only).
+
+Validacao: 2 testes novos (unlink falho desfaz o link sem orfao e sem
+falso conflito; merged_edges usa a uniao materializada); 96 testes
+focados verdes; ruff/py_compile/`git diff --check` limpos; revisao
+externa por dois modelos sem achados P0-P2.
+
+### O26. Rodada 17 - normalizador da CLI nao fabrica mais ano de SSA
+
+`interface/cli_width_manager.py` `normalize_ssa_number`: valores de ate
+5 digitos eram reescritos como `f"2025{digits}"` (ano hardcoded) e
+valores de 6-8 digitos passavam por `zfill(9)`. Uma SSA curta `12345`
+era exibida como `202512345` — um numero plausivel porem diferente do
+identificador armazenado, divergente de `shared/numero_ssa.py` (que
+rejeita o valor em vez de fabricar) e de `gui_details._normalize_ssa_value`
+(que preserva IDs numericos curtos como estao).
+
+O caminho vivo (`_prepare_page_dataframe`) roda apos
+`format_dataframe_for_display`, que ja canonicaliza ou esvazia o valor,
+entao o ramo fabricante era alcancavel apenas por codigo hoje sem
+callers (`_apply_default_order`, `format_dataframe_for_cli_enhanced`) —
+mas continuava sendo uma armadilha caso reativados. Correcao: valores
+fora do formato canonico de 9 digitos sao exibidos como estao, em
+paridade com a GUI; nenhum prefixo de ano nem padding sao fabricados.
+
+Validacao: teste novo cobre 9 digitos, ID curto, vazio e None;
+`test_cli_formatting.py` + `test_cli_pagination_prompt.py` verdes;
+ruff/py_compile limpos.
+
+### O27. Rodada 18 - poda de artefatos de full rescan (limite de espaco)
+
+Candidatos `*.full_rescan_candidate_*` de runs abortados e backups
+`*.full_rescan_backup_*` de runs promovidos ficavam no disco como
+evidencia permanente — sem nenhuma poda, cada rodada acumulava ~140MB.
+`data/` tinha um candidato de 142MB parado desde 12/09.
+
+Correcao: `prune_full_rescan_artifacts()` em
+`core/import_database_rotation.py` mantem os 2 mais recentes de cada
+marcador e roda dentro do writer lock da rodada (antes de criar o
+candidato novo), entao nenhum artefato removido pertence a run ativo.
+`preserve=` protege o candidato da rodada corrente em retry. Sidecars
+`-wal`/`-shm`/`-journal` sao removidos antes do principal e um sweep de
+sidecars orfaos cobre remocoes parciais anteriores.
+
+Revisao externa (Codex + BitoReview) encontrou e foi enderecado:
+glob com metacaracteres no nome do banco (`ssas[1].db` casava
+artefatos de `ssas1.db` — lock por caminho nao protegia) trocado por
+`startswith` literal; sidecar orfao permanente coberto pelo sweep; log
+de remocao so em sucesso real; assinatura de `unlink` no teste tipada.
+
+Validacao: 5 testes novos (keeps-newest+sidecars, preserve do
+candidato corrente, ignora arquivos de outros bancos/nomes, sobrevive
+falha de unlink, metacaracteres glob, sidecar orfao); 11 testes do
+arquivo + 122 da bateria de rotacao/promocao verdes; ruff/py_compile/
+ty limpos.
+
+### O28. Rodada 19 - verificacao pesada com dados reais (import + derivadas)
+
+Teste de ponta a ponta com planilhas XLSX reais de `~/Downloads`
+reproduzindo o fluxo do botao "Adicionar XLS", sobre uma copia isolada
+do banco de producao (134MB, 99.538 SSAs) — `data/ssas.db` nao foi
+tocado.
+
+- Staging (`stage_external_import_files`): 3 arquivos copiados;
+  casos mistos (inexistente, extensao errada, ja-staged) contados
+  corretamente em `summary`.
+- Importacao explicita: 4 XLSX -> `updated` (2162 linhas, 1468 SSAs
+  atualizados); re-run -> `no_changes` via cache; `Consulta SSA` ->
+  +1 insercao; corrompidos rejeitados com warning claro; 2 imports
+  concorrentes serializados pelo round lock sem corrupcao;
+  cancelamento sem artefatos orfaos.
+- Derivadas: sync automatico no import (run 53, `ok`), sync explicito
+  `sync_derivadas` (19288 arestas aceitas, 26 multiparents, 2 pais
+  orfaos, 0 ciclos) e `execute_derivadas_sync_job` da GUI
+  (`ok=True`, `is_consistent=True`, todos os issue_counts zerados).
+  Spot-check manual confirmou arestas planilha -> `ssa_table` ->
+  `ssa_derivada_source`, com historico multiparent preservado.
+- Integridade: `PRAGMA integrity_check` ok e 0 violacoes de FK em
+  todas as rodadas, inclusive pos-cancelamento.
+
+Investigacao paralela (duplo clique -> detalhes): caminho identico ao
+`dev`, sem regressao de codigo; custo concentrado em render sincrono
+na thread da GUI com caches frias pos-import (chave inclui db_mtime)
+e `_render_cache` por instancia de presenter. Observacao menor de
+staging: arquivo ja-staged aparece duplicado na lista retornada —
+inofensivo pela dedup de `_resolve_explicit_import_files`.
+
+Documentacao nova: `docs/TESTE_REAL_IMPORTACAO_DERIVADAS.md` (processo
+e evidencias), `docs/CRIACAO_DB_DO_ZERO.md` (full rescan schema-first
+-> promocao), ambos com diagramas de fluxo e de classes UML em mermaid
+mais versoes editaveis em `docs/diagrams/*.drawio`.
+
+## PR 132 - Correcao dos comentarios da revisao
+
+Solicitacao: revisar o PR destinado a `dev`, responder os comentarios e,
+apos a rodada somente de leitura, corrigir os apontamentos confirmados.
+Base desta rodada: `6432dcc30e034d9e5463d43a62a291a997e25473`, branch
+`devin_review`. A revisao inicial inventariou 54 threads inline, 13
+comentarios gerais e cinco resumos de revisao com texto; cada item recebeu
+resposta, incluindo duplicatas e alegacoes nao confirmadas.
+
+| Pedido | Antes | Depois | Estado |
+| --- | --- | --- | --- |
+| Integridade SQLite | Checkpoint falho podia limpar journal; arquivamento/promocao separavam principal e sidecars | Journal preservado na falha, movimentos recompostos, backup preservado se restaurar o principal falhar | Entregue |
+| Concorrencia | Promocao GUI sem lock; falha pos-sync podia marcar o run mais recente | Lock por destino sem espera na GUI; ID do sync preservado inclusive se scan levantar excecao | Entregue |
+| Poda de full rescan | Nome/prefixo era tratado como propriedade suficiente | Timestamp ASCII e marcador persistente com identidade; legado, symlink e identidade divergente preservados | Entregue |
+| Detalhes GUI | Prefetch podia usar linha antiga com revisao nova; consultas repetidas por selecao | Prefetch removido, pendencia cancelada na revisao, debounce e um fingerprint por render | Entregue |
+| Exportacao | Numero negativo formatado podia receber apostrofo | Origem numerica preservada e resultado final sanitizado, inclusive formulas introduzidas pelo formatador | Entregue |
+| Streamlit | Autorizacao global no ambiente; novo destino externo rejeitado; lacunas no encerramento | Raizes por sessao encaminhadas explicitamente, selecao atomica, destino novo aceito, sinais coordenados sem preexec_fn, wait apos kill | Entregue; comportamento nativo Windows nao medido |
+| CLI e pacotes | Modo de filtro antigo na pilha, cache FIFO, cabecalho multilinha, DB aninhado omitido | Pilha reconstruida ao mudar modo, LRU no hit, cabecalho normalizado, banco externo copiado e Inno derivado do layout | Entregue; sem recompilacao |
+| Testes e documentacao | Assercoes e diagramas nao demonstravam os contratos alegados; oito diagnosticos ty na revisao | Casos focados fortalecidos, diagramas/textos alinhados e tipagem corrigida | Entregue |
+
+Validacao executada, com `uv run --no-sync`, sem somar reexecucoes:
+
+- SQLite: `python -m pytest tests/test_app_logic_full_rescan_lock.py
+  tests/test_database_operations.py tests/test_app_logic_postprocess_moves.py
+  tests/test_emergency_import.py -x -q`: 49 passaram antes do complemento
+  de propriedade/rollback. `tests/test_import_derivadas_trigger.py -x -q -k
+  'derivadas or mark or sync'`: 22 passaram. `tests/test_database_integrity_ensure.py
+  tests/test_database_integrity_identifier_guards.py tests/test_derivadas_sync.py
+  -x -q`: 46 passaram.
+- GUI: seis modulos de detalhes/exportacao/menu/facade, 57 passaram;
+  selecao/navegacao em `test_gui_filter_logic.py`, tres passaram. Reexecucoes
+  apos ajustes finais: quatro em `test_gui_details_tree_cache.py` e oito em
+  `test_list_exporter.py`. Sao 61 casos distintos. As primeiras execucoes
+  tiveram duas expectativas de teste incorretas (tab e ponto observado no
+  debounce), corrigidas antes desses resultados.
+- CLI/empacotamento: 77 casos distintos passaram. Houve uma expectativa
+  inicial incorreta sobre `.gitkeep`, corrigida no teste; nao foi omitida
+  como sucesso inicial.
+- Integracao Streamlit/lock/run ID: `pytest -q -p no:cacheprovider
+  tests/test_main_streamlit_launcher.py tests/test_streamlit_source_selection.py
+  tests/test_import_derivadas_run_identity.py tests/test_derivadas_sync_job.py
+  tests/test_database_operations_contention.py`: 27 passaram. Contratos de
+  API: `pytest -q tests/test_app_logic_filter_contract.py -k
+  'get_filtered_data or import_files_to_database'`: seis passaram, 51
+  desmarcados. Os casos de fontes incluem a fronteira real de autorizacao
+  das APIs de leitura e importacao.
+- Complemento final de propriedade/rollback: `pytest -q
+  tests/test_app_logic_full_rescan_lock.py`, 22 passaram. Integracao do
+  lifecycle: `pytest -q -p no:cacheprovider tests/test_import_run_report.py
+  -k full_rescan`, seis passaram, 21 desmarcados.
+- Verificacao final dos 44 arquivos Python alterados/novos desta rodada:
+  `python -m py_compile`, `ruff check` e `ty check` passaram. XML do diagrama
+  validado e `git diff --check` aprovado. Os oito diagnosticos de tipagem
+  encontrados na revisao inicial nao aparecem nos arquivos corrigidos.
+
+Ha testes novos somente para defeitos e lacunas confirmados. Nao foram
+executados suite completa, scanners pesados, builds, validacao visual nem
+benchmark de CPU/memoria. Testes locais nao comprovam funcionamento nativo
+em todas as arquiteturas. Pendencias delimitadas em `RECOVERY_BACKLOG.md`.
+
+Os commits desta rodada usam a identidade humana configurada e preservam
+os hooks existentes. Publicacao somente na branch do PR existente no
+GitHub pessoal; sem branch/PR novo, merge, reescrita ou publicacao nos
+outros destinos de push do remote `origin`.
+
+Commits de codigo: `a70ee9fc` (GUI), `0360358d` (CLI/empacotamento),
+`fac14d7a` (SQLite, lock e fronteira de autorizacao), `9aa0e7e6`
+(Streamlit). A autoria e a mensagem completa do intervalo sao conferidas
+antes do push. As conversas do PR recebem o estado posterior a correcao;
+a analise inicial somente de leitura fica identificada como historica.
+
+Proxima atividade: conferir o HEAD publicado e os checks correspondentes.
+Falha de servico/conta deve ser reportada separadamente de falha de teste;
+nao ha merge autorizado nesta rodada.
+
+### Complemento apos os comentarios recebidos no push
+
+- Comentario `4031568439`: confirmado que sidecars forenses de banco ausente
+  eram excluidos imediatamente porque nao havia principal na lista retida.
+  A poda agora agrupa principal/sidecars pela mesma familia e conserva as
+  familias mais recentes, incluindo as sem `.db`. Falha em sidecar interrompe
+  a exclusao da familia. O teste existente foi corrigido para demonstrar
+  preservacao recente e remocao somente apos exceder o limite.
+- `pytest -q -p no:cacheprovider tests/test_database_integrity_ensure.py`:
+  12 passaram. py_compile, Ruff, ty e diff --check do complemento passaram.
+  O escopo acumulado passa a 45 arquivos Python, incluindo esse teste.
+- Comentario `4031569023`: nao confirmado. Probe com PyQt/Qt 6.11.0 em
+  offscreen demonstrou que, apos `sip.delete`, ler/incrementar o atributo
+  Python do request e atribuir o estado running continua funcionando;
+  `windowTitle()` levanta RuntimeError por acessar C++. Nao foi adicionado
+  `except pass` ao caminho de descarte.
+- No HEAD `2d8e44dd`, oito jobs Actions nao iniciaram por bloqueio de
+  faturamento da conta. CodeFactor apresentou cinco apontamentos de
+  complexidade e um alerta B108 em teste; os outros servicos tinham
+  resultados aprovados, pendentes ou erro de servico. Isso nao constitui
+  CI integral aprovado. O estado remoto posterior e registrado no PR.
+
+### Complemento 2 - correcoes dos comentarios posteriores (fase local)
+
+Base: `9a75a086`, branch `devin_review`. As correcoes desta secao foram
+publicadas em sete commits ate o HEAD `31667a7c`, com oito respostas de
+thread e o comentario consolidado
+[`issuecomment-5707133852`](https://github.com/mauriciomenon/SSA_Consulta_Rapida/pull/132#issuecomment-5707133852)
+ja publicados no PR.
+
+- Comentario `4031654822`: confirmado. `_terminate_process` com
+  `reap=False` roda dentro do handler de SIGTERM e logava no `except
+  OSError`; o logging pode bloquear no lock interno do handler e impedir
+  o `sys.exit(143)`. O caminho do handler nao loga mais; o diagnostico e
+  mantido na limpeza normal (`reap=True`). Teste: falha de `terminate()`
+  nao produz warning com `reap=False` e produz com `reap=True`.
+- Comentario `4031654877`: confirmado. `wait_for_streamlit` instalava
+  `signal.signal` mesmo fora da thread principal (onde so levanta
+  ValueError). Agora ha guard explicito `threading.current_thread() is
+  threading.main_thread()`: fora da main a espera continua, sem instalar
+  nem restaurar handler (o handler do lancamento e o atexit cobrem o
+  filho). Sem `except pass` novo. Teste em thread real.
+- Comentario `4031654864`: confirmado como lacuna de cobertura. Teste
+  novo dirige o fluxo CLI completo (busca do usuario + `c`): ao trocar
+  somente `filter_mode_default`, os termos do usuario sao re-parseados
+  no modo novo e reaplicados sobre a base recarregada, e os termos da
+  base sao preservados. Nenhum patch de producao foi necessario.
+- Comentario `4031654901`: confirmado. O fake convertia `terms` para
+  lista antes da assercao, tornando `isinstance(list)` trivial. O fake
+  agora captura o argumento bruto e a assercao verifica o contrato real
+  de `parse_search_terms` (lista de dicts).
+- Comentario `4031654913`: confirmado. `_prune_forensic_backups`
+  ordenava por `max(mtime)`, cujo empate dependia da ordem do iterdir.
+  A ordem agora vem do timestamp validado do basename (largura fixa,
+  ordenacao lexica = cronologica). Dois testes novos: mtimes empatados
+  com criacao invertida (sem sleeps), familia sem principal contando na
+  retencao, e falha de unlink preservando o resto da familia sem impedir
+  a poda das demais.
+- Comentario `4031654923`: confirmado. `_resolve_user_source_path`
+  dizia "nao existe" quando o caminho existia como arquivo. Mensagem
+  distinta "existe e nao e um diretorio" para esse caso; teste adjacente
+  acrescentado.
+- Comentario `4031594673` (+ `4031595053`): comportamento preservado por
+  design. O docstring de `_resolve_user_source_path` registra o modelo
+  local/confiado: launcher vinculado a 127.0.0.1, concessao por chamada
+  (`extra_allowed_roots` nao persiste), validacao de tipo/existencia/
+  canonicalizacao mantida; uso remoto ou multiusuario nao e contrato
+  seguro. Nenhuma mudanca global em `path_safety`.
+- Comentario `4031654890`: fail-fast `timeout=0` mantido (resposta no PR
+  detalha o tradeoff: recopia como custo, origem preservada, lifecycle
+  sem retry seguro). Alem disso, o `except` foi dividido: `Timeout`
+  reporta escrita em curso; `OSError` reporta a causa real como falha de
+  IO na promocao, sem afirmar lock ocupado - o try cobre aquisicao,
+  corpo e liberacao.
+- Reviews `5226866162`/`5229345021`: confirmado. `_get_details_db_signature`
+  consultava o SQLite em toda chamada e `_details_active_db_signature`
+  so vivia durante um render. Agora ha memo por geracao do conjunto
+  .db/-wal/-journal (identidade dev/ino, tamanho, mtime_ns/ctime_ns) +
+  revisao local; `-shm` fica fora porque leitores do WAL o atualizam. So
+  o token "graph" (fingerprint confirmado) e memoizado - o fallback
+  "mtime" tambem cobre falha transitoria e nao pode ser reutilizado por
+  tempo indeterminado. Testes focados: renders repetidos sem nova
+  consulta, commit externo em WAL com .db imutavel invalida (spy sobre o
+  provider real, fp-1 -> fp-2), troca de banco e reload de revisao
+  invalidam, falha transitoria nao memoiza, OSError de stat nao reutiliza.
+- Nitpick CodeAnt #4 (`test_database_operations.py:374`): nao confirmado
+  como residual - a atribuicao `result: dict = {}` antes do try no caso
+  `active_staged` ja havia sido corrigida em `fac14d7a`. Alegacao stale.
+- Tres alegacoes menores avaliadas: marcadores orfaos sem prova nao sao
+  removidos automaticamente (ja e o comportamento - poda exige sufixo
+  run_id validado); snapshot com WAL ativo e hipotese fora do que o
+  backup/close produz (`sqlite3.Connection.backup` gera arquivo
+  consolidado, sem -wal); `mark_latest_sync_run_failed` sem ID mantem
+  compatibilidade, e os callers de producao passam o ID.
+
+Validacao deste complemento, com `uv run --no-sync`:
+
+- `py_compile`, `ruff check` e `ty check` nos 11 arquivos tocados
+  passaram. Houve falhas iniciais ja corrigidas: 3 diagnosticos ty nos
+  testes novos, patch de `signal.signal` que atingia o teardown da
+  fixture (substituido por observacao dos helpers), `clear_filter_cache`
+  ausente no window fake e criacao tardia do -wal pela primeira leitura
+  (warmup neutro antes do baseline).
+- `pytest tests/test_main_streamlit_launcher.py
+  tests/test_cli_config_preserve_session.py
+  tests/test_cli_remove_filter_non_lifo.py
+  tests/test_streamlit_source_selection.py -x -q`: 29 passaram.
+- `pytest tests/test_database_integrity_ensure.py
+  tests/test_gui_details_tree_cache.py tests/test_database_operations.py
+  tests/test_database_operations_contention.py -x -q`: 41 passaram;
+  apos o reforco do teste WAL e dos casos de fallback/stat, a selecao
+  `tests/test_gui_details_tree_cache.py tests/test_database_operations.py
+  tests/test_database_operations_contention.py` passou com 29.
+
+Checks externos no HEAD `9a75a086` (evidencia fornecida pelo
+coordenador, sem nova consulta nesta fase): CodeFactor
+`105011990926` lista cinco Complex Method - `core/app_logic.py`
+(regioes ~1162 e ~2007), `armazenamento/database_integrity.py` (~224),
+`gui/gui_ssa.py` (~5300 e ~5970) - mais um B108 em
+`tests/test_import_derivadas_trigger.py`. Os seis estao em arquivos
+tocados pelo PR (diff dev...HEAD), mas as linhas reportadas podem vir
+do diff/base: o B108 refere os literais `/tmp/` atuais em 483 e
+612/616/618/630, num teste que substitui `_run_derivadas_sync_phase`
+por excecao sem escrita demonstrada - alerta de teste, nao
+vulnerabilidade provada. Complexidade mantida fora do escopo, sem
+refatoracao de funcoes inteiras por metrica. Snyk code parou por quota.
+DeepSource `9d666986` reportou "Analysis failed: Blocking issues or
+failing metrics found"; o detalhe segue nao auditado - a abertura
+direta do URL retornou bloqueio tecnico de URL, sem evidencia de que
+exija login. Os oito jobs Actions nao iniciaram por bloqueio de
+faturamento. Nada disso equivale a CI aprovado nem a teste local
+reprovado.
+
+### Complemento 3 - pendencias externas e guards headless (2026-09-17)
+
+- **CodeFactor**: voltou a `SUCCESS` em `2197be49` apos a troca dos
+  literais `/tmp/` dos dois testes por caminhos de `tmp_path` (alvo do
+  B108). Os 5 Complex Method permanecem como avisos reais de
+  complexidade em metodos modificados pelo PR; sao consultivos e nao
+  reprovam o check. Sem refatoracao por metrica.
+- **Comentarios 4039423445 e 4039425853** (codereviewbot, procedentes):
+  em headless `ssa_database_operations = cast(Any, None)` e a consulta
+  de stagings lancava `AttributeError` - nao `NameError` - caindo nos
+  ramos conservadores (staging fantasma) e podendo atingir
+  `allow_new_staged_copies()` sobre `None`. Os 3 guards (shutdown,
+  closeEvent forcado e barreira `bar_new_staged_copies`) agora checam
+  `is None` explicitamente; falhas reais do modulo seguem fail-closed
+  com log. Contexto: `__init__` barra GUI sem Qt - e inconsistencia do
+  caminho headless/teste, nao crash de GUI operante.
+- **Actions**: bloqueio de faturamento confirmado no HEAD `fd2e742f`
+  pelas annotations reais dos check-runs (quality-gates/core e
+  secret-scan): "account locked due to a billing issue". Exige acao na
+  conta; nada de codigo.
+- **Snyk code**: "Code test limit reached" - quota do servico.
+- **DeepSource** run `8bfa5a7f` (HEAD `18471640`): triado via acesso
+  publico do dashboard (sem login; a alegacao anterior de acesso
+  bloqueado estava errada). 37 achados avaliados contra `dev` por
+  funcao/conteudo:
+  - 16 Critical: 3 de producao (`PYL-E0601` falso positivo de fluxo em
+    `database_operations.py:304`; `PYL-E1133`/`PYL-E1102` com guardas
+    `isinstance`/`callable` identicas em `dev`) e 13 `PTC-W0063`
+    (`next()` em testes) herdados - mesmas funcoes em `dev`, total
+    `next()` 15->15, nenhum novo.
+  - 13 Major/bug-risk: 5 identicos em `dev` (reimports `sys`/`pandas`/
+    `time`, `accept_mode`) e 8 em testes (padroes semanticamente
+    corretos, ex. `with closing() as conn, conn` inicia transacao).
+  - 8 Security: todos pre-existentes em `dev` e/ou advisory
+    (`PY-A6006` logging audit, `PTC-W6004` open(), `BAN-B608`/`B101`
+    em helper de teste ja guardado por `_quote_identifier` + allowlist).
+  - Limites: 584 issues restantes nao auditadas (621 totais menos as
+    37 avaliadas); metricas Doc Coverage +0.7%/16.3% e Deps +11/22 sao
+    variacoes/valores exibidos, nao thresholds provados nem causa da
+    falha; warning de baseline imprecisa registrado como limitacao,
+    nao prova de heranca.
+  - Veredito: nenhum achado novo acionavel entre os 37 avaliados;
+    consultivo por `CODE_QUALITY.md`.
+- **Windows**: ZIPs v4.50 em `builds/packages/` tem origem no commit
+  `37b2f59b` (2026-09-14) e nao evidenciam o HEAD atual. Na VM
+  existente, checkout detached em `18471640` gerou builds temporarios
+  ARM64 com saida/work/spec em TEMP (CLI e GUI rc=0). Validacao
+  nativa desta rodada (todas confirmadas no console): smoke do CLI
+  congelado `SMOKE_CLI_OK` v4.50 rc=0; PE Machine `0xaa64` nos
+  executaveis CLI e GUI; `BUILD_INFO.json` do bundle com SHA
+  `18471640`; GUI abriu com as 3 SSAs sinteticas (resize/
+  maximizacao ok); importacao XLSX externa da planilha regular
+  adicionou 2 SSAs (total 5); planilha especial de derivadas
+  sincronizou (banner verde, 1/1, sem erro). Leitura final em
+  `mode=ro`: 5 linhas em `ssa_table`; `ssa_derivada_matrix` com
+  as arestas `202600001->202600002`, `202600004->202600005` e
+  `202600005->202600006`; ultimo `ssa_derivada_sync_run` = `ok`.
+  O painel de derivadas exibiu `202600004->202600005` e contagens
+  `QtdDer` 1 (005) / 2 (004); `202600006` nao apareceu como linha
+  na tela e foi confirmado apenas na matriz de derivadas - fica
+  registrada a observacao, sem declarar nova falha. GUI encerrada
+  com Alt+F4. Checkout do guest restaurado para `dev` (`37b2f59b`)
+  com workspace limpo. Pacote temporario ARM64 apenas; nao certifica
+  AMD64 nem os ZIPs de release. Sem scanners, suites ou testes novos.
+
+Validacao da rodada anterior de correcoes: py_compile/Ruff/ty limpos
+nos arquivos tocados; 22 testes focados de shutdown/staging +
+revalidacao do teste novo (1 passed). Rodada Windows: somente build
+temporario ARM64 + smoke + GUI nativa; sem suite completa, scanners
+pesados ou testes novos.
+
+### Complemento 4 - gates locais equivalentes ao CI (2026-09-17)
+
+Os jobs GitHub Actions do HEAD `dbf33d04` falham por bloqueio de
+faturamento da conta (annotations re-lidas neste HEAD: check-runs
+105338406808 `quality-gates (core)` e 105338405938 `secret-scan`,
+"account locked due to a billing issue"). Ficam falhos como registro
+de infraestrutura. `gh pr checks --required` nao reporta checks
+obrigatorios; nenhum workflow ou protecao foi alterado.
+
+Gates locais executados com os mesmos contratos do CI
+(base `639b5bf`, HEAD `dbf33d04`, uma passagem por grupo), em macOS
+arm64 (Darwin arm64) com Python 3.13.12. O CI Linux do Actions nao
+foi executado neste HEAD. A execucao inicial correu sobre `dbf33d04`
+puro; o reteste do grupo core correu na mesma arvore acrescida do
+patch de teste descrito abaixo, nao sobre `dbf33d04` limpo.
+
+- `ci_quality_gates.sh` (validate_configs + smoke_cli + check_docs):
+  rc=0; smoke com importacao funcional (`imported_rows=1`).
+- Ruff, ty e py_compile nos 66 arquivos Python do diff
+  (lista em /tmp/pr132_changed_py.txt): rc=0.
+- pytest na particao da matriz do workflow
+  (`--timeout=45 --timeout-method=thread`, `QT_QPA_PLATFORM=offscreen`,
+  listas em /tmp/pr132_pytest_<grupo>.txt):
+  - data-import: 724 passed (rc=0)
+  - cli-release: 371 passed, 6 skipped (rc=0)
+  - core: 816 passed, 1 skipped (rc=0 no reteste apos correcao; a
+    passagem inicial teve 2 falhas de captura de log)
+  - gui-filter: 581 passed, 1 skipped (rc=0)
+  - gui-other: 62 arquivos isolados, agregado 620 passed, 1 skipped,
+    11 subtests, 0 falhas
+  - total da matriz: 3112 passed, 9 skipped, 11 subtests
+- `scan_secrets.sh workspace` e `pr-diff 639b5bf`: rc=0, sem padroes.
+- `validate_git_authorship.py range 639b5bf dbf33d04`: OK (47 commits).
+
+Correcao de teste nesta rodada: `tests/test_remote_itaipu_dataframe.py`
+ganhou `caplog.set_level(logging.WARNING)`. Testes que chamam
+`main.main --log-level CRITICAL` deixam root e todos os handlers
+(incluindo o LogCaptureHandler do caplog) em nivel 50 sem restaurar;
+a captura explicita declara a pre-condicao do teste sem remover
+asserts e sem alterar o logging de producao.
+
+Limites: DeepSource consultivo permanece failure - 37 achados triados,
+incluindo os 16 Critical (3 em producao: 1 PYL-E0601 falso positivo e
+2 guardadas PYL-E1133/E1102 identicas a dev; 13 PTC-W0063 `next()` em
+testes herdados de dev), e 584 issues restantes nao auditadas. Snyk
+code em quota; validacao nativa foi Windows ARM64 temporario - AMD64 e
+ZIPs de release nao certificados; dependency-review e prechecks do
+Actions nao tem equivalente local executado.

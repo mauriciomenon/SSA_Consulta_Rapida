@@ -754,17 +754,14 @@ function Assert-RuntimeDatabase {
     $sourcePath = Join-Path $RepoRoot "data\ssas.db"
     Assert-ExistingFile $sourcePath
     $sourceResolved = (Resolve-Path -LiteralPath $sourcePath).Path
-    $expectedRuntimeHash = $null
+    $sourceHash = @(Get-ArtifactHash @($sourceResolved))[0]['sha256']
     $records = @()
     foreach ($root in $RuntimeRoot) {
         Assert-ExistingDirectory $root
         $runtimePath = Join-Path $root "data\ssas.db"
         $runtimeHash = @(Get-ArtifactHash @($runtimePath))[0]
-        if ([string]::IsNullOrWhiteSpace($expectedRuntimeHash)) {
-            $expectedRuntimeHash = $runtimeHash['sha256']
-        }
-        elseif ($runtimeHash['sha256'] -ne $expectedRuntimeHash) {
-            throw "Hash do banco de runtime diverge entre bundles em ${runtimePath}: $($runtimeHash['sha256']) != $expectedRuntimeHash"
+        if ($runtimeHash['sha256'] -ne $sourceHash) {
+            throw "Hash do banco de runtime diverge da origem em ${runtimePath}: $($runtimeHash['sha256']) != $sourceHash"
         }
         $sensitiveFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
             $_.Extension.ToLowerInvariant() -in @(".db", ".ods", ".xls", ".xlsm", ".xlsx")
@@ -904,6 +901,14 @@ if (-not $Yes) {
     $confirm = Read-Host "Continuar? [s/N]"
     if ($confirm.ToLowerInvariant() -ne "s") {
         throw "Operacao cancelada pelo usuario."
+    }
+    $runtimeDbRelevant = ($selectedBackends -contains "pyinstaller") -and (-not ($SkipBuild -and $SkipPackage))
+    if ($runtimeDbRelevant -and -not $PSBoundParameters.ContainsKey('IncludeRuntimeDb')) {
+        # Default seguro: nao incluir o banco operacional no pacote.
+        $includeDbAnswer = Read-Host "Incluir data\ssas.db no pacote? [s/N]"
+        if ($includeDbAnswer.Trim().ToLowerInvariant() -eq "s") {
+            $IncludeRuntimeDb = $true
+        }
     }
 }
 

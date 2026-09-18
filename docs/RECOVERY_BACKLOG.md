@@ -8,8 +8,8 @@ nao autoriza nova execucao nem impede automaticamente outra entrega.
 Para pacotes, aplicar [os criterios de entrega](BUILD_WINDOWS_ARM64_AMD64.md#encerramento).
 Correcao apenas documental nao exige rebuild, suite completa ou novos scanners.
 
-Atualizado em 2026-09-13. Documento versionado; cada rodada abaixo identifica
-seu escopo e sua evidencia. Estado de CI/CD na ultima secao e na PR 131.
+Atualizado em 2026-09-17. Documento versionado; cada rodada abaixo identifica
+seu escopo e sua evidencia. Estado de CI/CD na ultima secao e na PR 132.
 
 ## 2026-09-09 - Historico da limpeza uv
 
@@ -382,3 +382,154 @@ individual de 45s e reprovacao por falha preservados.
   permanece configurada, com cancelamento do job nesta publicacao.
 - Proxima atividade: triagem tecnica delimitada dos comentarios restantes;
   GitHub depende de regularizacao da conta e a PR permanece rascunho.
+
+
+## 2026-09-14 - Falha de importacao no pacote Windows (derivadas)
+
+- [x] Corrigir propagacao de `extra_allowed_roots` para a fase de derivadas.
+  Incidente real no executavel PyInstaller Windows: importacao com banco em
+  `C:\Users\menon\Downloads\Telegram Desktop\ssas.db` gravou 31/42 arquivos e
+  falhou com `PathSafetyError` em `sync derivadas database`
+  (`armazenamento/derivadas_sync.py:1558`). O pipeline de importacao aceita
+  o banco externo via `extra_allowed_roots` (`rescan_worker.py`,
+  `app_logic.py:1923`), mas `_run_optional_derivadas_sync` ->
+  `_run_derivadas_sync_phase` -> `sync_derivadas` revalida somente com raizes
+  globais. Resultado: `blocking_derivadas_sync_error` com banco parcialmente
+  alterado. Corrigido em `devin_review`: parametro opcional
+  `extra_allowed_roots` propagado por toda a cadeia (derivadas_sync,
+  derivadas_schema, app_logic, derivadas_sync_job, derivadas_sync_controller,
+  gui_ssa, derivadas_cli). Detalhes na secao N de AUDIT_FIXES_REPORT.md.
+- [x] Pre-flight de caminhos no inicio da importacao (N5.1 do relatorio):
+  `run_importer_logic` valida `working_db_path` e `derivadas_sheet_files`
+  antes da gravacao de linhas importadas; caminho invalido aborta como
+  `ImporterError` com `PathSafetyError` como causa. A preparacao do banco
+  pode criar ou inicializar artefatos antes de validar `working_db_path`.
+- [ ] Decidir a politica de consistencia para falhas de derivadas nao
+  relacionadas a caminho (N5.2): progresso parcial declarado + retry, ou
+  candidato/promocao tambem no rescan comum. Mudanca estrutural; exige
+  pedido proprio.
+- [ ] Estender a validacao do pacote Windows com importacao usando banco e
+  planilhas fora do diretorio de instalacao; o smoke atual nao cobre esse
+  cenario (ver BUILD_WINDOWS_ARM64_AMD64.md, secao de validacao).
+- [x] Mesma lacuna nos caminhos manuais: botao de derivadas da GUI
+  (`derivadas_sync_job.py` + `derivadas_sync_controller.py`, com raiz do
+  banco autorizada em `gui_ssa.py`), `derivadas_cli.py --db` externo
+  (diretorio do banco auto-autorizado) e `scan_derivadas_consistency`/
+  `get_sync_stats`/`self_heal_derivadas`/`run_derivadas_maintenance`/
+  `derivadas_schema.py`. Cobertos pelo mesmo parametro opcional da secao N4.
+
+## PR 132 - Limites da rodada de correcao dos comentarios
+
+- [ ] Validacao nativa do encerramento do Streamlit em Windows. O codigo
+  remove preexec_fn, coordena criacao/registro e colhe o filho apos kill;
+  os testes focados simulam sinais, sem comprovar entrega nativa nesse alvo.
+- [ ] Medicao visual de latencia, CPU e memoria do painel de detalhes.
+  Prefetch especulativo removido; fingerprint reutilizado por render com
+  debounce e invalidacao por revisao. Testes nao substituem essa medicao.
+- [ ] Artefatos antigos de full rescan sem prova persistente de propriedade
+  e sidecars orfaos ficam preservados. Remocao exige inspecao e escopo
+  explicito; nomes/timestamps sozinhos nao autorizam a poda.
+- [ ] Caches `data/file_cache.<banco-sem-extensao>.json` sem banco
+  correspondente ficam preservados na limpeza de build, por falta de prova
+  de origem. Os gerados em diretorios de artefatos sao reconhecidos.
+- [ ] Conferir checks do novo HEAD no PR. A consulta anterior encontrou
+  Actions sem iniciar por bloqueio de faturamento/conta, alem de resultados
+  consultivos de CodeFactor e DeepSource com falha. Nao equivalem a testes
+  locais reprovados, nem autorizam declarar CI aprovado.
+
+## PR 132 - Limites do complemento 2 (comentarios posteriores)
+
+- [ ] Geracao do cache de detalhes observa metadados do conjunto
+  .db/-wal/-journal com resolucao de nanossegundos; uma reescrita com
+  conteudo diferente mantendo TODOS os metadados identicos (FS grosseiro
+  ou restauracao de metadados) nao seria detectada. O -shm nao entra na
+  geracao porque leitores do WAL o atualizam.
+- [ ] Bancos sem `graph_fingerprint` nao ganham a memoizacao do token de
+  detalhes: o fallback "mtime" nunca e memoizado, pois tambem representa
+  falha transitoria de consulta. Custo: uma leitura pequena por render
+  nesse perfil de banco.
+- [ ] DeepSource `9d666986` reportou "Analysis failed: Blocking issues or
+  failing metrics found" sem detalhe auditado nesta fase; o detalhamento
+  do dashboard ficou pendente por nao haver sessao autenticada exercida.
+- [ ] Validacao nativa Windows do pacote continua pendente: os ZIPs
+  v4.50 amd64/arm64 existem localmente e a VM VMware Windows 11 ARM64 e
+  documentada, mas nenhuma execucao nativa do HEAD foi verificada nesta
+  sessao. Requisito: acesso a VM existente para rodar o smoke nativo.
+- [ ] Marcadores/artefatos orfaos sem prova persistente de propriedade
+  ficam preservados; remocao exige escopo explicito (mantido).
+- [ ] Snapshot com WAL ativo nao e produzido pelo backup/close atuais;
+  se algum dia surgir, o restore precisa considerar os sidecars do
+  snapshot tambem. Hipotese fora do fluxo atual, sem codigo.
+
+Followup desta secao: os comentarios 4032312590, 4032312595 e
+4032312630 (cubic, HEAD `31667a7c`) foram tratados nesta rodada -
+teste de falha de unlink tornado deterministico no principal da familia
+e textos de estado atualizados no report e neste cabecalho.
+
+## 2026-09-17 - Pendencias externas e guards headless (PR 132)
+
+- [x] CodeFactor voltou a SUCCESS em `2197be49` apos a remocao dos
+  literais `/tmp/` dos testes (alvo do B108); os 5 Complex Method
+  permanecem como avisos reais de complexidade em metodos modificados
+  pelo PR, sem refatoracao por metrica.
+- [x] Comentarios 4039423445 e 4039425853 (codereviewbot): os 3 guards
+  de staging no shutdown/closeEvent agora tratam
+  `ssa_database_operations is None` explicitamente; falhas reais do
+  modulo seguem fail-closed com log. Regressao coberta em
+  `test_gui_filter_logic.py` (modulo None aceita closeEvent nos caminhos
+  normal e forcado). Contexto: `__init__` barra GUI sem Qt - e
+  inconsistencia do caminho headless/teste, nao crash de GUI operante.
+- [x] DeepSource run `8bfa5a7f` (HEAD `18471640`) triado via acesso
+  publico: 37 achados avaliados contra `dev` (16 Critical, 13 Major
+  bug-risk, 8 Security) - falsos positivos de fluxo, herdados de `dev`
+  por funcao/conteudo, advisory ou padroes de teste corretos. Nenhum
+  achado novo acionavel entre os 37 avaliados. Limites: 584 issues
+  restantes nao auditadas; metricas exibidas sao variacoes/valores,
+  nao thresholds provados; warning de baseline imprecisa e limitacao.
+- [ ] Actions: bloqueio de faturamento confirmado no HEAD `fd2e742f`
+  pelas annotations dos check-runs (quality-gates/core e secret-scan).
+  Exige desbloqueio da conta pelo dono; nada de codigo.
+- [ ] Snyk code: "Code test limit reached" - quota do servico.
+- [x] Validacao nativa Windows concluida com pacote temporario do
+  HEAD: checkout detached em `18471640` na VM existente, builds
+  ARM64 CLI/GUI rc=0 com saida/work/spec em TEMP, PE `0xaa64` nos
+  dois executaveis, `BUILD_INFO.json` com o SHA do HEAD. Smoke CLI
+  `SMOKE_CLI_OK` v4.50 rc=0; GUI abriu com banco sintetico (3 SSAs,
+  resize ok), importacao regular +2 SSAs (total 5) e sync da
+  planilha especial com banner verde; `ssa_derivada_matrix` com as
+  3 arestas esperadas e ultimo sync `ok` (leitura `mode=ro`).
+  Painel observado: `202600004->202600005`, `QtdDer` 1/2; `202600006`
+  confirmado na matriz, sem linha visivel - observacao registrada,
+  sem nova falha declarada. Checkout restaurado para `dev`
+  (`37b2f59b`) limpo; pacotes de release, dist, configs e
+  relatorios existentes preservados. Pacote temporario ARM64
+  apenas; nao certifica AMD64 nem os ZIPs de release. Sem
+  scanners, suites ou testes novos nesta etapa.
+
+Validacao da rodada anterior de correcoes: py_compile/Ruff/ty limpos
+nos arquivos tocados; 22 testes focados de shutdown/staging +
+revalidacao do teste novo (1 passed). Rodada Windows: somente build
+temporario ARM64 + smoke + GUI nativa; sem suite, scanners ou acesso
+ampliado.
+
+## 2026-09-17 - Gates locais equivalentes ao CI (PR 132)
+
+- [x] Faturamento do GitHub Actions bloqueia os jobs no HEAD
+  `dbf33d04` (annotations confirmadas neste HEAD); nao e
+  pre-requisito de merge - nenhum check obrigatorio existe
+  (`--required` vazio) e nenhum workflow/protecao mudou.
+- [x] Gates locais com os mesmos contratos do CI, base `639b5bf`,
+  em macOS arm64 (Python 3.13.12); CI Linux do Actions nao executado:
+  quality-gates script rc=0; Ruff/ty/py_compile nos 66 arquivos do
+  diff rc=0; pytest particionado - data-import 724, cli-release
+  371 (+6 skip), core 816 (+1 skip, reteste apos patch de teste),
+  gui-filter 581 (+1 skip), gui-other 620 agregado (+1 skip, 62
+  arquivos isolados); total 3112 passed, 9 skipped, 11 subtests;
+  secret-scan workspace+pr-diff rc=0; autoria 47 commits OK.
+- [x] Correcao: `caplog.set_level(logging.WARNING)` em
+  `tests/test_remote_itaipu_dataframe.py` - vazamento de nivel
+  CRITICAL de testes `main.main` anteriores esvaziava a captura;
+  sem remover asserts nem alterar producao.
+- [ ] Fora do criterio desta entrega (opcional, decisao do dono):
+  regularizacao de faturamento reabilitaria o CI online; quota Snyk
+  code; DeepSource consultivo com 584 issues nao auditadas.

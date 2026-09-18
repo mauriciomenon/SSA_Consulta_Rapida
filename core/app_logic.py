@@ -19,7 +19,6 @@ import logging
 import os
 import re
 import sqlite3
-import sys
 import time
 from datetime import datetime
 from enum import Enum
@@ -28,13 +27,13 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, cast
 
 import pandas as pd
 
-# Adiciona o diretorio raiz do projeto ao sys.path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-project_root_path = Path(project_root)
-sys.path.insert(0, project_root)
+project_root_path = Path(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 from armazenamento import database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
+    mark_latest_sync_run_failed,
     scan_derivadas_consistency,
     sync_derivadas,
 )
@@ -63,7 +62,10 @@ from armazenamento.database_lock import (  # noqa: E402
 from filelock import Timeout  # noqa: E402
 from core.import_database_rotation import (  # noqa: E402
     build_full_rescan_candidate_path as _build_full_rescan_candidate_path,
+    discard_full_rescan_artifact_marker as _discard_full_rescan_artifact_marker,
     promote_full_rescan_candidate as _promote_full_rescan_candidate,
+    prune_full_rescan_artifacts as _prune_full_rescan_artifacts,
+    register_full_rescan_artifact as _register_full_rescan_artifact,
 )
 from core.import_postprocess import (  # noqa: E402
     route_and_move_processed_files as _apply_postprocess_file_moves,
@@ -95,17 +97,6 @@ logger = logging.getLogger(__name__)
 
 QUERYABLE_FILTER_COLUMNS = frozenset(get_default_column_mappings())
 
-_DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
-    "ssa_table": """
-        SELECT COUNT(*)
-        FROM (
-            SELECT numero_ssa, derivada_de
-            FROM "ssa_table"
-            WHERE derivada_de IS NOT NULL
-            GROUP BY numero_ssa, derivada_de
-        ) AS db_edges
-    """,
-}
 _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE: dict[
     tuple[str, str, tuple[tuple[str, int, int], ...]], bool
 ] = {}
@@ -120,7 +111,7 @@ class FileProcessAction(str, Enum):
 
 def _sqlite_file_state_key(db_path: str) -> tuple[tuple[str, int, int], ...]:
     states: list[tuple[str, int, int]] = []
-    for suffix in ("", "-wal", "-shm"):
+    for suffix in ("", "-wal", "-shm", "-journal"):
         side_path = f"{db_path}{suffix}"
         try:
             stat = os.stat(side_path)
@@ -138,7 +129,12 @@ __all__ = [
 ]
 
 
-def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
+def _resolve_import_targets(
+    docs_dir: str,
+    db_path: str,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
+) -> tuple[Path, Path]:
     """Normaliza e valida caminhos sensiveis antes da importacao."""
     docs_dir_path = ensure_path_is_allowed(
         docs_dir,
@@ -146,6 +142,7 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
         base=project_root_path,
         must_exist=True,
         expect_directory=True,
+        extra_allowed_roots=extra_allowed_roots,
     )
     db_path_path = ensure_path_is_allowed(
         db_path,
@@ -153,6 +150,7 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
         base=project_root_path,
         must_exist=False,
         expect_directory=False,
+        extra_allowed_roots=extra_allowed_roots,
     )
     return docs_dir_path, db_path_path
 
@@ -411,6 +409,35 @@ def _needs_db_only_derivadas_sync(
                     "Cancelamento solicitado durante preflight DB-only de derivadas."
                 )
                 return False
+            ready_tables = {
+                "ssa_derivada_matrix",
+                "ssa_derivada_summary",
+                "ssa_derivada_sync_run",
+            }
+            existing_tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            if "ssa_derivada_sync_run" in existing_tables:
+                latest = conn.execute(
+                    """
+                    SELECT status, db_edges
+                    FROM ssa_derivada_sync_run
+                    ORDER BY sync_run_id DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+            else:
+                latest = None
+
+            # Um run marcado como erro precisa ser refeito mesmo quando o
+            # banco nao tem arestas DB: sem esta checagem antecipada, o
+            # early-return de edges==0 deixava a falha sem retry.
+            if latest is not None and str(latest[0] or "") != "ok":
+                return _finish(True)
+
             db_edges_count = int(
                 database.count_distinct_derivada_edges(
                     cast(sqlite3.Connection, conn),
@@ -426,17 +453,6 @@ def _needs_db_only_derivadas_sync(
                 )
                 return False
 
-            ready_tables = {
-                "ssa_derivada_matrix",
-                "ssa_derivada_summary",
-                "ssa_derivada_sync_run",
-            }
-            existing_tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                ).fetchall()
-            }
             if not ready_tables.issubset(existing_tables):
                 return _finish(True)
 
@@ -454,19 +470,10 @@ def _needs_db_only_derivadas_sync(
             summary_total = int(
                 conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0]
             )
-            latest = conn.execute(
-                """
-                SELECT db_edges
-                FROM ssa_derivada_sync_run
-                WHERE status = 'ok'
-                ORDER BY sync_run_id DESC
-                LIMIT 1
-                """
-            ).fetchone()
 
             if latest is None:
                 return _finish(True)
-            latest_db_edges = int(latest[0] or 0)
+            latest_db_edges = int(latest[1] or 0)
             return _finish(
                 matrix_active <= 0
                 or summary_total <= 0
@@ -486,7 +493,16 @@ def _run_derivadas_sync_phase(
     db_path: str,
     table_name: str,
     derivadas_sheet_files: List[str],
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
+    *,
+    report_out: Optional[Dict[str, Any]] = None,
 ) -> tuple[bool, List[str], Dict[str, Any]]:
+    # Materializa: o parametro alimenta sync_derivadas e a consistencia,
+    # e um iteravel esgotavel falharia na segunda validacao.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
+
     def _has_sheet_parse_evidence(entry: Dict[str, Any]) -> bool:
         raw_stats = entry.get("stats")
         stats: Dict[str, Any] = raw_stats if isinstance(raw_stats, dict) else {}
@@ -505,11 +521,23 @@ def _run_derivadas_sync_phase(
         "table_name": table_name,
         "include_db_source": True,
         "actor": "importer-derivadas-sync",
+        "extra_allowed_roots": extra_allowed_roots,
     }
     if existing_files:
         sync_kwargs["sheet_files"] = existing_files
 
-    report = sync_derivadas(**sync_kwargs)
+    try:
+        report = sync_derivadas(**sync_kwargs)
+    except Exception as exc:
+        # sync_derivadas e transacional: uma excecao que sai dele ja
+        # passou por rollback interno. A marca distingue esse caso de
+        # falhas pos-commit (ex.: scan de consistencia), onde nao ha
+        # nada revertido a declarar. setattr dinamico: o tipo estatico
+        # de Exception nao declara o atributo.
+        setattr(exc, "_derivadas_sync_rolled_back", True)
+        raise
+    if report_out is not None:
+        report_out.update(report)
     sheet_stats = report.get("sheet_stats") or {}
     reported_files = report.get("sheet_files") or []
     sheet_file_reports = report.get("sheet_file_reports") or []
@@ -617,7 +645,10 @@ def _run_derivadas_sync_phase(
             "Sync de derivadas concluido sem arestas materializadas no grafo."
         )
 
-    consistency = scan_derivadas_consistency(db_path=db_path)
+    consistency = scan_derivadas_consistency(
+        db_path=db_path,
+        extra_allowed_roots=extra_allowed_roots,
+    )
     report = dict(report)
     report["consistency_scan"] = consistency
     if not bool(consistency.get("schema_ready")) or not bool(
@@ -1154,6 +1185,7 @@ def _run_optional_derivadas_sync(
     docs_dir: str,
     critical_errors: List[tuple[str, str, str]],
     emit_progress: Callable[[str, Dict[str, Any]], None],
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> tuple[bool, bool, list[str]]:
     """Executa sync opcional de derivadas e retorna resultado e arquivos especiais."""
     sync_materialized = False
@@ -1171,11 +1203,14 @@ def _run_optional_derivadas_sync(
             "Cancelamento solicitado; sync de derivadas especiais nao sera executado."
         )
         return sync_materialized, derivadas_sync_blocking_error, synced_success_files
+    sync_report: Dict[str, Any] = {}
     try:
         sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
             db_path=working_db_path,
             table_name=table_name,
             derivadas_sheet_files=derivadas_sheet_files,
+            extra_allowed_roots=extra_allowed_roots,
+            report_out=sync_report,
         )
         if sync_ok and not derivadas_sync_blocking_error:
             existing_success = set(successfully_processed_files)
@@ -1196,10 +1231,10 @@ def _run_optional_derivadas_sync(
                 progress_filename = os.path.basename(synced_sheets[0])
             elif synced_sheets:
                 progress_filename = (
-                    f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
+                    f"Sincronizacao de derivadas ({len(synced_sheets)} arquivos)"
                 )
             else:
-                progress_filename = "SSAs Derivadas e Relacionadas (banco atual)"
+                progress_filename = "Sincronizacao de derivadas (banco atual)"
             emit_progress(
                 "file_success",
                 {
@@ -1211,24 +1246,54 @@ def _run_optional_derivadas_sync(
             )
         if not sync_ok:
             derivadas_sync_blocking_error = True
+            retry_marked = False
+            if sync_report.get("sync_run_id") is not None:
+                retry_marked = mark_latest_sync_run_failed(
+                    db_path=working_db_path,
+                    message="post_commit_validation_failed",
+                    extra_allowed_roots=extra_allowed_roots,
+                    sync_run_id=sync_report.get("sync_run_id"),
+                )
+                if not retry_marked:
+                    logger.warning(
+                        "Run de derivadas comitado nao foi marcado como falho; "
+                        "o re-sync automatico no proximo rescan pode nao ocorrer."
+                    )
             consistency_scan = sync_report.get("consistency_scan") or {}
             issue_counts = consistency_scan.get("issue_counts") or {}
             missing_files = sorted(
                 sync_report.get("sheet_files_without_evidence") or []
             )
-            issue_text = json.dumps(issue_counts, ensure_ascii=True)
+            issue_text = ", ".join(
+                f"{key}={value}" for key, value in sorted(issue_counts.items())
+            )
             error_message = (
-                f"Sync de derivadas sem evidencia valida (consistency={issue_text})"
+                "A sincronizacao de derivadas nao confirmou a consistencia "
+                f"dos dados gravados ({issue_text})."
                 if issue_counts
-                else "Sync de derivadas sem evidencia valida"
+                else "A sincronizacao de derivadas nao confirmou os dados gravados."
             )
             if missing_files:
-                error_message += f" | files_without_evidence={','.join(missing_files)}"
+                error_message += (
+                    " Arquivos sem evidencia de leitura: "
+                    + ", ".join(missing_files)
+                    + "."
+                )
+            if retry_marked:
+                error_message += (
+                    " Os dados importados foram preservados e o sync sera"
+                    " refeito automaticamente no proximo rescan."
+                )
+            else:
+                error_message += (
+                    " Os dados importados foram preservados; execute"
+                    " 'Atualizar derivadas' no banco para refazer o sync."
+                )
             critical_errors.append(("derivadas_sync", docs_dir, error_message))
             emit_progress(
                 "file_error",
                 {
-                    "filename": "SSAs Derivadas e Relacionadas",
+                    "filename": "Sincronizacao de derivadas",
                     "error": error_message,
                 },
             )
@@ -1246,10 +1311,41 @@ def _run_optional_derivadas_sync(
             exc,
             exc_info=True,
         )
-        critical_errors.append(("derivadas_sync", docs_dir, str(exc)))
+        if getattr(exc, "_derivadas_sync_rolled_back", False):
+            error_message = (
+                f"{exc}. As alteracoes de derivadas foram revertidas e os"
+                " dados importados foram preservados. O sync sera refeito"
+                " automaticamente no proximo rescan."
+            )
+        else:
+            failed_run_id = sync_report.get("sync_run_id")
+            retry_marked = (
+                mark_latest_sync_run_failed(
+                    db_path=working_db_path,
+                    message="post_commit_validation_failed",
+                    extra_allowed_roots=extra_allowed_roots,
+                    sync_run_id=failed_run_id,
+                )
+                if failed_run_id is not None else False
+            )
+            if not retry_marked:
+                logger.warning(
+                    "Run de derivadas comitado nao foi marcado como falho; "
+                    "o re-sync automatico no proximo rescan pode nao ocorrer."
+                )
+            error_message = (
+                f"{exc}. A verificacao falhou apos o commit do sync de"
+                " derivadas; os dados importados foram preservados."
+                + (
+                    " O proximo rescan refaz a verificacao."
+                    if retry_marked
+                    else " Execute 'Atualizar derivadas' no banco para refazer o sync."
+                )
+            )
+        critical_errors.append(("derivadas_sync", docs_dir, error_message))
         emit_progress(
             "file_error",
-            {"filename": "SSAs Derivadas e Relacionadas", "error": str(exc)},
+            {"filename": "Sincronizacao de derivadas", "error": error_message},
         )
     return sync_materialized, derivadas_sync_blocking_error, synced_success_files
 
@@ -1384,6 +1480,9 @@ def _prepare_working_database_for_import(
     if force_import:
         candidate_db_path = _build_full_rescan_candidate_path(primary_db_path, run_id)
         working_db_path = candidate_db_path
+        # Dentro do round lock nenhum outro run usa estes artefatos; poda
+        # os antigos mantendo os mais recentes como evidencia.
+        _prune_full_rescan_artifacts(primary_db_path, preserve=candidate_db_path)
         logger.info(
             "Full rescan configurado para DB candidato isolado: %s",
             os.path.basename(candidate_db_path),
@@ -1393,6 +1492,7 @@ def _prepare_working_database_for_import(
                 raise DatabaseSchemaError(
                     f"Falha ao inicializar DB candidato de full rescan: {working_db_path}"
                 )
+            _register_full_rescan_artifact(primary_db_path, working_db_path)
 
     db_ok, integrity_report = database.ensure_database_integrity(
         working_db_path, table_name=table_name
@@ -1448,10 +1548,6 @@ def _resolve_import_work_items(
         )
 
     discovery_settings = _load_import_discovery_settings()
-    upsert_policy = str(
-        discovery_settings.get("upsert_short_circuit_policy", "consulta_only")
-    )
-    database.configure_upsert_short_circuit_policy(upsert_policy)
 
     include_processadas = bool(discovery_settings.get("include_processadas", False))
     ignore_subdirs = list(discovery_settings.get("ignore_subdirs", []))
@@ -1746,6 +1842,10 @@ def _initialize_import_run_context(
     extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> Dict[str, Any]:
     """Resolve caminhos e inicializa o estado mutavel da rodada de importacao."""
+    # Materializa: tres validacoes consomem o parametro abaixo.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     try:
         docs_dir_path = ensure_path_is_allowed(
             docs_dir,
@@ -1781,11 +1881,27 @@ def _initialize_import_run_context(
         raise
 
     run_started_at = datetime.now()
+    # Cache por banco: bancos alternativos copiados para data/ nao podem
+    # herdar o file_cache de outro banco (um arquivo importado so no banco
+    # B seria pulado no diff do banco A). O nome canonico fica reservado
+    # ao banco padrao para preservar o contrato existente.
+    # Nome completo (nao so o stem): archive.db e archive.sqlite sao
+    # bancos distintos e nao podem compartilhar file_cache.archive.json.
+    # Match exato, nao casefold: em volumes case-sensitive (Linux) SSAS.db
+    # e ssas.db sao arquivos distintos e precisam de caches separados; em
+    # volumes case-insensitive um alias com caixa diferente apenas gera um
+    # cache redundante (reimport seguro), nunca cache errado.
+    db_filename = Path(str(db_name)).name
+    cache_name = (
+        "file_cache.json"
+        if db_filename == "ssas.db"
+        else f"file_cache.{db_filename}.json"
+    )
     return {
         "docs_dir_path": docs_dir_path,
         "data_dir_path": data_dir_path,
         "db_path": str(db_path_obj),
-        "cache_file": os.path.join(str(data_dir_path), "file_cache.json"),
+        "cache_file": os.path.join(str(data_dir_path), cache_name),
         "docs_dir": str(docs_dir_path),
         "data_dir": str(data_dir_path),
         "run_started_at": run_started_at,
@@ -1943,6 +2059,11 @@ def run_importer_logic(
     """
     logger.info("=== Iniciando processo de importacao ===")
 
+    # Materializa: o valor e reutilizado em varias validacoes ao longo do run;
+    # um iteravel de uso unico esgotaria na primeira e falharia nas seguintes.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     context = _initialize_import_run_context(
         docs_dir=docs_dir,
         data_dir=data_dir,
@@ -2067,16 +2188,8 @@ def run_importer_logic(
     # The filelock singleton makes the inner per-connection locks reentrant.
     try:
         try:
-            working_db_path, candidate_db_path, integrity_report = (
-                _prepare_working_database_for_import(
-                    data_dir=data_dir,
-                    primary_db_path=primary_db_path,
-                    run_id=run_id,
-                    force_import=force_import,
-                    table_name=table_name,
-                )
-            )
-
+            # Resolve os itens de trabalho antes de criar o candidato:
+            # falhas aqui nao deixam artefatos orfaos no diretorio.
             work_items = _resolve_import_work_items(
                 docs_dir=docs_dir,
                 docs_dir_path=docs_dir_path,
@@ -2091,6 +2204,76 @@ def run_importer_logic(
             discovery_settings = cast(Dict[str, Any], work_items["discovery_settings"])
             files_to_process = cast(List[str], work_items["files_to_process"])
             derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
+
+            # Pre-flight das planilhas de derivadas ANTES de criar o
+            # candidato: um arquivo rejeitado aqui nao deixa nenhum
+            # artefato de banco no disco.
+            for derivadas_sheet_file in derivadas_sheet_files:
+                ensure_path_is_allowed(
+                    derivadas_sheet_file,
+                    purpose="derivadas sheet file preflight",
+                    expect_directory=False,
+                    extra_allowed_roots=extra_allowed_roots,
+                )
+
+            # Registra se o candidato de full rescan ja existia: a limpeza do
+            # pre-flight so pode remover um arquivo criado nesta rodada.
+            candidate_preexisting = bool(
+                force_import
+                and os.path.exists(
+                    _build_full_rescan_candidate_path(primary_db_path, run_id)
+                )
+            )
+            working_db_path, candidate_db_path, integrity_report = (
+                _prepare_working_database_for_import(
+                    data_dir=data_dir,
+                    primary_db_path=primary_db_path,
+                    run_id=run_id,
+                    force_import=force_import,
+                    table_name=table_name,
+                )
+            )
+
+            # Revalida o banco de trabalho apos a criacao do candidato.
+            try:
+                ensure_path_is_allowed(
+                    working_db_path,
+                    purpose="derivadas database preflight",
+                    expect_directory=False,
+                    extra_allowed_roots=extra_allowed_roots,
+                )
+            except PathSafetyError:
+                # Remove apenas um candidato criado nesta rodada; candidatos
+                # pre-existentes podem ser evidencia de runs anteriores.
+                if candidate_db_path and not candidate_preexisting:
+                    for suffix in ("-wal", "-shm", "-journal", ""):
+                        stale_path = candidate_db_path + suffix
+                        try:
+                            os.remove(stale_path)
+                        except FileNotFoundError:
+                            continue
+                        except OSError as exc:
+                            logger.warning(
+                                "Falha ao remover candidato orfao %s: %s",
+                                stale_path,
+                                exc,
+                            )
+                            break
+                    else:
+                        _discard_full_rescan_artifact_marker(
+                            primary_db_path, candidate_db_path
+                        )
+                raise
+            # Politica de upsert e mutacao global de processo: so e aplicada
+            # depois que o pre-flight passou, para nao deixar residuo quando
+            # a rodada aborta antes de escrever qualquer dado.
+            database.configure_upsert_short_circuit_policy(
+                str(
+                    discovery_settings.get(
+                        "upsert_short_circuit_policy", "consulta_only"
+                    )
+                )
+            )
             import_batch_files = list(
                 dict.fromkeys([*files_to_process, *derivadas_sheet_files])
             )
@@ -2171,6 +2354,7 @@ def run_importer_logic(
                         docs_dir=docs_dir,
                         critical_errors=critical_errors,
                         emit_progress=_emit_progress,
+                        extra_allowed_roots=extra_allowed_roots,
                     )
                 )
                 successfully_processed_files.extend(synced_special_files)
@@ -2206,9 +2390,13 @@ def run_importer_logic(
                     )
 
             if derivadas_sync_blocking_error:
+                # O detalhe por caminho (rollback real vs falha pos-commit)
+                # ja esta no erro registrado; aqui so o que vale para todos.
                 logger.error(
                     "Importacao concluida com falha bloqueante de integridade em derivadas. "
-                    "Cache nao sera atualizado nesta execucao."
+                    "Os dados ja importados foram preservados. O cache nao"
+                    " sera atualizado nesta execucao; o proximo rescan refaz"
+                    " o sync."
                 )
                 return _finalize_and_return(
                     False,
@@ -2278,6 +2466,8 @@ def import_files_to_database(
     db_path: str = "data/ssas.db",
     force_import: bool = False,
     raise_on_error: bool = False,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> bool:
     """
     Importa arquivos de um diretorio para o banco de dados.
@@ -2291,7 +2481,9 @@ def import_files_to_database(
         bool: True se importacao foi bem-sucedida
     """
     try:
-        safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
+        safe_docs_dir, safe_db_path = _resolve_import_targets(
+            docs_dir, db_path, extra_allowed_roots=extra_allowed_roots
+        )
 
         # Extrair diretorio e nome do banco
         data_dir = safe_db_path.parent
@@ -2307,6 +2499,7 @@ def import_files_to_database(
             db_name=db_name,
             table_name="ssa_table",
             force_import=force_import,
+            extra_allowed_roots=extra_allowed_roots,
         )
 
         return success
@@ -2374,6 +2567,8 @@ def import_explicit_files_to_database(
 def get_filtered_data(
     db_path: str = "data/ssas.db",
     filters: Dict[str, Any] | None = None,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> pd.DataFrame:
     """
     Obtem dados filtrados do banco de dados.
@@ -2392,6 +2587,7 @@ def get_filtered_data(
             base=project_root_path,
             must_exist=False,
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     except PathSafetyError as e:
         logger.error(f"Caminho rejeitado ao acessar banco: {e}")

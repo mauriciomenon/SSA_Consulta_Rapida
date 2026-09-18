@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 from threading import Event
 
@@ -71,6 +72,46 @@ def test_write_current_list_tsv_rejects_empty_dataframe(tmp_path):
         write_current_list_tsv(pd.DataFrame(), [], str(out_path))
 
     assert not out_path.exists()
+
+
+def test_export_preserves_negative_numbers_and_escapes_formula_text(tmp_path):
+    dataframe = pd.DataFrame({
+        "=cabecalho": [-1, -1.5, "-1", "=1+1", "+1", "@SOMA(A1)", "\t=1+1"],
+    })
+    out_path = tmp_path / "numeros.tsv"
+
+    write_current_list_tsv(dataframe, list(dataframe.columns), str(out_path))
+
+    with out_path.open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.reader(stream, delimiter="\t"))
+    assert rows == [
+        ["'=cabecalho"], ["-1"], ["-1.5"], ["'-1"], ["'=1+1"],
+        ["'+1"], ["'@SOMA(A1)"], ["'\t=1+1"],
+    ]
+    assert dataframe.iloc[0, 0] == -1
+    assert dataframe.columns.tolist() == ["=cabecalho"]
+
+
+def test_export_sanitizes_formatter_output_without_changing_numeric_display(tmp_path):
+    dataframe = pd.DataFrame({"valor": [-1, -2, -3, -4, -5, -6, "texto", -8]})
+    out_path = tmp_path / "formatado.tsv"
+
+    def formatter(frame):
+        frame["valor"] = [
+            "-1.00", "-2,50", "-3e+02", '=CMD("x")', "\t-5", "-6+CMD()",
+            "-7", "@SOMA(A1)",
+        ]
+        return frame
+
+    write_current_list_tsv(dataframe, ["valor"], str(out_path), formatter=formatter)
+
+    with out_path.open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.reader(stream, delimiter="\t"))
+    assert rows == [
+        ["valor"], ["-1.00"], ["-2,50"], ["-3e+02"], ['\'=CMD("x")'],
+        ["'\t-5"], ["'-6+CMD()"], ["'-7"], ["'@SOMA(A1)"],
+    ]
+    assert dataframe["valor"].tolist() == [-1, -2, -3, -4, -5, -6, "texto", -8]
 
 
 def test_export_controller_uses_stable_dataframe_snapshot(tmp_path):
