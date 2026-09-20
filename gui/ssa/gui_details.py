@@ -604,7 +604,9 @@ def _details_db_file_generation(db_path):
     FileNotFoundError). Cobre a escrita externa via -wal, que nao
     altera o .db principal, e a troca do arquivo por rename (dev/ino
     mudam). O -shm fica fora da geracao porque leitores do WAL o
-    atualizam, o que invalidaria o memo a cada consulta. Qualquer outra
+    atualizam, o que invalidaria o memo a cada consulta. O ctime do -wal
+    e ignorado pelo mesmo motivo: no Linux cada consulta read-only ao WAL
+    atualiza o ctime do arquivo sem mudar seu conteudo. Qualquer outra
     falha de stat ou de resolucao de caminho retorna None e o chamador
     nao reutiliza assinatura anterior.
 
@@ -640,7 +642,7 @@ def _details_db_file_generation(db_path):
                     stat_result.st_ino,
                     stat_result.st_size,
                     stat_result.st_mtime_ns,
-                    stat_result.st_ctime_ns,
+                    0 if suffix == "-wal" else stat_result.st_ctime_ns,
                 )
             )
     return canonical, tuple(parts)
