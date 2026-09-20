@@ -158,4 +158,22 @@
   - nao esconder essas pastas em runtime.
   - seed inicial nao deve sobrescrever customizacao local do usuario.
 
+## Licao 9 - Ambiente de teste isolado por SO (2026-09-19)
+
+- Linux: container exclusivo via `container` da Apple — imagem `ssa-test`
+  (linux/amd64, mesma base/apt/uv do job `pytest-full` do GitLab), definida
+  em `~/.local/share/ssa-test-linux/` (local, fora do repo). Execucao
+  efemera `--rm`, repo read-only. Build/uso: `build.sh`/`run.sh` la.
+- macOS: nao existe runtime de container para guests macOS (o `container`
+  da Apple so roda Linux). Opcao analoga registrada, NAO instalada:
+  **Tart** (`brew install cirruslabs/cli/tart`, Apple Silicon) — imagem
+  dourada OCI (~25 GB), clone copy-on-write descartavel por execucao.
+  Wrappers uteis: `macbox` (teste de .app/.dmg/.pkg em VM descartavel),
+  `tart-xcode-runner`, `tartci`. Criar apenas se houver necessidade real
+  de isolacao; a suite macOS roda nativa no host.
+- Windows: VM VMware W11 ARM com acesso definitivo via tunel SSH reverso
+  (`ssh -i ~/.ssh/ssa_debian_arm64 -p 2224 build@127.0.0.1`) ou
+  `vmrun -gu build`; detalhes em
+  [BUILD_WINDOWS_ARM64_AMD64.md](BUILD_WINDOWS_ARM64_AMD64.md).
+
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

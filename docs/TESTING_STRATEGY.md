@@ -249,6 +249,31 @@ uv run --no-sync python -m pytest -k quality_gates -q
 uv run --no-sync python -m pytest --cov=armazenamento --cov=core --cov-report=term-missing -q
 ```
 
+## Ambiente Linux local (ssa-test)
+
+Para reproduzir o job `pytest-full` do GitLab fora do CI existe um container
+local exclusivo (fora do repositorio, nao commitado), montado com o
+`container` da Apple em linux/amd64, mesma base/apt/`uv sync` do job:
+
+```bash
+bash ~/.local/share/ssa-test-linux/build.sh      # imagem ssa-test (refazer se uv.lock mudar)
+bash ~/.local/share/ssa-test-linux/run.sh tests/test_x.py -x -q
+SSA_REPO=/outro/checkout bash ~/.local/share/ssa-test-linux/run.sh
+```
+
+Execucao efemera (`--rm`), repo montado read-only em `/src`, venv em
+`/opt/venv`. amd64 e a paridade com o CI; linux/arm64 exige base com
+glibc >= 2.39 (pyqt6-qt6 so publica manylinux_2_39_aarch64). Documentacao
+completa em `~/.local/share/ssa-test-linux/README.md`.
+
+Equivalente macOS: nao existe runtime de container nativo para macOS — o
+`container` da Apple so roda guests Linux. O conceito analogo e uma VM
+descartavel via **Tart** (Virtualization.framework, imagens OCI, clone
+copy-on-write por execucao; ex.: `tart clone ghcr.io/cirruslabs/macos-sonoma-base
+macos-base` e clone efemero por run). Nao instalado neste host; como os
+testes macOS rodam nativos no host, a VM so se justifica para isolacao de
+ambiente. Avaliar instalacao apenas se houver necessidade real.
+
 ## Politica de Migracao Legacy
 Criterios (ja aplicados): fluxo suportado, assert nao redundante, sem dependencia obsoleta, tempo <2s. Testes fora dos criterios: convertidos em placeholder com `pytest.skip` no import modulo.
 

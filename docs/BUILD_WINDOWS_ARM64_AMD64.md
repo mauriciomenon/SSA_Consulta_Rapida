@@ -24,11 +24,30 @@ Windows ARM64 nativos. O macOS ARM64 e construido no Mac. Nao alterar firmware,
 boot ou aceleracao grafica da VM para executar esses comandos.
 
 Despertar a tela e usar o login ja fornecido quando a sessao estiver bloqueada.
-Reutilizar SSH quando disponivel ou o console e a transferencia local existentes.
 A senha de criptografia da VM, o PIN e a senha do Windows sao credenciais
 distintas. Falha de acesso nao justifica alterar hardware virtual ou entrar no
 firmware. Um reparo autorizado exige snapshot e backup da configuracao antes da
 alteracao; registrar o responsavel e os efeitos confirmados no relatorio.
+
+### Acesso a VM (registro definitivo, 19/09/2026)
+
+O inbound Mac->guest esta morto na camada virtual do VMware Fusion
+(bridge/vmenet): frames unicast host->guest nao sao entregues. Confirmado que
+NAO e o Windows — sshd escuta (LocalSystem), regras de firewall Allow ativas,
+perfis Private, Defender normal e log de drops vazio. A conta `mauri` e
+Microsoft Account e nao serve para `vmrun` non-interativo; existe a conta
+local `build` para automacao.
+
+- **SSH (canal principal)**: tunel reverso guest->Mac persistido pela
+  Scheduled Task `SSA-ReverseSSH` (SYSTEM, AtStartup, retry 10s):
+  `ssh -i ~/.ssh/ssa_debian_arm64 -p 2224 build@127.0.0.1`
+- **vmrun (canal oficial sem rede)**:
+  `vmrun -gu build -gp menon runProgramInGuest "<vmx>" <prog> <args>`
+  e `copyFileFromHostToGuest`/`copyFileFromGuestToHost`.
+- Chave dedicada `ssa_w11arm_tunnel` no authorized_keys do Mac, restrita a
+  port-forwarding; o sshd do Mac roda em `~/.sshd-user/sshd_config` porta 2222.
+- Detalhes e armadilhas (perms de chave, HGFS/clipboard ausentes no Tools ARM,
+  nat.conf) na skill `~/.config/devin/skills/w11arm-vm-access/SKILL.md`.
 
 ## Origem do codigo
 
