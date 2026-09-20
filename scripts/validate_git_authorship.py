@@ -16,6 +16,10 @@ EMAILS = {
     "54405514+mauriciomenon@users.noreply.github.com",
     "mauricio.menon@gmail.com",
 }
+# Committer historico de merges feitos pelo botao de PR do GitHub.
+# Aceito apenas como committer (nunca como author) quando o author
+# ja passou na validacao humana.
+GITHUB_COMMITTER_EMAIL = "noreply@github.com"
 IDENTITY = re.compile(r"(.+) <([^<>]+)> -?\d+ [+-]\d{4}")
 TOOLS = r"(?:ai|ia|assistant|assistente|inteligencia artificial|artificial intelligence|claude|codex|chatgpt|openai|anthropic|copilot|cursor|qoder|gemini|grok|aider|opencode|devin)\b"
 FORBIDDEN = re.compile(
@@ -52,13 +56,25 @@ def normalize(value: str) -> str:
     ).casefold()
 
 
-def validate_identity(value: str, context: str) -> None:
+def is_github_committer(name: str, email: str) -> bool:
+    return normalize(name) == "github" and email.casefold() == GITHUB_COMMITTER_EMAIL
+
+
+def validate_identity(
+    value: str,
+    context: str,
+    *,
+    allow_github_committer: bool = False,
+) -> None:
     match = IDENTITY.fullmatch(value.strip())
     if not match:
         raise ValueError(f"{context}: identidade Git invalida")
     name, email = match.groups()
-    if normalize(name) != "mauricio menon" or email.casefold() not in EMAILS:
-        raise ValueError(f"{context}: identidade nao autorizada: {name} <{email}>")
+    if normalize(name) == "mauricio menon" and email.casefold() in EMAILS:
+        return
+    if allow_github_committer and is_github_committer(name, email):
+        return
+    raise ValueError(f"{context}: identidade nao autorizada: {name} <{email}>")
 
 
 def validate_message(message: str, context: str) -> None:
@@ -86,11 +102,23 @@ def validate_metadata(content: bytes, kind: str, oid: str) -> bytes | None:
     if len(encodings) > 1:
         raise ValueError(f"{oid}: encoding Git duplicado")
     encoding = decode_text(encodings[0], "ascii", oid) if encodings else "utf-8"
+    author_validated = False
     for key in ([b"author", b"committer"] if kind == "commit" else [b"tagger"]):
         values = fields.get(key, [])
         if len(values) != 1:
             raise ValueError(f"{oid}: campo {key.decode()} ausente ou duplicado")
-        validate_identity(decode_text(values[0], "utf-8", oid), f"{oid} {key.decode()}")
+        decoded = decode_text(values[0], "utf-8", oid)
+        if kind == "commit" and key == b"author":
+            validate_identity(decoded, f"{oid} author")
+            author_validated = True
+        elif kind == "commit" and key == b"committer":
+            validate_identity(
+                decoded,
+                f"{oid} committer",
+                allow_github_committer=author_validated,
+            )
+        else:
+            validate_identity(decoded, f"{oid} {key.decode()}")
     validate_message(decode_text(message, encoding, oid), oid)
     targets = fields.get(b"object", [])
     if kind == "tag" and len(targets) != 1:
