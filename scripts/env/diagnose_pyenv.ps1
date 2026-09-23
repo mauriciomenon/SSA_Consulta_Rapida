@@ -21,14 +21,14 @@ Write-Host "PyEnv Configuration:" -ForegroundColor Yellow
 if (Get-Command pyenv -ErrorAction SilentlyContinue) {
     Write-Host "  pyenv version: $(pyenv --version)" -ForegroundColor Green
     Write-Host "  pyenv shell: $(pyenv shell 2>&1)" -ForegroundColor Cyan
-    
+
     $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $pyVersionFile = Join-Path $repoRoot ".python-version"
     if (Test-Path $pyVersionFile) {
         $version = Get-Content $pyVersionFile | % Trim
         Write-Host "  .python-version: $version" -ForegroundColor Cyan
     }
-    
+
     $pyenvLocal = Join-Path $repoRoot ".pyenv-local"
     if (Test-Path $pyenvLocal) {
         Write-Host "  .pyenv-local exists (OLD, should use .python-version)" -ForegroundColor Red
@@ -73,6 +73,7 @@ Write-Host "1. Clear session variables:"
 Write-Host "   Remove-Item Env:PYENV_VERSION -ErrorAction SilentlyContinue"
 Write-Host "   Remove-Item Env:SSA_USE_FREE_THREADED -ErrorAction SilentlyContinue"
 Write-Host "   Remove-Item Env:SSA_PYTHON_VARIANT -ErrorAction SilentlyContinue"
+Write-Host "   Remove-Item Env:SSA_PYTHON_FT_VERSION -ErrorAction SilentlyContinue"
 Write-Host ""
 Write-Host "2. Clear global pyenv setting (if exists):"
 Write-Host "   Remove-Item '$pyenvRoot\.python-version' -ErrorAction SilentlyContinue"

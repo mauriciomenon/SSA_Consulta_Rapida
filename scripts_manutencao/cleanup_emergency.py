@@ -1,7 +1,8 @@
-import shutil
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
+from armazenamento.database_integrity import create_sqlite_backup
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "maintenance")
@@ -116,9 +117,11 @@ def emergency_cleanup():
 
     # Backup adicional de segurança
     backup_name = (
-        f"data/ssas_emergency_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        f"data/ssas_emergency_backup_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.db"
     )
-    shutil.copy2("data/ssas.db", backup_name)
+    source_path = Path("data/ssas.db").resolve()
+    backup_path = Path(backup_name)
+    create_sqlite_backup(source_path, backup_path)
     logger.info("OK Backup criado: %s", backup_name)
 
     conn = sqlite3.connect("data/ssas.db")

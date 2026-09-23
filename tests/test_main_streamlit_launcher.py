@@ -1,9 +1,25 @@
 from __future__ import annotations
 
 import importlib.util
+import signal
+import subprocess
+import threading
 from typing import Any, cast
 
+import pytest
+
 from interface import streamlit_launcher
+
+
+@pytest.fixture(autouse=True)
+def isolate_streamlit_lifecycle(monkeypatch):
+    previous = signal.getsignal(signal.SIGTERM)
+    monkeypatch.setattr(streamlit_launcher, "_STREAMLIT_PROCESSES", [])
+    monkeypatch.setattr(streamlit_launcher, "_STREAMLIT_ORIGINAL_SIGTERM_HANDLER", None)
+    monkeypatch.setattr(streamlit_launcher, "_STREAMLIT_LAUNCHING", False)
+    monkeypatch.setattr(streamlit_launcher, "_STREAMLIT_SIGTERM_PENDING", False)
+    yield
+    signal.signal(signal.SIGTERM, previous)
 
 
 def test_launch_streamlit_prefers_current_python_module(
@@ -26,7 +42,7 @@ def test_launch_streamlit_prefers_current_python_module(
         def terminate(self):
             return None
 
-    def fake_popen(cmd, stdout, stderr, cwd):
+    def fake_popen(cmd, stdout, stderr, cwd, **_kwargs):
         captured["cmd"] = cmd
         captured["cwd"] = cwd
         captured["log_path"] = stdout.name
@@ -62,6 +78,7 @@ def test_launch_streamlit_prefers_current_python_module(
         "run",
         str(script_path),
         "--server.headless=true",
+        "--server.address=127.0.0.1",
         "--server.port=8765",
     ]
 
@@ -98,7 +115,7 @@ def test_launch_streamlit_falls_back_to_path_when_module_missing(
     class DummyProcess:
         pid = 12345
 
-    def fake_popen(cmd, stdout, stderr, cwd):
+    def fake_popen(cmd, stdout, stderr, cwd, **_kwargs):
         captured["cmd"] = cmd
         captured["cwd"] = cwd
         return DummyProcess()
@@ -122,6 +139,7 @@ def test_launch_streamlit_falls_back_to_path_when_module_missing(
         "run",
         str(script_path),
         "--server.headless=true",
+        "--server.address=127.0.0.1",
         "--server.port=8765",
     ]
 
@@ -165,3 +183,149 @@ def test_launch_streamlit_reports_missing_launcher(
 
     out = capsys.readouterr().out
     assert "Streamlit nao encontrado no ambiente atual nem no PATH." in out
+
+
+def test_failed_launch_restores_sigterm_handler(monkeypatch, tmp_path):
+    script = tmp_path / "dev_env" / "streamlit_app.py"
+    script.parent.mkdir()
+    script.write_text("", encoding="utf-8")
+    previous = signal.getsignal(signal.SIGTERM)
+    monkeypatch.setattr(streamlit_launcher, "_resolve_streamlit_launch_command", lambda: (["streamlit"], "PATH"))
+
+    def fail_popen(*args, **kwargs):
+        raise OSError("criacao recusada")
+
+    monkeypatch.setattr(streamlit_launcher.subprocess, "Popen", fail_popen)
+    assert streamlit_launcher.launch_streamlit(str(tmp_path)) is False
+    assert signal.getsignal(signal.SIGTERM) is previous
+    assert not streamlit_launcher._STREAMLIT_PROCESSES
+    assert streamlit_launcher._STREAMLIT_LAUNCHING is False
+
+
+def test_sigterm_during_launch_waits_for_child_registration(monkeypatch, tmp_path):
+    script = tmp_path / "dev_env" / "streamlit_app.py"
+    script.parent.mkdir()
+    script.write_text("", encoding="utf-8")
+    terminated = []
+
+    class Process:
+        pid = 321
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            terminated.append(self.pid)
+
+    process = Process()
+
+    def popen_with_signal(*args, **kwargs):
+        assert "preexec_fn" not in kwargs
+        streamlit_launcher._terminate_children_and_exit()
+        assert terminated == []
+        return process
+
+    monkeypatch.setattr(streamlit_launcher, "_resolve_streamlit_launch_command", lambda: (["streamlit"], "PATH"))
+    monkeypatch.setattr(streamlit_launcher.subprocess, "Popen", popen_with_signal)
+    with pytest.raises(SystemExit) as exc:
+        streamlit_launcher.launch_streamlit(str(tmp_path))
+    assert exc.value.code == 143
+    assert terminated == [321]
+    assert streamlit_launcher._STREAMLIT_PROCESSES == [process]
+
+
+def test_forced_termination_reaps_child():
+    calls = []
+
+    class Process:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            calls.append("terminate")
+
+        def wait(self, timeout):
+            calls.append("wait")
+            if calls.count("wait") == 1:
+                raise subprocess.TimeoutExpired("streamlit", timeout)
+            return -9
+
+        def kill(self):
+            calls.append("kill")
+
+    streamlit_launcher._terminate_process(Process())
+    assert calls == ["terminate", "wait", "kill", "wait"]
+
+
+def test_launch_rejects_worker_thread(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(streamlit_launcher.threading, "current_thread", lambda: object())
+    assert streamlit_launcher.launch_streamlit(str(tmp_path)) is False
+    assert "thread principal" in capsys.readouterr().out
+    assert not streamlit_launcher._STREAMLIT_PROCESSES
+
+
+def test_terminate_process_logs_only_outside_signal_path(monkeypatch):
+    """Com reap=False (dentro do handler de sinal) a falha de terminate()
+    nao pode logar — o logging poderia bloquear e impedir o sys.exit do
+    handler. O caminho normal reap=True mantem o diagnostico."""
+    warnings = []
+
+    class Process:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            raise OSError("encerramento recusado")
+
+    monkeypatch.setattr(
+        streamlit_launcher.logger,
+        "warning",
+        lambda *args, **kwargs: warnings.append(args),
+    )
+
+    streamlit_launcher._terminate_process(Process(), reap=False)
+    assert warnings == []
+
+    streamlit_launcher._terminate_process(Process(), reap=True)
+    assert len(warnings) == 1
+    assert "Falha ao encerrar Streamlit" in warnings[0][0]
+
+
+def test_wait_for_streamlit_in_worker_thread_skips_signal_handlers(monkeypatch):
+    """Fora da thread principal a espera continua, mas signal.signal nao
+    pode ser chamado — o guard impede instalar/restaurar handler ali."""
+
+    class Process:
+        waited = False
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            self.waited = True
+            return 0
+
+    process = Process()
+    streamlit_launcher._STREAMLIT_PROCESSES.append(cast(Any, process))
+
+    handler_calls: list[str] = []
+    monkeypatch.setattr(
+        streamlit_launcher,
+        "_install_sigterm_handler",
+        lambda: handler_calls.append("install"),
+    )
+    monkeypatch.setattr(
+        streamlit_launcher,
+        "_restore_sigterm_handler_if_idle",
+        lambda: handler_calls.append("restore"),
+    )
+
+    def runner():
+        streamlit_launcher.wait_for_streamlit()
+
+    worker = threading.Thread(target=runner)
+    worker.start()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert handler_calls == []
+    assert process.waited is True

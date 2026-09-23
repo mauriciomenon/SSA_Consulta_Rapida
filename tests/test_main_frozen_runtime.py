@@ -70,7 +70,10 @@ def test_seed_runtime_folder_updates_previous_bundle_file(tmp_path: Path) -> Non
 
     main_runtime._seed_runtime_folder(runtime_dir, source_dir, "config")
     source_file.write_text("bundle-v2", encoding="utf-8")
-    main_runtime.os.utime(source_dir, None)
+    dir_stat = source_dir.stat()
+    main_runtime.os.utime(
+        source_dir, ns=(dir_stat.st_atime_ns, dir_stat.st_mtime_ns + 5_000_000_000)
+    )
     main_runtime._seed_runtime_folder(runtime_dir, source_dir, "config")
 
     target_file = runtime_dir / "config" / "settings.json"
@@ -90,7 +93,10 @@ def test_seed_runtime_folder_preserves_user_modified_seeded_file(
     target_file = runtime_dir / "config" / "settings.json"
     target_file.write_text("user-change", encoding="utf-8")
     source_file.write_text("bundle-v2", encoding="utf-8")
-    main_runtime.os.utime(source_dir, None)
+    dir_stat = source_dir.stat()
+    main_runtime.os.utime(
+        source_dir, ns=(dir_stat.st_atime_ns, dir_stat.st_mtime_ns + 5_000_000_000)
+    )
     main_runtime._seed_runtime_folder(runtime_dir, source_dir, "config")
 
     assert target_file.read_text(encoding="utf-8") == "user-change"

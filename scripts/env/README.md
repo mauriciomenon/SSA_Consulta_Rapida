@@ -97,30 +97,24 @@ echo $SSA_ENV_SOURCE           # pyenv-virtualenv, pyenv-local, ou venv
 python --version               # Versão ativa
 ```
 
-## Integração com Requirements
+## Dependencias com uv
 
-Os scripts garantem que o Python está ativo antes de instalar dependências.
+Os scripts criam ambientes sem pip. `pyproject.toml` e `uv.lock` definem as dependencias;
+os requirements sao listas de compatibilidade.
 
-**Instalar dependências de desenvolvimento:**
 ```bash
-uv sync --extra dev
+# Runtime
+uv sync --frozen --no-dev
+
+# Desenvolvimento (grupo dev incluido por padrao)
+uv sync --frozen
+
+# Build nativo
+uv sync --frozen --no-dev --extra build
 ```
 
-Compatibilidade sem uv:
-```bash
-pip install -r requirements_dev.txt
-```
-
-**Instalar para plataforma específica:**
-```bash
-# Windows
-pip install -r launchers/platforms/windows_amd64/requirements.txt
-
-# macOS ARM64
-pip install -r launchers/platforms/macos_arm64/requirements.txt
-
-# Debian AMD64
-pip install -r launchers/platforms/debian_amd64/requirements.txt
-```
+Os instaladores interativos preservam pacotes adicionais com `--inexact`.
+Para limpar pacotes que nao pertencem ao conjunto escolhido, execute `uv sync --frozen`
+com os extras desejados. Ativar o ambiente nao instala pip.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

@@ -1,4 +1,4 @@
-# Troubleshooting de Importacao (Baseline v4.42)
+# Troubleshooting de Importacao (Baseline v4.44)
 
 Guia ativo para diagnosticar falhas de importacao de planilhas.
 
@@ -81,7 +81,6 @@ Comportamento esperado:
 ## Regras de seguranca operacional
 
 1. Nao aplicar suppress silencioso em erro de extracao/validacao.
-2. Nao mudar regra de schema sem registrar no backlog e handoff.
 3. Nao assumir fallback caro sem medicao objetiva.
 
 ## Evidencia e rastreabilidade
@@ -103,4 +102,3 @@ uv run --python 3.13 python -m pytest -q \
 ```
 
 <!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
-

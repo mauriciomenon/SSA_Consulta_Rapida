@@ -27,22 +27,21 @@ function Assert-Tool {
     }
 }
 
-function ConvertTo-WslPath {
-    param([Parameter(Mandatory = $true)] [string] $Path)
-    $resolved = (Resolve-Path $Path).Path
-    if ($resolved -notmatch "^[A-Za-z]:\\") {
-        throw "Caminho Windows absoluto esperado: $resolved"
-    }
-    $drive = $resolved.Substring(0, 1).ToLowerInvariant()
-    $tail = $resolved.Substring(2).Replace("\", "/")
-    return "/mnt/$drive$tail"
-}
-
 function ConvertTo-BashSingleQuoted {
     param([Parameter(Mandatory = $true)] [string] $Value)
     $singleQuote = [char]39
     $escaped = $Value.Replace([string] $singleQuote, "$singleQuote\$singleQuote$singleQuote")
     return "$singleQuote$escaped$singleQuote"
+}
+
+function Resolve-WslRepoRoot {
+    param([Parameter(Mandatory = $true)] [string] $Distro)
+    $linuxHome = (& wsl -d $Distro -- sh -lc 'printf %s "$HOME"').Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxHome) -or
+        -not $linuxHome.StartsWith('/')) {
+        throw "Nao foi possivel resolver HOME no WSL: $Distro"
+    }
+    return "$($linuxHome.TrimEnd('/'))/gitlab_repo/ssa_consulta_rapida_pyqt6"
 }
 
 function Join-Csv {
@@ -121,14 +120,22 @@ function Get-ReleaseTargetNames {
     return $uniqueNames
 }
 
+$scriptRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $scriptRepoRoot 'scripts\env\native_host_guard.ps1')
+Assert-SsaWindowsHost -RepoRoot $scriptRepoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
 Assert-Tool "git"
 if (-not $SkipDebian) {
     Assert-Tool "wsl"
 }
 
 $repoRoot = Resolve-RepoRoot
-$repoRootWsl = ConvertTo-WslPath $repoRoot
-$repoRootWslQuoted = ConvertTo-BashSingleQuoted $repoRootWsl
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+$repoRootWsl = $null
+$repoRootWslQuoted = $null
+if (-not $SkipDebian) {
+    $repoRootWsl = Resolve-WslRepoRoot -Distro $WslDistro
+    $repoRootWslQuoted = ConvertTo-BashSingleQuoted $repoRootWsl
+}
 $backendPlatforms = @()
 if (-not $SkipWindows) {
     $backendPlatforms += "windows_amd64"
@@ -150,7 +157,9 @@ $packageCsvQuoted = ConvertTo-BashSingleQuoted $packageCsv
 
 if (-not $Yes) {
     Write-Host "Repo: $repoRoot"
-    Write-Host "WSL repo: $repoRootWsl"
+    if ($repoRootWsl) {
+        Write-Host "WSL repo: $repoRootWsl"
+    }
     Write-Host "Backends: $backendCsv"
     Write-Host "Debian packages: $packageCsv"
     $confirm = Read-Host "Continuar release local? [s/N]"

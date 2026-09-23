@@ -22,7 +22,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.dataframe_fingerprint import build_dataframe_filter_hash
+from core.dataframe_fingerprint import (
+    build_dataframe_filter_hash,
+    sample_dataframe_for_fingerprint,
+)
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
@@ -408,8 +411,8 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
             data_uuid,
         )
         cached = cast(Any, cache_get)("details_df_ssa_index", cache_key)
-    if isinstance(cached, Mapping) and cached:
-        return cached
+    if isinstance(cached, pd.Series) and not cached.empty:
+        return DetailsSeriesIndex(df, cached)
 
     lookup: Mapping[str, pd.Series] = {}
     normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
@@ -420,12 +423,10 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
         first_values = normalized_text_series.iloc[first_positions]
         if first_values.empty:
             return lookup
-        row_positions = {
-            str(normalized): int(position)
-            for normalized, position in zip(
-                first_values.to_list(), first_positions, strict=True
-            )
-        }
+        row_positions = pd.Series(
+            first_positions, index=first_values.to_numpy(copy=False), dtype="int64"
+        )
+        row_positions.index.get_loc(first_values.iloc[0])
         lookup = DetailsSeriesIndex(df, row_positions)
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
@@ -434,7 +435,7 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
         cast(Any, cache_put)(
             "details_df_ssa_index",
             cache_key,
-            lookup,
+            row_positions,
             max_entries=8,
         )
     return lookup
@@ -579,6 +580,7 @@ def _get_details_frame_fingerprint(window, df) -> str:
         data_revision,
         tuple(getattr(df, "shape", (0, 0))),
         tuple(str(column) for column in getattr(df, "columns", [])),
+        build_dataframe_filter_hash(sample_dataframe_for_fingerprint(df)),
     )
     cache = getattr(window, "_details_frame_fingerprint_cache", None)
     if not isinstance(cache, dict):
@@ -594,9 +596,122 @@ def _get_details_frame_fingerprint(window, df) -> str:
     return fingerprint
 
 
-def _get_details_db_signature():
-    db_path = _resolve_current_db_path()
-    return details_data_provider.get_db_mtime(db_path)
+def _details_db_file_generation(db_path):
+    """Metadados que identificam a geracao do conjunto .db + sidecars.
+
+    Cada slot carrega identidade (dev/ino), tamanho e timestamps em
+    nanossegundos; slot None significa arquivo ausente (somente
+    FileNotFoundError). Cobre a escrita externa via -wal, que nao
+    altera o .db principal, e a troca do arquivo por rename (dev/ino
+    mudam). O -shm fica fora da geracao porque leitores do WAL o
+    atualizam, o que invalidaria o memo a cada consulta. O ctime do -wal
+    e ignorado pelo mesmo motivo: no Linux cada consulta read-only ao WAL
+    atualiza o ctime do arquivo sem mudar seu conteudo. Qualquer outra
+    falha de stat ou de resolucao de caminho retorna None e o chamador
+    nao reutiliza assinatura anterior.
+
+    Limite real: uma reescrita com conteudo diferente que mantenha TODOS
+    os metadados observados identicos (FS com granularidade grosseira ou
+    restauracao de metadados) nao seria detectada; na pratica, commits
+    em WAL alteram tamanho ou mtime_ns do -wal.
+    """
+    if not db_path:
+        return None
+    try:
+        canonical = os.path.realpath(db_path)
+    except (OSError, TypeError, ValueError):
+        return None
+    parts: list[tuple[int, int, int, int, int] | None] = []
+    for suffix in ("", "-wal", "-journal"):
+        try:
+            stat_result = os.stat(f"{canonical}{suffix}")
+        except FileNotFoundError:
+            parts.append(None)
+        except OSError as exc:
+            logger.debug(
+                "Falha ao inspecionar geracao do banco de detalhes %s%s: %s",
+                canonical,
+                suffix,
+                exc,
+            )
+            return None
+        else:
+            parts.append(
+                (
+                    stat_result.st_dev,
+                    stat_result.st_ino,
+                    stat_result.st_size,
+                    stat_result.st_mtime_ns,
+                    0 if suffix == "-wal" else stat_result.st_ctime_ns,
+                )
+            )
+    return canonical, tuple(parts)
+
+
+def _get_details_db_signature(window=None):
+    """Assinatura (db_path, token) do estado do banco para o painel.
+
+    A consulta SQLite do token fica memoizada por geracao do conjunto
+    .db/-wal/-journal + revisao local: renders e selecoes repetidas sem
+    mudanca de geracao nao reabrem o banco. Falha ao obter a geracao nao
+    reutiliza assinatura - o token e consultado de novo. So o token
+    "graph" (fingerprint confirmado) e memoizado: o fallback "mtime"
+    tambem cobre falha transitoria de consulta e nao pode ser reutilizado
+    por tempo indeterminado; bancos sem fingerprint nao ganham essa
+    memoizacao.
+    """
+    db_path = getattr(window, "db_path", None) or _resolve_current_db_path()
+    active_signature = getattr(window, "_details_active_db_signature", None)
+    if active_signature is not None and active_signature[0] == db_path:
+        return active_signature
+    generation = _details_db_file_generation(db_path)
+    revision_key = (
+        getattr(window, "_data_uuid", None),
+        getattr(window, "_data_revision", None),
+    )
+    memo = getattr(window, "_details_db_signature_cache", None)
+    if (
+        generation is not None
+        and isinstance(memo, tuple)
+        and len(memo) == 3
+        and memo[0] == generation
+        and memo[1] == revision_key
+    ):
+        return memo[2]
+    signature = (
+        db_path,
+        details_data_provider.get_derivadas_graph_cache_token(db_path),
+    )
+    token = signature[1]
+    if (
+        generation is not None
+        and window is not None
+        and isinstance(token, tuple)
+        and token[0] == "graph"
+    ):
+        setattr(
+            window,
+            "_details_db_signature_cache",
+            (generation, revision_key, signature),
+        )
+    return signature
+
+
+def _details_render_payload_context(window, normalized, style):
+    """Contexto de invalidacao do cache de payload do dialogo de detalhes."""
+    try:
+        terms = tuple(_collect_highlight_terms(window))
+    except Exception as exc:
+        logger.debug(
+            "Falha ao coletar termos de realce para o cache de detalhes: %s", exc
+        )
+        terms = ()
+    return (
+        _derivadas_frame_cache_token(window),
+        _get_details_db_signature(window),
+        tuple(style),
+        terms,
+    )
 
 
 def _get_details_render_signature(window, series):
@@ -627,7 +742,7 @@ def _get_details_render_signature(window, series):
                 fallback_exc,
             )
             series_signature = ""
-    return (selected_ssa, search_terms, _get_details_db_signature(), series_signature)
+    return (selected_ssa, search_terms, _get_details_db_signature(window), series_signature)
 
 
 def update_details_from_selection(window):
@@ -641,20 +756,6 @@ def update_details_from_selection(window):
         return
     row = selected_rows[0].row()
     series = window._get_series_from_row(row)
-    render_signature = _get_details_render_signature(window, series)
-    current_signature = window.details_text.property("details_render_signature")
-    try:
-        if (
-            not window.details_text.document().isEmpty()
-            and render_signature == current_signature
-        ):
-            return
-    except Exception:
-        if (
-            window.details_text.toPlainText().strip()
-            and render_signature == current_signature
-        ):
-            return
     _schedule_details_update(window, series)
 
 
@@ -790,23 +891,33 @@ def _update_details_from_series(window, series):
         _clear_main_details_state(window)
         return
     render_signature = _get_details_render_signature(window, series)
+    current_signature = window.details_text.property("details_render_signature")
+    try:
+        has_content = not window.details_text.document().isEmpty()
+    except AttributeError:
+        has_content = bool(window.details_text.toPlainText().strip())
+    if has_content and render_signature == current_signature:
+        return
     try:
         setattr(window, "_details_current_ssa", series.get("numero_ssa"))
     except Exception:
         setattr(window, "_details_current_ssa", None)
 
+    window._details_active_db_signature = render_signature[2]
     try:
-        _render_main_details_html(window, series, render_signature)
-        return
-    except Exception as exc:
-        logger.debug(
-            "Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc
-        )
-
-    try:
-        _render_main_details_plaintext(window, series, render_signature)
-    except Exception as exc:
-        logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
+        try:
+            _render_main_details_html(window, series, render_signature)
+            return
+        except Exception as exc:
+            logger.debug(
+                "Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc
+            )
+        try:
+            _render_main_details_plaintext(window, series, render_signature)
+        except Exception as exc:
+            logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
+    finally:
+        window._details_active_db_signature = None
 
 
 def _clear_main_details_derivadas_panel(window) -> None:
@@ -943,8 +1054,10 @@ def _render_derivadas_context_entry(window, state: dict[str, Any], entry_index: 
     try:
         if int(tab_bar.currentIndex()) != entry_index:
             tab_bar.blockSignals(True)
-            tab_bar.setCurrentIndex(entry_index)
-            tab_bar.blockSignals(False)
+            try:
+                tab_bar.setCurrentIndex(entry_index)
+            finally:
+                tab_bar.blockSignals(False)
     except Exception as exc:
         logger.debug("Falha ao alinhar aba contextual de derivadas: %s", exc)
     font_size_pt, font_family = _resolve_details_render_fonts(window)
@@ -1031,8 +1144,10 @@ def _close_current_derivadas_context(window) -> None:
     entry = entries.pop(current_index)
     tab_bar = state["tab_bar"]
     tab_bar.blockSignals(True)
-    tab_bar.removeTab(current_index)
-    tab_bar.blockSignals(False)
+    try:
+        tab_bar.removeTab(current_index)
+    finally:
+        tab_bar.blockSignals(False)
     if not entries:
         state["current_ssa"] = ""
         _show_main_derivadas_page(window)
@@ -1913,7 +2028,7 @@ def _derivadas_frame_cache_token(window) -> object:
     shape = tuple(getattr(df, "shape", (0, 0)))
     if data_uuid is not None:
         if revision is not None:
-            return ("revision", revision, shape)
+            return ("revision", data_uuid, revision, shape)
         return ("uuid", data_uuid, shape, _get_details_frame_fingerprint(window, df))
     return ("uncached", id(df), shape, object())
 
@@ -1923,14 +2038,13 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     if not target:
         return details_derivadas_model.empty_tree_data()
 
-    db_path = _resolve_current_db_path()
-    db_mtime = details_data_provider.get_db_mtime(db_path)
+    db_path, graph_token = _get_details_db_signature(window)
     data_uuid = getattr(window, "_data_uuid", None)
     cache_owner = getattr(window, "cache_manager", None)
     cache_get = getattr(cache_owner, "get_cached_value", None)
     cache_put = getattr(cache_owner, "cache_value", None)
     data_token = data_uuid if data_uuid is not None else _derivadas_frame_cache_token(window)
-    cache_key = (db_path, db_mtime, data_token, target)
+    cache_key = (db_path, graph_token, data_token, target)
     if callable(cache_get):
         cached = cast(Any, cache_get)("details_derivadas_tree_data", cache_key)
         if isinstance(cached, dict):
@@ -2045,7 +2159,7 @@ def _build_derivadas_link_state(
         window, candidate_ssas, existing=ssa_index
     )
     if isinstance(ssa_index, dict):
-        cast(dict[str, pd.Series], ssa_index).update(resolved_candidates)
+        ssa_index.update(resolved_candidates)
     for candidate, resolved_series in resolved_candidates.items():
         existing_tree_ssas.add(candidate)
         if candidate in status_by_ssa:
@@ -2422,6 +2536,7 @@ def _build_details_dialog_callbacks(window) -> DetailsDialogCallbacks:
         logger=logger,
         normalize_ssa_value=_normalize_ssa_value,
         resolve_style=_resolve_details_dialog_style,
+        render_payload_context=_details_render_payload_context,
     )
 
 

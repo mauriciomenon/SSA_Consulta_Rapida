@@ -12,7 +12,7 @@ from armazenamento import database
 from core import app_logic
 from core.app_logic import filter_dataframe, get_filtered_data, parse_search_terms
 from core.regex_safety import is_safe_regex_pattern
-from core.search_filter import apply_general_search_terms
+from core.search_filter import GeneralSearchCancelled, apply_general_search_terms
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin
 from gui.ssa.search_refinement import can_reuse_refined_search
 from interface.table_printer import pretty_print_df
@@ -231,6 +231,32 @@ def test_apply_general_search_terms_unions_chunks_and_preserves_index() -> None:
 
     assert list(out.index) == [10, 20]
     assert list(out["numero_ssa"]) == ["202500001", "202500002"]
+
+
+def test_apply_general_search_terms_cancels_inside_filter_dataframe() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "descricao_ssa": ["motor mel4", "bomba iee3", "valvula geral"],
+            "observacao": ["alpha", "beta", "gamma"],
+        }
+    )
+    checks = {"count": 0}
+
+    def should_cancel() -> bool:
+        checks["count"] += 1
+        return checks["count"] >= 5
+
+    with pytest.raises(GeneralSearchCancelled):
+        apply_general_search_terms(
+            df,
+            [["mel4"]],
+            default_mode="contains",
+            general_search_columns=["descricao_ssa", "observacao"],
+            should_cancel=should_cancel,
+        )
+
+    assert checks["count"] >= 5
 
 
 def test_filter_dataframe_search_columns_support_numeric_dtype() -> None:

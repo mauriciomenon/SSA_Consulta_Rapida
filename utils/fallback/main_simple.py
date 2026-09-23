@@ -4,6 +4,8 @@ Versão simplificada temporária do main.py - sem pandas
 """
 
 import os
+import logging
+from pathlib import Path
 import sqlite3
 
 
@@ -23,7 +25,14 @@ def simple_cli():
     try:
         # Conta total de registros
         total = cursor.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
-        print("Pesquisa Rápida de SSAs 3.0.7")
+        try:
+            version = (Path(__file__).resolve().parents[2] / "VERSION").read_text(
+                encoding="utf-8"
+            ).strip()
+        except OSError as exc:
+            logging.getLogger(__name__).warning("Falha ao ler VERSION: %s", exc)
+            version = "indisponivel"
+        print(f"Pesquisa Rapida de SSAs {version or 'indisponivel'}")
         print(f"Base de dados: {total} registros")
         print()
 

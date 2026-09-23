@@ -41,6 +41,7 @@ from .filter_domain_rules import (
     sector_sort_key,
 )
 from .gui_filters_advanced_activity import has_active_advanced_filters
+from gui.workers.advanced_options_worker import AdvancedOptionsWorker
 from .gui_filters_advanced_grid import (
     enforce_advanced_filters_compact_metrics as _enforce_advanced_filters_compact_metrics,
     reorganize_advanced_filters_grid as _reorganize_advanced_filters_grid_impl,
@@ -58,6 +59,7 @@ from .gui_filters_advanced_panel_state import (
     advanced_panel_state as _advanced_panel_state,
 )
 from .gui_filters_advanced_refresh import (
+    AdvancedFilterOptionValues,
     AdvancedFilterUIState,
     build_advanced_values_cache_key,
     get_cached_advanced_filter_option_values,
@@ -1547,22 +1549,45 @@ def _sync_quick_executor_from_advanced_filters(
         )
 
 
-def _refresh_after_advanced_filters_apply(self) -> str | None:
+_ADVANCED_FILTER_FAILURE_SUFFIX = (
+    "Falha ao aplicar filtro avancado; resultado anterior mantido."
+)
+
+
+def _sync_status_after_advanced_filter_failure(self) -> None:
+    update_status = getattr(self, "update_filter_status_display", None)
+    displayed_df = getattr(self, "df_exibido", None)
+    complete_df = getattr(self, "df_completo", None)
+    if not callable(update_status):
+        return
+    update_status(
+        filtered_total=len(displayed_df) if displayed_df is not None else None,
+        original_total=len(complete_df) if complete_df is not None else None,
+        search_text=None,
+        suffix=_ADVANCED_FILTER_FAILURE_SUFFIX,
+    )
+
+
+def _refresh_after_advanced_filters_apply(self) -> tuple[str | None, bool]:
     notice_box = {"value": None}
 
     def _capture_notice(value):
         notice_box["value"] = value
 
     setattr(self, "_adv_notice_callback", _capture_notice)
+    completed = False
     try:
-        self._refresh_after_filter_change()
+        refresh_completed = self._refresh_after_filter_change()
+        completed = bool(refresh_completed)
+        if not refresh_completed:
+            _sync_status_after_advanced_filter_failure(self)
     except Exception as exc:
         logger.warning(
             "Falha ao atualizar resultado apos aplicar filtros avancados: %s", exc
         )
     finally:
         setattr(self, "_adv_notice_callback", None)
-    return notice_box["value"]
+    return notice_box["value"], completed
 
 
 def _show_advanced_filter_notice(self, notice: str | None) -> None:
@@ -1606,9 +1631,30 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
             logger.warning(
                 "Falha ao salvar estado antes de aplicar filtros avancados: %s", exc
             )
+    previous_column_filters = dict(
+        getattr(self, "_active_column_filters", None) or {}
+    )
+    previous_advanced_active = bool(getattr(self, "_advanced_filters_active", False))
     data = _read_advanced_filters_from_ui(self, previous_filters)
     self._advanced_filters = data
     _sync_quick_executor_from_advanced_filters(self, previous_filters, data)
+    status_filters_were_active = bool(
+        previous_filters.get("situacao")
+        or previous_filters.get("situacao_exclude_values")
+        or data.get("situacao")
+        or data.get("situacao_exclude_values")
+    )
+    try:
+        sync_situacao = getattr(
+            self, "_sync_active_situacao_filter_from_advanced_filters", None
+        )
+        if callable(sync_situacao):
+            sync_situacao(clear_when_missing=status_filters_were_active)
+    except Exception as exc:
+        logger.warning(
+            "Falha ao sincronizar situacao rapida a partir do painel avancado: %s",
+            exc,
+        )
     self._advanced_filters_active = self._has_active_advanced_filters(data)
     refresh_quick_situacao = getattr(self, "_refresh_quick_situacao_buttons", None)
     if callable(refresh_quick_situacao):
@@ -1621,7 +1667,66 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         logger.debug("Falha ao sincronizar botao x de filtros avancados: %s", exc)
     if store_only:
         return
-    notice = _refresh_after_advanced_filters_apply(self)
+    notice, refresh_completed = _refresh_after_advanced_filters_apply(self)
+    if not refresh_completed:
+        self._advanced_filters = previous_filters
+        self._advanced_filters_active = previous_advanced_active
+        self._active_column_filters = previous_column_filters
+        self._filter_cache_context_dirty = True
+        try:
+            sync_executor_ui = getattr(
+                self, "_sync_advanced_executor_ui_from_active_filter", None
+            )
+            if callable(sync_executor_ui):
+                sync_executor_ui()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar UI de executor apos falha de filtros avancados: %s",
+                exc,
+            )
+        try:
+            sync_combo = getattr(
+                self, "_sync_quick_setor_executor_combo_from_filters", None
+            )
+            if callable(sync_combo):
+                sync_combo()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar combo de executor apos falha de filtros avancados: %s",
+                exc,
+            )
+        try:
+            refresh_quick_situacao = getattr(
+                self, "_refresh_quick_situacao_buttons", None
+            )
+            if callable(refresh_quick_situacao):
+                refresh_quick_situacao()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar botoes de situacao apos falha de filtros avancados: %s",
+                exc,
+            )
+        try:
+            sync_clear_btn = getattr(
+                self, "_sync_selection_filters_clear_button", None
+            )
+            if callable(sync_clear_btn):
+                sync_clear_btn()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar botao de limpar selecao apos falha: %s", exc
+            )
+        try:
+            self._update_filters_summary()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao atualizar resumo apos restauracao de filtros avancados: %s",
+                exc,
+            )
+        logger.warning(
+            "Refresh de filtros avancados falhou; estado de filtros restaurado ao "
+            "anterior e resultado exibido preservado"
+        )
     _show_advanced_filter_notice(self, notice)
 
 
@@ -1906,7 +2011,13 @@ def _refresh_priority_menus(
 
 
 def _refresh_advanced_filter_options(self):
-    """Atualiza opcoes de filtros avancados com cache granular otimizado."""
+    """Atualiza opcoes de filtros avancados com cache granular otimizado.
+
+    Caminho de cache hit: sincrono (rapido).
+    Caminho de cache miss: despacha AdvancedOptionsWorker (QThread) para
+    nao bloquear o event loop da GUI com pd.unique/pd.to_datetime/pd.to_numeric
+    sobre o DataFrame completo.
+    """
     try:
         if self.df_completo is None or self.df_completo.empty:
             logger.debug("_refresh_advanced_filter_options: df_completo vazio ou None")
@@ -1921,34 +2032,163 @@ def _refresh_advanced_filter_options(self):
         def apply_cb():
             return _schedule_advanced_filters_apply(self)
 
-        ui_state = _read_advanced_filter_ui_state(self, df, filters)
         cache = getattr(self, "_adv_values_cache", {})
+        if not isinstance(cache, dict):
+            cache = {}
+            self._adv_values_cache = cache
         df_key = build_advanced_values_cache_key(df, getattr(self, "_data_load_token", None))
+        dirty = bool(getattr(self, "_adv_options_dirty", False))
+        cached_values = cache.get("values")
 
         if (
             cache.get("df_key") == df_key
-            and not getattr(self, "_adv_options_dirty", False)
-            and cache.get("values") is not None
+            and not dirty
+            and isinstance(cached_values, AdvancedFilterOptionValues)
         ):
-            _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+            ui_state = AdvancedFilterUIState(filters=filters, values=cached_values)
+            _apply_advanced_filter_ui_state(
+                self, ui_state, apply_cb, mark_responsavel_stale=False
+            )
             self._adv_options_dirty = False
             return
 
-        logger.debug(
-            "_refresh_advanced_filter_options: cache pronto - exec=%s, emis=%s, status=%s",
-            _safe_len(ui_state.values.exec_vals),
-            _safe_len(ui_state.values.emis_vals),
-            _safe_len(ui_state.values.status_vals),
-        )
-        _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
-        self._adv_options_dirty = False
-        try:
-            elapsed_ms = (perf_counter() - start) * 1000.0
-            logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
-        except Exception as exc:
+        if bool(getattr(self, "_is_shutting_down", False)):
+            return
+        if bool(getattr(self, "_adv_options_worker_active", False)):
             logger.debug(
-                "Failed to log advanced filter options refresh timing: %s", exc
+                "_refresh_advanced_filter_options: worker anterior ainda ativo; "
+                "agendando refresh posterior"
             )
+            self._adv_options_refresh_pending = True
+            return
+
+        self._adv_options_worker_active = True
+        self._adv_options_refresh_pending = False
+        generation_key = df_key
+        filters_snapshot = dict(filters)
+        worker = AdvancedOptionsWorker(
+            df,
+            filters_snapshot,
+            cache,
+            getattr(self, "_data_load_token", None),
+            lambda values: order_sector_values(values, sector_to_div=SECTOR_TO_DIV),
+            get_cached_fn=get_cached_advanced_filter_option_values,
+            force_refresh=dirty,
+        )
+        self._adv_options_worker = worker
+        worker_ref = worker
+        refresh_after_finish = False
+
+        def _on_ready(ui_state, w=worker_ref):
+            nonlocal refresh_after_finish
+            if not _is_not_deleted(self):
+                # Entrega tardia apos WA_DeleteOnClose: acessar self abortaria
+                # o processo com 'wrapped C/C++ object has been deleted'.
+                return
+            if bool(getattr(self, "_is_shutting_down", False)):
+                return
+            current_df = getattr(self, "df_completo", None)
+            current_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+            current_key = (
+                build_advanced_values_cache_key(
+                    current_df,
+                    getattr(self, "_data_load_token", None),
+                )
+                if isinstance(current_df, pd.DataFrame)
+                else None
+            )
+            apply_timer = getattr(self, "_advanced_apply_timer", None)
+            if (
+                current_key != generation_key
+                or current_filters != filters_snapshot
+                or bool(getattr(self, "_adv_options_refresh_pending", False))
+                or (apply_timer is not None and apply_timer.isActive())
+            ):
+                self._adv_options_dirty = True
+                refresh_after_finish = True
+                return
+            new_cache = getattr(self, "_adv_values_cache", {})
+            if isinstance(new_cache, dict):
+                new_cache.clear()
+                new_cache.update(w.cache_snapshot())
+            _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+            self._adv_options_dirty = False
+            try:
+                elapsed_ms = (perf_counter() - start) * 1000.0
+                logger.debug(
+                    "Advanced filter options refresh (async): %.1fms", elapsed_ms
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Failed to log advanced filter options refresh timing: %s", exc
+                )
+
+        def _on_error(error_msg, w=worker_ref):
+            nonlocal refresh_after_finish
+            if not _is_not_deleted(self):
+                return
+            logger.debug(
+                "AdvancedOptionsWorker erro: %s; fallback para path sincrono", error_msg
+            )
+            try:
+                if bool(getattr(self, "_is_shutting_down", False)):
+                    return
+                current_df = getattr(self, "df_completo", None)
+                current_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+                current_key = (
+                    build_advanced_values_cache_key(
+                        current_df,
+                        getattr(self, "_data_load_token", None),
+                    )
+                    if isinstance(current_df, pd.DataFrame)
+                    else None
+                )
+                apply_timer = getattr(self, "_advanced_apply_timer", None)
+                if (
+                    not isinstance(current_df, pd.DataFrame)
+                    or current_key != generation_key
+                    or current_filters != filters_snapshot
+                    or bool(getattr(self, "_adv_options_refresh_pending", False))
+                    or (apply_timer is not None and apply_timer.isActive())
+                ):
+                    self._adv_options_dirty = True
+                    refresh_after_finish = True
+                    return
+                ui_state = _read_advanced_filter_ui_state(
+                    self, current_df, current_filters
+                )
+                _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
+                self._adv_options_dirty = False
+            except Exception as exc:
+                logger.debug("Fallback sincrono de advanced options falhou: %s", exc)
+
+        def _on_finished(w=worker_ref):
+            if not _is_not_deleted(self):
+                return
+            if getattr(self, "_adv_options_worker", None) is w:
+                self._adv_options_worker = None
+            self._adv_options_worker_active = False
+            needs_refresh = refresh_after_finish or bool(
+                getattr(self, "_adv_options_refresh_pending", False)
+            )
+            self._adv_options_refresh_pending = False
+            if needs_refresh and not bool(getattr(self, "_is_shutting_down", False)):
+                self._adv_options_dirty = True
+                self._schedule_adv_options_refresh()
+
+        worker.ui_state_ready.connect(_on_ready)
+        worker.error_occurred.connect(_on_error)
+        worker.finished.connect(_on_finished)
+        worker.finished.connect(worker.deleteLater)
+        try:
+            worker.start()
+        except Exception as exc:
+            # Sem rollback, _adv_options_worker_active ficaria True e
+            # bloquearia futuros refreshes de opcoes.
+            logger.error("Falha ao iniciar worker de opcoes avancadas: %s", exc)
+            if getattr(self, "_adv_options_worker", None) is worker:
+                self._adv_options_worker = None
+            self._adv_options_worker_active = False
     finally:
         self._adv_options_scheduled = False
 
@@ -1965,12 +2205,15 @@ def _read_advanced_filter_ui_state(
         df,
         data_load_token=getattr(self, "_data_load_token", None),
         sort_sectors=lambda values: _sort_sectors(self, values),
+        force_refresh=bool(getattr(self, "_adv_options_dirty", False)),
     )
     self._adv_values_cache = cache
     return AdvancedFilterUIState(filters=filters, values=values)
 
 
-def _apply_advanced_filter_ui_state(self, ui_state, apply_cb) -> None:
+def _apply_advanced_filter_ui_state(
+    self, ui_state, apply_cb, *, mark_responsavel_stale: bool = True
+) -> None:
     values = ui_state.values
     filters = ui_state.filters
     self._refresh_sector_menus(
@@ -1995,10 +2238,14 @@ def _apply_advanced_filter_ui_state(self, ui_state, apply_cb) -> None:
     self._refresh_reprogramacoes_menu(values.reprog_vals, filters, apply_cb)
     _refresh_derivadas_menu(self, filters, apply_cb)
 
-    self._mark_responsavel_dirty()
-    built_prefixes = responsavel_materialization_state(self).built_prefixes
-    if built_prefixes:
-        self._refresh_responsavel_options(target_prefixes=built_prefixes)
+    responsavel_state = responsavel_materialization_state(self)
+    if mark_responsavel_stale:
+        built_prefixes = responsavel_state.built_prefixes
+        if built_prefixes:
+            responsavel_state.mark_dirty(prefixes=built_prefixes)
+    stale_prefixes = responsavel_state.stale_built_prefixes()
+    if stale_prefixes:
+        self._refresh_responsavel_options(target_prefixes=stale_prefixes)
     else:
         self._sync_responsavel_button_summaries()
     self._sync_checks_to_tab_context()

@@ -1,10 +1,12 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (baseline v4.42)
+## CURRENT TRUTH (2026-09-10, v4.50)
 
-- Sync deste guia: `2026-04-15 15:45 -0300`.
+- Sync deste guia: `2026-09-10`.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Caminho operacional principal:
-  - build: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
+  - release Windows v4.50: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`
+  - build interno: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`
   - distribuicao: `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
 - Referencias a `build_pyinstaller.bat` e `builds/pyinstaller` neste arquivo sao historicas.
@@ -15,6 +17,52 @@
   - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer` gerou ZIP com sucesso
   - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller` gerou ZIP, mas installer falhou por ausencia de origem Windows/Inno no host atual
 - `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
+- Debian deve executar scripts `.sh` em clone Linux nativo; nao compartilhar checkout/venv com Windows.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A tag v4.50 publica fontes. Consulte a validacao local de Windows ARM abaixo para os binarios de desenvolvimento.
+
+### Windows 11 ARM com executaveis AMD64
+
+O fluxo PyInstaller usa `cpython-3.13-windows-x86_64-none` e `.venv-win`
+na preparacao e no empacotamento. O ambiente anterior do shell e restaurado
+ao terminar. O builder valida `sysconfig.get_platform() == 'win-amd64'`
+antes de instalar dependencias e aceita Python x64 executado em Windows ARM.
+
+Na VM de desenvolvimento preparada, use Git, uv e PowerShell 7 ja instalados
+pelo WinGet. Abra um novo console PowerShell 7 e confira os executaveis
+encontrados no PATH:
+
+```powershell
+Get-Command git, uv, pwsh -CommandType Application -ErrorAction Stop |
+    Select-Object Name, Source
+Set-Location (Join-Path $env:USERPROFILE 'gitlab\ssa_consulta_rapida_pyqt6')
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 -Target windows -Backend pyinstaller -SkipInstaller -Yes
+```
+
+O comando exige checkout versionado e limpo, gera CLI e GUI e dispensa o
+instalador Inno Setup. A politica de execucao acima vale apenas para esse
+processo PowerShell. A inclusao de banco depende de `-IncludeRuntimeDb`.
+
+Este fluxo usa CPython 3.13 x64 e as dependencias do projeto resolvidas pelo uv.
+Com as dependencias em wheels e o bootloader distribuido pelo PyInstaller,
+o empacotamento dispensa Visual Studio Build Tools, LLVM/Clang e Windows SDK.
+Reconstruir o bootloader ou extensoes nativas a partir de fontes exige
+ferramentas adicionais. Consulte os [requisitos do PyInstaller](https://pyinstaller.org/en/v6.22.2/requirements.html)
+e a [documentacao do bootloader](https://pyinstaller.org/en/v6.22.2/bootloader-building.html).
+
+A montagem do ZIP usa uma pasta `ssa_pkg_*` no TEMP do sistema. Esse caminho
+reduz a profundidade das dependencias lxml/NumPy durante a copia. A limpeza
+fica em um unico `finally`, incluindo falhas e interrupcoes da montagem;
+erros de remocao continuam visiveis.
+Consulte o [limite de caminhos do Windows](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation).
+
+Validacao do ambiente em 2026-09-10: Windows 11 Pro ARM64, CPython 3.13.12
+AMD64, uv 0.12.12 e PyInstaller 6.22.2. O Python informou `win-amd64` e o
+bootloader selecionado foi `Windows-64bit-intel`.
+
+O [PyInstaller exige o sistema operacional do alvo](https://pyinstaller.org/en/stable/).
+O [Windows 11 ARM executa programas x64](https://learn.microsoft.com/en-us/windows/arm/apps-on-arm-x86-emulation),
+e o [uv permite selecionar explicitamente Python x64 nesse sistema](https://docs.astral.sh/uv/concepts/python-versions/#transparent-x86_64-emulation-on-aarch64).
 
 ## HISTORICAL SNAPSHOT NOTICE
 
@@ -34,8 +82,7 @@ Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
 > Nota: a data historica acima pertence ao material preservado. O status
 > operacional atual deste guia fica no bloco `CURRENT TRUTH`.
 
-**Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.42
+**Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: MSYS2 UCRT64 / CMD / PowerShell
 
@@ -294,7 +341,7 @@ SSA_Consulta_Rapida/
 
 **core/version.py**:
 ```python
-APP_VERSION = "4.42"
+APP_VERSION = "4.43"
 APP_NAME = "SSA Consulta Rapida"
 ```
 
@@ -315,7 +362,6 @@ Conteudo completo:
 REM HISTORICO: este trecho usa layout antigo em builds/pyinstaller
 @echo off
 REM Build script para PyInstaller 6.16.0
-REM Autor: Claude Code
 REM Data: 2025-11-14
 
 echo Iniciando build com PyInstaller...
@@ -563,7 +609,7 @@ cd builds/pyinstaller
 
 # Teste 1: Versao
 ./SSA_Consulta_Rapida.exe --version
-# Esperado: 4.42
+# Esperado: 4.43
 
 # Teste 2: Help
 ./SSA_Consulta_Rapida.exe --help
@@ -1224,8 +1270,8 @@ Python 3.8 suporta Windows 7+.
 ```
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(4, 11, 0, 0),
-    prodvers=(4, 11, 0, 0),
+    filevers=(4, 43, 0, 0),
+    prodvers=(4, 43, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -1240,12 +1286,12 @@ VSVersionInfo(
         u'040904B0',
         [StringStruct(u'CompanyName', u'SSA'),
         StringStruct(u'FileDescription', u'SSA Consulta Rapida'),
-        StringStruct(u'FileVersion', u'4.42'),
+        StringStruct(u'FileVersion', u'4.43'),
         StringStruct(u'InternalName', u'SSA_Consulta_Rapida'),
         StringStruct(u'LegalCopyright', u'Copyright 2025'),
         StringStruct(u'OriginalFilename', u'SSA_Consulta_Rapida.exe'),
         StringStruct(u'ProductName', u'SSA Consulta Rapida'),
-        StringStruct(u'ProductVersion', u'4.42')])
+        StringStruct(u'ProductVersion', u'4.43')])
       ]
     ),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
@@ -1257,7 +1303,6 @@ VSVersionInfo(
 
 **Ultima atualizacao historica original**: 2025-11-14
 **Versao do guia**: 1.0
-**Autor**: Claude Code
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

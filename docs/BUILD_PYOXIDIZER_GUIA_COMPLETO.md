@@ -1,14 +1,15 @@
 # Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
 
-## CURRENT TRUTH (4.42 local / v4.36 published)
+## CURRENT TRUTH (2026-09-08, v4.50)
 
-- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Sync deste guia: `2026-09-08`.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
   - `windows_amd64`
-  - `debian_amd64` (via WSL)
+  - `debian_amd64` (clone Linux nativo)
 - Comandos canonicos (sempre via uv):
   - Windows: `dev_env/build/build_pyoxidizer.bat --silent`
-  - Debian/WSL: `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
+  - Debian em clone Linux nativo: `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
 - Artefatos finais:
   - `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
   - `builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida`
@@ -22,15 +23,16 @@
 - Observacao tecnica:
   - PyOxidizer 0.24.0 usa runtime Python 3.10 embedado.
   - O toolchain e processo do projeto continuam padronizados em `uv run --python 3.13 ...`.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT NOTICE
 
 Este documento foi mantido para contexto tecnico.
-Nao usar como runbook primario de release em v4.33.
+Nao usar como runbook primario de release.
 
 **Data**: 2025-11-14
-**Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.42
+**Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (NAO MSYS2)
 
@@ -485,7 +487,7 @@ def make_msi(exe):
     return exe.to_wix_msi_builder(
         "SSA_Consulta_Rapida",
         "SSA Consulta Rapida",
-        "4.42",
+        "4.43",
         "SSA"
     )
 
@@ -1047,7 +1049,7 @@ def make_msi(exe):
     return exe.to_wix_msi_builder(
         "SSA_Consulta_Rapida",
         "SSA Consulta Rapida",
-        "4.42",  # Versao aqui
+        "4.43",  # Versao aqui
         "SSA"
     )
 ```
@@ -1100,7 +1102,7 @@ Estrutura permite updates so do exe:
 
 ```
 builds/pyoxidizer/
-|-- SSA_Consulta_Rapida.exe      # 3.4 MB (update v4.42)
+|-- SSA_Consulta_Rapida.exe      # 3.4 MB (update v4.43)
 |-- lib/                          # 340 MB (nao muda)
 ```
 
@@ -1325,7 +1327,6 @@ Requer:
 ```batch
 @echo off
 REM Build script para PyOxidizer 0.24.0
-REM Autor: Claude Code
 REM Data: 2025-11-14
 
 echo Iniciando build com PyOxidizer...
@@ -1465,7 +1466,6 @@ parser = argparse.ArgumentParser(
 
 **Ultima atualizacao**: 2025-11-14
 **Versao do guia**: 1.0
-**Autor**: Claude Code
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

@@ -84,6 +84,8 @@ def _launcher_test_deps(show_calls: dict[str, int], exec_calls: dict[str, int]) 
 def test_main_gui_importerror_falls_back_to_cli(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import sys
+
     import interface.cli as cli
     import main
 
@@ -92,12 +94,45 @@ def test_main_gui_importerror_falls_back_to_cli(
     def fake_start_cli_loop(db_path: str, table_name: str) -> None:  # noqa: ARG001
         calls["cli"] += 1
 
+    class _TtyStdin:
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(sys, "stdin", _TtyStdin())
     monkeypatch.setattr(cli, "start_cli_loop", fake_start_cli_loop)
     _patch_gui_import_failure(monkeypatch, ImportError("simulated missing gui module"))
 
     main.main(cli_args=["--skip-import", "--gui", "--log-level", "CRITICAL"])
 
     assert calls["cli"] == 1
+
+
+def test_main_gui_importerror_exits_when_stdin_is_not_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+
+    import interface.cli as cli
+    import main
+
+    calls = {"cli": 0}
+
+    def fake_start_cli_loop(db_path: str, table_name: str) -> None:  # noqa: ARG001
+        calls["cli"] += 1
+
+    class _NonTtyStdin:
+        def isatty(self) -> bool:
+            return False
+
+    monkeypatch.setattr(sys, "stdin", _NonTtyStdin())
+    monkeypatch.setattr(cli, "start_cli_loop", fake_start_cli_loop)
+    _patch_gui_import_failure(monkeypatch, ImportError("simulated missing gui module"))
+
+    with pytest.raises(SystemExit) as excinfo:
+        main.main(cli_args=["--skip-import", "--gui", "--log-level", "CRITICAL"])
+
+    assert excinfo.value.code == 1
+    assert calls["cli"] == 0
 
 
 def test_main_gui_unexpected_import_error_exits_with_failure(

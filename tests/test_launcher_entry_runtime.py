@@ -23,6 +23,19 @@ SSA_ENV_KEYS = (
 )
 
 
+@pytest.mark.parametrize("runtime_args", [[], ["--runtime-home"]])
+def test_gui_argument_parser_accepts_launcher_runtime_flag(runtime_args) -> None:
+    from interface.cli_args import build_argument_parser
+
+    parser = build_argument_parser("4.50", "SSA_Consulta_Rapida")
+
+    args = parser.parse_args(["--gui", *runtime_args, "--skip-import"])
+
+    assert args.gui is True
+    assert args.skip_import is True
+    assert args.runtime_home is bool(runtime_args)
+
+
 def _prepare_isolated_runtime_env(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "appdata"))
@@ -149,7 +162,7 @@ def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
     parent_db = _write_parent_data_db(tmp_path)
 
     namespace = _run_entry_as_nuitka(
-        monkeypatch, tmp_path, "cli_entry.py", "SSA_CLI_v4.42_windows_amd64.exe"
+        monkeypatch, tmp_path, "cli_entry.py", "SSA_CLI_v4.44_windows_amd64.exe"
     )
 
     runtime_env = cast(dict[str, str], namespace["_runtime_env"])
@@ -169,7 +182,7 @@ def test_cli_entry_nuitka_runtime_overwrites_stale_ssa_environment(
 ) -> None:
     exe_dir = tmp_path / "entry.dist"
     exe_dir.mkdir()
-    executable = exe_dir / "SSA_CLI_v4.42_windows_amd64.exe"
+    executable = exe_dir / "SSA_CLI_v4.44_windows_amd64.exe"
     executable.write_text("", encoding="utf-8")
     stale_root = tmp_path / "stale"
     stale_root.mkdir()
@@ -209,7 +222,7 @@ def test_cli_entry_nuitka_runtime_uses_executable_layout_without_compiled_global
         monkeypatch,
         tmp_path,
         "cli_entry.py",
-        "SSA_CLI_v4.42_windows_amd64.exe",
+        "SSA_CLI_v4.44_windows_amd64.exe",
         compiled_global=False,
     )
 
@@ -230,7 +243,7 @@ def test_gui_entry_nuitka_runtime_does_not_use_build_repo_db(
     parent_db = _write_parent_data_db(tmp_path)
 
     namespace = _run_entry_as_nuitka(
-        monkeypatch, tmp_path, "gui_entry.py", "SSA_GUI_v4.42_windows_amd64.exe"
+        monkeypatch, tmp_path, "gui_entry.py", "SSA_GUI_v4.44_windows_amd64.exe"
     )
 
     runtime_env = cast(dict[str, str], namespace["_runtime_env"])
@@ -253,7 +266,7 @@ def test_launcher_runtime_helper_does_not_leak_ssa_environment(
         monkeypatch,
         tmp_path,
         "cli_entry.py",
-        "SSA_CLI_v4.42_windows_amd64.exe",
+        "SSA_CLI_v4.44_windows_amd64.exe",
     )
     runtime_env = cast(dict[str, str], namespace["_runtime_env"])
 
@@ -285,13 +298,16 @@ def test_cli_entry_pyinstaller_runtime_uses_meipass_bundle_root(
     exe_dir = tmp_path / "dist"
     bundle_root = tmp_path / "_MEIPASS"
     bundled_config = bundle_root / "config"
-    bundled_data = bundle_root / "data"
+    bundled_data = exe_dir / "data"
+    internal_data = bundle_root / "data"
     bundled_config.mkdir(parents=True)
-    bundled_data.mkdir()
+    bundled_data.mkdir(parents=True)
+    internal_data.mkdir()
     (bundled_config / "build_info.json").write_text("{}", encoding="utf-8")
     (bundled_data / "ssas.db").write_text("bundle-db", encoding="utf-8")
-    executable = exe_dir / "SSA_CLI_v4.42_windows_amd64.exe"
-    exe_dir.mkdir()
+    (internal_data / "ssas.db").write_text("internal-db", encoding="utf-8")
+    executable = exe_dir / "SSA_CLI_v4.44_windows_amd64.exe"
+    exe_dir.mkdir(exist_ok=True)
     executable.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(sys, "executable", str(executable))
@@ -309,6 +325,7 @@ def test_cli_entry_pyinstaller_runtime_uses_meipass_bundle_root(
         _bootstrap_entry_namespace(namespace)
         runtime_root = Path(os.environ["SSA_RUNTIME_ROOT"])
         assert namespace["app_dir"] == str(bundle_root)
+        assert runtime_root == exe_dir
         assert Path(os.environ["SSA_CONFIG_DIR"]) == runtime_root / "config"
         assert (runtime_root / "config" / "build_info.json").is_file()
         assert (runtime_root / "data" / "ssas.db").read_text(encoding="utf-8") == "bundle-db"
@@ -324,16 +341,16 @@ def test_gui_entry_pyinstaller_runtime_uses_meipass_bundle_root(
     exe_dir = tmp_path / "dist"
     bundle_root = tmp_path / "_MEIPASS"
     bundled_config = bundle_root / "config"
-    bundled_data = bundle_root / "data"
+    bundled_data = exe_dir / "data"
     bundled_resources = bundle_root / "resources"
     bundled_config.mkdir(parents=True)
-    bundled_data.mkdir()
+    bundled_data.mkdir(parents=True)
     bundled_resources.mkdir()
     (bundled_config / "build_info.json").write_text("{}", encoding="utf-8")
     (bundled_data / "ssas.db").write_text("bundle-db", encoding="utf-8")
     (bundled_resources / "icon.txt").write_text("icon", encoding="utf-8")
-    executable = exe_dir / "SSA_GUI_v4.42_windows_amd64.exe"
-    exe_dir.mkdir()
+    executable = exe_dir / "SSA_GUI_v4.44_windows_amd64.exe"
+    exe_dir.mkdir(exist_ok=True)
     executable.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(sys, "executable", str(executable))
@@ -351,6 +368,7 @@ def test_gui_entry_pyinstaller_runtime_uses_meipass_bundle_root(
         _bootstrap_entry_namespace(namespace)
         runtime_root = Path(os.environ["SSA_RUNTIME_ROOT"])
         assert namespace["app_dir"] == str(bundle_root)
+        assert runtime_root == exe_dir
         assert Path(os.environ["SSA_CONFIG_DIR"]) == runtime_root / "config"
         assert (runtime_root / "config" / "build_info.json").is_file()
         assert (runtime_root / "data" / "ssas.db").read_text(encoding="utf-8") == (
@@ -362,6 +380,111 @@ def test_gui_entry_pyinstaller_runtime_uses_meipass_bundle_root(
     finally:
         os.chdir(original_cwd)
         sys.path[:] = original_sys_path
+
+
+@pytest.mark.parametrize("explicit_root", [False, True])
+def test_macos_app_runtime_uses_profile_without_writing_to_bundle(
+    monkeypatch, tmp_path: Path, explicit_root: bool,
+) -> None:
+    from launchers.runtime_entry_helpers import prepare_frozen_runtime
+
+    bundle = tmp_path / "SSA.app"
+    executable = bundle / "Contents" / "MacOS" / "SSA_GUI"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("", encoding="utf-8")
+    config = bundle / "Contents" / "Resources" / "config"
+    config.mkdir(parents=True)
+    (config / "build_info.json").write_text("{}", encoding="utf-8")
+    data = executable.parent / "data"
+    data.mkdir()
+    (data / "ssas.db").write_text("bundle-db", encoding="utf-8")
+    contents_before = {path.relative_to(bundle): path.read_bytes() for path in bundle.rglob("*") if path.is_file()}
+    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(sys, "executable", str(executable))
+    monkeypatch.setattr(sys, "argv", [str(executable)])
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    runtime = tmp_path / "home" / "Library" / "Application Support" / "SSA_Consulta_Rapida"
+    if explicit_root:
+        runtime = tmp_path / "explicit-runtime"
+        monkeypatch.setenv("SSA_RUNTIME_ROOT", str(runtime))
+    bundle_paths = [bundle, *bundle.rglob("*")]
+    for path in bundle_paths:
+        path.chmod(0o555 if path.is_dir() else 0o444)
+    try:
+        runtime_root = prepare_frozen_runtime(
+            str(bundle / "Contents" / "Frameworks"),
+            logger_name="test", include_resources=False, copy_all_data=False,
+            create_common_dirs=True,
+        )
+        assert runtime_root == runtime
+        assert (runtime / "logs").is_dir()
+        assert (runtime / "config" / "build_info.json").read_text(encoding="utf-8") == "{}"
+        assert (runtime / "data" / "ssas.db").read_text(encoding="utf-8") == "bundle-db"
+        assert {path.relative_to(bundle): path.read_bytes() for path in bundle.rglob("*") if path.is_file()} == contents_before
+    finally:
+        for path in bundle_paths:
+            path.chmod(0o755 if path.is_dir() else 0o644)
+
+
+@pytest.mark.parametrize(
+    "platform,executable_directory",
+    [("darwin", "portable"), ("darwin", "SSA.app-backup/Contents/MacOS"),
+     ("win32", "SSA.app/Contents/MacOS"), ("linux", "SSA.app/Contents/MacOS")],
+)
+def test_runtime_remains_portable_outside_macos_app(
+    monkeypatch, tmp_path: Path, platform: str, executable_directory: str,
+) -> None:
+    from launchers.runtime_entry_helpers import _resolve_writable_runtime_dir
+
+    executable = tmp_path / executable_directory / "SSA_GUI"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("", encoding="utf-8")
+    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(sys, "executable", str(executable))
+    monkeypatch.setattr(sys, "argv", [str(executable)])
+
+    assert _resolve_writable_runtime_dir() == executable.parent
+
+
+def test_gui_entry_runtime_home_copies_external_database_without_overwrite(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from launchers.runtime_entry_helpers import prepare_frozen_runtime, resolve_runtime_home
+
+    exe_dir = tmp_path / "dist"
+    bundled_data = exe_dir / "data"
+    bundled_data.mkdir(parents=True)
+    executable = exe_dir / "SSA_GUI_v4.45_windows_amd64.exe"
+    executable.write_text("", encoding="utf-8")
+    (bundled_data / "ssas.db").write_text("external-db", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "executable", str(executable))
+    monkeypatch.setattr(sys, "argv", [str(executable), "--runtime-home"])
+    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
+
+    runtime_root = prepare_frozen_runtime(
+        str(tmp_path / "_MEIPASS"),
+        logger_name="test",
+        include_resources=False,
+        copy_all_data=False,
+        create_common_dirs=True,
+    )
+    target_db = runtime_root / "data" / "ssas.db"
+    assert runtime_root == resolve_runtime_home()
+    assert target_db.read_text(encoding="utf-8") == "external-db"
+
+    target_db.write_text("user-db", encoding="utf-8")
+    prepare_frozen_runtime(
+        str(tmp_path / "_MEIPASS"),
+        logger_name="test",
+        include_resources=False,
+        copy_all_data=False,
+        create_common_dirs=True,
+    )
+    assert target_db.read_text(encoding="utf-8") == "user-db"
 
 
 def test_cli_entry_pyoxidizer_runtime_uses_executable_dir_as_bundle_root(
@@ -826,9 +949,11 @@ def test_cli_entry_force_rescan_candidate_without_update_is_failure(
         namespace["main"]()
 
     captured = capsys.readouterr()
-    assert exc_info.value.code == 1
-    assert "Importacao nao gravou atualizacoes" in captured.err
-    assert "Importacao concluida" not in captured.out
+    # S4d: without a recorded outcome (fake importer), a False return
+    # with no errors is no_work (exit 0), not a failure; the blocking
+    # contract lives in the outcome (CANDIDATE_INVALID etc.)
+    assert exc_info.value.code == 0
+    assert "sem atualizacoes" in captured.out
 
 
 def test_cli_entry_force_rescan_partial_errors_fail_exit(

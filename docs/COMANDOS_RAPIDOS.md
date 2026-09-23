@@ -1,12 +1,13 @@
-# Comandos Rapidos - SSA Consulta Rapida v4.42
+# Comandos Rapidos - SSA Consulta Rapida v4.44
 
 ## Sync desta folha (2026-03-26 07:35 -0300)
 
-1. Este runbook continua valido para baseline `v4.42`.
+1. Este runbook continua valido para baseline `v4.44`.
 2. Fluxo de importacao recomendado:
    - incremental: `--force-rescan`
    - full rescan: `--reset-db`
 3. Operacoes de DB auxiliares continuam disponiveis via menu GUI `Database`.
+4. DeepSec e uma ferramenta local de revisao; execute dentro de `.deepsec/` e nao versione a pasta gerada.
 
 ## Runtime padrao
 
@@ -43,6 +44,17 @@ uv run --python $PY_RUNTIME main.py --gui
 
 # Streamlit
 uv run --python $PY_RUNTIME main.py --streamlit
+
+# Streamlit com banco/planilhas fora das pastas permitidas
+# A escolha na UI vale para a sessao. Para pre-autorizar no PowerShell:
+$env:SSA_EXTRA_ALLOWED_PATHS = "C:\Dados;D:\Planilhas"
+uv run --python $PY_RUNTIME main.py --streamlit
+```
+
+Em Bash (macOS/Linux), o separador de raizes e `:`:
+
+```bash
+SSA_EXTRA_ALLOWED_PATHS="/caminho/um:/caminho/dois" uv run --python 3.13 main.py --streamlit
 ```
 
 ## Importacao e banco
@@ -82,36 +94,33 @@ pwsh -File scripts_manutencao/quick_recovery.ps1 -Action restore
 git stash pop
 ```
 
-## Fallback manual sem uv
+## Instalacao manual com uv
 
 ```powershell
-python -m venv .venv
-. .venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python main.py
+uv sync --frozen --no-dev
+uv run --frozen --no-dev python main.py
 ```
 
-## Build silencioso (Windows e Debian)
+## Build silencioso por host nativo
 
 ```powershell
 # Windows
 dev_env\build\build_pyinstaller.bat --silent
 dev_env\build\build_nuitka_clean.bat --silent
 dev_env\build\build_pyoxidizer.bat --silent
+```
 
-# Debian via WSL
-$REPO_ROOT = "/mnt/c/caminho/para/SSA_Consulta_Rapida"
-wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_pyinstaller_debian.sh --silent"
-wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_nuitka_debian.sh --silent"
-wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_pyoxidizer_debian.sh --silent"
+```bash
+# Debian em clone Linux nativo
+bash dev_env/build/build_pyinstaller_debian.sh --silent
+bash dev_env/build/build_nuitka_debian.sh --silent
+bash dev_env/build/build_pyoxidizer_debian.sh --silent
 ```
 
 ## Notas
 
-1. Para fluxo operacional e handoff, usar o PR/conversa atual.
 2. Para troubleshooting geral, usar `docs/TROUBLESHOOTING.md`.
 3. Para troubleshooting de importacao, usar `docs/TROUBLESHOOTING_IMPORTACAO.md`.
-4. Antes dos comandos WSL acima, ajuste `$REPO_ROOT` para o caminho montado do repo no seu ambiente.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

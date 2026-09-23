@@ -39,6 +39,11 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         "--version", action="store_true", help="Exibe versao curta e encerra"
     )
     parser.add_argument(
+        "--runtime-home",
+        action="store_true",
+        help="Usa a pasta de dados do usuario no executavel empacotado",
+    )
+    parser.add_argument(
         "--force-rescan",
         "--rescan",
         dest="force_rescan",
@@ -184,4 +189,3 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         "  python main.py --acao backfill -- --dir docs_entrada --dry-run --smart-upsert\n",
     )
     return parser
-

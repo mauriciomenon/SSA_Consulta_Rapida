@@ -1,9 +1,10 @@
 # BUILD SYSTEM - SSA Consulta Rapida v4.0.0
 
-## CURRENT TRUTH (4.42 local / v4.36 published)
+## CURRENT TRUTH (2026-09-08, v4.50)
 
-- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Sync deste guia: `2026-09-08`.
 - Este arquivo e historico e nao representa o fluxo atual de release.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Fluxo atual:
   - `docs/BUILD_MULTIPLATFORM.md`
   - `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
@@ -11,6 +12,8 @@
   - `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
 - Todos os comandos operacionais devem usar uv (`uv run --python 3.13 ...`).
 - Nao usar comandos antigos deste arquivo com `pip`/`python` direto como fonte primaria.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ##  **BUILD SYSTEM OTIMIZADO PARA v4.0.0**
 

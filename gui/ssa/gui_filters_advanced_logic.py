@@ -70,11 +70,13 @@ def _normalize_derivada_relation_series(raw_series: pd.Series) -> pd.Series:
         normalized_uniques = [
             normalize_numero_ssa_relation(value) or "" for value in uniques
         ]
-        resolved = [""] * len(series_obj)
-        for index, code in enumerate(codes):
-            if code >= 0:
-                resolved[index] = normalized_uniques[code]
-        return pd.Series(resolved, index=series_obj.index, dtype="object")
+        lookup = pd.Series(
+            normalized_uniques,
+            index=pd.RangeIndex(len(normalized_uniques)),
+            dtype="object",
+        )
+        resolved = pd.Series(codes, index=series_obj.index).map(lookup)
+        return resolved.fillna("").astype("object")
     except Exception:
         return raw_series.map(lambda value: normalize_numero_ssa_relation(value) or "")
 
@@ -97,14 +99,17 @@ def _maybe_reset_adv_caches(state: AdvancedFilterState, cache_token: int) -> Non
     setattr(window, "_adv_cache_token", cache_token)
 
 
+class AdvancedFilterMaskError(RuntimeError):
+    """Raised when advanced filter mask.any() evaluation fails."""
+
+
 def _mask_any(mask, context: str) -> bool:
     try:
         return bool(mask.any())
     except Exception as exc:
-        logger.debug(
-            "Failed to evaluate advanced filter mask.any() %s: %s", context, exc
-        )
-        return False
+        raise AdvancedFilterMaskError(
+            f"Failed to evaluate advanced filter mask.any() {context}"
+        ) from exc
 
 
 class _IncludeExcludeSeriesCache:
@@ -252,7 +257,9 @@ def _apply_include_exclude_filters(
                             ~series.str.strip().str.casefold().isin(invalid_tokens), ""
                         )
                 except Exception as exc:
-                    logger.debug("Failed to read divisao column values: %s", exc)
+                    raise AdvancedFilterMaskError(
+                        f"failed to read divisao column values: {exc}"
+                    ) from exc
             try:
                 exec_series = (
                     cache.get_str("setor_executor")
@@ -277,33 +284,45 @@ def _apply_include_exclude_filters(
                     else:
                         series = series.where(series != "", derived_series)
             except Exception as exc:
-                logger.debug(
-                    "Failed to derive divisao values from sector columns: %s", exc
-                )
+                raise AdvancedFilterMaskError(
+                    f"failed to derive divisao values from sector columns: {exc}"
+                ) from exc
             if series is None:
-                continue
+                raise AdvancedFilterMaskError(
+                    "divisao filter is set but neither divisao nor derivable "
+                    "sector columns exist in the dataframe"
+                )
         elif col in numeric_columns:
             series = cache.get_numeric(col)
             include_values = _to_int_set(include_values or [])
             exclude_values = _to_int_set(exclude_values or [])
         else:
             if col is None:
-                continue
+                raise AdvancedFilterMaskError(
+                    f"advanced filter '{include_key}' is set but none of "
+                    f"{list(candidate_cols)} exist in the dataframe"
+                )
             series = cache.get_str(col)
         if series is None:
-            continue
+            raise AdvancedFilterMaskError(
+                f"failed to coerce column '{col}' for filter '{include_key}'"
+            )
         if include_values:
             try:
                 mask_include = series.isin(include_values)
                 mask &= mask_include
             except Exception as exc:
-                logger.debug("Failed to apply include filter for %s: %s", col, exc)
+                raise AdvancedFilterMaskError(
+                    f"failed to apply include filter for '{col}': {exc}"
+                ) from exc
         if exclude_values:
             try:
                 mask_exclude = series.isin(exclude_values)
                 mask &= ~mask_exclude
             except Exception as exc:
-                logger.debug("Failed to apply exclude filter for %s: %s", col, exc)
+                raise AdvancedFilterMaskError(
+                    f"failed to apply exclude filter for '{col}': {exc}"
+                ) from exc
 
     cache.clear_local()
     return mask
@@ -317,6 +336,11 @@ def _apply_reprogramacoes_filter(
         values = filters.get("num_reprogramacoes_values")
         if mode and values:
             vals = [int(v) for v in values if str(v).isdigit()]
+            if vals and "num_reprogramacoes" not in df.columns:
+                raise AdvancedFilterMaskError(
+                    "reprogramacoes filter is active but 'num_reprogramacoes' "
+                    "is missing from the dataframe"
+                )
             if vals and "num_reprogramacoes" in df.columns:
                 nums = (
                     pd.to_numeric(df["num_reprogramacoes"], errors="coerce")
@@ -333,7 +357,9 @@ def _apply_reprogramacoes_filter(
                     threshold = min(vals_sorted)
                     mask &= nums >= threshold
     except Exception as exc:
-        logger.debug("Failed to apply reprogramacoes advanced filter: %s", exc)
+        raise AdvancedFilterMaskError(
+            f"failed to apply reprogramacoes filter: {exc}"
+        ) from exc
     return mask
 
 
@@ -416,9 +442,9 @@ def _apply_year_emissao_filter(
                 if emissao_exc:
                     mask &= ~years.isin(emissao_exc)
             except Exception as exc:
-                logger.debug(
-                    "Failed to apply ano emissao filter from data_cadastro: %s", exc
-                )
+                raise AdvancedFilterMaskError(
+                    f"failed to apply ano emissao filter from data_cadastro: {exc}"
+                ) from exc
         elif "semana_cadastro" in df.columns:
             try:
                 years = _compute_years_from_semana(df["semana_cadastro"])
@@ -427,9 +453,14 @@ def _apply_year_emissao_filter(
                 if emissao_exc:
                     mask &= ~years.isin(emissao_exc)
             except Exception as exc:
-                logger.debug(
-                    "Failed to apply ano emissao filter from semana_cadastro: %s", exc
-                )
+                raise AdvancedFilterMaskError(
+                    f"failed to apply ano emissao filter from semana_cadastro: {exc}"
+                ) from exc
+        else:
+            raise AdvancedFilterMaskError(
+                "ano emissao filter is active but neither 'data_cadastro' nor "
+                "'semana_cadastro' exists in the dataframe"
+            )
 
     return mask, notice
 
@@ -456,6 +487,11 @@ def _apply_year_execucao_filter(
         execucao_inc = _to_int_set([filters.get("ano_execucao")])
 
     if execucao_inc or execucao_exc:
+        if "semana_executada" not in df.columns:
+            raise AdvancedFilterMaskError(
+                "ano execucao filter is active but 'semana_executada' is "
+                "missing from the dataframe"
+            )
         if "semana_executada" in df.columns:
             try:
                 nums = pd.to_numeric(df["semana_executada"], errors="coerce").astype(
@@ -467,9 +503,9 @@ def _apply_year_execucao_filter(
                 if execucao_exc:
                     mask &= ~years.isin(execucao_exc)
             except Exception as exc:
-                logger.debug(
-                    "Failed to apply ano execucao filter from semana_executada: %s", exc
-                )
+                raise AdvancedFilterMaskError(
+                    f"failed to apply ano execucao filter from semana_executada: {exc}"
+                ) from exc
 
     return mask
 
@@ -494,12 +530,15 @@ def _apply_week_range_filters(
                 range_mask &= nums.ge(int(start_val))
             if end_val is not None and not pd.isna(end_val):
                 range_mask &= nums.le(int(end_val))
+            range_mask = range_mask.fillna(False).astype(bool)
             if filters.get(exclude_key):
                 mask &= ~range_mask
             else:
                 mask &= range_mask
         except Exception as exc:
-            logger.debug("Failed to apply week range filter '%s': %s", col, exc)
+            raise AdvancedFilterMaskError(
+                f"failed to apply week range filter '{col}': {exc}"
+            ) from exc
 
     _apply_week_range(
         "semana_cadastro",
@@ -616,14 +655,29 @@ def _build_derivadas_tree_core(
         return mae_filhas, filha_mae
 
     try:
-        filha_mae = dict(zip(pairs["numero"], pairs["derivada"]))
+        for numero, derivada in pairs[["numero", "derivada"]].itertuples(
+            index=False,
+            name=None,
+        ):
+            numero_key = str(numero)
+            derivada_key = str(derivada)
+            previous = filha_mae.get(numero_key)
+            if previous is not None and previous != derivada_key:
+                logger.warning(
+                    "Duplicate derivada child %s has conflicting parents %s and %s; "
+                    "keeping first parent",
+                    numero_key,
+                    previous,
+                    derivada_key,
+                )
+                continue
+            filha_mae.setdefault(numero_key, derivada_key)
     except Exception:
         filha_mae = {}
 
     try:
-        grouped = pairs.groupby("derivada")["numero"].unique()
-        for mae, filhas in grouped.items():
-            mae_filhas_set[mae] = set(filhas)
+        for numero, derivada in filha_mae.items():
+            mae_filhas_set.setdefault(derivada, set()).add(numero)
     except Exception:
         mae_filhas_set = {}
 
@@ -677,8 +731,17 @@ def _apply_derivada_filter(
         if derivada_has:
             return mask, "derivada_empty"
 
-    if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
-        origins_error = False
+    if derivada_has or derivada_all_ste:
+        if "numero_ssa" not in df.columns:
+            raise AdvancedFilterMaskError(
+                "derivada filter is active but 'numero_ssa' is missing from "
+                "the dataframe"
+            )
+        if derivada_all_ste and "situacao" not in df.columns:
+            raise AdvancedFilterMaskError(
+                "derivada_all_ste filter requires 'situacao' but it is missing "
+                "from the dataframe"
+            )
         origins = set()
         if derivada_all_ste and "situacao" in df.columns:
             cache = state.get_cache("_adv_values_cache")
@@ -694,17 +757,16 @@ def _apply_derivada_filter(
                     cache[cache_key] = origins
                     prune_adv_cache(cache, MAX_ADV_CACHE_ENTRIES)
                 except Exception as exc:
-                    logger.debug(
-                        "Failed to compute derivada_all_ste origin set: %s", exc
-                    )
-                    origins_error = True
-                    origins = set()
+                    raise AdvancedFilterMaskError(
+                        f"failed to compute derivada_all_ste origin set: {exc}"
+                    ) from exc
         else:
             try:
                 origins = set(series_derivada[has_derivada].unique())
-            except Exception:
-                origins_error = True
-                origins = set()
+            except Exception as exc:
+                raise AdvancedFilterMaskError(
+                    f"failed to collect derivada origin set: {exc}"
+                ) from exc
 
         if origins:
             try:
@@ -719,11 +781,9 @@ def _apply_derivada_filter(
                     prune_adv_cache(norm_cache, MAX_ADV_CACHE_ENTRIES)
                 mask &= numero_norm.isin(origin_norm)
             except Exception as exc:
-                logger.debug(
-                    "Failed to apply derivada origin filter to numero_ssa: %s", exc
-                )
-        elif origins_error:
-            logger.debug("Skipping derivada filter due to origin calculation failure.")
+                raise AdvancedFilterMaskError(
+                    f"failed to apply derivada origin filter to numero_ssa: {exc}"
+                ) from exc
         else:
             if derivada_all_ste:
                 return mask, "derivada_all_ste_empty"
@@ -784,6 +844,12 @@ def _apply_advanced_filters(
     )
     _emit_notice(notice_callback, notice)
 
-    if mask.all():
+    try:
+        all_rows_pass = bool(mask.all())
+    except Exception as exc:
+        raise AdvancedFilterMaskError(
+            f"failed to evaluate advanced filter mask.all() final: {exc}"
+        ) from exc
+    if all_rows_pass:
         return df
     return df[mask]

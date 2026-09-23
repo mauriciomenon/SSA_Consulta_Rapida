@@ -9,7 +9,19 @@ import pandas as pd
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
+from interface.cli_width_manager import CLIWidthManager
 from interface.display import pretty_print_details
+
+
+def test_normalize_ssa_number_does_not_fabricate_year():
+    manager = CLIWidthManager()
+    assert manager.normalize_ssa_number("202512345") == "202512345"
+    # IDs curtos sao exibidos como estao (paridade com a GUI);
+    # nunca fabricar prefixo de ano.
+    assert manager.normalize_ssa_number("12345") == "12345"
+    assert manager.normalize_ssa_number("123456") == "123456"
+    assert manager.normalize_ssa_number("") == "-"
+    assert manager.normalize_ssa_number(None) == "-"
 
 
 def test_details_uses_shared_formatter_for_dates_and_nulls():
@@ -44,3 +56,13 @@ def test_details_uses_shared_formatter_for_dates_and_nulls():
     # Nullish as '-'
     assert "Nulo:" in out and " -" in out
     assert "NaNstr:" in out and " -" in out
+
+
+def test_details_header_is_single_line_and_description_preserves_lines(capsys):
+    pretty_print_details(
+        {"numero_ssa": "123\n45\t6", "descricao_ssa": "linha 1\nlinha 2"},
+        {"descricao_ssa": "Descricao"},
+    )
+    output = capsys.readouterr().out
+    assert " DETALHES DA SSA: 123 45 6\n" in output
+    assert "linha 1\nlinha 2" in output

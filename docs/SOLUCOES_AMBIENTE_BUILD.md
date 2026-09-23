@@ -1,17 +1,19 @@
 # Solucoes para Problemas de Ambiente - Build Systems
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH (2026-09-08, v4.50)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58 e PR #59: merged; base minima sincronizada `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
+- Release ativa: `v4.50`; tag anterior: `v4.46`.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
-- Proximo passo operacional: rebuildar artefatos v4.42 no Windows AMD64 e Debian AMD64 a partir do HEAD sincronizado.
+- Build futuro: gerar artefatos da versao solicitada no clone nativo, a partir do ref confirmado; nenhum build novo integra esta rodada.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT 2025-11-14
 
 Conteudo legado preservado apenas como referencia historica; o bloco `CURRENT TRUTH` acima e a fonte operacional atual.
 
-**Autor**: Claude Code
 
 ## Problema 1: PyOxidizer - Erro `ntpath.abspath`
 
@@ -72,7 +74,7 @@ O GCC 15.2.0 do MSYS2 UCRT esta no PATH e interfere com o download automatico do
 
 ### Solucao Implementada
 
-Criado script [build_nuitka_clean.bat](../build_nuitka_clean.bat) que:
+Criado script [build_nuitka_clean.bat](../dev_env/build/build_nuitka_clean.bat) que:
 
 1. Remove temporariamente MSYS2/MinGW do PATH
 2. Mantem apenas Python e Scoop no PATH
@@ -91,7 +93,7 @@ set "PATH=%PATH_BACKUP%"
 ```
 
 ### Arquivo Criado
-- [build_nuitka_clean.bat](../build_nuitka_clean.bat)
+- [build_nuitka_clean.bat](../dev_env/build/build_nuitka_clean.bat)
 
 ---
 
@@ -260,4 +262,3 @@ rm -rf *.spec
 **Ultima atualizacao**: 2025-11-14
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

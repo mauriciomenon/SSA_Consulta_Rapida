@@ -4,6 +4,7 @@ Teste rápido do sistema SSA após melhorias
 """
 
 import os
+from contextlib import closing
 
 
 def test_basic_functionality():
@@ -52,28 +53,27 @@ def test_database():
             import sqlite3
 
             try:
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
+                with closing(sqlite3.connect(db_path)) as conn:
+                    cursor = conn.cursor()
 
-                # Verifica se há tabelas
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                tables = cursor.fetchall()
+                    # Verifica se há tabelas
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    tables = cursor.fetchall()
 
-                if tables:
-                    print(f"OK Banco com {len(tables)} tabela(s)")
+                    if tables:
+                        print(f"OK Banco com {len(tables)} tabela(s)")
 
-                    # Verifica se há dados na tabela principal
-                    try:
-                        cursor.execute("SELECT COUNT(*) FROM ssa_table")
-                        count = cursor.fetchone()[0]
-                        print(f"OK {count:,} registros na tabela principal")
-                    except Exception as exc:
-                        print(f"DEBUG Falha ao consultar ssa_table: {exc}")
-                        print("WARN Tabela principal sem dados ou não existe")
-                else:
-                    print("WARN Banco sem tabelas")
+                        # Verifica se há dados na tabela principal
+                        try:
+                            cursor.execute("SELECT COUNT(*) FROM ssa_table")
+                            count = cursor.fetchone()[0]
+                            print(f"OK {count:,} registros na tabela principal")
+                        except Exception as exc:
+                            print(f"DEBUG Falha ao consultar ssa_table: {exc}")
+                            print("WARN Tabela principal sem dados ou não existe")
+                    else:
+                        print("WARN Banco sem tabelas")
 
-                conn.close()
                 return True
 
             except Exception as e:

@@ -1,9 +1,9 @@
-# Guia Completo de Migracao - SSA Consulta Rapida v4.42
+# Guia Completo de Migracao - SSA Consulta Rapida v4.44
 
 **Data de Criacao:** 27 de Agosto de 2025
-**Versao do Sistema:** v4.42 (Baseline local)
+**Versao do Sistema:** v4.44 (Baseline local)
 **Tipo:** Migracao Completa para Nova Instalacao
-**Sync:** 26/03/2026 07:35 -0300
+**Sync:** 06/07/2026 09:45 -0300
 
 ---
 
@@ -392,7 +392,6 @@ uv run --python $PY_RUNTIME python -c "from PyQt6.QtWidgets import QApplication;
 type README.md                           # ← Visao geral do projeto
 type GUIA_MODO_OPTIMIZED.md             # ← Otimizacoes de performance
 type CHANGELOG_IMPLEMENTACOES.md        # ← Historico de mudancas
-type REGRAS_DE_OURO.md                  # ← Boas praticas
 ```
 
 ### **2. Configuracoes e Schema**
@@ -509,9 +508,8 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 09/04/2026 - v4.42*
+*Ultima atualizacao: 06/07/2026 - v4.44*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*
 
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

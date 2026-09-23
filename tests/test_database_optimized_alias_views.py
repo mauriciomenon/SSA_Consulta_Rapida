@@ -128,6 +128,36 @@ def test_optimized_insert_resolves_legacy_alias_without_view_object(
     assert alias_table_count == 0
 
 
+def test_optimized_canonical_request_reuses_single_legacy_table(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "legacy_only.db")
+    with database.get_db_connection(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE ssas (numero_ssa TEXT PRIMARY KEY, data_cadastro TEXT, "
+            "situacao TEXT, descricao_ssa TEXT)"
+        )
+        conn.commit()
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500112"],
+            "data_cadastro": ["2025-01-01 00:00:00"],
+            "situacao": ["STE"],
+            "descricao_ssa": ["legacy-target"],
+        }
+    )
+
+    assert insert_dataframe_optimized(df, db_path, table_name="ssa_table") is True
+
+    with database.get_db_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT descricao_ssa FROM ssas WHERE numero_ssa='202500112'"
+        ).fetchone()
+        canonical_exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ssa_table'"
+        ).fetchone()
+    assert row == ("legacy-target",)
+    assert canonical_exists is None
+
+
 def test_optimized_insert_same_date_does_not_downgrade_situacao(tmp_path: Path) -> None:
     db_path = str(tmp_path / "same_date_no_downgrade.db")
     schema_path = _get_project_root() / "config" / "schema.sql"

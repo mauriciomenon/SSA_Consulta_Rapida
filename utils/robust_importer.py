@@ -123,7 +123,7 @@ def _strip_accents(text: str) -> str:
     return "".join(ch for ch in nfkd if not unicodedata.combining(ch))
 
 
-def _canonicalize_header(h: str) -> str:
+def canonicalize_header(h: str) -> str:
     h2 = h.replace("\n", " ")
     h2 = re.sub(r"\s+", " ", h2).strip()
     h2 = _strip_accents(h2)
@@ -144,10 +144,10 @@ def _build_alias_mapping(
     for canonical, aliases in data.items():
         all_names = [canonical] + list(aliases)
         for name in all_names:
-            alias_norm = _canonicalize_header(name)
+            alias_norm = canonicalize_header(name)
             if alias_norm not in alias_to_canonical:  # first wins
                 alias_to_canonical[alias_norm] = canonical
-        canonical_to_aliases[canonical] = [_canonicalize_header(a) for a in aliases]
+        canonical_to_aliases[canonical] = [canonicalize_header(a) for a in aliases]
     return alias_to_canonical, canonical_to_aliases
 
 
@@ -168,13 +168,16 @@ def _read_excel_source(
             header=header,
             dtype_backend="numpy_nullable",
         )
-    return pd.read_excel(
-        excel_source,
-        sheet_name=sheet_name,
-        header=header,
-        engine="openpyxl",
-        dtype_backend="numpy_nullable",
-    )
+    from extracao.extractor import open_validated_excel_source
+
+    with open_validated_excel_source(excel_source) as source_stream:
+        return pd.read_excel(
+            source_stream,
+            sheet_name=sheet_name,
+            header=header,
+            engine="openpyxl",
+            dtype_backend="numpy_nullable",
+        )
 
 
 def _coalesce_columns(df: pd.DataFrame, columns: List[str]) -> pd.Series:
@@ -199,7 +202,7 @@ def _resolve_semantic_duplicate_columns(
     used: set[str] = set()
 
     for original_name in columns:
-        normalized_name = _canonicalize_header(str(original_name))
+        normalized_name = canonicalize_header(str(original_name))
         match = _DOTTED_DUPLICATE_RE.fullmatch(normalized_name)
         base_name = match.group("base") if match else normalized_name
         suffix_index = int(match.group("suffix")) if match else 0
@@ -391,7 +394,7 @@ def import_excel_robust(
         orig_to_can: Dict[str, str] = {}
         can_groups: Dict[str, List[str]] = {}
         for c in tmp_df.columns:
-            n = _canonicalize_header(str(c))
+            n = canonicalize_header(str(c))
             can = alias_map.get(n, n)
             orig_to_can[c] = can
             can_groups.setdefault(can, []).append(c)
@@ -404,7 +407,7 @@ def import_excel_robust(
         raw_col_str = str(col)
         norm = _header_cache.get(raw_col_str)
         if norm is None:
-            norm = _canonicalize_header(raw_col_str)
+            norm = canonicalize_header(raw_col_str)
             _header_cache[raw_col_str] = norm
         canonical = alias_map.get(norm, norm)  # se não mapeado, usar normalização
         if canonical != norm:
@@ -463,7 +466,7 @@ def import_excel_robust(
         numero_alias_keys = [k for k, v in alias_map.items() if v == "numero_ssa"]
         candidate_cols = []
         for col in raw_df.columns:
-            norm = _canonicalize_header(str(col))
+            norm = canonicalize_header(str(col))
             if norm in numero_alias_keys:
                 candidate_cols.append(col)
         if candidate_cols:
@@ -512,7 +515,7 @@ def import_excel_robust(
                 raw_col_str = str(col)
                 norm = _header_cache.get(raw_col_str)
                 if norm is None:
-                    norm = _canonicalize_header(raw_col_str)
+                    norm = canonicalize_header(raw_col_str)
                     _header_cache[raw_col_str] = norm
                 canonical = alias_map.get(norm, norm)
                 if canonical != norm:
@@ -525,7 +528,7 @@ def import_excel_robust(
                     k for k, v in alias_map.items() if v == "numero_ssa"
                 ]
                 for col in raw_df.columns:
-                    norm = _canonicalize_header(str(col))
+                    norm = canonicalize_header(str(col))
                     if norm in numero_alias_keys:
                         canonical_groups["numero_ssa"] = [col]
                         original_to_canonical[col] = "numero_ssa"

@@ -16,13 +16,15 @@ import json
 import logging
 import os
 import sqlite3
+import tempfile
 import unicodedata
 from collections import defaultdict, deque
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from pathlib import Path
+from typing import IO, Any
 
 import pandas as pd
 
@@ -32,6 +34,7 @@ from armazenamento.derivadas_schema import (
     scan_derivadas_read_schema_readiness,
 )
 from armazenamento.identifier_utils import is_valid_identifier
+from extracao.extractor import open_validated_excel_source
 from shared.numero_ssa import normalize_strict
 from utils.path_safety import ensure_path_is_allowed
 
@@ -116,16 +119,23 @@ def _parse_utc_str(value: str | None) -> datetime | None:
         return None
 
 
-def _graph_fingerprint(edges: list[tuple[str, str, int]]) -> str:
+def _graph_fingerprint(
+    edges: list[tuple[str, str, int, int, str | None]], *, legacy: bool = False
+) -> str:
     digest = hashlib.sha256()
-    for parent, child, source_flags in sorted(edges):
+    for parent, child, source_flags, relation_type, relation_label in sorted(edges):
         digest.update(parent.encode("utf-8"))
         digest.update(b"->")
         digest.update(child.encode("utf-8"))
         digest.update(b":")
         digest.update(str(int(source_flags)).encode("ascii"))
         digest.update(b";")
-    return digest.hexdigest()
+        if not legacy:
+            digest.update(
+                json.dumps([relation_type, relation_label], ensure_ascii=False).encode("utf-8")
+            )
+            digest.update(b";")
+    return digest.hexdigest() if legacy else f"v2:{digest.hexdigest()}"
 
 
 def _resolve_sync_actor(actor: str | None) -> str:
@@ -153,12 +163,16 @@ def _configure_derivadas_connection(conn: sqlite3.Connection) -> None:
 
 
 @contextmanager
-def _open_derivadas_read_connection(db_path: str):
+def _open_derivadas_read_connection(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+):
     safe_db_path = str(
         ensure_path_is_allowed(
             db_path,
             purpose="derivadas read database",
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     )
     with get_db_connection(safe_db_path) as conn:
@@ -217,7 +231,10 @@ def _validate_table_name(table_name: str) -> str:
     return table_name
 
 
-def _normalize_sheet_file_path(value: Any) -> str:
+def _normalize_sheet_file_path(
+    value: Any,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> str:
     normalized = str(value).strip()
     if not normalized:
         return ""
@@ -227,6 +244,7 @@ def _normalize_sheet_file_path(value: Any) -> str:
             expanded,
             purpose="sync derivadas sheet file",
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     )
 
@@ -365,7 +383,10 @@ def _load_excel_frames(
     try:
         frames: list[pd.DataFrame] = []
         parse_errors: list[tuple[str, Exception]] = []
-        with pd.ExcelFile(sheet_file) as workbook:
+        with (
+            open_validated_excel_source(sheet_file) as source_stream,
+            pd.ExcelFile(source_stream) as workbook,
+        ):
             target_sheets = [sheet_name] if sheet_name else list(workbook.sheet_names)
             for target_sheet in target_sheets:
                 try:
@@ -604,7 +625,9 @@ def _collect_special_visual_sheet_edges(
         ]
         column_groups: list[tuple[int, int, int]] = []
         relation_indexes = [
-            index for index, header in enumerate(normalized_headers) if header == "relacao"
+            index
+            for index, header in enumerate(normalized_headers)
+            if header == "relacao"
         ]
         for relation_index in relation_indexes:
             child_index = next(
@@ -1011,7 +1034,9 @@ def _analyze_reconciliation(
     matrix_edges: list[MatrixEdge],
     source_edges: list[SourceEdge],
 ) -> dict[str, Any]:
-    pair_edges = [(edge.parent_ssa, edge.child_ssa) for edge in matrix_edges]
+    pair_edges = [
+        (matrix_edge.parent_ssa, matrix_edge.child_ssa) for matrix_edge in matrix_edges
+    ]
 
     child_parents = _build_child_parent_map(pair_edges)
     multiparent_children = {
@@ -1029,11 +1054,11 @@ def _analyze_reconciliation(
 
     db_parents: dict[str, set[str]] = defaultdict(set)
     sheet_parents: dict[str, set[str]] = defaultdict(set)
-    for edge in source_edges:
-        if edge.source_name == SOURCE_DB_FIELD:
-            db_parents[edge.child_ssa].add(edge.parent_ssa)
-        elif edge.source_name == SOURCE_SHEET_DERIVADAS:
-            sheet_parents[edge.child_ssa].add(edge.parent_ssa)
+    for source_edge in source_edges:
+        if source_edge.source_name == SOURCE_DB_FIELD:
+            db_parents[source_edge.child_ssa].add(source_edge.parent_ssa)
+        elif source_edge.source_name == SOURCE_SHEET_DERIVADAS:
+            sheet_parents[source_edge.child_ssa].add(source_edge.parent_ssa)
 
     db_vs_sheet_conflicts: dict[str, dict[str, list[str]]] = {}
     for child in sorted(set(db_parents).intersection(sheet_parents)):
@@ -1047,8 +1072,8 @@ def _analyze_reconciliation(
         }
 
     source_distribution: dict[str, int] = defaultdict(int)
-    for edge in matrix_edges:
-        source_distribution[str(edge.source_flags)] += 1
+    for matrix_edge in matrix_edges:
+        source_distribution[str(matrix_edge.source_flags)] += 1
 
     cycle_nodes = _cycle_nodes_scc(pair_edges)
     return {
@@ -1408,7 +1433,7 @@ def _scan_materialization_integrity(conn: sqlite3.Connection) -> dict[str, Any]:
 
     matrix_rows = conn.execute(
         """
-        SELECT parent_ssa, child_ssa, source_flags
+        SELECT parent_ssa, child_ssa, source_flags, relation_type, relation_raw_label
         FROM ssa_derivada_matrix
         WHERE active = 1
         """
@@ -1459,9 +1484,9 @@ def _scan_materialization_integrity(conn: sqlite3.Connection) -> dict[str, Any]:
     )
 
     nodes_in_matrix: set[str] = set()
-    for parent, child, _flags in matrix_rows:
-        nodes_in_matrix.add(parent)
-        nodes_in_matrix.add(child)
+    for row in matrix_rows:
+        nodes_in_matrix.add(row[0])
+        nodes_in_matrix.add(row[1])
     summary_nodes = {
         row[0]
         for row in conn.execute("SELECT ssa FROM ssa_derivada_summary").fetchall()
@@ -1521,18 +1546,28 @@ def sync_derivadas(
     full_rebuild: bool = False,
     verify_only: bool = False,
     actor: str | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
     """Run a full derivadas sync/validation cycle."""
 
+    # Materializa: iteraveis de uso unico (geradores) esgotariam na primeira
+    # validacao e rejeitariam caminhos autorizados nas seguintes.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     normalized_sheet_files: list[str] = []
     seen_sheet_files: set[str] = set()
     for candidate in [sheet_file] if sheet_file else []:
-        normalized = _normalize_sheet_file_path(candidate)
+        normalized = _normalize_sheet_file_path(
+            candidate, extra_allowed_roots=extra_allowed_roots
+        )
         if normalized and normalized not in seen_sheet_files:
             normalized_sheet_files.append(normalized)
             seen_sheet_files.add(normalized)
     for candidate in sheet_files or []:
-        normalized = _normalize_sheet_file_path(candidate)
+        normalized = _normalize_sheet_file_path(
+            candidate, extra_allowed_roots=extra_allowed_roots
+        )
         if normalized and normalized not in seen_sheet_files:
             normalized_sheet_files.append(normalized)
             seen_sheet_files.add(normalized)
@@ -1550,10 +1585,11 @@ def sync_derivadas(
             db_path,
             purpose="sync derivadas database",
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     )
 
-    with get_db_connection(safe_db_path) as conn:
+    with get_db_connection(safe_db_path, write=True) as conn:
         _configure_derivadas_connection(conn)
         db_source_table_exists = _table_exists(conn, table_name=table_name)
 
@@ -1716,7 +1752,10 @@ def sync_derivadas(
             ]
             edge_fingerprint = _graph_fingerprint(
                 [
-                    (edge.parent_ssa, edge.child_ssa, edge.source_flags)
+                    (
+                        edge.parent_ssa, edge.child_ssa, edge.source_flags,
+                        edge.relation_type, edge.relation_raw_label,
+                    )
                     for edge in active_matrix_edges
                 ]
             )
@@ -1798,10 +1837,83 @@ def sync_derivadas(
             raise
 
 
-def get_sync_stats(db_path: str) -> dict[str, Any]:
+def mark_latest_sync_run_failed(
+    db_path: str,
+    *,
+    message: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+    sync_run_id: int | None = None,
+) -> bool:
+    """Mark the latest derivadas sync run as failed.
+
+    Used when a post-commit validation (evidence check or consistency scan)
+    fails after sync_derivadas already committed the run as 'ok', so that
+    subsequent runs can detect the need to resync. Quando `sync_run_id` e
+    informado, marca exatamente esse run; a selecao pelo mais recente
+    poderia marcar um run concorrente e deixar o run que falhou como 'ok'.
+    """
+
+    try:
+        safe_db_path = str(
+            ensure_path_is_allowed(
+                db_path,
+                purpose="derivadas mark failed database",
+                expect_directory=False,
+                extra_allowed_roots=extra_allowed_roots,
+            )
+        )
+        with get_db_connection(safe_db_path, write=True) as conn:
+            _configure_derivadas_connection(conn)
+            _begin_derivadas_write_transaction(conn)
+            if sync_run_id is not None:
+                cursor = conn.execute(
+                    """
+                    UPDATE ssa_derivada_sync_run
+                    SET status = 'error', message = ?
+                    WHERE sync_run_id = ?
+                    AND status = 'ok'
+                    """,
+                    (str(message)[:512], int(sync_run_id)),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    UPDATE ssa_derivada_sync_run
+                    SET status = 'error', message = ?
+                    WHERE sync_run_id = (
+                        SELECT sync_run_id
+                        FROM ssa_derivada_sync_run
+                        ORDER BY sync_run_id DESC
+                        LIMIT 1
+                    )
+                    AND status = 'ok'
+                    """,
+                    (str(message)[:512],),
+                )
+            conn.commit()
+            return cursor.rowcount > 0
+    except (
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        sqlite3.Error,
+    ) as exc:
+        logger.warning(
+            "Nao foi possivel marcar o run de derivadas como falho: %s", exc
+        )
+        return False
+
+
+def get_sync_stats(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> dict[str, Any]:
     """Return compact stats for matrix, closure, summary and latest sync run."""
 
-    with _open_derivadas_read_connection(db_path) as conn:
+    with _open_derivadas_read_connection(
+        db_path, extra_allowed_roots=extra_allowed_roots
+    ) as conn:
         schema_readiness = scan_derivadas_read_schema_readiness(conn)
         if not schema_readiness["is_ready"]:
             return {
@@ -1916,13 +2028,18 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
         }
 
 
-def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
+def scan_derivadas_consistency(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> dict[str, Any]:
     """Independent low-cost consistency scan for derivadas materialization.
 
     This scan does not read source spreadsheets and does not modify data.
     """
 
-    with _open_derivadas_read_connection(db_path) as conn:
+    with _open_derivadas_read_connection(
+        db_path, extra_allowed_roots=extra_allowed_roots
+    ) as conn:
         schema_readiness = scan_derivadas_read_schema_readiness(conn)
         if not schema_readiness["is_ready"]:
             return {
@@ -1969,9 +2086,6 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
             """
         ).fetchone()
 
-        edge_fingerprint = _graph_fingerprint(
-            [(row[0], row[1], int(row[2])) for row in matrix_rows]
-        )
         latest_fingerprint: str | None = None
         if latest:
             latest_fingerprint = latest[4]
@@ -1985,6 +2099,10 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
                     )
                     payload = {}
                 latest_fingerprint = payload.get("graph_fingerprint")
+        edge_fingerprint = _graph_fingerprint(
+            [(row[0], row[1], int(row[2]), int(row[3]), row[4]) for row in matrix_rows],
+            legacy=bool(latest_fingerprint and not latest_fingerprint.startswith("v2:")),
+        )
         fingerprint_mismatch = (
             int(bool(latest_fingerprint and latest_fingerprint != edge_fingerprint))
             if latest
@@ -2036,10 +2154,16 @@ def self_heal_derivadas(
     full_rebuild: bool = False,
     force: bool = False,
     actor: str | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
     """Attempt self-healing by running sync only when scan indicates issues."""
 
-    before = scan_derivadas_consistency(db_path)
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
+    before = scan_derivadas_consistency(
+        db_path, extra_allowed_roots=extra_allowed_roots
+    )
     if before["is_consistent"] and not force:
         return {"healed": False, "reason": "already_consistent", "before": before}
 
@@ -2055,8 +2179,11 @@ def self_heal_derivadas(
         full_rebuild=full_rebuild,
         verify_only=False,
         actor=actor,
+        extra_allowed_roots=extra_allowed_roots,
     )
-    after = scan_derivadas_consistency(db_path)
+    after = scan_derivadas_consistency(
+        db_path, extra_allowed_roots=extra_allowed_roots
+    )
     return {
         "healed": True,
         "before": before,
@@ -2073,11 +2200,17 @@ def run_derivadas_maintenance(
     auto_heal: bool = True,
     full_rebuild: bool = False,
     actor: str | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
     """Background-friendly maintenance trigger with interval guard."""
 
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     try:
-        with _open_derivadas_read_connection(db_path) as conn:
+        with _open_derivadas_read_connection(
+            db_path, extra_allowed_roots=extra_allowed_roots
+        ) as conn:
             schema_readiness = scan_derivadas_read_schema_readiness(conn)
             latest = (
                 conn.execute(
@@ -2116,7 +2249,9 @@ def run_derivadas_maintenance(
             }
 
     try:
-        scan_report = scan_derivadas_consistency(db_path)
+        scan_report = scan_derivadas_consistency(
+            db_path, extra_allowed_roots=extra_allowed_roots
+        )
     except sqlite3.OperationalError as exc:
         if _is_sqlite_locked_error(exc):
             return {
@@ -2157,6 +2292,7 @@ def run_derivadas_maintenance(
             table_name=table_name,
             full_rebuild=full_rebuild,
             actor=actor or "maintenance",
+            extra_allowed_roots=extra_allowed_roots,
         )
     except sqlite3.OperationalError as exc:
         if _is_sqlite_locked_error(exc):
@@ -2175,33 +2311,171 @@ def run_derivadas_maintenance(
     }
 
 
-def export_reconciliation_csv(report: dict[str, Any], output_file: str) -> None:
-    """Export a lightweight reconciliation report (single-row csv)."""
+def validate_report_output_paths(
+    output_files: Iterable[str],
+    *,
+    protected_paths: Iterable[str] = (),
+    overwrite: bool = True,
+) -> None:
+    """Recusa destinos repetidos, fontes protegidas e substituicoes nao autorizadas."""
+    occupied = [Path(path).expanduser().resolve() for path in protected_paths]
+    for output_file in output_files:
+        if not str(output_file).strip():
+            raise ValueError("O destino do relatorio esta vazio.")
+        target = Path(output_file).expanduser().resolve()
+        if not target.parent.is_dir():
+            raise ValueError(f"A pasta de destino nao existe: {target.parent}")
+        if target.exists() and not target.is_file():
+            raise ValueError(f"O destino precisa ser um arquivo: {target}")
+        for other in occupied:
+            if target == other or (
+                target.exists() and other.exists() and target.samefile(other)
+            ):
+                raise ValueError(f"Destino repetido ou protegido: {target}")
+        if target.exists() and not overwrite:
+            raise FileExistsError(f"O relatorio ja existe: {target}")
+        occupied.append(target)
 
-    reconciliation = dict(report.get("reconciliation") or {})
-    row = {
-        "timestamp": report.get("timestamp"),
-        "mode": report.get("mode"),
-        "verify_only": report.get("verify_only"),
-        "source_edges": (report.get("merge_stats") or {}).get("source_edges", 0),
-        "merged_edges": (report.get("merge_stats") or {}).get("merged_edges", 0),
-        "multiparent_children_count": reconciliation.get(
-            "multiparent_children_count", 0
-        ),
-        "orphan_parents_count": reconciliation.get("orphan_parents_count", 0),
-        "orphan_children_count": reconciliation.get("orphan_children_count", 0),
-        "db_vs_sheet_conflict_count": reconciliation.get(
-            "db_vs_sheet_conflict_count", 0
-        ),
-        "cycle_node_count": reconciliation.get("cycle_node_count", 0),
-    }
-    fieldnames = list(row.keys())
-    with open(output_file, "w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+
+@contextmanager
+def _report_output(
+    output_file: str, *, overwrite: bool, protected_paths: Iterable[str]
+) -> Iterator[IO[str]]:
+    protected = tuple(protected_paths)
+    validate_report_output_paths(
+        [output_file], protected_paths=protected, overwrite=overwrite
+    )
+    target = Path(output_file).expanduser().resolve()
+    temporary = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        newline="",
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+        delete=False,
+    )
+    try:
+        with temporary as stream:
+            yield stream.file
+            stream.flush()
+            os.fsync(stream.fileno())
+        validate_report_output_paths(
+            [output_file], protected_paths=protected, overwrite=overwrite
+        )
+        if overwrite:
+            os.replace(temporary.name, target)
+        else:
+            os.link(temporary.name, target)
+    finally:
+        if os.path.exists(temporary.name):
+            try:
+                os.unlink(temporary.name)
+            except OSError as exc:
+                logger.warning(
+                    "Falha ao remover temporario de relatorio %s: %s",
+                    temporary.name,
+                    exc,
+                )
+
+
+def _export_reconciliation(
+    report: dict[str, Any],
+    output_file: str,
+    *,
+    delimiter: str,
+    overwrite: bool,
+    protected_paths: Iterable[str],
+) -> None:
+    phases = report.get("phase_reports")
+    reports = (
+        phases
+        if phases is not None
+        else [report.get("heal", report).get("sync", report)]
+    )
+    rows = []
+    for item in reports:
+        if "reconciliation" not in item:
+            reason = report.get("reason") or report.get("heal", {}).get("reason")
+            raise ValueError(
+                "Nao houve reconciliacao nesta operacao; CSV/TSV nao disponivel"
+                f"{f' ({reason})' if reason else ''}. O JSON preserva o resultado completo."
+            )
+        reconciliation = item["reconciliation"]
+        row = {
+            "timestamp": item.get("timestamp"),
+            "mode": item.get("mode"),
+            "verify_only": item.get("verify_only"),
+            "source_edges": (item.get("merge_stats") or {}).get("source_edges", 0),
+            "merged_edges": (item.get("merge_stats") or {}).get("merged_edges", 0),
+            "multiparent_children_count": reconciliation.get(
+                "multiparent_children_count", 0
+            ),
+            "orphan_parents_count": reconciliation.get("orphan_parents_count", 0),
+            "orphan_children_count": reconciliation.get("orphan_children_count", 0),
+            "db_vs_sheet_conflict_count": reconciliation.get(
+                "db_vs_sheet_conflict_count", 0
+            ),
+            "cycle_node_count": reconciliation.get("cycle_node_count", 0),
+        }
+        if phases is not None:
+            row = {"phase": item.get("phase"), **row}
+        rows.append(row)
+    if not rows:
+        raise ValueError(
+            "Nao houve reconciliacao nesta operacao; use o relatorio JSON."
+        )
+    with _report_output(
+        output_file, overwrite=overwrite, protected_paths=protected_paths
+    ) as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), delimiter=delimiter)
         writer.writeheader()
-        writer.writerow(row)
+        writer.writerows(rows)
 
 
-def export_report_json(report: dict[str, Any], output_file: str) -> None:
-    with open(output_file, "w", encoding="utf-8") as fh:
-        json.dump(report, fh, ensure_ascii=False, indent=2)
+def export_reconciliation_csv(
+    report: dict[str, Any],
+    output_file: str,
+    *,
+    overwrite: bool = True,
+    protected_paths: Iterable[str] = (),
+) -> None:
+    """Grava reconciliacao CSV; aceita sync, heal, maintenance ou fases da GUI."""
+    _export_reconciliation(
+        report,
+        output_file,
+        delimiter=",",
+        overwrite=overwrite,
+        protected_paths=protected_paths,
+    )
+
+
+def export_reconciliation_tsv(
+    report: dict[str, Any],
+    output_file: str,
+    *,
+    overwrite: bool = True,
+    protected_paths: Iterable[str] = (),
+) -> None:
+    """Grava as mesmas colunas do CSV, separadas por tabulacao."""
+    _export_reconciliation(
+        report,
+        output_file,
+        delimiter="\t",
+        overwrite=overwrite,
+        protected_paths=protected_paths,
+    )
+
+
+def export_report_json(
+    report: dict[str, Any],
+    output_file: str,
+    *,
+    overwrite: bool = True,
+    protected_paths: Iterable[str] = (),
+) -> None:
+    """Grava o resultado completo, incluindo operacoes sem reconciliacao."""
+    with _report_output(
+        output_file, overwrite=overwrite, protected_paths=protected_paths
+    ) as stream:
+        json.dump(report, stream, ensure_ascii=False, indent=2)

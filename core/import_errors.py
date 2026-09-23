@@ -23,6 +23,14 @@ class DatabaseError(ImporterError):
     """Database operation error."""
 
 
+class ImportMetricsContractError(DatabaseError):
+    """Successful database write omitted mandatory import metrics."""
+
+    def __init__(self, message: str, *, record_count: int):
+        super().__init__(message)
+        self.record_count = int(record_count)
+
+
 class DatabaseConnectionError(DatabaseError):
     """Database connection error."""
 

@@ -4,6 +4,7 @@ Debug: Por que CLI está mostrando "-" no lugar dos números SSA?
 """
 
 import sqlite3
+from contextlib import closing
 
 import pandas as pd
 
@@ -16,7 +17,7 @@ def debug_ssa_formatting():
     # 1. Verificar dados no banco
     db_path = "data/ssas.db"
 
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         # Consulta exata que a CLI faz
         query = """
         SELECT

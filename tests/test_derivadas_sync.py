@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import os
 import sqlite3
 import threading
@@ -46,6 +47,7 @@ def test_sync_from_db_materializes_matrix_closure_summary(temp_db):
     assert report["closure_rows"] == 4
     assert report["summary_rows"] == 4
     assert report["reconciliation"]["db_vs_sheet_conflict_count"] == 0
+    assert report["reconciliation"]["source_distribution"] == {"1": 3}
 
     with sqlite3.connect(temp_db) as conn:
         matrix_active = conn.execute(
@@ -84,6 +86,23 @@ def test_sync_persists_actor_in_sync_run(temp_db):
         ).fetchone()[0]
 
     assert actor == "test-actor"
+
+
+def test_consistency_preserves_legacy_fingerprint_until_next_sync(temp_db):
+    _insert_ssa_rows(temp_db, [("202500001", None), ("202500002", "202500001")])
+    sync_derivadas(temp_db)
+    legacy = hashlib.sha256(b"202500001->202500002:1;").hexdigest()
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute("UPDATE ssa_derivada_sync_run SET graph_fingerprint = ?", (legacy,))
+
+    scan = derivadas_sync.scan_derivadas_consistency(temp_db)
+    assert scan["is_consistent"]
+    assert scan["graph_fingerprint"] == legacy
+
+    sync_derivadas(temp_db)
+    updated = derivadas_sync.scan_derivadas_consistency(temp_db)
+    assert updated["is_consistent"]
+    assert updated["graph_fingerprint"].startswith("v2:")
 
 
 def test_sync_validates_database_path_before_open(temp_db, monkeypatch):
@@ -733,6 +752,28 @@ def test_schema_migration_handles_legacy_matrix_without_active_column(temp_db):
     assert row == (0, "Derivada da", 1)
 
 
+def test_derivadas_xlsx_limit_rejects_before_excel_open(tmp_path, monkeypatch):
+    from extracao.extractor import ExtractionError
+
+    source = tmp_path / "large.xlsx"
+    source.write_bytes(b"12345")
+    excel_opened = False
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    def _unexpected_excel_file(*_args, **_kwargs):
+        nonlocal excel_opened
+        excel_opened = True
+        raise AssertionError("ExcelFile must not run")
+
+    monkeypatch.setattr(derivadas_sync.pd, "ExcelFile", _unexpected_excel_file)
+
+    with pytest.raises(ValueError, match="excede o limite") as exc_info:
+        derivadas_sync._load_excel_frames(str(source))
+
+    assert isinstance(exc_info.value.__cause__, ExtractionError)
+    assert excel_opened is False
+
+
 def test_sync_succeeds_after_short_write_lock_contention(temp_db):
     _insert_ssa_rows(
         temp_db,
@@ -846,7 +887,7 @@ def test_sync_validates_sheet_file_path_before_read(temp_db, tmp_path: Path, mon
     sheet_file = tmp_path / "blocked_derivadas.csv"
     sheet_file.write_text("parent_ssa,child_ssa\n202500001,202500002\n", encoding="utf-8")
 
-    def _guard_path(path, *, purpose, expect_directory):
+    def _guard_path(path, *, purpose, expect_directory, **_kwargs):
         assert expect_directory is False
         if "sheet file" in purpose:
             raise PathSafetyError("blocked derivadas sheet")
@@ -882,7 +923,7 @@ def test_sync_validates_sheet_files_paths_before_read(temp_db, tmp_path: Path, m
             encoding="utf-8",
         )
 
-    def _guard_path(path, *, purpose, expect_directory):
+    def _guard_path(path, *, purpose, expect_directory, **_kwargs):
         assert expect_directory is False
         if "sheet file" in purpose and Path(path).name == blocked.name:
             raise PathSafetyError("blocked derivadas sheet list")
@@ -1118,3 +1159,108 @@ def test_sync_aborts_when_integrity_check_fails(temp_db, monkeypatch):
 
     assert matrix_total == 0
     assert latest_run == ("error", 0)
+
+
+def _restrict_allowed_roots(monkeypatch, roots: list) -> None:
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", [Path(root) for root in roots]
+    )
+
+
+def test_sync_derivadas_external_db_requires_explicit_root(
+    temp_db, monkeypatch, tmp_path: Path
+):
+    project_only = tmp_path / "project_root"
+    project_only.mkdir()
+    _restrict_allowed_roots(monkeypatch, [project_only])
+
+    with pytest.raises(PathSafetyError):
+        sync_derivadas(temp_db)
+
+    report = sync_derivadas(
+        temp_db,
+        extra_allowed_roots=[str(Path(temp_db).resolve().parent)],
+    )
+    assert report["active_edges"] == 0
+
+
+def test_scan_and_stats_external_db_respect_extra_roots(
+    temp_db, monkeypatch, tmp_path: Path
+):
+    project_only = tmp_path / "project_root"
+    project_only.mkdir()
+    _restrict_allowed_roots(monkeypatch, [project_only])
+    db_parent = str(Path(temp_db).resolve().parent)
+
+    with pytest.raises(PathSafetyError):
+        derivadas_sync.scan_derivadas_consistency(temp_db)
+    with pytest.raises(PathSafetyError):
+        get_sync_stats(temp_db)
+
+    scan = derivadas_sync.scan_derivadas_consistency(
+        temp_db, extra_allowed_roots=[db_parent]
+    )
+    stats = get_sync_stats(temp_db, extra_allowed_roots=[db_parent])
+    assert "is_consistent" in scan
+    assert "matrix_total" in stats
+
+
+def test_self_heal_and_maintenance_propagate_extra_roots(
+    temp_db, monkeypatch, tmp_path: Path
+):
+    project_only = tmp_path / "project_root"
+    project_only.mkdir()
+    _restrict_allowed_roots(monkeypatch, [project_only])
+    db_parent = str(Path(temp_db).resolve().parent)
+
+    with pytest.raises(PathSafetyError):
+        derivadas_sync.self_heal_derivadas(temp_db, force=True)
+    healed = derivadas_sync.self_heal_derivadas(
+        temp_db, force=True, extra_allowed_roots=[db_parent]
+    )
+    assert healed["healed"] is True
+
+    with pytest.raises(PathSafetyError):
+        derivadas_sync.run_derivadas_maintenance(temp_db)
+    result = derivadas_sync.run_derivadas_maintenance(
+        temp_db,
+        min_interval_seconds=0,
+        extra_allowed_roots=[db_parent],
+    )
+    assert "ran" in result
+
+
+def test_sync_derivadas_sheet_file_respects_extra_roots(
+    temp_db, monkeypatch, tmp_path: Path
+):
+    sheets_dir = tmp_path / "external_sheets"
+    sheets_dir.mkdir()
+    sheet_file = sheets_dir / "derivadas.csv"
+    with sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"]
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "parent_ssa": "202500001",
+                "child_ssa": "202500002",
+                "relation_label": "Derivada da",
+            }
+        )
+
+    _restrict_allowed_roots(
+        monkeypatch, [Path(temp_db).resolve().parent]
+    )
+
+    with pytest.raises(PathSafetyError, match="sheet file"):
+        sync_derivadas(temp_db, sheet_file=str(sheet_file))
+
+    report = sync_derivadas(
+        temp_db,
+        sheet_file=str(sheet_file),
+        extra_allowed_roots=[str(sheets_dir)],
+    )
+    assert report["sheet_stats"]["accepted_edges"] == 1

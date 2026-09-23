@@ -48,7 +48,9 @@ def make_exe():
     )
 
     exe.add_python_resources(
-        exe.pip_install(["pandas", "openpyxl", "PyQt6", "numpy", "tabulate"])
+        exe.pip_install(
+            ["pandas", "openpyxl", "PyQt6", "numpy", "tabulate", "filelock"]
+        )
     )
     exe.add_python_resources(
         exe.read_package_root(

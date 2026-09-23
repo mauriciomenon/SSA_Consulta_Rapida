@@ -2,8 +2,10 @@
 # Worker thread for database rescanning
 
 import logging
-import sys
+import sqlite3
 import threading
+from dataclasses import replace
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Sequence, TypedDict, cast
@@ -50,15 +52,6 @@ except Exception:
     QThread = cast(Any, _FallbackQThread)
 
 
-# Add project root to path for imports
-def _get_project_root() -> str:
-    return str(Path(__file__).resolve().parents[2])
-
-
-project_root = _get_project_root()
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 from utils.path_safety import ensure_path_is_allowed  # noqa: E402
 from utils.robust_logging import get_robust_logger  # noqa: E402
 
@@ -81,6 +74,12 @@ def stage_external_import_files(*args, **kwargs):
     from core.import_staging import stage_external_import_files as staging_impl
 
     return staging_impl(*args, **kwargs)
+
+
+def count_table_rows(db_path: str, table_name: str) -> int:
+    from armazenamento.database import count_table_rows as count_impl
+
+    return count_impl(db_path, table_name)
 
 
 class _LoggerAttachmentManager:
@@ -166,6 +165,7 @@ class RescanWorker(QThread):
     output_line = pyqtSignal(str)
     error_line = pyqtSignal(str)
     progress = pyqtSignal(int, str)  # percentage, message
+    batch_completed = pyqtSignal(int, int)  # current batch, total batches
     finished_success = pyqtSignal()
     finished_error = pyqtSignal(str)
 
@@ -201,7 +201,19 @@ class RescanWorker(QThread):
         self._last_processed_files = 0
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
+        self._last_import_outcome = None
+        self.integrity_warnings: list[str] = []
         self._last_runtime_error_detail = ""
+        self._batch_file_offset = 0
+        self._batch_index = 1
+        self._batch_total = 1
+        self._overall_total_files = 0
+        self._last_ssa_inserted = 0
+        self._last_ssa_updated = 0
+        self._batch_ssa_inserted = 0
+        self._batch_ssa_updated = 0
+        self._database_rows_before: int | None = 0
+        self._database_rows_after: int | None = 0
         self.last_outcome = RescanOutcome.NO_CHANGES
 
         # Set up logging to capture import messages
@@ -245,45 +257,93 @@ class RescanWorker(QThread):
 
         if event_type == "start":
             total = data.get("total", 0)
-            self._last_total_files = int(total)
-            self._last_processed_files = 0
-            self.output_line.emit(f"Total de {total} arquivos para processar")
-            self.progress.emit(10, "Iniciando processamento...")
+            overall_total = self._overall_total_files or int(total)
+            self._last_total_files = overall_total
+            if self._batch_file_offset == 0:
+                self._last_processed_files = 0
+                self.output_line.emit(
+                    f"Total de {overall_total} arquivos para processar"
+                )
+            percentage = int(
+                10 + (self._batch_file_offset / max(overall_total, 1) * 70)
+            )
+            self.progress.emit(
+                percentage,
+                f"[{datetime.now():%H:%M:%S}] Iniciando processamento...",
+            )
 
         elif event_type == "file_start":
             filename = data.get("filename", "")
             current = data.get("current", 0)
             total = data.get("total", 1)
-            percentage = int(10 + (current / total * 70))  # 10% to 80%
-            self.output_line.emit(f"[{current}/{total}] Processando: {filename}")
-            self.progress.emit(percentage, f"Arquivo {current}/{total}")
+            overall_total = self._overall_total_files or int(total)
+            overall_current = self._batch_file_offset + int(current)
+            percentage = int(
+                10 + (overall_current / max(overall_total, 1) * 70)
+            )
+            self.output_line.emit(
+                f"[{overall_current}/{overall_total}] Processando: {filename}"
+            )
+            self.progress.emit(
+                percentage, f"Arquivo {overall_current}/{overall_total}"
+            )
 
         elif event_type == "file_success":
             filename = data.get("filename", "")
             records = data.get("records", 0)
-            self.output_line.emit(f"[OK] {filename}: {records} registros")
+            ssa_inserted = int(data.get("ssa_inserted", 0) or 0)
+            ssa_updated = int(data.get("ssa_updated", 0) or 0)
+            self._last_ssa_inserted += ssa_inserted
+            self._last_ssa_updated += ssa_updated
+            self._batch_ssa_inserted += ssa_inserted
+            self._batch_ssa_updated += ssa_updated
+            suffix = (
+                f" | {ssa_updated} SSAs atualizadas" if ssa_updated > 0 else ""
+            )
+            self.output_line.emit(
+                f"[OK] {filename}: {records} registros{suffix}"
+            )
 
         elif event_type == "file_error":
             filename = data.get("filename", "")
             error = data.get("error", "Unknown error")
-            self._mark_runtime_error()
-            self._remember_runtime_error(filename, error)
-            self.error_line.emit(f"[ERRO] {filename}: {error}")
+            deterministic = bool(data.get("deterministic")) or (
+                data.get("error_code")
+                in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"}
+            )
+            if deterministic:
+                self.error_line.emit(f"[AVISO] {filename}: {error}")
+            else:
+                self._mark_runtime_error()
+                self._remember_runtime_error(filename, error)
+                self.error_line.emit(f"[ERRO] {filename}: {error}")
 
         elif event_type == "finish":
             total = data.get("total", 0)
             processed = data.get("processed", 0)
             errors = data.get("errors", [])
-            self._last_total_files = int(total)
-            self._last_processed_files = int(processed)
+            if self._batch_total > 1:
+                self._last_total_files = self._overall_total_files
+                self._last_processed_files += int(processed)
+            else:
+                self._last_total_files = int(total)
+                self._last_processed_files = int(processed)
             self._last_deterministic_failure_count = int(
                 data.get("deterministic_failure_count", 0)
             )
             self._last_rejection_only = bool(data.get("rejection_only", False))
             self.output_line.emit("")
-            self.output_line.emit(
-                f"Processamento concluido: {processed}/{total} arquivos"
-            )
+            if self._batch_total > 1 or self.explicit_files or self.source_files:
+                self.output_line.emit(
+                    f"Bloco {self._batch_index}/{self._batch_total} concluido: "
+                    f"{processed}/{total} arquivos | "
+                    f"{self._batch_ssa_updated} SSAs atualizadas | "
+                    f"{self._batch_ssa_inserted} SSAs novas"
+                )
+            else:
+                self.output_line.emit(
+                    f"Processamento concluido: {processed}/{total} arquivos"
+                )
             if errors:
                 self.output_line.emit(f"Erros: {len(errors)} arquivos falharam")
                 if not self._last_runtime_error_detail:
@@ -292,7 +352,13 @@ class RescanWorker(QThread):
                         self._remember_runtime_error(first_error[1], first_error[2])
                     else:
                         self._remember_runtime_error("", first_error)
-            self.progress.emit(90, "Finalizando...")
+            completed = self._batch_file_offset + int(total)
+            percentage = (
+                int(10 + (completed / max(self._overall_total_files, 1) * 70))
+                if self._batch_total > 1
+                else 90
+            )
+            self.progress.emit(percentage, "Finalizando...")
 
     def _reset_run_state(self) -> None:
         self.last_outcome = RescanOutcome.NO_CHANGES
@@ -301,7 +367,19 @@ class RescanWorker(QThread):
         self._last_processed_files = 0
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
+        self._last_import_outcome = None
+        self.integrity_warnings = []
         self._last_runtime_error_detail = ""
+        self._batch_file_offset = 0
+        self._batch_index = 1
+        self._batch_total = 1
+        self._overall_total_files = 0
+        self._last_ssa_inserted = 0
+        self._last_ssa_updated = 0
+        self._batch_ssa_inserted = 0
+        self._batch_ssa_updated = 0
+        self._database_rows_before = 0
+        self._database_rows_after = 0
 
     def _resolve_source_files(self) -> tuple[str, ...] | None:
         if not self.source_files:
@@ -342,9 +420,23 @@ class RescanWorker(QThread):
         self._resolve_explicit_files()
         resolved_sources = self._resolve_source_files()
         if resolved_sources:
+            overall_total = self._overall_total_files or len(resolved_sources)
+            stage_start = self._batch_file_offset + 1
+            stage_end = self._batch_file_offset + len(resolved_sources)
+            self.output_line.emit(
+                f"[{datetime.now():%H:%M:%S}] Etapa: preparando ciclo "
+                f"{self._batch_index}/{self._batch_total} "
+                f"({stage_start}-{stage_end}/{overall_total})"
+            )
+            self.progress.emit(
+                int(10 + (self._batch_file_offset / max(overall_total, 1) * 70)),
+                f"Preparando arquivos {self._batch_file_offset}/{overall_total}",
+            )
             staged_files, summary = stage_external_import_files(
                 project_root=self.project_root,
                 source_files=resolved_sources,
+                progress_offset=self._batch_file_offset,
+                progress_total=overall_total,
                 should_cancel=lambda: self._should_stop,
                 output_callback=self.output_line.emit,
                 error_callback=self.error_line.emit,
@@ -358,7 +450,7 @@ class RescanWorker(QThread):
             if summary["failed"] > 0:
                 self.last_outcome = RescanOutcome.ERROR
                 self.finished_error.emit(
-                    "Importacao externa sem arquivos validos apos staging"
+                    "Importacao sem arquivos validos apos staging"
                 )
             else:
                 self.last_outcome = RescanOutcome.NO_CHANGES
@@ -367,6 +459,9 @@ class RescanWorker(QThread):
         return True, summary
 
     def _run_import_operation(self) -> bool:
+        from core import import_outcome
+
+        self._last_import_outcome = None
         project_root_path = Path(self.project_root).expanduser().resolve()
         docs_dir = str(project_root_path / "docs_entrada")
         data_dir = str(project_root_path / "data")
@@ -379,17 +474,139 @@ class RescanWorker(QThread):
             db_parent = str(db_path.parent)
             if db_parent not in extra_allowed_roots:
                 extra_allowed_roots.append(db_parent)
-        return run_importer_logic(
-            docs_dir=docs_dir,
-            data_dir=data_dir,
-            db_name=db_name,
-            table_name="ssa_table",
-            force_import=self.force_import,
-            explicit_files=self.explicit_files,
-            extra_allowed_roots=tuple(extra_allowed_roots),
-            should_cancel=lambda: self._should_stop,
-            progress_callback=self._progress_callback,
+        outcome_before = import_outcome.get_last_import_outcome()
+        try:
+            return run_importer_logic(
+                docs_dir=docs_dir,
+                data_dir=data_dir,
+                db_name=db_name,
+                table_name="ssa_table",
+                force_import=self.force_import,
+                explicit_files=self.explicit_files,
+                extra_allowed_roots=tuple(extra_allowed_roots),
+                should_cancel=lambda: self._should_stop,
+                progress_callback=self._progress_callback,
+            )
+        finally:
+            outcome_after = import_outcome.get_last_import_outcome()
+            self._last_import_outcome = (
+                outcome_after if outcome_after is not outcome_before else None
+            )
+            outcome = self._last_import_outcome
+            if outcome is not None and not import_outcome.is_blocking_status(outcome.status):
+                report = outcome.integrity_report
+                details = list(report.get("warnings") or [])
+                if report.get("data_consistent") is False:
+                    details.extend(report.get("issues") or [
+                        "Inconsistencias de dados permanecem no banco."
+                    ])
+                for detail in details:
+                    text = str(detail).strip()
+                    if text and text not in self.integrity_warnings:
+                        self.integrity_warnings.append(text)
+
+    def _count_database_rows(self) -> int | None:
+        db_path = self.db_path or str(
+            Path(self.project_root).expanduser().resolve() / "data" / "ssas.db"
         )
+        if not Path(db_path).exists():
+            return 0
+        try:
+            return count_table_rows(db_path, "ssa_table")
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            self.logger.warning(
+                "Falha ao contar SSAs no banco '%s': %s",
+                db_path,
+                exc,
+            )
+            return None
+
+    def _run_explicit_import_batches(self) -> bool | None:
+        from core import import_outcome
+        from extracao.extractor import MAX_IMPORT_BATCH_FILES
+
+        source_mode = bool(self.source_files)
+        work_items = tuple(self.source_files or self.explicit_files or ())
+        self._overall_total_files = len(work_items)
+        self._batch_total = max(
+            1,
+            (len(work_items) + MAX_IMPORT_BATCH_FILES - 1)
+            // MAX_IMPORT_BATCH_FILES,
+        )
+        self.output_line.emit(
+            f"[{datetime.now():%H:%M:%S}] Importacao: "
+            f"{self._overall_total_files} arquivos selecionados; "
+            f"serao processados em {self._batch_total} ciclos de ate "
+            f"{MAX_IMPORT_BATCH_FILES} arquivos."
+        )
+        self.progress.emit(
+            5,
+            f"Preparando importacao: 0/{self._overall_total_files} arquivos",
+        )
+        self._database_rows_before = self._count_database_rows()
+        self._database_rows_after = self._database_rows_before
+        any_success = False
+        aggregate_outcome = None
+        had_runtime_failure = False
+        had_rejection_only = False
+        initial_force_import = self.force_import
+
+        try:
+            for batch_index, start in enumerate(
+                range(0, len(work_items), MAX_IMPORT_BATCH_FILES),
+                start=1,
+            ):
+                batch = work_items[start : start + MAX_IMPORT_BATCH_FILES]
+                self._batch_index = batch_index
+                self._batch_file_offset = start
+                self._batch_ssa_inserted = 0
+                self._batch_ssa_updated = 0
+                # Importacao explicita/batched nunca usa o modo full-rescan:
+                # um candidato construido so com os arquivos do batch seria
+                # promovido sobre o primario e perderia as linhas restantes.
+                self.force_import = False
+                if source_mode:
+                    self.source_files = batch
+                    self.explicit_files = None
+                else:
+                    self.source_files = None
+                    self.explicit_files = batch
+
+                should_continue, _summary = self._prepare_import_inputs()
+                if not should_continue:
+                    return None
+                try:
+                    batch_success = self._run_import_operation()
+                finally:
+                    batch_outcome = self._last_import_outcome
+                    if batch_outcome is not None:
+                        changed = batch_outcome.primary_database_changed or bool(
+                            aggregate_outcome and aggregate_outcome.primary_database_changed
+                        )
+                        if aggregate_outcome is None or not import_outcome.is_blocking_status(
+                            aggregate_outcome.status
+                        ):
+                            aggregate_outcome = batch_outcome
+                        aggregate_outcome = replace(
+                            aggregate_outcome, primary_database_changed=changed
+                        )
+                        had_runtime_failure = (
+                            had_runtime_failure
+                            or import_outcome.is_blocking_status(batch_outcome.status)
+                        )
+                any_success = batch_success or any_success
+                had_runtime_failure = had_runtime_failure or self._has_runtime_errors
+                had_rejection_only = had_rejection_only or self._last_rejection_only
+                if self._should_stop:
+                    return any_success
+                self._database_rows_after = self._count_database_rows()
+                self.batch_completed.emit(batch_index, self._batch_total)
+        finally:
+            self.force_import = initial_force_import
+            self._last_import_outcome = aggregate_outcome
+
+        self._last_rejection_only = had_rejection_only and not had_runtime_failure
+        return False if had_runtime_failure else any_success
 
     def _run_consolidation_operation(self) -> bool:
         result = consolidate_input_files(
@@ -410,6 +627,11 @@ class RescanWorker(QThread):
         self, outcome: RescanOutcome, banner: str, message: str
     ) -> None:
         self.last_outcome = outcome
+        if self.integrity_warnings:
+            banner = "=== Operacao Concluida com Ressalvas ==="
+            message = "Concluido com ressalvas de integridade. Veja os avisos."
+            for warning in self.integrity_warnings:
+                self.error_line.emit(f"[AVISO] {warning}")
         self.progress.emit(100, message)
         self.output_line.emit("")
         self.output_line.emit(banner)
@@ -429,11 +651,13 @@ class RescanWorker(QThread):
             if self.operation_kind == "consolidate":
                 mode_label = "CONSOLIDATE"
             elif self.explicit_files or self.source_files:
-                mode_label = "EXPLICITA"
+                mode_label = ""
             else:
                 mode_label = "FULL" if self.force_import else "DIFF"
+            mode_suffix = f" ({mode_label})" if mode_label else ""
             self.output_line.emit(
-                f"=== Iniciando {self.operation_label} ({mode_label}) ==="
+                f"[{datetime.now():%H:%M:%S}] === Iniciando "
+                f"{self.operation_label}{mode_suffix} ==="
             )
             self.output_line.emit("")
             self.progress.emit(5, "Configurando...")
@@ -460,22 +684,76 @@ class RescanWorker(QThread):
                     )
                 return
 
-            should_continue, _summary = self._prepare_import_inputs()
-            if not should_continue:
-                return
-
-            success = self._run_import_operation()
+            if self.explicit_files or self.source_files:
+                batch_success = self._run_explicit_import_batches()
+                if batch_success is None:
+                    return
+                if self._should_stop:
+                    self.last_outcome = RescanOutcome.CANCELLED
+                    self.finished_error.emit("Processo cancelado pelo usuario")
+                    return
+                success = batch_success
+                new_ssas = self._last_ssa_inserted
+                self.output_line.emit("")
+                if (
+                    self._database_rows_before is not None
+                    and self._database_rows_after is not None
+                ):
+                    database_summary = (
+                        f"{self._database_rows_before} -> "
+                        f"{self._database_rows_after} SSAs no total"
+                    )
+                else:
+                    database_summary = "contagem total indisponivel"
+                self.output_line.emit(
+                    f"Banco de dados: {database_summary}; "
+                    f"{self._last_ssa_updated} SSAs atualizadas; "
+                    f"{new_ssas} SSAs novas."
+                )
+            else:
+                should_continue, _summary = self._prepare_import_inputs()
+                if not should_continue:
+                    return
+                success = self._run_import_operation()
 
             if self._should_stop:
                 self.last_outcome = RescanOutcome.CANCELLED
                 self.finished_error.emit("Processo cancelado pelo usuario")
                 return
 
-            if success:
+            outcome = self._last_import_outcome
+            outcome_status = getattr(outcome, "status", None)
+            from core import import_outcome
+
+            if outcome is not None and import_outcome.is_blocking_status(outcome_status):
+                self.last_outcome = (
+                    RescanOutcome.UPDATED
+                    if outcome.primary_database_changed
+                    else RescanOutcome.ERROR
+                )
+                self.progress.emit(100, "Importacao encerrada com erro")
+                self.finished_error.emit(
+                    f"Importacao bloqueada ({outcome.status.value}): {outcome.reason}. "
+                    + (
+                        "O banco recebeu alteracoes parciais."
+                        if outcome.primary_database_changed
+                        else "O banco nao foi alterado."
+                    )
+                )
+                return
+
+            if success or (outcome is not None and outcome.primary_database_changed):
+                database_changed_raw = getattr(
+                    outcome, "primary_database_changed", None
+                )
+                if database_changed_raw is None:
+                    database_changed = self._last_processed_files > 0
+                else:
+                    database_changed = database_changed_raw
                 self._finish_success(
                     (
                         RescanOutcome.UPDATED
-                        if self._last_processed_files > 0
+                        if database_changed
                         else RescanOutcome.NO_CHANGES
                     ),
                     "=== Operacao Concluida ===",

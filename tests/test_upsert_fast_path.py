@@ -197,6 +197,128 @@ def test_perform_upsert_falls_back_when_target_has_existing_ssa(
     assert "Fast-path append" not in caplog.text
 
 
+def test_perform_upsert_reports_unique_inserted_and_updated_ssas() -> None:
+    conn = sqlite3.connect(":memory:")
+    _create_test_table(conn)
+    conn.execute(
+        "INSERT INTO ssa_table (numero_ssa, descricao_ssa, data_cadastro, semana_programada) VALUES (?, ?, ?, ?)",
+        ("1001", "SSA antiga", "2026-01-01 00:00:00", 202601),
+    )
+    conn.commit()
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "1001",
+                "descricao_ssa": "SSA atualizada",
+                "data_cadastro": "2026-01-02 00:00:00",
+                "semana_programada": 202602,
+            },
+            {
+                "numero_ssa": "1002",
+                "descricao_ssa": "SSA nova",
+                "data_cadastro": "2026-01-02 00:00:00",
+                "semana_programada": 202602,
+            },
+        ]
+    )
+    metrics: dict[str, int] = {}
+
+    processed = upsert_logic._perform_upsert(
+        incoming,
+        "ssa_table",
+        conn,
+        chunk_size=100,
+        metrics_out=metrics,
+    )
+
+    assert processed == 2
+    assert metrics == {"ssa_inserted": 1, "ssa_updated": 1}
+
+
+def test_optimized_upsert_reports_zero_metrics_for_empty_dataframe(tmp_path) -> None:
+    from armazenamento.database_optimized import insert_dataframe_optimized
+
+    metrics: dict[str, int] = {}
+
+    assert insert_dataframe_optimized(
+        pd.DataFrame(),
+        str(tmp_path / "empty.db"),
+        metrics_out=metrics,
+    )
+    assert metrics == {"ssa_inserted": 0, "ssa_updated": 0}
+
+
+def test_public_upsert_reports_zero_metrics_for_empty_dataframe(tmp_path) -> None:
+    from armazenamento.database import insert_dataframe_with_smart_upsert
+
+    metrics: dict[str, int] = {}
+
+    assert insert_dataframe_with_smart_upsert(
+        pd.DataFrame(),
+        str(tmp_path / "empty_public.db"),
+        metrics_out=metrics,
+    )
+    assert metrics == {"ssa_inserted": 0, "ssa_updated": 0}
+
+
+def test_optimized_upsert_preserves_existing_values_when_newer_row_is_blank(
+    tmp_path,
+) -> None:
+    from armazenamento.database_optimized import insert_dataframe_optimized
+
+    db_path = str(tmp_path / "optimized_blank.db")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa TEXT PRIMARY KEY,
+                situacao TEXT,
+                descricao_ssa TEXT,
+                setor_executor TEXT,
+                data_cadastro TEXT,
+                arquivo_origem TEXT,
+                data_arquivo_origem TEXT,
+                data_planilha TEXT
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO ssa_table VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "202600001",
+                "AAT",
+                "descricao antiga",
+                "SETOR ANTIGO",
+                "2026-01-01 10:00:00",
+                "Consulta SSA - 01-01-2026_1000AM.xlsx",
+                "2026-01-01 10:00:00",
+                "2026-01-01T10:00:00",
+            ),
+        )
+
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600001",
+                "situacao": "SEE",
+                "descricao_ssa": "",
+                "data_cadastro": "2026-01-01 10:00:00",
+                "arquivo_origem": "Consulta SSA - 02-01-2026_1000AM.xlsx",
+                "data_arquivo_origem": "2026-01-02 10:00:00",
+                "data_planilha": "2026-01-02T10:00:00",
+            }
+        ]
+    )
+
+    assert insert_dataframe_optimized(incoming, db_path, "ssa_table") is True
+
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT situacao, descricao_ssa, setor_executor FROM ssa_table"
+        ).fetchone()
+    assert row == ("SEE", "descricao antiga", "SETOR ANTIGO")
+
+
 def test_perform_upsert_non_short_policy_uses_lazy_existing_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -296,6 +418,9 @@ def test_insert_dataframe_with_smart_upsert_impl_keeps_mixed_transaction_flow() 
         ("202600001", "com identidade", "2026-01-02 00:00:00", 202602, "integer"),
         (None, "sem identidade", "2026-01-01 00:00:00", 202601, "integer"),
     ]
+    assert conn.in_transaction is True
+    conn.rollback()
+    assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
 
 
 def test_perform_upsert_fast_path_handles_multiple_chunks_in_same_transaction() -> None:
@@ -332,6 +457,10 @@ def test_insert_dataframe_with_smart_upsert_impl_rolls_back_if_upsert_phase_fail
 ) -> None:
     conn = sqlite3.connect(":memory:")
     _create_test_table(conn)
+    conn.execute(
+        "INSERT INTO ssa_table(numero_ssa, descricao_ssa) VALUES (?, ?)",
+        ("existing", "caller transaction"),
+    )
     incoming = pd.DataFrame(
         [
             {
@@ -359,8 +488,28 @@ def test_insert_dataframe_with_smart_upsert_impl_rolls_back_if_upsert_phase_fail
             incoming, conn, "ssa_table"
         )
 
-    persisted_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
-    assert persisted_count == 0
+    rows = conn.execute(
+        "SELECT numero_ssa, descricao_ssa FROM ssa_table"
+    ).fetchall()
+    assert rows == [("existing", "caller transaction")]
+    assert conn.in_transaction is True
+    conn.rollback()
+    assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
+
+
+def test_external_connection_requires_preinitialized_schema() -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE caller_data(value TEXT)")
+    conn.execute("INSERT INTO caller_data(value) VALUES ('pending')")
+    incoming = pd.DataFrame([{"numero_ssa": "202600999"}])
+
+    with pytest.raises(RuntimeError, match="inicialize o schema"):
+        upsert_logic.insert_dataframe_with_smart_upsert_impl(
+            incoming, conn, "ssa_table"
+        )
+
+    assert conn.in_transaction is True
+    assert conn.execute("SELECT value FROM caller_data").fetchone() == ("pending",)
 
 
 def test_insert_dataframe_with_smart_upsert_impl_preserves_enter_failure(
@@ -392,7 +541,7 @@ def test_insert_dataframe_with_smart_upsert_impl_preserves_enter_failure(
     monkeypatch.setattr(
         database_module,
         "get_db_connection",
-        lambda _db_path: conn_cm,
+        lambda _db_path, **_kwargs: conn_cm,
     )
 
     with pytest.raises(RuntimeError, match="forced enter failure"):

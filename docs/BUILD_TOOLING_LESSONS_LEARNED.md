@@ -1,10 +1,13 @@
 # Build Tooling Lessons Learned (PyInstaller/Nuitka/PyOxidizer)
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH (2026-09-08, v4.50)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58 e PR #59: merged; usar base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
+- Release ativa: `v4.50`; tag anterior: `v4.46`.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Este documento registra aprendizados; nao deve duplicar a matriz completa de release.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT (4.37 local / v4.36 published)
 
@@ -13,7 +16,6 @@
 - Escopo: Windows 11 + Debian 13 via WSL, com build via `uv`.
 - Regra atual: copia de DB/Excel locais para build agora e opt-in no script; usar `--with-local-data` no script quando o operador realmente quiser empacotar dados locais. O script repassa `--allow-local-data` apenas para `copy_data_to_builds.py`.
 - Relatorio operacional consolidado:
-  - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional:
   - `docs/BUILD_3X3_RUNBOOK.md`
 

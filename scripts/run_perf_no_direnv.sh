@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 1
+ssa_native_guard_tools python || exit 1
+cd "$REPO_ROOT"
 echo "[run_perf_no_direnv] Limpando variáveis relacionadas a direnv/pyenv para execução isolada" >&2
 unset DIRENV_DIR 2>/dev/null || true
 unset DIRENV_WATCHES 2>/dev/null || true

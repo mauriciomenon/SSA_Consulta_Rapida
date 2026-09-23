@@ -3,8 +3,11 @@
 Script de importação de emergência - sem dependências pesadas
 """
 
+import argparse
 import os
 import sqlite3
+import sys
+from datetime import datetime
 
 
 def create_basic_table(cursor):
@@ -62,14 +65,50 @@ def create_basic_table(cursor):
     """)
 
 
-def emergency_import():
+def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
     """Importação de emergência usando apenas SQLite"""
-    db_path = "data/ssas.db"
-    os.makedirs("data", exist_ok=True)
+    db_path = os.path.realpath(db_path)
+    parent_dir = os.path.dirname(db_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
 
-    # Remove banco anterior se existir
-    if os.path.exists(db_path):
-        os.remove(db_path)
+    existed = os.path.exists(db_path)
+    if existed and not force:
+        print(
+            f"ERRO: {db_path} ja existe. "
+            "Use --force para arquiva-lo como .bak antes de recriar."
+        )
+        return False
+    suffixes = ("-wal", "-shm", "-journal", "")
+    if any(os.path.exists(db_path + suffix) for suffix in suffixes):
+        backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+        moved: list[tuple[str, str]] = []
+        try:
+            for suffix in suffixes:
+                src = db_path + suffix
+                try:
+                    os.replace(src, backup_path + suffix)
+                    moved.append((src, backup_path + suffix))
+                except FileNotFoundError:
+                    continue
+        except OSError as exc:
+            rollback_errors: list[str] = []
+            for src_done, dst_done in reversed(moved):
+                try:
+                    os.replace(dst_done, src_done)
+                except OSError as rollback_exc:
+                    rollback_errors.append(f"{dst_done}: {rollback_exc}")
+            detail = (
+                f" Rollback incompleto: {'; '.join(rollback_errors)}"
+                if rollback_errors
+                else " Arquivos ja movidos restaurados."
+            )
+            raise OSError(
+                f"Falha ao arquivar {src} para {backup_path + suffix}: "
+                f"{exc}.{detail}"
+            ) from exc
+        label = "Banco existente" if existed else "Sidecars orfaos"
+        print(f"{label} arquivado(s) em {backup_path}")
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -210,10 +249,24 @@ def emergency_import():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Importacao de emergencia - cria banco com dados de TESTE."
+    )
+    parser.add_argument(
+        "--db", default="data/ssas.db", help="Caminho do banco a criar"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Arquiva banco existente como .bak-<timestamp> antes de recriar",
+    )
+    args = parser.parse_args()
     print("Importação de emergência iniciada...")
-    success = emergency_import()
+    print("ATENCAO: este script insere dados de TESTE, nao dados reais.")
+    success = emergency_import(args.db, force=args.force)
     if success:
         print(" Banco de dados criado com dados de teste")
         print(" Agora você pode testar o CLI e GUI")
     else:
         print(" Falha na criação do banco de dados")
+    sys.exit(0 if success else 1)

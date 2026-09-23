@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sqlite3
 from collections.abc import Iterable
+from contextlib import closing
 
 from utils.robust_logging import get_robust_logger
 
@@ -43,7 +44,7 @@ def _valid_unique_table_names(names: Iterable[str]) -> list[str]:
 def _compatible_derivadas_tables(db_path: str, candidates: list[str]) -> set[str]:
     required_cols = {"numero_ssa", "derivada_de"}
     compatible: set[str] = set()
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         existing = {
             str(row[0])
             for row in conn.execute(

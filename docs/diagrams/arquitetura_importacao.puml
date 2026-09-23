@@ -1,94 +1,61 @@
 @startuml Arquitetura_Importacao_SSA
 
-!define RECTANGLE class
-
 skinparam backgroundColor #FEFEFE
 skinparam componentStyle rectangle
 
-package "Interface Layer" {
-    [GUI\nPyQt6] as GUI
-    [CLI\nTerminal] as CLI
-    [Command Handlers] as CMD
+package "Entradas" {
+    [GUI / main.py] as MAIN
+    [CLI arquivo unico] as SINGLE_CLI
+    [CLI backfill] as BACKFILL_CLI
 }
 
-package "Orchestration Layer" {
-    [run_importer_logic] as ORCH
-    [_import_single_file] as SINGLE
-    [Cache Manager] as CACHE_MGR
-    [Derivadas Sync] as DERIV
+package "Orquestracao" {
+    [core/app_logic.py] as ORCH
+    [core/import_single_file.py] as IMPORT_ONE
 }
 
-package "Extraction Layer" {
+package "Extracao canonica" {
     [extract_data_from_excel] as EXTRACT
+    [Mappings estritos] as MAPPING
+    [Captura hierarquica] as HIERARCHY
+    [Resumo de identidade invalida] as INVALID
 }
 
-package "Processing Layer" {
-    [import_excel_robust] as ROBUST
-    [EnhancedAMSImporter] as ENHANCED
-    
-    package "Robust Features" {
-        [Header Detection] as HEADER
-        [Column Mapping] as MAPPING
-        [SSA Normalization] as SSA_NORM
-        [Date Parsing] as DATE
-        [Coalescence] as COALESCE
-        [Deduplication] as DEDUP
-    }
+package "Persistencia" {
+    [Smart upsert] as UPSERT
+    database "ssa_table" as SSA
+    database "ssa_event_records" as EVENTS
 }
 
-package "Persistence Layer" {
-    [insert_dataframe_optimized] as OPTIMIZED
-    [insert_dataframe_standard] as STANDARD
-    [Emergency Import] as EMERGENCY
-    
-    database "SQLite\n(WAL Mode)" as DB
+package "Caminhos especificos" {
+    [utils/robust_importer.py] as ROBUST
+    [Derivadas / read_report / simulacao] as ROBUST_USERS
 }
 
-package "Infrastructure" {
-    [Caching System] as CACHE
-    [Path Safety] as SAFETY
-    [Logging] as LOG
-    [Validation] as VALIDATE
-}
+MAIN --> ORCH
+ORCH --> IMPORT_ONE
+SINGLE_CLI --> EXTRACT
+BACKFILL_CLI --> EXTRACT
+IMPORT_ONE --> EXTRACT
 
-' Relationships - Interface to Orchestration
-GUI ..> ORCH : uses
-CLI ..> ORCH : uses
-CMD ..> ORCH : uses
+EXTRACT --> MAPPING
+EXTRACT --> HIERARCHY
+EXTRACT --> INVALID
+EXTRACT --> IMPORT_ONE : DataFrame + attrs
+EXTRACT --> SINGLE_CLI : DataFrame + attrs
+EXTRACT --> BACKFILL_CLI : DataFrame + attrs
+IMPORT_ONE --> UPSERT
+SINGLE_CLI --> UPSERT
+BACKFILL_CLI --> UPSERT
+UPSERT --> SSA : pais
+UPSERT --> EVENTS : eventos
 
-' Orchestration to others
-ORCH ..> CACHE_MGR : manages
-ORCH ..> SINGLE : calls
-ORCH ..> DERIV : triggers
-ORCH ..> SAFETY : validates
-ORCH ..> LOG : logs
+ROBUST_USERS --> ROBUST
+ROBUST ..> EXTRACT : nao substitui o fluxo SSA
 
-' Single file flow
-SINGLE ..> EXTRACT : extracts
-SINGLE ..> VALIDATE : validates
-SINGLE ..> OPTIMIZED : persists
-
-' Extraction to Processing
-EXTRACT ..> ROBUST : imports via
-
-' Robust processing internals
-ROBUST ..> HEADER : detects
-ROBUST ..> MAPPING : maps
-ROBUST ..> SSA_NORM : normalizes
-ROBUST ..> DATE : parses
-ROBUST ..> COALESCE : merges
-ROBUST ..> DEDUP : removes duplicates
-
-' Alternative processing
-EXTRACT ..> ENHANCED : format detection
-
-' Persistence
-OPTIMIZED ..> DB : WAL mode
-STANDARD ..> DB : standard
-EMERGENCY ..> DB : fallback
-
-' Infrastructure
-CACHE_MGR ..> CACHE : reads/writes
-SINGLE ..> CACHE_MGR : updates
+note right of UPSERT
+  Pais e eventos usam a mesma transacao.
+  Escrita SSA exige smart upsert.
+end note
 
 @enduml

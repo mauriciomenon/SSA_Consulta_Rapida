@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -103,6 +105,98 @@ def test_copy_data_to_build_reuses_staged_config_for_multiple_runtime_dirs(
         runtime_dir_one / "config",
         runtime_dir_two / "config",
     }
+
+
+def test_copy_data_to_build_includes_committed_active_wal_rows(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "copy_data_to_builds_active_wal",
+        root / "scripts" / "copy_data_to_builds.py",
+    )
+    source_db = tmp_path / "source.db"
+    build_dir = tmp_path / "build"
+    runtime_dir = build_dir / "SSA_Runtime.dist"
+    runtime_dir.mkdir(parents=True)
+
+    with closing(sqlite3.connect(source_db)) as writer:
+        writer.execute("CREATE TABLE rows (value TEXT)")
+        writer.commit()
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute("INSERT INTO rows VALUES ('committed-in-wal')")
+        writer.commit()
+        assert Path(f"{source_db}-wal").is_file()
+
+        copied = module.copy_data_to_build(
+            build_dir,
+            verbose=False,
+            db_path=source_db,
+            docs_dir=tmp_path / "missing_docs",
+        )
+
+        with closing(sqlite3.connect(runtime_dir / "data" / "ssas.db")) as conn:
+            values = conn.execute("SELECT value FROM rows").fetchall()
+
+    assert copied is True
+    assert values == [("committed-in-wal",)]
+
+
+def test_copy_data_to_build_refuses_destination_with_active_wal(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "copy_data_to_builds_destination_wal", root / "scripts" / "copy_data_to_builds.py"
+    )
+    source_db = tmp_path / "source.db"
+    with closing(sqlite3.connect(source_db)) as source:
+        source.execute("CREATE TABLE rows(value TEXT)")
+        source.execute("INSERT INTO rows VALUES ('new-source')")
+        source.commit()
+    build_dir = tmp_path / "build"
+    target = build_dir / "data" / "ssas.db"
+    target.parent.mkdir(parents=True)
+    with closing(sqlite3.connect(target)) as active:
+        active.execute("PRAGMA journal_mode=WAL")
+        active.execute("PRAGMA wal_autocheckpoint=0")
+        active.execute("CREATE TABLE rows(value TEXT)")
+        active.execute("INSERT INTO rows VALUES ('active-target')")
+        active.commit()
+        family = [target, Path(f"{target}-wal"), Path(f"{target}-shm")]
+        before = {path: path.read_bytes() for path in family}
+
+        copied = module.copy_data_to_build(
+            build_dir, verbose=False, db_path=source_db,
+            docs_dir=tmp_path / "missing_docs",
+        )
+
+        assert copied is False
+        assert {path: path.read_bytes() for path in family} == before
+        assert active.execute("SELECT value FROM rows").fetchall() == [("active-target",)]
+        assert not target.with_name("ssas.db.tmp").exists()
+
+
+@pytest.mark.parametrize("suffix", ["-wal", "-shm", "-journal"])
+def test_copy_data_to_build_refuses_orphan_destination_sidecar(
+    tmp_path: Path, suffix: str
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "copy_data_to_builds_orphan_sidecar", root / "scripts" / "copy_data_to_builds.py"
+    )
+    source_db = tmp_path / "source.db"
+    with closing(sqlite3.connect(source_db)) as conn:
+        conn.execute("CREATE TABLE rows(value TEXT)")
+    build_dir = tmp_path / "build"
+    target = build_dir / "data" / "ssas.db"
+    target.parent.mkdir(parents=True)
+    sidecar = Path(f"{target}{suffix}")
+    sidecar.write_bytes(b"dados anteriores")
+
+    assert module.copy_data_to_build(
+        build_dir, verbose=False, db_path=source_db,
+        docs_dir=tmp_path / "missing_docs",
+    ) is False
+    assert sidecar.read_bytes() == b"dados anteriores"
+    assert not target.exists()
 
 
 def test_copy_data_to_build_reports_cached_excel_size_after_target_removal(

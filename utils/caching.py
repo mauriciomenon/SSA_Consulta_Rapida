@@ -1,4 +1,4 @@
-# utils/caching.py 20250725 110000 (v2.1 - Leitura em Blocos, Logging)
+# utils/caching.py - Leitura em Blocos, Logging
 """
 Utilitários para gerenciamento de cache de arquivos, baseado em hashes.
 
@@ -60,7 +60,7 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
                     cache_file,
                     exc,
                 )
-        if tmp_path:
+        if tmp_path is not None:
             try:
                 os.remove(tmp_path)
             except OSError as exc:
@@ -199,7 +199,9 @@ def _acquire_cache_lock(lock_path: str) -> int:
             if _recover_stale_cache_lock(lock_path):
                 continue
             if time.monotonic() >= deadline:
-                raise TimeoutError(f"Timeout acquiring cache write lock: {lock_path}")
+                raise TimeoutError(
+                    f"Timeout acquiring cache write lock: {lock_path}"
+                ) from None
             time.sleep(_CACHE_LOCK_RETRY_SEC)
         except OSError as exc:
             raise RuntimeError(
@@ -272,13 +274,23 @@ def _cache_key_for_file(file_path: str, docs_dir: str) -> str:
         rel_path = Path(file_path).resolve().relative_to(Path(docs_dir).resolve())
         return rel_path.as_posix()
     except (ValueError, OSError, RuntimeError) as exc:
-        logger.debug(
-            "Fallback cache key by basename for '%s' (docs_dir='%s'): %s",
+        logger.warning(
+            "Arquivo fora de docs_dir rejeitado para cache: '%s' (docs_dir='%s'): %s",
             file_path,
             docs_dir,
             exc,
         )
-        return os.path.basename(file_path)
+        raise ValueError(f"Arquivo fora de docs_dir: {file_path}") from exc
+
+
+def _resolve_inside_docs_dir(path: Path, docs_dir: Path) -> Path:
+    resolved_docs_dir = docs_dir.resolve()
+    resolved_path = path.resolve()
+    try:
+        resolved_path.relative_to(resolved_docs_dir)
+    except ValueError as exc:
+        raise ValueError(f"Caminho fora de docs_dir: {path}") from exc
+    return resolved_path
 
 
 def get_all_xlsx_files(
@@ -294,21 +306,32 @@ def get_all_xlsx_files(
         logger.debug("Diretorio '%s' nao existe para descoberta de .xlsx.", directory)
         return xlsx_files
 
+    docs_dir = Path(directory)
+    resolved_docs_dir = docs_dir.resolve()
+
     for filename in os.listdir(directory):
         file_path = os.path.join(directory, filename)
         lowered = filename.casefold()
         if os.path.isfile(file_path) and lowered.endswith(".xlsx"):
-            xlsx_files.append(file_path)
+            resolved_path = _resolve_inside_docs_dir(Path(file_path), resolved_docs_dir)
+            xlsx_files.append(str(resolved_path))
 
     if include_processadas:
-        processadas_dir = os.path.join(directory, processadas_subdir)
+        raw_subdir = str(processadas_subdir or "").strip()
+        if not raw_subdir:
+            raise ValueError("processadas_subdir nao pode ser vazio")
+        processadas_dir = docs_dir / raw_subdir
+        resolved_processadas_dir = _resolve_inside_docs_dir(
+            processadas_dir,
+            resolved_docs_dir,
+        )
         ignored = {
             name.strip().casefold()
             for name in (ignore_subdirs or [])
             if name and name.strip()
         }
-        if os.path.isdir(processadas_dir):
-            for root, dirnames, filenames in os.walk(processadas_dir):
+        if resolved_processadas_dir.is_dir():
+            for root, dirnames, filenames in os.walk(resolved_processadas_dir):
                 if dirnames:
                     dirnames[:] = [
                         dirname
@@ -317,7 +340,12 @@ def get_all_xlsx_files(
                     ]
                 for filename in filenames:
                     if filename.casefold().endswith(".xlsx"):
-                        xlsx_files.append(os.path.join(root, filename))
+                        candidate = Path(root) / filename
+                        resolved_candidate = _resolve_inside_docs_dir(
+                            candidate,
+                            resolved_docs_dir,
+                        )
+                        xlsx_files.append(str(resolved_candidate))
 
     # Deterministic ordering for stable runs and tests.
     # When filenames encode snapshot datetimes, process older snapshots first so the
@@ -463,8 +491,10 @@ def get_files_to_process(
         size, mtime_ns = stat_sig
 
         cached_entry = current_cache.get(file_cache_key)
+        legacy_basename_hit = False
         if cached_entry is None and file_cache_key != filename:
             cached_entry = current_cache.get(filename)
+            legacy_basename_hit = cached_entry is not None
         if cached_entry is None:
             files_to_process.append(file_path)
             continue
@@ -485,9 +515,12 @@ def get_files_to_process(
             if isinstance(mtime_val, int):
                 cached_mtime_ns = mtime_val
 
-        # Fast path: metadata matches and we have a sha.
+        # Fast path: metadata matches and we have a sha. Um hit por basename
+        # legado nao pode usar este caminho: outro arquivo com mesmo nome,
+        # size e mtime em outro diretorio seria ignorado sem comparar hash.
         if (
-            isinstance(cached_sha, str)
+            not legacy_basename_hit
+            and isinstance(cached_sha, str)
             and cached_sha
             and cached_size is not None
             and cached_mtime_ns is not None

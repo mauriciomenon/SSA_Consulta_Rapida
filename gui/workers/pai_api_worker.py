@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
 from threading import Event, Lock
+from time import monotonic
 from typing import Sequence
 
 from core.pai_api_options import (
@@ -26,6 +28,7 @@ from core.pai_scrap_report_provider import (
     PaiScrapReportRequest,
     run_pai_scrap_report_ca_export,
 )
+from extracao.extractor import ExtractionError, validate_excel_import_limits
 from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
 from gui.workers.qt_thread_shim import QThread, pyqtSignal
 
@@ -33,6 +36,9 @@ from gui.workers.qt_thread_shim import QThread, pyqtSignal
 PAI_API_MAX_CONCURRENT_FETCHES = 3
 PAI_API_IMPORT_CONFIRM_TIMEOUT_SECONDS = 300.0
 PAI_API_FETCH_FUTURE_GRACE_SECONDS = 30.0
+PAI_API_FETCH_POLL_SECONDS = 0.1
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -104,6 +110,31 @@ class PaiApiRefreshWorker(QThread):
         self._import_decision = False
         self._import_decision_ready = False
         self._import_decision_timed_out = False
+        self._cancel_requested = False
+        self._terminal_emitted = False
+        self._executor: ThreadPoolExecutor | None = None
+
+    def cancel(self) -> None:
+        """Request the worker to stop as soon as possible.
+
+        Signals the import-decision wait (if blocked) and shuts down the
+        internal ThreadPoolExecutor so pending fetches are cancelled.
+        """
+        with self._state_lock:
+            if self._terminal_emitted:
+                return
+            self._cancel_requested = True
+            executor = self._executor
+        self._import_decision_event.set()
+        if executor is not None:
+            try:
+                executor.shutdown(wait=False, cancel_futures=True)
+            except RuntimeError as exc:
+                logger.debug("Falha ao encerrar executor do PaiApi no cancel: %s", exc)
+
+    def _is_cancelled(self) -> bool:
+        with self._state_lock:
+            return self._cancel_requested
 
     def summary(self) -> PaiApiRefreshSummary:
         with self._state_lock:
@@ -124,26 +155,43 @@ class PaiApiRefreshWorker(QThread):
             self._import_decision = False
             self._import_decision_ready = False
             self._import_decision_timed_out = False
+            self._terminal_emitted = False
             self._import_decision_event.clear()
+
+    def _finish(self, error: str | None = None) -> None:
+        with self._state_lock:
+            if self._cancel_requested or self._terminal_emitted:
+                return
+            self._terminal_emitted = True
+        if error is None:
+            self.finished_success.emit()
+        else:
+            self.finished_error.emit(error)
 
     def run(self) -> None:
         self.reset_for_start()
+        if self._is_cancelled():
+            return
         try:
             self._run_refresh()
         except Exception as exc:
+            if self._is_cancelled():
+                return
             message = trim_pai_api_status_detail(str(exc or "") or type(exc).__name__)
             self._add_failure(message)
             self._refresh_summary()
-            self.finished_error.emit(message)
+            self._finish(message)
 
     def _run_refresh(self) -> None:
+        if self._is_cancelled():
+            return
         options = self.config.options
         sectors = tuple(options.all_executor_sectors)
         data_scopes = tuple(
             scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
         )
         if (error_message := pai_api_options_error(options)) is not None:
-            self.finished_error.emit(error_message)
+            self._finish(error_message)
             return
 
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -169,6 +217,8 @@ class PaiApiRefreshWorker(QThread):
         total_scope_runs = max(len(data_scopes) * len(sectors), 1)
         scope_run_index = 1
         for data_scope in data_scopes:
+            if self._is_cancelled():
+                return
             scoped_request = replace(
                 base_request,
                 data_scope=data_scope,
@@ -194,34 +244,56 @@ class PaiApiRefreshWorker(QThread):
                 )
             )
             scope_run_index += len(sectors)
+        if self._is_cancelled():
+            return
         self._refresh_summary(previews=previews)
         if not previews:
-            self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
+            self._finish(_format_total_failure(self._failures_snapshot()))
+            return
+
+        try:
+            validate_excel_import_limits(
+                tuple(item.preview.import_xlsx_path for item in previews),
+                ignore_unavailable=True,
+                reject_invalid_archives=False,
+            )
+        except ExtractionError as exc:
+            self._add_failure(f"lote XLSX PAI rejeitado: {exc}")
+            self._refresh_summary(previews=previews)
+            self._finish(_format_total_failure(self._failures_snapshot()))
             return
 
         if self.config.fetch_only:
-            self._mark_import_skipped(previews=previews)
-            self.progress.emit(100, "SAM API preview concluido; DB inalterado")
-            self.finished_success.emit()
-            return
-
-        if self.config.confirm_before_import and not self._confirm_import(previews):
-            if self._import_decision_timed_out:
-                self._refresh_summary(previews=previews)
-                self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
+            if self._is_cancelled():
                 return
             self._mark_import_skipped(previews=previews)
             self.progress.emit(100, "SAM API preview concluido; DB inalterado")
-            self.finished_success.emit()
+            self._finish()
+            return
+
+        if self.config.confirm_before_import and not self._confirm_import(previews):
+            if self._is_cancelled():
+                return
+            if self._import_decision_timed_out:
+                self._refresh_summary(previews=previews)
+                self._finish(_format_total_failure(self._failures_snapshot()))
+                return
+            self._mark_import_skipped(previews=previews)
+            self.progress.emit(100, "SAM API preview concluido; DB inalterado")
+            self._finish()
             return
 
         for preview in previews:
+            if self._is_cancelled():
+                return
             self._import_sector_preview(preview)
 
+        if self._is_cancelled():
+            return
         imported_count = sum(1 for result in self._results_snapshot() if result.imported)
         self._refresh_summary(previews=previews)
         if imported_count == 0:
-            self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
+            self._finish(_format_total_failure(self._failures_snapshot()))
             return
 
         self.progress.emit(
@@ -229,12 +301,14 @@ class PaiApiRefreshWorker(QThread):
             f"SAM API concluida: {imported_count} setores importados; "
             f"{len(self._failures_snapshot())} falharam",
         )
-        self.finished_success.emit()
+        self._finish()
 
     def _validate_ca(self, request: PaiScrapReportRequest):
         try:
             return run_pai_scrap_report_ca_export(request)
         except Exception as exc:
+            if self._is_cancelled():
+                return None
             failure = _format_ca_failure(exc)
             self._add_failure(failure)
             self._refresh_summary()
@@ -295,8 +369,10 @@ class PaiApiRefreshWorker(QThread):
             return []
         previews: list[_PaiSectorPreview] = []
         for sector_request, future in self._collect_sector_previews(requests):
+            if self._is_cancelled():
+                break
             preview = self._sector_preview_from_future(sector_request, future)
-            if preview is not None:
+            if preview is not None and not self._is_cancelled():
                 previews.append(preview)
                 with self._state_lock:
                     self.previews.append(preview)
@@ -307,43 +383,78 @@ class PaiApiRefreshWorker(QThread):
         requests: list[_PaiSectorRequest],
     ):
         workers = min(PAI_API_MAX_CONCURRENT_FETCHES, len(requests))
-        with ThreadPoolExecutor(max_workers=workers) as executor:
+        executor = ThreadPoolExecutor(max_workers=workers)
+        try:
+            with self._state_lock:
+                if self._cancel_requested:
+                    self._executor = None
+                    return
+                self._executor = executor
             futures = [
                 executor.submit(self._fetch_sector_preview, request)
                 for request in requests
             ]
             for sector_request, future in zip(requests, futures):
+                if self._is_cancelled():
+                    break
                 yield sector_request, future
+        finally:
+            with self._state_lock:
+                if self._executor is executor:
+                    self._executor = None
+            executor.shutdown(
+                wait=True,
+                cancel_futures=True,
+            )
 
     def _sector_preview_from_future(
         self,
         sector_request: _PaiSectorRequest,
         future: Future[_PaiSectorPreview],
     ) -> _PaiSectorPreview | None:
+        if self._is_cancelled():
+            future.cancel()
+            return None
         self.progress.emit(
             sector_request.progress_base,
             f"SAM API: setor {sector_request.sector}",
         )
-        try:
-            timeout_seconds = (
-                float(sector_request.request.command_timeout_seconds)
-                + PAI_API_FETCH_FUTURE_GRACE_SECONDS
-            )
-            preview = future.result(timeout=timeout_seconds)
-        except TimeoutError:
-            failure = (
-                f"setor {sector_request.sector}: timeout ao obter preview "
-                f"({timeout_seconds:g}s)"
-            )
-            self._add_failure(failure)
-            self._refresh_summary()
-            self.error_line.emit(failure)
-            return None
-        except Exception as exc:
-            failure = _format_sector_failure(sector_request.sector, exc)
-            self._add_failure(failure)
-            self._refresh_summary()
-            self.error_line.emit(failure)
+        timeout_seconds = (
+            float(sector_request.request.command_timeout_seconds)
+            + PAI_API_FETCH_FUTURE_GRACE_SECONDS
+        )
+        deadline = monotonic() + timeout_seconds
+        while True:
+            if self._is_cancelled():
+                future.cancel()
+                return None
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                future.cancel()
+                failure = (
+                    f"setor {sector_request.sector}: timeout ao obter preview "
+                    f"({timeout_seconds:g}s)"
+                )
+                self._add_failure(failure)
+                self._refresh_summary()
+                self.error_line.emit(failure)
+                return None
+            try:
+                preview = future.result(
+                    timeout=min(PAI_API_FETCH_POLL_SECONDS, remaining)
+                )
+                break
+            except TimeoutError:
+                continue
+            except Exception as exc:
+                if self._is_cancelled():
+                    return None
+                failure = _format_sector_failure(sector_request.sector, exc)
+                self._add_failure(failure)
+                self._refresh_summary()
+                self.error_line.emit(failure)
+                return None
+        if self._is_cancelled():
             return None
         self.preview_ready.emit(preview.preview)
         self.progress.emit(
@@ -371,17 +482,24 @@ class PaiApiRefreshWorker(QThread):
         )
 
     def _import_sector_preview(self, sector_preview: _PaiSectorPreview) -> None:
+        if self._is_cancelled():
+            return
         try:
             result = import_prepared_pai_xlsx(
                 sector_preview.request,
                 sector_preview.preview,
                 docs_dir=sector_preview.docs_dir,
                 db_path=self.config.db_path,
+                should_cancel=self._is_cancelled,
             )
         except Exception as exc:
+            if self._is_cancelled():
+                return
             failure = _format_sector_failure(sector_preview.sector, exc)
             self._add_failure(failure)
             self.error_line.emit(failure)
+            return
+        if self._is_cancelled():
             return
         self._add_result(result)
         self.output_line.emit(
@@ -389,6 +507,8 @@ class PaiApiRefreshWorker(QThread):
         )
 
     def _confirm_import(self, previews: list[_PaiSectorPreview]) -> bool:
+        if self._is_cancelled():
+            return False
         self.import_decision_required.emit(_decision_request(previews, self._failures_snapshot()))
         if not self._import_decision_event.wait(PAI_API_IMPORT_CONFIRM_TIMEOUT_SECONDS):
             with self._state_lock:
@@ -396,6 +516,8 @@ class PaiApiRefreshWorker(QThread):
             self._add_failure("confirmacao de importacao nao recebida")
             return False
         with self._state_lock:
+            if self._cancel_requested:
+                return False
             if not self._import_decision_ready:
                 self._import_decision_timed_out = True
                 self._add_failure("confirmacao de importacao nao recebida")

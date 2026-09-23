@@ -1,7 +1,9 @@
 # ruff: noqa: E402
 # tests/test_extracao.py
+import json
 import os
 import sys
+from zipfile import ZIP_STORED, ZipFile
 
 import pandas as pd
 import pytest
@@ -15,7 +17,9 @@ from extracao.extractor import (
     _normalize_datatypes,
     _normalize_tempo_excedido_value,
     extract_data_from_excel,
+    open_validated_excel_source,
     read_report,
+    validate_excel_import_limits,
 )
 
 # --- Fixtures: Preparando o Ambiente de Teste ---
@@ -63,7 +67,7 @@ def setup_test_config(monkeypatch):
     }
 
     # Função interna que irá substituir a _load_column_mappings original
-    def mock_load_mappings():
+    def mock_load_mappings(_mappings_path=None):
         return {
             alias: canonical
             for canonical, aliases in test_mappings.items()
@@ -182,7 +186,10 @@ def test_extract_data_from_excel_empty_mapping_keeps_original_columns_and_fails_
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
         df.to_excel(writer, index=False)
 
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
     with pytest.raises(ExtractionError) as excinfo:
         extract_data_from_excel(str(file_path))
 
@@ -225,7 +232,7 @@ def test_extract_data_from_excel_classifies_invalid_identity_rows(
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -254,6 +261,495 @@ def test_extract_data_from_excel_classifies_invalid_identity_rows(
     )
 
 
+@pytest.mark.parametrize(
+    ("marker_column", "labels"),
+    [
+        ("numero_desvios", ["Desvio #1", "Desvio #2", "Desvio #3"]),
+        (
+            "num_reprogramacoes",
+            ["Reprogramacao #1", "Reprogramacao #2", "Reprogramacao final"],
+        ),
+        ("parciais", ["Parcial #1", "Parcial #2", "Parcial #3"]),
+    ],
+)
+def test_extract_data_from_excel_captures_hierarchical_continuations(
+    tmp_path,
+    monkeypatch,
+    marker_column,
+    labels,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600101, None, None, 202600102],
+            "descricao_ssa": ["SSA pai", None, None, "SSA isolada"],
+            "data_cadastro": ["2026-01-01 10:00:00", None, None, None],
+            marker_column: [*labels, labels[0]],
+            "payload_evento": ["primeiro", "segundo", "terceiro", "isolado"],
+            "campo_apenas_pai": [None, None, None, "nao propagar"],
+        }
+    )
+    file_path = tmp_path / f"hierarchical_{marker_column}_11-08-2026_0200AM.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 2
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["total_removed"] == 0
+    assert summary["payload_removed"] == 0
+    assert summary["hierarchical_rows_captured"] == 2
+    assert summary["hierarchical_rows_by_type"] == {marker_column: 2}
+    records = extracted.attrs["ssa_event_records"]
+    assert [record["record_label"] for record in records] == [*labels, labels[0]]
+    assert [record["record_order"] for record in records] == [1, 2, 3, 1]
+    assert [record["source_row"] for record in records] == [2, 3, 4, 5]
+    assert {record["numero_ssa"] for record in records} == {
+        "202600101",
+        "202600102",
+    }
+    assert {record["arquivo_origem"] for record in records} == {file_path.name}
+    assert {record["data_planilha"] for record in records} == {
+        "2026-08-11T02:00:00"
+    }
+    assert {record["data_arquivo_origem"] for record in records} == {
+        "2026-08-11 02:00:00"
+    }
+    assert json.loads(records[1]["payload_json"])["payload_evento"] == "segundo"
+    assert all(
+        "campo_apenas_pai" not in json.loads(record["payload_json"])
+        for record in records
+    )
+    isolated_parent = extracted.loc[extracted["numero_ssa"].eq(202600102)].iloc[0]
+    assert isolated_parent["campo_apenas_pai"] == "nao propagar"
+
+
+@pytest.mark.parametrize(
+    ("marker_column", "labels"),
+    [
+        (
+            "Deviation Records",
+            ["Deviation #1", "Deviation #2", "Deviation #3"],
+        ),
+        (
+            "Registros de Desviacion",
+            ["Desviacion #1", "Desviacion #2", "Desviacion #3"],
+        ),
+    ],
+)
+def test_extract_data_from_excel_captures_structural_hierarchy_without_alias(
+    tmp_path,
+    monkeypatch,
+    marker_column,
+    labels,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600104, None, None],
+            "descricao_ssa": ["SSA pai", None, None],
+            "data_cadastro": ["2026-01-01 10:00:00", None, None],
+            marker_column: labels,
+            "payload_evento": ["primeiro", "segundo", "terceiro"],
+        }
+    )
+    file_path = tmp_path / f"structural_{marker_column.replace(' ', '_')}.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 1
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["total_removed"] == 0
+    assert summary["hierarchical_rows_captured"] == 2
+    assert summary["hierarchical_rows_by_type"] == {marker_column: 2}
+    records = extracted.attrs["ssa_event_records"]
+    assert [record["record_type"] for record in records] == [marker_column] * 3
+    assert [record["record_label"] for record in records] == labels
+    assert [record["record_order"] for record in records] == [1, 2, 3]
+
+
+def test_extract_data_from_excel_does_not_capture_unrelated_structural_footer(
+    tmp_path,
+    monkeypatch,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600107, None, None],
+            "descricao_ssa": ["SSA pai", None, None],
+            "data_cadastro": ["2026-01-01 10:00:00", None, None],
+            "Deviation Records": ["Deviation #1", "Deviation #2", "TOTAL"],
+            "payload_evento": ["primeiro", "segundo", "rodape"],
+        }
+    )
+    file_path = tmp_path / "structural_footer.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["hierarchical_rows_captured"] == 1
+    assert summary["payload_removed"] == 1
+    assert [
+        record["record_label"] for record in extracted.attrs["ssa_event_records"]
+    ] == ["Deviation #1", "Deviation #2"]
+
+
+def test_extract_data_from_excel_fails_on_ambiguous_structural_markers(
+    tmp_path,
+    monkeypatch,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600108, None],
+            "descricao_ssa": ["SSA pai", None],
+            "data_cadastro": ["2026-01-01 10:00:00", None],
+            "Deviation Records": ["Deviation #1", "Deviation #2"],
+            "Stage": ["Stage #1", "Stage #2"],
+        }
+    )
+    file_path = tmp_path / "ambiguous_structural_markers.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    with pytest.raises(ExtractionError) as exc_info:
+        extract_data_from_excel(str(file_path))
+
+    assert exc_info.value.error_code == "AMBIGUOUS_HIERARCHICAL_MARKERS"
+
+
+def test_extract_data_from_excel_fails_on_ambiguous_structural_tail(
+    tmp_path,
+    monkeypatch,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600109, None, None],
+            "descricao_ssa": ["SSA pai", None, None],
+            "data_cadastro": ["2026-01-01 10:00:00", None, None],
+            "Deviation Records": [
+                "Deviation #1",
+                "Deviation #2",
+                "Deviation final",
+            ],
+        }
+    )
+    file_path = tmp_path / "ambiguous_structural_tail.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    with pytest.raises(ExtractionError) as exc_info:
+        extract_data_from_excel(str(file_path))
+
+    assert exc_info.value.error_code == "AMBIGUOUS_HIERARCHICAL_TAIL"
+
+
+def test_extract_data_from_excel_captures_canonical_first_event_without_children(
+    tmp_path,
+    monkeypatch,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600105],
+            "descricao_ssa": ["SSA pai"],
+            "data_cadastro": ["2026-01-01 10:00:00"],
+            "numero_desvios": ["Desvio #1"],
+            "payload_evento": ["permanece na linha pai"],
+        }
+    )
+    file_path = tmp_path / "canonical_first_event.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["hierarchical_rows_captured"] == 0
+    assert summary["hierarchical_records_captured"] == 1
+    records = extracted.attrs["ssa_event_records"]
+    assert [record["record_label"] for record in records] == ["Desvio #1"]
+    assert json.loads(records[0]["payload_json"]) == {
+        "numero_desvios": "Desvio #1"
+    }
+    assert extracted.iloc[0]["payload_evento"] == "permanece na linha pai"
+
+
+@pytest.mark.parametrize(
+    ("marker_column", "labels"),
+    [
+        ("numero_desvios", [1, 2]),
+        ("Unknown Marker", ["Deviation #1", None]),
+        ("Unknown Marker", ["Deviation #1", "Partial #2"]),
+        ("Unknown Marker", ["Deviation #1", "Deviation #3"]),
+    ],
+)
+def test_extract_data_from_excel_rejects_unproved_hierarchy(
+    tmp_path,
+    monkeypatch,
+    marker_column,
+    labels,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600106, None],
+            "descricao_ssa": ["SSA pai", None],
+            "data_cadastro": ["2026-01-01 10:00:00", None],
+            marker_column: labels,
+        }
+    )
+    file_path = tmp_path / "unproved_hierarchy.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert extracted.attrs["ssa_event_records"] == []
+
+
+def test_extract_data_from_excel_uses_explicit_mapping_file(tmp_path):
+    frame = pd.DataFrame(
+        {
+            "  ticket  ": [202600110],
+            "Summary": ["SSA com mapping customizado"],
+            "Created": ["2026-01-01 10:00:00"],
+        }
+    )
+    file_path = tmp_path / "custom_mapping.xlsx"
+    mapping_path = tmp_path / "mapping.json"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    mapping_path.write_text(
+        json.dumps(
+            {
+                "numero_ssa": ["T\u00edcket"],
+                "descricao_ssa": ["Summary"],
+                "data_cadastro": ["Created"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    extracted = extract_data_from_excel(
+        str(file_path),
+        mappings_path=str(mapping_path),
+    )
+
+    assert extracted.loc[0, "numero_ssa"] == 202600110
+    assert extracted.loc[0, "descricao_ssa"] == "SSA com mapping customizado"
+
+
+def test_extract_data_from_excel_preserves_unmapped_header_without_explicit_mapping(
+    tmp_path,
+    monkeypatch,
+):
+    file_path = tmp_path / "unmapped_header.xlsx"
+    pd.DataFrame(
+        {
+            "numero_ssa": [202600113],
+            "descricao_ssa": ["SSA"],
+            "data_cadastro": ["2026-01-01 10:00:00"],
+            "Unmapped Payload": ["MUST_SURVIVE"],
+        }
+    ).to_excel(file_path, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {
+            "numero_ssa": "numero_ssa",
+            "descricao_ssa": "descricao_ssa",
+            "data_cadastro": "data_cadastro",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert extracted.loc[0, "Unmapped Payload"] == "MUST_SURVIVE"
+
+
+def test_extract_data_from_excel_rejects_invalid_explicit_mapping(tmp_path):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600111],
+            "descricao_ssa": ["SSA"],
+            "data_cadastro": ["2026-01-01 10:00:00"],
+        }
+    )
+    file_path = tmp_path / "invalid_mapping.xlsx"
+    mapping_path = tmp_path / "mapping.json"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    mapping_path.write_text('{"numero_ssa": "Ticket"}', encoding="utf-8")
+
+    with pytest.raises(ExtractionError) as exc_info:
+        extract_data_from_excel(
+            str(file_path),
+            mappings_path=str(mapping_path),
+        )
+
+    assert exc_info.value.error_code == "INVALID_COLUMN_MAPPINGS"
+
+
+@pytest.mark.parametrize(
+    "invalid_mapping",
+    [
+        {
+            "numero_ssa": ["Ticket"],
+            "descricao_ssa": ["Summary"],
+            "data_cadastro": ["Created"],
+            "__ssa_source_sheet": ["Payload"],
+        },
+        {
+            "numero_ssa": ["Ticket"],
+            "descricao_ssa": ["Summary"],
+            "data_cadastro": ["Created"],
+            "campo_a": ["Shared"],
+            "campo_b": [" shared "],
+        },
+        {
+            "numero_ssa": ["Ticket"],
+            "descricao_ssa": ["Summary"],
+            "data_cadastro": ["Created"],
+            " __SSA_SOURCE_ROW ": ["Payload"],
+        },
+        {
+            "numero_ssa": ["Ticket"],
+            "descricao_ssa": ["Summary"],
+            "data_cadastro": ["Created"],
+            "payload": [" __SSA_SOURCE_SHEET "],
+        },
+    ],
+)
+def test_extract_data_from_excel_rejects_unsafe_explicit_mapping(
+    tmp_path,
+    invalid_mapping,
+):
+    file_path = tmp_path / "unsafe_mapping.xlsx"
+    mapping_path = tmp_path / "mapping.json"
+    pd.DataFrame(
+        {
+            "Ticket": [202600112],
+            "Summary": ["SSA"],
+            "Created": ["2026-01-01 10:00:00"],
+            "Payload": ["MUST_SURVIVE"],
+        }
+    ).to_excel(file_path, index=False)
+    mapping_path.write_text(json.dumps(invalid_mapping), encoding="utf-8")
+
+    with pytest.raises(ExtractionError) as exc_info:
+        extract_data_from_excel(str(file_path), mappings_path=str(mapping_path))
+
+    assert exc_info.value.error_code == "INVALID_COLUMN_MAPPINGS"
+
+
+def test_extract_data_from_excel_does_not_link_continuation_across_sheets(
+    tmp_path,
+    monkeypatch,
+):
+    parent = pd.DataFrame(
+        {
+            "numero_ssa": [202600102],
+            "descricao_ssa": ["SSA pai"],
+            "data_cadastro": ["2026-01-01 10:00:00"],
+            "numero_desvios": ["Desvio #1"],
+            "payload_evento": ["primeiro"],
+        }
+    )
+    orphan = pd.DataFrame(
+        {
+            "numero_ssa": [None],
+            "descricao_ssa": [None],
+            "data_cadastro": [None],
+            "numero_desvios": ["Desvio #2"],
+            "payload_evento": ["orfao"],
+        }
+    )
+    file_path = tmp_path / "hierarchical_cross_sheet.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        parent.to_excel(writer, sheet_name="parent", index=False)
+        orphan.to_excel(writer, sheet_name="orphan", index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 1
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["payload_removed"] == 1
+    assert summary["hierarchical_rows_captured"] == 0
+    records = extracted.attrs["ssa_event_records"]
+    assert [record["record_label"] for record in records] == ["Desvio #1"]
+
+
+def test_extract_data_from_excel_does_not_link_past_description_only_parent(
+    tmp_path,
+    monkeypatch,
+):
+    frame = pd.DataFrame(
+        {
+            "numero_ssa": [202600103, None, None, None],
+            "descricao_ssa": ["SSA numerada", None, "SSA sem numero", None],
+            "data_cadastro": ["2026-01-01 10:00:00", None, None, None],
+            "numero_desvios": [
+                "Desvio #1",
+                "Desvio #2",
+                "Desvio #1",
+                "Desvio #2",
+            ],
+            "payload_evento": ["primeiro", "segundo", "novo pai", "orfao"],
+        }
+    )
+    file_path = tmp_path / "hierarchical_description_boundary.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        frame.to_excel(writer, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 2
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["payload_removed"] == 1
+    assert summary["hierarchical_rows_captured"] == 1
+    records = extracted.attrs["ssa_event_records"]
+    assert [record["record_label"] for record in records] == [
+        "Desvio #1",
+        "Desvio #2",
+    ]
+    assert {record["numero_ssa"] for record in records} == {"202600103"}
+
+
 def test_extract_data_from_excel_preserves_empty_required_alias_until_normalization(
     tmp_path, monkeypatch
 ):
@@ -272,7 +768,7 @@ def test_extract_data_from_excel_preserves_empty_required_alias_until_normalizat
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Nº SSA": "numero_ssa",
             "Descrição da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -302,7 +798,7 @@ def test_extract_data_from_excel_handles_duplicate_header_labels_without_ambigui
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -329,7 +825,7 @@ def test_extract_data_from_excel_drops_nan_header_columns_safely(tmp_path, monke
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -367,7 +863,7 @@ def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -427,7 +923,7 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -483,7 +979,7 @@ def test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex(
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -539,7 +1035,7 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_
 
     monkeypatch.setattr(
         "extracao.extractor._load_column_mappings",
-        lambda: {
+        lambda _mappings_path=None: {
             "Numero da SSA": "numero_ssa",
             "Descricao da SSA": "descricao_ssa",
             "Emitida Em": "data_cadastro",
@@ -579,6 +1075,99 @@ def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
             str(fake_file),
             should_cancel=lambda: True,
         )
+
+
+def test_validate_excel_import_limits_accepts_legitimate_xlsx(tmp_path):
+    file_path = tmp_path / "legitimate.xlsx"
+    pd.DataFrame({"numero_ssa": [202600001]}).to_excel(file_path, index=False)
+
+    total_bytes = validate_excel_import_limits((file_path,))
+
+    assert total_bytes == file_path.stat().st_size
+
+
+def test_validate_excel_import_limits_rejects_file_size(tmp_path, monkeypatch):
+    file_path = tmp_path / "large.xlsx"
+    file_path.write_bytes(b"12345")
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    with pytest.raises(ExtractionError) as exc_info:
+        validate_excel_import_limits((file_path,))
+
+    assert exc_info.value.error_code == "FILE_TOO_LARGE"
+
+
+def test_validate_excel_import_limits_rejects_batch_count(tmp_path, monkeypatch):
+    file_paths = (tmp_path / "one.xlsx", tmp_path / "two.xlsx")
+    for file_path in file_paths:
+        file_path.write_bytes(b"x")
+    monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_FILES", 1)
+
+    with pytest.raises(ExtractionError) as exc_info:
+        validate_excel_import_limits(file_paths, inspect_archives=False)
+
+    assert exc_info.value.error_code == "BATCH_FILE_LIMIT_EXCEEDED"
+
+
+def test_validate_excel_import_limits_allows_trusted_full_rescan_count(
+    tmp_path, monkeypatch
+):
+    file_paths = (tmp_path / "one.xlsx", tmp_path / "two.xlsx")
+    for file_path in file_paths:
+        file_path.write_bytes(b"x")
+    monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_FILES", 1)
+
+    total_bytes = validate_excel_import_limits(
+        file_paths,
+        inspect_archives=False,
+        enforce_batch_file_limit=False,
+    )
+
+    assert total_bytes == 2
+
+
+def test_validate_excel_import_limits_rejects_batch_size(tmp_path, monkeypatch):
+    file_paths = (tmp_path / "one.xlsx", tmp_path / "two.xlsx")
+    for file_path in file_paths:
+        file_path.write_bytes(b"123")
+    monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_BYTES", 5)
+
+    with pytest.raises(ExtractionError) as exc_info:
+        validate_excel_import_limits(file_paths, inspect_archives=False)
+
+    assert exc_info.value.error_code == "BATCH_SIZE_LIMIT_EXCEEDED"
+
+
+def test_validate_excel_import_limits_rejects_expanded_zip(tmp_path, monkeypatch):
+    file_path = tmp_path / "expanded.xlsx"
+    with ZipFile(file_path, "w", compression=ZIP_STORED) as archive:
+        archive.writestr("xl/worksheets/sheet1.xml", b"x" * 6)
+        archive.writestr("xl/worksheets/sheet2.xml", b"x" * 6)
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_EXPANDED_BYTES", 10)
+
+    with pytest.raises(ExtractionError) as exc_info:
+        validate_excel_import_limits((file_path,))
+
+    assert exc_info.value.error_code == "XLSX_EXPANDED_TOO_LARGE"
+
+
+def test_open_validated_excel_source_keeps_validated_inode(tmp_path):
+    source = tmp_path / "source.xlsx"
+    replacement = tmp_path / "replacement.xlsx"
+    with ZipFile(source, "w") as archive:
+        archive.writestr("old.xml", b"old")
+    with ZipFile(replacement, "w") as archive:
+        archive.writestr("new.xml", b"new")
+
+    with open_validated_excel_source(source) as source_stream:
+        try:
+            os.replace(replacement, source)
+        except PermissionError:
+            assert os.name == "nt"
+        with ZipFile(source_stream) as archive:
+            names = archive.namelist()
+
+    assert names == ["old.xml"]
 
 
 def test_normalize_datatypes_num_reprogramacoes_uses_total_when_text_legacy():

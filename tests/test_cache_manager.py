@@ -6,10 +6,61 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import pytest
 
 from core.cache_manager import CacheManager
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_formatted_cache_measures_each_frame_once_when_evicting(monkeypatch) -> None:
+    cache = CacheManager()
+    small = pd.DataFrame({"text": ["x" * 1000]})
+    cache.max_dataframe_bytes = 3 * int(small.memory_usage(deep=True).sum()) + 1
+    for key in ("first", "second", "third"):
+        cache.cache_formatted_df(key, small)
+    retained_ids = {id(frame) for frame in cache._caches["dataframes"].values()}
+    incoming = pd.DataFrame({"text": ["y" * 1900]})
+    original_measure = pd.DataFrame.memory_usage
+    calls = {}
+
+    def measure(frame, *args, **kwargs):
+        calls[id(frame)] = calls.get(id(frame), 0) + 1
+        return original_measure(frame, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "memory_usage", measure)
+    cache.cache_formatted_df("incoming", incoming)
+
+    assert calls == dict.fromkeys(retained_ids | {id(incoming)}, 1)
+    assert cache.get_cached_formatted_df("first") is None
+    assert cache.get_cached_formatted_df("second") is None
+    assert cache.get_cached_formatted_df("third") is not None
+    pd.testing.assert_frame_equal(cache.get_cached_formatted_df("incoming"), incoming)
+
+
+def test_formatted_cache_does_not_hide_copy_failure(monkeypatch) -> None:
+    cache = CacheManager()
+    frame = pd.DataFrame({"text": ["value"]})
+
+    def fail_copy(*args, **kwargs):
+        raise ValueError("copy failed")
+
+    monkeypatch.setattr(frame, "copy", fail_copy)
+    with pytest.raises(ValueError, match="copy failed"):
+        cache.cache_formatted_df("frame", frame)
+    assert cache.get_cached_formatted_df("frame") is None
+
+
+def test_formatted_cache_reports_inconsistent_eviction_state() -> None:
+    cache = CacheManager()
+    frame = pd.DataFrame({"text": ["x" * 1000]})
+    cache.max_dataframe_bytes = int(frame.memory_usage(deep=True).sum()) + 1
+    cache.cache_formatted_df("first", frame)
+    cache._access_times["dataframes"].clear()
+
+    with pytest.raises(RuntimeError, match="eviction did not remove an entry"):
+        cache.cache_formatted_df("second", frame)
+    assert cache.get_cached_formatted_df("second") is None
 
 
 def test_width_cache_keeps_zero_width_distinct_from_unspecified_width() -> None:

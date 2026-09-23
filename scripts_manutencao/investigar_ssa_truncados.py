@@ -14,6 +14,8 @@ project_root = Path(__file__).parent.parent
 os.chdir(project_root)
 sys.path.insert(0, str(project_root))
 
+from extracao.extractor import open_validated_excel_source  # noqa: E402
+
 
 def investigar_ssa_truncados():
     """Investigar por que SSAs chegam truncados no banco."""
@@ -38,7 +40,8 @@ def investigar_ssa_truncados():
             try:
                 # Ler com header=0 e header=1 para comparar
                 print("   INFO Header=0 (primeira linha):")
-                df0 = pd.read_excel(arquivo_path, header=0, nrows=3)
+                with open_validated_excel_source(arquivo_path) as source_stream:
+                    df0 = pd.read_excel(source_stream, header=0, nrows=3)
                 cols_relevantes = [
                     col
                     for col in df0.columns
@@ -51,7 +54,8 @@ def investigar_ssa_truncados():
                     print(f"      Amostras: {amostras}")
 
                 print("   INFO Header=1 (segunda linha):")
-                df1 = pd.read_excel(arquivo_path, header=1, nrows=3)
+                with open_validated_excel_source(arquivo_path) as source_stream:
+                    df1 = pd.read_excel(source_stream, header=1, nrows=3)
                 cols_relevantes = [
                     col
                     for col in df1.columns

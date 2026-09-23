@@ -9,6 +9,7 @@ e inicia a interface CLI ou GUI conforme as opcoes fornecidas.
 
 import argparse
 import importlib
+import inspect
 import itertools
 import logging
 import os
@@ -18,7 +19,7 @@ from collections.abc import Mapping
 from logging.handlers import RotatingFileHandler
 
 from interface.cli_args import build_argument_parser
-from interface.streamlit_launcher import launch_streamlit
+from interface.streamlit_launcher import launch_streamlit, wait_for_streamlit
 from launchers.main_runtime import (
     _get_project_root,
     ensure_runtime_environment,
@@ -31,7 +32,7 @@ patch_pyoxidizer_pandas()
 # Suppress pandas FutureWarnings about chained assignment
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-logger: logging.Logger
+logger = logging.getLogger("ssa")
 # Logger level will be set by argument parsing - do not hardcode DEBUG
 _logging_configured = False
 _console_logging_level = logging.WARNING
@@ -39,7 +40,7 @@ _file_logging_level = logging.INFO
 
 
 class _ASCIIOnlyFilter(logging.Filter):
-    """Remove qualquer caractere nao ASCII das mensagens de log."""
+    """Translitera mensagens e tracebacks para ASCII."""
 
     @staticmethod
     def _to_ascii(value):
@@ -66,6 +67,8 @@ class _ASCIIOnlyFilter(logging.Filter):
                 record.args = self._to_ascii_arg(record.args)
             else:
                 record.args = tuple(self._to_ascii_arg(arg) for arg in record.args)
+        if record.exc_info and not record.exc_text:
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
         if record.exc_text:
             record.exc_text = self._to_ascii(record.exc_text)
         return True
@@ -202,11 +205,9 @@ def get_app_version():
         from utils.version import get_app_version as _get_version
 
         return _get_version()
-    except ImportError:
-        return "3.11+"
     except Exception as exc:  # noqa: BLE001
-        logger.debug("Falha ao obter versao via utils.version: %s", exc)
-        return "3.11+"
+        logger.warning("Falha ao obter versao via utils.version: %s", exc)
+        return "indisponivel"
 
 
 
@@ -445,7 +446,15 @@ def _log_import_failure_context() -> None:
     logger.error("  4. Memoria disponivel do sistema")
 
 
-def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
+def _run_data_import(
+    args: argparse.Namespace,
+    run_importer_logic,
+    *,
+    docs_dir: str | None = None,
+    db_path: str | None = None,
+    table_name: str | None = None,
+) -> bool:
+    from core import import_outcome
     if not getattr(args, "force_rescan", False):
         logger.info(
             "Importacao automatica no startup desativada. "
@@ -473,7 +482,48 @@ def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
         use_optimized,
     )
     try:
-        db_updated = run_importer_logic(force_import=force_import)
+        _outcome_before = import_outcome.get_last_import_outcome()
+        import_kwargs: dict = {}
+        if db_path:
+            db_parent = os.path.dirname(os.path.abspath(db_path))
+            import_kwargs["data_dir"] = db_parent
+            import_kwargs["db_name"] = os.path.basename(db_path)
+            # SSA_DB_PATH pode apontar fora do project_root: espelha o
+            # rescan worker liberando o diretorio do banco no path-safety.
+            import_kwargs["extra_allowed_roots"] = (db_parent,)
+        if docs_dir:
+            import_kwargs["docs_dir"] = docs_dir
+            docs_parent = os.path.dirname(os.path.abspath(docs_dir))
+            if docs_parent:
+                roots: list[str] = list(import_kwargs.get("extra_allowed_roots") or ())
+                if docs_parent not in roots:
+                    roots.append(docs_parent)
+                import_kwargs["extra_allowed_roots"] = tuple(roots)
+        if table_name:
+            import_kwargs["table_name"] = table_name
+        try:
+            params = inspect.signature(run_importer_logic).parameters
+            accepts_var_keyword = any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+            if not accepts_var_keyword:
+                import_kwargs = {
+                    key: value
+                    for key, value in import_kwargs.items()
+                    if key in params
+                }
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "Nao foi possivel inspecionar a assinatura do importador; "
+                "mantendo os argumentos configurados: %s", exc,
+            )
+        db_updated = run_importer_logic(force_import=force_import, **import_kwargs)
+        _outcome_after = import_outcome.get_last_import_outcome()
+        outcome = (
+            _outcome_after
+            if _outcome_after is not _outcome_before
+            else None
+        )
         logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
     except (RuntimeError, OSError, TypeError, ValueError, AttributeError) as exc:
         if use_optimized and force_import:
@@ -490,15 +540,34 @@ def _run_data_import(args: argparse.Namespace, run_importer_logic) -> bool:
     finally:
         _disable_optimized_import(optimized_module)
 
-    if db_updated:
+    if outcome is not None:
+        if outcome.status is import_outcome.ImportStatus.BUSY:
+            logger.info(
+                "Importador ocupado: outra rodada em andamento; nada foi alterado."
+            )
+        elif import_outcome.is_blocking_status(outcome.status):
+            logger.warning(
+                "Importacao terminou com status bloqueante (%s): %s",
+                outcome.status.value,
+                outcome.reason,
+            )
+            if outcome.primary_database_changed:
+                logger.warning(
+                    "AVISO: o banco foi alterado nesta rodada apesar do status "
+                    "bloqueante; recarregue os dados."
+                )
+        elif outcome.primary_database_changed:
+            logger.info("Banco de dados atualizado com sucesso.")
+        elif outcome.status is import_outcome.ImportStatus.DETERMINISTIC_REJECTIONS_ONLY:
+            logger.info(
+                "Arquivos candidatos rejeitados por regra deterministica; banco inalterado."
+            )
+        else:
+            logger.info("Nenhum novo ou modificado relatorio encontrado.")
+    elif db_updated:
         logger.info("Banco de dados atualizado com sucesso.")
-        logger.debug("Banco de dados foi atualizado. Verifique se os dados estao acessiveis.")
     else:
         logger.info("Nenhum novo ou modificado relatorio encontrado.")
-        logger.debug("Nenhum novo relatorio encontrado. Isso pode ser normal ou indicar problemas.")
-        logger.debug(
-            "Verifique se ha arquivos Excel na pasta de entrada e se eles contem dados validos."
-        )
     return db_updated
 
 
@@ -520,26 +589,34 @@ def _resolve_database_target(active_runtime_root: str) -> tuple[str, str]:
     return db_path, table_name
 
 
+def _fallback_gui_to_cli(start_cli_loop, db_path: str, table_name: str) -> None:
+    if sys.stdin is not None and sys.stdin.isatty():
+        logger.info("Recuando para CLI.")
+        start_cli_loop(db_path, table_name)
+        return
+    logger.error(
+        "GUI indisponivel e stdin nao interativo; encerrando sem fallback para CLI."
+    )
+    sys.exit(1)
+
+
 def _launch_gui(db_path: str, table_name: str, start_cli_loop, active_runtime_root: str) -> None:
     logger.info("Iniciando interface grafica (GUI)...")
     try:
         from gui.launcher import GuiOperationalError, launch_gui
     except ImportError as exc:
         logger.error("Falha ao iniciar GUI por dependencia/importacao: %s", exc)
-        logger.info("Recuando para CLI.")
-        start_cli_loop(db_path, table_name)
+        _fallback_gui_to_cli(start_cli_loop, db_path, table_name)
         return
 
     try:
         launch_gui(active_runtime_root, sys.argv, logger)
     except ImportError as exc:
         logger.error("Falha ao iniciar GUI por dependencia/importacao: %s", exc)
-        logger.info("Recuando para CLI.")
-        start_cli_loop(db_path, table_name)
+        _fallback_gui_to_cli(start_cli_loop, db_path, table_name)
     except GuiOperationalError as exc:
         logger.error("Falha operacional ao criar/mostrar janela da GUI: %s", exc)
-        logger.info("Recuando para CLI.")
-        start_cli_loop(db_path, table_name)
+        _fallback_gui_to_cli(start_cli_loop, db_path, table_name)
 
 
 def _launch_interface(
@@ -558,6 +635,7 @@ def _launch_interface(
         )
         if launched:
             print("Interface web ativa. Pressione CTRL+C quando desejar encerrar este processo.")
+            wait_for_streamlit()
         return
 
     if args.gui:
@@ -675,8 +753,14 @@ def main(cli_args=None):
         _prepare_application_environment(active_runtime_root, setup_project_structure)
         _ensure_default_configuration(ensure_default_settings)
         _run_backfill_action(args, backfill_args)
-        _run_data_import(args, run_importer_logic)
         db_path, table_name = _resolve_database_target(active_runtime_root)
+        _run_data_import(
+            args,
+            run_importer_logic,
+            docs_dir=os.path.join(active_runtime_root, "docs_entrada"),
+            db_path=db_path,
+            table_name=table_name,
+        )
         _launch_interface(
             args, db_path, table_name, start_cli_loop, active_runtime_root
         )

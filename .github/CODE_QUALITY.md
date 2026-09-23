@@ -1,73 +1,134 @@
-# Code Quality And Security Automation
+# Qualidade de codigo e automacao de seguranca
 
-This repository separates blocking local/CI checks from external advisory services.
+## Contrato vigente
 
-## Current Contract
+Consulta de 13/09/2026, PR 131 para dev: `gh pr checks --required` nao reportou
+checks obrigatorios. Uma falha de job e uma regra de servidor que impede merge
+sao mecanismos diferentes. Nao houve alteracao de protecoes, rulesets,
+assinaturas, planos ou configuracoes de Apps nesta rodada.
 
-- GitHub branch protection is not configured to require Snyk or DeepSource checks on `dev` or `main`.
-- Repository rulesets currently do not make Snyk or DeepSource required merge gates.
-- Snyk and DeepSource are treated as advisory PR signals unless their dashboards or GitHub rulesets are changed outside this repository.
-- Local release validation remains `py_compile`, `ruff`, `ty`, focused `pytest`, plus the security scans selected for the slice.
+A politica existente trata Snyk e DeepSource como sinais consultivos, salvo
+mudanca explicita de politica e configuracao do servidor. Seu status failure
+continua visivel; nao deve ser apresentado como aprovacao nem escondido.
+As verificacoes locais e jobs proprios retornam falha quando seus contratos
+nao sao cumpridos, independentemente da protecao de merge do GitHub.
 
-## Repository Change Applied
+## Fluxos mantidos no repositorio
 
-- The repository policy now states that Snyk and DeepSource are advisory unless explicitly required by branch protection, rulesets, or their external dashboards.
-- No required Snyk/DeepSource status check existed in GitHub branch protection or rulesets during the 2026-04-25 check, so there was no repository-side required check to remove.
-- Any remaining Snyk/DeepSource failure mode is controlled outside this repo by the Snyk or DeepSource GitHub App/dashboard.
+- minimal-ci: autoria e grupos de importacao, lint, tipos e testes conforme o
+  diff; push/PR main/dev e disparo manual.
+- CodeQL: precheck do modo de analise e verificacao de seguranca.
+- Secret Scan: workspace e diff da PR bloqueantes; historico consultivo apenas
+  em execucoes manuais/agendadas.
+- Dependency review: precheck de disponibilidade e analise das dependencias.
+- GitLab: MR, branch padrao, web e pushes fix/; autoria, gates, suite completa
+  automatica e scanner bloqueantes. JSONL/JUnit preservados por 14 dias.
+- Windows: build nativo e verificacao dos artefatos; logs de falha coletados
+  depois da verificacao e do envio dos pacotes.
+- `.deepsource.toml`: seleciona o analisador; nao configura protecao de merge.
 
-## Blocking Checks Owned By This Repository
+Os comandos locais e detalhes dos artefatos estao em
+[TESTING_STRATEGY.md](../docs/TESTING_STRATEGY.md). A validacao nativa de um
+build nao pode ser substituida por analise de YAML ou PowerShell.
 
-- `.github/workflows/minimal-ci.yml`: Python import/lint/test gate for the supported project scope.
-- `.github/workflows/codeql.yml`: GitHub CodeQL security scan.
-- `.github/workflows/secret_scan.yml`: blocking workspace and PR diff secret scans; history scan is advisory and only runs on schedule/manual dispatch.
-- `.deepsource.toml`: local analyzer configuration only; it does not decide whether the GitHub App blocks a PR.
+## Registro historico da PR 131 (13/09/2026)
 
-## Supply Chain Download Policy
+As anotacoes dos oito jobs GitHub em 7015e6fd confirmam bloqueio de faturamento
+antes de iniciar. Isso exige regularizacao da conta, nao mudanca dos gates.
+A pipeline GitLab e o estado dos commits estao na secao M de
+[AUDIT_FIXES_REPORT.md](../docs/AUDIT_FIXES_REPORT.md).
 
-- PR and release gates must not install Python or npm packages from public registries only to produce advisory metadata.
-- `.github/actions/opencode-github/action.yml` does not run `npm install`; if its cache is missing, the review job fails with an explicit error instead of downloading from npm.
-- GitHub Automatic Dependency Submission is a dynamic GitHub-managed workflow (`dynamic/dependency-graph/auto-submission`), not a versioned YAML file in this repo.
-- The repository variable `GH_DEPENDENCY_SUBMISSION_SKIP_CACHE=true` is set to avoid cache persistence while Automatic Dependency Submission remains enabled.
-- To fully stop Automatic Dependency Submission, disable it in GitHub Settings > Advanced Security > Dependency graph > Automatic dependency submission. The direct workflow disable API returned HTTP 422 on 2026-05-13.
-- `minimal-ci` still installs the OS package `libegl1` from the runner package manager because PyQt smoke coverage depends on it.
-- `release-windows` still installs Inno Setup with Chocolatey only in the manual Windows release flow when installers are requested.
+O reteste local historico e seus limites estao centralizados na
+[secao L4 do relatorio](../docs/AUDIT_FIXES_REPORT.md#l4-fechamento-da-rodada-a-e).
+Esse registro nao comprova execucao de CI nem aprovacao do HEAD atual.
+A entrega de binarios segue [seu procedimento](../docs/BUILD_WINDOWS_ARM64_AMD64.md);
+pendencias historicas nao acrescentam gates, e ajustes apenas documentais nao
+exigem recompilacao. Os gates existentes permanecem com seus contratos.
 
-## External Advisory Services
+CodeFactor passou apos corrigir caminhos temporarios e limpeza dos testes;
+quatro avisos de complexidade permanecem nao bloqueantes. GitGuardian reportou
+40 commits sem segredos. Resultados de Snyk/Socket sem mudancas de manifests
+nao substituem uma auditoria completa de dependencias.
 
-### Snyk
+DeepSource reportou failure, 746 ocorrencias introduzidas e 622 resolvidas,
+com aviso explicito de possivel imprecisao da base. Duas ocorrencias criticas
+verificadas pertencem a funcoes identicas a dev e ja possuem guardas de tipo.
+A triagem integral continua pendente; nao foi reduzido limiar nem acrescentada
+supressao. Primeiro validar a base, depois reproduzir riscos e corrigir o
+que for confirmado. CodeRabbit/Aikido remotos informaram skip por draft;
+status verde de uma revisao omitida nao e revisao executada.
 
-- Snyk currently runs as an external service/App, not as a repository workflow in this repo.
-- If Snyk reports `Code test limit reached` or private-test quota errors, that is an account/quota condition, not a code vulnerability by itself.
-- To keep Snyk warning-only, configure this in the Snyk dashboard or GitHub App settings: do not fail PR checks on quota/advisory findings, or remove Snyk checks from required status checks.
-- Do not add `code/snyk` or `security/snyk` to GitHub required checks unless the release policy changes explicitly.
+## Downloads e dependencias
 
-### DeepSource
+Nao instalar pacotes Python/npm em gates apenas para gerar metadados
+consultivos. O ambiente do projeto usa o lock; bibliotecas Qt do sistema e
+Inno Setup no build Windows sao dependencias funcionais dos respectivos jobs.
 
-- DeepSource currently runs as a GitHub App using `.deepsource.toml` for analyzer selection.
-- Local validation with `deepsource config validate` requires an authenticated DeepSource CLI session.
-- To keep DeepSource warning-only, configure this in the DeepSource dashboard/GitHub App settings: advisory/report-only status, or do not mark DeepSource checks as required in branch protection/rulesets.
-- Do not add `DeepSource:*` checks to required status checks unless the release policy changes explicitly.
+Automatic Dependency Submission is a dynamic GitHub-managed workflow,
+nao um YAML deste repo. Registro historico de 13/05/2026: a variavel
+GH_DEPENDENCY_SUBMISSION_SKIP_CACHE=true estava aplicada; a tentativa de
+alterar o workflow dinamico por API retornou HTTP 422. Nao foi feita nova
+alteracao desse servico nesta rodada. Se mudar sua configuracao, conferir
+Settings > Advanced Security > Dependency graph no GitHub e registrar o efeito.
 
-## Local Verification Notes
+## Limites e passagem
 
-- On 2026-04-25, branch protection for `main` and `dev` was checked and neither branch had required status checks configured.
-- On 2026-04-25, GitHub rulesets were checked and only `Copilot_review` was active.
-- On 2026-04-25, local Snyk CLI execution was blocked by the local Node install missing `libsimdutf.33.dylib`; this is a local toolchain issue.
-- On 2026-04-25, local DeepSource config validation was blocked by missing CLI authentication.
+- Antes de alterar qualquer regra obrigatoria, conferir a politica aprovada e
+  os efeitos na branch. Nao transformar um scanner consultivo em obrigatorio
+  nem reduzir um gate existente para obter um status verde.
+- Limite de quota, autenticacao ou ambiente nao e vulnerabilidade confirmada.
+  Registrar o erro original e distinguir de um defeito reproduzivel do codigo.
+- `deepsource config validate` depende de sessao CLI autenticada. Os registros
+  de autenticacao ausente e erro local Snyk/libsimdutf de 25/04/2026 sao
+  historicos e nao descrevem automaticamente o host atual.
+- SONAR_TOKEN e SNYK_TOKEN so devem ser configurados quando um fluxo aprovado
+  realmente precisar deles; nao foram incluidos segredos nesta entrega.
+- Smoke do pacote com runtime no TEMP nao cobre banco/planilhas fora das
+  raizes padrao de path safety. A falha de 14/09/2026 (`sync derivadas
+  database ... fora das bases permitidas`, secao N de AUDIT_FIXES_REPORT.md)
+  exige cenario com diretorio arbitrario do usuario na validacao do pacote.
+- Qualquer mudanca futura de regras, Apps ou criterio de aprovacao deve ser
+  registrada aqui junto da configuracao correspondente.
 
-## Required Secrets
+## Registro da PR 132 (17/09/2026) - rota local sem depender de faturamento
 
-Only configure these if the corresponding workflow or external dashboard actually needs them:
+HEAD `dbf33d04`, base `639b5bf`. Os jobs GitHub Actions do HEAD falham por
+bloqueio de faturamento da conta (annotations em `quality-gates (core)` e
+`secret-scan`, check-runs 105338406808/105338405938) e seguem falhos como
+registro de infraestrutura - nao foram marcados como sucesso. `gh pr checks
+--required` nao reporta checks obrigatorios, portanto nenhum workflow ou
+protecao precisou mudar. Faturamento nao e pre-requisito de merge quando a
+validacao local equivalente e suficiente nesta rodada.
 
-| Secret | Description | Owner |
-|--------|-------------|-------|
-| `SONAR_TOKEN` | SonarCloud authentication if Sonar is re-enabled | SonarCloud dashboard |
-| `SNYK_TOKEN` | Snyk API token if a Snyk workflow is added later | Snyk dashboard |
+Gates locais executados com os mesmos contratos do CI, em macOS arm64
+(Darwin arm64) com Python 3.13.12; o CI Linux do Actions nao foi executado
+neste HEAD. Execucao inicial sobre `dbf33d04` puro; o reteste do grupo core
+correu na mesma arvore acrescida do patch de teste descrito abaixo, nao
+sobre `dbf33d04` limpo. Uma passagem por grupo, logs em /tmp/pr132_*:
 
-## Policy
+- `ci_quality_gates.sh` (validate_configs + smoke_cli + check_docs): rc=0.
+- Ruff, ty e py_compile nos 66 arquivos Python do diff
+  (lista em /tmp/pr132_changed_py.txt): rc=0.
+- pytest na particao da matriz (`--timeout=45 --timeout-method=thread`,
+  `QT_QPA_PLATFORM=offscreen`): data-import 724 passed; cli-release
+  371 passed + 6 skipped; core 816 passed + 1 skipped (reteste apos
+  correcao; a passagem inicial teve 2 falhas de captura de log);
+  gui-filter 581 passed + 1 skipped; gui-other 62 arquivos isolados,
+  620 passed + 1 skipped + 11 subtests agregados. Total da matriz:
+  3112 passed, 9 skipped, 11 subtests.
+- `scan_secrets.sh workspace` e `pr-diff 639b5bf`: rc=0.
+- `validate_git_authorship.py range 639b5bf dbf33d04`: OK (47 commits).
 
-- External advisory tools may create PR comments and status signals, but they are not release blockers unless explicitly added to required checks.
-- If a future branch protection/ruleset starts requiring Snyk or DeepSource, update this document in the same config slice.
-- Do not treat quota/auth/toolchain errors from external tools as code failures without a confirmed vulnerability or reproducible repository issue.
+Correcao nesta rodada: `test_remote_itaipu_dataframe.py` ganhou
+`caplog.set_level(logging.WARNING)` - testes anteriores que chamam
+`main.main --log-level CRITICAL` deixam root e handlers (incluindo o
+LogCaptureHandler do caplog) em nivel 50; a captura explicita declara a
+pre-condicao do teste sem remover asserts nem alterar logging de producao.
 
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+Limites: DeepSource consultivo permanece failure - 37 achados triados,
+incluindo os 16 Critical (3 em producao: 1 PYL-E0601 falso positivo e 2
+guardadas PYL-E1133/E1102 identicas a dev; 13 PTC-W0063 `next()` em
+testes herdados de dev), e 584 issues restantes nao auditadas. Snyk code
+segue em quota; validacao nativa foi Windows ARM64 temporario - AMD64 e
+ZIPs de release nao certificados nesta rodada; dependency-review e
+prechecks nao tem equivalente local executado.

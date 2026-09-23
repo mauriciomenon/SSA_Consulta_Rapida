@@ -2,17 +2,20 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (4.42 local release candidate)
+## CURRENT TRUTH (2026-09-08, v4.50)
 
-- Sync deste guia: `2026-06-11 11:00 -0300`.
-- Relatorio consolidado deste ciclo:
-  - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
+- Sync deste guia: `2026-09-08`.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
+- Artefatos `v4.43` citados abaixo sao exemplos historicos de nomenclatura, nao artefatos atuais para publicacao.
 - Runbook operacional 3x3:
   - `docs/BUILD_3X3_RUNBOOK.md`
 - Fluxo operacional padrao:
   1. entrada publica por `release.ps1` no Windows e `release.sh` no Debian/macOS
   2. build por backend com scripts em `dev_env/build/`
   3. distribuicao/report com scripts em `dev_env/build/` e `scripts/create_distribution.py`
+- Cada plataforma usa clone, venv e processo nativos do proprio host. Nao usar checkout Windows montado no WSL.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
+- Comando canonico da v4.50 no Windows: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
 - Fonte da matriz de release: `dev_env/build/release_targets.json`.
 - Matriz ativa:
   - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
@@ -37,6 +40,8 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
     - `bash dev_env/build/build_pyoxidizer_debian_arm64.sh --silent`
 - `release.sh --target all --ssh-host ... --ssh-repo ...` executa macOS local quando em Darwin e chama Debian AMD64 + Debian ARM64 no remoto configurado.
 - `release.sh --target all --dry-run --allow-missing-remote` permite validar macOS local sem host Debian.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## Local de saida e staging
 
@@ -68,7 +73,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## Nota de versao
 
-Exemplos de nomes versionados neste documento usam v4.42 como baseline atual.
+Exemplos de nomes versionados neste documento preservam o snapshot historico v4.43.
 No fluxo ativo, usar a versao corrente definida em `VERSION` e `config/version.json`.
 
 ## Estrutura de Build
@@ -95,14 +100,14 @@ launchers/
 │       └── build_config.json   # Config PyInstaller Linux ARM64
 ├── dist/                       # Executaveis gerados
 │   ├── windows_amd64/
-│   │   ├── SSA_CLI_v4.42_windows_amd64.exe
-│   │   └── SSA_GUI_v4.42_windows_amd64.exe
+│   │   ├── SSA_CLI_v4.43_windows_amd64.exe
+│   │   └── SSA_GUI_v4.43_windows_amd64.exe
 │   ├── macos_arm64/
-│   │   ├── SSA_CLI_v4.42_macos_arm64
-│   │   └── SSA_GUI_v4.42_macos_arm64.app
+│   │   ├── SSA_CLI_v4.43_macos_arm64
+│   │   └── SSA_GUI_v4.43_macos_arm64.app
 │   └── debian_amd64/
-│       ├── SSA_CLI_v4.42_debian_amd64
-│       └── SSA_GUI_v4.42_debian_amd64
+│       ├── SSA_CLI_v4.43_debian_amd64
+│       └── SSA_GUI_v4.43_debian_amd64
 └── resources/                  # Recursos compartilhados
     ├── app_icon.ico            # Icone Windows
     ├── app_icon.icns           # Icone macOS
@@ -209,9 +214,9 @@ SSA_{CLI|GUI}_v{versao}_{plataforma}_{arquitetura}.{extensao}
 ```
 
 Exemplo:
-- `SSA_CLI_v4.42_windows_amd64.exe`
-- `SSA_GUI_v4.42_macos_arm64.app`
-- `SSA_CLI_v4.42_debian_amd64`
+- `SSA_CLI_v4.43_windows_amd64.exe`
+- `SSA_GUI_v4.43_macos_arm64.app`
+- `SSA_CLI_v4.43_debian_amd64`
 
 ### Empacotamento Debian no baseline atual
 
@@ -230,14 +235,14 @@ Cada build gera um `build_manifest.json` dentro da pasta da plataforma:
 ```json
 {
   "platform": "macos_arm64",
-  "version": "4.42",
+  "version": "4.43",
   "build_date": "2026-05-22T12:00:00.000000",
   "executables": [
     {
-      "name": "SSA_GUI_v4.42_macos_arm64.app",
+      "name": "SSA_GUI_v4.43_macos_arm64.app",
       "kind": "directory",
       "size_mb": 42.1,
-      "path": "macos_arm64/SSA_GUI_v4.42_macos_arm64.app"
+      "path": "macos_arm64/SSA_GUI_v4.43_macos_arm64.app"
     }
   ]
 }

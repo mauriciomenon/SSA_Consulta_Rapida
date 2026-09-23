@@ -1,21 +1,24 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (baseline v4.42)
+## CURRENT TRUTH (2026-09-08, v4.50)
 
-- Sync deste guia: `2026-04-15 15:45 -0300`.
+- Sync deste guia: `2026-09-08`.
+- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
 - Fluxo canonico Nuitka (sempre via uv wrappers):
   - Windows: `dev_env/build/build_nuitka.bat --silent`
-  - Debian/WSL: `bash dev_env/build/build_nuitka_debian.sh --silent`
+  - Debian em clone Linux nativo: `bash dev_env/build/build_nuitka_debian.sh --silent`
 - Artefatos finais:
   - Windows GUI: `builds/nuitka/windows_amd64/gui_entry.dist/*`
   - Windows CLI: `builds/nuitka/windows_amd64/cli_entry.dist/*`
   - Debian (quando toolchain do host estiver completo): `builds/nuitka/debian_amd64/*`
 - Pre-requisito Debian:
-  - instalar `patchelf` no WSL com `sudo apt-get update && sudo apt-get install -y patchelf`
+  - instalar `patchelf` no host/VM Linux com `sudo apt-get update && sudo apt-get install -y patchelf`
   - sem `patchelf`, o script falha no preflight por design.
 - Pipeline oficial de release continua PyInstaller para pacote default.
 - Nuitka permanece trilha opcional de hardening/performance.
 - Nomes/versionamento exato de executavel dentro de `builds/nuitka/*` devem ser lidos do output do ciclo corrente, nao deste guia historico.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT NOTICE
 
@@ -29,8 +32,7 @@ Quando houver conflito com docs operacionais, prevalece CURRENT TRUTH.
 - PARA RELEASE, USAR PYINSTALLER + `launchers/dist/*`.
 
 **Data**: 2025-11-14
-**Autor**: Claude Code
-**Projeto**: SSA_Consulta_Rapida v4.42
+**Projeto**: SSA_Consulta_Rapida v4.43 (snapshot historico)
 **Sistema Operacional**: Windows 10/11
 **Ambiente**: CMD / PowerShell (PATH limpo)
 
@@ -364,7 +366,6 @@ Conteudo completo:
 ```batch
 @echo off
 REM Build script para Nuitka 2.8.4 sem gcc do MSYS2 no PATH
-REM Autor: Claude Code
 REM Data: 2025-11-14
 
 echo Removendo MSYS2/MinGW do PATH temporariamente...
@@ -654,7 +655,7 @@ cd builds/nuitka
 
 # Teste 1: Versao
 ./main.exe --version
-# Esperado: 4.42
+# Esperado: 4.43
 
 # Teste 2: Help
 ./main.exe --help
@@ -1302,7 +1303,7 @@ python -m nuitka ^
 [ ] python313.dll presente
 [ ] Qt6*.dll presentes
 [ ] config/ e data/ copiados
-[ ] Teste: main.exe --version (mostra 4.42)
+[ ] Teste: main.exe --version (mostra 4.43)
 [ ] Teste: main.exe --help (mostra ajuda)
 [ ] Teste: main.exe --gui (abre interface)
 [ ] Startup e instantaneo (< 1 segundo)
@@ -1370,7 +1371,6 @@ python -m nuitka --clean-cache
 
 **Ultima atualizacao**: 2025-11-14
 **Versao do guia**: 1.0
-**Autor**: Claude Code
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

@@ -1,6 +1,37 @@
 # HISTORICO DE RELEASES
 
+## RELEASE v4.50 - 2026-09-08
+
+Release de fontes com correcoes de importacao, integridade, cancelamento e limites de memoria dos caches.
+Notas: [RELEASE_NOTES_v4.50.md](RELEASE_NOTES_v4.50.md).
+Nenhum binario ou instalador novo foi gerado nesta publicacao.
+
+
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
+
+## **RELEASE v4.47 - STABLE**
+
+**Data de Lancamento**: 9 de agosto de 2026
+**Tipo**: Stable maintenance release
+**Status**: Release estavel
+
+### **Principais entregas**
+- Atalhos de situacao alternam entre inclusao, exclusao (`!STATUS`) e estado neutro.
+- Filtros combinados aceitam estados positivos e negativos, como `SCA SPG !APG`.
+- Se mais de um setor executor estiver ativo, o seletor rapido mostra `...`.
+- Barra rapida, filtros ativos, filtros por coluna e painel avancado compartilham o estado aplicado.
+- Cache de busca foi ativado no DataFrame real e nao e invalidado por refresh apenas visual.
+- Mascaras pandas/Arrow nullable foram blindadas na busca exata e em faixas.
+- Recovery preserva tabela canonica, colunas funcionais, tabelas auxiliares e dados em WAL ativo.
+- Importacao totalmente rejeitada recebe classificacao deterministica.
+- Scripts Windows, snapshots SQLite e fechamento de conexoes receberam hardening de portabilidade.
+
+### **Escopo preservado**
+- Sem mudanca de schema, API das dependencias de runtime, operadores do core ou layout.
+- `pip-audit` nao encontrou vulnerabilidade conhecida; nenhuma dependencia foi atualizada sem necessidade reproduzida nesta publicacao.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
+- `v4.46` permanece como checkpoint anterior do ciclo tri-state.
+- Notas detalhadas: `docs/RELEASE_NOTES_v4.47.md`.
 
 ## **UPDATE 2026-04-09 - GUI STATE CONTRACT HARDENING**
 
@@ -20,7 +51,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - limpar filtro retorna para a SSA origem via `_jump_to_ssa(...)`
 - `config/gui_main_preferences.json` tracked foi normalizado e a documentacao do contrato foi alinhada ao runtime real.
 - Post-mortem tecnico consolidado em:
-  - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
 
 ### **Commits chave**
 - `bf57520d` `STABILITY_PATCH: make GUI own general search columns`
@@ -35,11 +65,49 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - `display_current_page(...)` continua concentrando responsabilidades demais.
 - O risco agudo dos call sites principais caiu, mas qualquer refatoracao nessa area segue devendo slice proprio e pequeno.
 
-## **RELEASE v4.42 - CURRENT LOCAL BASELINE**
+## **RELEASE v4.45 - HISTORICAL HARDENING BASELINE**
+
+**Data de Lancamento**: Julho 2026
+**Tipo**: Hardening PyQt6 refactor start
+**Status**: Baseline historico
+
+### **Principais entregas (planejadas - ver plano detalhado)**
+- Baseline operacional promovido para `4.45` como inicio do ciclo de hardening PyQt6.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
+- Escopo planejado: races criticas de shutdown/cancelamento/bloqueio (P0), performance/dedup (P1), limpeza (P2), decomposicao da God Class SSAMainWindow em mixins (P3).
+- Ultima tag/release GitHub publicada permanece `v4.36`.
+
+## **RELEASE v4.44 - HISTORICAL LOCAL BASELINE**
+
+**Data de Lancamento**: Julho 2026
+**Tipo**: Local validation baseline and release alignment
+**Status**: Baseline local historico estavel
+
+### **Principais entregas**
+- Baseline operacional promovido para `4.44`.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
+- Fixes de validacao incorporados antes da tag local:
+  - `scripts/run_tests.sh` compativel com Bash antigo do macOS.
+  - teste de estabilidade GUI alinhado as variantes oficiais de `data_cadastro`.
+- Ultima tag/release GitHub publicada permanece `v4.36`.
+
+## **RELEASE v4.43 - HISTORICAL LOCAL BASELINE**
 
 **Data de Lancamento**: Junho 2026
 **Tipo**: Stabilization baseline and release alignment
-**Status**: Baseline local ativo
+**Status**: Baseline local historico
+
+### **Principais entregas**
+- Baseline operacional promovido para `4.43`.
+- Metadata runtime sincronizada em `VERSION`, `config/version.json`, `pyproject.toml` e `uv.lock`.
+- Documentacao operacional e testes de empacotamento alinhados aos nomes versionados `v4.43`.
+- Tag local `v4.43` reservada antes dos slices funcionais de filtros/cache/GUI.
+
+## **RELEASE v4.42 - HISTORICAL LOCAL BASELINE**
+
+**Data de Lancamento**: Junho 2026
+**Tipo**: Stabilization baseline and release alignment
+**Status**: Baseline local historico
 
 ### **Principais entregas**
 - Baseline operacional promovido para `4.42`.
@@ -62,7 +130,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - reorder/sort/resize do header preservam detalhes e mapeamento visual.
   - popup de derivadas consolidado com arvore textual, grafo SVG e exportacao.
   - importacao e update por SSA endurecidos contra downgrade de `situacao` e DB invalido.
-- Docs vivos de controle consolidados em torno de `AGENTS.md`, `README.md` e `docs/README.md`.
 - Backlog real priorizado para a proxima rodada:
   - blindagem de storage contra limpeza legacy com letras
   - aliases validos em `_needs_db_only_derivadas_sync`
@@ -121,11 +188,9 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Commits chave**
 - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
-- `40cc4662` `DOC_SYNC: record numero_ssa write-path stabilization status`
 - `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
 - `f4af8d20` `STABILITY_PATCH: stabilize simplified filter contract and derivadas alias preflight`
 - `bdf612d0` `STABILITY_PATCH: close pytest ty bandit minfix slice`
-- `dd2d45b1` `DOC_SYNC: prepare 4.36 transition handoff`
 
 ---
 
@@ -159,7 +224,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Principais entregas**
 - Full rescan real executado de ponta a ponta com evidencia em:
-  - `docs/indicios_importacao.md` (secao da sessao 2026-03-09)
 - Baseline local promovido para `4.33` em:
   - `VERSION`
   - `config/version.json`
@@ -229,7 +293,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - guardrails de cancelamento/retorno inesperado em `core/app_logic.py`
   - timeout configuravel de reader join em `scripts/pytest_stream_common.py`
 - Regressao focada adicionada para command handlers, importer e stream wrappers.
-- Handoff sincronizado em docs internos posteriormente removidos do repositorio publico.
 - Entregas streamlit (`v4.24.1`) e hardening (`v4.25.0`) preservadas no historico da branch.
 
 ### **Documentacao da versao**
@@ -248,7 +311,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 ## **RELEASE v4.25.0**
 
 **Data de Lancamento**: Fevereiro 2026
-**Tipo**: Sprint 25 Graves Closure and Handoff Sync
 **Status**: Estavel
 
 ### **Principais entregas**
@@ -257,7 +319,6 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - cancelamento/import guardrails em `core/app_logic.py`
   - path/mapping validation em `interface/command_handlers.py`
 - Regressao focada para command handlers, importer e stream wrappers.
-- Sync de docs de continuidade para handoff entre sessoes.
 
 ## **RELEASE v4.24.0**
 
@@ -687,9 +748,14 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.42**: Baseline estavel local ativo
+- **v4.47**: Snapshot historico
+- **v4.46**: Checkpoint anterior do ciclo tri-state
+- **v4.45**: Baseline historico de hardening
+- **v4.44**: Baseline local historico
+- **v4.43**: Baseline local historico
+- **v4.42**: Baseline local historico
 - **v4.37**: Baseline local historico
-- **v4.36**: Ultima tag publicada
+- **v4.36**: Snapshot historico publicado
 - **v4.31**: Suporte de compatibilidade em migracao
 - **Versoes anteriores**: Tratadas como historico
 
@@ -699,7 +765,7 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de referencia mais recente no baseline atual (`4.42`).
+Para melhor performance e estabilidade, recomenda-se utilizar a release de fontes atual (`4.50`).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
 

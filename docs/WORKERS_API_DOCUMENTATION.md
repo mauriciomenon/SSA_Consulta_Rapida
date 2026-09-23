@@ -2,7 +2,69 @@
 
 ## Visão Geral
 
-## Atualizacao 2026-03-27
+## Contrato atual de ciclo de vida
+
+- `closeEvent` restaura `_is_shutting_down=False` ao adiar o fechamento e mantem
+  timers operantes. `shutdown()` solicita cancelamento e consulta o estado real
+  dos workers, sem esperas em serie na GUI.
+- `PreferencesWriter.persist_async()` confirma aceitacao na fila, nao escrita
+  em disco. `flush(timeout=1.0)` retorna `False` quando a espera expira e levanta
+  `OSError` quando a escrita retorna falso ou lanca excecao. Fila vazia nao
+  mascara esse erro, e o termino da thread notifica quem aguarda. Uma nova
+  escrita bem-sucedida elimina o erro anterior. Termino antes da escrita com
+  snapshot pendente tambem gera falha; encerramento vazio continua valido.
+  O contrato confirma escritor/replace, sem garantir durabilidade absoluta:
+  fsync temporario/diretorio continua tolerando OSError em `config_manager`.
+- No fechamento, a falha de preferencias aparece no status e no log. O caminho
+  de adiamento mantem `_is_shutting_down=False`, sem encerrar o gravador por
+  timeout de `flush`; o encerramento so e solicitado ao aceitar o fechamento.
+- O prazo de 30 segundos e reiniciado quando as operacoes pendentes nao incluem
+  nenhuma da tentativa anterior. Workers Qt e a thread de derivadas participam
+  dessa identidade; prazo expirado nao e evidencia de conclusao com sucesso.
+- A validacao de banco conserva resultado e `_request_id` por requisicao.
+  Retornos antigos nao alteram a selecao atual nem seu estado de ocupacao.
+- Menus de operacoes sobre o banco usam o estado compartilhado em
+  `gui/ssa/app_menus.py`, incluindo a vida real da thread de derivadas. Uma
+  finalizacao antiga nao libera uma operacao nova.
+- `RescanWorker` propaga as ressalvas reais do relatorio de integridade, sem
+  repetir a verificacao apenas para mudar a mensagem final. Retornos de um
+  worker substituido podem finalizar seu dialogo, mas nao alterar o status,
+  recarregar dados ou retirar referencias do worker e dialogo atuais.
+- A SAM API protege construcao, preparacao, conexao dos sinais e inicio do
+  worker. Retornos de progresso, previa, decisao, sucesso e erro conferem a
+  identidade ativa; a confirmacao de importacao repete a guarda apos o dialogo.
+  Se a recarga falhar apos sucesso, o log registra a excecao e o status indica
+  `Recarregar dados`.
+- Derivadas chama `mark_finished()` e seu finalizador de erro quando o
+  construtor da thread ou `start()` falha, liberando o estado para nova tentativa.
+- Compactacao e validacao de outro banco tambem incluem construcao e atribuicao
+  da thread no tratamento de falha do inicio. O erro libera flag, referencia e
+  menus, informa o status e permite outra tentativa.
+- O ultimo relatorio manual valido de derivadas pode ser exportado pela GUI;
+  seu ciclo de invalidacao e formatos estao no [guia de derivadas](DERIVADAS_SYNC_RUNBOOK.md).
+
+- Rescan protege construcao, preparacao, conexoes obrigatorias, registro e
+  partida; falha limpa apenas os recursos da tentativa. Filtro protege tambem
+  token e retencao; prepara termos/fonte/modo/colunas antes de marcar busy.
+- A entrega de `on_data_loaded` devolve False e aciona `on_load_error` em falha.
+  Antes de aplicar, conserva dados anteriores; depois de aplicar, informa que
+  a exibicao pode estar incompleta. A atualizacao visual retornar False tambem
+  interrompe a entrega com erro. O encaminhamento usa a fachada da janela para
+  preservar apresentacao no startup, contexto de banco/modal e retencao.
+  Identidade de requisicao continua exigida.
+- Finalizadores de derivadas, compactacao e banco alternativo possuem tratamento
+  local. Falha de aplicacao retorna `ok=False`, informa erro e conserva referencias
+  ainda vivas. Derivadas invalidam relatorio; compactacao/validacao esperam termino
+  nativo antes de entregar. Nova tentativa e permitida quando o estado foi liberado.
+- Banco alternativo prepara/invalida o estado de derivadas antes de mudar DB_PATH.
+  Falha anterior conserva o banco antigo; falha posterior conserva o banco ja
+  selecionado e pede recarga. Recarga falha nao e reportada como sucesso da UI.
+
+Detalhes e criterios de regressao:
+[guardrails da GUI](GUI_ASYNC_LOADING_GUARDRAILS.md) e
+[plano de validacao](VALIDATION_PLAN.md).
+
+## Historico: atualizacao 2026-03-27
 
 - `RescanWorker` tambem sustenta o fluxo de importacao explicita disparado pela GUI.
 - O sync manual de derivadas agora roda fora do thread principal em runtime normal, com entrega do resultado de volta para a GUI.
@@ -16,7 +78,7 @@ Este documento descreve a arquitetura, interfaces e APIs dos workers assíncrono
 1. [Arquitetura de Workers](#arquitetura-de-workers)
 2. [DataLoaderWorker](#dataloaderworker)
 3. [FilterWorker](#filterworker)
-4. [Padrões de Uso](#padrões-de-uso)
+4. [Padroes de uso na GUI](#padroes-de-uso-na-gui)
 5. [Sinais e Slots](#sinais-e-slots)
 6. [Tratamento de Erros](#tratamento-de-erros)
 7. [Testes](#testes)
@@ -50,10 +112,10 @@ Este documento descreve a arquitetura, interfaces e APIs dos workers assíncrono
 ### Princípios de Design
 
 1. **Assíncrono por Padrão**: Todas as operações de I/O são executadas em threads separadas
-2. **Cancelável**: Todos os workers suportam cancelamento seguro via `requestInterruption()`
+2. **Cancelamento cooperativo**: workers Qt oferecem `cancel()` ou `requestInterruption()` conforme sua interface. Solicitar cancelamento nao comprova termino; uma leitura de planilha em andamento pode concluir antes da proxima verificacao.
 3. **Cache Inteligente**: Resultados são cacheados quando apropriado
 4. **Signal-Based**: Comunicação via PyQt Signals para thread-safety
-5. **Fail-Safe**: Tratamento robusto de erros sem crashar a UI
+5. **Erros locais**: Os caminhos tratados encaminham falhas ao controlador correspondente. As reproducoes A-E estao no relatorio; isso nao comprova que toda excecao possivel da UI foi coberta.
 
 ---
 
@@ -75,15 +137,16 @@ Herda de: `PyQt6.QtCore.QThread`
 
 | Sinal | Tipo | Descrição |
 |-------|------|-----------|
+| `data_prepared` | `pyqtSignal(object)` | Entrega o resultado preparado para a GUI |
 | `data_loaded` | `pyqtSignal(pd.DataFrame)` | Emitido quando dados são carregados com sucesso |
 | `error_occurred` | `pyqtSignal(str)` | Emitido quando ocorre um erro durante o carregamento |
 
-#### Atributos de Classe
+#### Responsabilidades extraidas
 
-| Atributo | Tipo | Descrição |
-|----------|------|-----------|
-| `_ALLOWED_ORDER_COLUMNS` | `set[str]` | Whitelist de colunas permitidas em ORDER BY |
-| `_IDENTIFIER_RE` | `Pattern` | Regex para validar identificadores SQL |
+O worker delega consulta e validacao SQL a `data_loader_query.py`, resolucao de
+tabelas e colunas a `data_loader_repository.py`, e preparo de dados a
+`data_loader_processing.py`. Identificadores e ordenacao nao devem ser tratados
+por metodos antigos atribuidos diretamente a `DataLoaderWorker`.
 
 #### Construtor
 
@@ -122,39 +185,10 @@ Verifica se o worker foi cancelado.
 
 **Retorna**: `True` se cancelado, `False` caso contrário
 
-##### `_sanitize_identifier(value: str) -> str`
-
-Remove caracteres perigosos de identificadores SQL.
-
-**Proteção**: SQL Injection
-**Retorna**: String sanitizada ou vazia se inválido
-
-##### `_quote_identifier(value: str) -> str`
-
-Escapa identificadores SQL com aspas.
-
-**Exemplo**: `ssa_table` → `"ssa_table"`
-
-##### `_resolve_target_table() -> str`
-
-Resolve o nome da tabela alvo, com fallback para "ssa_table".
-
-**Lógica**:
-1. Verifica se tabela solicitada existe
-2. Se não existe, tenta "ssa_table"
-3. Retorna fallback se nenhuma existe
-
-##### `_normalize_order_by(order_by: str | None) -> str | None`
-
-Normaliza e valida cláusula ORDER BY.
-
-**Validações**:
-- Colunas devem estar na whitelist
-- Direção deve ser ASC ou DESC
-- Previne SQL injection
-
-**Exceções**:
-- `ValueError`: ORDER BY inválido ou coluna não permitida
+A validacao de identificadores e `ORDER BY` pertence a
+`gui/workers/data_loader_query.py`. A resolucao da tabela pertence a
+`gui/workers/data_loader_repository.py`; consultar esses modulos para os
+contratos atuais, sem recriar os metodos que foram extraidos do worker.
 
 #### Exemplos de Uso
 
@@ -199,7 +233,7 @@ worker.start()
 # Se usuário cancelar operação
 if user_cancelled:
     worker.cancel()
-    worker.wait(timeout=5000)  # Esperar até 5 segundos
+    # Manter referencia ate finished; nao aguardar na thread da GUI.
 ```
 
 ---
@@ -237,9 +271,12 @@ Herda de: `PyQt6.QtCore.QThread`
 def __init__(
     self,
     df_completo: pd.DataFrame,     # DataFrame a ser filtrado
-    search_chunks: list,           # Lista de chunks de busca
-    default_mode: str = 'contains',  # Modo de busca padrão
-    cache_context: str | None = None  # Contexto adicional para chave de cache
+    search_chunks: list | tuple,  # Grupos de termos
+    search_columns: list[str] | None = None,  # Colunas de busca
+    default_mode: str = 'contains',  # Modo de busca
+    cache_context: str | None = None,  # Contexto da chave
+    df_hash: str | None = None,      # Hash calculado anteriormente
+    cache: FilterCache | None = None  # Cache da instancia ou compartilhado
 )
 ```
 
@@ -261,18 +298,9 @@ worker.cancel()  # Cancela processamento
 
 Cria hash estrutural do DataFrame para chave de cache.
 
-**Algoritmo de Amostragem**:
-- DataFrames ≤ 24 linhas: Usa DataFrame completo
-- DataFrames > 24 linhas: Amostra estratificada (head + mid + tail)
-
-**Retorna**: Hash hexadecimal de 16 caracteres
-
-**Exemplo**:
-```python
-df = pd.DataFrame({'col': [1, 2, 3]})
-hash_val = FilterWorker._build_df_hash(df)
-# Retorna: '84e3d1d94822c03e'
-```
+A implementacao delega a `core.dataframe_fingerprint.build_dataframe_filter_hash`.
+O hash participa da chave junto dos termos e do contexto; nao depender de uma
+amostra fixa ou de um valor literal de hash no codigo consumidor.
 
 #### Exemplos de Uso
 
@@ -304,69 +332,29 @@ worker = FilterWorker(df, [["APV"], ["STE"]])
 # Resultado: união dos filtros (OR lógico)
 ```
 
-### Exemplo 3: Com Cache
+### Reuso do cache
 
-```python
-# Primeira execução - cache miss
-worker1 = FilterWorker(df, [["test"]], cache_context='{"tab":"main"}')
-worker1.start()
-worker1.wait()
-
-# Segunda execução - cache hit (mesmo df_hash e search_chunks)
-worker2 = FilterWorker(df, [["test"]], cache_context='{"tab":"main"}')
-worker2.start()  # Usa cache, não reprocessa
-```
+Uma segunda filtragem pode reutilizar o resultado quando o primeiro worker
+terminou e o hash do DataFrame, os termos, as colunas e o contexto permanecem
+compativeis. Iniciar dois workers em sequencia nao garante que o primeiro ja
+preencheu o cache. Encadear a nova requisicao pelo controlador e por `finished`,
+sem `wait()` na thread da GUI.
 
 ---
 
-## Padrões de Uso
+## Padroes de uso na GUI
 
-### Padrão 1: Chain de Workers
-
-```python
-def load_and_filter():
-    # 1. Carregar dados
-    loader = DataLoaderWorker("ssas.db", "ssa_table")
-    
-    def on_data_loaded(df):
-        # 2. Filtrar dados carregados
-        filter_worker = FilterWorker(df, [["APV"]])
-        filter_worker.filter_finished.connect(on_filtered)
-        filter_worker.start()
-    
-    loader.data_loaded.connect(on_data_loaded)
-    loader.start()
-```
-
-### Padrão 2: Worker com Timeout
-
-```python
-worker = DataLoaderWorker("ssas.db", "ssa_table")
-worker.start()
-
-# Esperar com timeout
-if not worker.wait(timeout=30000):  # 30 segundos
-    worker.cancel()
-    logger.warning("Worker timeout, cancelado")
-```
-
-### Padrão 3: Worker Pool
-
-```python
-# Executar múltiplos workers em paralelo
-workers = []
-for page in range(5):
-    worker = DataLoaderWorker(
-        "ssas.db", "ssa_table",
-        limit=50, offset=page*50
-    )
-    workers.append(worker)
-    worker.start()
-
-# Aguardar todos
-for worker in workers:
-    worker.wait()
-```
+- Conectar sinais antes de iniciar; reter o worker enquanto estiver ativo.
+- Encadear carga e filtro pelo resultado da requisicao vigente. Um worker local
+  sem referencia retida pode ser destruido antes do fim.
+- Tratar falha de `start()` no mesmo controlador que marcou a operacao como
+  ativa, liberando o estado e informando a falha.
+- Trocar workers sem esperar na thread da GUI; resultados e `finished` de
+  requisicoes antigas nao podem atualizar a interface da atual.
+- Um timeout solicita cancelamento e informa a falha, mas nao autoriza destruir
+  o worker que continua vivo. Preservar a referencia ate o termino nativo.
+- Para multiplas cargas, usar o controle existente em `gui/ssa/gui_workers.py`.
+  Nao copiar exemplos de espera ilimitada ou criar uma fila paralela na janela.
 
 ---
 
@@ -423,24 +411,12 @@ def on_error(error_msg: str):
 | `TypeError` | Tipo incorreto retornado | `error_occurred` emitido |
 | Cancelamento | Usuário cancelou | Nenhum sinal emitido |
 
-### Estratégia de Retry
+### Repeticao apos falha
 
-```python
-def run_with_retry(worker, max_retries=3):
-    for attempt in range(max_retries):
-        errors = []
-        worker.error_occurred.connect(errors.append)
-        worker.start()
-        worker.wait()
-        
-        if not errors:
-            return True
-        
-        if attempt < max_retries - 1:
-            time.sleep(2 ** attempt)  # Backoff exponencial
-    
-    return False
-```
+Nao reiniciar automaticamente o mesmo worker em um loop bloqueante. Uma nova
+operacao precisa de identidade propria, conexoes sem acumulo e tratamento da
+falha anterior. O controlador decide se a repeticao e permitida; cancelamento
+ou timeout nao equivalem a sucesso nem justificam esconder o erro.
 
 ---
 
@@ -453,18 +429,21 @@ Localização: `tests/test_workers_advanced.py`
 #### Executar Testes
 
 ```bash
-# Usando venv do projeto
-source .venv/bin/activate
-python -m pytest tests/test_workers_advanced.py -v
+# Usar o ambiente existente do projeto
+uv run --no-sync python -m pytest tests/test_workers_advanced.py -v
 
 # Executar apenas testes unitários
-python -m pytest tests/test_workers_advanced.py::TestDataLoaderWorkerUnit -v
+uv run --no-sync python -m pytest tests/test_workers_advanced.py::TestDataLoaderWorkerUnit -v
 
 # Executar testes de performance
-python -m pytest tests/test_workers_advanced.py::TestWorkerPerformance -v
+uv run --no-sync python -m pytest tests/test_workers_advanced.py::TestWorkerPerformance -v
 ```
 
-#### Cobertura de Testes
+#### Inventario historico de testes
+
+As contagens abaixo sao do inventario original, nao da ultima execucao. Para
+validacao atual, registrar coleta, resultado e revisao conforme
+[VALIDATION_PLAN.md](VALIDATION_PLAN.md).
 
 - **TestDataLoaderWorkerUnit**: 9 testes
   - Sanitização de identificadores
@@ -494,7 +473,8 @@ python -m pytest tests/test_workers_advanced.py::TestWorkerPerformance -v
   - Caracteres especiais
   - Concorrência
 
-**Total**: 35 testes cobrindo 100% dos métodos públicos
+O inventario historico nao comprova cobertura atual nem execucao dos caminhos
+novos. Nao atribuir cobertura de 100% sem medicao da revisao validada.
 
 ---
 
@@ -530,7 +510,8 @@ python -m pytest tests/test_workers_advanced.py::TestWorkerPerformance -v
 
 ---
 
-*Documentacao sincronizada com `dev` em 2026-03-27.*
+*O historico acima registra versoes anteriores; o contrato atual esta no inicio
+deste documento e nos guardrails vinculados.*
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
 

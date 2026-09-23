@@ -74,11 +74,12 @@ class DataPaginator(QWidget):
             page_size_layout.addWidget(self.page_size_spinbox)
             layout.addLayout(page_size_layout)
 
-    def set_dataframe(self, df):
+    def set_dataframe(self, df, *, emit_page_changed=True):
         self.df = df
         self.current_page = 1
         self.update_pagination_info()
-        self.page_changed.emit(self.current_page)
+        if emit_page_changed:
+            self.page_changed.emit(self.current_page)
 
     def update_pagination_info(self):
         # Calcula total de paginas com guard rails (df pode estar vazio ou ainda nao definido)
@@ -123,8 +124,10 @@ class DataPaginator(QWidget):
             and self.page_size_spinbox.value() != self.page_size
         ):
             self.page_size_spinbox.blockSignals(True)
-            self.page_size_spinbox.setValue(self.page_size)
-            self.page_size_spinbox.blockSignals(False)
+            try:
+                self.page_size_spinbox.setValue(self.page_size)
+            finally:
+                self.page_size_spinbox.blockSignals(False)
         # Reset para a pagina 1 ao mudar o tamanho
         self.current_page = 1
         self.update_pagination_info()

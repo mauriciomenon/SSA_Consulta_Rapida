@@ -239,6 +239,35 @@ def test_get_all_xlsx_files_includes_processadas_and_ignores_nosurvivor(tmp_path
     ]
 
 
+def test_get_all_xlsx_files_rejects_processadas_escape(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "escape.xlsx").write_text("x", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="fora de docs_dir"):
+        get_all_xlsx_files(
+            str(docs_dir),
+            include_processadas=True,
+            processadas_subdir="../outside",
+        )
+
+
+def test_get_all_xlsx_files_rejects_symlink_outside_docs_dir(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    outside = tmp_path / "outside.xlsx"
+    outside.write_text("x", encoding="utf-8")
+    try:
+        (docs_dir / "link.xlsx").symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="fora de docs_dir"):
+        get_all_xlsx_files(str(docs_dir))
+
+
 def test_update_cache_for_files_uses_relative_keys_when_docs_dir_provided(tmp_path):
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()

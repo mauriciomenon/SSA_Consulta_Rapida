@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from typing import Any
 
 from core.pai_api_options import (
@@ -12,6 +13,55 @@ from core.pai_api_options import (
     PAI_API_SETTINGS_KEY,
     normalize_pai_api_options,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def database_operation_in_progress(window: Any) -> bool:
+    if any(bool(getattr(window, flag, False)) for flag in (
+        "_data_load_busy", "_other_db_validation_running",
+        "_vacuum_analyze_running", "_is_shutting_down",
+    )):
+        return True
+    state = getattr(window, "_derivadas_sync_state", None)
+    if getattr(state, "running", False):
+        return True
+    thread = getattr(state, "thread", None)
+    if thread is not None and thread.is_alive():
+        return True
+    for attr in ("_active_rescan_worker", "_active_pai_api_worker"):
+        worker = getattr(window, attr, None)
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return True
+            except RuntimeError as exc:
+                logger.debug("Worker encerrado ao consultar operacao (%s): %s", attr, exc)
+    return False
+
+
+def _current_db_basename() -> str:
+    """Nome do banco em uso, lido do estado global da janela principal."""
+    try:
+        from gui import gui_ssa
+        return os.path.basename(str(getattr(gui_ssa, "DB_PATH", "")))
+    except Exception:
+        return ""
+
+
+def refresh_database_actions(window: Any) -> None:
+    enabled = not database_operation_in_progress(window)
+    for action in getattr(window, "_database_operation_actions", ()):
+        action.setEnabled(enabled)
+    indicator = getattr(window, "_db_indicator_action", None)
+    if indicator is not None:
+        basename = _current_db_basename()
+        set_text = getattr(indicator, "setText", None)
+        if basename and callable(set_text):
+            set_text(f"Banco em uso: {basename}")
+    button = getattr(window, "api_button", None)
+    if button is not None:
+        button.setEnabled(enabled)
 
 
 def setup_app_menus(
@@ -29,6 +79,7 @@ def setup_app_menus(
     menu_bar = menu_bar_getter()
     if menu_bar is None or not hasattr(menu_bar, "addMenu"):
         return
+    window._database_operation_actions = []
 
     arquivo_menu = menu_bar.addMenu("Arquivo")
     importacao_menu = menu_bar.addMenu("Importacao")
@@ -48,6 +99,7 @@ def setup_app_menus(
         table_alignment_labels=table_alignment_labels,
     )
     _add_help_menu(window, ajuda_menu, action_cls)
+    refresh_database_actions(window)
 
 
 def _add_file_menu(window: Any, arquivo_menu: Any, action_cls: Any) -> None:
@@ -68,12 +120,36 @@ def _add_import_menu(
     *,
     project_root: str,
 ) -> None:
+    # Operacoes de dia a dia no topo: sao acoes de arquivos->banco.
+    _add_action(
+        importacao_menu,
+        action_cls,
+        window,
+        "Atualizar dados (arquivos novos ou alterados)",
+        window.rescan_diff_data,
+        requires_idle=True,
+        status_tip=(
+            "Procura arquivos novos ou alterados na pasta de entrada e"
+            " atualiza o banco."
+        ),
+    )
+    _add_action(
+        importacao_menu,
+        action_cls,
+        window,
+        "Reimportar tudo (recria o banco do zero)",
+        window.rescan_full_data,
+        requires_idle=True,
+        status_tip="Reprocessa todas as planilhas e recria o banco de dados.",
+    )
+    importacao_menu.addSeparator()
     _add_action(
         importacao_menu,
         action_cls,
         window,
         "Importar XLSX externo",
         window.import_external_excel_files,
+        requires_idle=True,
     )
     _add_action(
         importacao_menu,
@@ -81,11 +157,12 @@ def _add_import_menu(
         window,
         "Consolidar arquivos de entrada",
         window.consolidate_input_files,
+        requires_idle=True,
     )
-    advanced_menu = importacao_menu.addMenu("Avancado")
+    pastas_menu = importacao_menu.addMenu("Pastas")
     _add_folder_actions(
         window,
-        advanced_menu,
+        pastas_menu,
         action_cls,
         project_root=project_root,
     )
@@ -98,43 +175,62 @@ def _add_database_menu(
     *,
     project_root: str,
 ) -> None:
+    # Indicador nao-interativo: refresh_database_actions mantem o texto
+    # atualizado quando outro banco e carregado.
+    db_name = _current_db_basename() or "?"
+    indicator = action_cls(f"Banco em uso: {db_name}", window)
+    indicator.setEnabled(False)
+    db_menu.addAction(indicator)
+    window._db_indicator_action = indicator
+    _add_action(
+        db_menu,
+        action_cls,
+        window,
+        "Carregar outro banco de dados...",
+        window.load_other_database,
+        requires_idle=True,
+    )
+    _add_action(
+        db_menu,
+        action_cls,
+        window,
+        "Recarregar visualizacao",
+        window.load_data,
+        requires_idle=True,
+        status_tip="Rele os dados do banco em uso sem reprocessar arquivos.",
+    )
+    db_menu.addSeparator()
     _add_action(
         db_menu,
         action_cls,
         window,
         "Atualizar derivadas",
         window.update_derivadas_from_sources,
+        requires_idle=True,
     )
-    _add_action(db_menu, action_cls, window, "Recarregar dados", window.load_data)
-    _add_action(db_menu, action_cls, window, "Compactar DB", window.run_vacuum_analyze)
+    _add_action(
+        db_menu,
+        action_cls,
+        window,
+        "Exportar relatorio de derivadas...",
+        window.export_derivadas_report,
+        status_tip="Salvar a ultima sincronizacao deste banco em JSON, CSV ou TSV.",
+    )
+    _add_action(
+        db_menu,
+        action_cls,
+        window,
+        "Compactar banco de dados",
+        window.run_vacuum_analyze,
+        requires_idle=True,
+    )
     advanced_menu = db_menu.addMenu("Avancado")
     _add_action(
         advanced_menu,
         action_cls,
         window,
-        "Atualizar Dados",
-        window.rescan_diff_data,
-    )
-    _add_action(
-        advanced_menu,
-        action_cls,
-        window,
-        "Reescaneamento Completo",
-        window.rescan_full_data,
-    )
-    _add_action(advanced_menu, action_cls, window, "Reescanear", window.rescan_data)
-    _add_action(
-        advanced_menu,
-        action_cls,
-        window,
-        "Carregar outro DB",
-        window.load_other_database,
-    )
-    _add_folder_actions(
-        window,
-        advanced_menu,
-        action_cls,
-        project_root=project_root,
+        "Abrir pasta do banco de dados",
+        window.open_data_folder,
     )
 
 
@@ -149,7 +245,7 @@ def _add_folder_actions(
         menu,
         action_cls,
         window,
-        "Abrir Pasta de Arquivos",
+        "Abrir pasta de entrada",
         window.open_docs_folder,
         status_tip=(
             f"Pasta atual de entrada: {os.path.join(project_root, 'docs_entrada')}"
@@ -159,14 +255,14 @@ def _add_folder_actions(
         menu,
         action_cls,
         window,
-        "Abrir Pasta Arquivos Processados",
+        "Abrir pasta de processados",
         window.open_processadas_folder,
     )
     _add_action(
         menu,
         action_cls,
         window,
-        "Abrir Pasta Arquivos Redundantes",
+        "Abrir pasta de redundantes",
         window.open_nosurvivor_folder,
     )
 
@@ -184,7 +280,7 @@ def _add_options_menu(
         opcoes_menu,
         action_cls,
         window,
-        "Abrir arquivo de opcoes",
+        "Preparar arquivo de opcoes",
         window.open_settings_file_with_backup,
     )
     _add_action(
@@ -227,12 +323,15 @@ def _add_action(
     callback: Any,
     *,
     status_tip: str | None = None,
+    requires_idle: bool = False,
 ) -> Any:
     action = action_cls(label, window)
     if status_tip:
         _set_action_status_tip(action, status_tip)
     action.triggered.connect(callback)
     menu.addAction(action)
+    if requires_idle:
+        window._database_operation_actions.append(action)
     return action
 
 
@@ -294,6 +393,11 @@ def _add_pai_api_menu(
     auto_action.setChecked(options.auto_refresh_enabled)
     auto_action.triggered.connect(window.set_pai_api_auto_refresh_enabled)
     pai_menu.addAction(auto_action)
+
+    refresh_action = action_cls("Atualizar dados agora", window)
+    refresh_action.triggered.connect(lambda: window.refresh_data_from_api())
+    pai_menu.addAction(refresh_action)
+    window._database_operation_actions.append(refresh_action)
 
     sector_menu = pai_menu.addMenu("Setores executores")
     selected_sectors = {value.casefold() for value in options.executor_sectors}

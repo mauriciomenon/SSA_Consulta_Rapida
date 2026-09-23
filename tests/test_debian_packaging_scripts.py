@@ -38,11 +38,8 @@ ARCH_WRAPPERS = (
 
 
 def _run_help(script: Path) -> str:
-    script_arg = str(script)
-    if script.drive:
-        script_arg = f"/mnt/{script.drive.rstrip(':').lower()}{script.as_posix()[2:]}"
     result = subprocess.run(
-        ["bash", script_arg, "--help"],
+        ["bash", str(script), "--help"],
         capture_output=True,
         text=True,
         check=False,

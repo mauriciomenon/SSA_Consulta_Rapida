@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -15,8 +16,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-# Imports simplificados - evita dependncias complexas durante import
-# from armazenamento.database import get_db_connection
+from armazenamento.database_integrity import create_sqlite_backup  # noqa: E402
 
 
 def reset_database(db_path="data/ssas.db"):
@@ -31,18 +31,25 @@ def reset_database(db_path="data/ssas.db"):
     # Remove o arquivo do banco se existir
     if os.path.exists(db_path):
         # Faz backup antes de remover
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         backup_path = f"{db_path}.backup_before_reset_{timestamp}"
-        shutil.copy2(db_path, backup_path)
+        source_path = Path(db_path).resolve()
+        create_sqlite_backup(source_path, backup_path)
         print(f" Backup criado: {backup_path}")
 
-        os.remove(db_path)
+        for database_file in (
+            Path(db_path),
+            Path(f"{db_path}-wal"),
+            Path(f"{db_path}-shm"),
+            Path(f"{db_path}-journal"),
+        ):
+            database_file.unlink(missing_ok=True)
         print(f" Arquivo do banco removido: {db_path}")
 
     # Cria o banco usando o schema oficial
     schema_path = os.path.join(os.path.dirname(__file__), "..", "config", "schema.sql")
 
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         # Lê e executa o schema oficial
         if os.path.exists(schema_path):
             with open(schema_path, "r", encoding="utf-8") as f:
@@ -113,11 +120,17 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
                     removed_count += 1
                     total_size_removed += file_size
 
-    # Limpa pasta backups
+    # Limpa pasta backups (mesmo filtro de padrao da pasta principal:
+    # arquivo solto ali que nao seja backup nao pode ser removido)
     backups_path = data_path / "backups"
     if backups_path.exists():
         for file_path in backups_path.glob("*"):
             if file_path.is_file():
+                is_backup = any(
+                    pattern in file_path.name.lower() for pattern in backup_patterns
+                )
+                if not is_backup:
+                    continue
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
                 if file_time < cutoff_date:
                     file_size = file_path.stat().st_size
@@ -287,10 +300,10 @@ def main():
                     print(" Operao cancelada")
                 break
             elif choice == "2":
-                days = input(
+                days_text = input(
                     "Manter backups dos ltimos quantos dias? (padro: 7): "
                 ).strip()
-                days = int(days) if days.isdigit() else 7
+                days = int(days_text) if days_text.isdigit() else 7
                 clean_old_backups(days_to_keep=days)
                 break
             elif choice == "3":

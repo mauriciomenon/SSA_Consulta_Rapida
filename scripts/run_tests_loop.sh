@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 1
+ssa_native_guard_tools pytest python || exit 1
+cd "$REPO_ROOT"
+
 MARK_EXPR="not legacy"
 ITERATIONS="${1:-0}" # 0 = infinito
 SLEEP="${SLEEP_BETWEEN:-0}"

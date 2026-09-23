@@ -83,6 +83,28 @@ def test_raise_on_error_propagates_missing_workbook(tmp_path):
         import_excel_robust(str(file_path), raise_on_error=True)
 
 
+def test_import_excel_robust_rejects_size_before_read(tmp_path, monkeypatch):
+    from extracao.extractor import ExtractionError
+    from utils import robust_importer
+
+    file_path = tmp_path / "large.xlsx"
+    file_path.write_bytes(b"12345")
+    read_called = False
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    def _unexpected_read(*_args, **_kwargs):
+        nonlocal read_called
+        read_called = True
+        raise AssertionError("read_excel must not run")
+
+    monkeypatch.setattr(robust_importer.pd, "read_excel", _unexpected_read)
+
+    with pytest.raises(ExtractionError, match="excede o limite"):
+        import_excel_robust(str(file_path), raise_on_error=True)
+
+    assert read_called is False
+
+
 def test_synonym_collapse_and_coalescence(tmp_path):
     # Duas colunas que devem colapsar em 'situacao' + duas variantes para numero_ssa
     df = pd.DataFrame(

@@ -156,28 +156,43 @@ class AdvancedFilterStateReader:
 
     def _collect_sector_status_filters(self) -> dict:
         bindings = []
-        for spec in ADVANCED_STANDARD_MULTISELECT_SPECS[:3]:
-            bindings.append((spec.include_key, f"{spec.prefix}_checks"))
-            if spec.exclude_key is not None:
-                bindings.append((spec.exclude_key, f"{spec.prefix}_exclude_checks"))
+        for standard_spec in ADVANCED_STANDARD_MULTISELECT_SPECS[:3]:
+            bindings.append(
+                (standard_spec.include_key, f"{standard_spec.prefix}_checks")
+            )
+            if standard_spec.exclude_key is not None:
+                bindings.append(
+                    (
+                        standard_spec.exclude_key,
+                        f"{standard_spec.prefix}_exclude_checks",
+                    )
+                )
         return {key: self.checked_values(attr) for key, attr in bindings}
 
     def _collect_year_priority_filters(self) -> dict:
         multiselect_bindings = [
             ("num_reprogramacoes_values", "adv_reprog_checks"),
         ]
-        for spec in ADVANCED_YEAR_MULTISELECT_SPECS:
+        for year_spec in ADVANCED_YEAR_MULTISELECT_SPECS:
             multiselect_bindings.append(
-                (f"{spec.base_key}_values", f"{spec.prefix}_checks")
+                (f"{year_spec.base_key}_values", f"{year_spec.prefix}_checks")
             )
             multiselect_bindings.append(
-                (f"{spec.base_key}_exclude_values", f"{spec.prefix}_exclude_checks")
+                (
+                    f"{year_spec.base_key}_exclude_values",
+                    f"{year_spec.prefix}_exclude_checks",
+                )
             )
-        for spec in ADVANCED_STANDARD_MULTISELECT_SPECS[3:]:
-            multiselect_bindings.append((spec.include_key, f"{spec.prefix}_checks"))
-            if spec.exclude_key is not None:
+        for priority_spec in ADVANCED_STANDARD_MULTISELECT_SPECS[3:]:
+            multiselect_bindings.append(
+                (priority_spec.include_key, f"{priority_spec.prefix}_checks")
+            )
+            if priority_spec.exclude_key is not None:
                 multiselect_bindings.append(
-                    (spec.exclude_key, f"{spec.prefix}_exclude_checks")
+                    (
+                        priority_spec.exclude_key,
+                        f"{priority_spec.prefix}_exclude_checks",
+                    )
                 )
         data: dict[str, object] = {
             key: self.checked_values(attr) for key, attr in multiselect_bindings

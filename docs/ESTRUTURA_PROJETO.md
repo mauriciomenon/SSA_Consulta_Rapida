@@ -114,10 +114,8 @@ python -c "from utils import setup_project_structure as s; print(s.setup_dirs())
 3. **BUILD_SYSTEM.md** - Sistema de build
 
 #### **Nivel 3 - Documentos de Referencia**
-1. **REGRAS_DE_OURO.md** - Boas praticas
 2. **COMANDOS_RAPIDOS.md** - Referencia rapida
 3. **GUIA_MODO_OPTIMIZED.md** - Performance
-4. **THEMING_AND_PACKAGING_PLAN.md** - Futuro
 
 ### **PADROES DE DOCUMENTACAO**
 

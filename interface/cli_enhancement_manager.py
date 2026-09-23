@@ -6,6 +6,7 @@ Permite ativar/desativar enhanced table printer facilmente.
 import errno
 import json
 import os
+import sys
 import tempfile
 import time
 from typing import Any
@@ -31,14 +32,12 @@ def _resolve_settings_file_path(project_root: str) -> str:
     return os.path.join(project_root, "config", "cli_enhancements.json")
 
 
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - Windows
-    fcntl = None  # type: ignore
-try:
+if sys.platform == "win32":
     import msvcrt
-except ImportError:  # pragma: no cover - POSIX
-    msvcrt = None  # type: ignore
+    fcntl = None
+else:
+    import fcntl
+    msvcrt = None
 
 
 class CLIEnhancementManager:
@@ -259,10 +258,7 @@ class CLIEnhancementManager:
             last_exc = None
             for attempt in range(LOCK_RETRY_ATTEMPTS):
                 lock_len = 1
-                try:
-                    f.seek(0)
-                except Exception:
-                    pass
+                f.seek(0)
                 try:
                     msvcrt.locking(f.fileno(), mode, lock_len)
                     return

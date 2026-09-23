@@ -43,8 +43,12 @@ def test_should_cancel_stops_between_files(
             }
         )
 
-    def fake_insert_dataframe_with_smart_upsert(df, db_path, table_name):
+    def fake_insert_dataframe_with_smart_upsert(
+        df, db_path, table_name, *, metrics_out=None
+    ):
         insert_count["n"] += 1
+        if metrics_out is not None:
+            metrics_out.update({"ssa_inserted": 1, "ssa_updated": 0})
         return True
 
     # Avoid real Excel parsing and DB writes: focus on cancellation + cache behavior.
@@ -85,6 +89,11 @@ def test_should_cancel_stops_between_files(
 
     assert insert_count["n"] == 1
     assert progress_events
+    file_success = next(
+        data for event_type, data in progress_events if event_type == "file_success"
+    )
+    assert file_success["ssa_inserted"] == 1
+    assert file_success["ssa_updated"] == 0
     assert progress_events[-1][0] == "finish"
     finish_payload = progress_events[-1][1]
     assert finish_payload["total"] == 5

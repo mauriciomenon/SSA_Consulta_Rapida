@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from armazenamento.identifier_utils import quote_identifier  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
 
 APP_RUNTIME_NAME = "SSA_Consulta_Rapida"
@@ -117,10 +117,9 @@ def _count_imported_rows(db_path: Path, table_name: str) -> int:
         raise RuntimeError(f"db ausente: {db_path}")
     if table_name != SMOKE_TABLE_NAME:
         raise RuntimeError(f"tabela invalida: {table_name}")
-    quoted_table_name = quote_identifier(table_name)
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         row = conn.execute(
-            f"SELECT COUNT(*) FROM {quoted_table_name} WHERE CAST(numero_ssa AS TEXT) = ?",  # nosec B608
+            "SELECT COUNT(*) FROM ssa_table WHERE CAST(numero_ssa AS TEXT) = ?",
             (SAMPLE_NUMBER,),
         ).fetchone()
     return int(row[0] if row else 0)

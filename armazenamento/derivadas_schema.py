@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+from contextlib import closing
 from typing import Any, Iterable
 
 from armazenamento.database import get_db_connection
@@ -436,13 +437,20 @@ def ensure_derivadas_schema_for_read(conn: sqlite3.Connection) -> None:
     ensure_derivadas_schema_on_connection(conn, include_legacy_backfill=False)
 
 
-def ensure_derivadas_schema(db_path: str) -> None:
+def ensure_derivadas_schema(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> None:
     """Create derivadas schema objects in a DB path if needed."""
 
     safe_db_path = str(
-        ensure_path_is_allowed(db_path, purpose="ensure derivadas schema")
+        ensure_path_is_allowed(
+            db_path,
+            purpose="ensure derivadas schema",
+            extra_allowed_roots=extra_allowed_roots,
+        )
     )
-    with get_db_connection(safe_db_path) as conn:
+    with get_db_connection(safe_db_path, write=True) as conn:
         ensure_derivadas_schema_on_connection(conn)
         conn.commit()
 
@@ -480,10 +488,19 @@ def scan_derivadas_schema_readiness(
     }
 
 
-def scan_derivadas_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
+def scan_derivadas_schema_readiness_from_path(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> dict[str, Any]:
     """Run schema readiness scan from DB path without applying migrations."""
 
-    safe_db_path = str(ensure_path_is_allowed(db_path, purpose="scan derivadas schema"))
+    safe_db_path = str(
+        ensure_path_is_allowed(
+            db_path,
+            purpose="scan derivadas schema",
+            extra_allowed_roots=extra_allowed_roots,
+        )
+    )
     if not os.path.exists(safe_db_path):
         required_tables = list(DERIVADAS_TABLES)
         return {
@@ -493,7 +510,7 @@ def scan_derivadas_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
             "missing_columns": {},
             "existing_columns": {},
         }
-    with sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True) as conn:
+    with closing(sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True)) as conn:
         return scan_derivadas_schema_readiness(conn)
 
 
@@ -522,12 +539,19 @@ def scan_derivadas_read_schema_readiness(conn: sqlite3.Connection) -> dict[str, 
     }
 
 
-def scan_derivadas_read_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
+def scan_derivadas_read_schema_readiness_from_path(
+    db_path: str,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+) -> dict[str, Any]:
     """Run read-path schema readiness scan from DB path without migration."""
 
     required_tables = sorted(READ_REQUIRED_COLUMNS.keys())
     safe_db_path = str(
-        ensure_path_is_allowed(db_path, purpose="scan derivadas read schema")
+        ensure_path_is_allowed(
+            db_path,
+            purpose="scan derivadas read schema",
+            extra_allowed_roots=extra_allowed_roots,
+        )
     )
     if not os.path.exists(safe_db_path):
         return {
@@ -536,7 +560,7 @@ def scan_derivadas_read_schema_readiness_from_path(db_path: str) -> dict[str, An
             "missing_tables": required_tables,
             "missing_columns": {},
         }
-    with sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True) as conn:
+    with closing(sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True)) as conn:
         return scan_derivadas_read_schema_readiness(conn)
 
 

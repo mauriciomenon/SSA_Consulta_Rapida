@@ -1,17 +1,21 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+NATIVE_POSIX_ONLY = pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="POSIX harness intentionally blocks Windows filesystems; use PowerShell",
+)
 
 
 def _test_env(**overrides: str) -> dict[str, str]:
@@ -22,16 +26,6 @@ def _test_env(**overrides: str) -> dict[str, str]:
 
 def _read_repo_text(*parts: str) -> str:
     return (PROJECT_ROOT.joinpath(*parts)).read_text(encoding="utf-8")
-
-
-def _load_opencode_review_module():
-    script_path = PROJECT_ROOT / "scripts" / "ci" / "opencode_pr_review.py"
-    spec = importlib.util.spec_from_file_location("opencode_pr_review_test", script_path)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_key_shell_scripts_parse_with_available_bash() -> None:
@@ -87,19 +81,493 @@ def test_direnv_common_shell_and_powershell_share_stable_version() -> None:
     assert 'else { "3.13.12" }' in direnv_common_ps1
 
 
+
+ENVIRONMENT_SCRIPTS = (
+    "scripts/env/direnv_common.sh",
+    "scripts/env/direnv_common.ps1",
+    "dev_env/activate_repo.ps1",
+    "dev_env/bootstrap.sh",
+    "dev_env/bootstrap.ps1",
+    "scripts/env/setup_env.sh",
+    "scripts/env/setup_env.ps1",
+    "dev_env/activate_env.bat",
+    "dev_env/setup_pyox_venv.bat",
+)
+
+
+@pytest.mark.parametrize("relative_path", ENVIRONMENT_SCRIPTS)
+def test_environment_scripts_do_not_seed_or_invoke_pip(relative_path: str) -> None:
+    script = _read_repo_text(*relative_path.split("/"))
+    assert "ensurepip" not in script
+    assert "--seed" not in script
+    assert "ensure_venv_pip" not in script
+    assert re.search(r"(?<!uv )\bpip install\b|\b-m pip\b", script) is None
+    for line in script.splitlines():
+        if "-m venv " in line or "'venv'," in line:
+            assert "--without-pip" in line
+
+
+@pytest.mark.parametrize("extension", ["sh", "ps1"])
+def test_environment_installers_sync_selected_environment(extension: str) -> None:
+    bootstrap = _read_repo_text("dev_env", f"bootstrap.{extension}")
+    setup = _read_repo_text("scripts", "env", f"setup_env.{extension}")
+    for script in (bootstrap, setup):
+        assert "uv sync --project" in script
+        assert "--python" in script
+        assert "--frozen" in script
+        assert "--inexact" in script
+        assert "UV_PROJECT_ENVIRONMENT" in script
+        assert "VIRTUAL_ENV" in script
+    assert "--no-dev" in bootstrap
+    assert "--no-dev" not in setup
+
+
+@pytest.fixture
+def isolated_env_repo(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv necessario para validar ambiente sem pip")
+    repo = tmp_path / "repo"
+    env_scripts = repo / "scripts" / "env"
+    env_scripts.mkdir(parents=True)
+    for name in ("direnv_common.sh", "native_host_guard.sh", "setup_env.sh"):
+        shutil.copy2(PROJECT_ROOT / "scripts" / "env" / name, env_scripts / name)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        "#!/usr/bin/env bash\n"
+        'printf "%s\\n" "$*" >> "$SSA_TEST_UV_LOG"\n'
+        'if [[ "$1 $2" == "python install" ]]; then exit 1; fi\n'
+        'if [[ "$1" == "venv" && "${SSA_TEST_FAIL_UV:-0}" == 1 ]]; then exit 42; fi\n'
+        'if [[ "$1" == sync && -n "${SSA_TEST_SYNC_RESULT:-}" ]]; then\n'
+        '  printf "%s\\n" "$UV_PROJECT_ENVIRONMENT" >> "$SSA_TEST_UV_LOG"\n'
+        '  exit "$SSA_TEST_SYNC_RESULT"\n'
+        'fi\n'
+        'exec "$SSA_TEST_UV" "$@"\n',
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+    env = _test_env(
+        PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        SSA_TEST_UV=uv,
+        SSA_TEST_UV_LOG=str(tmp_path / "uv.log"),
+        SSA_SKIP_PYENV="1",
+        SSA_PYTHON_STABLE_VERSION=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        UV_OFFLINE="1",
+        UV_PYTHON_DOWNLOADS="never",
+    )
+    for name in (
+        "SSA_ENV_COMMON_SOURCED", "SSA_ENV_PYENV_INITIALIZED", "SSA_PYTHON_VARIANT",
+        "SSA_USE_FREE_THREADED", "SSA_SKIP_UV", "SSA_VENV_DIR_OVERRIDE",
+        "UV_PROJECT_ENVIRONMENT", "UV_PYTHON", "VIRTUAL_ENV",
+    ):
+        env.pop(name, None)
+    return repo, env
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("fallback", [False, True])
+def test_environment_activation_keeps_pip_absent(
+    isolated_env_repo: tuple[Path, dict[str, str]], existing: bool, fallback: bool
+) -> None:
+    repo, env = isolated_env_repo
+    if existing:
+        subprocess.run(
+            [env["SSA_TEST_UV"], "venv", "--python", sys.executable, str(repo / ".venv")],
+            check=True, capture_output=True, text=True, env=env,
+        )
+        (repo / ".venv" / "preserved.txt").write_text("preservado", encoding="utf-8")
+    if fallback:
+        env["SSA_SKIP_UV"] = "1"
+        env["SSA_ENV_FALLBACK_PYTHON"] = sys.executable
+    result = subprocess.run(
+        ["bash", "-c", ('source scripts/env/direnv_common.sh && ssa_env::apply manual && '
+         'python -c "import importlib.util; assert importlib.util.find_spec(\\\"pip\\\") is None"')],
+        cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (repo / ".venv" / "bin" / "python").exists()
+    if existing:
+        assert (repo / ".venv" / "preserved.txt").read_text(encoding="utf-8") == "preservado"
+    log = Path(env["SSA_TEST_UV_LOG"])
+    calls = log.read_text(encoding="utf-8") if log.exists() else ""
+    assert "--seed" not in calls
+    if existing:
+        assert "venv --python" not in calls
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("failure", ["incomplete", "version", "uv", "fallback_version"])
+def test_environment_activation_rejects_invalid_state(
+    isolated_env_repo: tuple[Path, dict[str, str]], failure: str
+) -> None:
+    repo, env = isolated_env_repo
+    if failure == "incomplete":
+        (repo / ".venv").mkdir()
+    elif failure == "version":
+        subprocess.run(
+            [env["SSA_TEST_UV"], "venv", "--python", sys.executable, str(repo / ".venv")],
+            check=True, capture_output=True, text=True, env=env,
+        )
+        env["SSA_PYTHON_STABLE_VERSION"] = "0.0.0"
+    elif failure == "fallback_version":
+        env.update(SSA_PYTHON_STABLE_VERSION="0.0.0", SSA_SKIP_UV="1", SSA_ENV_FALLBACK_PYTHON=sys.executable)
+    else:
+        env["SSA_TEST_FAIL_UV"] = "1"
+    result = subprocess.run(
+        ["bash", "-c", "source scripts/env/direnv_common.sh && ssa_env::apply manual"],
+        cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0
+    assert "pip missing" not in result.stdout
+    if failure == "uv":
+        assert "uv failed to provision" in result.stdout
+    elif failure == "version":
+        assert "wanted 0.0.0" in result.stdout
+    elif failure == "fallback_version":
+        assert "esperado 0.0.0" in result.stdout
+    else:
+        assert "venv incompleta" in result.stderr
+
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("sync_result", [0, 42])
+def test_environment_setup_syncs_selected_venv_and_propagates_failure(
+    isolated_env_repo: tuple[Path, dict[str, str]], sync_result: int
+) -> None:
+    repo, env = isolated_env_repo
+    env["SSA_TEST_SYNC_RESULT"] = str(sync_result)
+    (repo / ".python-version").write_text(env["SSA_PYTHON_STABLE_VERSION"] + "\n", encoding="utf-8")
+    result = subprocess.run(
+        ["bash", "scripts/env/setup_env.sh"],
+        cwd=repo, env=env, input="y", capture_output=True, text=True, check=False,
+    )
+    assert (result.returncode == 0) == (sync_result == 0), result.stdout + result.stderr
+    calls = Path(env["SSA_TEST_UV_LOG"]).read_text(encoding="utf-8")
+    assert f"sync --project {repo} --python {repo}/.venv/bin/python --frozen --inexact" in calls
+    assert calls.endswith(f"{repo}/.venv\n")
+    if sync_result:
+        assert "Erro ao instalar dependencias com uv." in result.stdout
+        assert "Setup conclu" not in result.stdout
+
+
+@NATIVE_POSIX_ONLY
+def test_environment_setup_keeps_stable_version_when_selecting_free_threaded(
+    isolated_env_repo: tuple[Path, dict[str, str]],
+) -> None:
+    repo, env = isolated_env_repo
+    env.update(
+        SSA_PYTHON_VARIANT="free-threaded",
+        SSA_PYTHON_FT_VERSION=env["SSA_PYTHON_STABLE_VERSION"],
+        SSA_PYTHON_STABLE_VERSION="3.12.0",
+        SSA_TEST_SYNC_RESULT="0",
+    )
+    (repo / ".python-version").write_text("3.12.0\n", encoding="utf-8")
+    result = subprocess.run(
+        ["bash", "-c", (
+            "source scripts/env/setup_env.sh && "
+            "SSA_PYTHON_VARIANT=stable && ssa_env__determine_variant && "
+            'printf "STABLE=%s\\n" "$SSA_ENV_PY_VERSION"'
+        )],
+        cwd=repo, env=env, input="y", capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "STABLE=3.12.0" in result.stdout
+    assert (repo / ".venv_ft" / "bin" / "python").exists()
+
+
+def _run_powershell_activation_probe(
+    repo: Path, env: dict[str, str], target: str, variant: str = "stable",
+) -> subprocess.CompletedProcess[str]:
+    pwsh = shutil.which("pwsh")
+    if pwsh is None:
+        pytest.skip("pwsh necessario para validar provisionamento PowerShell")
+    env = env | {
+        "SSA_TEST_REPO": str(repo),
+        "SSA_TEST_SCRIPT": str(PROJECT_ROOT / "dev_env" / "activate_repo.ps1"),
+        "SSA_TEST_TARGET": target,
+        "SSA_TEST_VARIANT": variant,
+    }
+    # Executa os blocos reais de provisionamento sem o guard exclusivo do Windows.
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$repoRoot = $env:SSA_TEST_REPO
+$targetVersion = $env:SSA_TEST_TARGET
+$variant = $env:SSA_TEST_VARIANT
+$venvDir = if ($variant -eq 'free-threaded') { '.venv_ft' } else { '.venv' }
+$envSource = $null
+$ast = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_SCRIPT, [ref]$null, [ref]$null)
+foreach ($statement in $ast.EndBlock.Statements) {
+    if (($statement -is [Management.Automation.Language.FunctionDefinitionAst] -and $statement.Name -eq 'Write-EnvLog') -or
+        ($statement -is [Management.Automation.Language.IfStatementAst] -and
+            $statement.Clauses[0].Item1.Extent.Text -in @(
+                '-not $envSource', '$variant -eq ''free-threaded''', '$envSource -like ''venv:*'''))) {
+        . ([scriptblock]::Create($statement.Extent.Text))
+    }
+}
+Write-Output "SOURCE=$envSource"
+"""
+    return subprocess.run(
+        [pwsh, "-NoProfile", "-Command", command],
+        cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("target,variant,requested", [
+    ("3.13.12", "stable", "3.13.12"),
+    ("3.14-dev", "free-threaded", "3.14+freethreaded"),
+    ("3.14.2t", "free-threaded", "3.14.2+freethreaded"),
+])
+def test_powershell_activation_requests_target_and_propagates_uv_failure(
+    isolated_env_repo: tuple[Path, dict[str, str]], target: str, variant: str, requested: str,
+) -> None:
+    repo, env = isolated_env_repo
+    env["SSA_TEST_FAIL_UV"] = "1"
+    result = _run_powershell_activation_probe(repo, env, target, variant)
+    assert result.returncode != 0
+    assert "Falha ao criar" in result.stderr
+    calls = Path(env["SSA_TEST_UV_LOG"]).read_text(encoding="utf-8").splitlines()
+    venv_dir = ".venv_ft" if variant == "free-threaded" else ".venv"
+    assert calls == [f"venv --python {requested} {repo / venv_dir}"]
+    assert not (repo / venv_dir).exists()
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("failure", [None, "version", "ft_version", "free-threaded"])
+def test_powershell_activation_validates_existing_interpreter_without_recreating(
+    isolated_env_repo: tuple[Path, dict[str, str]], failure: str | None,
+) -> None:
+    repo, env = isolated_env_repo
+    variant = "free-threaded" if failure in ("ft_version", "free-threaded") else "stable"
+    venv_dir = ".venv_ft" if variant == "free-threaded" else ".venv"
+    scripts = repo / venv_dir / "Scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "python.exe").symlink_to(sys.executable)
+    (scripts / "Activate.ps1").write_text(
+        "Set-Content -LiteralPath (Join-Path $env:SSA_TEST_REPO 'activated.txt') -Value '1'\n",
+        encoding="utf-8",
+    )
+    target = "0.0.0" if failure == "version" else env["SSA_PYTHON_STABLE_VERSION"]
+    if failure == "ft_version":
+        target = "0.0.0t"
+    result = _run_powershell_activation_probe(repo, env, target, variant)
+    assert (result.returncode == 0) == (failure is None), result.stdout + result.stderr
+    if failure in ("version", "ft_version"):
+        assert "Versao Python invalida" in result.stderr
+    elif failure == "free-threaded":
+        assert "nao e uma build free-threaded" in result.stderr
+    else:
+        assert "SOURCE=venv:.venv" in result.stdout
+    assert (repo / "activated.txt").exists() == (failure is None)
+    assert not Path(env["SSA_TEST_UV_LOG"]).exists()
+
+
+def test_powershell_setup_keeps_stable_version_when_selecting_free_threaded() -> None:
+    pwsh = shutil.which("pwsh")
+    if pwsh is None:
+        pytest.skip("pwsh necessario para validar selecao PowerShell")
+    env = _test_env(SSA_TEST_SETUP=str(PROJECT_ROOT / "scripts" / "env" / "setup_env.ps1"))
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$Variant = 'free-threaded'
+$pythonVersion = '3.14-dev'
+$env:SSA_PYTHON_STABLE_VERSION = '3.13.12'
+$ast = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_SETUP, [ref]$null, [ref]$null)
+$installBlock = $ast.EndBlock.Statements | Where-Object {
+    $_ -is [Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text.StartsWith('$install -eq')
+}
+foreach ($statement in $installBlock.Clauses[0].Item2.Statements) {
+    if ($statement -is [Management.Automation.Language.PipelineAst] -and
+        $statement.PipelineElements[0].InvocationOperator -eq [Management.Automation.Language.TokenKind]::Dot) { break }
+    . ([scriptblock]::Create($statement.Extent.Text))
+}
+@($env:SSA_PYTHON_STABLE_VERSION, $env:SSA_PYTHON_FT_VERSION) | ConvertTo-Json -Compress
+"""
+    result = subprocess.run(
+        [pwsh, "-NoProfile", "-Command", command],
+        env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout) == ["3.13.12", "3.14-dev"]
+
+
+@NATIVE_POSIX_ONLY
+def test_environment_setup_rejects_missing_uv(isolated_env_repo: tuple[Path, dict[str, str]]) -> None:
+    repo, env = isolated_env_repo
+    bin_dir = Path(env["PATH"].split(os.pathsep)[0])
+    (bin_dir / "uv").unlink()
+    for command in ("bash", "dirname", "tr"):
+        executable = shutil.which(command)
+        assert executable is not None
+        (bin_dir / command).symlink_to(executable)
+    env["PATH"] = str(bin_dir)
+    result = subprocess.run(
+        ["bash", "scripts/env/setup_env.sh"],
+        cwd=repo, env=env, input="y", capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0
+    assert "ferramenta ausente ou nao executavel: uv" in result.stderr
+    assert not (repo / ".venv").exists()
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("backend,option", [("python -m venv", "--without-pip"), ("virtualenv 20.0", "--no-pip")])
+def test_pyenv_creation_disables_pip_for_selected_backend(
+    isolated_env_repo: tuple[Path, dict[str, str]], backend: str, option: str
+) -> None:
+    repo, env = isolated_env_repo
+    fake_pyenv = Path(env["PATH"].split(os.pathsep)[0]) / "pyenv"
+    fake_pyenv.write_text(
+        "#!/usr/bin/env bash\n"
+        'printf "%s\\n" "$*" >> "$SSA_TEST_PYENV_LOG"\n'
+        'case "$1 $2" in\n'
+        '  "versions --bare") printf "%s\\n" "$SSA_PYTHON_STABLE_VERSION" ;;\n'
+        '  "virtualenv --version") printf "pyenv-virtualenv 1.2.4 (%s)\\n" "$SSA_TEST_BACKEND" ;;\n'
+        'esac\n',
+        encoding="utf-8",
+    )
+    fake_pyenv.chmod(0o755)
+    env.update(SSA_TEST_PYENV_LOG=str(repo / "pyenv.log"), SSA_TEST_BACKEND=backend)
+    result = subprocess.run(
+        ["bash", "-c", ("source scripts/env/direnv_common.sh && ssa_env__determine_variant && "
+         "SSA_ENV_PYENV_AVAILABLE=1 && SSA_ENV_PYENV_HAS_VIRTUALENV=1 && ssa_env__ensure_pyenv_env")],
+        cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"virtualenv {option} " in (repo / "pyenv.log").read_text(encoding="utf-8")
+
+def test_windows_activation_avoids_dynamic_eval_and_silent_catches() -> None:
+    activate_repo = _read_repo_text("dev_env", "activate_repo.ps1")
+    direnv_common = _read_repo_text("scripts", "env", "direnv_common.ps1")
+
+    assert "Invoke-Expression" not in activate_repo
+    assert "pyenv init -" not in activate_repo
+    assert "pyenv virtualenv-init -" not in activate_repo
+    silent_catch = re.compile(r"catch\s*\{\s*(?:#[^\r\n]*\s*)?\}", re.MULTILINE)
+    assert silent_catch.search(activate_repo) is None
+    assert silent_catch.search(direnv_common) is None
+
+
 def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     script = _read_repo_text("scripts", "ci_quality_gates.sh")
 
     assert "run_quality_gates.py $GATES_ARGS" not in script
-    assert "read -r -a GATES_ARGS_ARRAY" in script
+    assert "read -r -a GATES_ARGS_ARRAY" not in script
+    assert "shlex.split" in script
+    assert "eval" not in script
     assert '"${GATES_ARGS_ARRAY[@]}"' in script
 
 
-def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize(
+    ("gate_args", "gate_code", "expected_code", "expected_args"),
+    [
+        ('--skip "check docs" --label "cache manager"', 0, 0, ["--skip", "check docs", "--label", "cache manager"]),
+        ('--skip "check docs" --label "cache manager"', 1, 1, ["--skip", "check docs", "--label", "cache manager"]),
+        ('--skip "check docs', 0, 2, []),
+        ("", 0, 0, []),
+        ("   ", 0, 0, []),
+        ("--extra-doc ''", 0, 0, ["--extra-doc", ""]),
+        ("--extra-doc '' --skip check_docs", 0, 0, ["--extra-doc", "", "--skip", "check_docs"]),
+        ('--extra-doc "linha 1\nlinha 2\n"', 0, 0, ["--extra-doc", "linha 1\nlinha 2\n"]),
+        ("''", 0, 0, [""]),
+    ],
+)
+def test_ci_quality_gates_parses_gate_args_with_quotes(
+    tmp_path: Path, gate_args: str, gate_code: int, expected_code: int, expected_args: list[str]
+) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
 
-    capture = tmp_path / "argv.txt"
+    capture = tmp_path / "argv.json"
+    smoke_capture = tmp_path / "smoke.txt"
+    result_file = tmp_path / "quality_gates_output.jsonl"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_python = fake_bin / "python"
+    fake_python.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "if [[ \"${1:-}\" == \"-c\" || \"${1:-}\" == \"-\" ]]; then\n"
+        "  exec \"$REAL_PYTHON\" \"$@\"\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == \"scripts/run_quality_gates.py\" ]]; then\n"
+        "  \"$REAL_PYTHON\" -c 'import json, sys; print(json.dumps(sys.argv[1:]))' \"${@:2}\" > \"$QUALITY_GATES_CAPTURE\"\n"
+        "  printf 'Diagnostico do gate no stdout\\n'\n"
+        "  printf 'Diagnostico do gate no stderr\\n' >&2\n"
+        "  printf '{\"overall_status\":\"%s\"}\\n' \"$QUALITY_GATES_STATUS\"\n"
+        "  exit \"$QUALITY_GATES_CODE\"\n"
+        "fi\n"
+        "if [[ \"${1:-}\" == \"-m\" && \"${2:-}\" == \"pytest\" ]]; then\n"
+        "  printf 'smoke executado\\n' > \"$QUALITY_GATES_SMOKE_CAPTURE\"\n"
+        "  exit 0\n"
+        "fi\n"
+        "printf 'unexpected python invocation: %s\\n' \"$*\" >&2\n"
+        "exit 99\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    result = subprocess.run(
+        [bash, str(PROJECT_ROOT / "scripts" / "ci_quality_gates.sh")],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=_test_env(
+            PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+            GATES_ARGS=gate_args,
+            TMPDIR=str(tmp_path),
+            REAL_PYTHON=sys.executable,
+            QUALITY_GATES_CAPTURE=str(capture),
+            QUALITY_GATES_SMOKE_CAPTURE=str(smoke_capture),
+            QUALITY_GATES_JSONL=str(result_file),
+            QUALITY_GATES_CODE=str(gate_code),
+            QUALITY_GATES_STATUS="ok" if gate_code == 0 else "fail",
+        ),
+    )
+
+    assert result.returncode == expected_code, result.stdout + result.stderr
+    assert not list(tmp_path.glob("ssa-gates-args.*"))
+    if expected_code == 2:
+        assert "GATES_ARGS invalido" in result.stderr
+        assert not capture.exists()
+        assert not smoke_capture.exists()
+        assert not result_file.exists()
+        return
+    assert "Diagnostico do gate no stdout" in result.stdout
+    assert "Diagnostico do gate no stderr" in result.stdout
+    assert result.stderr == ""
+    assert smoke_capture.exists()
+    assert json.loads(result_file.read_text(encoding="utf-8")) == {
+        "overall_status": "ok" if gate_code == 0 else "fail"
+    }
+    assert json.loads(capture.read_text(encoding="utf-8")) == expected_args
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize(
+    ("addopts", "expected_code"),
+    [
+        ('--collect-only -k "cache manager"', 0),
+        ("", 0),
+        ("   ", 0),
+        ("-k ''", 0),
+        ("-k '' --collect-only", 0),
+        ('-k "linha 1\nlinha 2\n"', 0),
+        ('-k "aspas incompletas', 2),
+    ],
+)
+def test_run_tests_parses_pytest_addopts_with_quotes(
+    tmp_path: Path, addopts: str, expected_code: int
+) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None, "bash must be available for shell contract tests"
+
+    capture = tmp_path / "argv.json"
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_python = fake_bin / "python"
@@ -109,7 +577,9 @@ def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
         "if [[ \"${1:-}\" == \"-\" ]]; then\n"
         "  exec \"$REAL_PYTHON\" \"$@\"\n"
         "fi\n"
-        "printf '%s\\n' \"$@\" > \"$RUN_TESTS_CAPTURE\"\n",
+        "\"$REAL_PYTHON\" -c 'import json, os, sys; "
+        "print(json.dumps({\"argv\": sys.argv[1:], \"addopts\": os.environ[\"PYTEST_ADDOPTS\"]}))' "
+        "\"$@\" > \"$RUN_TESTS_CAPTURE\"\n",
         encoding="utf-8",
     )
     fake_python.chmod(0o755)
@@ -122,22 +592,21 @@ def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
         check=False,
         env=_test_env(
             PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
-            PYTEST_ADDOPTS='--collect-only -k "cache manager"',
+            PYTEST_ADDOPTS=addopts,
             REAL_PYTHON=sys.executable,
             RUN_TESTS_CAPTURE=str(capture),
         ),
     )
 
-    assert result.returncode == 0, result.stderr
-    assert capture.read_text(encoding="utf-8").splitlines() == [
-        "-m",
-        "pytest",
-        "--cache-clear",
-        "-q",
-        "--collect-only",
-        "-k",
-        "cache manager",
-    ]
+    assert result.returncode == expected_code, result.stderr
+    if expected_code == 2:
+        assert "PYTEST_ADDOPTS invalido" in result.stderr
+        assert not capture.exists()
+        return
+    assert json.loads(capture.read_text(encoding="utf-8")) == {
+        "argv": ["-m", "pytest", "--cache-clear", "-q"],
+        "addopts": addopts,
+    }
 
 
 def test_run_tests_does_not_expand_pytest_addopts_unquoted() -> None:
@@ -145,7 +614,8 @@ def test_run_tests_does_not_expand_pytest_addopts_unquoted() -> None:
 
     assert '"${base_cmd[@]}" ${PYTEST_ADDOPTS:-}' not in script
     assert "shlex.split" in script
-    assert '"${base_cmd[@]}" "${pytest_extra_opts[@]}"' in script
+    assert '"${base_cmd[@]}"' in script
+    assert "pytest_extra_opts" not in script
 
 
 def test_secret_scan_hook_loop_safety_and_log_hygiene() -> None:
@@ -169,6 +639,86 @@ def test_minimal_ci_runs_for_any_workflow_change() -> None:
     assert "run_python=false" in workflow
     assert "required status will pass without expensive gates" in workflow
     assert "|^scripts/|^dev_env/build/" in workflow
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("provider", ["github", "gitlab"])
+@pytest.mark.parametrize("base_state", ["present", "missing", "refused", "zero", "merge_request"])
+def test_authorship_ci_preserves_exact_event_range(
+    tmp_path: Path, provider: str, base_state: str,
+) -> None:
+    if provider == "github":
+        workflow = _read_repo_text(".github", "workflows", "minimal-ci.yml")
+        job = workflow.split("- name: Validar autoria Git", 1)[1]
+        script = textwrap.dedent(job.split("run: |\n", 1)[1].split("\n      - name:", 1)[0])
+    else:
+        workflow = _read_repo_text(".gitlab-ci.yml")
+        job = workflow.split("autoria-git:\n", 1)[1].split("\nquality-gates:", 1)[0]
+        script = textwrap.dedent(job.split("script:\n    - |\n", 1)[1])
+
+    repo = tmp_path / "repo"
+    remote = tmp_path / "remote"
+
+    def git(*args: str, cwd: Path = repo) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=cwd, check=True, capture_output=True, text=True,
+        ).stdout.strip()
+
+    for target in (repo, remote):
+        target.mkdir()
+        git("init", cwd=target)
+        git("config", "user.name", "Mauricio Menon", cwd=target)
+        git("config", "user.email", "mauriciomenon@users.noreply.github.com", cwd=target)
+        git("config", "commit.gpgsign", "false", cwd=target)
+        git("config", "core.hooksPath", "/dev/null", cwd=target)
+        (target / "origem.txt").write_text(target.name, encoding="utf-8")
+        validator = target / "scripts" / "validate_git_authorship.py"
+        validator.parent.mkdir()
+        shutil.copy2(PROJECT_ROOT / "scripts" / "validate_git_authorship.py", validator)
+        git("add", ".", cwd=target)
+        git("commit", "-m", "Base temporaria do teste", cwd=target)
+    local_base = git("rev-parse", "HEAD")
+    remote_base = git("rev-parse", "HEAD", cwd=remote)
+    git("commit", "--allow-empty", "-m", "Alteracao temporaria do teste")
+    head = git("rev-parse", "HEAD")
+    git("remote", "add", "origin", str(remote))
+    zero_sha = "0" * 40
+    unknown_sha = "f" * 40
+    base_sha = {
+        "present": local_base, "missing": remote_base, "refused": unknown_sha,
+        "zero": zero_sha, "merge_request": local_base,
+    }[base_state]
+    trace_path = tmp_path / "git.trace"
+    env = _test_env(
+        GIT_TRACE=str(trace_path), UV_OFFLINE="1", UV_PYTHON_DOWNLOADS="never",
+        EVENT_NAME="push", BEFORE_SHA=base_sha, HEAD_SHA=head,
+        PR_BASE_SHA="", PR_HEAD_SHA="",
+        CI_COMMIT_BEFORE_SHA=base_sha, CI_COMMIT_SHA=head,
+        CI_MERGE_REQUEST_DIFF_BASE_SHA="", CI_MERGE_REQUEST_SOURCE_BRANCH_SHA="",
+    )
+    if base_state == "merge_request":
+        env.update(
+            EVENT_NAME="pull_request", BEFORE_SHA=unknown_sha, HEAD_SHA=unknown_sha,
+            PR_BASE_SHA=base_sha, PR_HEAD_SHA=head,
+            CI_COMMIT_BEFORE_SHA=unknown_sha, CI_COMMIT_SHA=unknown_sha,
+            CI_MERGE_REQUEST_DIFF_BASE_SHA=base_sha, CI_MERGE_REQUEST_SOURCE_BRANCH_SHA=head,
+        )
+    result = subprocess.run(
+        ["bash", "-c", script], cwd=repo, env=env, capture_output=True, text=True, check=False,
+    )
+    trace = trace_path.read_text(encoding="utf-8")
+    fetches = [line.split("built-in: ", 1)[1] for line in trace.splitlines() if "built-in: git fetch " in line]
+    assert fetches == ([f"git fetch --no-tags origin {base_sha}"] if base_state in {"missing", "refused"} else [])
+    if base_state == "refused":
+        assert result.returncode != 0
+        assert "[autoria-git]" not in result.stderr
+        return
+    assert result.returncode == 0, result.stdout + result.stderr
+    expected_commits = 2 if base_state in {"missing", "zero"} else 1
+    assert f"[autoria-git] OK: {expected_commits} commits" in result.stderr
+    assert git("rev-parse", "--is-shallow-repository") == "false"
+    if base_state == "missing":
+        assert git("rev-parse", "FETCH_HEAD") == remote_base
 
 
 def test_minimal_ci_isolates_gui_other_pytest_files() -> None:
@@ -228,10 +778,65 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert "origin/${{ github.base_ref }}" not in workflow
     assert "BASE_REF: ${{ github.base_ref }}" not in workflow
     assert "BASE_SHA: ${{ github.event.pull_request.base.sha }}" in workflow
-    assert 'bash scripts/security/scan_secrets.sh pr-diff "$BASE_SHA"' in workflow
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" pr-diff "$BASE_SHA"' in workflow
+    assert 'trusted_paths=(scripts/security/scan_secrets.sh)' in workflow
+    assert 'git archive "$BASE_SHA" "${trusted_paths[@]}"' in workflow
     assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
     assert 'git fetch origin "$BASE_REF" || true' not in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' not in workflow
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.parametrize("base_state", ["legacy", "guard", "missing_scanner"])
+def test_secret_scan_extracts_only_trusted_base_files(tmp_path: Path, base_state: str) -> None:
+    workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
+    selection = workflow.split("- name: Select trusted secret scanner", 1)[1]
+    script = textwrap.dedent(selection.split("run: |\n", 1)[1].split("\n      - name:", 1)[0])
+    repo = tmp_path / "repo"
+    scanner = repo / "scripts" / "security" / "scan_secrets.sh"
+    guard = repo / "scripts" / "env" / "native_host_guard.sh"
+    scanner.parent.mkdir(parents=True)
+    guard.parent.mkdir(parents=True)
+    trusted_scanner = "#!/usr/bin/env bash\nprintf 'scanner-base\\n'\n"
+    trusted_guard = "#!/usr/bin/env bash\nprintf 'guard-base\\n'\n"
+    if base_state != "missing_scanner":
+        scanner.write_text(trusted_scanner, encoding="utf-8")
+    if base_state == "guard":
+        guard.write_text(trusted_guard, encoding="utf-8")
+    for args in (
+        ["init"],
+        ["add", "."],
+        ["-c", "user.name=Mauricio Menon", "-c", "user.email=mauriciomenon@users.noreply.github.com",
+         "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+         "commit", "--allow-empty", "-m", "Base temporaria do teste"],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    scanner.write_text("#!/usr/bin/env bash\nexit 99\n", encoding="utf-8")
+    guard.write_text("#!/usr/bin/env bash\nexit 98\n", encoding="utf-8")
+    output = tmp_path / "github_output"
+    result = subprocess.run(
+        ["bash", "-c", script], cwd=repo, capture_output=True, text=True, check=False,
+        env=_test_env(
+            EVENT_NAME="pull_request", BASE_SHA=base_sha,
+            RUNNER_TEMP=str(tmp_path), GITHUB_OUTPUT=str(output),
+        ),
+    )
+    if base_state == "missing_scanner":
+        assert result.returncode != 0
+        assert not output.exists()
+        return
+    assert result.returncode == 0, result.stdout + result.stderr
+    extracted_scanner = tmp_path / "trusted-secret-scan" / scanner.relative_to(repo)
+    extracted_guard = tmp_path / "trusted-secret-scan" / guard.relative_to(repo)
+    assert output.read_text(encoding="utf-8").strip() == f"script={extracted_scanner}"
+    assert extracted_scanner.read_text(encoding="utf-8") == trusted_scanner
+    if base_state == "guard":
+        assert extracted_guard.read_text(encoding="utf-8") == trusted_guard
+    else:
+        assert not extracted_guard.exists()
 
 
 def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
@@ -275,11 +880,13 @@ def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> Non
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
     assert "branches: [main, dev]" in workflow
-    assert "continue-on-error: true" not in workflow
-    assert "bash scripts/security/scan_secrets.sh workspace" in workflow
-    assert "bash scripts/security/scan_secrets.sh history" in workflow
+    assert "timeout-minutes: 30" in workflow
+    assert workflow.count("continue-on-error: true") == 1
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" workspace' in workflow
+    assert 'bash "${{ steps.secret_scanner.outputs.script }}" history' in workflow
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -316,6 +923,7 @@ def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
     assert "TEST_SECRET_1234" not in dirty_result.stderr
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_blocks_untracked_git_workspace_matches(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     git = shutil.which("git")
@@ -364,6 +972,7 @@ def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -
     assert 'SECRET_SCAN_HISTORY_MAX_COUNT:-200' in script
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_treats_dash_prefixed_pattern_as_data(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -383,6 +992,7 @@ def test_secret_scan_script_treats_dash_prefixed_pattern_as_data(tmp_path: Path)
     assert result.returncode == 0, result.stderr
 
 
+@NATIVE_POSIX_ONLY
 def test_secret_scan_script_valid_pattern_without_match_succeeds(tmp_path: Path) -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"
@@ -403,53 +1013,11 @@ def test_secret_scan_script_valid_pattern_without_match_succeeds(tmp_path: Path)
     assert "[OK] No sensitive patterns detected" in result.stdout
 
 
-def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
-    workflow = _read_repo_text(".github", "workflows", "opencode.yml")
-    local_action = _read_repo_text(".github", "actions", "opencode-github", "action.yml")
-
-    assert "push:" not in workflow
-    assert "\n  pull_request:" not in workflow
-    assert "opencode-pr-review:" not in workflow
-    assert "opencode-push-review:" not in workflow
-    assert workflow.count("environment: SECRETS") == 3
-    assert "noop:" in workflow
-    assert 'echo "No opencode command in comment; skipping."' in workflow
-    assert "Run automatic PR review" not in workflow
-    assert "Run automatic push review" not in workflow
-    assert "Review this pull request for concrete bugs" not in workflow
-    assert "Review the pushed commit range for concrete bugs" not in workflow
-    assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 1
-    assert workflow.count("uses: ./.github/actions/opencode-github") == 3
-    assert workflow.count("qwen-cloud-coding-plan") == 1
-    assert workflow.count("github.event.issue.pull_request") == 3
-    assert "anomalyco/opencode/github@" not in workflow
-    assert 'default: "true"' in local_action
-    assert "GITHUB_TOKEN: ${{ github.token }}" in local_action
-    assert "opencode github run" not in local_action
-    assert "python scripts/ci/opencode_pr_review.py" in local_action
-    assert "GH_TOKEN: ${{ github.token }}" in local_action
-    assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
-    assert "actions/cache@v4" not in local_action
-    assert "npm install" not in local_action
-    assert "Dynamic npm package installation is disabled for this repository" in local_action
-    assert "exit 1" in local_action
-    assert "if: steps.cache.outputs.cache-hit == 'true'" in local_action
-    assert "curl -fsSL https://opencode.ai/install | bash" not in local_action
-    assert "releases/latest" not in local_action
-    assert "id-token: write" not in workflow
-    qwen_action = _read_repo_text(".github", "actions", "configure-qwen-opencode", "action.yml")
-    assert "umask 077" in qwen_action
-    assert 'chmod 600 "${HOME}/.config/opencode/opencode.json"' in qwen_action
-
-
 def test_github_actions_do_not_install_python_or_npm_packages_dynamically() -> None:
     checked_paths = [
-        ".github/actions/opencode-github/action.yml",
-        ".github/actions/configure-qwen-opencode/action.yml",
         ".github/workflows/codeql.yml",
         ".github/workflows/dependency-review.yml",
         ".github/workflows/minimal-ci.yml",
-        ".github/workflows/opencode.yml",
         ".github/workflows/release-windows.yml",
         ".github/workflows/secret_scan.yml",
     ]
@@ -479,7 +1047,6 @@ def test_github_workflow_external_actions_are_pinned_by_sha() -> None:
         ".github/workflows/codeql.yml",
         ".github/workflows/dependency-review.yml",
         ".github/workflows/minimal-ci.yml",
-        ".github/workflows/opencode.yml",
         ".github/workflows/release-windows.yml",
         ".github/workflows/secret_scan.yml",
     ]
@@ -525,108 +1092,6 @@ def test_release_windows_workflow_uses_env_for_dispatch_inputs() -> None:
     assert 'if ($env:RELEASE_INSTALLER_REQUIRED -eq "true")' in workflow
     assert "if: ${{ env.RELEASE_INSTALLER_REQUIRED == 'true' }}" in workflow
     assert "windows-release-${{ env.RELEASE_BACKEND }}" in workflow
-
-
-def test_opencode_review_script_extracts_pr_number() -> None:
-    module = _load_opencode_review_module()
-
-    assert module.extract_pr_number({"pull_request": {"number": 58}}) == 58
-    assert module.extract_pr_number({"issue": {"number": 59, "pull_request": {"url": "x"}}}) == 59
-    with pytest.raises(ValueError, match="pull request"):
-        module.extract_pr_number({"issue": {"number": 60}})
-
-
-def test_opencode_review_script_requires_clear_environment(monkeypatch) -> None:
-    module = _load_opencode_review_module()
-
-    monkeypatch.delenv("MODEL", raising=False)
-
-    with pytest.raises(RuntimeError, match="MODEL"):
-        module.required_env("MODEL")
-
-
-def test_opencode_review_script_does_not_print_failed_command_output(tmp_path: Path, capsys) -> None:
-    module = _load_opencode_review_module()
-    output_path = tmp_path / "captured.txt"
-
-    with pytest.raises(subprocess.CalledProcessError):
-        module.run_checked(
-            [
-                sys.executable,
-                "-c",
-                "import sys; print('SECRET_STDOUT'); print('SECRET_STDERR', file=sys.stderr); sys.exit(3)",
-            ],
-            stdout_path=output_path,
-        )
-
-    captured = capsys.readouterr()
-    assert "SECRET_STDOUT" not in captured.out
-    assert "SECRET_STDERR" not in captured.out
-    assert "SECRET_STDERR" not in captured.err
-    assert "stdout captured in:" in captured.out
-    assert "SECRET_STDOUT" in output_path.read_text(encoding="utf-8")
-
-
-def test_opencode_review_script_truncates_large_diff(tmp_path: Path) -> None:
-    module = _load_opencode_review_module()
-    diff_path = tmp_path / "large.diff"
-    diff_path.write_bytes(b"a" * 120)
-
-    text, truncated = module.truncate_diff(diff_path, limit=80)
-    assert truncated is True
-    data = diff_path.read_bytes()
-    assert data == b"a" * 120
-    assert len(text.encode("utf-8")) <= 80
-    assert "[diff truncated at 80 bytes]" in text
-
-    utf8_path = tmp_path / "utf8.diff"
-    utf8_path.write_text("linha\n" + ("\u00e1" * 100), encoding="utf-8")
-    text, truncated = module.truncate_diff(utf8_path, limit=80)
-    assert truncated is True
-    assert "\ufffd" not in text
-    assert "[diff truncated at 80 bytes]" in text
-
-    source_path = tmp_path / "source.diff"
-    review_path = tmp_path / "review.diff"
-    source_path.write_bytes(b"b" * 120)
-    _, truncated = module.truncate_diff(source_path, output_path=review_path, limit=80)
-    assert truncated is True
-    assert source_path.read_bytes() == b"b" * 120
-    assert b"[diff truncated at 80 bytes]" in review_path.read_bytes()
-
-
-def test_opencode_review_script_adds_lfs_note() -> None:
-    module = _load_opencode_review_module()
-
-    prompt = module.build_prompt("base", "version https://git-lfs.github.com/spec/v1")
-
-    assert "manual review" in prompt
-
-
-def test_opencode_review_script_rejects_unsafe_cli_arguments() -> None:
-    module = _load_opencode_review_module()
-
-    assert module.require_cli_option_value("MODEL", "github-copilot/gpt-4.1") == (
-        "github-copilot/gpt-4.1"
-    )
-    assert module.require_prompt_argument("Review this PR") == "Review this PR"
-
-    with pytest.raises(RuntimeError, match="MODEL"):
-        module.require_cli_option_value("MODEL", "--help")
-    with pytest.raises(RuntimeError, match="AGENT"):
-        module.require_cli_option_value("AGENT", "plan mode")
-    with pytest.raises(RuntimeError, match="PROMPT"):
-        module.require_prompt_argument(" --model attacker")
-    with pytest.raises(RuntimeError, match="PROMPT"):
-        module.require_prompt_argument("bad\x00prompt")
-    with pytest.raises(RuntimeError, match="MODEL"):
-        module.require_cli_option_value("MODEL", "")
-    with pytest.raises(RuntimeError, match="AGENT"):
-        module.require_cli_option_value("AGENT", "   ")
-    with pytest.raises(RuntimeError, match="PROMPT"):
-        module.require_prompt_argument("")
-    with pytest.raises(RuntimeError, match="PROMPT"):
-        module.require_prompt_argument("   ")
 
 
 def test_codeql_precheck_runs_advanced_when_default_setup_is_unverified() -> None:

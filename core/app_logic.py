@@ -1,4 +1,4 @@
-# core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Excecoes, Logging)
+# core/app_logic.py - Refatorado, Excecoes, Logging
 # Last modified: 2025-10-30T15:50:00 (simplified search: removed ALL logical operators, only commas)
 """
 Logica central da aplicacao para importacao e atualizacao do banco de dados.
@@ -19,7 +19,6 @@ import logging
 import os
 import re
 import sqlite3
-import sys
 import time
 from datetime import datetime
 from enum import Enum
@@ -28,13 +27,13 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, cast
 
 import pandas as pd
 
-# Adiciona o diretorio raiz do projeto ao sys.path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-project_root_path = Path(project_root)
-sys.path.insert(0, project_root)
+project_root_path = Path(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 from armazenamento import database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
+    mark_latest_sync_run_failed,
     scan_derivadas_consistency,
     sync_derivadas,
 )
@@ -49,15 +48,24 @@ from core.import_errors import (  # noqa: E402
     DatabaseSchemaError,
     DatabaseSpaceError,
     ExtractionError,
+    ImportMetricsContractError,
     ImporterError,
 )
 from core.import_formats import (  # noqa: E402
     SUPPORTED_IMPORT_SUFFIXES,
     supported_import_suffixes_text,
 )
+from core import import_outcome  # noqa: E402
+from armazenamento.database_lock import (  # noqa: E402
+    database_writer_lock as _database_writer_lock,
+)
+from filelock import Timeout  # noqa: E402
 from core.import_database_rotation import (  # noqa: E402
     build_full_rescan_candidate_path as _build_full_rescan_candidate_path,
+    discard_full_rescan_artifact_marker as _discard_full_rescan_artifact_marker,
     promote_full_rescan_candidate as _promote_full_rescan_candidate,
+    prune_full_rescan_artifacts as _prune_full_rescan_artifacts,
+    register_full_rescan_artifact as _register_full_rescan_artifact,
 )
 from core.import_postprocess import (  # noqa: E402
     route_and_move_processed_files as _apply_postprocess_file_moves,
@@ -89,17 +97,6 @@ logger = logging.getLogger(__name__)
 
 QUERYABLE_FILTER_COLUMNS = frozenset(get_default_column_mappings())
 
-_DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
-    "ssa_table": """
-        SELECT COUNT(*)
-        FROM (
-            SELECT numero_ssa, derivada_de
-            FROM "ssa_table"
-            WHERE derivada_de IS NOT NULL
-            GROUP BY numero_ssa, derivada_de
-        ) AS db_edges
-    """,
-}
 _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE: dict[
     tuple[str, str, tuple[tuple[str, int, int], ...]], bool
 ] = {}
@@ -114,7 +111,7 @@ class FileProcessAction(str, Enum):
 
 def _sqlite_file_state_key(db_path: str) -> tuple[tuple[str, int, int], ...]:
     states: list[tuple[str, int, int]] = []
-    for suffix in ("", "-wal", "-shm"):
+    for suffix in ("", "-wal", "-shm", "-journal"):
         side_path = f"{db_path}{suffix}"
         try:
             stat = os.stat(side_path)
@@ -132,7 +129,12 @@ __all__ = [
 ]
 
 
-def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
+def _resolve_import_targets(
+    docs_dir: str,
+    db_path: str,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
+) -> tuple[Path, Path]:
     """Normaliza e valida caminhos sensiveis antes da importacao."""
     docs_dir_path = ensure_path_is_allowed(
         docs_dir,
@@ -140,6 +142,7 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
         base=project_root_path,
         must_exist=True,
         expect_directory=True,
+        extra_allowed_roots=extra_allowed_roots,
     )
     db_path_path = ensure_path_is_allowed(
         db_path,
@@ -147,6 +150,7 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
         base=project_root_path,
         must_exist=False,
         expect_directory=False,
+        extra_allowed_roots=extra_allowed_roots,
     )
     return docs_dir_path, db_path_path
 
@@ -405,6 +409,35 @@ def _needs_db_only_derivadas_sync(
                     "Cancelamento solicitado durante preflight DB-only de derivadas."
                 )
                 return False
+            ready_tables = {
+                "ssa_derivada_matrix",
+                "ssa_derivada_summary",
+                "ssa_derivada_sync_run",
+            }
+            existing_tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            if "ssa_derivada_sync_run" in existing_tables:
+                latest = conn.execute(
+                    """
+                    SELECT status, db_edges
+                    FROM ssa_derivada_sync_run
+                    ORDER BY sync_run_id DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+            else:
+                latest = None
+
+            # Um run marcado como erro precisa ser refeito mesmo quando o
+            # banco nao tem arestas DB: sem esta checagem antecipada, o
+            # early-return de edges==0 deixava a falha sem retry.
+            if latest is not None and str(latest[0] or "") != "ok":
+                return _finish(True)
+
             db_edges_count = int(
                 database.count_distinct_derivada_edges(
                     cast(sqlite3.Connection, conn),
@@ -420,17 +453,6 @@ def _needs_db_only_derivadas_sync(
                 )
                 return False
 
-            ready_tables = {
-                "ssa_derivada_matrix",
-                "ssa_derivada_summary",
-                "ssa_derivada_sync_run",
-            }
-            existing_tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                ).fetchall()
-            }
             if not ready_tables.issubset(existing_tables):
                 return _finish(True)
 
@@ -448,19 +470,10 @@ def _needs_db_only_derivadas_sync(
             summary_total = int(
                 conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0]
             )
-            latest = conn.execute(
-                """
-                SELECT db_edges
-                FROM ssa_derivada_sync_run
-                WHERE status = 'ok'
-                ORDER BY sync_run_id DESC
-                LIMIT 1
-                """
-            ).fetchone()
 
             if latest is None:
                 return _finish(True)
-            latest_db_edges = int(latest[0] or 0)
+            latest_db_edges = int(latest[1] or 0)
             return _finish(
                 matrix_active <= 0
                 or summary_total <= 0
@@ -480,7 +493,16 @@ def _run_derivadas_sync_phase(
     db_path: str,
     table_name: str,
     derivadas_sheet_files: List[str],
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
+    *,
+    report_out: Optional[Dict[str, Any]] = None,
 ) -> tuple[bool, List[str], Dict[str, Any]]:
+    # Materializa: o parametro alimenta sync_derivadas e a consistencia,
+    # e um iteravel esgotavel falharia na segunda validacao.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
+
     def _has_sheet_parse_evidence(entry: Dict[str, Any]) -> bool:
         raw_stats = entry.get("stats")
         stats: Dict[str, Any] = raw_stats if isinstance(raw_stats, dict) else {}
@@ -499,11 +521,23 @@ def _run_derivadas_sync_phase(
         "table_name": table_name,
         "include_db_source": True,
         "actor": "importer-derivadas-sync",
+        "extra_allowed_roots": extra_allowed_roots,
     }
     if existing_files:
         sync_kwargs["sheet_files"] = existing_files
 
-    report = sync_derivadas(**sync_kwargs)
+    try:
+        report = sync_derivadas(**sync_kwargs)
+    except Exception as exc:
+        # sync_derivadas e transacional: uma excecao que sai dele ja
+        # passou por rollback interno. A marca distingue esse caso de
+        # falhas pos-commit (ex.: scan de consistencia), onde nao ha
+        # nada revertido a declarar. setattr dinamico: o tipo estatico
+        # de Exception nao declara o atributo.
+        setattr(exc, "_derivadas_sync_rolled_back", True)
+        raise
+    if report_out is not None:
+        report_out.update(report)
     sheet_stats = report.get("sheet_stats") or {}
     reported_files = report.get("sheet_files") or []
     sheet_file_reports = report.get("sheet_file_reports") or []
@@ -611,7 +645,10 @@ def _run_derivadas_sync_phase(
             "Sync de derivadas concluido sem arestas materializadas no grafo."
         )
 
-    consistency = scan_derivadas_consistency(db_path=db_path)
+    consistency = scan_derivadas_consistency(
+        db_path=db_path,
+        extra_allowed_roots=extra_allowed_roots,
+    )
     report = dict(report)
     report["consistency_scan"] = consistency
     if not bool(consistency.get("schema_ready")) or not bool(
@@ -728,6 +765,37 @@ def _has_only_deterministic_rejections(
     return regular_deterministic_error_paths == regular_candidate_set
 
 
+def _has_blocking_candidate_errors(
+    *,
+    files_to_process: List[str],
+    critical_errors: List[tuple[str, str, str]],
+    deterministic_failed_files: Optional[List[str]] = None,
+) -> bool:
+    """Return True when a regular candidate produced a non-deterministic error.
+
+    The whitelist is the deterministic_failed_files list (full paths,
+    populated only for MISSING_REQUIRED_COLUMNS/ALL_ROWS_REJECTED at
+    app_logic._process_file_with_resilience). Any critical error on a
+    regular candidate NOT in that list blocks promotion.
+    """
+    regular_candidate_set = {
+        file_path
+        for file_path in files_to_process
+        if not os.path.basename(file_path).startswith("~$")
+        and not _is_derivadas_sheet_file(file_path)
+    }
+    if not regular_candidate_set:
+        return False
+    deterministic_set = set(deterministic_failed_files or [])
+    for _error_type, file_path, _message in critical_errors:
+        if file_path not in regular_candidate_set:
+            continue
+        if file_path in deterministic_set:
+            continue
+        return True
+    return False
+
+
 def _load_import_discovery_settings() -> Dict[str, Any]:
     """Load import discovery flags from settings.json with safe defaults."""
     allowed_upsert_policies = {"consulta_only", "no_short", "all_short"}
@@ -820,21 +888,36 @@ def _process_file_with_resilience(
             table_name,
             should_cancel=should_cancel,
             _metrics_out=file_metrics,
-            metadata_columns_ready=True,
+            metadata_columns_ready=candidate_db_path is not None,
         )
-        if file_metrics:
-            file_metrics["status"] = "success" if success else "no_rows"
-            file_reports.append(file_metrics)
         if success:
             normalized_record_count = int(record_count)
+            counts = file_metrics.get("counts")
+            if not isinstance(counts, dict) or not {
+                "ssa_inserted",
+                "ssa_updated",
+            }.issubset(counts):
+                raise ValueError(
+                    f"Metricas SSA ausentes no resultado de {base_name}"
+                )
+            file_metrics["status"] = "success"
+            file_reports.append(file_metrics)
             successfully_processed_files.append(file_path)
             successful_regular_files_with_records.append(
                 (file_path, normalized_record_count)
             )
             emit_progress(
                 "file_success",
-                {"filename": base_name, "records": normalized_record_count},
+                {
+                    "filename": base_name,
+                    "records": normalized_record_count,
+                    "ssa_inserted": int(counts["ssa_inserted"]),
+                    "ssa_updated": int(counts["ssa_updated"]),
+                },
             )
+        elif file_metrics:
+            file_metrics["status"] = "no_rows"
+            file_reports.append(file_metrics)
         return FileProcessAction.CONTINUE
     except DatabaseConnectionError as exc:
         logger.error(
@@ -902,18 +985,61 @@ def _process_file_with_resilience(
         if error_code == "OPERATION_CANCELLED" and should_cancel:
             logger.info("Cancelamento solicitado; interrompendo importacao.")
             return FileProcessAction.CANCELLED
-        if error_code == "MISSING_REQUIRED_COLUMNS":
+        unsafe_identity_payload = error_code == "UNSAFE_INVALID_IDENTITY_PAYLOAD"
+        if error_code in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"}:
             deterministic_failed_files.append(file_path)
-        logger.warning(
-            "Erro de extracao em '%s': %s. Pulando arquivo...", file_path, exc
-        )
+        if unsafe_identity_payload:
+            logger.error(
+                "Payload sem identidade em '%s': %s. Interrompendo importacao.",
+                file_path,
+                exc,
+            )
+        else:
+            logger.warning(
+                "Erro de extracao em '%s': %s. Pulando arquivo...", file_path, exc
+            )
         critical_errors.append(("extraction", file_path, str(exc)))
-        file_reports.append(
+        file_report = dict(file_metrics) if unsafe_identity_payload else {}
+        file_report.update(
             {
                 "file": base_name,
                 "status": "extraction_error",
                 "error": str(exc),
                 "error_code": error_code,
+            }
+        )
+        file_reports.append(file_report)
+        emit_progress(
+            "file_error",
+            {
+                "filename": base_name,
+                "error": str(exc),
+                "error_code": error_code,
+                "deterministic": error_code
+                in {"MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"},
+            },
+        )
+        if unsafe_identity_payload:
+            raise
+        return FileProcessAction.CONTINUE
+    except ImportMetricsContractError as exc:
+        logger.error(
+            "Falha no contrato de metricas apos gravacao de '%s': %s",
+            file_path,
+            exc,
+        )
+        normalized_record_count = int(exc.record_count)
+        successfully_processed_files.append(file_path)
+        successful_regular_files_with_records.append(
+            (file_path, normalized_record_count)
+        )
+        critical_errors.append(("metrics_contract", file_path, str(exc)))
+        file_reports.append(
+            {
+                "file": base_name,
+                "status": "metrics_contract_error",
+                "records": normalized_record_count,
+                "error": str(exc),
             }
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
@@ -962,7 +1088,7 @@ def _process_regular_files_phase(
         and not _is_derivadas_sheet_file(file_path)
         for file_path in files_to_process
     )
-    if has_regular_import_candidate:
+    if candidate_db_path is not None and has_regular_import_candidate:
         ensure_source_metadata_columns(
             working_db_path,
             table_name,
@@ -1059,6 +1185,7 @@ def _run_optional_derivadas_sync(
     docs_dir: str,
     critical_errors: List[tuple[str, str, str]],
     emit_progress: Callable[[str, Dict[str, Any]], None],
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> tuple[bool, bool, list[str]]:
     """Executa sync opcional de derivadas e retorna resultado e arquivos especiais."""
     sync_materialized = False
@@ -1076,11 +1203,14 @@ def _run_optional_derivadas_sync(
             "Cancelamento solicitado; sync de derivadas especiais nao sera executado."
         )
         return sync_materialized, derivadas_sync_blocking_error, synced_success_files
+    sync_report: Dict[str, Any] = {}
     try:
         sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
             db_path=working_db_path,
             table_name=table_name,
             derivadas_sheet_files=derivadas_sheet_files,
+            extra_allowed_roots=extra_allowed_roots,
+            report_out=sync_report,
         )
         if sync_ok and not derivadas_sync_blocking_error:
             existing_success = set(successfully_processed_files)
@@ -1101,10 +1231,10 @@ def _run_optional_derivadas_sync(
                 progress_filename = os.path.basename(synced_sheets[0])
             elif synced_sheets:
                 progress_filename = (
-                    f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
+                    f"Sincronizacao de derivadas ({len(synced_sheets)} arquivos)"
                 )
             else:
-                progress_filename = "SSAs Derivadas e Relacionadas (banco atual)"
+                progress_filename = "Sincronizacao de derivadas (banco atual)"
             emit_progress(
                 "file_success",
                 {
@@ -1116,24 +1246,54 @@ def _run_optional_derivadas_sync(
             )
         if not sync_ok:
             derivadas_sync_blocking_error = True
+            retry_marked = False
+            if sync_report.get("sync_run_id") is not None:
+                retry_marked = mark_latest_sync_run_failed(
+                    db_path=working_db_path,
+                    message="post_commit_validation_failed",
+                    extra_allowed_roots=extra_allowed_roots,
+                    sync_run_id=sync_report.get("sync_run_id"),
+                )
+                if not retry_marked:
+                    logger.warning(
+                        "Run de derivadas comitado nao foi marcado como falho; "
+                        "o re-sync automatico no proximo rescan pode nao ocorrer."
+                    )
             consistency_scan = sync_report.get("consistency_scan") or {}
             issue_counts = consistency_scan.get("issue_counts") or {}
             missing_files = sorted(
                 sync_report.get("sheet_files_without_evidence") or []
             )
-            issue_text = json.dumps(issue_counts, ensure_ascii=True)
+            issue_text = ", ".join(
+                f"{key}={value}" for key, value in sorted(issue_counts.items())
+            )
             error_message = (
-                f"Sync de derivadas sem evidencia valida (consistency={issue_text})"
+                "A sincronizacao de derivadas nao confirmou a consistencia "
+                f"dos dados gravados ({issue_text})."
                 if issue_counts
-                else "Sync de derivadas sem evidencia valida"
+                else "A sincronizacao de derivadas nao confirmou os dados gravados."
             )
             if missing_files:
-                error_message += f" | files_without_evidence={','.join(missing_files)}"
+                error_message += (
+                    " Arquivos sem evidencia de leitura: "
+                    + ", ".join(missing_files)
+                    + "."
+                )
+            if retry_marked:
+                error_message += (
+                    " Os dados importados foram preservados e o sync sera"
+                    " refeito automaticamente no proximo rescan."
+                )
+            else:
+                error_message += (
+                    " Os dados importados foram preservados; execute"
+                    " 'Atualizar derivadas' no banco para refazer o sync."
+                )
             critical_errors.append(("derivadas_sync", docs_dir, error_message))
             emit_progress(
                 "file_error",
                 {
-                    "filename": "SSAs Derivadas e Relacionadas",
+                    "filename": "Sincronizacao de derivadas",
                     "error": error_message,
                 },
             )
@@ -1151,10 +1311,41 @@ def _run_optional_derivadas_sync(
             exc,
             exc_info=True,
         )
-        critical_errors.append(("derivadas_sync", docs_dir, str(exc)))
+        if getattr(exc, "_derivadas_sync_rolled_back", False):
+            error_message = (
+                f"{exc}. As alteracoes de derivadas foram revertidas e os"
+                " dados importados foram preservados. O sync sera refeito"
+                " automaticamente no proximo rescan."
+            )
+        else:
+            failed_run_id = sync_report.get("sync_run_id")
+            retry_marked = (
+                mark_latest_sync_run_failed(
+                    db_path=working_db_path,
+                    message="post_commit_validation_failed",
+                    extra_allowed_roots=extra_allowed_roots,
+                    sync_run_id=failed_run_id,
+                )
+                if failed_run_id is not None else False
+            )
+            if not retry_marked:
+                logger.warning(
+                    "Run de derivadas comitado nao foi marcado como falho; "
+                    "o re-sync automatico no proximo rescan pode nao ocorrer."
+                )
+            error_message = (
+                f"{exc}. A verificacao falhou apos o commit do sync de"
+                " derivadas; os dados importados foram preservados."
+                + (
+                    " O proximo rescan refaz a verificacao."
+                    if retry_marked
+                    else " Execute 'Atualizar derivadas' no banco para refazer o sync."
+                )
+            )
+        critical_errors.append(("derivadas_sync", docs_dir, error_message))
         emit_progress(
             "file_error",
-            {"filename": "SSAs Derivadas e Relacionadas", "error": str(exc)},
+            {"filename": "Sincronizacao de derivadas", "error": error_message},
         )
     return sync_materialized, derivadas_sync_blocking_error, synced_success_files
 
@@ -1181,7 +1372,25 @@ def _validate_and_promote_candidate_if_needed(
         return result
     integrity_report = database.verify_database_integrity(working_db_path, table_name)
     result["integrity_report"] = integrity_report
-    if not integrity_report.get("is_valid", False):
+    structural_ok = all(
+        integrity_report.get(key, False)
+        for key in (
+            "database_accessible",
+            "table_exists",
+            "schema_valid",
+            "sqlite_integrity_ok",
+            "file_permissions_ok",
+        )
+    )
+    if structural_ok and not integrity_report.get("is_valid", False):
+        # Falhas de qualidade de dados (status fora do catalogo, duplicatas,
+        # datas) nao impedem a promocao: o candidato e o estado mais correto
+        # disponivel e o reparo conservador nao reescreve dados.
+        logger.warning(
+            "DB candidato promovido com inconsistencias de dados nao estruturais: %s",
+            integrity_report.get("issues", []),
+        )
+    if not structural_ok:
         logger.error(
             "DB candidato falhou na validacao final antes da promocao: %s",
             integrity_report.get("issues", []),
@@ -1271,6 +1480,9 @@ def _prepare_working_database_for_import(
     if force_import:
         candidate_db_path = _build_full_rescan_candidate_path(primary_db_path, run_id)
         working_db_path = candidate_db_path
+        # Dentro do round lock nenhum outro run usa estes artefatos; poda
+        # os antigos mantendo os mais recentes como evidencia.
+        _prune_full_rescan_artifacts(primary_db_path, preserve=candidate_db_path)
         logger.info(
             "Full rescan configurado para DB candidato isolado: %s",
             os.path.basename(candidate_db_path),
@@ -1280,14 +1492,17 @@ def _prepare_working_database_for_import(
                 raise DatabaseSchemaError(
                     f"Falha ao inicializar DB candidato de full rescan: {working_db_path}"
                 )
+            _register_full_rescan_artifact(primary_db_path, working_db_path)
 
-    if not database.repair_database_if_needed(working_db_path, table_name=table_name):
+    db_ok, integrity_report = database.ensure_database_integrity(
+        working_db_path, table_name=table_name
+    )
+    if not db_ok:
         logger.error(
             "Falha critica: nao foi possivel garantir integridade do banco de dados"
         )
         raise DatabaseCorruptionError("Banco de dados inacessivel ou corrompido")
 
-    integrity_report = database.verify_database_integrity(working_db_path, table_name)
     if not integrity_report["is_valid"]:
         issues = integrity_report["issues"]
         if not integrity_report["database_accessible"]:
@@ -1295,10 +1510,17 @@ def _prepare_working_database_for_import(
         if not integrity_report["table_exists"] or not integrity_report["schema_valid"]:
             raise DatabaseSchemaError(f"Problemas de schema: {issues}")
         if not integrity_report["data_consistent"]:
-            raise DatabaseCorruptionError(f"Dados corrompidos: {issues}")
+            # Inconsistencia de dados (status fora do catalogo, duplicatas,
+            # datas) nao bloqueia: a propria importacao e o mecanismo de
+            # correcao. Apenas falhas estruturais acima abortam o fluxo.
+            logger.warning(
+                "Inconsistencias de dados no banco atual; a importacao pode corrigi-las: %s",
+                issues,
+            )
         if not integrity_report["disk_space_sufficient"]:
             raise DatabaseSpaceError(f"Espaco em disco insuficiente: {issues}")
-        raise DatabaseError(f"Problemas gerais no banco: {issues}")
+        if integrity_report["data_consistent"]:
+            raise DatabaseError(f"Problemas gerais no banco: {issues}")
 
     if integrity_report["warnings"]:
         for warning in integrity_report["warnings"]:
@@ -1326,18 +1548,27 @@ def _resolve_import_work_items(
         )
 
     discovery_settings = _load_import_discovery_settings()
-    upsert_policy = str(
-        discovery_settings.get("upsert_short_circuit_policy", "consulta_only")
-    )
-    database.configure_upsert_short_circuit_policy(upsert_policy)
 
     include_processadas = bool(discovery_settings.get("include_processadas", False))
     ignore_subdirs = list(discovery_settings.get("ignore_subdirs", []))
     move_processed_after_import = bool(
         discovery_settings.get("move_processed_after_import", False)
     )
+    nosurvivor_subdir = str(discovery_settings.get("nosurvivor_subdir", "nosurvivor"))
+    if not force_import:
+        if include_processadas:
+            logger.info(
+                "Politica ativa: include_processadas_in_full_rescan nao se aplica ao modo diff."
+            )
+            include_processadas = False
+        if nosurvivor_subdir in ignore_subdirs:
+            logger.info(
+                "Politica ativa: ignore_nosurvivor_in_full_rescan nao se aplica ao modo diff."
+            )
+            ignore_subdirs = [
+                subdir for subdir in ignore_subdirs if subdir != nosurvivor_subdir
+            ]
     if force_import:
-        nosurvivor_subdir = str(discovery_settings.get("nosurvivor_subdir", "nosurvivor"))
         if nosurvivor_subdir not in ignore_subdirs:
             logger.warning(
                 "Politica ativa: ignore_nosurvivor_in_full_rescan foi forcado no full rescan."
@@ -1392,6 +1623,7 @@ def _finalize_import_run_outcome(
     successful_regular_files_with_records: List[tuple[str, int]],
     deterministic_failed_files: List[str],
     critical_errors: List[tuple[str, str, str]],
+    file_reports: List[Dict[str, Any]],
     files_to_process: List[str],
     sync_materialized: bool,
     candidate_db_path: Optional[str],
@@ -1429,7 +1661,7 @@ def _finalize_import_run_outcome(
     ):
         logger.info("Nenhum arquivo regular elegivel encontrado para importacao.")
         return {
-            "result": True,
+            "result": False,
             "status": "no_changes",
             "reason": "no_regular_import_candidates",
             "integrity_report": {},
@@ -1449,9 +1681,39 @@ def _finalize_import_run_outcome(
             "nenhum arquivo elegivel foi importado nesta execucao."
         )
         return {
-            "result": True,
+            "result": False,
             "status": "deterministic_rejections_only",
             "reason": "all_candidates_rejected_by_deterministic_rules",
+            "integrity_report": {},
+            "promoted_backup_path": None,
+            "working_db_path": working_db_path,
+        }
+
+    if candidate_db_path is not None and _has_blocking_candidate_errors(
+        files_to_process=files_to_process,
+        critical_errors=critical_errors,
+        deterministic_failed_files=deterministic_failed_files,
+    ):
+        blocking_types = sorted(
+            {
+                error_type
+                for error_type, file_path, _message in critical_errors
+                if not os.path.basename(file_path).startswith("~$")
+                and not _is_derivadas_sheet_file(file_path)
+                and file_path in files_to_process
+                and file_path not in deterministic_failed_files
+            }
+        )
+        logger.error(
+            "Promocao do candidato bloqueada: erro(s) nao deterministico(s) %s. "
+            "DB principal preservado; candidato mantido para evidencia: %s",
+            blocking_types,
+            candidate_db_path,
+        )
+        return {
+            "result": False,
+            "status": "candidate_incomplete",
+            "reason": "blocking_errors_present",
             "integrity_report": {},
             "promoted_backup_path": None,
             "working_db_path": working_db_path,
@@ -1580,6 +1842,10 @@ def _initialize_import_run_context(
     extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> Dict[str, Any]:
     """Resolve caminhos e inicializa o estado mutavel da rodada de importacao."""
+    # Materializa: tres validacoes consomem o parametro abaixo.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     try:
         docs_dir_path = ensure_path_is_allowed(
             docs_dir,
@@ -1615,11 +1881,27 @@ def _initialize_import_run_context(
         raise
 
     run_started_at = datetime.now()
+    # Cache por banco: bancos alternativos copiados para data/ nao podem
+    # herdar o file_cache de outro banco (um arquivo importado so no banco
+    # B seria pulado no diff do banco A). O nome canonico fica reservado
+    # ao banco padrao para preservar o contrato existente.
+    # Nome completo (nao so o stem): archive.db e archive.sqlite sao
+    # bancos distintos e nao podem compartilhar file_cache.archive.json.
+    # Match exato, nao casefold: em volumes case-sensitive (Linux) SSAS.db
+    # e ssas.db sao arquivos distintos e precisam de caches separados; em
+    # volumes case-insensitive um alias com caixa diferente apenas gera um
+    # cache redundante (reimport seguro), nunca cache errado.
+    db_filename = Path(str(db_name)).name
+    cache_name = (
+        "file_cache.json"
+        if db_filename == "ssas.db"
+        else f"file_cache.{db_filename}.json"
+    )
     return {
         "docs_dir_path": docs_dir_path,
         "data_dir_path": data_dir_path,
         "db_path": str(db_path_obj),
-        "cache_file": os.path.join(str(data_dir_path), "file_cache.json"),
+        "cache_file": os.path.join(str(data_dir_path), cache_name),
         "docs_dir": str(docs_dir_path),
         "data_dir": str(data_dir_path),
         "run_started_at": run_started_at,
@@ -1777,6 +2059,11 @@ def run_importer_logic(
     """
     logger.info("=== Iniciando processo de importacao ===")
 
+    # Materializa: o valor e reutilizado em varias validacoes ao longo do run;
+    # um iteravel de uso unico esgotaria na primeira e falharia nas seguintes.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
     context = _initialize_import_run_context(
         docs_dir=docs_dir,
         data_dir=data_dir,
@@ -1849,203 +2136,338 @@ def run_importer_logic(
         report_path = _write_import_run_report(payload)
         if report_path:
             logger.info("Resumo JSON da importacao gravado em '%s'", report_path)
+        actually_changed = bool(
+            promoted_backup_path  # full rescan promoted (backup exists)
+            or promoted_backup_path == ""  # promoted but no backup path recorded
+            or (
+                candidate_db_path is not None
+                # candidate promoted even when there was no prior DB to back up
+                and working_db_path == primary_db_path
+            )
+            or (
+                candidate_db_path is None  # diff mode (no candidate)
+                and (
+                    integrity_report.get("restored_from_snapshot", False)
+                    or successfully_processed_files  # files committed to primary
+                    or sync_materialized  # db-only derivadas sync wrote
+                )
+            )
+        )
+        import_outcome.record_import_outcome(
+            import_outcome.build_import_outcome(
+                raw_status=status,
+                legacy_result=result,
+                run_id=run_id,
+                reason=reason,
+                primary_db_path=primary_db_path,
+                working_db_path=working_db_path,
+                candidate_db_path=candidate_db_path,
+                promoted_backup_path=promoted_backup_path,
+                total_candidates=len(files_to_process),
+                processed_file_count=len(successfully_processed_files),
+                deterministic_failure_count=len(deterministic_failed_files),
+                blocking_error_count=len(critical_errors),
+                integrity_report=integrity_report,
+                report_path=report_path,
+                primary_database_actually_changed=actually_changed,
+            )
+        )
         return result
 
     try:
-        working_db_path, candidate_db_path, integrity_report = (
-            _prepare_working_database_for_import(
-                data_dir=data_dir,
-                primary_db_path=primary_db_path,
-                run_id=run_id,
-                force_import=force_import,
-                table_name=table_name,
-            )
+        _round_lock_cm = _database_writer_lock(primary_db_path)
+        _round_lock_cm.__enter__()
+    except Timeout:
+        del _round_lock_cm
+        return _finalize_and_return(
+            False, "import_busy", "primary_locked_by_another_run"
         )
 
-        work_items = _resolve_import_work_items(
-            docs_dir=docs_dir,
-            docs_dir_path=docs_dir_path,
-            cache_file=cache_file,
-            force_import=force_import,
-            explicit_files=explicit_files,
-        )
-        ignored_legacy_excel_files = cast(
-            List[str],
-            work_items["ignored_legacy_excel_files"],
-        )
-        discovery_settings = cast(Dict[str, Any], work_items["discovery_settings"])
-        files_to_process = cast(List[str], work_items["files_to_process"])
-        derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
-        move_processed_after_import = bool(work_items["move_processed_after_import"])
-        db_only_derivadas_sync = False
-        auto_derivadas_sync_enabled = True
-        total_files = len(files_to_process)
-        _emit_progress = _build_progress_emitter(progress_callback)
-        _emit_progress("start", {"total": total_files})
-
-        preflight_result = _handle_derivadas_preflight_without_regular_files(
-            files_to_process=files_to_process,
-            derivadas_sheet_files=derivadas_sheet_files,
-            auto_derivadas_sync_enabled=auto_derivadas_sync_enabled,
-            working_db_path=working_db_path,
-            table_name=table_name,
-            should_cancel=should_cancel,
-            emit_progress=_emit_progress,
-        )
-        db_only_derivadas_sync = bool(preflight_result["db_only_derivadas_sync"])
-        if bool(preflight_result["should_return"]):
-            return _finalize_and_return(
-                bool(preflight_result["result"]),
-                str(preflight_result["status"]),
-                str(preflight_result["reason"]),
-            )
-
-        if derivadas_sheet_files:
-            logger.info(
-                "Fase dedicada de derivadas habilitada com %s planilha(s) especial(is).",
-                len(derivadas_sheet_files),
-            )
-
-        logger.info(
-            f"{len(files_to_process)} arquivo(s) identificado(s) para importacao."
-        )
-
-        # --- 2. Processar cada arquivo ---
-        file_processing_started = time.perf_counter()
+    # Round lock: held for the whole run so a concurrent importer on the
+    # same primary returns BUSY instead of racing the promotion window.
+    # The filelock singleton makes the inner per-connection locks reentrant.
+    try:
         try:
-            cancelled_full_rescan = _process_regular_files_phase(
+            # Resolve os itens de trabalho antes de criar o candidato:
+            # falhas aqui nao deixam artefatos orfaos no diretorio.
+            work_items = _resolve_import_work_items(
+                docs_dir=docs_dir,
+                docs_dir_path=docs_dir_path,
+                cache_file=cache_file,
+                force_import=force_import,
+                explicit_files=explicit_files,
+            )
+            ignored_legacy_excel_files = cast(
+                List[str],
+                work_items["ignored_legacy_excel_files"],
+            )
+            discovery_settings = cast(Dict[str, Any], work_items["discovery_settings"])
+            files_to_process = cast(List[str], work_items["files_to_process"])
+            derivadas_sheet_files = cast(List[str], work_items["derivadas_sheet_files"])
+
+            # Pre-flight das planilhas de derivadas ANTES de criar o
+            # candidato: um arquivo rejeitado aqui nao deixa nenhum
+            # artefato de banco no disco.
+            for derivadas_sheet_file in derivadas_sheet_files:
+                ensure_path_is_allowed(
+                    derivadas_sheet_file,
+                    purpose="derivadas sheet file preflight",
+                    expect_directory=False,
+                    extra_allowed_roots=extra_allowed_roots,
+                )
+
+            # Registra se o candidato de full rescan ja existia: a limpeza do
+            # pre-flight so pode remover um arquivo criado nesta rodada.
+            candidate_preexisting = bool(
+                force_import
+                and os.path.exists(
+                    _build_full_rescan_candidate_path(primary_db_path, run_id)
+                )
+            )
+            working_db_path, candidate_db_path, integrity_report = (
+                _prepare_working_database_for_import(
+                    data_dir=data_dir,
+                    primary_db_path=primary_db_path,
+                    run_id=run_id,
+                    force_import=force_import,
+                    table_name=table_name,
+                )
+            )
+
+            # Revalida o banco de trabalho apos a criacao do candidato.
+            try:
+                ensure_path_is_allowed(
+                    working_db_path,
+                    purpose="derivadas database preflight",
+                    expect_directory=False,
+                    extra_allowed_roots=extra_allowed_roots,
+                )
+            except PathSafetyError:
+                # Remove apenas um candidato criado nesta rodada; candidatos
+                # pre-existentes podem ser evidencia de runs anteriores.
+                if candidate_db_path and not candidate_preexisting:
+                    for suffix in ("-wal", "-shm", "-journal", ""):
+                        stale_path = candidate_db_path + suffix
+                        try:
+                            os.remove(stale_path)
+                        except FileNotFoundError:
+                            continue
+                        except OSError as exc:
+                            logger.warning(
+                                "Falha ao remover candidato orfao %s: %s",
+                                stale_path,
+                                exc,
+                            )
+                            break
+                    else:
+                        _discard_full_rescan_artifact_marker(
+                            primary_db_path, candidate_db_path
+                        )
+                raise
+            # Politica de upsert e mutacao global de processo: so e aplicada
+            # depois que o pre-flight passou, para nao deixar residuo quando
+            # a rodada aborta antes de escrever qualquer dado.
+            database.configure_upsert_short_circuit_policy(
+                str(
+                    discovery_settings.get(
+                        "upsert_short_circuit_policy", "consulta_only"
+                    )
+                )
+            )
+            import_batch_files = list(
+                dict.fromkeys([*files_to_process, *derivadas_sheet_files])
+            )
+            trusted_full_rescan = bool(force_import and explicit_files is None)
+            try:
+                extractor.validate_excel_import_limits(
+                    import_batch_files,
+                    enforce_batch_file_limit=not trusted_full_rescan,
+                    ignore_unavailable=True,
+                    reject_invalid_archives=False,
+                )
+            except extractor.ExtractionError as exc:
+                raise ImporterError(str(exc)) from exc
+            move_processed_after_import = bool(work_items["move_processed_after_import"])
+            db_only_derivadas_sync = False
+            auto_derivadas_sync_enabled = True
+            total_files = len(files_to_process)
+            _emit_progress = _build_progress_emitter(progress_callback)
+            _emit_progress("start", {"total": total_files})
+
+            preflight_result = _handle_derivadas_preflight_without_regular_files(
                 files_to_process=files_to_process,
-                total_files=total_files,
-                should_cancel=should_cancel,
-                candidate_db_path=candidate_db_path,
+                derivadas_sheet_files=derivadas_sheet_files,
+                auto_derivadas_sync_enabled=auto_derivadas_sync_enabled,
                 working_db_path=working_db_path,
                 table_name=table_name,
-                successfully_processed_files=successfully_processed_files,
-                successful_regular_files_with_records=successful_regular_files_with_records,
-                critical_errors=critical_errors,
-                deterministic_failed_files=deterministic_failed_files,
-                file_reports=file_reports,
+                should_cancel=should_cancel,
                 emit_progress=_emit_progress,
             )
-            (
-                sync_materialized,
-                derivadas_sync_blocking_error,
-                synced_special_files,
-            ) = (
-                _run_optional_derivadas_sync(
-                    auto_derivadas_sync_enabled=auto_derivadas_sync_enabled,
-                    successfully_processed_files=successfully_processed_files,
-                    derivadas_sheet_files=derivadas_sheet_files,
-                    db_only_derivadas_sync=db_only_derivadas_sync,
+            db_only_derivadas_sync = bool(preflight_result["db_only_derivadas_sync"])
+            if bool(preflight_result["should_return"]):
+                return _finalize_and_return(
+                    bool(preflight_result["result"]),
+                    str(preflight_result["status"]),
+                    str(preflight_result["reason"]),
+                )
+
+            if derivadas_sheet_files:
+                logger.info(
+                    "Fase dedicada de derivadas habilitada com %s planilha(s) especial(is).",
+                    len(derivadas_sheet_files),
+                )
+
+            logger.info(
+                f"{len(files_to_process)} arquivo(s) identificado(s) para importacao."
+            )
+
+            # --- 2. Processar cada arquivo ---
+            file_processing_started = time.perf_counter()
+            try:
+                cancelled_full_rescan = _process_regular_files_phase(
+                    files_to_process=files_to_process,
+                    total_files=total_files,
                     should_cancel=should_cancel,
+                    candidate_db_path=candidate_db_path,
                     working_db_path=working_db_path,
                     table_name=table_name,
-                    docs_dir=docs_dir,
+                    successfully_processed_files=successfully_processed_files,
+                    successful_regular_files_with_records=successful_regular_files_with_records,
                     critical_errors=critical_errors,
+                    deterministic_failed_files=deterministic_failed_files,
+                    file_reports=file_reports,
                     emit_progress=_emit_progress,
                 )
-            )
-            successfully_processed_files.extend(synced_special_files)
-        finally:
-            phase_durations["run_file_processing_seconds"] = (
-                time.perf_counter() - file_processing_started
-            )
-            rejection_only = _has_only_deterministic_rejections(
-                files_to_process=files_to_process,
-                successfully_processed_files=successfully_processed_files,
-                deterministic_failed_files=deterministic_failed_files,
-                critical_errors=critical_errors,
-            )
-            _emit_progress(
-                "finish",
-                {
-                    "total": total_files,
-                    "processed": len(successfully_processed_files),
-                    "errors": critical_errors,
-                    "deterministic_failure_count": len(deterministic_failed_files),
-                    "rejection_only": rejection_only,
-                },
-            )
-
-        # Log de resumo de erros
-        if critical_errors:
-            logger.warning(
-                f"Processamento concluido com {len(critical_errors)} erro(s):"
-            )
-            for error_type, file_path, message in critical_errors:
-                logger.warning(
-                    f"  - {error_type}: {os.path.basename(file_path)} -> {message}"
+                (
+                    sync_materialized,
+                    derivadas_sync_blocking_error,
+                    synced_special_files,
+                ) = (
+                    _run_optional_derivadas_sync(
+                        auto_derivadas_sync_enabled=auto_derivadas_sync_enabled,
+                        successfully_processed_files=successfully_processed_files,
+                        derivadas_sheet_files=derivadas_sheet_files,
+                        db_only_derivadas_sync=db_only_derivadas_sync,
+                        should_cancel=should_cancel,
+                        working_db_path=working_db_path,
+                        table_name=table_name,
+                        docs_dir=docs_dir,
+                        critical_errors=critical_errors,
+                        emit_progress=_emit_progress,
+                        extra_allowed_roots=extra_allowed_roots,
+                    )
+                )
+                successfully_processed_files.extend(synced_special_files)
+            finally:
+                phase_durations["run_file_processing_seconds"] = (
+                    time.perf_counter() - file_processing_started
+                )
+                rejection_only = _has_only_deterministic_rejections(
+                    files_to_process=files_to_process,
+                    successfully_processed_files=successfully_processed_files,
+                    deterministic_failed_files=deterministic_failed_files,
+                    critical_errors=critical_errors,
+                )
+                _emit_progress(
+                    "finish",
+                    {
+                        "total": total_files,
+                        "processed": len(successfully_processed_files),
+                        "errors": critical_errors,
+                        "deterministic_failure_count": len(deterministic_failed_files),
+                        "rejection_only": rejection_only,
+                    },
                 )
 
-        if derivadas_sync_blocking_error:
-            logger.error(
-                "Importacao concluida com falha bloqueante de integridade em derivadas. "
-                "Cache nao sera atualizado nesta execucao."
+            # Log de resumo de erros
+            if critical_errors:
+                logger.warning(
+                    f"Processamento concluido com {len(critical_errors)} erro(s):"
+                )
+                for error_type, file_path, message in critical_errors:
+                    logger.warning(
+                        f"  - {error_type}: {os.path.basename(file_path)} -> {message}"
+                    )
+
+            if derivadas_sync_blocking_error:
+                # O detalhe por caminho (rollback real vs falha pos-commit)
+                # ja esta no erro registrado; aqui so o que vale para todos.
+                logger.error(
+                    "Importacao concluida com falha bloqueante de integridade em derivadas. "
+                    "Os dados ja importados foram preservados. O cache nao"
+                    " sera atualizado nesta execucao; o proximo rescan refaz"
+                    " o sync."
+                )
+                return _finalize_and_return(
+                    False,
+                    "derivadas_sync_error",
+                    "blocking_derivadas_sync_error",
+                )
+
+            if cancelled_full_rescan:
+                logger.warning(
+                    "Full rescan cancelado apos inicio do processamento. "
+                    "DB principal foi preservado; DB candidato mantido para evidencia."
+                )
+                return _finalize_and_return(
+                    False,
+                    "cancelled_partial",
+                    "full_rescan_cancelled_before_final_promotion",
+                )
+
+            final_decision = _finalize_import_run_outcome(
+                successfully_processed_files=successfully_processed_files,
+                successful_regular_files_with_records=successful_regular_files_with_records,
+                deterministic_failed_files=deterministic_failed_files,
+                critical_errors=critical_errors,
+                file_reports=file_reports,
+                files_to_process=files_to_process,
+                sync_materialized=sync_materialized,
+                candidate_db_path=candidate_db_path,
+                working_db_path=working_db_path,
+                primary_db_path=primary_db_path,
+                table_name=table_name,
+                docs_dir=docs_dir,
+                cache_file=cache_file,
+                move_processed_after_import=move_processed_after_import,
+                discovery_settings=discovery_settings,
+                phase_durations=phase_durations,
             )
+            final_integrity_report = final_decision.get("integrity_report")
+            if isinstance(final_integrity_report, dict) and final_integrity_report:
+                integrity_report = final_integrity_report
+            promoted_backup_path = cast(
+                Optional[str],
+                final_decision.get("promoted_backup_path"),
+            )
+            working_db_path = str(final_decision.get("working_db_path", working_db_path))
             return _finalize_and_return(
-                False,
-                "derivadas_sync_error",
-                "blocking_derivadas_sync_error",
+                bool(final_decision["result"]),
+                str(final_decision["status"]),
+                str(final_decision["reason"]),
             )
 
-        if cancelled_full_rescan:
-            logger.warning(
-                "Full rescan cancelado apos inicio do processamento. "
-                "DB principal foi preservado; DB candidato mantido para evidencia."
+        except ImporterError:
+            # Re-levanta excecoes personalizadas
+            _finalize_and_return(False, "importer_error", "importer_exception_raised")
+            raise
+        except Exception as e:
+            logger.critical(
+                f"Erro inesperado no processo de importacao: {e}", exc_info=True
             )
-            return _finalize_and_return(
-                False,
-                "cancelled_partial",
-                "full_rescan_cancelled_before_final_promotion",
-            )
+            _finalize_and_return(False, "unexpected_exception", str(e))
+            raise ImporterError("Erro critico no processo de importacao.") from e
 
-        final_decision = _finalize_import_run_outcome(
-            successfully_processed_files=successfully_processed_files,
-            successful_regular_files_with_records=successful_regular_files_with_records,
-            deterministic_failed_files=deterministic_failed_files,
-            critical_errors=critical_errors,
-            files_to_process=files_to_process,
-            sync_materialized=sync_materialized,
-            candidate_db_path=candidate_db_path,
-            working_db_path=working_db_path,
-            primary_db_path=primary_db_path,
-            table_name=table_name,
-            docs_dir=docs_dir,
-            cache_file=cache_file,
-            move_processed_after_import=move_processed_after_import,
-            discovery_settings=discovery_settings,
-            phase_durations=phase_durations,
-        )
-        final_integrity_report = final_decision.get("integrity_report")
-        if isinstance(final_integrity_report, dict) and final_integrity_report:
-            integrity_report = final_integrity_report
-        promoted_backup_path = cast(
-            Optional[str],
-            final_decision.get("promoted_backup_path"),
-        )
-        working_db_path = str(final_decision.get("working_db_path", working_db_path))
-        return _finalize_and_return(
-            bool(final_decision["result"]),
-            str(final_decision["status"]),
-            str(final_decision["reason"]),
-        )
-
-    except ImporterError:
-        # Re-levanta excecoes personalizadas
-        _finalize_and_return(False, "importer_error", "importer_exception_raised")
-        raise
-    except Exception as e:
-        logger.critical(
-            f"Erro inesperado no processo de importacao: {e}", exc_info=True
-        )
-        _finalize_and_return(False, "unexpected_exception", str(e))
-        raise ImporterError("Erro critico no processo de importacao.") from e
+    finally:
+        _round_lock_cm.__exit__(None, None, None)
 
 def import_files_to_database(
     docs_dir: str,
     db_path: str = "data/ssas.db",
     force_import: bool = False,
     raise_on_error: bool = False,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> bool:
     """
     Importa arquivos de um diretorio para o banco de dados.
@@ -2059,7 +2481,9 @@ def import_files_to_database(
         bool: True se importacao foi bem-sucedida
     """
     try:
-        safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
+        safe_docs_dir, safe_db_path = _resolve_import_targets(
+            docs_dir, db_path, extra_allowed_roots=extra_allowed_roots
+        )
 
         # Extrair diretorio e nome do banco
         data_dir = safe_db_path.parent
@@ -2075,6 +2499,7 @@ def import_files_to_database(
             db_name=db_name,
             table_name="ssa_table",
             force_import=force_import,
+            extra_allowed_roots=extra_allowed_roots,
         )
 
         return success
@@ -2097,9 +2522,12 @@ def import_explicit_files_to_database(
     docs_dir: str = "docs_entrada",
     db_path: str = "data/ssas.db",
     raise_on_error: bool = False,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> bool:
     """Import explicit supported files already staged under docs_dir into the database."""
     try:
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Importacao explicita cancelada antes do preflight")
         safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
         explicit_resolved = _resolve_explicit_import_files(
             file_paths,
@@ -2110,6 +2538,8 @@ def import_explicit_files_to_database(
                 "Nenhum arquivo explicito valido foi fornecido para importacao."
             )
             return False
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Importacao explicita cancelada antes do importer")
         data_dir = safe_db_path.parent
         db_name = safe_db_path.name
         os.makedirs(data_dir, exist_ok=True)
@@ -2119,6 +2549,7 @@ def import_explicit_files_to_database(
             db_name=db_name,
             table_name="ssa_table",
             force_import=False,
+            should_cancel=should_cancel,
             explicit_files=explicit_resolved,
         )
     except PathSafetyError as e:
@@ -2136,6 +2567,8 @@ def import_explicit_files_to_database(
 def get_filtered_data(
     db_path: str = "data/ssas.db",
     filters: Dict[str, Any] | None = None,
+    *,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> pd.DataFrame:
     """
     Obtem dados filtrados do banco de dados.
@@ -2154,6 +2587,7 @@ def get_filtered_data(
             base=project_root_path,
             must_exist=False,
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     except PathSafetyError as e:
         logger.error(f"Caminho rejeitado ao acessar banco: {e}")

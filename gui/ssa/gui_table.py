@@ -367,6 +367,40 @@ def _get_header_visual_column_order(window) -> list[str]:
     return [column_name for _, column_name in ordered_pairs]
 
 
+def _build_page_content_digest(
+    display_df: pd.DataFrame,
+) -> bytes | None:
+    """BLAKE2b digest of the full page content (all rows, all columns).
+
+    Returns None when the digest cannot be computed; callers must treat
+    None as 'disable cache/reuse for this render' and force a rebuild.
+    """
+    import hashlib
+
+    from pandas.util import hash_pandas_object
+
+    try:
+        digest = hashlib.blake2b(digest_size=16)
+        metadata = (
+            tuple(display_df.columns),
+            tuple(
+                ("category", tuple(dtype.categories), dtype.ordered)
+                if isinstance(dtype, pd.CategoricalDtype)
+                else repr(dtype)
+                for dtype in display_df.dtypes
+            ),
+            tuple(display_df.index.names),
+            str(display_df.index.dtype),
+            display_df.shape,
+        )
+        digest.update(repr(metadata).encode("utf-8"))
+        digest.update(hash_pandas_object(display_df, index=True).values.tobytes())
+        return digest.digest()
+    except Exception as exc:
+        logger.warning("Falha ao computar digest da pagina: %s", exc)
+        return None
+
+
 def _build_render_marker_sample(
     display_df: pd.DataFrame,
 ) -> tuple[tuple[str, ...], ...]:
@@ -375,17 +409,17 @@ def _build_render_marker_sample(
 
     try:
         marker_columns = list(display_df.columns)
-        if len(display_df) <= 100:
-            row_indexes = list(range(len(display_df)))
-        else:
-            row_indexes = sorted({0, len(display_df) // 2, len(display_df) - 1})
-        marker_df = display_df.iloc[row_indexes][marker_columns].fillna("")
+        marker_df = (
+            display_df[marker_columns]
+            .astype("string")
+            .fillna("")
+        )
         return tuple(
             tuple(str(value) for value in row_values)
             for row_values in marker_df.itertuples(index=False, name=None)
         )
     except Exception as exc:
-        logger.debug(
+        logger.warning(
             "Falha ao construir amostra de marcadores da renderizacao: %s", exc
         )
         return tuple()
@@ -397,14 +431,15 @@ def _build_page_render_signature(
     display_headers: list[str],
     *,
     marker_sample: tuple[tuple[str, ...], ...] | None = None,
+    content_digest: bytes | None = None,
 ) -> tuple:
     try:
         viewport_width = int(window.table_widget.viewport().width())
     except Exception:
         viewport_width = -1
 
-    if marker_sample is None:
-        marker_sample = _build_render_marker_sample(display_df)
+    if content_digest is None:
+        content_digest = _build_page_content_digest(display_df)
 
     return (
         getattr(window, "_data_uuid", None),
@@ -415,7 +450,7 @@ def _build_page_render_signature(
         tuple(display_df.columns),
         tuple(display_headers),
         int(len(display_df)),
-        marker_sample,
+        content_digest,
     )
 
 
@@ -612,16 +647,23 @@ def _format_display_dataframe_for_table(window, display_df, raw_marker_sample):
                 logger.debug(
                     "Falha ao compor assinatura de largura para chave de cache: %s", exc
                 )
-            display_df_hash = (
-                data_uuid,
-                data_revision,
-                page,
-                page_size,
-                len(display_df),
-                tuple(display_df.columns),
-                raw_marker_sample,
-                width_signature,
-            )
+            content_digest = _build_page_content_digest(display_df)
+            # None digest = computation failed; disable cache read AND
+            # write so two different pages that both fail to digest
+            # cannot collide on the same cache key
+            if content_digest is None:
+                display_df_hash = None
+            else:
+                display_df_hash = (
+                    data_uuid,
+                    data_revision,
+                    page,
+                    page_size,
+                    len(display_df),
+                    tuple(display_df.columns),
+                    content_digest,
+                    width_signature,
+                )
     except Exception as exc:
         logger.debug("Falha ao gerar chave de cache do DataFrame de exibicao: %s", exc)
 
@@ -751,7 +793,17 @@ def _populate_table_items(window, display_df, table_cell_alignment):
             font.setUnderline(False)
             item.setFont(font)
             if QBrush is not None:
-                item.setForeground(QBrush())
+                try:
+                    pal = window.palette()
+                    text_color = pal.color(pal.ColorRole.Text)
+                    item.setForeground(QBrush(text_color))
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao restaurar cor da celula %s,%s: %s",
+                        row_idx,
+                        col_idx,
+                        exc,
+                    )
             if hasattr(item, "setToolTip"):
                 item.setToolTip("")
             item.setData(_HASH_LINK_STYLE_ROLE, None)
@@ -934,8 +986,10 @@ def _load_current_page_slice(window):
         if hasattr(window, "_ensure_data_revision"):
             window._ensure_data_revision()
     except Exception as exc:
-        logger.debug(
-            "Falha ao validar revisao de dados antes de renderizar pagina: %s", exc
+        logger.warning(
+            "Falha ao validar revisao de dados antes de renderizar pagina "
+            "(risco de render stale): %s",
+            exc,
         )
 
 
@@ -971,11 +1025,18 @@ def _render_signature_and_reuse(window, display_df, display_headers, raw_marker_
         window,
         display_df,
         display_headers,
-        marker_sample=raw_marker_sample,
+        content_digest=_build_page_content_digest(display_df),
     )
     previous_signature = getattr(window, "_last_table_render_signature", None)
+    # If the digest is None (computation failed), the signature contains
+    # None in the digest slot; two different pages both failing to digest
+    # could collide. Treat None as always-rebuild by comparing digests.
+    current_digest = render_signature[-1] if render_signature else None
+    prev_digest = previous_signature[-1] if previous_signature else None
+    digest_safe = current_digest is not None and current_digest == prev_digest
     reuse_render = (
         previous_signature == render_signature
+        and digest_safe
         and window.table_widget.rowCount() == len(display_df)
         and window.table_widget.columnCount() == len(display_df.columns)
     )

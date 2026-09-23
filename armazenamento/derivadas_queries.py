@@ -469,14 +469,14 @@ def build_family_payload_from_edges(
     family_truncated = False
 
     priority_nodes: set[str] = {target_ssa}
-    stack = [target_ssa]
-    while stack:
-        child = stack.pop()
+    priority_stack = [target_ssa]
+    while priority_stack:
+        child = priority_stack.pop()
         for parent in sorted(parents_by_child.get(child, set()), reverse=True):
             if parent in priority_nodes:
                 continue
             priority_nodes.add(parent)
-            stack.append(parent)
+            priority_stack.append(parent)
 
     queue = [(root, 0) for root in family_roots]
     queued_nodes = set(family_roots)

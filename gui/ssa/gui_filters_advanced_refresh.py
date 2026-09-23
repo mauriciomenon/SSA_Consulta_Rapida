@@ -8,8 +8,13 @@ from typing import Any, Callable
 
 import pandas as pd
 from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
+from core.cache_manager import CacheManager
+from utils.robust_logging import get_robust_logger
 
-from .filter_domain_rules import collect_nonempty_column_values
+from .filter_domain_rules import normalize_nonempty_string_series
+from .gui_filters_advanced_state import ADV_FILTER_CACHE_ATTRS, ADV_FILTER_CACHE_MAX_BYTES
+
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 @dataclass(frozen=True)
@@ -32,15 +37,19 @@ class AdvancedFilterUIState:
 
 def build_advanced_values_cache_key(
     df: pd.DataFrame, data_load_token: Any
-) -> tuple[int, tuple[str, ...], Any]:
-    return (len(df), tuple(str(column) for column in df.columns), data_load_token)
+) -> tuple[int, int, tuple[str, ...], Any]:
+    return (id(df), len(df), tuple(str(column) for column in df.columns), data_load_token)
 
 
 def _unique_sorted(df: pd.DataFrame, column: str) -> list[str]:
-    if column not in df.columns:
+    if not isinstance(df, pd.DataFrame) or df.empty or column not in df.columns:
         return []
-    vals = collect_nonempty_column_values(df, column)
-    return sorted(set(vals), key=lambda value: value.casefold())
+    series = normalize_nonempty_string_series(df[column])
+    normalized = series[series != ""]
+    if normalized.empty:
+        return []
+    unique_vals = pd.unique(normalized)
+    return sorted((str(value) for value in unique_vals), key=lambda value: value.casefold())
 
 
 def _sort_sector_values(
@@ -123,10 +132,11 @@ def get_cached_advanced_filter_option_values(
     *,
     data_load_token: Any,
     sort_sectors: Callable[[list[str]], list[str]],
+    force_refresh: bool = False,
 ) -> AdvancedFilterOptionValues:
     df_key = build_advanced_values_cache_key(df, data_load_token)
     cached_values = cache.get("values")
-    if cache.get("df_key") == df_key and isinstance(
+    if not force_refresh and cache.get("df_key") == df_key and isinstance(
         cached_values, AdvancedFilterOptionValues
     ):
         return cached_values
@@ -143,4 +153,11 @@ def get_cached_advanced_filter_option_values(
     cache["prio_emissao_vals"] = values.prio_emissao_vals
     cache["prio_planejamento_vals"] = values.prio_planejamento_vals
     cache["reprog_vals"] = values.reprog_vals
+    try:
+        payload_bytes = CacheManager._estimate_cache_items_memory([("options", cache)])
+        if payload_bytes > ADV_FILTER_CACHE_MAX_BYTES // len(ADV_FILTER_CACHE_ATTRS):
+            cache.clear()
+    except Exception as exc:
+        cache.clear()
+        logger.warning("Advanced options cache size unavailable; payload not retained: %s", exc)
     return values
