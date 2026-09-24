@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from gui.ssa import filter_refresh_pipeline
 from gui.ssa.filter_refresh_pipeline import (
     FilterRefreshLastResult,
     apply_filter_refresh_pipeline,
@@ -102,3 +103,51 @@ def test_filter_refresh_pipeline_keeps_cached_dataframe_isolated():
     assert cached_filtered["situacao"].tolist() == ["APV"]
     cached_filtered.loc[cached_filtered.index[0], "situacao"] = "CHANGED"
     assert cache_update.dataframe["situacao"].tolist() == ["APV"]
+
+
+@pytest.mark.parametrize("above_budget", [False, True])
+def test_filter_refresh_cache_respects_memory_budget(monkeypatch, above_budget):
+    df = pd.DataFrame({"situacao": ["APV", "STE"]})
+    estimated_bytes = int(df.memory_usage(deep=True).sum())
+    budget = estimated_bytes - 1 if above_budget else estimated_bytes
+    monkeypatch.setattr(filter_refresh_pipeline, "_REFRESH_CACHE_MAX_BYTES", budget)
+
+    filtered, cache_update = apply_filter_refresh_pipeline(
+        df,
+        has_post_search_filters=True,
+        has_excluded_terminal_status=False,
+        cache_key=("revision", "budget"),
+        cached=None,
+        apply_advanced_filters=None,
+        apply_column_filters=lambda frame: frame,
+        measure_timing=_measure,
+    )
+
+    assert filtered["situacao"].tolist() == ["APV", "STE"]
+    if above_budget:
+        assert cache_update is None
+    else:
+        assert isinstance(cache_update, FilterRefreshLastResult)
+
+
+def test_filter_refresh_skips_cache_when_memory_estimation_fails(monkeypatch):
+    df = pd.DataFrame({"situacao": ["APV", "STE"]})
+
+    def _raise_memory_error(_frame, *, deep):
+        raise RuntimeError("memory estimate failed")
+
+    monkeypatch.setattr(pd.DataFrame, "memory_usage", _raise_memory_error)
+
+    filtered, cache_update = apply_filter_refresh_pipeline(
+        df,
+        has_post_search_filters=True,
+        has_excluded_terminal_status=False,
+        cache_key=("revision", "memory-error"),
+        cached=None,
+        apply_advanced_filters=None,
+        apply_column_filters=lambda frame: frame[frame["situacao"].eq("APV")],
+        measure_timing=_measure,
+    )
+
+    assert filtered["situacao"].tolist() == ["APV"]
+    assert cache_update is None
