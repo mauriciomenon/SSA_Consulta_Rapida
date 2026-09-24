@@ -702,7 +702,7 @@ VSVersionInfo(
             bundle_root = self.dist_dir / platform_name / app_config["name"]
             runtime_root = bundle_root
             if platform_name == "macos_arm64" and app_config.get("windowed", False):
-                bundle_root = bundle_root.with_suffix(".app")
+                bundle_root = bundle_root.parent / f"{bundle_root.name}.app"
                 runtime_root = bundle_root / "Contents" / "MacOS"
             if runtime_db_path is not None:
                 if not bundle_root.is_dir():

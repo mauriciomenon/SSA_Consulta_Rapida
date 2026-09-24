@@ -738,6 +738,19 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         "bak-20260914" in value or "preferences.json" in value for value in mac_cmd
     )
 
+    gui_name = f"SSA_GUI_v{builder.version}_macos_arm64"
+    config["gui_config"] = {
+        "windowed": True,
+        "icon": "resources/app_icon.icns",
+        "name": gui_name,
+        "additional_args": [],
+    }
+    assert builder.build_executable("macos_arm64", "gui", tmp_path / "python3", config)
+    assert (
+        builder.dist_dir / "macos_arm64" / f"{gui_name}.app" / "Contents" / "MacOS" / "data"
+    ).is_dir()
+    assert not (builder.dist_dir / "macos_arm64" / "SSA_GUI_v4.app").exists()
+
     def _failed_git(cmd, **kwargs):
         if cmd[:2] == ["git", "ls-files"]:
             return subprocess.CompletedProcess(cmd, 128, "", "not a git repository")
