@@ -94,11 +94,11 @@ class TestRenderMarkerSample:
             changed.iloc[321, 1] = 987654
         assert gui_table._build_page_content_digest(frame) != gui_table._build_page_content_digest(changed)
 
-    def test_responsavel_fingerprint_failure_never_reuses_shape(self, monkeypatch):
+    def test_responsavel_fingerprint_failure_never_reuses_shape(self, monkeypatch, caplog):
         from gui.ssa.filter_domain_rules import generate_responsavel_sector_filter_cache_signature
 
         def fail_hash(*args, **kwargs):
-            raise TypeError("unsupported value")
+            raise TypeError("private cell value")
 
         monkeypatch.setattr(pd.util, "hash_pandas_object", fail_hash)
         frame = pd.DataFrame({"solicitante": ["A"]})
@@ -106,6 +106,8 @@ class TestRenderMarkerSample:
         frame.loc[0, "solicitante"] = "B"
         second = generate_responsavel_sector_filter_cache_signature(frame, data_load_token=None)
         assert first != second
+        assert "private cell value" not in caplog.text
+        assert "TypeError" in caplog.text
 
     def test_digest_non_empty_and_content_sensitive_with_nullable_numbers(self):
         frame = _nullable_frame(3, ["IEE3", "MEL4", "XYZ"])

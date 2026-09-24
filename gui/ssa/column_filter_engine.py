@@ -340,7 +340,10 @@ def _trim_cache_dict(cache: dict, max_entries: int, *, max_bytes: int | None = N
                 total_bytes -= sizes[first_key]
         except Exception as exc:
             cache.clear()
-            logger.warning("Column filter cache size unavailable; cache cleared: %s", exc)
+            logger.warning(
+                "Column filter cache size unavailable; cache cleared (%s)",
+                type(exc).__name__,
+            )
 
 
 def _trim_date_caches(caches: ColumnFilterCaches) -> None:

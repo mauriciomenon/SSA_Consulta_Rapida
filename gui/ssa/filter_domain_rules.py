@@ -369,7 +369,8 @@ def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int | str:
         return hash((data_hash, len(df), tuple(str(column) for column in df.columns)))
     except Exception as exc:
         logger.warning(
-            "Falha ao computar hash do DataFrame; cache invalidado: %s", exc
+            "Falha ao computar hash do DataFrame; cache invalidado (%s)",
+            type(exc).__name__,
         )
         return uuid4().hex
 

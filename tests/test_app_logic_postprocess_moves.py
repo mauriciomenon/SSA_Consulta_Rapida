@@ -282,7 +282,7 @@ def test_move_without_overwrite_undoes_link_when_source_unlink_fails(
 
 
 def test_move_without_overwrite_preserves_original_error_when_cleanup_fails(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, caplog
 ) -> None:
     """Se a remocao do hardlink tambem falha, a excecao original do
     unlink da origem e a que propaga; a falha de limpeza vira log."""
@@ -316,6 +316,10 @@ def test_move_without_overwrite_preserves_original_error_when_cleanup_fails(
     # O hardlink orfao permanece para diagnostico, em vez de esconder o
     # erro original atras da falha de limpeza.
     assert destination.exists()
+    assert str(source) not in caplog.text
+    assert str(destination) not in caplog.text
+    assert "cleanup locked" not in caplog.text
+    assert "PermissionError" in caplog.text
 
 
 def test_move_to_available_destination_repeated_name_error_has_context(

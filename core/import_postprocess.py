@@ -267,9 +267,9 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
                     os.fsync(reserved.fileno())
                 except OSError as fsync_exc:
                     logger.debug(
-                        "fsync failed for postprocess destination '%s': %s",
-                        destination,
-                        fsync_exc,
+                        "fsync failed for postprocess destination (%s, errno=%s)",
+                        type(fsync_exc).__name__,
+                        fsync_exc.errno,
                     )
             shutil.copystat(source, destination, follow_symlinks=True)
             source.unlink()
@@ -295,11 +295,10 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
                 destination.unlink(missing_ok=True)
             except OSError as cleanup_exc:
                 logger.warning(
-                    "Falha ao remover destino '%s' apos erro no unlink de "
-                    "'%s': %s",
-                    destination,
-                    source,
-                    cleanup_exc,
+                    "Falha ao remover destino apos erro no unlink da origem "
+                    "(%s, errno=%s)",
+                    type(cleanup_exc).__name__,
+                    cleanup_exc.errno,
                 )
             raise
         return

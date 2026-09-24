@@ -352,11 +352,13 @@ def test_sort_cache_skips_oversized_keys(monkeypatch):
     assert result["keys_df"] is None
 
 
-def test_unknown_column_cache_size_discards_entry(monkeypatch):
+def test_unknown_column_cache_size_discards_entry(monkeypatch, caplog):
     def fail_size(*args):
-        raise ValueError("size unavailable")
+        raise ValueError("private cell value")
 
     monkeypatch.setattr(CacheManager, "_estimate_cache_items_memory", fail_size)
     cache = {"entry": pd.Series(["text"])}
     _trim_cache_dict(cache, 96, max_bytes=1000)
     assert not cache
+    assert "private cell value" not in caplog.text
+    assert "ValueError" in caplog.text
