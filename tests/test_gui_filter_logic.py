@@ -1907,7 +1907,7 @@ class TestGUIFilterLogic:
         )
         assert "202600001" in str(self.window.details_graph_label.text() or "")
 
-    def test_collect_derivadas_tree_data_prefers_local_family_before_snapshot(
+    def test_collect_derivadas_tree_data_falls_back_to_local_family_without_snapshot(
         self, monkeypatch
     ):
         df = pd.DataFrame(
@@ -1926,12 +1926,11 @@ class TestGUIFilterLogic:
             "get_db_mtime",
             lambda _path: 1,
         )
+        snapshot_calls = []
         monkeypatch.setattr(
             ssa_gui_details.details_data_provider,
             "load_derivadas_snapshot",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("nao deveria consultar snapshot com familia local pronta")
-            ),
+            lambda *_args, **_kwargs: snapshot_calls.append(True) or None,
         )
         monkeypatch.setattr(
             ssa_gui_details,
@@ -1949,6 +1948,8 @@ class TestGUIFilterLogic:
         tree_data = ssa_gui_details._collect_derivadas_tree_data(self.window, "1")
 
         assert tree_data["target"] == "1"
+        assert snapshot_calls == [True]
+        assert tree_data["graph_source"] == "local"
         assert tree_data["children"]
         assert tree_data["descendants"]
 
@@ -9530,8 +9531,11 @@ class TestGUIFilterLogic:
         seen_targets = []
         monkeypatch.setattr(
             ssa_gui_details,
-            "_get_derivadas_for_ssa",
-            lambda _window, _numero: ["202602147", "202602147", "202500777"],
+            "_get_direct_relations_for_ssa",
+            lambda _window, _numero: (
+                ["202602147", "202602147", "202500777"],
+                [],
+            ),
         )
 
         def _fake_get_series(_window, numero):

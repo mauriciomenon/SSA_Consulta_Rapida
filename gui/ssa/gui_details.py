@@ -32,6 +32,7 @@ from gui.qt_stubs import QTimer
 from gui.ssa import details_data_provider
 from gui.ssa import details_derivadas_model
 from gui.ssa import details_graph_renderer
+from gui.ssa.details_relation_rules import is_secondary_relation
 from gui.ssa.details_display_config import DetailsDisplayConfig
 from gui.ssa.details_dialog_constants import (
     DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT,
@@ -249,7 +250,7 @@ def _format_details_html(
     deps = DetailsHtmlDependencies(
         collect_highlight_terms=_collect_highlight_terms,
         get_window_ssa_series_index=_get_window_ssa_series_index,
-        get_derivadas_for_ssa=_get_derivadas_for_ssa,
+        get_direct_relations_for_ssa=_get_direct_relations_for_ssa,
         get_related_ssas_for_series=_get_related_ssas_for_series,
         hydrate_ssa_index_candidates=_hydrate_ssa_index_candidates,
         get_series_for_ssa=_get_series_for_ssa,
@@ -1043,13 +1044,15 @@ def _render_derivadas_context_entry(window, state: dict[str, Any], entry_index: 
     entry = entries[entry_index]
     if not isinstance(entry, dict):
         return
-    series = entry.get("series")
+    target = str(entry.get("ssa") or "")
+    series = _get_series_for_ssa(window, target)
     if series is None:
+        state["current_ssa"] = target
+        _close_current_derivadas_context(window)
         return
     tab_bar = state["tab_bar"]
     details_text = state["details_text"]
     graph_label = state["graph_label"]
-    target = str(entry.get("ssa") or "")
     state["current_ssa"] = target
     try:
         if int(tab_bar.currentIndex()) != entry_index:
@@ -1099,6 +1102,37 @@ def _render_derivadas_context_entry(window, state: dict[str, Any], entry_index: 
         )
     state["back_button"].setEnabled(bool(entries))
     state["close_button"].setEnabled(bool(entries))
+
+
+def refresh_derivadas_context_after_reload(window) -> None:
+    state = getattr(window, "_details_context_state", None)
+    if not isinstance(state, dict):
+        return
+    entries = state.get("entries")
+    if not isinstance(entries, list) or not entries:
+        return
+    tab_bar = state["tab_bar"]
+    current_ssa = str(state.get("current_ssa") or "")
+    tab_bar.blockSignals(True)
+    try:
+        for index in range(len(entries) - 1, -1, -1):
+            entry = entries[index]
+            target = str(entry.get("ssa") or "") if isinstance(entry, dict) else ""
+            if not target or _get_series_for_ssa(window, target) is None:
+                entries.pop(index)
+                tab_bar.removeTab(index)
+            else:
+                entry.pop("series", None)
+    finally:
+        tab_bar.blockSignals(False)
+    if not entries:
+        state["current_ssa"] = ""
+        _show_main_derivadas_page(window)
+        return
+    entry_index = _get_derivadas_context_entry_index(state, current_ssa)
+    if entry_index < 0:
+        entry_index = min(max(0, int(tab_bar.currentIndex())), len(entries) - 1)
+    _render_derivadas_context_entry(window, state, entry_index)
 
 
 def _activate_derivadas_context_tab(window, index: int) -> None:
@@ -1290,7 +1324,6 @@ def _open_derivadas_context_panel(window, numero_ssa, *, source_ssa: str | None 
         entries.append(
             {
                 "ssa": target,
-                "series": series,
                 "back_to": source_ssa or "",
             }
         )
@@ -1298,7 +1331,6 @@ def _open_derivadas_context_panel(window, numero_ssa, *, source_ssa: str | None 
         entry_index = len(entries) - 1
     else:
         entry = entries[entry_index]
-        entry["series"] = series
         if source_ssa and source_ssa != target:
             entry["back_to"] = source_ssa
     _set_derivadas_context_controls_visible(state, True)
@@ -1597,6 +1629,67 @@ def _get_derivadas_for_ssa(window, numero_ssa):
     except Exception as exc:
         logger.debug("Falha ao coletar derivadas para SSA %s: %s", numero_ssa, exc)
         return []
+
+
+def _get_direct_relations_for_ssa(
+    window, numero_ssa: object
+) -> tuple[list[str], list[dict[str, str]]]:
+    target = _normalize_ssa_relation_value(numero_ssa)
+    if not target:
+        return [], []
+    tree_data = _collect_derivadas_tree_data(window, target)
+    matrix_rows = tree_data.get("direct_relation_rows")
+    if tree_data.get("graph_source") == "matrix" and isinstance(matrix_rows, list):
+        derived: list[str] = []
+        other: list[dict[str, str]] = []
+        for row in matrix_rows:
+            if not isinstance(row, dict):
+                continue
+            child = _normalize_ssa_relation_value(row.get("ssa"))
+            if not child:
+                continue
+            if int(row.get("source_flags") or 0) & 1 or not is_secondary_relation(row):
+                derived.append(child)
+            else:
+                other.append(
+                    {
+                        "ssa": child,
+                        "relacao": str(row.get("relation_raw_label") or "").strip(),
+                    }
+                )
+        return derived, other
+
+    local_children = _get_derivadas_for_ssa(window, target)
+    local_set = set(local_children)
+    children = [
+        child
+        for raw in tree_data.get("children", [])
+        if (child := _normalize_ssa_relation_value(raw))
+    ]
+    if not children:
+        return ([], []) if tree_data.get("graph_source") == "matrix" else (local_children, [])
+    entries = {
+        _normalize_ssa_relation_value(raw.get("ssa")): raw
+        for raw in tree_data.get("descendants", [])
+        if isinstance(raw, dict)
+        and _normalize_ssa_relation_value(raw.get("parent")) == target
+    }
+    derived: list[str] = []
+    other: list[dict[str, str]] = []
+    for child in dict.fromkeys(children):
+        entry = entries.get(child)
+        if child in local_set or (entry is not None and not is_secondary_relation(entry)):
+            derived.append(child)
+        else:
+            other.append(
+                {
+                    "ssa": child,
+                    "relacao": str(entry.get("relation_raw_label") or "").strip()
+                    if entry is not None
+                    else "",
+                }
+            )
+    return derived, other
 
 
 def _get_related_ssas_for_series(
@@ -2050,40 +2143,38 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         if isinstance(cached, dict):
             return cached
 
-    local_payload = None
-    local_edges = _get_cached_derivadas_family_edges(window)
-    if local_edges:
-        local_payload = details_data_provider.build_local_family_payload(
-            target,
-            local_edges,
-            max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
-        )
-    local_has_relation_data = bool(
-        local_payload
+    snapshot = details_data_provider.load_derivadas_snapshot(
+        db_path,
+        target,
+        max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
+    )
+    snapshot_ready = bool(
+        snapshot
         and (
-            local_payload.get("parents")
-            or local_payload.get("children")
-            or local_payload.get("family_roots")
-            or local_payload.get("family_descendants")
+            snapshot.get("hierarchy_profile")
+            or snapshot.get("parents")
+            or snapshot.get("children")
+            or snapshot.get("ancestors")
+            or snapshot.get("descendants")
+            or snapshot.get("family_descendants")
         )
     )
-    snapshot = None
-    snapshot_has_relation_data = False
-    if not local_has_relation_data:
-        snapshot = details_data_provider.load_derivadas_snapshot(
-            db_path,
-            target,
-            max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
-        )
-        snapshot_has_relation_data = bool(
-            snapshot
+    local_payload = None
+    local_has_relation_data = False
+    if not snapshot_ready:
+        local_edges = _get_cached_derivadas_family_edges(window)
+        if local_edges:
+            local_payload = details_data_provider.build_local_family_payload(
+                target,
+                local_edges,
+                max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
+            )
+        local_has_relation_data = bool(
+            local_payload
             and (
-                snapshot.get("parents")
-                or snapshot.get("children")
-                or snapshot.get("ancestors")
-                or snapshot.get("descendants")
-                or snapshot.get("family_roots")
-                or snapshot.get("family_descendants")
+                local_payload.get("parents")
+                or local_payload.get("children")
+                or local_payload.get("family_descendants")
             )
         )
     series_target = _get_series_for_ssa(window, target)
@@ -2098,14 +2189,19 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         snapshot=snapshot,
         fallback_children=(
             []
-            if snapshot_has_relation_data or local_has_relation_data
+            if snapshot_ready or local_has_relation_data
             else _get_derivadas_for_ssa(window, target)
         ),
-        direct_parent=_get_direct_parent_for_series(series_target),
-        local_payload=local_payload,
+        direct_parent="" if snapshot_ready else _get_direct_parent_for_series(series_target),
+        local_payload=None if snapshot_ready else local_payload,
         related=related,
         target_status=target_status,
     )
+    tree_data["graph_source"] = "matrix" if snapshot_ready else "local"
+    if snapshot_ready:
+        tree_data["direct_relation_rows"] = details_data_provider.load_direct_relation_rows(
+            db_path, target
+        )
     if callable(cache_put):
         cast(Any, cache_put)("details_derivadas_tree_data", cache_key, tree_data)
     return tree_data

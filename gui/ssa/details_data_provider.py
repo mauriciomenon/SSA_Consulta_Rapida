@@ -102,6 +102,40 @@ def load_derivadas_snapshot(
         return None
 
 
+def load_direct_relation_rows(
+    db_path: str | None, target: str
+) -> list[dict[str, Any]] | None:
+    if not db_path or not os.path.exists(db_path):
+        return None
+    try:
+        from armazenamento.database import get_db_connection
+
+        with get_db_connection(db_path, read_only=True) as conn:
+            rows = conn.execute(
+                """
+                SELECT child_ssa, source_flags, relation_type, relation_raw_label
+                FROM ssa_derivada_matrix
+                WHERE parent_ssa = ? AND active = 1
+                ORDER BY child_ssa
+                """,
+                (target,),
+            ).fetchall()
+        return [
+            {
+                "ssa": row[0],
+                "source_flags": row[1],
+                "relation_type": row[2],
+                "relation_raw_label": row[3],
+            }
+            for row in rows
+        ]
+    except Exception as exc:
+        logger.warning(
+            "Falha ao coletar tipos de relacao direta para %s: %s", target, exc
+        )
+        return None
+
+
 def build_local_family_payload(
     target: str,
     edges: list[tuple[str, str]],

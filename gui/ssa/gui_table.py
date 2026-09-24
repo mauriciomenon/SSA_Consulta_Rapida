@@ -226,6 +226,14 @@ def _apply_adaptive_header_labels(window) -> None:
             signature = (available_px, has_filter, runtime_label)
             next_signatures[column_name] = signature
             header_item = window.table_widget.horizontalHeaderItem(logical_index)
+            tooltip = (
+                "Total de descendentes no grafo de relacoes, em todos os niveis, "
+                "incluindo planilhas especiais."
+                if column_name == "qtd_derivadas"
+                else runtime_label
+            )
+            if header_item is not None and column_name == "qtd_derivadas":
+                header_item.setToolTip(tooltip)
             if previous_signatures.get(column_name) == signature and header_item is not None:
                 continue
             cache_key = (
@@ -254,7 +262,7 @@ def _apply_adaptive_header_labels(window) -> None:
             if header_item is None:
                 header_item = QTableWidgetItem(final_label)
                 try:
-                    header_item.setToolTip(runtime_label)
+                    header_item.setToolTip(tooltip)
                 except Exception as exc:
                     logger.debug(
                         "Falha ao aplicar tooltip no header criado para %s: %s",

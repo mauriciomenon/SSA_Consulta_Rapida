@@ -5,6 +5,7 @@ import logging
 import sqlite3
 from contextlib import closing
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -14,13 +15,14 @@ pytest.importorskip(
 )
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QTableWidget, QTableWidgetItem
 
 from gui.gui_config import (
     COLUMN_HEADER_LABEL_VARIANTS,
     DEFAULT_COLUMN_WIDTHS_BY_PLATFORM,
     DEFAULT_GUI_MAIN_PREFERENCES,
 )
+from gui.ssa import gui_table
 from gui.ssa.table_context_menu import (
     TableContextMenuCallbacks,
     show_table_context_menu,
@@ -105,6 +107,22 @@ def test_derivadas_column_defaults_and_planning_visibility_are_canonical():
         widths["qtd_derivadas"] == 48
         for widths in DEFAULT_COLUMN_WIDTHS_BY_PLATFORM.values()
     )
+
+
+def test_derivadas_column_tooltip_explains_graph_scope():
+    table = QTableWidget(0, 1)
+    table.setHorizontalHeaderItem(0, QTableWidgetItem("Qtd. Der."))
+    window = SimpleNamespace(
+        table_widget=table,
+        _current_display_columns=["qtd_derivadas"],
+        internal_to_display={"qtd_derivadas": "Qtd. Der."},
+    )
+
+    gui_table._apply_adaptive_header_labels(window)
+
+    tooltip = table.horizontalHeaderItem(0).toolTip()
+    assert "todos os niveis" in tooltip
+    assert "planilhas especiais" in tooltip
 
 
 def test_versioned_preferences_match_requested_column_defaults():
