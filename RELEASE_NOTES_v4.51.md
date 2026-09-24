@@ -12,11 +12,11 @@ Esta candidata consolida correcoes locais de importacao, cancelamento, armazenam
 
 ## Ponto de desempenho pendente
 
-Uma medicao local registrou **0,436 s** para o backup SQLite de uma copia de **161 MiB** executado na thread GUI. Essa duracao pode causar uma pausa perceptivel, especialmente em bancos maiores ou discos mais lentos. A medida isolada nao estabelece a distribuicao de latencia nem o pico de memoria.
+Uma medicao local registrou **0,436 s** para o backup SQLite de uma copia de **161 MiB**. No fluxo normal atual de selecao de banco alternativo, `gui/gui_ssa.py` faz o staging com `sqlite3.backup()` no worker e so promove o resultado na thread GUI depois de conferir `request_id`. O caminho sincrono usado pelos testes ainda copia na thread chamadora. Portanto, os 0,436 s medem o custo da copia, mas nao demonstram uma pausa atual de 0,436 s na GUI. A medida isolada nao estabelece a distribuicao de latencia nem o pico de memoria.
 
-Antes de promover a candidata, medir o backup em bancos reais de tamanhos representativos, com repeticoes em cada plataforma alvo. Registrar latencias **p50 e p95**, pico e variacao de memoria do processo, e responsividade da GUI durante a operacao. Definir e aprovar limites de aceitacao com esses dados. Se a pausa ou o uso de memoria excederem os limites, a candidata permanece pendente ate a correcao ser implementada e revalidada.
+Antes de promover a candidata, medir o fluxo completo de selecao de banco em bancos reais de tamanhos representativos, com repeticoes em cada plataforma alvo. Registrar latencias **p50 e p95** do staging e da promocao, pico e variacao de memoria do processo, e responsividade da GUI durante a operacao. Definir limites de aceitacao com esses dados. Se a pausa ou o uso de memoria excederem os limites, a candidata permanece pendente ate a correcao ser implementada e revalidada.
 
-Nao mover a publicacao do resultado para um worker como atalho: um resultado atrasado pode ter `request_id` obsoleto e sobrescrever estado mais recente. Qualquer mudanca de thread exige preservar a verificacao de identidade da requisicao, cancelamento e descarte de resultado tardio, com teste de corrida.
+A promocao permanece na thread GUI para descartar resultados com `request_id` obsoleto antes de trocar o banco selecionado. Qualquer mudanca dessa fronteira exige preservar a verificacao de identidade da requisicao, cancelamento e descarte de resultado tardio, com teste de corrida.
 
 ## Condicao de release
 
