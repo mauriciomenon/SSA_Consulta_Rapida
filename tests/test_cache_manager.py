@@ -71,6 +71,18 @@ def test_formatted_cache_replacement_only_evicts_other_entries() -> None:
     assert sum(measure(frame) for frame in cache._caches["dataframes"].values()) <= cache.max_dataframe_bytes
 
 
+def test_formatted_cache_oversized_replacement_invalidates_old_entry() -> None:
+    cache = CacheManager()
+    old = pd.DataFrame({"text": ["old"]})
+    oversized = pd.DataFrame({"text": ["new" * 1000]})
+    cache.max_dataframe_bytes = int(old.memory_usage(deep=True).sum()) + 1
+    cache.cache_formatted_df("same", old)
+
+    cache.cache_formatted_df("same", oversized)
+
+    assert cache.get_cached_formatted_df("same") is None
+
+
 def test_formatted_cache_reports_inconsistent_eviction_state() -> None:
     cache = CacheManager()
     frame = pd.DataFrame({"text": ["x" * 1000]})

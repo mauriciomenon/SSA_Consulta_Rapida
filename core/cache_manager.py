@@ -197,21 +197,20 @@ class CacheManager:
         logger = get_robust_logger().get_logger(__name__, "core")
         with self._lock:
             cache = self._caches["dataframes"]
+            cache.pop(df_hash, None)
+            self._access_times["dataframes"].pop(df_hash, None)
             try:
                 entry_bytes = int(formatted_df.memory_usage(deep=True).sum())
                 if entry_bytes > self.max_dataframe_bytes:
                     return
                 sizes = {
                     key: int(frame.memory_usage(deep=True).sum())
-                    for key, frame in cache.items() if key != df_hash
+                    for key, frame in cache.items()
                 }
             except (TypeError, ValueError, OverflowError, RuntimeError, AttributeError) as exc:
                 logger.warning("Formatted cache size unavailable; entry not retained: %s", exc)
                 return
             retained_frame = formatted_df.copy()
-            if df_hash in cache:
-                del cache[df_hash]
-                self._access_times["dataframes"].pop(df_hash, None)
             retained_bytes = sum(sizes.values())
             while cache and retained_bytes + entry_bytes > self.max_dataframe_bytes:
                 previous_count = len(cache)
