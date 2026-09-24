@@ -775,6 +775,9 @@ def test_dependabot_ignores_platform_requirement_snapshots() -> None:
 def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
+    assert "  pull_request_target:\n" in workflow
+    assert "  pull_request:\n" not in workflow
+    assert "ref: ${{ github.event.pull_request.base.sha || github.sha }}" in workflow
     assert "git fetch origin ${{ github.base_ref }}" not in workflow
     assert "origin/${{ github.base_ref }}" not in workflow
     assert "BASE_REF: ${{ github.base_ref }}" not in workflow
@@ -782,6 +785,11 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert 'bash "${{ steps.secret_scanner.outputs.script }}" pr-diff "$BASE_SHA"' in workflow
     assert 'trusted_paths=(scripts/security/scan_secrets.sh)' in workflow
     assert 'git archive "$BASE_SHA" "${trusted_paths[@]}"' in workflow
+    assert 'git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head"' in workflow
+    assert '[[ "$(git rev-parse FETCH_HEAD)" == "$HEAD_SHA" ]]' in workflow
+    assert workflow.index("- name: Select trusted secret scanner") < workflow.index(
+        "- name: Checkout PR contents for scanning"
+    )
     assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
     assert 'git fetch origin "$BASE_REF" || true' not in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' not in workflow
@@ -821,7 +829,7 @@ def test_secret_scan_extracts_only_trusted_base_files(tmp_path: Path, base_state
     result = subprocess.run(
         ["bash", "-c", script], cwd=repo, capture_output=True, text=True, check=False,
         env=_test_env(
-            EVENT_NAME="pull_request", BASE_SHA=base_sha,
+            EVENT_NAME="pull_request_target", BASE_SHA=base_sha,
             RUNNER_TEMP=str(tmp_path), GITHUB_OUTPUT=str(output),
         ),
     )
