@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 
 import armazenamento.derivadas_sync as derivadas_sync
+from armazenamento.database import get_db_connection
 from armazenamento.derivadas_schema import ensure_derivadas_schema_on_connection
 from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
 from utils.path_safety import PathSafetyError
@@ -809,6 +810,89 @@ def test_sync_succeeds_after_short_write_lock_contention(temp_db):
         releaser.join(timeout=2.0)
 
     assert report["active_edges"] == 1
+
+
+@pytest.mark.parametrize("verify_only", [False, True])
+def test_sheet_parse_does_not_hold_database_writer_lock(
+    temp_db, tmp_path: Path, monkeypatch, verify_only: bool
+):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+            ("202500003", None),
+        ],
+    )
+    sheet_file = tmp_path / "derivadas.csv"
+    sheet_file.write_text(
+        "parent_ssa,child_ssa\n202500001,202500003\n", encoding="utf-8"
+    )
+    parsing = threading.Event()
+    continue_parsing = threading.Event()
+    writer_done = threading.Event()
+    reports: list[dict[str, Any]] = []
+    failures: list[BaseException] = []
+    original_collect = derivadas_sync.collect_sheet_edges
+
+    def slow_collect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        parsing.set()
+        if not continue_parsing.wait(timeout=5):
+            raise TimeoutError("sheet parse was not released")
+        return original_collect(*args, **kwargs)
+
+    def run_sync() -> None:
+        try:
+            reports.append(
+                sync_derivadas(
+                    temp_db, sheet_file=str(sheet_file), verify_only=verify_only
+                )
+            )
+        except BaseException as exc:
+            failures.append(exc)
+
+    def write_during_parse() -> None:
+        try:
+            with get_db_connection(temp_db, write=True) as conn:
+                conn.execute(
+                    "UPDATE ssa_table SET derivada_de = ? WHERE numero_ssa = ?",
+                    ("202500001", "202500002"),
+                )
+                conn.commit()
+            writer_done.set()
+        except BaseException as exc:
+            failures.append(exc)
+
+    monkeypatch.setattr(derivadas_sync, "collect_sheet_edges", slow_collect)
+    sync_thread = threading.Thread(target=run_sync)
+    writer_thread = threading.Thread(target=write_during_parse)
+    sync_thread.start()
+    try:
+        assert parsing.wait(timeout=3)
+        writer_thread.start()
+        assert writer_done.wait(timeout=2)
+    finally:
+        continue_parsing.set()
+        sync_thread.join(timeout=5)
+        if writer_thread.ident is not None:
+            writer_thread.join(timeout=5)
+
+    assert not sync_thread.is_alive()
+    assert not writer_thread.is_alive()
+    assert not failures
+    report = reports[0]
+    assert report["db_stats"]["accepted_edges"] == 1
+    assert report["sheet_stats"]["accepted_edges"] == 1
+    assert report["merge_stats"]["merged_edges"] == 2
+    if verify_only:
+        assert report["verify_only"] is True
+        with sqlite3.connect(temp_db) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master "
+                "WHERE type = 'table' AND name = 'ssa_derivada_matrix'"
+            ).fetchone()[0] == 0
+    else:
+        assert report["active_edges"] == 2
 
 
 def test_get_sync_stats_remains_read_only_under_write_lock(temp_db):

@@ -1589,66 +1589,67 @@ def sync_derivadas(
         )
     )
 
+    sheet_edges: list[SourceEdge] = []
+    sheet_stats: dict[str, Any] = {"accepted_edges": 0}
+    sheet_multiparent: dict[str, Any] = {}
+    sheet_file_reports: list[dict[str, Any]] = []
+    if normalized_sheet_files:
+        merged_sheet_stats: dict[str, Any] = {}
+        merged_sheet_multiparent: dict[str, set[str]] = defaultdict(set)
+        for current_sheet_file in normalized_sheet_files:
+            sheet_result = collect_sheet_edges(
+                sheet_file=current_sheet_file,
+                parent_col=sheet_parent_col,
+                child_col=sheet_child_col,
+                label_col=sheet_label_col,
+                sheet_name=sheet_name,
+            )
+            sheet_edges.extend(sheet_result["edges"])
+            current_stats = dict(sheet_result.get("stats") or {})
+            for key, value in current_stats.items():
+                if isinstance(value, int):
+                    merged_sheet_stats[key] = (
+                        int(merged_sheet_stats.get(key, 0)) + value
+                    )
+                else:
+                    merged_sheet_stats[key] = value
+            sheet_file_reports.append(
+                {
+                    "sheet_file": current_sheet_file,
+                    "stats": current_stats,
+                    "has_parse_evidence": _sheet_stats_has_parse_evidence(
+                        current_stats
+                    ),
+                }
+            )
+            current_multiparent = sheet_result.get("multiparent_detail") or {}
+            for child_ssa, parents in current_multiparent.items():
+                if isinstance(parents, list):
+                    merged_sheet_multiparent[str(child_ssa)].update(
+                        str(parent) for parent in parents
+                    )
+        sheet_stats = (
+            merged_sheet_stats if merged_sheet_stats else {"accepted_edges": 0}
+        )
+        sheet_stats["files_count"] = len(normalized_sheet_files)
+        sheet_multiparent = {
+            child_ssa: sorted(parents)
+            for child_ssa, parents in merged_sheet_multiparent.items()
+        }
+
     with get_db_connection(safe_db_path, write=True) as conn:
         _configure_derivadas_connection(conn)
         db_source_table_exists = _table_exists(conn, table_name=table_name)
 
         source_edges: list[SourceEdge] = []
         db_stats: dict[str, Any] = {"accepted_edges": 0}
-        sheet_stats: dict[str, Any] = {"accepted_edges": 0}
         db_multiparent: dict[str, Any] = {}
-        sheet_multiparent: dict[str, Any] = {}
-        sheet_file_reports: list[dict[str, Any]] = []
-
         if include_db_source and db_source_table_exists:
             db_result = collect_db_edges(conn, table_name=table_name)
             source_edges.extend(db_result["edges"])
             db_stats = db_result["stats"]
             db_multiparent = db_result["multiparent_detail"]
-
-        if normalized_sheet_files:
-            merged_sheet_stats: dict[str, Any] = {}
-            merged_sheet_multiparent: dict[str, set[str]] = defaultdict(set)
-            for current_sheet_file in normalized_sheet_files:
-                sheet_result = collect_sheet_edges(
-                    sheet_file=current_sheet_file,
-                    parent_col=sheet_parent_col,
-                    child_col=sheet_child_col,
-                    label_col=sheet_label_col,
-                    sheet_name=sheet_name,
-                )
-                source_edges.extend(sheet_result["edges"])
-                current_stats = dict(sheet_result.get("stats") or {})
-                for key, value in current_stats.items():
-                    if isinstance(value, int):
-                        merged_sheet_stats[key] = (
-                            int(merged_sheet_stats.get(key, 0)) + value
-                        )
-                    else:
-                        merged_sheet_stats[key] = value
-                sheet_file_reports.append(
-                    {
-                        "sheet_file": current_sheet_file,
-                        "stats": current_stats,
-                        "has_parse_evidence": _sheet_stats_has_parse_evidence(
-                            current_stats
-                        ),
-                    }
-                )
-                current_multiparent = sheet_result.get("multiparent_detail") or {}
-                for child_ssa, parents in current_multiparent.items():
-                    if isinstance(parents, list):
-                        merged_sheet_multiparent[str(child_ssa)].update(
-                            str(parent) for parent in parents
-                        )
-            sheet_stats = (
-                merged_sheet_stats if merged_sheet_stats else {"accepted_edges": 0}
-            )
-            sheet_stats["files_count"] = len(normalized_sheet_files)
-            sheet_multiparent = {
-                child_ssa: sorted(parents)
-                for child_ssa, parents in merged_sheet_multiparent.items()
-            }
+        source_edges.extend(sheet_edges)
 
         merged_edges = _merge_edges(source_edges)
 
