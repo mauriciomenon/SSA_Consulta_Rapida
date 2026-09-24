@@ -4684,21 +4684,20 @@ class TestGUIFilterLogic:
         assert "setor_emissor_relacionado_1" not in columns
         assert "relacao" not in columns
 
-    def test_build_render_marker_sample_ignores_heavy_attrs_payload(self):
+    def test_page_digest_ignores_heavy_attrs_payload(self):
         sample_df = pd.DataFrame(
             {
                 "numero_ssa": ["202500001", "202500002", "202500003"],
                 "situacao": ["APV", "STE", "SES"],
             }
         )
+        original_digest = ssa_gui_table._build_page_content_digest(sample_df)
         sample_df.attrs["_ssa_series_index"] = {
             f"ssa_{idx}": {"idx": idx} for idx in range(5000)
         }
 
-        markers = ssa_gui_table._build_render_marker_sample(sample_df)
-
-        assert markers[0][0] == "202500001"
-        assert markers[-1][1] == "SES"
+        assert original_digest is not None
+        assert ssa_gui_table._build_page_content_digest(sample_df) == original_digest
 
     def test_column_widths_stability_during_cycles(self):
         self.window.df_completo = self.base_df.copy()
