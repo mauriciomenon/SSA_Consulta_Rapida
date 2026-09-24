@@ -1363,7 +1363,10 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         _sync_filter_controls_after_load(window)
         from gui.ssa import gui_details
 
-        gui_details.refresh_derivadas_context_after_reload(window)
+        try:
+            gui_details.refresh_derivadas_context_after_reload(window)
+        except Exception:
+            logger.exception("Falha ao atualizar contexto de derivadas apos recarga")
         _update_loaded_data_status(window)
     except Exception as exc:
         handler = getattr(window, "on_load_error", None)

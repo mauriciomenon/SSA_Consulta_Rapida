@@ -13808,6 +13808,7 @@ class TestGUIFilterLogic:
         assert self.window._df_last_search_filtered.equals(original)
 
     def test_filter_callbacks_ignore_results_during_shutdown(self):
+        self.window._active_filter_request_id = 1
         self.window._is_shutting_down = True
         original = self.window._df_last_search_filtered.copy()
         status = self.window.status_label.text()
@@ -15101,8 +15102,28 @@ class TestGUIFilterLogic:
 
         assert self.window.df_completo.equals(original_df)
 
+    def test_context_refresh_failure_does_not_reject_loaded_data(self):
+        from gui.ssa import gui_details
+
+        self.window._active_data_load_request_id = 10
+        loaded_df = self.base_df.iloc[:1].copy()
+        with (
+            patch.object(
+                gui_details,
+                "refresh_derivadas_context_after_reload",
+                side_effect=RuntimeError("tab removida"),
+            ),
+            patch.object(self.window, "on_load_error") as load_error,
+        ):
+            result = self.window.on_data_loaded(loaded_df, request_id=10)
+
+        assert result is True
+        assert len(self.window.df_completo) == 1
+        load_error.assert_not_called()
+
     def test_on_data_loaded_ignores_delivery_during_shutdown(self):
         original_df = self.window.df_completo.copy()
+        self.window._active_data_load_request_id = 1
         self.window._is_shutting_down = True
 
         self.window.on_data_loaded(self.base_df.iloc[:1].copy(), request_id=1)
