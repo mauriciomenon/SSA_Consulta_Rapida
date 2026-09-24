@@ -185,28 +185,36 @@ def test_preferences_writer_coalesces_updates_during_slow_write(monkeypatch):
     assert written == [{"version": 0}, {"version": 1000}]
 
 
-def test_preferences_writer_reports_unexpected_failure(monkeypatch):
+def test_preferences_writer_survives_unexpected_write_failure(monkeypatch):
     from gui.ssa import gui_preferences_persistence
 
     errors: list[str] = []
 
+    written = []
+
     def _write(data, *, retries):
-        raise OSError("disco indisponivel")
+        written.append(data)
+        if len(written) == 1:
+            raise OSError("disco indisponivel")
+        return True
 
     monkeypatch.setattr(
         gui_preferences_persistence.logger, "exception", errors.append
     )
-    writer = gui_preferences_persistence.PreferencesWriter(_write)
+    writer = gui_preferences_persistence.PreferencesWriter(
+        _write, debounce_seconds=0.001
+    )
     try:
         assert writer.persist_async({"theme": "dark"})
-        assert writer._terminated.wait(1.0)
-        assert writer.is_stopped is True
-        assert writer.persist_async({"theme": "light"}) is False
         with pytest.raises(OSError, match="ultima gravacao"):
-            writer.flush(timeout=None)
+            writer.flush(timeout=1.0)
+        assert writer.is_stopped is False
+        assert writer.persist_async({"theme": "light"}) is True
+        assert writer.flush(timeout=1.0) is True
     finally:
         assert writer.shutdown(timeout=1.0) is True
-    assert errors == ["Falha inesperada no gravador de preferencias GUI"]
+    assert written == [{"theme": "dark"}, {"theme": "light"}]
+    assert errors == ["Falha inesperada ao gravar preferencias GUI"]
 
 
 def test_preferences_writer_flush_rejects_pending_after_early_termination():

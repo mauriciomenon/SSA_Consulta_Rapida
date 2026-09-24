@@ -93,6 +93,8 @@ class PreferencesWriter:
                 written = False
                 try:
                     written = bool(self._write_func(prefs_snapshot, retries=self._retries))
+                except Exception:
+                    logger.exception("Falha inesperada ao gravar preferencias GUI")
                 finally:
                     with self._lock:
                         self._write_failed = not written
