@@ -237,6 +237,14 @@ def stage_database_copy(src: Path, dest: Path) -> dict[str, Any]:
         with closing(sqlite3.connect(source_uri, uri=True)) as source_conn:
             with closing(sqlite3.connect(str(staged))) as staged_conn:
                 source_conn.backup(staged_conn)
+                if staged_conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal":
+                    checkpoint = staged_conn.execute(
+                        "PRAGMA wal_checkpoint(TRUNCATE)"
+                    ).fetchone()
+                    if checkpoint is None or checkpoint[0] != 0:
+                        raise sqlite3.OperationalError(
+                            "checkpoint do staging SQLite incompleto"
+                        )
     except (OSError, sqlite3.Error, ValueError) as exc:
         _unregister_staged_copy(staged)
         discard_staged_copy(staged)
@@ -309,6 +317,15 @@ def _commit_staged_database_copy_locked(
     staged: str, dest_str: str
 ) -> dict[str, Any]:
     dest = Path(dest_str)
+    if any(Path(f"{staged}{suffix}").exists() for suffix in ("-wal", "-shm", "-journal")):
+        discard_staged_copy(staged)
+        return {
+            "ok": False,
+            "db_file": str(dest),
+            "copied": False,
+            "archived": None,
+            "error": "copia de banco com sidecar SQLite residual",
+        }
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     archived_base: str | None = None
     moved: list[tuple[str, str]] = []

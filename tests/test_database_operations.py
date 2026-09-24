@@ -325,6 +325,10 @@ def test_stage_database_copy_never_modifies_source_with_hot_wal(tmp_path):
             for p in src_dir.iterdir()
         }
         assert after == before, "origem foi modificada pela copia"
+        assert not any(
+            Path(f"{result['staged']}{suffix}").exists()
+            for suffix in ("-wal", "-shm", "-journal")
+        )
         staged_rows = _read_rows(Path(result["staged"]))
         assert {"a", "b"} <= set(staged_rows)
     finally:
@@ -524,6 +528,23 @@ def test_commit_staged_database_copy_uses_dest_writer_lock(
 
     assert result["ok"] is True
     assert locked_paths == [str(dest)]
+
+
+@pytest.mark.parametrize("suffix", ["-wal", "-shm", "-journal"])
+def test_commit_staged_database_copy_refuses_residual_sidecar(tmp_path, suffix):
+    from gui.ssa import database_operations as ssa_ops
+
+    dest = _make_db(tmp_path / "x.db", ["antigo"])
+    staged = _make_db(tmp_path / "x.db.copy-20260101_000000_000000", ["novo"])
+    Path(f"{staged}{suffix}").write_bytes(b"residual")
+
+    result = ssa_ops.commit_staged_database_copy(str(staged), str(dest))
+
+    assert result["ok"] is False
+    assert "sidecar" in result["error"]
+    assert _read_rows(dest) == ["antigo"]
+    assert not staged.exists()
+    assert not Path(f"{staged}{suffix}").exists()
 
 
 def test_commit_staged_database_copy_restores_archive_on_sidecar_failure(
