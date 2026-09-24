@@ -1,8 +1,10 @@
 # gui/widgets/rescan_progress_dialog.py
 # Progress dialog for database rescanning
 
+from typing import cast
+
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QTextDocument
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -73,8 +75,7 @@ class RescanProgressDialog(QDialog):
 
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
-        output_document = self.output_text.document()
-        assert output_document is not None
+        output_document = cast(QTextDocument, self.output_text.document())
         output_document.setMaximumBlockCount(self.MAX_OUTPUT_BLOCKS)
         self.output_text.setFont(QFont("Courier New", 9))
         layout.addWidget(self.output_text)
@@ -86,8 +87,7 @@ class RescanProgressDialog(QDialog):
 
         self.error_text = QTextEdit()
         self.error_text.setReadOnly(True)
-        error_document = self.error_text.document()
-        assert error_document is not None
+        error_document = cast(QTextDocument, self.error_text.document())
         error_document.setMaximumBlockCount(self.MAX_OUTPUT_BLOCKS)
         self.error_text.setFont(QFont("Courier New", 9))
         self.error_text.setMaximumHeight(150)
