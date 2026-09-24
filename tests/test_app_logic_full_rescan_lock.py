@@ -204,6 +204,20 @@ def test_promote_keeps_backup_when_journal_restore_fails(
     assert _read_value(backups[0]) == "primary_old"
 
 
+def test_promote_refuses_corrupt_primary_without_removing_it(tmp_path: Path) -> None:
+    primary_db = tmp_path / "ssas.db"
+    candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
+    primary_db.write_bytes(b"corrupt primary")
+    _build_value_db(candidate_db, "candidate_new")
+
+    with pytest.raises(DatabaseError, match="backup"):
+        promote_full_rescan_candidate(str(candidate_db), str(primary_db))
+
+    assert primary_db.read_bytes() == b"corrupt primary"
+    assert _read_value(candidate_db) == "candidate_new"
+    assert not list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
+
+
 def test_promote_keeps_primary_visible_until_atomic_replace(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

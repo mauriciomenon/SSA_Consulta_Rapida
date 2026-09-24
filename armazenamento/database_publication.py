@@ -47,6 +47,8 @@ def snapshot_database_for_replace(db_path: str, backup_path: str) -> str:
         with closing(
             sqlite3.connect(_rw_sqlite_uri(db_path), uri=True, timeout=2)
         ) as source:
+            # Um banco invalido nao pode sair do caminho principal antes
+            # da troca: isso reabriria a janela sem banco para leitores.
             if source.execute("PRAGMA quick_check").fetchone() != ("ok",):
                 raise sqlite3.DatabaseError("Banco principal falhou no quick_check")
             original = source.execute("PRAGMA journal_mode").fetchone()
