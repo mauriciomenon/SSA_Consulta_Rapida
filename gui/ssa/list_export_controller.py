@@ -85,6 +85,7 @@ def export_current_list_tsv(
         if state.worker is worker:
             state.clear()
 
+    # Conexoes feitas na GUI entregam estes callbacks no event loop da GUI.
     worker.export_finished.connect(_on_success)
     worker.error_occurred.connect(_on_error)
     if hasattr(worker, "finished"):

@@ -239,6 +239,7 @@ def _stage_validated_external_source(
 
         destination_created = False
         try:
+            # A exclusividade real e o open("xb") da copia; a reserva nao cria arquivo.
             copy_source_without_execute_bit(validated_source, destination)
             destination_created = True
             if callable(should_cancel) and should_cancel():

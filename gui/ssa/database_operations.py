@@ -318,6 +318,7 @@ def _commit_staged_database_copy_locked(
 ) -> dict[str, Any]:
     dest = Path(dest_str)
     if any(Path(f"{staged}{suffix}").exists() for suffix in ("-wal", "-shm", "-journal")):
+        # Um WAL pode conter commits; remover apenas o sidecar perderia dados.
         discard_staged_copy(staged)
         return {
             "ok": False,

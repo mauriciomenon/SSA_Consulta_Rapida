@@ -1461,6 +1461,7 @@ def insert_dataframe_with_smart_upsert_impl(
                 conn.execute("ROLLBACK TO SAVEPOINT ssa_smart_upsert")
                 conn.execute("RELEASE SAVEPOINT ssa_smart_upsert")
             except Exception as rollback_exc:
+                # A transacao externa ficou incerta; nao reportar cancelamento simples.
                 raise RuntimeError(
                     "Falha no rollback do savepoint de upsert"
                 ) from rollback_exc
