@@ -124,6 +124,26 @@ def _get_icon_candidates(active_runtime_root: str) -> list[str]:
     return [os.path.join(resources_dir, f"app_icon.{ext}") for ext in extensions]
 
 
+def _gui_exception_hook(logger, error_type, error, traceback) -> None:
+    from PyQt6.QtWidgets import QApplication, QMessageBox
+
+    logger.error(
+        "Excecao nao tratada em callback da GUI",
+        exc_info=(error_type, error, traceback),
+    )
+    message_lines = str(error).splitlines()
+    summary = message_lines[0][:300] if message_lines else error_type.__name__
+    try:
+        QMessageBox.critical(
+            QApplication.activeWindow(),
+            "Erro na interface",
+            f"A operacao falhou: {error_type.__name__}: {summary}\n"
+            "Os detalhes foram registrados no log.",
+        )
+    except Exception as display_error:
+        logger.error("Falha ao exibir aviso da GUI: %s", display_error)
+
+
 def launch_gui(
     active_runtime_root: str,
     argv: list[str],
@@ -135,8 +155,12 @@ def launch_gui(
     from gui.gui_ssa import SSAMainWindow
 
     stderr_filter = _install_macos_stderr_filter(logger)
+    previous_excepthook = sys.excepthook
     try:
         app = QApplication(argv)
+        sys.excepthook = lambda error_type, error, traceback: _gui_exception_hook(
+            logger, error_type, error, traceback
+        )
         try:
             if sys.platform == "darwin":
                 app.setApplicationName("Consulta Rapida de SSAs")
@@ -163,5 +187,6 @@ def launch_gui(
     except (OSError, RuntimeError) as exc:
         raise GuiOperationalError(str(exc)) from exc
     finally:
+        sys.excepthook = previous_excepthook
         if stderr_filter is not None:
             stderr_filter.close()

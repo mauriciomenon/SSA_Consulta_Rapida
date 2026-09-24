@@ -248,6 +248,47 @@ def test_launch_gui_shows_window_when_startup_load_is_not_pending(
     assert exec_calls["count"] == 1
 
 
+def test_gui_slot_exception_is_logged_without_aborting_process() -> None:
+    pytest.importorskip("PyQt6")
+    code = """
+import logging
+import sys
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication, QMessageBox
+from gui.launcher import _gui_exception_hook
+
+app = QApplication([])
+logger = logging.getLogger('gui-slot-probe')
+logger.addHandler(logging.StreamHandler(sys.stderr))
+logger.setLevel(logging.ERROR)
+QMessageBox.critical = staticmethod(lambda *_args: print('dialog-shown'))
+sys.excepthook = lambda kind, error, trace: _gui_exception_hook(logger, kind, error, trace)
+
+def fail_slot():
+    raise RuntimeError('probe failure')
+
+QTimer.singleShot(0, fail_slot)
+QTimer.singleShot(50, app.quit)
+app.exec()
+print('event-loop-returned')
+"""
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Excecao nao tratada em callback da GUI" in result.stderr
+    assert "RuntimeError: probe failure" in result.stderr
+    assert "dialog-shown" in result.stdout
+    assert "event-loop-returned" in result.stdout
+
+
 def test_should_filter_macos_stderr_line_matches_known_noise() -> None:
     from gui import launcher
 
