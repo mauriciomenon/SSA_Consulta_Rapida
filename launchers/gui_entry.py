@@ -4,6 +4,7 @@ Entry point GUI para executavel empacotado
 Separado do main.py principal
 """
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -92,27 +93,20 @@ def _smoke_test_exit_code() -> int | None:
 def main():
     """Entry point GUI v3.10"""
     try:
-        _bootstrap_runtime()
+        runtime_root = _bootstrap_runtime()
         smoke_exit_code = _smoke_test_exit_code()
         if smoke_exit_code is not None:
             sys.exit(smoke_exit_code)
 
-        from PyQt6.QtWidgets import QApplication
-
         from core.config_manager import ensure_default_settings
-        from gui.gui_ssa import SSAMainWindow
+        from gui.launcher import launch_gui
         from utils import setup_project_structure
 
         setup_base_path = os.environ.get("SSA_RUNTIME_ROOT") if is_frozen_runtime else None
         setup_project_structure.setup_dirs(base_path=setup_base_path)
         ensure_default_settings(fail_fast=False)
 
-        app = QApplication(sys.argv)
-        app.setApplicationName("Consulta Rapida de SSAs")
-        app.setApplicationDisplayName("Consulta Rapida de SSAs")
-        window = SSAMainWindow()
-        window.show()
-        sys.exit(app.exec())
+        sys.exit(launch_gui(runtime_root, sys.argv, logging.getLogger("gui_entry")))
     except ImportError as e:
         log_launcher_failure("gui_entry", "Nao foi possivel importar modulos GUI", e)
         sys.stderr.write(

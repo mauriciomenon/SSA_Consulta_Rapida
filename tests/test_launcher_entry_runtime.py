@@ -156,6 +156,56 @@ def test_gui_entry_loads_local_helpers_without_launchers_package(
     assert callable(namespace["_bootstrap_runtime"])
 
 
+def test_gui_entry_uses_shared_launcher_and_preserves_exit_code(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from PyQt6 import QtWidgets
+
+    from core import config_manager
+    from gui import gui_ssa, launcher
+    from launchers import gui_entry
+    from utils import setup_project_structure
+
+    calls = []
+
+    class FakeApp:
+        def __init__(self, _argv):
+            pass
+
+        def setApplicationName(self, _name):
+            pass
+
+        def setApplicationDisplayName(self, _name):
+            pass
+
+        def exec(self):
+            return 7
+
+    class FakeWindow:
+        def show(self):
+            pass
+
+    monkeypatch.setenv("SSA_RUNTIME_ROOT", str(tmp_path))
+    monkeypatch.setattr(gui_entry, "_bootstrap_runtime", lambda: str(tmp_path))
+    monkeypatch.setattr(gui_entry, "_smoke_test_exit_code", lambda: None)
+    monkeypatch.setattr(setup_project_structure, "setup_dirs", lambda **_kw: None)
+    monkeypatch.setattr(config_manager, "ensure_default_settings", lambda **_kw: None)
+    monkeypatch.setattr(QtWidgets, "QApplication", FakeApp)
+    monkeypatch.setattr(gui_ssa, "SSAMainWindow", FakeWindow)
+    monkeypatch.setattr(
+        launcher,
+        "launch_gui",
+        lambda root, argv, log: calls.append((root, argv, log)) or 7,
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        gui_entry.main()
+
+    assert exit_info.value.code == 7
+    assert len(calls) == 1
+    assert calls[0][0] == str(tmp_path)
+
+
 def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
     monkeypatch, tmp_path: Path
 ) -> None:

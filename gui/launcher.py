@@ -152,7 +152,7 @@ def launch_gui(
     active_runtime_root: str,
     argv: list[str],
     logger: logging.Logger,
-) -> None:
+) -> int:
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import QApplication
 
@@ -166,9 +166,8 @@ def launch_gui(
             logger, error_type, error, traceback
         )
         try:
-            if sys.platform == "darwin":
-                app.setApplicationName("Consulta Rapida de SSAs")
-                app.setApplicationDisplayName("Consulta Rapida de SSAs")
+            app.setApplicationName("Consulta Rapida de SSAs")
+            app.setApplicationDisplayName("Consulta Rapida de SSAs")
         except (AttributeError, OSError, RuntimeError) as exc:
             logger.debug("Falha ao configurar nome da aplicacao: %s", exc)
         try:
@@ -187,7 +186,7 @@ def launch_gui(
         window = SSAMainWindow()
         if not bool(getattr(window, "_startup_show_pending", False)):
             window.show()
-        app.exec()
+        return app.exec()
     except (OSError, RuntimeError) as exc:
         raise GuiOperationalError(str(exc)) from exc
     finally:
