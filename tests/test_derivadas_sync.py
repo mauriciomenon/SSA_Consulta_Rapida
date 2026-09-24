@@ -1187,6 +1187,58 @@ def test_sync_rolls_back_partial_writes_and_persists_error_run(temp_db, monkeypa
     assert latest_run == ("error", 0)
 
 
+def test_sync_closes_orphaned_running_run_before_starting_next(temp_db):
+    _insert_ssa_rows(temp_db, [("202500001", None)])
+    sync_derivadas(temp_db)
+    with sqlite3.connect(temp_db) as conn:
+        orphan_id = conn.execute(
+            """
+            INSERT INTO ssa_derivada_sync_run
+                (mode, actor, managed_sources, started_at, status,
+                 db_edges, sheet_edges, merged_edges)
+            VALUES ('sync', 'test', 'db_field', '2025-01-01T00:00:00Z',
+                    'running', 0, 0, 0)
+            """
+        ).lastrowid
+
+    sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        orphan = conn.execute(
+            "SELECT status, finished_at, message FROM ssa_derivada_sync_run "
+            "WHERE sync_run_id = ?",
+            (orphan_id,),
+        ).fetchone()
+    assert orphan[0] == "error"
+    assert orphan[1] is not None
+    assert "interromp" in orphan[2].lower()
+
+
+def test_sync_keyboard_interrupt_rolls_back_and_finishes_run(temp_db, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [("202500001", None), ("202500002", "202500001")],
+    )
+
+    def interrupt_summary(*_args, **_kwargs):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(derivadas_sync, "_replace_summary", interrupt_summary)
+    with pytest.raises(KeyboardInterrupt):
+        sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        matrix_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix"
+        ).fetchone()[0]
+        status = conn.execute(
+            "SELECT status FROM ssa_derivada_sync_run "
+            "ORDER BY sync_run_id DESC LIMIT 1"
+        ).fetchone()[0]
+    assert matrix_total == 0
+    assert status == "error"
+
+
 def test_sync_aborts_when_integrity_check_fails(temp_db, monkeypatch):
     _insert_ssa_rows(
         temp_db,

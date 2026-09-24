@@ -1705,6 +1705,17 @@ def sync_derivadas(
 
         started_at = timestamp
         _begin_derivadas_write_transaction(conn)
+        orphaned_runs = conn.execute(
+            """
+            UPDATE ssa_derivada_sync_run
+            SET status = 'error', finished_at = ?,
+                message = 'Sincronizacao interrompida antes de concluir'
+            WHERE status = 'running'
+            """,
+            (started_at,),
+        ).rowcount
+        if orphaned_runs:
+            logger.warning("Runs de derivadas interrompidos: %s", orphaned_runs)
         run_id = _start_sync_run(
             conn,
             mode=mode,
@@ -1811,7 +1822,7 @@ def sync_derivadas(
                 }
             )
             return report
-        except Exception as exc:
+        except BaseException as exc:
             logger.exception("Derivadas sync failed: %s", exc)
             finished_at = _now_utc_str()
             if conn.in_transaction:
