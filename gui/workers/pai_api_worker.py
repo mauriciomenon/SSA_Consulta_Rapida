@@ -136,6 +136,14 @@ class PaiApiRefreshWorker(QThread):
         with self._state_lock:
             return self._cancel_requested
 
+    def committed_after_cancel(self) -> bool:
+        with self._state_lock:
+            return bool(
+                self._cancel_requested
+                and not self._terminal_emitted
+                and any(result.imported for result in self.results)
+            )
+
     def summary(self) -> PaiApiRefreshSummary:
         with self._state_lock:
             return self._summary
@@ -499,9 +507,10 @@ class PaiApiRefreshWorker(QThread):
             self._add_failure(failure)
             self.error_line.emit(failure)
             return
+        self._add_result(result)
+        self._refresh_summary()
         if self._is_cancelled():
             return
-        self._add_result(result)
         self.output_line.emit(
             f"setor {sector_preview.sector}: {_format_refresh_result(result)}"
         )

@@ -311,7 +311,14 @@ def _connect_worker(
         )
     )
     worker.finished_error.connect(partial(_finish_error, window, worker))
-    worker.finished.connect(partial(_release_worker, window, worker))
+    worker.finished.connect(
+        partial(
+            _release_worker,
+            window,
+            worker,
+            reload_after_success=reload_after_success,
+        )
+    )
 
 
 def _run_auto_refresh_timeout(
@@ -433,10 +440,31 @@ def _release_worker(
     window: PaiApiWindowPort,
     worker: Any,
     *_args: Any,
+    reload_after_success: bool = True,
 ) -> None:
     if _window_is_deleted(window):
         return
     if window.active_pai_api_worker() is worker:
+        committed_after_cancel = getattr(worker, "committed_after_cancel", None)
+        if callable(committed_after_cancel) and committed_after_cancel():
+            if reload_after_success:
+                window.set_pai_api_status(
+                    "Status: SAM API cancelada apos gravacao; carregando dados atualizados."
+                )
+                try:
+                    window.reload_pai_api_data()
+                except Exception as exc:
+                    logger.warning(
+                        "SAM API gravou dados, mas falhou ao recarregar apos cancelamento: %s",
+                        exc,
+                    )
+                    window.set_pai_api_status(
+                        "Status: SAM API gravou dados; use Recarregar dados."
+                    )
+            else:
+                window.set_pai_api_status(
+                    "Status: SAM API cancelada apos gravacao; use Recarregar dados."
+                )
         window.set_active_pai_api_worker(None)
         refresh_database_actions(window)
 

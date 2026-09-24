@@ -2552,6 +2552,8 @@ def import_explicit_files_to_database(
             should_cancel=should_cancel,
             explicit_files=explicit_resolved,
         )
+    except InterruptedError:
+        raise
     except PathSafetyError as e:
         logger.error(f"Caminho rejeitado na importacao explicita: {e}")
         if raise_on_error:

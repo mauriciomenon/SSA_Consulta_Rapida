@@ -10,7 +10,8 @@ import pytest
 from PyQt6.QtTest import QSignalSpy
 
 from core import app_logic
-from core.pai_import_service import import_prepared_pai_xlsx
+from core.pai_import_service import PaiImportResult, import_prepared_pai_xlsx
+from gui.ssa import pai_api_controller
 from gui.ssa.pai_api_controller import _connect_worker
 from gui.workers.pai_api_worker import PaiApiRefreshWorker
 
@@ -71,6 +72,107 @@ def test_pai_import_cancelled_after_staging_never_calls_import(tmp_path: Path) -
         assert connection.execute("SELECT COUNT(*) FROM imported_rows").fetchone() == (0,)
 
 
+def test_pai_empty_staging_after_cancel_is_not_normal_completion(tmp_path: Path) -> None:
+    source = tmp_path / "pai.xlsx"
+    source.touch()
+    cancelled = False
+
+    def stage_files(**_kwargs: Any) -> tuple[list[str], dict[str, int]]:
+        nonlocal cancelled
+        cancelled = True
+        return [], {"staged": 0}
+
+    with pytest.raises(InterruptedError, match="before database import"):
+        import_prepared_pai_xlsx(
+            cast(Any, SimpleNamespace(project_root=tmp_path)),
+            cast(Any, SimpleNamespace(import_xlsx_path=source)),
+            docs_dir=tmp_path,
+            db_path=tmp_path / "temp.db",
+            stage_files=stage_files,
+            count_rows=lambda _path: 0,
+            should_cancel=lambda: cancelled,
+        )
+
+
+def test_pai_cancel_after_commit_keeps_result_for_reload(tmp_path: Path) -> None:
+    source = tmp_path / "pai.xlsx"
+    source.touch()
+    cancelled = False
+    row_counts: list[int] = []
+
+    def import_files(*_args: Any, **_kwargs: Any) -> bool:
+        nonlocal cancelled
+        cancelled = True
+        return True
+
+    def count_rows(_path: Path) -> int:
+        row_counts.append(1)
+        return 0
+
+    result = import_prepared_pai_xlsx(
+        cast(Any, SimpleNamespace(project_root=tmp_path)),
+        cast(Any, SimpleNamespace(import_xlsx_path=source, export=object(), normalized_rows=1, xlsx_summary=object())),
+        docs_dir=tmp_path,
+        db_path=tmp_path / "temp.db",
+        stage_files=lambda **_kwargs: ([str(source)], {"staged": 1}),
+        import_files=import_files,
+        count_rows=count_rows,
+        should_cancel=lambda: cancelled,
+    )
+
+    assert result.imported is True
+    assert result.rows_after_import is None
+    assert len(row_counts) == 1
+
+
+def test_pai_cancelled_worker_reports_committed_result(tmp_path: Path, monkeypatch) -> None:
+    worker = PaiApiRefreshWorker(cast(Any, SimpleNamespace(db_path=tmp_path / "temp.db")))
+    result = PaiImportResult(
+        export=cast(Any, object()),
+        mode="import",
+        import_xlsx_path=tmp_path / "pai.xlsx",
+        staged_files=("pai.xlsx",),
+        staging_summary={"staged": 1},
+        imported=True,
+        normalized_rows=1,
+        rows_before_import=0,
+        rows_after_import=None,
+    )
+
+    def committed_import(*_args: Any, **_kwargs: Any) -> PaiImportResult:
+        worker.cancel()
+        return result
+
+    monkeypatch.setattr("gui.workers.pai_api_worker.import_prepared_pai_xlsx", committed_import)
+    worker._import_sector_preview(
+        cast(Any, SimpleNamespace(request=object(), preview=object(), docs_dir=tmp_path, sector="S"))
+    )
+
+    assert worker.committed_after_cancel() is True
+    assert worker.summary().imported_sectors == 1
+
+
+def test_pai_controller_reloads_commit_after_cancel(monkeypatch) -> None:
+    monkeypatch.setattr(pai_api_controller, "refresh_database_actions", lambda _window: None)
+    active: list[Any | None] = [None]
+    statuses: list[str] = []
+    reloads: list[bool] = []
+    worker = SimpleNamespace(committed_after_cancel=lambda: True)
+    active[0] = worker
+    window = SimpleNamespace(
+        active_pai_api_worker=lambda: active[0],
+        set_active_pai_api_worker=lambda value: active.__setitem__(0, value),
+        set_pai_api_status=statuses.append,
+        reload_pai_api_data=lambda: reloads.append(True),
+    )
+
+    pai_api_controller._release_worker(cast(Any, window), worker)
+
+    assert reloads == [True]
+    assert active[0] is None
+    assert "apos gravacao" in statuses[-1]
+
+
 def test_explicit_import_propagates_cancel_callback(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -109,6 +211,33 @@ def test_explicit_import_propagates_cancel_callback(
         should_cancel=should_cancel,
     )
     assert captured["should_cancel"] is should_cancel
+
+
+def test_explicit_import_does_not_swallow_cancel_as_os_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    db_path = tmp_path / "data" / "temp.db"
+    source = docs_dir / "pai.xlsx"
+    source.touch()
+    monkeypatch.setattr(app_logic, "_resolve_import_targets", lambda _docs, _db: (docs_dir, db_path))
+    monkeypatch.setattr(
+        app_logic,
+        "_resolve_explicit_import_files",
+        lambda _files, *, docs_dir_path: [str(source)],
+    )
+
+    def cancelled_import(**_kwargs: Any) -> bool:
+        raise InterruptedError("cancelled during import")
+
+    monkeypatch.setattr(app_logic, "run_importer_logic", cancelled_import)
+
+    with pytest.raises(InterruptedError, match="cancelled during import"):
+        app_logic.import_explicit_files_to_database(
+            [source], docs_dir=str(docs_dir), db_path=str(db_path)
+        )
 
 
 def test_pai_terminal_signal_is_exactly_once_and_cancel_wins() -> None:

@@ -113,6 +113,8 @@ def import_prepared_pai_xlsx(
         source_files=(str(preview.import_xlsx_path),),
         should_cancel=should_cancel,
     )
+    if should_cancel is not None and should_cancel():
+        raise InterruptedError("PAI import cancelled before database import")
     if not staged_files:
         return PaiImportResult(
             export=preview.export,
@@ -144,14 +146,15 @@ def import_prepared_pai_xlsx(
         if _outcome_after is not _outcome_before
         else None
     )
-    if should_cancel is not None and should_cancel():
-        raise InterruptedError("PAI import cancelled during database import")
-    rows_after_import = count_rows(db_path)
     imported_flag = (
         _outcome.primary_database_changed
         if _outcome is not None
         else bool(imported)
     )
+    cancelled_after_import = should_cancel is not None and should_cancel()
+    if cancelled_after_import and not imported_flag:
+        raise InterruptedError("PAI import cancelled during database import")
+    rows_after_import = None if cancelled_after_import else count_rows(db_path)
     return PaiImportResult(
         export=preview.export,
         mode="import",
