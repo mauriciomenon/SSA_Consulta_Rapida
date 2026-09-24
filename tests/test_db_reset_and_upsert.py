@@ -66,7 +66,7 @@ def _seed_canonical_parent_and_event(db_path):
 
 def test_reset_database_file_mode(tmp_path):
     db_path = os.path.join(tmp_path, "x.sqlite")
-    with get_db_connection(db_path) as conn:
+    with get_db_connection(db_path, write=True) as conn:
         conn.execute("CREATE TABLE T(x INTEGER);")
         conn.commit()
     assert os.path.exists(db_path)
