@@ -182,6 +182,8 @@ def get_db_connection(db_path: str, *, write: bool = False, read_only: bool = Fa
                 db_dir = os.path.dirname(db_path)
                 if db_dir:
                     os.makedirs(db_dir, exist_ok=True)
+            elif db_path != ":memory:" and not os.path.exists(db_path):
+                raise FileNotFoundError(f"Banco de dados nao encontrado: {db_path}")
 
             if read_only and not write and db_path != ":memory:":
                 conn = sqlite3.connect(read_only_sqlite_uri(db_path), uri=True)
@@ -362,7 +364,7 @@ def query_db(
                 raise InterruptedError("Database query cancelled")
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
-    except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
+    except (ValueError, FileNotFoundError, sqlite3.Error, pd.errors.DatabaseError) as e:
         if cancel_callback_error is not None:
             logger.error(
                 "Falha no cancel_callback de query_db.",

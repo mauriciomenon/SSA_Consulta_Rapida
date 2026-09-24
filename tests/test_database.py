@@ -40,6 +40,8 @@ def temp_db_path():
     """Cria um caminho temporário para o banco de dados de teste."""
     temp_dir = tempfile.mkdtemp()
     db_path = os.path.join(temp_dir, "test_db.sqlite")
+    with closing(sqlite3.connect(db_path)):
+        pass
     yield db_path
     shutil.rmtree(temp_dir)
 
@@ -74,12 +76,26 @@ def sample_schema_file():
 
 def test_get_db_connection_context_manager(temp_db_path):
     """Testa o context manager get_db_connection."""
-    with get_db_connection(temp_db_path) as conn:
+    with get_db_connection(temp_db_path, write=True) as conn:
         assert isinstance(conn, sqlite3.Connection)
         assert conn.total_changes == 0  # Nenhuma mudança ainda
 
     # Verifica se a conexão foi fechada implicitamente
     # (Difícil de testar diretamente, mas o contexto garante)
+
+
+def test_read_missing_database_does_not_create_file(tmp_path):
+    db_path = tmp_path / "missing.db"
+    with pytest.raises(FileNotFoundError, match="Banco de dados nao encontrado"):
+        with get_db_connection(str(db_path)):
+            pass
+    assert not db_path.exists()
+
+    assert query_db(str(db_path), "ssa_table").empty
+    assert not db_path.exists()
+    with pytest.raises(FileNotFoundError, match="Banco de dados nao encontrado"):
+        query_db(str(db_path), "ssa_table", raise_on_error=True)
+    assert not db_path.exists()
 
 
 def test_get_db_connection_rolls_back_non_sqlite_exception(temp_db_path):
