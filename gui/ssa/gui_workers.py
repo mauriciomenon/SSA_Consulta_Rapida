@@ -1129,29 +1129,34 @@ def _is_stale_data_load_result(window, request_id: int | None) -> bool:
 
 
 def _sync_data_revision_after_load(window, request_id: int | None) -> None:
+    last_req = getattr(window, "_data_revision_request_id", None)
+    if request_id is not None and request_id == last_req:
+        return
     try:
-        last_req = getattr(window, "_data_revision_request_id", None)
-        if request_id is not None and request_id == last_req:
-            return
+        previous_revision = int(getattr(window, "_data_revision", 0) or 0)
+    except (TypeError, ValueError):
+        previous_revision = 0
+    try:
         if hasattr(window, "_bump_data_revision"):
             window._bump_data_revision("data_loaded")
         else:
-            window._data_revision = int(getattr(window, "_data_revision", 0) or 0) + 1
-        try:
-            window._data_uuid = uuid.uuid4().hex
-        except Exception as exc:
-            logger.debug(
-                "Falha ao gerar UUID de dados; usando fallback textual: %s", exc
-            )
-            window._data_uuid = f"fallback-{time.time_ns()}-{int(getattr(window, '_data_revision', 0) or 0)}"
-        window._data_revision_request_id = request_id
+            window._data_revision = previous_revision + 1
     except Exception as exc:
         logger.warning(
-            "Falha ao atualizar revisao de dados; resetando para baseline "
-            "(risco de render stale): %s",
+            "Falha ao atualizar revisao de dados; invalidando caches por fallback: %s",
             exc,
         )
-        window._data_revision = 1
+        window._data_revision = previous_revision + 1
+        window._data_revision_df_ids = id(window.df_completo)
+        window._details_ssa_index_sources = None
+        window._details_ssa_series_index = None
+        window._details_render_payload_cache = {}
+    try:
+        window._data_uuid = uuid.uuid4().hex
+    except Exception as exc:
+        logger.debug("Falha ao gerar UUID de dados; usando fallback textual: %s", exc)
+        window._data_uuid = f"fallback-{time.time_ns()}-{window._data_revision}"
+    window._data_revision_request_id = request_id
 
 
 def _reset_post_load_filter_state(window) -> None:
@@ -1356,6 +1361,9 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         _sync_non_null_column_cache_after_load(window, loaded)
         _sync_column_selector_after_load(window)
         _sync_filter_controls_after_load(window)
+        from gui.ssa import gui_details
+
+        gui_details.refresh_derivadas_context_after_reload(window)
         _update_loaded_data_status(window)
     except Exception as exc:
         handler = getattr(window, "on_load_error", None)
@@ -1433,6 +1441,7 @@ def on_load_error(
     window._data_load_busy = False
     previous_data = getattr(window, "df_completo", None)
     if data_applied:
+        _sync_data_revision_after_load(window, request_id)
         retained_data_notice = " A exibicao pode estar incompleta. Recarregue os dados."
     else:
         retained_data_notice = (
