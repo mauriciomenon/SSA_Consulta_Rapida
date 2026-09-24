@@ -1696,14 +1696,30 @@ def _finalize_import_run_outcome(
         critical_errors=critical_errors,
         deterministic_failed_files=deterministic_failed_files,
     ):
+        regular_candidates = {
+            file_path
+            for file_path in files_to_process
+            if not os.path.basename(file_path).startswith("~$")
+            and not _is_derivadas_sheet_file(file_path)
+        }
+        deterministic_set = set(deterministic_failed_files)
+        blocked_files = sorted(
+            {
+                file_path
+                for _error_type, file_path, _message in critical_errors
+                if file_path in regular_candidates and file_path not in deterministic_set
+            }
+        )
+        clean_retry_candidates = [
+            file_path
+            for file_path in successfully_processed_files
+            if file_path in regular_candidates and file_path not in blocked_files
+        ]
         blocking_types = sorted(
             {
                 error_type
                 for error_type, file_path, _message in critical_errors
-                if not os.path.basename(file_path).startswith("~$")
-                and not _is_derivadas_sheet_file(file_path)
-                and file_path in files_to_process
-                and file_path not in deterministic_failed_files
+                if file_path in blocked_files
             }
         )
         logger.error(
@@ -1719,6 +1735,8 @@ def _finalize_import_run_outcome(
             "integrity_report": {},
             "promoted_backup_path": None,
             "working_db_path": working_db_path,
+            "blocked_files": blocked_files,
+            "clean_retry_candidates": clean_retry_candidates,
         }
 
     if successfully_processed_files:
@@ -2102,6 +2120,8 @@ def run_importer_logic(
     derivadas_sync_blocking_error = bool(context["derivadas_sync_blocking_error"])
     file_reports: List[Dict[str, Any]] = cast(List[Dict[str, Any]], context["file_reports"])
     phase_durations: Dict[str, float] = cast(Dict[str, float], context["phase_durations"])
+    blocked_files: List[str] = []
+    clean_retry_candidates: List[str] = []
 
     def _finalize_and_return(result: bool, status: str, reason: str = "") -> bool:
         finished_at = datetime.now()
@@ -2137,6 +2157,8 @@ def run_importer_logic(
             integrity_report=integrity_report,
             file_reports=file_reports,
             phase_durations=phase_durations,
+            blocked_files=blocked_files,
+            clean_retry_candidates=clean_retry_candidates,
         )
         report_path = _write_import_run_report(payload)
         if report_path:
@@ -2461,6 +2483,10 @@ def run_importer_logic(
                 final_decision.get("promoted_backup_path"),
             )
             working_db_path = str(final_decision.get("working_db_path", working_db_path))
+            blocked_files = list(final_decision.get("blocked_files", []))
+            clean_retry_candidates = list(
+                final_decision.get("clean_retry_candidates", [])
+            )
             return _finalize_and_return(
                 bool(final_decision["result"]),
                 str(final_decision["status"]),

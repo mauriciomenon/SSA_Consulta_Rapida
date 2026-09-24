@@ -162,13 +162,19 @@ def test_matrix_deterministic_only_keeps_rejections_only(workspace):
     assert not (data / "ssas.db").exists() or not ssas(data / "ssas.db")
 
 
-def test_matrix_blocking_error_preserves_primary_and_candidate(workspace):
+def test_matrix_blocking_error_preserves_primary_and_candidate(workspace, monkeypatch):
     docs, data, tmp = workspace
     make_xlsx(docs / "a.xlsx", "202650001")
     make_xlsx(docs / "b.xlsx", "202650002")
     assert run(docs, data, tmp, force=False) is True
     seeded = ssas(data / "ssas.db")
     assert seeded == ["202650001", "202650002"]
+    make_xlsx(docs / "c.xlsx", "202650003")
+    pd.DataFrame({"foo": ["bar"]}).to_excel(docs / "det.xlsx", index=False)
+    reports = []
+    monkeypatch.setattr(
+        app_logic, "_write_import_run_report", lambda payload: reports.append(payload)
+    )
 
     result = run(docs, data, tmp, force=True, fail_suffix="b.xlsx")
     outcome = import_outcome.get_last_import_outcome()
@@ -183,3 +189,19 @@ def test_matrix_blocking_error_preserves_primary_and_candidate(workspace):
     assert final == seeded
     assert candidates, "candidate must be preserved for evidence"
     assert not backups, "primary must not be rotated when blocked"
+    payload = reports[-1]
+    assert payload["status"] == "candidate_incomplete"
+    assert payload["blocked_files"] == [str(docs / "b.xlsx")]
+    assert payload["clean_retry_candidates"] == [
+        str(docs / "a.xlsx"),
+        str(docs / "c.xlsx"),
+    ]
+    assert payload["files"]["deterministic_failed"] == ["det.xlsx"]
+
+    assert app_logic.import_explicit_files_to_database(
+        file_paths=payload["clean_retry_candidates"],
+        docs_dir=str(docs),
+        db_path=str(data / "ssas.db"),
+        raise_on_error=True,
+    ) is True
+    assert ssas(data / "ssas.db") == ["202650001", "202650002", "202650003"]

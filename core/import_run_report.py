@@ -136,6 +136,8 @@ def _build_import_run_payload(
     integrity_report: Dict[str, Any],
     file_reports: List[Dict[str, Any]],
     phase_durations: Dict[str, float],
+    blocked_files: Optional[List[str]] = None,
+    clean_retry_candidates: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     total_rows_extracted = 0
     total_rows_removed_invalid_identity = 0
@@ -199,6 +201,8 @@ def _build_import_run_payload(
         "status": status,
         "reason": reason,
         "cancel_requested": bool(cancel_requested),
+        "blocked_files": list(blocked_files or []),
+        "clean_retry_candidates": list(clean_retry_candidates or []),
         "inputs": {
             "force_import": bool(force_import),
             "table_name": table_name,
