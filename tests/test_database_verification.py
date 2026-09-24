@@ -135,6 +135,25 @@ class TestDatabaseVerification:  # noqa: D101
         assert report["table_exists"]
         assert report["schema_valid"]
 
+    def test_disk_usage_warning_omits_private_error_text(self, tmp_path, monkeypatch):
+        db_path = tmp_path / "disk_usage_warning.db"
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(_runtime_schema_sql())
+
+        def fail_disk_usage(_path):
+            raise OSError(13, "segredo-na-mensagem", "/private/segredo-no-caminho")
+
+        monkeypatch.setattr(
+            database_integrity_module.shutil, "disk_usage", fail_disk_usage
+        )
+        report = verify_database_integrity(str(db_path))
+
+        assert report["disk_space_sufficient"] is False
+        assert report["warnings"] == [
+            "Nao foi possivel verificar espaco em disco (PermissionError, errno=13)"
+        ]
+        assert "segredo" not in str(report)
+
     def test_verify_alias_table_resolves_to_canonical_table(self, tmp_path):
         """Alias legado deve resolver para a tabela canonica quando ela existe."""
         db_path = os.path.join(tmp_path, "canonical_alias.db")

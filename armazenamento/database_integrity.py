@@ -516,7 +516,8 @@ def verify_database_integrity(
                 )
         except OSError as exc:
             report["warnings"].append(
-                f"Nao foi possivel verificar espaco em disco: {exc}"
+                "Nao foi possivel verificar espaco em disco "
+                f"({type(exc).__name__}, errno={exc.errno})"
             )
 
         with closing(_read_only_connection(db_path)) as conn:
