@@ -5984,7 +5984,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def closeEvent(self, event):
         """Adia o fechamento com a GUI operante ou encerra apos o prazo."""
         self._is_shutting_down = True
-        if not self.shutdown():
+        try:
+            shutdown_complete = self.shutdown()
+        except Exception:
+            logger.exception("Falha ao encerrar a janela")
+            self._is_shutting_down = False
+            event.ignore()
+            return
+        if not shutdown_complete:
             self._is_shutting_down = False
             ssa_app_menus.refresh_database_actions(self)
             event.ignore()

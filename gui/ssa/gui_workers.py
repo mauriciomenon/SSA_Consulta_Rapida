@@ -1436,6 +1436,9 @@ def on_load_error(
     logger.error(
         "Erro no carregamento de dados (request_id=%s): %s", request_id, masked_error
     )
+    if bool(getattr(window, "_is_shutting_down", False)):
+        window._data_load_busy = False
+        return False
     if os.environ.get("PYTEST_CURRENT_TEST"):
         logger.debug("PYTEST_CURRENT_TEST set; skipping modal load error dialog.")
     else:
@@ -1607,8 +1610,9 @@ def on_load_finished(
         )
         return
 
-    _restore_data_load_controls(window)
-    _update_load_finished_status_if_needed(window)
+    if not bool(getattr(window, "_is_shutting_down", False)):
+        _restore_data_load_controls(window)
+        _update_load_finished_status_if_needed(window)
     _cleanup_finished_data_loader_request(
         window,
         target_worker,

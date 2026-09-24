@@ -14649,6 +14649,15 @@ class TestGUIFilterLogic:
             assert self.window._is_shutting_down is False
             assert "Falha ao salvar preferencias" in self.window.status_label.text()
 
+    def test_close_event_recovers_from_shutdown_exception(self):
+        event = QCloseEvent()
+
+        with patch.object(self.window, "shutdown", side_effect=RuntimeError("falha")):
+            self.window.closeEvent(event)
+
+        assert event.isAccepted() is False
+        assert self.window._is_shutting_down is False
+
     def test_close_event_stops_main_and_sector_debounce_timers(self):
         self.window._debounce_timer.start()
         self.window._sector_debounce_timer.start()
@@ -15498,6 +15507,21 @@ class TestGUIFilterLogic:
         assert critical.called is False
         assert self.window.status_label.text() == "Status: OK"
 
+    def test_on_load_error_during_shutdown_keeps_controls_unchanged(self):
+        self.window._active_data_load_request_id = 10
+        self.window._is_shutting_down = True
+        self.window._data_load_busy = True
+        self.window.status_label.setText("Encerramento em andamento")
+        self.window.load_button.setEnabled(False)
+
+        with patch("gui.gui_ssa.QMessageBox.critical") as critical:
+            self.window.on_load_error("erro tardio", request_id=10)
+
+        critical.assert_not_called()
+        assert self.window._data_load_busy is False
+        assert self.window.status_label.text() == "Encerramento em andamento"
+        assert self.window.load_button.isEnabled() is False
+
     def test_on_filter_error_ignores_stale_request(self):
         self.window._active_filter_request_id = 10
         self.window.status_label.setText("Status: OK")
@@ -15983,6 +16007,20 @@ class TestGUIFilterLogic:
         assert self.window.progress_bar.isVisible() is False
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
+
+    def test_on_load_finished_during_shutdown_only_cleans_worker(self):
+        self.window._active_data_load_request_id = 11
+        self.window._is_shutting_down = True
+        self.window.status_label.setText("Encerramento em andamento")
+        self.window.load_button.setEnabled(False)
+        worker = object()
+
+        with patch.object(ssa_gui_workers, "_cleanup_finished_data_loader_request") as cleanup:
+            self.window.on_load_finished(worker=worker, request_id=11)
+
+        cleanup.assert_called_once()
+        assert self.window.status_label.text() == "Encerramento em andamento"
+        assert self.window.load_button.isEnabled() is False
 
     def test_on_load_finished_replaces_transient_loading_status_with_terminal_text(
         self,
