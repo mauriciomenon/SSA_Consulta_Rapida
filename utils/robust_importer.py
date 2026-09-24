@@ -369,7 +369,7 @@ def import_excel_robust(
                         "[import_excel_robust] Nenhuma linha candidata encontrada; mantendo header original."
                     )
         except Exception as exc:
-            diagnostic_logger.debug(
+            logger.warning(
                 "[import_excel_robust] Falha ao reprocessar header mesclado (%s)",
                 type(exc).__name__,
             )

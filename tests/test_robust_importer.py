@@ -172,12 +172,13 @@ def test_merged_header_retry_failure_logs_without_env(tmp_path, monkeypatch, cap
         return frame
 
     monkeypatch.setattr(robust_importer, "_read_excel_source", fail_raw_retry)
-    with caplog.at_level(logging.DEBUG, logger=robust_importer.__name__):
+    with caplog.at_level(logging.WARNING, logger=robust_importer.__name__):
         import_excel_robust(str(file_path))
 
     assert any(
         "Falha ao reprocessar header mesclado" in record.message
         and "ValueError" in record.message
+        and record.levelno == logging.WARNING
         for record in caplog.records
     )
 
