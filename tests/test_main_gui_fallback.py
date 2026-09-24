@@ -289,6 +289,48 @@ print('event-loop-returned')
     assert "event-loop-returned" in result.stdout
 
 
+def test_gui_exception_hook_does_not_open_dialog_from_worker_thread() -> None:
+    pytest.importorskip("PyQt6")
+    code = """
+import logging
+import sys
+from threading import Thread
+from PyQt6.QtWidgets import QApplication, QMessageBox
+from gui.launcher import _gui_exception_hook
+
+app = QApplication([])
+logger = logging.getLogger('gui-worker-probe')
+logger.addHandler(logging.StreamHandler(sys.stderr))
+logger.setLevel(logging.ERROR)
+QMessageBox.critical = staticmethod(lambda *_args: print('dialog-shown'))
+
+def fail_worker():
+    try:
+        raise RuntimeError('worker failure')
+    except RuntimeError as error:
+        _gui_exception_hook(logger, type(error), error, error.__traceback__)
+
+worker = Thread(target=fail_worker)
+worker.start()
+worker.join()
+print('worker-returned')
+"""
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "RuntimeError: worker failure" in result.stderr
+    assert "dialog-shown" not in result.stdout
+    assert "worker-returned" in result.stdout
+
+
 def test_should_filter_macos_stderr_line_matches_known_noise() -> None:
     from gui import launcher
 

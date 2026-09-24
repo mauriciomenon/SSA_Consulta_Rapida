@@ -125,6 +125,7 @@ def _get_icon_candidates(active_runtime_root: str) -> list[str]:
 
 
 def _gui_exception_hook(logger, error_type, error, traceback) -> None:
+    from PyQt6.QtCore import QThread
     from PyQt6.QtWidgets import QApplication, QMessageBox
 
     logger.error(
@@ -133,6 +134,9 @@ def _gui_exception_hook(logger, error_type, error, traceback) -> None:
     )
     message_lines = str(error).splitlines()
     summary = message_lines[0][:300] if message_lines else error_type.__name__
+    app = QApplication.instance()
+    if app is None or QThread.currentThread() != app.thread():
+        return
     try:
         QMessageBox.critical(
             QApplication.activeWindow(),
