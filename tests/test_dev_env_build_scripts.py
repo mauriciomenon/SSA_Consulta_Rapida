@@ -255,7 +255,9 @@ def test_pyinstaller_windows_pins_x64_python_for_every_stage() -> None:
     assert 'set "UV_PYTHON=cpython-3.13-windows-x86_64-none"' in script
     commands = [line.strip() for line in script.splitlines() if line.strip().startswith("uv run ")]
     assert commands
-    assert all('uv run --python "%UV_PYTHON%" ' in command for command in commands)
+    assert all(
+        'uv run --frozen --python "%UV_PYTHON%" ' in command for command in commands
+    )
 
 
 def test_pyinstaller_windows_arm64_build_script_isolated_from_x64() -> None:
