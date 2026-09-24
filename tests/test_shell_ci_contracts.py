@@ -1146,7 +1146,7 @@ def test_shell_doctor_history_scan_uses_single_git_history_search() -> None:
     script = _read_repo_text("scripts", "shell_doctor.sh")
 
     assert "git rev-list --all | while read" not in script
-    assert "git log --all --format='%H' -E -G" in script
+    assert 'git -C "$REPO_ROOT" log --all --format=\'%H\' -E -G' in script
 
 
 def test_shell_doctor_validates_zcompdump_stat_before_age_math() -> None:
