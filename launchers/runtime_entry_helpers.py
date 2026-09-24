@@ -368,13 +368,19 @@ def _resolve_writable_runtime_dir() -> Path:
         try:
             with tempfile.TemporaryFile(dir=safe_runtime_dir):
                 pass
-        except OSError:
-            safe_runtime_dir = ensure_path_is_allowed(
+        except OSError as exc:
+            fallback_dir = ensure_path_is_allowed(
                 resolve_runtime_home(),
                 purpose="runtime root",
                 expect_directory=True,
                 extra_allowed_roots=_trusted_runtime_roots(),
             )
+            warn_runtime_seed_failure(
+                __name__,
+                f"Diretorio {safe_runtime_dir} sem escrita; usando {fallback_dir}",
+                exc,
+            )
+            safe_runtime_dir = fallback_dir
     return safe_runtime_dir
 
 
