@@ -70,6 +70,60 @@ def test_sync_from_db_materializes_matrix_closure_summary(temp_db):
     assert summary_root == (2, 3)
 
 
+def test_cancel_before_materialization_commit_rolls_back_and_finishes_run(
+    temp_db, monkeypatch
+):
+    _insert_ssa_rows(temp_db, [("202500001", None), ("202500002", "202500001")])
+    cancel_event = derivadas_sync.DerivadasSyncCancelEvent()
+    original_build_closure = derivadas_sync._build_closure_rows
+
+    def cancel_after_closure(*args, **kwargs):
+        result = original_build_closure(*args, **kwargs)
+        cancel_event.set()
+        return result
+
+    monkeypatch.setattr(derivadas_sync, "_build_closure_rows", cancel_after_closure)
+
+    with pytest.raises(derivadas_sync.DerivadasSyncCancelled):
+        sync_derivadas(temp_db, cancel_event=cancel_event)
+
+    with sqlite3.connect(temp_db) as conn:
+        run = conn.execute(
+            "SELECT status, finished_at FROM ssa_derivada_sync_run "
+            "ORDER BY sync_run_id DESC LIMIT 1"
+        ).fetchone()
+        assert run is not None
+        assert run[0] == "error" and run[1]
+        assert conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0] == 0
+
+
+def test_timeout_request_does_not_block_commit_already_started() -> None:
+    cancel_event = derivadas_sync.DerivadasSyncCancelEvent()
+    committing = threading.Event()
+    release = threading.Event()
+
+    class _Connection:
+        def commit(self) -> None:
+            committing.set()
+            assert release.wait(timeout=5)
+
+    conn = cast(sqlite3.Connection, _Connection())
+    worker = threading.Thread(target=cancel_event.commit_if_active, args=(conn,))
+    worker.start()
+    try:
+        assert committing.wait(timeout=5)
+        assert cancel_event.request_timeout() is False
+        assert cancel_event.is_set() is False
+    finally:
+        release.set()
+        worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert cancel_event.request_timeout() is True
+    with pytest.raises(derivadas_sync.DerivadasSyncCancelled):
+        cancel_event.commit_if_active(conn)
+
+
 def test_sync_persists_actor_in_sync_run(temp_db):
     _insert_ssa_rows(
         temp_db,

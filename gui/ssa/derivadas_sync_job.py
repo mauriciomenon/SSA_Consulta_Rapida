@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from typing import Any, Callable, Iterable
 
 DERIVADAS_SYNC_PHASE_DB = "db"
@@ -19,6 +20,7 @@ def execute_derivadas_sync_job(
     scan_derivadas_consistency_fn: Callable[..., dict[str, Any]],
     phase_callback: Callable[[str, dict[str, Any]], None] | None = None,
     extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> dict[str, Any]:
     # Materializa: o valor alimenta duas fases de sync e a verificacao de
     # consistencia; iteravel de uso unico esgotaria na primeira chamada.
@@ -39,6 +41,7 @@ def execute_derivadas_sync_job(
             verify_only=False,
             actor="gui-derivadas-db-phase",
             extra_allowed_roots=extra_allowed_roots,
+            cancel_event=cancel_event,
         )
 
         phase_reports = [db_phase_report]
@@ -54,6 +57,7 @@ def execute_derivadas_sync_job(
                 verify_only=False,
                 actor="gui-derivadas-sheet-phase",
                 extra_allowed_roots=extra_allowed_roots,
+                cancel_event=cancel_event,
             )
             phase_reports.append(sheet_phase_report)
             _verify_special_sheet_coverage(sheet_phase_report, special_files)

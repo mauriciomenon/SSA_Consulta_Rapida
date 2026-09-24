@@ -5246,6 +5246,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         table_name: str,
         special_files: list[str],
         status_callback=None,
+        cancel_event=None,
     ) -> dict[str, Any]:
         return ssa_derivadas_sync.execute_derivadas_sync_job(
             db_path=db_path,
@@ -5254,6 +5255,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             sync_derivadas_fn=sync_derivadas,
             scan_derivadas_consistency_fn=scan_derivadas_consistency,
             status_callback=status_callback,
+            cancel_event=cancel_event,
             extra_allowed_roots=[str(Path(db_path).expanduser().resolve().parent)],
         )
 

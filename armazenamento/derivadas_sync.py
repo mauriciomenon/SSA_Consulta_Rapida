@@ -17,6 +17,7 @@ import logging
 import os
 import sqlite3
 import tempfile
+import threading
 import unicodedata
 from collections import defaultdict, deque
 from collections.abc import Iterable, Iterator
@@ -84,6 +85,31 @@ SHEET_LABEL_ALIASES: tuple[str, ...] = (
     "relation_raw_label",
 )
 SPECIAL_SHEET_HEADER_ROW_INDEX = 1
+
+
+class DerivadasSyncCancelled(RuntimeError):
+    pass
+
+
+class DerivadasSyncCancelEvent(threading.Event):
+    def __init__(self) -> None:
+        super().__init__()
+        self._commit_lock = threading.Lock()
+
+    def request_timeout(self) -> bool:
+        if not self._commit_lock.acquire(blocking=False):
+            return False
+        try:
+            self.set()
+            return True
+        finally:
+            self._commit_lock.release()
+
+    def commit_if_active(self, conn: sqlite3.Connection) -> None:
+        with self._commit_lock:
+            if self.is_set():
+                raise DerivadasSyncCancelled("Sync de derivadas cancelado")
+            conn.commit()
 
 
 @dataclass(frozen=True, slots=True)
@@ -822,7 +848,8 @@ def _cycle_nodes_scc(edges: list[tuple[str, str]]) -> set[str]:
 
 
 def _build_closure_rows(
-    edges: list[tuple[str, str]], depth_cap: int = 32
+    edges: list[tuple[str, str]], depth_cap: int = 32,
+    cancel_event: threading.Event | None = None,
 ) -> tuple[list[tuple[str, str, int, int, int]], set[str]]:
     adjacency: dict[str, tuple[str, ...]] = defaultdict(tuple)
     children_map: dict[str, list[str]] = defaultdict(list)
@@ -843,6 +870,8 @@ def _build_closure_rows(
     path_count_cap = 1_000_000
 
     for ancestor in adjacency.keys():
+        if cancel_event is not None and cancel_event.is_set():
+            raise DerivadasSyncCancelled("Sync de derivadas cancelado")
         dist: dict[str, int] = {ancestor: 0}
         max_dist: dict[str, int] = {ancestor: 0}
         count: dict[str, int] = {ancestor: 1}
@@ -1547,6 +1576,7 @@ def sync_derivadas(
     verify_only: bool = False,
     actor: str | None = None,
     extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+    cancel_event: DerivadasSyncCancelEvent | None = None,
 ) -> dict[str, Any]:
     """Run a full derivadas sync/validation cycle."""
 
@@ -1597,6 +1627,8 @@ def sync_derivadas(
         merged_sheet_stats: dict[str, Any] = {}
         merged_sheet_multiparent: dict[str, set[str]] = defaultdict(set)
         for current_sheet_file in normalized_sheet_files:
+            if cancel_event is not None and cancel_event.is_set():
+                raise DerivadasSyncCancelled("Sync de derivadas cancelado")
             sheet_result = collect_sheet_edges(
                 sheet_file=current_sheet_file,
                 parent_col=sheet_parent_col,
@@ -1636,6 +1668,9 @@ def sync_derivadas(
             child_ssa: sorted(parents)
             for child_ssa, parents in merged_sheet_multiparent.items()
         }
+
+    if cancel_event is not None and cancel_event.is_set():
+        raise DerivadasSyncCancelled("Sync de derivadas cancelado")
 
     with get_db_connection(safe_db_path, write=True) as conn:
         _configure_derivadas_connection(conn)
@@ -1699,6 +1734,8 @@ def sync_derivadas(
         if verify_only:
             return report
 
+        if cancel_event is not None and cancel_event.is_set():
+            raise DerivadasSyncCancelled("Sync de derivadas cancelado")
         ensure_derivadas_schema_on_connection(conn)
         if conn.in_transaction:
             conn.commit()
@@ -1729,6 +1766,8 @@ def sync_derivadas(
         conn.commit()
 
         try:
+            if cancel_event is not None and cancel_event.is_set():
+                raise DerivadasSyncCancelled("Sync de derivadas cancelado")
             _begin_derivadas_write_transaction(conn)
             _upsert_source_rows(
                 conn, source_edges, managed_sources=managed_sources, timestamp=timestamp
@@ -1772,7 +1811,9 @@ def sync_derivadas(
                 ]
             )
 
-            closure_rows, cycle_nodes = _build_closure_rows(edge_pairs)
+            closure_rows, cycle_nodes = _build_closure_rows(
+                edge_pairs, cancel_event=cancel_event
+            )
             _replace_closure(conn, closure_rows=closure_rows, timestamp=timestamp)
 
             summary_rows = _build_summary_rows(
@@ -1807,7 +1848,10 @@ def sync_derivadas(
                     {"graph_fingerprint": edge_fingerprint}, ensure_ascii=False
                 ),
             )
-            conn.commit()
+            if cancel_event is not None:
+                cancel_event.commit_if_active(conn)
+            else:
+                conn.commit()
 
             report.update(
                 {

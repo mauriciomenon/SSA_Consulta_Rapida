@@ -134,7 +134,12 @@ def test_async_derivadas_finalize_failure_releases_state(monkeypatch, tmp_path, 
         _QueuedTimer.callbacks.pop(0)()
         assert state.thread is worker
         assert isinstance(worker, _AliveThread) and worker.is_alive()
+        if stage == "timeout":
+            assert state.running is True
+            assert state.cancel_event.is_set()
         worker.alive = False
+        if stage == "timeout":
+            _QueuedTimer.callbacks.pop(0)()
     else:
         assert result["ok"] is False
         assert result["reason"] == "finalize_failed"
@@ -387,13 +392,9 @@ def test_async_derivadas_timeout_rejects_second_start_while_worker_alive(
 
     _QueuedTimer.callbacks.pop(0)()
     assert result["started"] is True
-    assert finalized == [
-        {
-            "ok": False,
-            "error": derivadas_sync_controller.DERIVADAS_SYNC_TIMEOUT_ERROR,
-        }
-    ]
-    assert state.running is False
+    assert finalized == []
+    assert state.running is True
+    assert state.cancel_event.is_set()
     assert state.thread is not None
 
     second = derivadas_sync_controller._begin_derivadas_sync(
@@ -415,6 +416,58 @@ def test_async_derivadas_timeout_rejects_second_start_while_worker_alive(
         "db_path": str(tmp_path / "ssas.db"),
         "table_name": "",
     }
+
+
+def test_timeout_requests_cancellation_without_finalizing_live_worker(
+    monkeypatch, tmp_path
+) -> None:
+    _QueuedTimer.callbacks.clear()
+    state = derivadas_sync_controller.DerivadasSyncState()
+    state.mark_started()
+    sync_lock = derivadas_sync_controller._ensure_derivadas_sync_lock(state)
+    working = threading.Event()
+    release = threading.Event()
+    finalized: list[dict[str, Any]] = []
+    times = iter([0.0, float(derivadas_sync_controller.DERIVADAS_SYNC_TIMEOUT_SEC + 1)])
+    monkeypatch.setattr(derivadas_sync_controller, "monotonic", lambda: next(times))
+
+    def execute_job(**kwargs):
+        working.set()
+        assert release.wait(timeout=5)
+        if kwargs["cancel_event"].is_set():
+            return {"ok": False, "error": "cancelado"}
+        return {"ok": True}
+
+    derivadas_sync_controller._start_async_derivadas_sync(
+        derivadas_sync_controller.DerivadasSyncUiRefs(
+            message_parent=object(), status_label=None, progress_bar=None,
+            update_button=None,
+        ),
+        state,
+        db_path=str(tmp_path / "ssas.db"), table_name="ssa_table",
+        special_files=[], sync_lock=sync_lock, qtimer=_QueuedTimer,
+        sip_module=None, thread_factory=threading.Thread, execute_job=execute_job,
+        finalize_result=lambda _parent, result: finalized.append(result) or result,
+        sync_state_callback=None,
+    )
+    try:
+        assert working.wait(timeout=5)
+        _QueuedTimer.callbacks.pop(0)()
+        assert state.running is True
+        assert state.cancel_event.is_set()
+        assert finalized == []
+        release.set()
+        assert state.thread is not None
+        state.thread.join(timeout=5)
+        assert not state.thread.is_alive()
+        _QueuedTimer.callbacks.pop(0)()
+        assert finalized == [{"ok": False, "error": "cancelado"}]
+        assert state.running is False
+    finally:
+        release.set()
+        if state.thread is not None:
+            state.thread.join(timeout=5)
+        _QueuedTimer.callbacks.clear()
 
 
 def test_derivadas_worker_does_not_call_gui_state_callback(tmp_path) -> None:

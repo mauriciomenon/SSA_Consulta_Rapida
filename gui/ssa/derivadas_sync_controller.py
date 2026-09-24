@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from time import monotonic
 from typing import Any, Callable, Iterable
 
+from armazenamento.derivadas_sync import DerivadasSyncCancelEvent
 from gui.ssa.app_menus import database_operation_in_progress, refresh_database_actions
 from gui.ssa.derivadas_sync_job import (
     DERIVADAS_SYNC_PHASE_DB,
@@ -39,8 +40,10 @@ class DerivadasSyncState:
     lock: threading.Lock | None = None
     last_report: dict[str, Any] | None = None
     report_invalidated: bool = False
+    cancel_event: DerivadasSyncCancelEvent = field(default_factory=DerivadasSyncCancelEvent)
 
     def mark_started(self) -> None:
+        self.cancel_event = DerivadasSyncCancelEvent()
         self.last_report = None
         self.report_invalidated = False
         self.running = True
@@ -59,6 +62,7 @@ class DerivadasSyncState:
         self.table_name = ""
 
     def mark_abandoned(self) -> None:
+        self.cancel_event.set()
         self.last_report = None
         self.pending_result = None
         self.thread = None
@@ -250,6 +254,7 @@ def _start_async_derivadas_sync(
     sync_state_callback: Callable[[], None] | None,
 ) -> dict[str, Any]:
     started = monotonic()
+    cancel_event = state.cancel_event
 
     def _deliver_result(result: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -283,6 +288,7 @@ def _start_async_derivadas_sync(
                 table_name=table_name,
                 special_files=special_files,
                 status_callback=_set_phase_status,
+                cancel_event=cancel_event,
             )
         except Exception as exc:
             result = {"ok": False, "error": str(exc)}
@@ -318,23 +324,26 @@ def _start_async_derivadas_sync(
         if phase_status and phase_status != state.last_status_text:
             _set_status_label(ui, state, phase_status)
         if pending is None:
-            if monotonic() - started > DERIVADAS_SYNC_TIMEOUT_SEC:
+            if not cancel_event.is_set() and monotonic() - started > DERIVADAS_SYNC_TIMEOUT_SEC:
                 with sync_lock:
                     if not state.running:
                         return
                     pending = state.pending_result
                     if pending is not None:
                         state.pending_result = None
-                    state.mark_finished()
-                _sync_state(sync_state_callback)
-                result = pending or {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
-                if not shutting_down:
-                    _deliver_result(result)
+                    elif _thread_alive(worker):
+                        if cancel_event.request_timeout():
+                            state.phase_status = "Status: Prazo esgotado; cancelando derivadas..."
+                        else:
+                            state.phase_status = "Status: Prazo esgotado; gravacao em andamento..."
+                    else:
+                        pending = {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
+            if pending is None and cancel_event.is_set() and not _thread_alive(worker):
+                pending = {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
+            if pending is None:
+                if state.running:
                     qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
                 return
-            if state.running:
-                qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
-            return
         with sync_lock:
             if not state.running:
                 return
@@ -410,6 +419,7 @@ def execute_derivadas_sync_job(
     scan_derivadas_consistency_fn: Callable[..., dict[str, Any]],
     status_callback=None,
     extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> dict[str, Any]:
     def _status_from_phase(phase_name: str, payload: dict[str, Any]) -> None:
         if not callable(status_callback):
@@ -432,6 +442,7 @@ def execute_derivadas_sync_job(
         scan_derivadas_consistency_fn=scan_derivadas_consistency_fn,
         phase_callback=_status_from_phase,
         extra_allowed_roots=extra_allowed_roots,
+        cancel_event=cancel_event,
     )
 
 
