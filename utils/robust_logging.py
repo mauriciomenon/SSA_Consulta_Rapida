@@ -272,7 +272,7 @@ class RobustLogger:
             with open(config_path, "r", encoding="utf-8") as f:
                 loaded_config = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            print(f"Erro ao carregar config de logging: {e}. Usando padrão.", file=sys.stderr)
+            print(f"Erro ao carregar config de logging: {e}. Usando padrao.", file=sys.stderr)
             return base_config
 
         if not isinstance(loaded_config, dict):

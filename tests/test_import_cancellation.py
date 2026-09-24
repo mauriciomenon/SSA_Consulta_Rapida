@@ -87,7 +87,7 @@ def test_should_cancel_stops_between_files(
     )
 
     assert updated is (not force_import)
-    cache_path = data_dir / "file_cache.json"
+    cache_path = data_dir / "file_cache.test.db.json"
     if force_import:
         assert not cache_path.exists()
 
