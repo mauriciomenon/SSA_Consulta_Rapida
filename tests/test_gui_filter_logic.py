@@ -27,7 +27,7 @@ if project_root not in sys.path:
 
 from core import app_logic  # noqa: E402
 from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QSize, Qt, QTimer, QUrl  # noqa: E402
-from PyQt6.QtGui import QCloseEvent, QDesktopServices, QFont, QMouseEvent, QResizeEvent  # noqa: E402
+from PyQt6.QtGui import QColor, QCloseEvent, QDesktopServices, QFont, QMouseEvent, QPalette, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QDialog, QGroupBox, QSpinBox  # noqa: E402
@@ -7675,11 +7675,22 @@ class TestGUIFilterLogic:
     def test_apply_theme_switches_central_background_block_by_theme_family(self):
         central = self.window.centralWidget()
         assert central is not None
+        assert central.metaObject().className() == "QWidget"
 
         central.setStyleSheet("")
+        central_palette = central.palette()
+        central_palette.setColor(QPalette.ColorRole.Window, QColor("#123456"))
+        central.setPalette(central_palette)
+        assert central.palette().color(QPalette.ColorRole.Window).name() == "#123456"
         self.window.apply_theme("gruvbox")
         QApplication.processEvents()
-        assert "SSA_MAIN_BG_START" in (central.styleSheet() or "")
+        expected_bg = self.window.palette().color(QPalette.ColorRole.Window).name()
+        assert expected_bg != "#123456"
+        assert (
+            f".QWidget {{ background-color: {expected_bg}; }}"
+            in central.styleSheet()
+        )
+        assert central.palette().color(QPalette.ColorRole.Window).name() == expected_bg
 
         self.window.apply_theme("windows7")
         QApplication.processEvents()
