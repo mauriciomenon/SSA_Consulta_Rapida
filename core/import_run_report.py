@@ -147,6 +147,7 @@ def _build_import_run_payload(
     total_rows_inserted = 0
     total_ssa_inserted = 0
     total_ssa_updated = 0
+    total_ssa_blocked_parse = 0
     total_extraction_seconds = 0.0
     total_validation_seconds = 0.0
     total_insert_seconds = 0.0
@@ -177,6 +178,7 @@ def _build_import_run_payload(
         if entry.get("status") == "success":
             total_ssa_inserted += int(counts["ssa_inserted"])
             total_ssa_updated += int(counts["ssa_updated"])
+            total_ssa_blocked_parse += int(counts.get("ssa_blocked_parse", 0) or 0)
         total_extraction_seconds += float(durations.get("extraction_seconds", 0) or 0)
         total_validation_seconds += float(durations.get("validation_seconds", 0) or 0)
         total_insert_seconds += float(durations.get("insert_seconds", 0) or 0)
@@ -241,6 +243,7 @@ def _build_import_run_payload(
             "rows_inserted_total": total_rows_inserted,
             "ssa_inserted_total": total_ssa_inserted,
             "ssa_updated_total": total_ssa_updated,
+            "ssa_blocked_parse_total": total_ssa_blocked_parse,
         },
         "files": {
             "candidates": [os.path.basename(p) for p in files_to_process],

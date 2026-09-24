@@ -477,6 +477,19 @@ def test_should_update_existing_blocks_when_incoming_has_no_snapshot_time() -> N
     assert _should_update_existing(existing, incoming) is False
 
 
+def test_should_update_existing_counts_unexpected_parse_failure() -> None:
+    class InvalidDate:
+        def __str__(self) -> str:
+            raise ValueError("invalid date value")
+
+    metrics: dict[str, int] = {}
+    existing = {"data_cadastro": "2026-03-01", "situacao": "ADM"}
+    incoming = {"data_planilha": InvalidDate(), "situacao": "ADM"}
+
+    assert _should_update_existing(existing, incoming, metrics_out=metrics) is False
+    assert metrics == {"ssa_blocked_parse": 1}
+
+
 def test_should_update_existing_accepts_newer_data_planilha_even_with_older_data_cadastro() -> (
     None
 ):

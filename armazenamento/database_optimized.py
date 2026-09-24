@@ -266,6 +266,7 @@ def _load_existing_ssa_payloads(
 def _classify_upsert_rows(
     has_ssa: pd.DataFrame,
     existing_dict: dict[str, dict[str, object | None]],
+    metrics_out: dict[str, int] | None = None,
 ) -> tuple[list[pd.Series], list[pd.Series]]:
     """Split incoming rows into insert and update groups using canonical rule."""
     from .database_upsert_logic import _should_update_existing
@@ -292,7 +293,7 @@ def _classify_upsert_rows(
             "data_arquivo_origem": row.get("data_arquivo_origem"),
             "data_planilha": row.get("data_planilha"),
         }
-        if _should_update_existing(existing_row, incoming_row):
+        if _should_update_existing(existing_row, incoming_row, metrics_out=metrics_out):
             to_update.append(row)
     return to_insert, to_update
 
@@ -324,6 +325,7 @@ def insert_dataframe_optimized(
     if metrics_out is not None:
         metrics_out["ssa_inserted"] = 0
         metrics_out["ssa_updated"] = 0
+        metrics_out.pop("ssa_blocked_parse", None)
 
     if df is None or df.empty:
         logger.info("DataFrame vazio, nada para inserir")
@@ -442,7 +444,9 @@ def insert_dataframe_optimized(
                 )
 
                 # Classificar registros em lotes (insert vs update)
-                to_insert, to_update = _classify_upsert_rows(has_ssa, existing_dict)
+                to_insert, to_update = _classify_upsert_rows(
+                    has_ssa, existing_dict, metrics_out
+                )
 
                 # ===== INSERÇÃO EM LOTE DE NOVOS REGISTROS =====
                 if to_insert:
@@ -615,6 +619,10 @@ def insert_dataframe_optimized(
             return True
 
     except Exception as e:  # pragma: no cover - caminho de erro
+        if metrics_out is not None:
+            metrics_out["ssa_inserted"] = 0
+            metrics_out["ssa_updated"] = 0
+            metrics_out.pop("ssa_blocked_parse", None)
         conn_ref = conn
         if conn_ref is not None:
             try:

@@ -395,6 +395,8 @@ def _sync_dynamic_columns_and_schema(
 def _should_update_existing(
     existing_row: pd.Series | Mapping[str, Any],
     new_row: pd.Series | Mapping[str, Any],
+    *,
+    metrics_out: dict[str, int] | None = None,
 ) -> bool:
     existing_date = existing_row.get("data_cadastro")
     new_date = new_row.get("data_cadastro")
@@ -464,6 +466,10 @@ def _should_update_existing(
         # Sem timestamp confiavel no arquivo novo: permitir apenas inserts.
         # Neste caminho (update) sempre bloqueia.
         if has_file_context and new_file_dt is None:
+            if metrics_out is not None:
+                metrics_out["ssa_blocked_parse"] = (
+                    metrics_out.get("ssa_blocked_parse", 0) + 1
+                )
             return False
         if existing_file_dt is not None and new_file_dt is not None:
             if new_file_dt < existing_file_dt:
@@ -513,12 +519,20 @@ def _should_update_existing(
                     {k: new_row.get(k) for k in ("data_cadastro",)},
                     {k: existing_row.get(k) for k in ("data_cadastro",)},
                 )
+                if metrics_out is not None:
+                    metrics_out["ssa_blocked_parse"] = (
+                        metrics_out.get("ssa_blocked_parse", 0) + 1
+                    )
                 return False
         return True
     except (TypeError, ValueError, OverflowError) as exc:
         logger.warning(
             "Bloqueando update por erro inesperado no comparador: %s", exc
         )
+        if metrics_out is not None:
+            metrics_out["ssa_blocked_parse"] = (
+                metrics_out.get("ssa_blocked_parse", 0) + 1
+            )
         return False
 
 
@@ -899,12 +913,13 @@ def _prepare_upsert_target_row(
     status_rank: dict[str, int],
     description_columns: list[str],
     date_columns: list[str],
+    metrics_out: dict[str, int] | None = None,
 ) -> tuple[pd.Series, bool]:
     if existing_row is None:
         return row.copy(), True
 
     if not complementary_mode:
-        if not _should_update_existing(existing_row, row):
+        if not _should_update_existing(existing_row, row, metrics_out=metrics_out):
             return existing_row.copy(), False
         merged_row = _merge_overwrite_with_incoming_non_empty(existing_row, row)
         if merged_row.equals(existing_row):
@@ -1098,6 +1113,7 @@ def _collect_chunk_upsert_delta(
     status_rank: dict[str, int],
     description_columns: list[str],
     date_columns: list[str],
+    metrics_out: dict[str, int] | None = None,
 ) -> tuple[dict[str, pd.Series], set[Any], int]:
     """Calcula delta de persistencia para um chunk sem executar IO no banco.
 
@@ -1134,6 +1150,7 @@ def _collect_chunk_upsert_delta(
             status_rank,
             description_columns,
             date_columns,
+            metrics_out,
         )
         if not isinstance(target_row, pd.Series):
             raise TypeError("Expected pd.Series from _prepare_upsert_target_row")
@@ -1160,6 +1177,8 @@ def _perform_upsert(
     metrics_out: dict[str, int] | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> int:
+    if metrics_out is not None:
+        metrics_out.pop("ssa_blocked_parse", None)
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
     effective_policy = _resolve_short_circuit_policy()
     status_rank, description_columns, date_columns = _resolve_upsert_config()
@@ -1234,6 +1253,7 @@ def _perform_upsert(
             status_rank=status_rank,
             description_columns=description_columns,
             date_columns=date_columns,
+            metrics_out=metrics_out,
         )
         total_upserted += changed_rows
         persisted_keys = set(rows_to_persist)
@@ -1328,6 +1348,7 @@ def insert_dataframe_with_smart_upsert_impl(
         metrics_out["ssa_inserted"] = 0
         metrics_out["ssa_updated"] = 0
         metrics_out["ssa_event_records_processed"] = 0
+        metrics_out.pop("ssa_blocked_parse", None)
     from . import database as _db_mod  # lazy import evita circularidade
 
     conn: Any = None
@@ -1481,6 +1502,7 @@ def insert_dataframe_with_smart_upsert_impl(
                 ssa_updated=0,
                 ssa_event_records_processed=0,
             )
+            metrics_out.pop("ssa_blocked_parse", None)
         raise
     finally:
         if close_after and conn_cm is not None:

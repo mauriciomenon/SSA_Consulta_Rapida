@@ -53,6 +53,59 @@ def test_optimized_matches_canonical_persisted_rows(
         assert results[0][0][3]
 
 
+def test_parse_block_metric_matches_canonical_and_optimized(tmp_path):
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600001",
+                "situacao": "ADM",
+                "data_cadastro": "2026-03-02",
+                "data_planilha": None,
+                "arquivo_origem": "arquivo_sem_data.xlsx",
+                "descricao_ssa": "bloqueada",
+            },
+            {
+                "numero_ssa": "202600002",
+                "situacao": "ADM",
+                "data_cadastro": "2026-03-02",
+                "data_planilha": "2026-03-02",
+                "arquivo_origem": "",
+                "descricao_ssa": "atualizada",
+            },
+        ]
+    )
+    for name, insert in (
+        ("canonical", insert_dataframe_with_smart_upsert_impl),
+        ("optimized", insert_dataframe_optimized),
+    ):
+        path = str(tmp_path / f"metric_{name}.db")
+        with sqlite3.connect(path) as conn:
+            conn.execute(
+                "CREATE TABLE ssa_table (numero_ssa TEXT PRIMARY KEY, situacao TEXT, "
+                "data_cadastro TEXT, data_planilha TEXT, arquivo_origem TEXT, "
+                "descricao_ssa TEXT)"
+            )
+            conn.executemany(
+                "INSERT INTO ssa_table VALUES (?, 'ADM', '2026-03-01', "
+                "'2026-03-01', '', 'original')",
+                [("202600001",), ("202600002",)],
+            )
+        metrics: dict[str, int] = {}
+        assert insert(incoming.copy(), path, "ssa_table", metrics_out=metrics)
+        expected_metrics = {
+            "ssa_inserted": 0,
+            "ssa_updated": 1,
+            "ssa_blocked_parse": 1,
+        }
+        if name == "canonical":
+            expected_metrics["ssa_event_records_processed"] = 0
+        assert metrics == expected_metrics
+        with sqlite3.connect(path) as conn:
+            assert conn.execute(
+                "SELECT descricao_ssa FROM ssa_table ORDER BY numero_ssa"
+            ).fetchall() == [("original",), ("atualizada",)]
+
+
 @pytest.mark.parametrize("column", ["ate", "desde_2", "data_programacao"])
 def test_optimized_normalizes_all_canonical_date_columns(tmp_path, column):
     results = []

@@ -1187,6 +1187,7 @@ def insert_dataframe_with_smart_upsert(
     if metrics_out is not None:
         metrics_out["ssa_inserted"] = 0
         metrics_out["ssa_updated"] = 0
+        metrics_out.pop("ssa_blocked_parse", None)
 
     # Suporte retrocompativel:
     #  - Novo contrato: (df, db_path, table_name)
