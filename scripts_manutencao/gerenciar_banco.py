@@ -16,7 +16,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from armazenamento.database import _clear_resolved_table_cache  # noqa: E402
 from armazenamento.database_integrity import create_sqlite_backup  # noqa: E402
+from armazenamento.database_lock import database_writer_lock  # noqa: E402
+from shared.db_names import SSA_READ_REQUIRED_COLUMNS  # noqa: E402
 
 
 def reset_database(db_path="data/ssas.db"):
@@ -27,53 +30,59 @@ def reset_database(db_path="data/ssas.db"):
         db_path (str): Caminho para o arquivo do banco de dados
     """
     print(f"  Resetando banco de dados: {db_path}")
+    schema_path = Path(__file__).parent.parent / "config" / "schema.sql"
+    schema_sql = schema_path.read_text(encoding="utf-8")
 
-    # Remove o arquivo do banco se existir
-    if os.path.exists(db_path):
-        # Faz backup antes de remover
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        backup_path = f"{db_path}.backup_before_reset_{timestamp}"
-        source_path = Path(db_path).resolve()
-        create_sqlite_backup(source_path, backup_path)
-        print(f" Backup criado: {backup_path}")
+    with database_writer_lock(db_path):
+        with closing(sqlite3.connect(":memory:")) as candidate:
+            candidate.executescript(schema_sql)
+            tables = {
+                row[0]
+                for row in candidate.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            if not {"ssa_table", "ssa_event_records"} <= tables:
+                raise sqlite3.DatabaseError("Schema oficial incompleto")
+            columns = {
+                row[1] for row in candidate.execute("PRAGMA table_info(ssa_table)")
+            }
+            if set(SSA_READ_REQUIRED_COLUMNS) - columns:
+                raise sqlite3.DatabaseError("Schema oficial sem colunas obrigatorias")
+            if candidate.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                raise sqlite3.DatabaseError("Schema oficial falhou no quick_check")
 
-        for database_file in (
-            Path(db_path),
-            Path(f"{db_path}-wal"),
-            Path(f"{db_path}-shm"),
-            Path(f"{db_path}-journal"),
-        ):
-            database_file.unlink(missing_ok=True)
-        print(f" Arquivo do banco removido: {db_path}")
+            destination = Path(db_path)
+            if destination.exists():
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                backup_path = f"{db_path}.backup_before_reset_{timestamp}"
+                create_sqlite_backup(destination, backup_path)
+                print(f" Backup criado: {backup_path}")
 
-    # Cria o banco usando o schema oficial
-    schema_path = os.path.join(os.path.dirname(__file__), "..", "config", "schema.sql")
+            created_here = False
+            try:
+                if not destination.exists():
+                    sidecars = (
+                        Path(f"{db_path}-wal"),
+                        Path(f"{db_path}-shm"),
+                        Path(f"{db_path}-journal"),
+                    )
+                    if any(os.path.lexists(path) for path in sidecars):
+                        raise RuntimeError(
+                            "Banco novo recusado: sidecars SQLite preexistentes"
+                        )
+                    descriptor = os.open(destination, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                    created_here = True
+                    os.close(descriptor)
+                with closing(sqlite3.connect(destination, timeout=5)) as current:
+                    candidate.backup(current)
+            except Exception:
+                if created_here:
+                    for created_path in (destination, *sidecars):
+                        created_path.unlink(missing_ok=True)
+                raise
 
-    with closing(sqlite3.connect(db_path)) as conn:
-        # Lê e executa o schema oficial
-        if os.path.exists(schema_path):
-            with open(schema_path, "r", encoding="utf-8") as f:
-                schema_sql = f.read()
-            conn.executescript(schema_sql)
-            print(" Estrutura das tabelas recriada usando schema oficial")
-        else:
-            # Fallback - cria tabela básica caso schema.sql não exista
-            create_table_sql = """
-            CREATE TABLE IF NOT EXISTS ssa_table (
-                numero_ssa INTEGER PRIMARY KEY,
-                situacao TEXT,
-                setor_executor TEXT,
-                descricao_ssa TEXT,
-                data_cadastro TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """
-            conn.execute(create_table_sql)
-            print(" Estrutura básica da tabela criada (schema.sql não encontrado)")
-
-        conn.commit()
-
+        _clear_resolved_table_cache(db_path)
     print(f" Reset completo! Banco zerado em: {db_path}")
 
 

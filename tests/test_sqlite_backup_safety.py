@@ -4,6 +4,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+from argparse import Namespace
 from contextlib import closing
 from pathlib import Path
 
@@ -143,3 +144,123 @@ def test_backup_removes_only_its_partial_file_on_invalid_source(tmp_path: Path) 
 
     assert source.read_bytes() == b"nao e sqlite"
     assert not destination.exists()
+
+
+def test_maintenance_reset_preserves_backup_and_live_wal_reader(tmp_path: Path) -> None:
+    from scripts_manutencao.gerenciar_banco import reset_database
+
+    db = tmp_path / "ssas.db"
+    with closing(sqlite3.connect(db)) as writer:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("CREATE TABLE ssa_table(numero_ssa TEXT)")
+        writer.execute("INSERT INTO ssa_table VALUES ('original')")
+        writer.commit()
+
+        reset_database(str(db))
+
+        assert db.exists()
+        assert Path(f"{db}-wal").exists()
+        assert writer.execute("SELECT numero_ssa FROM ssa_table").fetchall() == []
+        backups = list(tmp_path.glob("ssas.db.backup_before_reset_*"))
+        assert len(backups) == 1
+        with closing(sqlite3.connect(backups[0])) as backup:
+            assert backup.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+                ("original",)
+            ]
+        with closing(sqlite3.connect(db)) as current:
+            assert current.execute("PRAGMA quick_check").fetchone() == ("ok",)
+            tables = {
+                row[0]
+                for row in current.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            assert {"ssa_table", "ssa_event_records"} <= tables
+
+
+def test_maintenance_reset_keeps_original_when_backup_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    db = tmp_path / "ssas.db"
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute("CREATE TABLE ssa_table(numero_ssa TEXT)")
+        conn.execute("INSERT INTO ssa_table VALUES ('original')")
+        conn.commit()
+
+    def fail_backup(_source: Path, _target: str) -> None:
+        raise sqlite3.OperationalError("backup failed")
+
+    monkeypatch.setattr(gerenciar_banco, "create_sqlite_backup", fail_backup)
+    with pytest.raises(sqlite3.OperationalError, match="backup failed"):
+        gerenciar_banco.reset_database(str(db))
+
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("original",)
+        ]
+
+
+def test_maintenance_reset_refuses_orphan_sidecar_for_new_database(
+    tmp_path: Path,
+) -> None:
+    from scripts_manutencao.gerenciar_banco import reset_database
+
+    db = tmp_path / "new.db"
+    wal = Path(f"{db}-wal")
+    wal.write_bytes(b"preexisting")
+
+    with pytest.raises(RuntimeError, match="sidecars SQLite preexistentes"):
+        reset_database(str(db))
+
+    assert not db.exists()
+    assert wal.read_bytes() == b"preexisting"
+
+
+def test_maintenance_reset_cleans_new_database_family_after_promotion_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    db = tmp_path / "new.db"
+    real_connect = sqlite3.connect
+
+    class FailingCandidate(sqlite3.Connection):
+        def backup(self, target, *, pages=-1, progress=None, name="main", sleep=0.25):
+            raise sqlite3.OperationalError("promotion failed")
+
+    class SidecarOnClose(sqlite3.Connection):
+        def close(self):
+            super().close()
+            Path(f"{db}-wal").write_bytes(b"created during promotion")
+            Path(f"{db}-shm").write_bytes(b"created during promotion")
+
+    def connect(path, *args, **kwargs):
+        factory = FailingCandidate if path == ":memory:" else SidecarOnClose
+        return real_connect(path, *args, factory=factory, **kwargs)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(gerenciar_banco.sqlite3, "connect", connect)
+        with pytest.raises(sqlite3.OperationalError, match="promotion failed"):
+            gerenciar_banco.reset_database(str(db))
+
+    assert not db.exists()
+    assert not Path(f"{db}-wal").exists()
+    assert not Path(f"{db}-shm").exists()
+
+
+def test_main_reset_does_not_report_success_after_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import main as main_module
+    from scripts_manutencao import gerenciar_banco
+
+    def fail_reset() -> None:
+        raise sqlite3.OperationalError("reset failed")
+
+    monkeypatch.setattr(gerenciar_banco, "reset_database", fail_reset)
+    with pytest.raises(sqlite3.OperationalError, match="reset failed"):
+        main_module._run_maintenance_action(Namespace(reset_db=True, clean_data=False))
+
+    assert "resetado com sucesso" not in capsys.readouterr().out
