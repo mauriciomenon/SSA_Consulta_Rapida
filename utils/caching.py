@@ -13,7 +13,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from utils.file_metadata import best_datetime_for_file
 from utils.path_safety import ensure_path_is_allowed
@@ -383,7 +383,12 @@ def get_ignored_legacy_excel_files(directory: str) -> List[str]:
     return sorted(legacy_xls_files)
 
 
-def _calculate_hash(file_path: str, block_size: int = 65536) -> str:
+def _calculate_hash(
+    file_path: str,
+    block_size: int = 65536,
+    *,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> str:
     """
     Calcula o hash SHA-256 de um arquivo lendo-o em blocos.
 
@@ -400,10 +405,14 @@ def _calculate_hash(file_path: str, block_size: int = 65536) -> str:
         with open(file_path, "rb") as f:
             # Lê o arquivo em blocos para eficiência de memória
             for chunk in iter(lambda: f.read(block_size), b""):
+                if should_cancel is not None and should_cancel():
+                    raise InterruptedError("Verificacao de arquivos cancelada")
                 hash_sha256.update(chunk)
         file_hash = hash_sha256.hexdigest()
         logger.debug(f"Hash calculado para '{file_path}': {file_hash}")
         return file_hash
+    except InterruptedError:
+        raise
     except IOError as e:
         logger.error(f"Erro ao ler o arquivo {file_path} para hashing: {e}")
         return ""
@@ -449,6 +458,7 @@ def get_files_to_process(
     include_processadas: bool = False,
     processadas_subdir: str = "processadas",
     ignore_subdirs: Optional[List[str]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> List[str]:
     """
     Compara hashes atuais com o cache para determinar arquivos modificados/novos.
@@ -478,6 +488,8 @@ def get_files_to_process(
 
     files_to_process = []
     for file_path in all_xlsx_files:
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Verificacao de arquivos cancelada")
         filename = os.path.basename(file_path)
         file_cache_key = _cache_key_for_file(file_path, docs_dir)
         stat_sig = _safe_file_stat(file_path)
@@ -529,7 +541,7 @@ def get_files_to_process(
         ):
             continue
 
-        current_hash = _calculate_hash(file_path)
+        current_hash = _calculate_hash(file_path, should_cancel=should_cancel)
         if not current_hash:
             logger.warning(
                 "Hash nao pode ser calculado para %s; reenfileirando para processamento para evitar perda silenciosa.",

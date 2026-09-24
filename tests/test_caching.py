@@ -53,6 +53,31 @@ def test_get_files_to_process_all_new(temp_docs_dir):
     assert "relatorio_b.xlsx" in filenames
 
 
+def test_hash_scan_stops_during_file_read_without_updating_cache(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    file_path = docs_dir / "large.xlsx"
+    file_path.write_bytes(b"x" * (65536 * 4))
+    cache_file = tmp_path / "cache.json"
+    cache_file.write_text(json.dumps({"large.xlsx": "old_hash"}), encoding="utf-8")
+    callback_calls = 0
+
+    def should_cancel():
+        nonlocal callback_calls
+        callback_calls += 1
+        return callback_calls >= 3
+
+    with pytest.raises(InterruptedError, match="cancelada"):
+        get_files_to_process(
+            str(docs_dir), str(cache_file), should_cancel=should_cancel
+        )
+
+    assert callback_calls == 3
+    assert json.loads(cache_file.read_text(encoding="utf-8")) == {
+        "large.xlsx": "old_hash"
+    }
+
+
 def test_get_files_to_process_one_modified(temp_docs_dir):
     """
     Testa o cenário onde um arquivo foi modificado e deve ser reprocessado.

@@ -220,6 +220,7 @@ def _get_files_to_process(
     include_processadas: bool = False,
     processadas_subdir: str = "processadas",
     ignore_subdirs: Optional[List[str]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> List[str]:
     """
     Determina quais arquivos precisam ser processados.
@@ -268,12 +269,15 @@ def _get_files_to_process(
             include_processadas=include_processadas,
             processadas_subdir=processadas_subdir,
             ignore_subdirs=ignore_subdirs,
+            should_cancel=should_cancel,
         )
         logger.debug(
             f"Arquivos identificados para processamento: {len(files_to_process)}"
         )
         return files_to_process
 
+    except InterruptedError:
+        raise
     except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
         logger.error("Erro ao determinar arquivos para processamento: %s", exc)
         raise CacheError(f"Falha na verificacao de arquivos: {exc}") from exc
@@ -1539,8 +1543,11 @@ def _resolve_import_work_items(
     cache_file: str,
     force_import: bool,
     explicit_files: Optional[Sequence[str | os.PathLike[str]]],
+    should_cancel: Optional[Callable[[], bool]],
 ) -> Dict[str, Any]:
     """Resolve arquivos de trabalho e politicas de discovery para a rodada."""
+    if should_cancel is not None and should_cancel():
+        raise InterruptedError("Verificacao de arquivos cancelada")
     ignored_legacy_excel_files = caching.get_ignored_legacy_excel_files(docs_dir)
     if ignored_legacy_excel_files:
         logger.warning(
@@ -1602,6 +1609,7 @@ def _resolve_import_work_items(
             include_processadas=include_processadas,
             processadas_subdir=str(discovery_settings["processadas_subdir"]),
             ignore_subdirs=ignore_subdirs,
+            should_cancel=should_cancel,
         )
         derivadas_sheet_files = _discover_derivadas_sheet_files(
             docs_dir,
@@ -2218,13 +2226,19 @@ def run_importer_logic(
         try:
             # Resolve os itens de trabalho antes de criar o candidato:
             # falhas aqui nao deixam artefatos orfaos no diretorio.
-            work_items = _resolve_import_work_items(
-                docs_dir=docs_dir,
-                docs_dir_path=docs_dir_path,
-                cache_file=cache_file,
-                force_import=force_import,
-                explicit_files=explicit_files,
-            )
+            try:
+                work_items = _resolve_import_work_items(
+                    docs_dir=docs_dir,
+                    docs_dir_path=docs_dir_path,
+                    cache_file=cache_file,
+                    force_import=force_import,
+                    explicit_files=explicit_files,
+                    should_cancel=should_cancel,
+                )
+            except InterruptedError:
+                return _finalize_and_return(
+                    False, "cancelled_partial", "file_discovery_cancelled_before_update"
+                )
             ignored_legacy_excel_files = cast(
                 List[str],
                 work_items["ignored_legacy_excel_files"],

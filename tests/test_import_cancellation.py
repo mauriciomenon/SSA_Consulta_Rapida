@@ -123,6 +123,51 @@ def test_should_cancel_stops_between_files(
     assert report["cancel_requested"] is True
 
 
+def test_cancel_during_cache_scan_reports_no_database_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core import import_outcome
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    (docs_dir / "large.xlsx").write_bytes(b"x" * (65536 * 4))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    cache_file = data_dir / "file_cache.test.db.json"
+    cache_file.write_text(json.dumps({"large.xlsx": "old_hash"}), encoding="utf-8")
+    callback_calls = 0
+
+    def should_cancel() -> bool:
+        nonlocal callback_calls
+        callback_calls += 1
+        return callback_calls >= 4
+
+    result = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        should_cancel=should_cancel,
+    )
+
+    outcome = import_outcome.get_last_import_outcome()
+    assert result is False
+    assert outcome is not None
+    assert outcome.cancel_requested is True
+    assert outcome.primary_database_changed is False
+    assert outcome.report_path is not None
+    report = json.loads(Path(outcome.report_path).read_text(encoding="utf-8"))
+    assert report["reason"] == "file_discovery_cancelled_before_update"
+    assert report["cancel_requested"] is True
+    assert not (data_dir / "test.db").exists()
+    assert json.loads(cache_file.read_text(encoding="utf-8")) == {
+        "large.xlsx": "old_hash"
+    }
+
+
 def test_cancel_during_upsert_is_classified_without_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
