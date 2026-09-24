@@ -91,7 +91,7 @@ def test_optimized_insert_resolves_legacy_alias_without_view_object(
 ) -> None:
     db_path = str(tmp_path / "canonical_only.db")
 
-    with database.get_db_connection(db_path) as conn:
+    with database.get_db_connection(db_path, write=True) as conn:
         conn.execute(
             """
             CREATE TABLE ssa_table (
@@ -130,7 +130,7 @@ def test_optimized_insert_resolves_legacy_alias_without_view_object(
 
 def test_optimized_canonical_request_reuses_single_legacy_table(tmp_path: Path) -> None:
     db_path = str(tmp_path / "legacy_only.db")
-    with database.get_db_connection(db_path) as conn:
+    with database.get_db_connection(db_path, write=True) as conn:
         conn.execute(
             "CREATE TABLE ssas (numero_ssa TEXT PRIMARY KEY, data_cadastro TEXT, "
             "situacao TEXT, descricao_ssa TEXT)"
