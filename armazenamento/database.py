@@ -1161,6 +1161,7 @@ def insert_dataframe_with_smart_upsert(
     table_name: str = CANONICAL_SSA_TABLE,
     *,
     metrics_out: dict[str, int] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> bool:  # noqa: PLR0912, PLR0914, PLR0915
     """Insere DataFrame com logica de upsert (por ``numero_ssa``) em baixo
     nivel. Esta versao foi refatorada para reduzir complexidade mantendo a
@@ -1199,7 +1200,10 @@ def insert_dataframe_with_smart_upsert(
                 conn,
                 table_name,
                 metrics_out=metrics_out,
+                should_cancel=should_cancel,
             )
+        except InterruptedError:
+            raise
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao (legacy conn mode): {e}")
             return False
@@ -1230,7 +1234,7 @@ def insert_dataframe_with_smart_upsert(
 
     # Event records share the parent transaction, which the optimized path does not own.
     has_event_records = bool(real_df.attrs.get("ssa_event_records"))
-    if _use_optimized_mode and not has_event_records:
+    if _use_optimized_mode and not has_event_records and should_cancel is None:
         try:
             from .database_optimized import insert_dataframe_optimized
 
@@ -1243,9 +1247,9 @@ def insert_dataframe_with_smart_upsert(
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao otimizada: {e}")
             return False
-    if _use_optimized_mode and has_event_records:
+    if _use_optimized_mode and (has_event_records or should_cancel is not None):
         logger.info(
-            "Modo padrao usado para persistir registros hierarquicos na transacao do pai"
+            "Modo padrao usado para preservar transacao e cancelamento do upsert"
         )
     try:
         # A implementacao de upsert aplica prepare_dataframe_for_upsert()
@@ -1255,7 +1259,10 @@ def insert_dataframe_with_smart_upsert(
             db_path,
             table_name,
             metrics_out=metrics_out,
+            should_cancel=should_cancel,
         )
+    except InterruptedError:
+        raise
     except Exception as e:  # pragma: no cover
         logger.error(f"Falha na insercao: {e}")
         return False

@@ -4,6 +4,7 @@ import sqlite3
 import pandas as pd
 import pytest
 
+from armazenamento import database
 from armazenamento import database_upsert_logic as upsert_logic
 
 
@@ -495,6 +496,113 @@ def test_insert_dataframe_with_smart_upsert_impl_rolls_back_if_upsert_phase_fail
     assert conn.in_transaction is True
     conn.rollback()
     assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
+
+
+def test_cancel_between_upsert_chunks_rolls_back_only_current_savepoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = sqlite3.connect(":memory:")
+    _create_test_table(conn)
+    conn.execute(
+        "INSERT INTO ssa_table(numero_ssa, descricao_ssa) VALUES (?, ?)",
+        ("202600000", "preserved"),
+    )
+    conn.commit()
+    incoming = pd.DataFrame(
+        {"numero_ssa": ["202600001", "202600002"], "descricao_ssa": ["new", "new"]}
+    )
+    original_append = upsert_logic._append_dataframe_rows
+    first_chunk_written = False
+
+    def _track_append(*args, **kwargs):
+        nonlocal first_chunk_written
+        result = original_append(*args, **kwargs)
+        first_chunk_written = True
+        return result
+
+    monkeypatch.setattr(upsert_logic, "_append_dataframe_rows", _track_append)
+    monkeypatch.setattr(upsert_logic, "_resolve_upsert_chunk_size", lambda _n: 1)
+    metrics: dict[str, int] = {}
+
+    with pytest.raises(InterruptedError, match="proximo lote"):
+        database.insert_dataframe_with_smart_upsert(
+            conn,
+            incoming,
+            "ssa_table",
+            metrics_out=metrics,
+            should_cancel=lambda: first_chunk_written,
+        )
+
+    assert conn.execute(
+        "SELECT numero_ssa, descricao_ssa FROM ssa_table ORDER BY numero_ssa"
+    ).fetchall() == [("202600000", "preserved")]
+    assert metrics["ssa_inserted"] == 0
+    assert metrics["ssa_updated"] == 0
+
+
+def test_cancel_after_last_upsert_chunk_before_commit_rolls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = sqlite3.connect(":memory:")
+    _create_test_table(conn)
+    incoming = pd.DataFrame({"numero_ssa": ["202600001"], "descricao_ssa": ["new"]})
+    original_upsert = upsert_logic._perform_upsert
+    chunks_complete = False
+
+    def _track_upsert(*args, **kwargs):
+        nonlocal chunks_complete
+        processed = original_upsert(*args, **kwargs)
+        chunks_complete = True
+        return processed
+
+    monkeypatch.setattr(upsert_logic, "_perform_upsert", _track_upsert)
+    metrics: dict[str, int] = {}
+
+    with pytest.raises(InterruptedError, match="antes do commit"):
+        database.insert_dataframe_with_smart_upsert(
+            conn,
+            incoming,
+            "ssa_table",
+            metrics_out=metrics,
+            should_cancel=lambda: chunks_complete,
+        )
+
+    assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
+    assert metrics["ssa_inserted"] == 0
+
+
+def test_failed_cancel_rollback_is_reported_as_rollback_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_conn = sqlite3.connect(":memory:")
+    _create_test_table(raw_conn)
+    incoming = pd.DataFrame({"numero_ssa": ["202600001"]})
+
+    class FailingRollbackConnection:
+        def cursor(self):
+            return raw_conn.cursor()
+
+        def execute(self, sql, *args):
+            if sql.startswith("ROLLBACK TO SAVEPOINT"):
+                raise sqlite3.OperationalError("forced rollback failure")
+            return raw_conn.execute(sql, *args)
+
+        @property
+        def in_transaction(self):
+            return raw_conn.in_transaction
+
+    monkeypatch.setattr(
+        upsert_logic,
+        "_perform_upsert",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(InterruptedError("cancel")),
+    )
+
+    with pytest.raises(RuntimeError, match="Falha no rollback do savepoint"):
+        upsert_logic.insert_dataframe_with_smart_upsert_impl(
+            incoming, FailingRollbackConnection(), "ssa_table"
+        )
+
+    raw_conn.rollback()
 
 
 def test_external_connection_requires_preinitialized_schema() -> None:

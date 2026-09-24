@@ -26,7 +26,7 @@ import re
 import sqlite3 as _sqlite3_typehint
 import sys
 from datetime import datetime
-from typing import Any, Mapping, cast
+from typing import Any, Callable, Mapping, cast
 
 import numpy as np
 import pandas as pd
@@ -1158,6 +1158,7 @@ def _perform_upsert(
     *,
     chunk_size: int | None = None,
     metrics_out: dict[str, int] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> int:
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
     effective_policy = _resolve_short_circuit_policy()
@@ -1180,6 +1181,8 @@ def _perform_upsert(
         len(has_ssa),
     )
     for start in range(0, len(has_ssa), effective_chunk_size):
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Upsert cancelado antes do proximo lote")
         chunk = has_ssa.iloc[start : start + effective_chunk_size]
         chunk_columns = list(chunk.columns)
         numero_ssa_idx = chunk.columns.get_loc("numero_ssa")
@@ -1305,7 +1308,10 @@ def insert_dataframe_with_smart_upsert_impl(
     table_name: str,
     *,
     metrics_out: dict[str, int] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> bool:
+    if should_cancel is not None and should_cancel():
+        raise InterruptedError("Upsert cancelado antes da preparacao")
     has_event_records_attr = "ssa_event_records" in df.attrs
     event_records_raw = df.attrs.pop("ssa_event_records", [])
     if not isinstance(event_records_raw, list):
@@ -1373,6 +1379,8 @@ def insert_dataframe_with_smart_upsert_impl(
         )
         conn.execute("SAVEPOINT ssa_smart_upsert")
         external_savepoint_started = True
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Upsert cancelado antes da escrita")
         if table_name != CANONICAL_SSA_TABLE:
             logger.warning(
                 "Upsert com tabela nao canonica resolvida para '%s'.",
@@ -1404,6 +1412,8 @@ def insert_dataframe_with_smart_upsert_impl(
             has_ssa = work[work["numero_ssa"].notna()].copy()
             no_ssa = work[work["numero_ssa"].isna()].copy()
         if not no_ssa.empty:
+            if should_cancel is not None and should_cancel():
+                raise InterruptedError("Upsert cancelado antes das linhas sem SSA")
             # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
             chunk_size = (
                 min(500, max(1, 999 // len(no_ssa.columns)))
@@ -1423,8 +1433,11 @@ def insert_dataframe_with_smart_upsert_impl(
                 table_name,
                 conn,
                 metrics_out=metrics_out,
+                should_cancel=should_cancel,
             )
             logger.info("Processados %s registros com numero_ssa via upsert", inserted)
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Upsert cancelado antes do commit")
         if event_records:
             processed_events = _persist_ssa_event_records(conn, event_records, df)
             if metrics_out is not None:
@@ -1433,6 +1446,8 @@ def insert_dataframe_with_smart_upsert_impl(
                 "Processados %s registros hierarquicos em ssa_event_records",
                 processed_events,
             )
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Upsert cancelado antes do commit")
         if external_savepoint_started:
             conn.execute("RELEASE SAVEPOINT ssa_smart_upsert")
             external_savepoint_started = False
@@ -1446,9 +1461,9 @@ def insert_dataframe_with_smart_upsert_impl(
                 conn.execute("ROLLBACK TO SAVEPOINT ssa_smart_upsert")
                 conn.execute("RELEASE SAVEPOINT ssa_smart_upsert")
             except Exception as rollback_exc:
-                logger.warning(
-                    "Falha no rollback do savepoint de upsert: %s", rollback_exc
-                )
+                raise RuntimeError(
+                    "Falha no rollback do savepoint de upsert"
+                ) from rollback_exc
         elif (
             close_after
             and conn is not None
@@ -1458,7 +1473,13 @@ def insert_dataframe_with_smart_upsert_impl(
             try:
                 cast(_sqlite3_typehint.Connection, conn).rollback()
             except Exception as rollback_exc:
-                logger.warning("Falha no rollback de upsert: %s", rollback_exc)
+                raise RuntimeError("Falha no rollback de upsert") from rollback_exc
+        if metrics_out is not None:
+            metrics_out.update(
+                ssa_inserted=0,
+                ssa_updated=0,
+                ssa_event_records_processed=0,
+            )
         raise
     finally:
         if close_after and conn_cm is not None:

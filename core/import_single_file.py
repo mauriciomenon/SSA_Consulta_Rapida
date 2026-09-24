@@ -33,6 +33,7 @@ class SmartUpsert(Protocol):
         table_name: str,
         *,
         metrics_out: dict[str, int] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bool: ...
 
 
@@ -318,12 +319,20 @@ def import_single_file(
                     "operation cancelled", error_code="OPERATION_CANCELLED"
                 )
             upsert_metrics: dict[str, int] = {}
-            success = services.insert_dataframe_with_smart_upsert(
-                df,
-                db_path,
-                table_name,
-                metrics_out=upsert_metrics,
-            )
+            upsert_kwargs: dict[str, Any] = {"metrics_out": upsert_metrics}
+            if should_cancel is not None:
+                upsert_kwargs["should_cancel"] = should_cancel
+            try:
+                success = services.insert_dataframe_with_smart_upsert(
+                    df,
+                    db_path,
+                    table_name,
+                    **upsert_kwargs,
+                )
+            except InterruptedError as exc:
+                raise ExtractionError(
+                    "operation cancelled", error_code="OPERATION_CANCELLED"
+                ) from exc
             if success:
                 missing_metrics = {
                     "ssa_inserted",
