@@ -3,6 +3,8 @@ from __future__ import annotations
 import sqlite3
 from contextlib import closing
 
+import pytest
+
 from scripts.migracao.migrar_para_unificado import backup_database
 from scripts_manutencao.limpar_banco import limpar_banco
 
@@ -50,3 +52,48 @@ def test_migration_backup_includes_committed_wal_rows(tmp_path, monkeypatch):
 
     with closing(sqlite3.connect(backup_path)) as conn:
         assert conn.execute("SELECT value FROM probe").fetchone() == ("from_wal",)
+
+
+def test_limpar_banco_reports_vacuum_failure_after_committed_delete(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, caplog
+):
+    from scripts_manutencao import limpar_banco as module
+
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE ssa_table (id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO ssa_table DEFAULT VALUES")
+        conn.commit()
+
+    original_connect = sqlite3.connect
+
+    class FailingVacuumCursor(sqlite3.Cursor):
+        def execute(self, sql, parameters=()):
+            if sql == "VACUUM":
+                raise sqlite3.OperationalError("vacuum unavailable")
+            return super().execute(sql, parameters)
+
+    class FailingVacuumConnection(sqlite3.Connection):
+        def cursor(self, factory=FailingVacuumCursor):
+            return super().cursor(factory)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(
+            module.sqlite3,
+            "connect",
+            lambda *args, **kwargs: original_connect(
+                *args, factory=FailingVacuumConnection, **kwargs
+            ),
+        )
+        assert limpar_banco() is True
+
+    assert "Registros removidos; otimizacao VACUUM pendente" in caplog.text
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (0,)
+    backups = list(data_dir.glob("ssas_backup_antes_limpeza_final_*.db"))
+    assert len(backups) == 1
+    with closing(sqlite3.connect(backups[0])) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (1,)
