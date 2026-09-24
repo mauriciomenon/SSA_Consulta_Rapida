@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
@@ -660,6 +661,23 @@ class TestGUITableRenderResilience:
             QApplication.processEvents()
 
         assert rebuild.call_count == 2
+
+    def test_deferred_width_reinforcement_ignores_shutdown(self):
+        callbacks = []
+        timer = SimpleNamespace(singleShot=lambda _delay, callback: callbacks.append(callback))
+        self.window._last_table_render_signature = None
+        with patch.object(gui_table, "QTimer", timer):
+            self.window.display_current_page(1)
+
+        deferred = [
+            callback for callback in callbacks
+            if getattr(callback, "__name__", "") == "reinforce_widths"
+        ]
+        assert len(deferred) == 1
+        self.window._is_shutting_down = True
+        with patch.object(self.window, "_ensure_nonzero_column_widths") as ensure_widths:
+            deferred[0]()
+        ensure_widths.assert_not_called()
 
     def test_display_current_page_rebuilds_when_mid_row_changes_with_stable_revision(
         self,

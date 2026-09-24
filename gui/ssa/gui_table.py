@@ -8,6 +8,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from importlib import import_module
 from typing import Any
+import weakref
 
 import pandas as pd
 
@@ -1179,7 +1180,18 @@ def _finalize_page_render(
     window._last_table_render_signature = render_signature
 
     try:
-        QTimer.singleShot(0, lambda: window._ensure_nonzero_column_widths())
+        window_ref = weakref.ref(window)
+
+        def reinforce_widths() -> None:
+            current_window = window_ref()
+            if current_window is None or getattr(current_window, "_is_shutting_down", False):
+                return
+            try:
+                current_window._ensure_nonzero_column_widths()
+            except RuntimeError as exc:
+                logger.debug("Janela indisponivel ao reforcar larguras: %s", exc)
+
+        QTimer.singleShot(0, reinforce_widths)
     except Exception as exc:
         logger.debug("Falha ao agendar reforco de largura de colunas: %s", exc)
 
