@@ -278,7 +278,7 @@ def _start_async_derivadas_sync(
 
     def _set_phase_status(text: str) -> None:
         with sync_lock:
-            if state.running:
+            if state.running and not cancel_event.is_set():
                 state.phase_status = str(text or "")
 
     def _work() -> None:

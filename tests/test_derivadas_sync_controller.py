@@ -435,6 +435,7 @@ def test_timeout_requests_cancellation_without_finalizing_live_worker(
         working.set()
         assert release.wait(timeout=5)
         if kwargs["cancel_event"].is_set():
+            kwargs["status_callback"]("Status: fase anterior terminou")
             return {"ok": False, "error": "cancelado"}
         return {"ok": True}
 
@@ -460,6 +461,7 @@ def test_timeout_requests_cancellation_without_finalizing_live_worker(
         assert state.thread is not None
         state.thread.join(timeout=5)
         assert not state.thread.is_alive()
+        assert state.phase_status == "Status: Prazo esgotado; cancelando derivadas..."
         _QueuedTimer.callbacks.pop(0)()
         assert finalized == [{"ok": False, "error": "cancelado"}]
         assert state.running is False
