@@ -368,11 +368,11 @@ def import_excel_robust(
                     debug_logger.debug(
                         "[import_excel_robust] Nenhuma linha candidata encontrada; mantendo header original."
                     )
-        except Exception as e:  # pragma: no cover
-            if debug_enabled:
-                debug_logger.debug(
-                    "[import_excel_robust] Falha ao reprocessar header mesclado: %s", e
-                )
+        except Exception as exc:
+            diagnostic_logger.debug(
+                "[import_excel_robust] Falha ao reprocessar header mesclado (%s)",
+                type(exc).__name__,
+            )
 
     stats.total_rows_in = len(raw_df)
     stats.original_columns_count = len(raw_df.columns)

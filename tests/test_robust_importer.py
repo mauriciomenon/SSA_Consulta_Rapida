@@ -154,6 +154,34 @@ def test_reheader_candidate_failure_logs_debug_without_env(
     )
 
 
+def test_merged_header_retry_failure_logs_without_env(tmp_path, monkeypatch, caplog):
+    file_path = tmp_path / "merged.xlsx"
+    pd.DataFrame([["Titulo"] * 6, ["202500001"] + [None] * 5]).to_excel(
+        file_path, header=False, index=False
+    )
+    monkeypatch.delenv("SSA_IMPORT_DEBUG", raising=False)
+    original_read = robust_importer._read_excel_source
+
+    def fail_raw_retry(source, *, sheet_name, header):
+        if header is None:
+            raise ValueError("retry unavailable")
+        frame = original_read(source, sheet_name=sheet_name, header=header)
+        frame.columns = ["Titulo"] + [
+            f"Unnamed: {index}" for index in range(1, len(frame.columns))
+        ]
+        return frame
+
+    monkeypatch.setattr(robust_importer, "_read_excel_source", fail_raw_retry)
+    with caplog.at_level(logging.DEBUG, logger=robust_importer.__name__):
+        import_excel_robust(str(file_path))
+
+    assert any(
+        "Falha ao reprocessar header mesclado" in record.message
+        and "ValueError" in record.message
+        for record in caplog.records
+    )
+
+
 def test_raw_mode_preserves_derivadas_columns_with_excelfile_input(tmp_path):
     file_path = tmp_path / "derivadas_raw.xlsx"
     derivadas_df = pd.DataFrame(
