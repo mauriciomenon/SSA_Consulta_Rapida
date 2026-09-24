@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import unicodedata
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Tuple
 
@@ -382,14 +383,20 @@ def import_excel_robust(
     # Função auxiliar interna para tentar reconstruir DataFrame com um header específico e remapear.
     def _attempt_reheader(
         candidate_header_row: int,
+        scan_source: pd.ExcelFile,
     ) -> tuple[pd.DataFrame, dict[str, list[str]], dict[str, str]]:
         try:
             tmp_df = _read_excel_source(
-                excel_source,
+                scan_source,
                 sheet_name=sheet_name,
                 header=candidate_header_row,
             )
         except Exception:
+            logger.debug(
+                "[import_excel_robust] Falha ao ler candidato de header %d",
+                candidate_header_row,
+                exc_info=True,
+            )
             return raw_df, {}, {}
         orig_to_can: Dict[str, str] = {}
         can_groups: Dict[str, List[str]] = {}
@@ -435,20 +442,42 @@ def import_excel_robust(
             max_scan_conf = 10
         scan_limit = min(max_scan_conf, max(1, raw_df.shape[0]))
         selected_header_line_index: int | None = None
-        for candidate in range(scan_limit):
-            tmp_df, tmp_groups, tmp_map = _attempt_reheader(candidate)
-            if len(tmp_groups) > len(best_groups):
-                best_df, best_groups, best_map = tmp_df, tmp_groups, tmp_map
-                improved = True
-                selected_header_line_index = candidate
-                if debug_enabled:
-                    logger.debug(
-                        "[import_excel_robust] Reheader candidate %d => %d grupos.",
-                        candidate,
-                        len(tmp_groups),
+        with ExitStack() as stack:
+            try:
+                if isinstance(excel_source, pd.ExcelFile):
+                    scan_source = excel_source
+                else:
+                    from extracao.extractor import open_validated_excel_source
+
+                    source_stream = stack.enter_context(
+                        open_validated_excel_source(excel_source)
                     )
-                if len(best_groups) >= 5:  # heurística de suficiência
-                    break
+                    scan_source = stack.enter_context(
+                        pd.ExcelFile(source_stream, engine="openpyxl")
+                    )
+            except Exception:
+                logger.debug(
+                    "[import_excel_robust] Falha ao abrir fonte para reheader",
+                    exc_info=True,
+                )
+                scan_source = None
+            if scan_source is not None:
+                for candidate in range(scan_limit):
+                    tmp_df, tmp_groups, tmp_map = _attempt_reheader(
+                        candidate, scan_source
+                    )
+                    if len(tmp_groups) > len(best_groups):
+                        best_df, best_groups, best_map = tmp_df, tmp_groups, tmp_map
+                        improved = True
+                        selected_header_line_index = candidate
+                        if debug_enabled:
+                            logger.debug(
+                                "[import_excel_robust] Reheader candidate %d => %d grupos.",
+                                candidate,
+                                len(tmp_groups),
+                            )
+                        if len(best_groups) >= 5:  # heurística de suficiência
+                            break
         stats.header_candidate_lines_considered = scan_limit
         if improved:
             raw_df = best_df

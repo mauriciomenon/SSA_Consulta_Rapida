@@ -14,10 +14,14 @@ Estes testes usam DataFrame sintetico em memoria para simular planilha.
 from __future__ import annotations
 
 import io
+import json
+import logging
+from contextlib import contextmanager
 
 import pandas as pd
 import pytest
 
+from utils import robust_importer
 from utils.robust_importer import import_excel_robust
 
 
@@ -34,6 +38,81 @@ def _roundtrip_import(df: pd.DataFrame, tmp_path) -> tuple[pd.DataFrame, dict]:
     file_path.write_bytes(content)
     out_df, stats = import_excel_robust(str(file_path))
     return out_df, stats
+
+
+def _write_reheader_case(tmp_path):
+    file_path = tmp_path / "reheader.xlsx"
+    mapping_path = tmp_path / "mapping.json"
+    pd.DataFrame(
+        [
+            ["A", "B", "C", "D", "E", "F"],
+            ["Numero SSA", "Status", "x", "y", "z", "w"],
+            ["202500001", "ABERTA", 1, 2, 3, 4],
+        ]
+    ).to_excel(file_path, header=False, index=False)
+    mapping_path.write_text(
+        json.dumps(
+            {
+                "grupo": ["A", "B", "C", "D", "E", "F"],
+                "numero_ssa": ["Numero SSA"],
+                "situacao": ["Status"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return file_path, mapping_path
+
+
+def test_reheader_scan_reuses_validated_workbook(tmp_path, monkeypatch):
+    from extracao import extractor
+
+    file_path, mapping_path = _write_reheader_case(tmp_path)
+    original_open = extractor.open_validated_excel_source
+    open_count = 0
+
+    @contextmanager
+    def counted_open(path):
+        nonlocal open_count
+        open_count += 1
+        with original_open(path) as source:
+            yield source
+
+    monkeypatch.setattr(extractor, "open_validated_excel_source", counted_open)
+    result, stats = import_excel_robust(
+        str(file_path), mappings_path=str(mapping_path)
+    )
+
+    assert open_count == 2
+    assert stats["selected_header_line_index"] == 1
+    assert result.loc[0, "numero_ssa"] == "202500001"
+    assert result.loc[0, "situacao"] == "ABERTA"
+
+
+def test_reheader_candidate_failure_logs_debug_without_env(
+    tmp_path, monkeypatch, caplog
+):
+    file_path, mapping_path = _write_reheader_case(tmp_path)
+    monkeypatch.delenv("SSA_IMPORT_DEBUG", raising=False)
+    original_read = robust_importer._read_excel_source
+
+    def failing_first_candidate(source, *, sheet_name, header):
+        if isinstance(source, pd.ExcelFile) and header == 0:
+            raise ValueError("candidate parse failed")
+        return original_read(source, sheet_name=sheet_name, header=header)
+
+    monkeypatch.setattr(robust_importer, "_read_excel_source", failing_first_candidate)
+    with caplog.at_level(logging.DEBUG, logger=robust_importer.__name__):
+        result, stats = import_excel_robust(
+            str(file_path), mappings_path=str(mapping_path)
+        )
+
+    assert stats["selected_header_line_index"] == 1
+    assert result.loc[0, "numero_ssa"] == "202500001"
+    assert any(
+        "Falha ao ler candidato de header 0" in record.message
+        and record.exc_info is not None
+        for record in caplog.records
+    )
 
 
 def test_raw_mode_preserves_derivadas_columns_with_excelfile_input(tmp_path):
