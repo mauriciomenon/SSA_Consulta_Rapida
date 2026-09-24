@@ -7,7 +7,13 @@ import argparse
 import os
 import sqlite3
 import sys
+import tempfile
 from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from armazenamento.database_lock import database_writer_lock
 
 
 def create_basic_table(cursor):
@@ -68,6 +74,11 @@ def create_basic_table(cursor):
 def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
     """Importação de emergência usando apenas SQLite"""
     db_path = os.path.realpath(db_path)
+    with database_writer_lock(db_path, timeout=0):
+        return _emergency_import_locked(db_path, force)
+
+
+def _emergency_import_locked(db_path: str, force: bool):
     parent_dir = os.path.dirname(db_path)
     if parent_dir:
         os.makedirs(parent_dir, exist_ok=True)
@@ -79,38 +90,21 @@ def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
             "Use --force para arquiva-lo como .bak antes de recriar."
         )
         return False
-    suffixes = ("-wal", "-shm", "-journal", "")
-    if any(os.path.exists(db_path + suffix) for suffix in suffixes):
-        backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
-        moved: list[tuple[str, str]] = []
-        try:
-            for suffix in suffixes:
-                src = db_path + suffix
-                try:
-                    os.replace(src, backup_path + suffix)
-                    moved.append((src, backup_path + suffix))
-                except FileNotFoundError:
-                    continue
-        except OSError as exc:
-            rollback_errors: list[str] = []
-            for src_done, dst_done in reversed(moved):
-                try:
-                    os.replace(dst_done, src_done)
-                except OSError as rollback_exc:
-                    rollback_errors.append(f"{dst_done}: {rollback_exc}")
-            detail = (
-                f" Rollback incompleto: {'; '.join(rollback_errors)}"
-                if rollback_errors
-                else " Arquivos ja movidos restaurados."
-            )
-            raise OSError(
-                f"Falha ao arquivar {src} para {backup_path + suffix}: "
-                f"{exc}.{detail}"
-            ) from exc
-        label = "Banco existente" if existed else "Sidecars orfaos"
-        print(f"{label} arquivado(s) em {backup_path}")
+    candidate_fd, candidate_path = tempfile.mkstemp(
+        prefix=f".{os.path.basename(db_path)}.tmp-", dir=parent_dir
+    )
+    os.close(candidate_fd)
+    try:
+        return _create_and_publish(db_path, candidate_path, existed)
+    finally:
+        for suffix in ("-wal", "-shm", "-journal", ""):
+            candidate_file = candidate_path + suffix
+            if os.path.lexists(candidate_file):
+                os.unlink(candidate_file)
 
-    conn = sqlite3.connect(db_path)
+
+def _create_and_publish(db_path: str, candidate_path: str, existed: bool) -> bool:
+    conn = sqlite3.connect(candidate_path)
     cursor = conn.cursor()
 
     try:
@@ -236,16 +230,50 @@ def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
 
         # Verifica quantos registros foram inseridos
         count = cursor.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
-        print(f"Banco criado com sucesso! {count} registros inseridos.")
-
-        return True
-
+        if cursor.execute("PRAGMA quick_check").fetchone() != ("ok",):
+            raise sqlite3.DatabaseError("Banco candidato falhou no quick_check")
     except Exception as e:
         print(f"Erro durante importação: {e}")
         conn.rollback()
         return False
     finally:
         conn.close()
+
+    suffixes = ("-wal", "-shm", "-journal", "")
+    moved: list[tuple[str, str]] = []
+    backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+    try:
+        if any(os.path.lexists(backup_path + suffix) for suffix in suffixes):
+            raise FileExistsError(f"Backup de emergencia ja existe: {backup_path}")
+        for suffix in suffixes:
+            src = db_path + suffix
+            if os.path.lexists(src):
+                dst = backup_path + suffix
+                os.replace(src, dst)
+                moved.append((src, dst))
+        os.replace(candidate_path, db_path)
+    except OSError as exc:
+        rollback_errors: list[str] = []
+        for src, dst in reversed(moved):
+            if os.path.exists(src):
+                rollback_errors.append(f"{src}: caminho ocupado; backup preservado em {dst}")
+                continue
+            try:
+                os.replace(dst, src)
+            except OSError as rollback_exc:
+                rollback_errors.append(f"{dst}: {rollback_exc}")
+        detail = (
+            f" Rollback incompleto: {'; '.join(rollback_errors)}"
+            if rollback_errors
+            else " Arquivos ja movidos restaurados."
+        )
+        raise OSError(f"Falha ao publicar banco de teste: {exc}.{detail}") from exc
+
+    if moved:
+        label = "Banco existente" if existed else "Sidecars orfaos"
+        print(f"{label} arquivado(s) em {backup_path}")
+    print(f"Banco criado com sucesso! {count} registros inseridos.")
+    return True
 
 
 if __name__ == "__main__":
