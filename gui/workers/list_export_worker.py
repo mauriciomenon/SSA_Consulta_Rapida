@@ -7,6 +7,7 @@ import os
 import tempfile
 from pathlib import Path
 from threading import Lock
+from typing import TextIO, cast
 
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -73,7 +74,7 @@ class ListExportWorker(QThread):
                     self._dataframe,
                     self._visible_columns,
                     str(temp_path),
-                    stream=temporary,
+                    stream=cast(TextIO, temporary),
                 )
             with self._state_lock:
                 if self._cancel_requested:
