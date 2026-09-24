@@ -29,6 +29,37 @@ class _Cache:
         self.values[(namespace, key)] = value
 
 
+def test_materialized_relation_change_invalidates_tree_without_new_sync_run(
+    temp_db, tmp_path, monkeypatch
+) -> None:
+    sheet = tmp_path / "derivadas.csv"
+    sheet.write_text(
+        "parent_ssa,child_ssa,relation_label\n202600100,202600101,Rotulo A\n",
+        encoding="utf-8",
+    )
+    sync_derivadas(temp_db, include_db_source=False, sheet_file=str(sheet))
+    window = SimpleNamespace(
+        db_path=temp_db,
+        cache_manager=_Cache(),
+        _data_uuid="dados-estaveis",
+        _data_revision=1,
+        df_completo=pd.DataFrame(),
+    )
+    monkeypatch.setattr(gui_details, "_get_series_for_ssa", lambda *_args: None)
+
+    first = gui_details._collect_derivadas_tree_data(window, "202600100")
+    assert first["direct_relation_rows"][0]["relation_raw_label"] == "Rotulo A"
+    with sqlite3.connect(temp_db) as writer:
+        writer.execute(
+            "UPDATE ssa_derivada_matrix SET relation_raw_label = ? "
+            "WHERE parent_ssa = ? AND child_ssa = ?",
+            ("Rotulo B", "202600100", "202600101"),
+        )
+
+    second = gui_details._collect_derivadas_tree_data(window, "202600100")
+    assert second["direct_relation_rows"][0]["relation_raw_label"] == "Rotulo B"
+
+
 @pytest.mark.parametrize("campo,novo", [("relation_type", 3), ("relation_raw_label", "Rotulo B")])
 def test_external_sync_invalidates_relation_metadata_cache(
     temp_db, tmp_path, monkeypatch, campo, novo
@@ -134,7 +165,7 @@ def test_build_derivadas_link_state_uses_index_without_dataframe_scan(monkeypatc
     assert status_by_ssa["202600101"] == "ASE"
 
 
-def test_collect_derivadas_tree_data_survives_db_mtime_change(
+def test_collect_derivadas_tree_data_invalidates_on_db_mtime_change(
     tmp_path, monkeypatch
 ) -> None:
     db_path = tmp_path / "ssa-cache.db"
@@ -173,7 +204,7 @@ def test_collect_derivadas_tree_data_survives_db_mtime_change(
     os.utime(db_path, (future, future))
     second = gui_details._collect_derivadas_tree_data(window, "202600100")
 
-    assert calls["load"] == 1
+    assert calls["load"] == 2
     assert second == first
 
     writer = sqlite3.connect(db_path)
@@ -190,7 +221,7 @@ def test_collect_derivadas_tree_data_survives_db_mtime_change(
 
         gui_details._collect_derivadas_tree_data(window, "202600100")
 
-        assert calls["load"] == 2
+        assert calls["load"] == 3
     finally:
         writer.close()
 
@@ -452,7 +483,8 @@ def test_details_db_signature_does_not_memoize_fallback_token(
     third = gui_details._get_details_db_signature(window)
 
     assert first[1][0] == "mtime"
-    assert second == (str(db_path), ("graph", "fp-1"))
+    assert second[0] == str(db_path)
+    assert second[1][:2] == ("graph", "fp-1")
     assert third == second
     assert len(calls) == 2
 

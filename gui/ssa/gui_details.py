@@ -656,7 +656,7 @@ def _get_details_db_signature(window=None):
     .db/-wal/-journal + revisao local: renders e selecoes repetidas sem
     mudanca de geracao nao reabrem o banco. Falha ao obter a geracao nao
     reutiliza assinatura - o token e consultado de novo. So o token
-    "graph" (fingerprint confirmado) e memoizado: o fallback "mtime"
+    "graph" (fingerprint e geracao confirmados) e memoizado: o fallback "mtime"
     tambem cobre falha transitoria de consulta e nao pode ser reutilizado
     por tempo indeterminado; bancos sem fingerprint nao ganham essa
     memoizacao.
@@ -679,11 +679,10 @@ def _get_details_db_signature(window=None):
         and memo[1] == revision_key
     ):
         return memo[2]
-    signature = (
-        db_path,
-        details_data_provider.get_derivadas_graph_cache_token(db_path),
-    )
-    token = signature[1]
+    token = details_data_provider.get_derivadas_graph_cache_token(db_path)
+    if generation is not None and token[0] == "graph":
+        token = (token[0], token[1], generation)
+    signature = (db_path, token)
     if (
         generation is not None
         and window is not None
