@@ -96,9 +96,10 @@ HEAD `dbf33d04`, base `639b5bf`. Os jobs GitHub Actions do HEAD falham por
 bloqueio de faturamento da conta (annotations em `quality-gates (core)` e
 `secret-scan`, check-runs 105338406808/105338405938) e seguem falhos como
 registro de infraestrutura - nao foram marcados como sucesso. `gh pr checks
---required` nao reporta checks obrigatorios, portanto nenhum workflow ou
-protecao precisou mudar. Faturamento nao e pre-requisito de merge quando a
-validacao local equivalente e suficiente nesta rodada.
+--required` nao reportou checks obrigatorios naquele momento; isso nao
+representa validacao remota. A validacao local cobre apenas os comandos executados
+abaixo e nao substitui o CI Linux, o dependency-review nem os prechecks
+remotos ausentes nesta rodada.
 
 Gates locais executados com os mesmos contratos do CI, em macOS arm64
 (Darwin arm64) com Python 3.13.12; o CI Linux do Actions nao foi executado

@@ -48,10 +48,13 @@ Guia ativo de diagnostico rapido para operacao diaria.
 1. Na proxima importacao, o app tenta restaurar automaticamente o snapshot
    valido mais recente de `data/historico_backups/` — nenhuma acao manual
    e necessaria. Snapshots com dados tem prioridade sobre vazios.
-2. Se o banco estava corrompido, o original fica preservado em
-   `data/historico_backups/<nome>.corrupt_<timestamp>.db` para analise.
-3. Se nao houver snapshot utilizavel, o schema e recriado vazio e os dados
-   voltam com a proxima reimportacao das planilhas-fonte.
+2. Se um banco corrompido for restaurado de um snapshot, o original fica
+   preservado em `data/historico_backups/<nome>.corrupt_<timestamp>.db` para
+   analise.
+3. Se o banco estiver ausente ou zerado e nao houver snapshot utilizavel,
+   o schema e criado vazio; os dados voltam com a reimportacao das
+   planilhas-fonte. Um banco corrompido sem snapshot valido bloqueia a
+   importacao e precisa de diagnostico antes de qualquer recriacao.
 4. Uma falha critica no processo de restauracao aborta a importacao e
    preserva o estado em disco — nao force recriacao manual antes de
    copiar os artefatos para analise.

@@ -14,6 +14,11 @@ package "Orquestracao" {
     [core/import_single_file.py] as IMPORT_ONE
 }
 
+package "Selecao GUI" {
+    [gui/ssa/main_window_system_controller.py] as SELECTION
+    [gui/workers/rescan_worker.py] as RESCAN_WORKER
+}
+
 package "Extracao canonica" {
     [extract_data_from_excel] as EXTRACT
     [Mappings estritos] as MAPPING
@@ -32,7 +37,9 @@ package "Caminhos especificos" {
     [Derivadas / read_report / simulacao] as ROBUST_USERS
 }
 
-MAIN --> ORCH
+MAIN --> SELECTION : validar selecao
+MAIN --> RESCAN_WORKER : iniciar rescan
+RESCAN_WORKER --> ORCH
 ORCH --> IMPORT_ONE
 SINGLE_CLI --> EXTRACT
 BACKFILL_CLI --> EXTRACT
