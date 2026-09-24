@@ -208,6 +208,10 @@ class CacheManager:
             except (TypeError, ValueError, OverflowError, RuntimeError, AttributeError) as exc:
                 logger.warning("Formatted cache size unavailable; entry not retained: %s", exc)
                 return
+            retained_frame = formatted_df.copy()
+            if df_hash in cache:
+                del cache[df_hash]
+                self._access_times["dataframes"].pop(df_hash, None)
             retained_bytes = sum(sizes.values())
             while cache and retained_bytes + entry_bytes > self.max_dataframe_bytes:
                 previous_count = len(cache)
@@ -215,7 +219,7 @@ class CacheManager:
                 if len(cache) >= previous_count:
                     raise RuntimeError("Formatted cache eviction did not remove an entry")
                 retained_bytes = sum(size for key, size in sizes.items() if key in cache)
-            self._put_in_cache("dataframes", df_hash, formatted_df.copy())
+            self._put_in_cache("dataframes", df_hash, retained_frame)
 
     def get_cached_config(self, config_name: str) -> Optional[Dict[str, Any]]:
         """

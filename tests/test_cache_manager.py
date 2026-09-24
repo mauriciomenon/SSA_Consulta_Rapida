@@ -51,6 +51,26 @@ def test_formatted_cache_does_not_hide_copy_failure(monkeypatch) -> None:
     assert cache.get_cached_formatted_df("frame") is None
 
 
+def test_formatted_cache_replacement_only_evicts_other_entries() -> None:
+    cache = CacheManager()
+    old = pd.DataFrame({"text": ["a" * 1000]})
+    other = pd.DataFrame({"text": ["b" * 1000]})
+    replacement = pd.DataFrame({"text": ["c" * 1600]})
+    def measure(frame):
+        return int(frame.memory_usage(deep=True).sum())
+    cache.max_dataframe_bytes = measure(replacement) + measure(other) - 1
+    cache.cache_formatted_df("current", old)
+    cache.cache_formatted_df("other", other)
+    before = cache.get_cache_stats()["evictions"]
+
+    cache.cache_formatted_df("current", replacement)
+
+    assert cache.get_cached_formatted_df("other") is None
+    pd.testing.assert_frame_equal(cache.get_cached_formatted_df("current"), replacement)
+    assert cache.get_cache_stats()["evictions"] - before == 1
+    assert sum(measure(frame) for frame in cache._caches["dataframes"].values()) <= cache.max_dataframe_bytes
+
+
 def test_formatted_cache_reports_inconsistent_eviction_state() -> None:
     cache = CacheManager()
     frame = pd.DataFrame({"text": ["x" * 1000]})
