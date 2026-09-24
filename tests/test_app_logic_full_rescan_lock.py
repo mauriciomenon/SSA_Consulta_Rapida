@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import subprocess
+import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -151,6 +155,8 @@ def test_promote_full_rescan_candidate_restores_primary_when_replace_fails(
     candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
     _build_value_db(primary_db, "primary_old")
     _build_value_db(candidate_db, "candidate_new")
+    with sqlite3.connect(primary_db) as conn:
+        assert conn.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
 
     def _replace_with_candidate_failure(source: str, target: str) -> None:
         if Path(source) == candidate_db and Path(target) == primary_db:
@@ -167,8 +173,107 @@ def test_promote_full_rescan_candidate_restores_primary_when_replace_fails(
 
     assert primary_db.exists()
     assert _read_value(primary_db) == "primary_old"
+    with sqlite3.connect(primary_db) as conn:
+        assert conn.execute("PRAGMA journal_mode").fetchone() == ("wal",)
     assert candidate_db.exists()
     assert _read_value(candidate_db) == "candidate_new"
+
+
+def test_promote_keeps_backup_when_journal_restore_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import core.import_database_rotation as rotation
+
+    primary_db = tmp_path / "ssas.db"
+    candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
+    _build_value_db(primary_db, "primary_old")
+    _build_value_db(candidate_db, "candidate_new")
+
+    def _fail(*_args):
+        raise PermissionError("simulated failure")
+
+    monkeypatch.setattr(rotation, "replace_sqlite_file_with_retry", _fail)
+    monkeypatch.setattr(rotation, "restore_journal_mode", _fail)
+
+    with pytest.raises(DatabaseError, match="backup em"):
+        promote_full_rescan_candidate(str(candidate_db), str(primary_db))
+
+    assert _read_value(primary_db) == "primary_old"
+    backups = list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
+    assert len(backups) == 1
+    assert _read_value(backups[0]) == "primary_old"
+
+
+def test_promote_keeps_primary_visible_until_atomic_replace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    primary_db = tmp_path / "ssas.db"
+    candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
+    _build_value_db(primary_db, "primary_old")
+    _build_value_db(candidate_db, "candidate_new")
+    real_replace = os.replace
+
+    def _check_replace(source: str, target: str) -> None:
+        if source == str(candidate_db) and target == str(primary_db):
+            assert primary_db.exists()
+            assert _read_value(primary_db) == "primary_old"
+        real_replace(source, target)
+
+    monkeypatch.setattr(os, "replace", _check_replace)
+
+    promote_full_rescan_candidate(str(candidate_db), str(primary_db))
+
+    assert _read_value(primary_db) == "candidate_new"
+
+
+def test_reader_never_sees_missing_primary_during_publish(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import core.import_database_rotation as rotation
+
+    primary_db = tmp_path / "ssas.db"
+    candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
+    _build_value_db(primary_db, "primary_old")
+    _build_value_db(candidate_db, "candidate_new")
+    at_publish = threading.Event()
+    allow_publish = threading.Event()
+    real_replace = rotation.replace_sqlite_file_with_retry
+
+    def _pause_before_publish(source: str, target: str) -> None:
+        if source == str(candidate_db) and target == str(primary_db):
+            at_publish.set()
+            assert allow_publish.wait(10)
+        real_replace(source, target)
+
+    monkeypatch.setattr(rotation, "replace_sqlite_file_with_retry", _pause_before_publish)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(
+            promote_full_rescan_candidate, str(candidate_db), str(primary_db)
+        )
+        assert at_publish.wait(10)
+        try:
+            reader = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sqlite3, sys\n"
+                    "from pathlib import Path\n"
+                    "uri = Path(sys.argv[1]).as_uri() + '?mode=rw'\n"
+                    "for _ in range(100):\n"
+                    " with sqlite3.connect(uri, uri=True) as conn:\n"
+                    "  assert conn.execute('SELECT value FROM ssa_table').fetchone() == ('primary_old',)\n",
+                    str(primary_db),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            assert reader.returncode == 0, reader.stderr
+        finally:
+            allow_publish.set()
+        future.result(timeout=10)
+    assert _read_value(primary_db) == "candidate_new"
 
 
 def test_rotate_restores_primary_and_sidecars_when_sidecar_move_fails(
@@ -460,33 +565,31 @@ def test_rotate_aborts_preserving_journal_when_checkpoint_fails(
     assert not list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
 
 
-@pytest.mark.parametrize("rollback_fails", [False, True])
-def test_promote_full_rescan_candidate_restores_sidecars_when_replace_fails(
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_promote_keeps_primary_when_replace_or_backup_cleanup_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    rollback_fails: bool,
+    cleanup_fails: bool,
 ) -> None:
-    """Falha na promocao restaura o backup com todos os sidecars movidos:
-    sem isso o primario recuperado perderia o -journal de recuperacao."""
+    """Falha na troca deixa o principal presente; backup so resta se
+    sua limpeza tambem falhar."""
     import core.import_database_rotation as rotation
 
     primary_db = tmp_path / "ssas.db"
     candidate_db = tmp_path / "ssas.db.full_rescan_candidate_20260101_000000_000001"
     _build_value_db(primary_db, "primary_old")
     _build_value_db(candidate_db, "candidate_new")
-    journal_sidecar = Path(f"{primary_db}-journal")
-    journal_sidecar.write_bytes(b"journal quente de crash")
+    real_unlink = os.unlink
 
-    # Sem o toque do SQLite, o journal artificial sobrevive ate a etapa
-    # de movimentacao e e arquivado junto com o backup.
-    monkeypatch.setattr(
-        rotation, "force_wal_checkpoint", lambda *args, **kwargs: None
-    )
+    def _unlink_with_optional_failure(path, *args, **kwargs):
+        if cleanup_fails and ".full_rescan_backup_" in str(path):
+            raise PermissionError("simulated backup cleanup failure")
+        return real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", _unlink_with_optional_failure)
 
     def _replace_with_candidate_failure(source: str, target: str) -> None:
-        if Path(target) == primary_db and (
-            Path(source) == candidate_db or rollback_fails
-        ):
+        if Path(target) == primary_db and Path(source) == candidate_db:
             raise PermissionError("simulated promotion failure")
         os.replace(source, target)
 
@@ -499,25 +602,13 @@ def test_promote_full_rescan_candidate_restores_sidecars_when_replace_fails(
     with pytest.raises(DatabaseError):
         promote_full_rescan_candidate(str(candidate_db), str(primary_db))
 
-    if rollback_fails:
-        assert not primary_db.exists()
-        backups = list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
-        principals = [p for p in backups if not p.name.endswith("-journal")]
-        assert len(principals) == 1
-        backup = principals[0]
-        assert Path(f"{backup}-journal").read_bytes() == b"journal quente de crash"
-        assert not journal_sidecar.exists()
-        assert (tmp_path / f".ssa-full-rescan-{backup.name}.json").exists()
-        assert _read_value(backup) == "primary_old"
-        assert _read_value(candidate_db) == "candidate_new"
-        return
     assert primary_db.exists()
-    # Antes de qualquer abertura do banco: o SQLite apagaria o journal
-    # invalido na primeira conexao.
-    assert journal_sidecar.exists()
-    assert journal_sidecar.read_bytes() == b"journal quente de crash"
     assert _read_value(primary_db) == "primary_old"
     assert candidate_db.exists()
     assert _read_value(candidate_db) == "candidate_new"
-    assert not list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
-    assert not list(tmp_path.glob(".ssa-full-rescan-ssas.db.full_rescan_backup_*.json"))
+    backups = list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
+    assert len(backups) == int(cleanup_fails)
+    if cleanup_fails:
+        assert _read_value(backups[0]) == "primary_old"
+    else:
+        assert not list(tmp_path.glob(".ssa-full-rescan-ssas.db.full_rescan_backup_*.json"))

@@ -5345,8 +5345,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         data_dir=os.path.join(project_root, "data"),
                     )
                 elif copy_result.get("ok") and copy_result.get("staged"):
-                    # Promocao: arquivamento do destino + os.replace sao
-                    # operacoes de metadados (rapididas) — seguras na UI.
+                    # Snapshot e promocao so apos checar request_id; um
+                    # resultado expirado nao pode trocar o banco selecionado.
                     copy_result = (
                         ssa_database_operations.commit_staged_database_copy(
                             str(copy_result["staged"]),

@@ -16,6 +16,10 @@ from filelock import Timeout
 
 from armazenamento.database import read_only_sqlite_uri
 from armazenamento.database_lock import database_writer_lock
+from armazenamento.database_publication import (
+    restore_journal_mode,
+    snapshot_database_for_replace,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +302,7 @@ def commit_staged_database_copy(staged: str, dest_str: str) -> dict[str, Any]:
             "Promocao recusada, escrita em curso no destino %s: %s", dest_str, exc
         )
         error = f"destino indisponivel para promocao (escrita em curso): {exc}"
-    except OSError as exc:
+    except (OSError, sqlite3.Error) as exc:
         # O try cobre aquisicao, corpo e liberacao do lock: nao da para
         # afirmar que o lock estava ocupado - reporta a causa real.
         logger.warning("Falha de IO na promocao para %s: %s", dest_str, exc)
@@ -329,15 +333,28 @@ def _commit_staged_database_copy_locked(
         }
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     archived_base: str | None = None
+    original_mode: str | None = None
     moved: list[tuple[str, str]] = []
-    # Arquiva o destino existente (sidecars antes do .db, como no
-    # emergency_import; sidecars orfaos tambem sao arquivados).
+    # O backup SQLite inclui commits no WAL sem retirar o principal do
+    # caminho. Sidecars orfaos so sao movidos quando nao existe .db.
     dest_sidecars = [dest] + [
         Path(f"{dest}{s}") for s in ("-wal", "-shm", "-journal")
     ]
     if any(p.exists() for p in dest_sidecars):
         archived_base = f"{dest}.bak-{timestamp}"
-        for suffix in ("-wal", "-shm", "-journal", ""):
+        if dest.exists():
+            try:
+                original_mode = snapshot_database_for_replace(str(dest), archived_base)
+            except (OSError, sqlite3.Error) as exc:
+                discard_staged_copy(staged)
+                return {
+                    "ok": False,
+                    "db_file": str(dest),
+                    "copied": False,
+                    "archived": None,
+                    "error": f"falha ao preparar backup do banco existente: {exc}",
+                }
+        for suffix in (() if dest.exists() else ("-wal", "-shm", "-journal")):
             stale = Path(f"{dest}{suffix}")
             if not stale.exists():
                 continue
@@ -368,6 +385,7 @@ def _commit_staged_database_copy_locked(
     try:
         os.replace(staged, dest)
     except OSError as exc:
+        restore_error: str | None = None
         for orig, archived_name in reversed(moved):
             try:
                 os.replace(archived_name, orig)
@@ -378,13 +396,24 @@ def _commit_staged_database_copy_locked(
                     archived_name,
                     restore_exc,
                 )
+        if original_mode is not None:
+            try:
+                restore_journal_mode(str(dest), original_mode)
+            except (OSError, sqlite3.Error) as restore_exc:
+                restore_error = f"; falha ao restaurar journal: {restore_exc}"
+        if archived_base and dest.exists() and restore_error is None:
+            try:
+                Path(archived_base).unlink(missing_ok=True)
+                archived_base = None
+            except OSError as cleanup_exc:
+                logger.error("Falha ao remover backup de promocao recusada: %s", cleanup_exc)
         discard_staged_copy(staged)
         return {
             "ok": False,
             "db_file": str(dest),
             "copied": False,
             "archived": archived_base,
-            "error": f"falha ao promover copia para {dest}: {exc}",
+            "error": f"falha ao promover copia para {dest}: {exc}{restore_error or ''}",
         }
 
     # O nome .copy-* deixou de existir; libera o registro de staging ativo.

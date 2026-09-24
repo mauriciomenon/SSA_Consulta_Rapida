@@ -530,6 +530,29 @@ def test_commit_staged_database_copy_uses_dest_writer_lock(
     assert locked_paths == [str(dest)]
 
 
+def test_commit_keeps_destination_visible_until_atomic_replace(tmp_path, monkeypatch):
+    import os
+
+    from gui.ssa import database_operations as ssa_ops
+
+    dest = _make_db(tmp_path / "x.db", ["antigo"])
+    staged = _make_db(tmp_path / "x.db.copy-20260101_000000_000000", ["novo"])
+    real_replace = os.replace
+
+    def _check_replace(source, target):
+        if str(source) == str(staged) and str(target) == str(dest):
+            assert dest.exists()
+            assert _read_rows(dest) == ["antigo"]
+        real_replace(source, target)
+
+    monkeypatch.setattr(os, "replace", _check_replace)
+
+    result = ssa_ops.commit_staged_database_copy(str(staged), str(dest))
+
+    assert result["ok"] is True
+    assert _read_rows(dest) == ["novo"]
+
+
 @pytest.mark.parametrize("suffix", ["-wal", "-shm", "-journal"])
 def test_commit_staged_database_copy_refuses_residual_sidecar(tmp_path, suffix):
     from gui.ssa import database_operations as ssa_ops
@@ -547,12 +570,10 @@ def test_commit_staged_database_copy_refuses_residual_sidecar(tmp_path, suffix):
     assert not Path(f"{staged}{suffix}").exists()
 
 
-def test_commit_staged_database_copy_restores_archive_on_sidecar_failure(
+def test_commit_staged_database_copy_keeps_primary_on_snapshot_failure(
     tmp_path, monkeypatch
 ):
-    """Falha ao arquivar um sidecar do destino reverte os moves ja feitos:
-    o banco antigo nao pode ficar sem o sidecar arquivado."""
-    import os
+    """Falha de snapshot nao remove o banco nem seus sidecars."""
 
     from gui.ssa import database_operations as ssa_ops
 
@@ -566,33 +587,23 @@ def test_commit_staged_database_copy_restores_archive_on_sidecar_failure(
     staged = data_dir / "x.db.copy-20260101_000000_000001"
     staged.write_bytes(b"staged")
 
-    real_replace = os.replace
+    def _fail_snapshot(_db, _backup):
+        raise PermissionError("simulated snapshot failure")
 
-    def _fail_on_journal(src, dst):
-        if str(src).endswith("-journal"):
-            raise PermissionError("simulated archive failure")
-        real_replace(src, dst)
-
-    monkeypatch.setattr(os, "replace", _fail_on_journal)
-    try:
-        result = ssa_ops.commit_staged_database_copy(str(staged), str(dest))
-    finally:
-        monkeypatch.setattr(os, "replace", real_replace)
+    monkeypatch.setattr(ssa_ops, "snapshot_database_for_replace", _fail_snapshot)
+    result = ssa_ops.commit_staged_database_copy(str(staged), str(dest))
 
     assert result["ok"] is False
-    # Antes de abrir o banco: o SQLite apagaria o journal invalido na
-    # primeira conexao.
     assert wal.exists() and wal.read_bytes() == b"wal antigo"
     assert journal.exists() and journal.read_bytes() == b"journal antigo"
     assert _read_rows(dest) == ["antigo"]
     assert not staged.exists()
 
 
-def test_commit_staged_database_copy_restores_all_on_promotion_failure(
+def test_commit_staged_database_copy_keeps_primary_on_promotion_failure(
     tmp_path, monkeypatch
 ):
-    """Falha na promocao do staging restaura banco e todos os sidecars
-    arquivados, e o staging e descartado."""
+    """Falha na troca deixa o banco anterior acessivel e descarta staging."""
     import os
 
     from gui.ssa import database_operations as ssa_ops
@@ -600,10 +611,8 @@ def test_commit_staged_database_copy_restores_all_on_promotion_failure(
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     dest = _make_db(data_dir / "x.db", ["antigo"])
-    wal = Path(f"{dest}-wal")
-    wal.write_bytes(b"wal antigo")
-    journal = Path(f"{dest}-journal")
-    journal.write_bytes(b"journal antigo")
+    with sqlite3.connect(dest) as conn:
+        assert conn.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
     staged = data_dir / "x.db.copy-20260101_000000_000002"
     staged.write_bytes(b"staged")
 
@@ -621,10 +630,30 @@ def test_commit_staged_database_copy_restores_all_on_promotion_failure(
         monkeypatch.setattr(os, "replace", real_replace)
 
     assert result["ok"] is False
-    assert result["archived"]
-    # Antes de abrir o banco: o SQLite apagaria o journal invalido na
-    # primeira conexao.
-    assert wal.exists() and wal.read_bytes() == b"wal antigo"
-    assert journal.exists() and journal.read_bytes() == b"journal antigo"
+    assert result["archived"] is None
     assert _read_rows(dest) == ["antigo"]
+    with sqlite3.connect(dest) as conn:
+        assert conn.execute("PRAGMA journal_mode").fetchone() == ("wal",)
     assert not staged.exists()
+
+
+def test_commit_keeps_backup_when_journal_restore_fails(tmp_path, monkeypatch):
+    import os
+
+    from gui.ssa import database_operations as ssa_ops
+
+    dest = _make_db(tmp_path / "x.db", ["antigo"])
+    staged = _make_db(tmp_path / "x.db.copy-20260101_000000_000000", ["novo"])
+
+    def _fail(*_args):
+        raise PermissionError("simulated failure")
+
+    monkeypatch.setattr(os, "replace", _fail)
+    monkeypatch.setattr(ssa_ops, "restore_journal_mode", _fail)
+
+    result = ssa_ops.commit_staged_database_copy(str(staged), str(dest))
+
+    assert result["ok"] is False
+    assert result["archived"] is not None
+    assert _read_rows(dest) == ["antigo"]
+    assert _read_rows(Path(result["archived"])) == ["antigo"]

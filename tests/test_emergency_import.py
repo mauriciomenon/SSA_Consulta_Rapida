@@ -31,9 +31,8 @@ def _make_db(path: Path) -> None:
         conn.close()
 
 
-def test_force_archives_journal_and_wal_sidecars(tmp_path: Path) -> None:
-    """Um -journal quente nao pode ficar no caminho: seria aplicado pelo
-    SQLite sobre o banco recem-criado."""
+def test_force_recovers_old_sidecars_before_atomic_publish(tmp_path: Path) -> None:
+    """Um sidecar antigo nao pode ser aplicado sobre o banco novo."""
     db = tmp_path / "x.db"
     _make_db(db)
     journal = Path(f"{db}-journal")
@@ -43,11 +42,14 @@ def test_force_archives_journal_and_wal_sidecars(tmp_path: Path) -> None:
 
     assert emergency_import(str(db), force=True) is True
 
-    names = {p.name for p in tmp_path.glob("x.db.bak-*")}
-    assert any(name.endswith("-journal") for name in names)
-    assert any(name.endswith("-wal") for name in names)
+    backups = [p for p in tmp_path.glob("x.db.bak-*") if p.suffix != ".db"]
+    assert len(backups) == 1
     assert not journal.exists()
     assert not wal.exists()
+    with closing(sqlite3.connect(backups[0])) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
     with sqlite3.connect(str(db)) as conn:
         rows = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()
     assert rows is not None
@@ -81,7 +83,7 @@ os._exit(0)
         check=True,
     )
     wal = Path(f"{target}-wal")
-    original_wal = wal.read_bytes()
+    assert wal.stat().st_size > 0
 
     assert emergency_import(str(alias), force=True) is True
 
@@ -92,7 +94,7 @@ os._exit(0)
         if not path.name.endswith(("-wal", "-shm", "-journal"))
     )
     assert backup.is_file() and not backup.is_symlink()
-    assert Path(f"{backup}-wal").read_bytes() == original_wal
+    assert not Path(f"{backup}-wal").exists()
     assert not list(tmp_path.glob("alias.db.bak-*"))
     with closing(sqlite3.connect(backup)) as conn:
         assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
@@ -102,31 +104,58 @@ os._exit(0)
         assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (2,)
 
 
-def test_force_rolls_back_moved_sidecars_when_db_move_fails(
+def test_force_keeps_primary_when_snapshot_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Se o move do .db falha apos mover sidecars, os moves parciais sao
-    revertidos — o banco antigo nao pode ficar sem seu WAL."""
+    """Falha de snapshot nao retira nem substitui o banco principal."""
     db = tmp_path / "x.db"
     _make_db(db)
     wal = Path(f"{db}-wal")
     wal.write_bytes(b"wal pendente")
 
-    real_replace = os.replace
+    def _fail_snapshot(_db, _backup):
+        raise OSError("simulated snapshot failure")
 
-    def _fail_on_db_move(src, dst):
-        if src == str(db):
-            raise OSError("simulated archive failure")
-        return real_replace(src, dst)
-
-    monkeypatch.setattr(os, "replace", _fail_on_db_move)
+    monkeypatch.setattr(_module, "snapshot_database_for_replace", _fail_snapshot)
 
     with pytest.raises(OSError):
         emergency_import(str(db), force=True)
 
     assert db.exists()
     assert wal.exists() and wal.read_bytes() == b"wal pendente"
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
     assert not list(tmp_path.glob("x.db.bak-*"))
+
+
+def test_force_refuses_candidate_sidecar_before_touching_primary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = tmp_path / "x.db"
+    _make_db(db)
+    real_lexists = os.path.lexists
+    injected = False
+
+    def _inject_residual_sidecar(path):
+        nonlocal injected
+        if not injected and ".x.db.tmp-" in str(path) and str(path).endswith("-wal"):
+            Path(path).write_bytes(b"residual")
+            injected = True
+        return real_lexists(path)
+
+    monkeypatch.setattr(_module.os.path, "lexists", _inject_residual_sidecar)
+
+    with pytest.raises(OSError, match="DB candidato manteve sidecar"):
+        emergency_import(str(db), force=True)
+
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
+    assert not list(tmp_path.glob("x.db.bak-*"))
+    assert not list(tmp_path.glob(".x.db.tmp-*"))
 
 
 def test_force_refuses_concurrent_project_writer(tmp_path: Path) -> None:
@@ -184,13 +213,36 @@ def test_force_keeps_original_when_candidate_creation_fails(
     assert not list(tmp_path.glob(".x.db.tmp-*"))
 
 
+def test_force_keeps_primary_visible_until_atomic_replace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = tmp_path / "x.db"
+    _make_db(db)
+    real_replace = os.replace
+
+    def _check_replace(src, dst):
+        if dst == str(db) and Path(src).name.startswith(".x.db.tmp-"):
+            assert db.exists()
+            with closing(sqlite3.connect(db)) as conn:
+                assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+                    ("202600001",)
+                ]
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", _check_replace)
+
+    assert emergency_import(str(db), force=True) is True
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (2,)
+
+
 def test_force_restores_original_when_candidate_publish_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     db = tmp_path / "x.db"
     _make_db(db)
-    wal = Path(f"{db}-wal")
-    wal.write_bytes(b"wal pendente")
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
     real_replace = os.replace
 
     def _fail_candidate_publish(src, dst):
@@ -204,9 +256,42 @@ def test_force_restores_original_when_candidate_publish_fails(
         emergency_import(str(db), force=True)
 
     assert db.exists()
-    assert wal.read_bytes() == b"wal pendente"
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
+        assert conn.execute("PRAGMA journal_mode").fetchone() == ("wal",)
     assert not list(tmp_path.glob("x.db.bak-*"))
     assert not list(tmp_path.glob(".x.db.tmp-*"))
+
+
+def test_force_keeps_backup_when_journal_restore_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = tmp_path / "x.db"
+    _make_db(db)
+    real_replace = os.replace
+
+    def _fail_publish(src, dst):
+        if dst == str(db):
+            raise PermissionError("simulated publish failure")
+        return real_replace(src, dst)
+
+    def _fail_restore(*_args):
+        raise PermissionError("simulated journal failure")
+
+    monkeypatch.setattr(os, "replace", _fail_publish)
+    monkeypatch.setattr(_module, "restore_journal_mode", _fail_restore)
+
+    with pytest.raises(OSError, match="Rollback incompleto"):
+        emergency_import(str(db), force=True)
+
+    backups = list(tmp_path.glob("x.db.bak-*"))
+    assert len(backups) == 1
+    with closing(sqlite3.connect(backups[0])) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
 
 
 def test_force_preserves_preexisting_backup_name(

@@ -14,6 +14,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from armazenamento.database_lock import database_writer_lock
+from armazenamento.database_publication import (
+    restore_journal_mode,
+    snapshot_database_for_replace,
+)
 
 
 def create_basic_table(cursor):
@@ -239,20 +243,27 @@ def _create_and_publish(db_path: str, candidate_path: str, existed: bool) -> boo
     finally:
         conn.close()
 
-    suffixes = ("-wal", "-shm", "-journal", "")
+    suffixes = ("-wal", "-shm", "-journal")
+    if any(os.path.lexists(candidate_path + suffix) for suffix in suffixes):
+        raise OSError("DB candidato manteve sidecar SQLite apos fechamento")
     moved: list[tuple[str, str]] = []
+    backup_created = False
+    original_mode: str | None = None
     backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
     try:
-        if any(os.path.lexists(backup_path + suffix) for suffix in suffixes):
+        if any(os.path.lexists(backup_path + suffix) for suffix in (*suffixes, "")):
             raise FileExistsError(f"Backup de emergencia ja existe: {backup_path}")
-        for suffix in suffixes:
+        if existed:
+            original_mode = snapshot_database_for_replace(db_path, backup_path)
+            backup_created = True
+        for suffix in (() if existed else suffixes):
             src = db_path + suffix
             if os.path.lexists(src):
                 dst = backup_path + suffix
                 os.replace(src, dst)
                 moved.append((src, dst))
         os.replace(candidate_path, db_path)
-    except OSError as exc:
+    except (OSError, sqlite3.Error) as exc:
         rollback_errors: list[str] = []
         for src, dst in reversed(moved):
             if os.path.exists(src):
@@ -262,6 +273,23 @@ def _create_and_publish(db_path: str, candidate_path: str, existed: bool) -> boo
                 os.replace(dst, src)
             except OSError as rollback_exc:
                 rollback_errors.append(f"{dst}: {rollback_exc}")
+        if original_mode is not None:
+            try:
+                restore_journal_mode(db_path, original_mode)
+            except (OSError, sqlite3.Error) as restore_exc:
+                rollback_errors.append(f"journal: {restore_exc}")
+        if (
+            backup_created
+            and not rollback_errors
+            and os.path.exists(db_path)
+            and os.path.exists(backup_path)
+        ):
+            try:
+                os.unlink(backup_path)
+            except OSError as cleanup_exc:
+                rollback_errors.append(
+                    f"{backup_path}: backup preservado apos falha de limpeza: {cleanup_exc}"
+                )
         detail = (
             f" Rollback incompleto: {'; '.join(rollback_errors)}"
             if rollback_errors
@@ -269,7 +297,7 @@ def _create_and_publish(db_path: str, candidate_path: str, existed: bool) -> boo
         )
         raise OSError(f"Falha ao publicar banco de teste: {exc}.{detail}") from exc
 
-    if moved:
+    if moved or existed:
         label = "Banco existente" if existed else "Sidecars orfaos"
         print(f"{label} arquivado(s) em {backup_path}")
     print(f"Banco criado com sucesso! {count} registros inseridos.")

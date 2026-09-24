@@ -13,6 +13,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 from armazenamento.database_lock import database_writer_lock
+from armazenamento.database_publication import (
+    restore_journal_mode,
+    snapshot_database_for_replace,
+)
 from core.import_errors import DatabaseError
 
 logger = logging.getLogger(__name__)
@@ -206,46 +210,39 @@ def _promote_full_rescan_candidate_locked(
         cleanup_sidecars=True,
     )
 
-    backup_path = rotate_database_for_full_rescan(primary_db_path)
+    backup_path: str | None = None
+    original_mode: str | None = None
+    if os.path.exists(primary_db_path):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        backup_path = f"{primary_db_path}.full_rescan_backup_{timestamp}"
+        try:
+            original_mode = snapshot_database_for_replace(primary_db_path, backup_path)
+        except (OSError, sqlite3.Error) as exc:
+            raise DatabaseError(
+                f"Falha ao preparar backup antes da promocao: {exc}"
+            ) from exc
+        register_full_rescan_artifact(primary_db_path, backup_path)
     try:
         replace_sqlite_file_with_retry(candidate_db_path, primary_db_path)
     except OSError as exc:
-        if backup_path and os.path.exists(backup_path):
-            rollback_errors: list[str] = []
+        cleanup_errors: list[str] = []
+        if original_mode is not None:
             try:
-                replace_sqlite_file_with_retry(backup_path, primary_db_path)
-                logger.error(
-                    "Promocao do DB candidato falhou; backup restaurado em: %s",
-                    os.path.basename(primary_db_path),
-                )
-            except OSError as restore_exc:
-                raise DatabaseError(
-                    "Falha ao promover DB candidato e ao restaurar backup; "
-                    f"backup e sidecars preservados em {backup_path}: "
-                    f"promocao={exc}; restauracao={restore_exc}"
-                ) from exc
-            # Os sidecars foram movidos junto com o backup na rotacao; sem
-            # restaura-los o primario recuperado perde o journal/WAL que a
-            # rotacao arquivou.
-            for suffix in ("-wal", "-shm", "-journal"):
-                sidecar_backup = f"{backup_path}{suffix}"
-                if not os.path.exists(sidecar_backup):
-                    continue
-                try:
-                    replace_sqlite_file_with_retry(
-                        sidecar_backup, f"{primary_db_path}{suffix}"
-                    )
-                except OSError as restore_exc:
-                    rollback_errors.append(
-                        f"sidecar {os.path.basename(sidecar_backup)}: {restore_exc}"
-                    )
-            if rollback_errors:
-                raise DatabaseError(
-                    "Falha ao promover DB candidato e ao restaurar backup "
-                    "para o caminho principal: "
-                    f"promocao={exc}; restauracao={'; '.join(rollback_errors)}"
-                ) from exc
-            discard_full_rescan_artifact_marker(primary_db_path, backup_path)
+                restore_journal_mode(primary_db_path, original_mode)
+            except (OSError, sqlite3.Error) as restore_exc:
+                cleanup_errors.append(f"journal: {restore_exc}")
+        if backup_path and not cleanup_errors:
+            try:
+                os.unlink(backup_path)
+                discard_full_rescan_artifact_marker(primary_db_path, backup_path)
+            except OSError as cleanup_exc:
+                cleanup_errors.append(f"backup {backup_path}: {cleanup_exc}")
+        if cleanup_errors:
+            raise DatabaseError(
+                "Falha ao promover DB candidato; principal preservado com "
+                f"limpeza incompleta; backup em {backup_path}: "
+                f"promocao={exc}; {'; '.join(cleanup_errors)}"
+            ) from exc
         raise DatabaseError(
             "Falha ao promover DB candidato para o caminho principal: "
             f"{exc}"
