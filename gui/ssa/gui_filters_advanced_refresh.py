@@ -93,17 +93,21 @@ def collect_advanced_filter_option_values(
     df: pd.DataFrame,
     *,
     sort_sectors: Callable[[list[str]], list[str]],
+    cancelled: Callable[[], bool] | None = None,
 ) -> AdvancedFilterOptionValues:
+    _raise_if_cancelled(cancelled)
     emissao_years: list[int] = []
     if "data_cadastro" in df.columns:
         emissao_years = collect_years_from_dates(df["data_cadastro"])
     elif "semana_cadastro" in df.columns:
         emissao_years = collect_years_from_weeks(df["semana_cadastro"])
 
+    _raise_if_cancelled(cancelled)
     execucao_years: list[int] = []
     if "semana_executada" in df.columns:
         execucao_years = collect_years_from_weeks(df["semana_executada"])
 
+    _raise_if_cancelled(cancelled)
     reprog_vals: list[int] = []
     if "num_reprogramacoes" in df.columns:
         try:
@@ -114,16 +118,32 @@ def collect_advanced_filter_option_values(
         except Exception:
             reprog_vals = []
 
+    _raise_if_cancelled(cancelled)
+    exec_vals = _sort_sector_values(_unique_sorted(df, "setor_executor"), sort_sectors)
+    _raise_if_cancelled(cancelled)
+    emis_vals = _sort_sector_values(_unique_sorted(df, "setor_emissor"), sort_sectors)
+    _raise_if_cancelled(cancelled)
+    status_vals = _unique_sorted(df, "situacao")
+    _raise_if_cancelled(cancelled)
+    prio_emissao_vals = _unique_sorted(df, "grau_prioridade_emissao")
+    _raise_if_cancelled(cancelled)
+    prio_planejamento_vals = _unique_sorted(df, "grau_prioridade_planejamento")
+    _raise_if_cancelled(cancelled)
     return AdvancedFilterOptionValues(
-        exec_vals=_sort_sector_values(_unique_sorted(df, "setor_executor"), sort_sectors),
-        emis_vals=_sort_sector_values(_unique_sorted(df, "setor_emissor"), sort_sectors),
-        status_vals=_unique_sorted(df, "situacao"),
+        exec_vals=exec_vals,
+        emis_vals=emis_vals,
+        status_vals=status_vals,
         emissao_years=emissao_years,
         execucao_years=execucao_years,
-        prio_emissao_vals=_unique_sorted(df, "grau_prioridade_emissao"),
-        prio_planejamento_vals=_unique_sorted(df, "grau_prioridade_planejamento"),
+        prio_emissao_vals=prio_emissao_vals,
+        prio_planejamento_vals=prio_planejamento_vals,
         reprog_vals=reprog_vals,
     )
+
+
+def _raise_if_cancelled(cancelled: Callable[[], bool] | None) -> None:
+    if cancelled is not None and cancelled():
+        raise InterruptedError("Calculo das opcoes avancadas cancelado")
 
 
 def get_cached_advanced_filter_option_values(
@@ -133,14 +153,19 @@ def get_cached_advanced_filter_option_values(
     data_load_token: Any,
     sort_sectors: Callable[[list[str]], list[str]],
     force_refresh: bool = False,
+    cancelled: Callable[[], bool] | None = None,
 ) -> AdvancedFilterOptionValues:
+    _raise_if_cancelled(cancelled)
     df_key = build_advanced_values_cache_key(df, data_load_token)
     cached_values = cache.get("values")
     if not force_refresh and cache.get("df_key") == df_key and isinstance(
         cached_values, AdvancedFilterOptionValues
     ):
         return cached_values
-    values = collect_advanced_filter_option_values(df, sort_sectors=sort_sectors)
+    values = collect_advanced_filter_option_values(
+        df, sort_sectors=sort_sectors, cancelled=cancelled
+    )
+    _raise_if_cancelled(cancelled)
     cache.clear()
     cache["df_id"] = id(df)
     cache["df_key"] = df_key
@@ -160,4 +185,5 @@ def get_cached_advanced_filter_option_values(
     except Exception as exc:
         cache.clear()
         logger.warning("Advanced options cache size unavailable; payload not retained: %s", exc)
+    _raise_if_cancelled(cancelled)
     return values

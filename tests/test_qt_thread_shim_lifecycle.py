@@ -7,8 +7,8 @@ import textwrap
 import pytest
 
 
-@pytest.mark.parametrize("falha", [False, True])
-def test_fallback_worker_libera_lifecycle_sem_pyqt(falha):
+@pytest.mark.parametrize("modo", ["sucesso", "falha", "cancelado"])
+def test_fallback_worker_libera_lifecycle_sem_pyqt(modo):
     script = textwrap.dedent(
         """
         import sys
@@ -25,18 +25,20 @@ def test_fallback_worker_libera_lifecycle_sem_pyqt(falha):
         importlib.reload(advanced)
         AdvancedOptionsWorker = advanced.AdvancedOptionsWorker
 
-        falha = sys.argv[1] == 'True'
+        modo = sys.argv[1]
         estado = SimpleNamespace(worker=None, ativo=True)
         eventos = []
         erros = []
         concluido = threading.Event()
 
         def calcular(*args, **kwargs):
-            if falha:
+            if modo == 'falha':
                 raise ValueError('falha prevista')
             return 'valores'
 
         worker = AdvancedOptionsWorker(pd.DataFrame(), {}, {}, 1, sorted, calcular)
+        if modo == 'cancelado':
+            worker.cancel()
         estado.worker = worker
         worker.ui_state_ready.connect(lambda state: eventos.append(state.values))
         worker.error_occurred.connect(erros.append)
@@ -54,12 +56,12 @@ def test_fallback_worker_libera_lifecycle_sem_pyqt(falha):
         assert worker.wait(5000)
         assert estado.worker is None
         assert not estado.ativo
-        assert eventos == ([] if falha else ['valores'])
-        assert erros == (['falha prevista'] if falha else [])
+        assert eventos == (['valores'] if modo == 'sucesso' else [])
+        assert erros == (['falha prevista'] if modo == 'falha' else [])
         """
     )
     result = subprocess.run(
-        [sys.executable, "-c", script, str(falha)],
+        [sys.executable, "-c", script, modo],
         capture_output=True,
         text=True,
         timeout=15,

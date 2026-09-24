@@ -8,6 +8,7 @@ blocks the GUI event loop on large datasets. This worker offloads that work.
 from __future__ import annotations
 
 import logging
+from threading import Event
 from typing import Any, Callable
 
 import pandas as pd
@@ -57,21 +58,41 @@ class AdvancedOptionsWorker(QThread):
         self._sort_sectors = sort_sectors
         self._get_cached_fn = get_cached_fn
         self._force_refresh = force_refresh
+        self._cancel_requested = Event()
 
     def cache_snapshot(self) -> dict[str, Any]:
         return dict(self._cache_snapshot)
 
+    def cancel(self) -> None:
+        self._cancel_requested.set()
+        request_interruption = getattr(self, "requestInterruption", None)
+        if callable(request_interruption):
+            request_interruption()
+
+    def _is_cancelled(self) -> bool:
+        is_interrupted = getattr(self, "isInterruptionRequested", None)
+        return self._cancel_requested.is_set() or (
+            callable(is_interrupted) and is_interrupted()
+        )
+
     def run(self) -> None:
         try:
+            if self._is_cancelled():
+                return
             values = self._get_cached_fn(
                 self._cache_snapshot,
                 self._df_snapshot,
                 data_load_token=self._data_load_token,
                 sort_sectors=self._sort_sectors,
                 force_refresh=self._force_refresh,
+                cancelled=self._is_cancelled,
             )
+            if self._is_cancelled():
+                return
             ui_state = AdvancedFilterUIState(filters=self._filters, values=values)
             self.ui_state_ready.emit(ui_state)
+        except InterruptedError:
+            return
         except Exception as exc:
             logger.debug("AdvancedOptionsWorker falhou: %s", exc)
             self.error_occurred.emit(str(exc))
