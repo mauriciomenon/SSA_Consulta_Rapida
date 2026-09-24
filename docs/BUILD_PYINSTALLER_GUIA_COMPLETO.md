@@ -1,11 +1,11 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (2026-09-10, v4.50)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
-- Sync deste guia: `2026-09-10`.
-- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
+- Sync deste guia: `2026-09-24`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Caminho operacional principal:
-  - release Windows v4.50: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`
+  - build Windows da candidata local v4.51: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`
   - build interno: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`
   - distribuicao: `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
@@ -19,7 +19,7 @@
 - `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
 - Debian deve executar scripts `.sh` em clone Linux nativo; nao compartilhar checkout/venv com Windows.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A tag v4.50 publica fontes. Consulte a validacao local de Windows ARM abaixo para os binarios de desenvolvimento.
+- A tag v4.50 publicou fontes. Os binarios de desenvolvimento descritos abaixo nao validam a candidata local v4.51.
 
 ### Windows 11 ARM com executaveis AMD64
 

@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Candidata local v4.51 - 2026-09-24
+
+- Consolida correcoes locais de importacao, cancelamento, armazenamento e GUI ainda em validacao.
+- Registra evidencia, riscos e condicoes de promocao em `RELEASE_NOTES_v4.51.md`.
+- Sem tag, push, CI remoto ou binarios concluidos para esta candidata.
+
 ## [v4.50] - 2026-09-08
 
 - Corrige paridade de importacao, isolamento de resultados e recarga apos gravacao parcial.

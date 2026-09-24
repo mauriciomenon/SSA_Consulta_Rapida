@@ -1,9 +1,9 @@
 # Sistema de Build - Launchers
 
-## CURRENT TRUTH (2026-09-08, v4.50)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
 - Pipeline oficial de build: `launchers/build_multiplatform.py`.
-- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Plataformas ativas:
   - `windows_amd64`
   - `macos_arm64`
@@ -12,7 +12,7 @@
 - Integracao de distribuicao: `scripts/create_distribution.py`.
 - Referencias antigas (`windows_x64`, `windows_x86`, `macos_x64`, `linux_x64`) sao historicas.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
 
 ## Inicio Rapido
 

@@ -1,16 +1,16 @@
 # README – PIPELINE DE BUILD AUTOMATIZADO (RASCUNHO)
 
-## CURRENT TRUTH (2026-09-08, v4.50)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
 - Branch fonte local: `dev`.
-- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Artefatos antigos versionados sao ruido historico/local e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-- Fluxo desta publicacao: publicar fontes `v4.50` no GitHub e GitLab pelos destinos configurados. Builds futuros exigem artefatos novos e smoke funcional antes da publicacao.
+- Fluxo da candidata local `v4.51`: validar codigo, documentacao e artefatos antes de decidir a publicacao. Nenhum envio foi feito nesta rodada.
 - Windows usa `release.ps1` em clone nativo; Debian/macOS usam `release.sh` em clones nativos dos respectivos hosts.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
 
 ## HISTORICAL SNAPSHOT 2026-05-04 01h14
 

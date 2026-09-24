@@ -1,5 +1,10 @@
 # HISTORICO DE RELEASES
 
+## CANDIDATA LOCAL v4.51 - 2026-09-24
+
+Correcoes locais em validacao. Nao ha tag, push, CI remoto ou binarios concluidos para esta candidata.
+Notas e condicoes de promocao: [RELEASE_NOTES_v4.51.md](../RELEASE_NOTES_v4.51.md).
+
 ## RELEASE v4.50 - 2026-09-08
 
 Release de fontes com correcoes de importacao, integridade, cancelamento e limites de memoria dos caches.

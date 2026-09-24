@@ -1,14 +1,14 @@
 # Solucoes para Problemas de Ambiente - Build Systems
 
-## CURRENT TRUTH (2026-09-08, v4.50)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- Release ativa: `v4.50`; tag anterior: `v4.46`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
-- Build futuro: gerar artefatos da versao solicitada no clone nativo, a partir do ref confirmado; nenhum build novo integra esta rodada.
+- Para a candidata v4.51, gerar artefatos no clone nativo a partir do mesmo commit confirmado para cada alvo; registrar o resultado real de cada build.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
 
 ## HISTORICAL SNAPSHOT 2025-11-14
 

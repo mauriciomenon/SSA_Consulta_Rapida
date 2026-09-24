@@ -1,13 +1,13 @@
 # Build 3x3 Runbook (Windows Linux macOS x PyInstaller Nuitka PyOxidizer)
 
-## CURRENT TRUTH (2026-09-08, v4.50)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- Release ativa: `v4.50`; tag anterior: `v4.46`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Este runbook detalha execucao 3x3; nao deve duplicar a matriz completa de release.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
 
 ## Objetivo
 
@@ -208,12 +208,15 @@ if (-not $CLI_BIN) {
 
 ### Windows metadata (PowerShell)
 
+Executar somente depois de gerar os binarios da versao local.
+
 ```powershell
+$APP_VERSION = (Get-Content -Raw .\config\version.json | ConvertFrom-Json).version_short
 $EXES = @(
-  ".\launchers\dist\windows_amd64\SSA_CLI_v4.50_windows_amd64\SSA_CLI_v4.50_windows_amd64.exe",
-  ".\launchers\dist\windows_amd64\SSA_GUI_v4.50_windows_amd64\SSA_GUI_v4.50_windows_amd64.exe",
-  ".\builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v4.50_windows_amd64.exe",
-  ".\builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v4.50_windows_amd64.exe",
+  ".\launchers\dist\windows_amd64\SSA_CLI_v${APP_VERSION}_windows_amd64\SSA_CLI_v${APP_VERSION}_windows_amd64.exe",
+  ".\launchers\dist\windows_amd64\SSA_GUI_v${APP_VERSION}_windows_amd64\SSA_GUI_v${APP_VERSION}_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v${APP_VERSION}_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v${APP_VERSION}_windows_amd64.exe",
   ".\builds\pyoxidizer\windows_amd64\SSA_Consulta_Rapida.exe"
 )
 $ROWS = @()

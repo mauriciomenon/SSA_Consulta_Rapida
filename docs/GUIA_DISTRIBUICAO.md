@@ -1,17 +1,17 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH (2026-09-08, v4.50)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
 - Branch fonte local: `dev`.
-- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
-- Windows v4.50: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- Comando para build Windows da candidata local v4.51, ainda sem artefato validado: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
 - Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
 - Nao compartilhar checkout ou venv entre Windows e WSL/Linux. Validacao Linux exige clone Linux proprio; build Windows usa ferramentas Windows nativas.
-- Artefatos anteriores a `v4.50` seguem historicos e nao devem ser usados para publicacao final.
+- Artefatos `v4.50` e anteriores seguem historicos e nao validam a candidata `v4.51`.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
 
 ## HISTORICAL SNAPSHOT 2026-06-11 11h
 
@@ -48,7 +48,7 @@
 Use estes comandos como entrada primaria. Os scripts em `dev_env/build/` sao
 implementacao interna e devem ser usados diretamente apenas para diagnostico.
 
-Windows AMD64 v4.50, PyInstaller com banco runtime e instalador:
+Windows AMD64, comando para a candidata local v4.51, PyInstaller com banco runtime e instalador:
 
 ```powershell
 .\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes

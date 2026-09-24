@@ -1,9 +1,9 @@
 # Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
 
-## CURRENT TRUTH (2026-09-08, v4.50)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
-- Sync deste guia: `2026-09-08`.
-- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
+- Sync deste guia: `2026-09-24`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
   - `windows_amd64`
   - `debian_amd64` (clone Linux nativo)
@@ -24,7 +24,7 @@
   - PyOxidizer 0.24.0 usa runtime Python 3.10 embedado.
   - O toolchain e processo do projeto continuam padronizados em `uv run --python 3.13 ...`.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
 
 ## HISTORICAL SNAPSHOT NOTICE
 

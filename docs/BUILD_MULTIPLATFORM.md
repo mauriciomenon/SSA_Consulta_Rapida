@@ -2,10 +2,10 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (2026-09-08, v4.50)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
-- Sync deste guia: `2026-09-08`.
-- Release estavel ativa: `v4.50`; tag anterior: `v4.46`.
+- Sync deste guia: `2026-09-24`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Artefatos `v4.43` citados abaixo sao exemplos historicos de nomenclatura, nao artefatos atuais para publicacao.
 - Runbook operacional 3x3:
   - `docs/BUILD_3X3_RUNBOOK.md`
@@ -15,7 +15,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
   3. distribuicao/report com scripts em `dev_env/build/` e `scripts/create_distribution.py`
 - Cada plataforma usa clone, venv e processo nativos do proprio host. Nao usar checkout Windows montado no WSL.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
-- Comando canonico da v4.50 no Windows: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- Comando Windows para build da candidata local v4.51: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
 - Fonte da matriz de release: `dev_env/build/release_targets.json`.
 - Matriz ativa:
   - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
@@ -41,7 +41,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 - `release.sh --target all --ssh-host ... --ssh-repo ...` executa macOS local quando em Darwin e chama Debian AMD64 + Debian ARM64 no remoto configurado.
 - `release.sh --target all --dry-run --allow-missing-remote` permite validar macOS local sem host Debian.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
 
 ## Local de saida e staging
 

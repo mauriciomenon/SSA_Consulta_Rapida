@@ -1,11 +1,11 @@
 # Indice da documentacao
 
-Versao de referencia: **4.50**.
+Versao de referencia local: **candidata 4.51**. Ultima release publicada: **v4.50**.
 
 ## Uso
 
 - [Visao geral](../README.md)
-- [Notas da versao](RELEASE_NOTES_v4.50.md)
+- [Notas da candidata](../RELEASE_NOTES_v4.51.md)
 - [Comandos rapidos](COMANDOS_RAPIDOS.md)
 - [Sincronizacao e exportacao de derivadas: JSON, CSV e TSV](DERIVADAS_SYNC_RUNBOOK.md)
 - [Instalacao e migracao](GUIA_MIGRACAO_NOVA_INSTALACAO.md)
