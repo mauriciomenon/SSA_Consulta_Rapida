@@ -6,7 +6,9 @@ from threading import Event
 
 import pandas as pd
 import pytest
+from PyQt6.QtCore import QThread
 from PyQt6.QtTest import QSignalSpy
+from PyQt6.QtWidgets import QApplication, QLabel
 
 from gui.ssa import list_export_controller
 from gui.ssa.list_exporter import (
@@ -157,10 +159,21 @@ def test_export_controller_uses_stable_dataframe_snapshot(tmp_path):
     state = list_export_controller.ListExportState()
     state_during_custom_signal = []
 
+    class _StatusLabel:
+        def __init__(self) -> None:
+            self.value = ""
+
+        def setText(self, value) -> None:
+            self.value = value
+
+        def text(self) -> str:
+            return self.value
+
     class _Window:
         def __init__(self) -> None:
             self.df_exibido = dataframe
             self.visible_columns = ["numero_ssa", "situacao"]
+            self.status_label = _StatusLabel()
 
     class _Dialog:
         @staticmethod
@@ -176,7 +189,7 @@ def test_export_controller_uses_stable_dataframe_snapshot(tmp_path):
         def __init__(self) -> None:
             self._callbacks = []
 
-        def connect(self, callback) -> None:
+        def connect(self, callback, *_args, **_kwargs) -> None:
             self._callbacks.append(callback)
 
         def emit(self, *args) -> None:
@@ -220,10 +233,118 @@ def test_export_controller_uses_stable_dataframe_snapshot(tmp_path):
     assert state.running is False
     assert state.worker is None
     assert state_during_custom_signal == [True]
+    assert window.status_label.text() == (
+        f"Status: Lista exportada: 1 linhas em {out_path}."
+    )
     assert out_path.read_text(encoding="utf-8").splitlines() == [
         "numero_ssa\tsituacao",
         "202600001\tASE",
     ]
+
+
+@pytest.mark.parametrize(
+    ("failure_stage", "expected_message"),
+    [
+        ("start", "Falha ao iniciar a exportacao."),
+        ("worker", "Falha ao exportar a lista."),
+    ],
+)
+def test_export_controller_reports_failure_and_clears_state(
+    tmp_path, failure_stage, expected_message
+):
+    output = tmp_path / "lista.tsv"
+    messages = []
+    state = list_export_controller.ListExportState()
+
+    class _Window:
+        df_exibido = pd.DataFrame({"numero_ssa": [1]})
+        visible_columns = ["numero_ssa"]
+
+    class _Dialog:
+        @staticmethod
+        def getSaveFileName(*_args, **_kwargs):
+            return str(output), ""
+
+    class _MessageBox:
+        @staticmethod
+        def information(_window, title, message):
+            messages.append((title, message))
+
+    class _Signal:
+        def __init__(self):
+            self.callbacks = []
+
+        def connect(self, callback, *_args, **_kwargs):
+            self.callbacks.append(callback)
+
+        def emit(self, *args):
+            for callback in self.callbacks:
+                callback(*args)
+
+    class _Worker:
+        def __init__(self, *_args):
+            self.export_finished = _Signal()
+            self.error_occurred = _Signal()
+            self.finished = _Signal()
+
+        def start(self):
+            if failure_stage == "start":
+                raise RuntimeError("worker start failed")
+            self.error_occurred.emit("disk full")
+            self.finished.emit()
+
+    list_export_controller.export_current_list_tsv(
+        _Window(), state, file_dialog=_Dialog, message_box=_MessageBox,
+        worker_cls=_Worker,
+    )
+
+    assert state.running is False
+    assert state.worker is None
+    assert messages == [("Aviso", expected_message)]
+    assert not output.exists()
+
+
+def test_export_controller_updates_status_on_gui_thread(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    output = tmp_path / "lista.tsv"
+    state = list_export_controller.ListExportState()
+    status_threads = []
+
+    class _StatusLabel(QLabel):
+        def setText(self, text):
+            status_threads.append(QThread.currentThread())
+            super().setText(text)
+
+    class _Window:
+        def __init__(self):
+            self.df_exibido = pd.DataFrame({"numero_ssa": [1]})
+            self.visible_columns = ["numero_ssa"]
+            self.status_label = _StatusLabel()
+
+    class _Dialog:
+        @staticmethod
+        def getSaveFileName(*_args, **_kwargs):
+            return str(output), ""
+
+    class _MessageBox:
+        @staticmethod
+        def information(*_args, **_kwargs):
+            raise AssertionError("unexpected error dialog")
+
+    window = _Window()
+    list_export_controller.export_current_list_tsv(
+        window, state, file_dialog=_Dialog, message_box=_MessageBox,
+    )
+    worker = state.worker
+
+    assert worker.wait(2000)
+    app.processEvents()
+    assert status_threads == [app.thread()]
+    assert window.status_label.text() == (
+        f"Status: Lista exportada: 1 linhas em {output}."
+    )
+    assert state.running is False
+    assert state.worker is None
 
 
 def test_list_export_cancel_does_not_publish_final_file(tmp_path, monkeypatch):
