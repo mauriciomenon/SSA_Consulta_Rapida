@@ -532,6 +532,7 @@ def test_upx_contract_uses_system_binary_not_python_package():
 
 def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     builder = MultiPlatformBuilder()
+    builder.version = "4.44"
     builder.dist_dir = tmp_path / "dist"
     platform_dir = builder.dist_dir / "macos_arm64"
     platform_dir.mkdir(parents=True)
@@ -547,6 +548,7 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
 
     (platform_dir / ".DS_Store").write_bytes(b"junk")
     (platform_dir / "notes.txt").write_text("ok", encoding="utf-8")
+    (platform_dir / "SSA_GUI_v4.43_macos_arm64.app").mkdir()
 
     builder._create_manifest("macos_arm64", platform_dir)
 
@@ -556,6 +558,7 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
 
     assert ".DS_Store" not in entries
     assert "build_manifest.json" not in entries
+    assert "SSA_GUI_v4.43_macos_arm64.app" not in entries
     assert entries["SSA_CLI_v4.44_macos_arm64"]["kind"] == "directory"
     assert entries["SSA_GUI_v4.44_macos_arm64.app"]["kind"] == "directory"
     assert entries["notes.txt"]["kind"] == "file"

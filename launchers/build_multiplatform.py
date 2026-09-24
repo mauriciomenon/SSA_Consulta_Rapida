@@ -1036,6 +1036,9 @@ VSVersionInfo(
                 continue
             if name.startswith("."):
                 continue
+            if name.startswith(("SSA_CLI_v", "SSA_GUI_v", "SSA_Consulta_Rapida_v")):
+                if f"_v{self.version}_{platform_name}" not in name:
+                    continue
 
             if artifact.is_file():
                 size_bytes = artifact.stat().st_size
