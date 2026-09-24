@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from contextlib import closing
 from unittest.mock import patch
@@ -20,7 +21,7 @@ from gui.workers.data_loader_query import (
     build_default_ui_order_clause,
     normalize_order_by,
 )
-from gui.workers.data_loader_repository import resolve_target_table
+from gui.workers.data_loader_repository import resolve_table_columns, resolve_target_table
 from gui.workers.data_loader_worker import DataLoaderWorker
 
 
@@ -60,6 +61,26 @@ def test_resolve_target_table_accepts_second_legacy_alias(tmp_path):
 
 def test_resolve_target_table_invalid_identifier_falls_back_to_canonical():
     assert resolve_target_table(":memory:", 'ssa_table"; DROP TABLE ssa_table; --') == "ssa_table"
+
+
+def test_resolve_target_table_rechecks_replaced_database(tmp_path):
+    db_path = tmp_path / "current.db"
+    replacement = tmp_path / "replacement.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE ssas(numero_ssa TEXT)")
+    with closing(sqlite3.connect(replacement)) as conn:
+        conn.execute("CREATE TABLE ssa_table(numero_ssa TEXT)")
+
+    assert resolve_target_table(str(db_path), "ssa_table") == "ssas"
+    os.replace(replacement, db_path)
+    assert resolve_target_table(str(db_path), "ssa_table") == "ssa_table"
+
+
+def test_loader_metadata_does_not_create_missing_database(tmp_path):
+    db_path = tmp_path / "missing.db"
+    assert resolve_target_table(str(db_path), "ssa_table") == "ssa_table"
+    assert resolve_table_columns(str(db_path), "ssa_table") == ()
+    assert not db_path.exists()
 
 
 def test_run_builds_safe_paginated_query_and_emits_data():
