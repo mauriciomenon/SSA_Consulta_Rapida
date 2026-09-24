@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import sqlite3
+from contextlib import contextmanager
 from contextlib import closing
 from pathlib import Path
 
 import pytest
+from filelock import Timeout
 
 
 def _load_module(module_name: str, path: Path):
@@ -139,6 +141,66 @@ def test_copy_data_to_build_includes_committed_active_wal_rows(tmp_path: Path) -
 
     assert copied is True
     assert values == [("committed-in-wal",)]
+
+
+def test_copy_data_to_build_preserves_preexisting_temp_name(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "copy_data_to_builds_unique_temp", root / "scripts" / "copy_data_to_builds.py"
+    )
+    source_db = tmp_path / "source.db"
+    with closing(sqlite3.connect(source_db)) as conn:
+        conn.execute("CREATE TABLE rows(value TEXT)")
+        conn.execute("INSERT INTO rows VALUES ('new')")
+        conn.commit()
+    build_dir = tmp_path / "build"
+    target_data = build_dir / "data"
+    target_data.mkdir(parents=True)
+    old_temp = target_data / "ssas.db.tmp"
+    old_temp.write_bytes(b"arquivo preexistente")
+
+    copied = module.copy_data_to_build(
+        build_dir, verbose=False, db_path=source_db, docs_dir=tmp_path / "missing_docs"
+    )
+
+    assert copied is True
+    assert old_temp.read_bytes() == b"arquivo preexistente"
+    assert sorted(path.name for path in target_data.glob("*.tmp")) == ["ssas.db.tmp"]
+    with closing(sqlite3.connect(target_data / "ssas.db")) as conn:
+        assert conn.execute("SELECT value FROM rows").fetchall() == [("new",)]
+
+
+def test_copy_data_to_build_keeps_target_when_writer_lock_busy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "copy_data_to_builds_lock_busy", root / "scripts" / "copy_data_to_builds.py"
+    )
+    source_db = tmp_path / "source.db"
+    with closing(sqlite3.connect(source_db)) as conn:
+        conn.execute("CREATE TABLE rows(value TEXT)")
+    build_dir = tmp_path / "build"
+    target = build_dir / "data" / "ssas.db"
+    target.parent.mkdir(parents=True)
+    with closing(sqlite3.connect(target)) as conn:
+        conn.execute("CREATE TABLE rows(value TEXT)")
+        conn.execute("INSERT INTO rows VALUES ('old')")
+        conn.commit()
+
+    @contextmanager
+    def locked(_path, *, timeout):
+        assert timeout == 0
+        raise Timeout(str(target))
+        yield
+
+    monkeypatch.setattr(module, "database_writer_lock", locked)
+
+    assert module.copy_data_to_build(
+        build_dir, verbose=False, db_path=source_db, docs_dir=tmp_path / "missing_docs"
+    ) is False
+    with closing(sqlite3.connect(target)) as conn:
+        assert conn.execute("SELECT value FROM rows").fetchall() == [("old",)]
 
 
 def test_copy_data_to_build_refuses_destination_with_active_wal(tmp_path: Path) -> None:

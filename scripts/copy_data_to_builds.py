@@ -28,6 +28,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from armazenamento.database import read_only_sqlite_uri  # noqa: E402
+from armazenamento.database_lock import database_writer_lock  # noqa: E402
 
 MultiPlatformBuilder = importlib.import_module(
     "launchers.build_multiplatform"
@@ -234,38 +235,47 @@ def copy_data_to_build(
 
             if db_ok:
                 target_db = target_data_dir / "ssas.db"
-                temporary_db = target_db.with_name(f"{target_db.name}.tmp")
+                temporary_db: Path | None = None
                 if verbose:
                     print(f"PKG Copiando DB: {source_db} -> {target_db}")
                 try:
-                    temporary_db.unlink(missing_ok=True)
-                    source_uri = read_only_sqlite_uri(str(source_db))
-                    with closing(
-                        sqlite3.connect(source_uri, uri=True, timeout=5)
-                    ) as source_conn:
-                        with closing(sqlite3.connect(temporary_db)) as target_conn:
-                            source_conn.backup(target_conn)
-                            if target_conn.execute("PRAGMA quick_check").fetchone() != (
-                                "ok",
-                            ):
-                                raise sqlite3.DatabaseError(
-                                    "snapshot do banco falhou no quick_check"
-                                )
-                    if any(
-                        os.path.lexists(f"{target_db}{suffix}")
-                        for suffix in ("-wal", "-shm", "-journal")
-                    ):
-                        raise OSError(
-                            "Destino tem sidecars SQLite; feche o runtime e "
-                            "verifique o banco antes de substituir."
-                        )
-                    os.replace(temporary_db, target_db)
+                    with database_writer_lock(str(target_db), timeout=0):
+                        with tempfile.NamedTemporaryFile(
+                            dir=target_data_dir,
+                            prefix=f"{target_db.name}.",
+                            suffix=".tmp",
+                            delete=False,
+                        ) as stage:
+                            temporary_db = Path(stage.name)
+                        source_uri = read_only_sqlite_uri(str(source_db))
+                        with closing(
+                            sqlite3.connect(source_uri, uri=True, timeout=5)
+                        ) as source_conn:
+                            with closing(sqlite3.connect(temporary_db)) as target_conn:
+                                source_conn.backup(target_conn)
+                                if target_conn.execute("PRAGMA quick_check").fetchone() != (
+                                    "ok",
+                                ):
+                                    raise sqlite3.DatabaseError(
+                                        "snapshot do banco falhou no quick_check"
+                                    )
+                        if any(
+                            os.path.lexists(f"{target_db}{suffix}")
+                            for suffix in ("-wal", "-shm", "-journal")
+                        ):
+                            raise OSError(
+                                "Destino tem sidecars SQLite; feche o runtime e "
+                                "verifique o banco antes de substituir."
+                            )
+                        os.replace(temporary_db, target_db)
                     if verbose:
                         print(f"    DB copiado ({db_size_mb:.1f} MB)")
                 except (OSError, sqlite3.Error) as e:
-                    temporary_db.unlink(missing_ok=True)
                     print(f"   ERR Erro ao copiar DB para {runtime_dir}: {e}")
                     success = False
+                finally:
+                    if temporary_db is not None:
+                        temporary_db.unlink(missing_ok=True)
 
             copied_count = 0
             if verbose and excel_files:
