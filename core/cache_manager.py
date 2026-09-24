@@ -197,7 +197,8 @@ class CacheManager:
         logger = get_robust_logger().get_logger(__name__, "core")
         with self._lock:
             cache = self._caches["dataframes"]
-            cache.pop(df_hash, None)
+            if cache.pop(df_hash, None) is not None:
+                self._mark_cache_details_dirty()
             self._access_times["dataframes"].pop(df_hash, None)
             try:
                 entry_bytes = int(formatted_df.memory_usage(deep=True).sum())
