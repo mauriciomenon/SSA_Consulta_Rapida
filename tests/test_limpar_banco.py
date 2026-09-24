@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import closing
+from datetime import datetime
 
 import pytest
 
@@ -52,6 +53,56 @@ def test_migration_backup_includes_committed_wal_rows(tmp_path, monkeypatch):
 
     with closing(sqlite3.connect(backup_path)) as conn:
         assert conn.execute("SELECT value FROM probe").fetchone() == ("from_wal",)
+
+
+def test_limpar_banco_keeps_rows_when_backup_fails(tmp_path, monkeypatch, caplog):
+    from scripts_manutencao import limpar_banco as module
+
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE ssa_table (id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO ssa_table DEFAULT VALUES")
+        conn.commit()
+
+    def fail_backup(*_args):
+        raise OSError("backup unavailable")
+
+    monkeypatch.setattr(module, "create_sqlite_backup", fail_backup)
+    assert limpar_banco() is False
+    assert "backup unavailable" in caplog.text
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (1,)
+
+
+def test_limpar_banco_keeps_rows_and_existing_backup_on_collision(
+    tmp_path, monkeypatch
+):
+    from scripts_manutencao import limpar_banco as module
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls):
+            return cls(2026, 1, 2, 3, 4, 5, 123456)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(module, "datetime", FixedDatetime)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE ssa_table (id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO ssa_table DEFAULT VALUES")
+        conn.commit()
+    backup_path = data_dir / "ssas_backup_antes_limpeza_final_20260102_030405_123456.db"
+    backup_path.write_bytes(b"existing backup")
+
+    assert limpar_banco() is False
+    assert backup_path.read_bytes() == b"existing backup"
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (1,)
 
 
 def test_limpar_banco_reports_vacuum_failure_after_committed_delete(

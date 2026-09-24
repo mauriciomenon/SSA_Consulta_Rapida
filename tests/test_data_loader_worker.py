@@ -83,6 +83,43 @@ def test_loader_metadata_does_not_create_missing_database(tmp_path):
     assert not db_path.exists()
 
 
+def test_resolve_table_columns_reads_valid_columns_from_sqlite(tmp_path):
+    db_path = tmp_path / "columns.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            'CREATE TABLE ssa_table (numero_ssa TEXT, situacao TEXT, "bad-name" TEXT)'
+        )
+
+    assert resolve_table_columns(str(db_path), "ssa_table") == (
+        "numero_ssa",
+        "situacao",
+    )
+
+
+def test_resolve_table_columns_returns_empty_on_connection_failure(tmp_path):
+    with patch(
+        "gui.workers.data_loader_repository._connect_metadata",
+        side_effect=sqlite3.OperationalError("connection unavailable"),
+    ):
+        assert resolve_table_columns(str(tmp_path / "columns.db"), "ssa_table") == ()
+
+
+def test_resolve_table_columns_returns_empty_on_pragma_failure():
+    class FailingPragmaConnection(sqlite3.Connection):
+        def execute(self, sql, parameters=()):
+            if sql.startswith("PRAGMA table_info"):
+                raise sqlite3.OperationalError("schema unavailable")
+            return super().execute(sql, parameters)
+
+    with patch(
+        "gui.workers.data_loader_repository._connect_metadata",
+        side_effect=lambda _path: sqlite3.connect(
+            ":memory:", factory=FailingPragmaConnection
+        ),
+    ):
+        assert resolve_table_columns(":memory:", "ssa_table") == ()
+
+
 def test_run_builds_safe_paginated_query_and_emits_data():
     captured = {}
     prepared = []
