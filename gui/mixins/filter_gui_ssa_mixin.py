@@ -944,6 +944,8 @@ class FilterGUISSAMixin:
     def on_filter_finished(
         self, df_filtrado: pd.DataFrame, request_id: int | None = None
     ):
+        if bool(getattr(self, "_is_shutting_down", False)):
+            return
         active_id = getattr(self, "_active_filter_request_id", None)
         effective_request_id = request_id if request_id is not None else active_id
         if request_id is not None and active_id is not None and request_id != active_id:
@@ -1052,6 +1054,8 @@ class FilterGUISSAMixin:
         self._consume_pending_jump_to_ssa(effective_request_id)
 
     def on_filter_error(self, error_msg: str, request_id: int | None = None):
+        if bool(getattr(self, "_is_shutting_down", False)):
+            return
         active_id = getattr(self, "_active_filter_request_id", None)
         if request_id is not None and active_id is not None and request_id != active_id:
             logger.debug(

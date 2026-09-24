@@ -13808,6 +13808,17 @@ class TestGUIFilterLogic:
 
         assert self.window._df_last_search_filtered.equals(original)
 
+    def test_filter_callbacks_ignore_results_during_shutdown(self):
+        self.window._is_shutting_down = True
+        original = self.window._df_last_search_filtered.copy()
+        status = self.window.status_label.text()
+
+        self.window.on_filter_finished(self.base_df.iloc[:1].copy(), request_id=1)
+        self.window.on_filter_error("falha tardia", request_id=1)
+
+        assert self.window._df_last_search_filtered.equals(original)
+        assert self.window.status_label.text() == status
+
     def test_on_filter_finished_uses_request_scoped_search_display(self):
         self.window._active_filter_request_id = 22
         self.window._active_filter_search_request_id = 22
