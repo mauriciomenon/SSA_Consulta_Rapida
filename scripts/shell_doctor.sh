@@ -210,7 +210,7 @@ check_commit_history(){
   local joined shas
   joined=$(printf '%s|' "${SECRET_REGEXPS[@]}")
   joined=${joined%|}
-  shas=$(git log --all --format='%H' -E -G "$joined" 2>/dev/null | sort -u || true)
+  shas=$(git -C "$REPO_ROOT" log --all --format='%H' -E -G "$joined" 2>/dev/null | sort -u || true)
   if [[ -n $shas ]]; then
     log_issue "Padrao sensivel presente em commits: $(echo "$shas" | tr '\n' ' ')"
     log_action "Considerar git filter-repo para remover segredos antigos (apos ROTACIONAR)"
