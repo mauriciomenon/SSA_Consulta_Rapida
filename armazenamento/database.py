@@ -867,16 +867,32 @@ def reset_database(
     mode: str = "table",
     _table_name: str = CANONICAL_SSA_TABLE,
     schema_path: str | None = None,
+    *,
+    offline: bool = False,
 ) -> bool:
     """Reseta o banco de dados.
 
-    - mode = 'file': remove o arquivo de banco por completo (se existir).
+    - mode = 'file': remove o arquivo somente com offline=True e sem sidecars.
+      O chamador deve fechar todo o runtime; sidecars ausentes nao provam isso.
     - mode = 'table': recria a tabela alvo e seus eventos em banco candidato.
     """
     try:
         if mode == "file":
             with database_writer_lock(db_path):
+                sidecars = (
+                    f"{db_path}-wal",
+                    f"{db_path}-shm",
+                    f"{db_path}-journal",
+                )
+                if any(os.path.lexists(path) for path in sidecars):
+                    raise RuntimeError(
+                        "Reset fisico recusado: sidecars SQLite presentes"
+                    )
                 if os.path.exists(db_path):
+                    if not offline:
+                        raise RuntimeError(
+                            "Reset fisico exige offline=True e runtime fechado"
+                        )
                     os.remove(db_path)
                 _clear_resolved_table_cache(db_path)
             return True

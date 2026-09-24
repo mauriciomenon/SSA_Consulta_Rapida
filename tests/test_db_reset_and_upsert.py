@@ -1,4 +1,5 @@
 import os
+import sqlite3
 from contextlib import contextmanager
 
 import pandas as pd
@@ -69,8 +70,36 @@ def test_reset_database_file_mode(tmp_path):
         conn.execute("CREATE TABLE T(x INTEGER);")
         conn.commit()
     assert os.path.exists(db_path)
-    assert reset_database(db_path, mode="file") is True
+    assert reset_database(db_path, mode="file") is False
+    assert os.path.exists(db_path)
+    assert reset_database(db_path, mode="file", offline=True) is True
     assert not os.path.exists(db_path)
+
+
+def test_reset_database_file_mode_refuses_sqlite_sidecars(tmp_path):
+    db_path = os.path.join(tmp_path, "x.sqlite")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE probe(value TEXT)")
+        conn.execute("INSERT INTO probe VALUES ('original')")
+    sidecar = f"{db_path}-wal"
+    with open(sidecar, "wb") as output:
+        output.write(b"sidecar")
+
+    assert reset_database(db_path, mode="file", offline=True) is False
+    assert os.path.exists(sidecar)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT value FROM probe").fetchone() == ("original",)
+
+
+def test_reset_database_file_mode_refuses_orphan_sidecar(tmp_path):
+    db_path = os.path.join(tmp_path, "missing.sqlite")
+    sidecar = f"{db_path}-wal"
+    with open(sidecar, "wb") as output:
+        output.write(b"orphan")
+
+    assert reset_database(db_path, mode="file", offline=True) is False
+    assert not os.path.exists(db_path)
+    assert os.path.exists(sidecar)
 
 
 def test_reset_database_table_mode(tmp_path):
