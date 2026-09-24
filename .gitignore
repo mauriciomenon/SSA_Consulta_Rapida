@@ -29,6 +29,7 @@ __pycache__/
 quality_gates_output.jsonl
 
 # Local-only internal handoff/backlog artifacts removed from public GitHub refs.
+/docs/
 GUI_SSA_REFACTOR_NOTES.md
 docs/AGENTS_HANDOFF_NEXT_CYCLE.md
 docs/MCP_SERVERS_STATUS.md
