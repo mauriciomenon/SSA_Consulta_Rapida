@@ -73,7 +73,9 @@ class RescanProgressDialog(QDialog):
 
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
-        self.output_text.document().setMaximumBlockCount(self.MAX_OUTPUT_BLOCKS)
+        output_document = self.output_text.document()
+        assert output_document is not None
+        output_document.setMaximumBlockCount(self.MAX_OUTPUT_BLOCKS)
         self.output_text.setFont(QFont("Courier New", 9))
         layout.addWidget(self.output_text)
 
@@ -84,7 +86,9 @@ class RescanProgressDialog(QDialog):
 
         self.error_text = QTextEdit()
         self.error_text.setReadOnly(True)
-        self.error_text.document().setMaximumBlockCount(self.MAX_OUTPUT_BLOCKS)
+        error_document = self.error_text.document()
+        assert error_document is not None
+        error_document.setMaximumBlockCount(self.MAX_OUTPUT_BLOCKS)
         self.error_text.setFont(QFont("Courier New", 9))
         self.error_text.setMaximumHeight(150)
         layout.addWidget(self.error_text)

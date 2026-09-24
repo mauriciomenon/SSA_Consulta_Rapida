@@ -185,8 +185,12 @@ def test_rescan_progress_dialog_limits_output_and_error_history():
         dlg.append_output(f"saida {index}")
         dlg.append_error(f"erro {index}")
 
-    assert dlg.output_text.document().blockCount() == dlg.MAX_OUTPUT_BLOCKS
-    assert dlg.error_text.document().blockCount() == dlg.MAX_OUTPUT_BLOCKS
+    output_document = dlg.output_text.document()
+    error_document = dlg.error_text.document()
+    assert output_document is not None
+    assert error_document is not None
+    assert output_document.blockCount() == dlg.MAX_OUTPUT_BLOCKS
+    assert error_document.blockCount() == dlg.MAX_OUTPUT_BLOCKS
     assert "saida 0" not in dlg.output_text.toPlainText()
     assert "erro 0" not in dlg.error_text.toPlainText()
     assert f"saida {dlg.MAX_OUTPUT_BLOCKS + 1}" in dlg.output_text.toPlainText()

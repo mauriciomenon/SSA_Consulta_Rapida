@@ -120,7 +120,9 @@ def test_derivadas_column_tooltip_explains_graph_scope():
 
     gui_table._apply_adaptive_header_labels(window)
 
-    tooltip = table.horizontalHeaderItem(0).toolTip()
+    header_item = table.horizontalHeaderItem(0)
+    assert header_item is not None
+    tooltip = header_item.toolTip()
     assert "todos os niveis" in tooltip
     assert "planilhas especiais" in tooltip
 
