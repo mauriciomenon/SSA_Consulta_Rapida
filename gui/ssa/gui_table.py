@@ -409,45 +409,17 @@ def _build_page_content_digest(
         return None
 
 
-def _build_render_marker_sample(
-    display_df: pd.DataFrame,
-) -> tuple[tuple[str, ...], ...]:
-    if display_df.empty:
-        return tuple()
-
-    try:
-        marker_columns = list(display_df.columns)
-        marker_df = (
-            display_df[marker_columns]
-            .astype("string")
-            .fillna("")
-        )
-        return tuple(
-            tuple(str(value) for value in row_values)
-            for row_values in marker_df.itertuples(index=False, name=None)
-        )
-    except Exception as exc:
-        logger.warning(
-            "Falha ao construir amostra de marcadores da renderizacao: %s", exc
-        )
-        return tuple()
-
-
 def _build_page_render_signature(
     window,
     display_df: pd.DataFrame,
     display_headers: list[str],
     *,
-    marker_sample: tuple[tuple[str, ...], ...] | None = None,
-    content_digest: bytes | None = None,
+    content_digest: bytes | None,
 ) -> tuple:
     try:
         viewport_width = int(window.table_widget.viewport().width())
     except Exception:
         viewport_width = -1
-
-    if content_digest is None:
-        content_digest = _build_page_content_digest(display_df)
 
     return (
         getattr(window, "_data_uuid", None),
@@ -615,7 +587,6 @@ def _current_pagination_values(window, fallback_page_size: int = 1) -> tuple[int
 
 def _build_display_dataframe_for_page(window, cols_to_show):
     display_df = window.df_para_tabela[cols_to_show].copy()
-    raw_marker_sample = _build_render_marker_sample(display_df)
     _set_current_display_columns(window, ["#"] + list(display_df.columns))
     current_page, page_size = _current_pagination_values(
         window, fallback_page_size=max(1, len(display_df))
@@ -630,10 +601,10 @@ def _build_display_dataframe_for_page(window, cols_to_show):
                 (current_page - 1) * page_size + 1 + len(display_df),
             ),
         )
-    return display_df, raw_marker_sample
+    return display_df
 
 
-def _format_display_dataframe_for_table(window, display_df, raw_marker_sample):
+def _format_display_dataframe_for_table(window, display_df, content_digest):
     display_df_hash = None
     try:
         data_uuid = getattr(window, "_data_uuid", None)
@@ -655,7 +626,6 @@ def _format_display_dataframe_for_table(window, display_df, raw_marker_sample):
                 logger.debug(
                     "Falha ao compor assinatura de largura para chave de cache: %s", exc
                 )
-            content_digest = _build_page_content_digest(display_df)
             # None digest = computation failed; disable cache read AND
             # write so two different pages that both fail to digest
             # cannot collide on the same cache key
@@ -1013,11 +983,10 @@ def _freeze_table_header_resize(window):
 
 def _build_page_display_payload(window):
     cols_to_show = _resolve_visible_columns_for_page(window)
-    display_df, raw_marker_sample = _build_display_dataframe_for_page(
-        window, cols_to_show
-    )
+    display_df = _build_display_dataframe_for_page(window, cols_to_show)
+    content_digest = _build_page_content_digest(display_df)
     display_df = _format_display_dataframe_for_table(
-        window, display_df, raw_marker_sample
+        window, display_df, content_digest
     )
     visual_filter_columns = _get_visual_filter_columns(
         window, context="pagina renderizada"
@@ -1025,15 +994,15 @@ def _build_page_display_payload(window):
     display_headers = _build_display_headers(
         window, list(display_df.columns), visual_filter_columns
     )
-    return display_df, display_headers, raw_marker_sample
+    return display_df, display_headers, content_digest
 
 
-def _render_signature_and_reuse(window, display_df, display_headers, raw_marker_sample):
+def _render_signature_and_reuse(window, display_df, display_headers, content_digest):
     render_signature = _build_page_render_signature(
         window,
         display_df,
         display_headers,
-        content_digest=_build_page_content_digest(display_df),
+        content_digest=content_digest,
     )
     previous_signature = getattr(window, "_last_table_render_signature", None)
     # If the digest is None (computation failed), the signature contains
@@ -1225,9 +1194,9 @@ def display_current_page(window, page_number, *, update_details=True):
         _render_empty_page_table(window, header, update_details=update_details)
         return
 
-    display_df, display_headers, raw_marker_sample = _build_page_display_payload(window)
+    display_df, display_headers, content_digest = _build_page_display_payload(window)
     render_signature, reuse_render = _render_signature_and_reuse(
-        window, display_df, display_headers, raw_marker_sample
+        window, display_df, display_headers, content_digest
     )
 
     if not reuse_render:

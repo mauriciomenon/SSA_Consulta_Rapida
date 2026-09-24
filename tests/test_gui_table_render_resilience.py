@@ -632,6 +632,35 @@ class TestGUITableRenderResilience:
 
         assert formatter.call_count == 1
 
+    def test_display_current_page_hashes_page_once_per_render(self):
+        with patch.object(
+            gui_table,
+            "_build_page_content_digest",
+            wraps=gui_table._build_page_content_digest,
+        ) as digest:
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+
+        assert digest.call_count == 2
+
+    def test_display_current_page_digest_failure_disables_render_reuse(self):
+        with (
+            patch.object(gui_table, "_build_page_content_digest", return_value=None),
+            patch.object(
+                gui_table,
+                "_rebuild_table_widget",
+                wraps=gui_table._rebuild_table_widget,
+            ) as rebuild,
+        ):
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+
+        assert rebuild.call_count == 2
+
     def test_display_current_page_rebuilds_when_mid_row_changes_with_stable_revision(
         self,
     ):
