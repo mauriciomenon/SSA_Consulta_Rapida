@@ -88,6 +88,45 @@ def test_reheader_scan_reuses_validated_workbook(tmp_path, monkeypatch):
     assert result.loc[0, "situacao"] == "ABERTA"
 
 
+def test_reheader_open_failure_does_not_count_unread_candidates(
+    tmp_path, monkeypatch
+):
+    from extracao import extractor
+
+    file_path, mapping_path = _write_reheader_case(tmp_path)
+    original_open = extractor.open_validated_excel_source
+    open_count = 0
+
+    @contextmanager
+    def fail_second_open(path):
+        nonlocal open_count
+        open_count += 1
+        if open_count == 2:
+            raise OSError("fonte indisponivel")
+        with original_open(path) as source:
+            yield source
+
+    monkeypatch.setattr(extractor, "open_validated_excel_source", fail_second_open)
+    _, stats = import_excel_robust(str(file_path), mappings_path=str(mapping_path))
+
+    assert open_count == 2
+    assert stats["header_candidate_lines_considered"] == 0
+
+
+def test_import_debug_does_not_change_shared_logger_level(tmp_path, monkeypatch):
+    file_path = tmp_path / "normal.xlsx"
+    pd.DataFrame({"Numero SSA": ["202500001"]}).to_excel(file_path, index=False)
+    monkeypatch.setenv("SSA_IMPORT_DEBUG", "1")
+    previous_level = robust_importer.logger.level
+    robust_importer.logger.setLevel(logging.WARNING)
+    try:
+        result, _ = import_excel_robust(str(file_path))
+        assert result.loc[0, "numero_ssa"] == "202500001"
+        assert robust_importer.logger.level == logging.WARNING
+    finally:
+        robust_importer.logger.setLevel(previous_level)
+
+
 def test_reheader_candidate_failure_logs_debug_without_env(
     tmp_path, monkeypatch, caplog
 ):
