@@ -2210,6 +2210,7 @@ def run_importer_logic(
         )
         return result
 
+    _emit_progress = _build_progress_emitter(progress_callback)
     try:
         _round_lock_cm = _database_writer_lock(primary_db_path)
         _round_lock_cm.__enter__()
@@ -2236,6 +2237,17 @@ def run_importer_logic(
                     should_cancel=should_cancel,
                 )
             except InterruptedError:
+                _emit_progress("start", {"total": 0})
+                _emit_progress(
+                    "finish",
+                    {
+                        "total": 0,
+                        "processed": 0,
+                        "errors": [],
+                        "deterministic_failure_count": 0,
+                        "rejection_only": False,
+                    },
+                )
                 return _finalize_and_return(
                     False, "cancelled_partial", "file_discovery_cancelled_before_update"
                 )
@@ -2333,7 +2345,6 @@ def run_importer_logic(
             db_only_derivadas_sync = False
             auto_derivadas_sync_enabled = True
             total_files = len(files_to_process)
-            _emit_progress = _build_progress_emitter(progress_callback)
             _emit_progress("start", {"total": total_files})
 
             preflight_result = _handle_derivadas_preflight_without_regular_files(
