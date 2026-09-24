@@ -114,6 +114,43 @@ def test_export_sanitizes_formatter_output_without_changing_numeric_display(tmp_
     assert dataframe["valor"].tolist() == [-1, -2, -3, -4, -5, -6, "texto", -8]
 
 
+def test_export_does_not_restore_numeric_text_after_row_reordering(tmp_path):
+    dataframe = pd.DataFrame({"valor": [-1, "-1"]})
+    out_path = tmp_path / "reordered.tsv"
+
+    def formatter(frame):
+        return frame.iloc[::-1].reset_index(drop=True)
+
+    write_current_list_tsv(dataframe, ["valor"], str(out_path), formatter=formatter)
+
+    with out_path.open(encoding="utf-8", newline="") as stream:
+        assert list(csv.reader(stream, delimiter="\t")) == [
+            ["valor"], ["'-1"], ["-1"],
+        ]
+
+
+def test_list_export_worker_writes_through_open_temp_stream(tmp_path, monkeypatch):
+    output = tmp_path / "lista.tsv"
+    from gui.workers import list_export_worker
+
+    real_write = list_export_worker.write_current_list_tsv
+    observed = []
+
+    def observe_write(dataframe, columns, path, *, stream=None):
+        observed.append(stream is not None and not stream.closed)
+        return real_write(dataframe, columns, path, stream=stream)
+
+    monkeypatch.setattr(list_export_worker, "write_current_list_tsv", observe_write)
+    worker = ListExportWorker(pd.DataFrame({"numero_ssa": [202600001]}), [], str(output))
+    worker.start()
+
+    assert worker.wait(2000)
+    assert observed == [True]
+    assert output.read_text(encoding="utf-8").splitlines() == [
+        "numero_ssa", "202600001",
+    ]
+
+
 def test_export_controller_uses_stable_dataframe_snapshot(tmp_path):
     dataframe = pd.DataFrame({"numero_ssa": [202600001], "situacao": ["ASE"]})
     out_path = tmp_path / "lista.txt"
@@ -195,10 +232,13 @@ def test_list_export_cancel_does_not_publish_final_file(tmp_path, monkeypatch):
     started = Event()
     release = Event()
 
-    def _blocking_write(_dataframe, _columns, path):
+    def _blocking_write(_dataframe, _columns, path, *, stream=None):
         started.set()
         assert release.wait(2.0)
-        Path(path).write_text("replacement\n", encoding="utf-8")
+        if stream is not None:
+            stream.write("replacement\n")
+        else:
+            Path(path).write_text("replacement\n", encoding="utf-8")
         return ListExportResult(path=str(path), rows=1, columns=1)
 
     monkeypatch.setattr(

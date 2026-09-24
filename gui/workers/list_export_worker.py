@@ -60,17 +60,21 @@ class ListExportWorker(QThread):
         try:
             final_path = Path(self._path).expanduser()
             with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                newline="",
                 dir=final_path.parent,
                 prefix=f".{final_path.name}.",
                 suffix=".tmp",
                 delete=False,
             ) as temporary:
                 temp_path = Path(temporary.name)
-            result = write_current_list_tsv(
-                self._dataframe,
-                self._visible_columns,
-                str(temp_path),
-            )
+                result = write_current_list_tsv(
+                    self._dataframe,
+                    self._visible_columns,
+                    str(temp_path),
+                    stream=temporary,
+                )
             with self._state_lock:
                 if self._cancel_requested:
                     return

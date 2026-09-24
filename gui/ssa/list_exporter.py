@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TextIO
 
 import pandas as pd
 
@@ -35,13 +35,16 @@ def write_current_list_tsv(
     path: str,
     *,
     formatter: Callable[[pd.DataFrame], pd.DataFrame] = format_dataframe_for_display,
+    stream: TextIO | None = None,
 ) -> ListExportResult:
     if dataframe is None or dataframe.empty:
         raise ValueError("No data to export")
     export_path = str(Path(path).expanduser())
     columns = resolve_export_columns(dataframe, visible_columns)
     export_df = dataframe.loc[:, columns].copy()
-    return write_prepared_list_tsv(export_df, export_path, formatter=formatter)
+    return write_prepared_list_tsv(
+        export_df, export_path, formatter=formatter, stream=stream
+    )
 
 
 def write_prepared_list_tsv(
@@ -49,14 +52,21 @@ def write_prepared_list_tsv(
     path: str,
     *,
     formatter: Callable[[pd.DataFrame], pd.DataFrame] = format_dataframe_for_display,
+    stream: TextIO | None = None,
 ) -> ListExportResult:
     if dataframe is None or dataframe.empty:
         raise ValueError("No data to export")
     export_path = str(Path(path).expanduser())
-    numeric_origins = dataframe.map(pd.api.types.is_number)
-    formatted_df = formatter(dataframe.copy())
+    formatter_input = dataframe.copy()
+    # O indice sentinela detecta reorder/reset mesmo com indice original duplicado.
+    sentinel_index = pd.RangeIndex(start=-len(dataframe), stop=0)
+    formatter_input.index = sentinel_index
+    numeric_origins = formatter_input.map(pd.api.types.is_number)
+    formatted_df = formatter(formatter_input)
     safe_df = sanitize_spreadsheet_dataframe(formatted_df)
-    if formatted_df.index.equals(dataframe.index) and formatted_df.columns.equals(dataframe.columns):
+    if formatted_df.index.equals(sentinel_index) and formatted_df.columns.equals(
+        dataframe.columns
+    ):
         for position in range(len(formatted_df.columns)):
             rendered = formatted_df.iloc[:, position]
             numeric_text = rendered.astype(str).str.fullmatch(
@@ -66,7 +76,7 @@ def write_prepared_list_tsv(
             safe_df.iloc[:, position] = safe_df.iloc[:, position].where(
                 ~preserve_number, rendered
             )
-    safe_df.to_csv(export_path, sep="\t", index=False)
+    safe_df.to_csv(stream if stream is not None else export_path, sep="\t", index=False)
     return ListExportResult(
         path=export_path,
         rows=int(len(formatted_df.index)),
