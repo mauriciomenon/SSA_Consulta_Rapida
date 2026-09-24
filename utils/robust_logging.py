@@ -272,13 +272,14 @@ class RobustLogger:
             with open(config_path, "r", encoding="utf-8") as f:
                 loaded_config = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            print(f"Erro ao carregar config de logging: {e}. Usando padrão.")
+            print(f"Erro ao carregar config de logging: {e}. Usando padrão.", file=sys.stderr)
             return base_config
 
         if not isinstance(loaded_config, dict):
             print(
                 "Configuracao de logging deve ser um objeto JSON. "
-                "Usando padrao."
+                "Usando padrao.",
+                file=sys.stderr,
             )
             return base_config
 
@@ -356,7 +357,7 @@ class RobustLogger:
 
         # Handler para console
         if self.config["enable_console"]:
-            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler = logging.StreamHandler(sys.stderr)
             console_handler.setLevel(getattr(logging, self.config["console_level"]))
             console_formatter = SafeFormatter(
                 self.config["format"], datefmt=self.config["date_format"]

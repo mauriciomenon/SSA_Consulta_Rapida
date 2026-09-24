@@ -6,6 +6,8 @@ Testes do sistema de logging robusto.
 import json
 import logging
 import os
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 
 # Importar o módulo de logging robusto
 import sys
@@ -174,6 +176,24 @@ class TestRobustLogging(unittest.TestCase):
         logger = robust_logger.get_logger("test_module", "gui")
         self.assertIsNotNone(logger)
         self.assertEqual(logger.name, "test_module")
+
+    def test_console_warning_keeps_json_stdout_clean(self):
+        root = logging.getLogger()
+        previous_handlers = root.handlers[:]
+        stdout = StringIO()
+        stderr = StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                RobustLogger(str(self.config_file))
+                logging.getLogger("cli").warning("aviso de importacao")
+                print('{"status":"ok"}')
+        finally:
+            current_handlers = root.handlers[:]
+            root.handlers[:] = previous_handlers
+            for handler in current_handlers:
+                handler.close()
+        self.assertEqual(json.loads(stdout.getvalue()), {"status": "ok"})
+        self.assertIn("aviso de importacao", stderr.getvalue())
 
     def test_get_robust_logger_function(self):
         """Testa função de conveniência get_robust_logger."""
