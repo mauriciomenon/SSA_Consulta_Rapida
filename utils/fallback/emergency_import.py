@@ -11,6 +11,8 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+from filelock import Timeout
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from armazenamento.database_lock import database_writer_lock
@@ -319,7 +321,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print("Importação de emergência iniciada...")
     print("ATENCAO: este script insere dados de TESTE, nao dados reais.")
-    success = emergency_import(args.db, force=args.force)
+    try:
+        success = emergency_import(args.db, force=args.force)
+    except Timeout:
+        print("ERRO: banco ocupado por outra escrita; tente novamente mais tarde.", file=sys.stderr)
+        success = False
     if success:
         print(" Banco de dados criado com dados de teste")
         print(" Agora você pode testar o CLI e GUI")

@@ -335,3 +335,42 @@ def test_cli_exits_nonzero_when_db_exists_without_force(tmp_path: Path) -> None:
     assert proc.returncode == 1
     assert db.read_bytes() == b"db existente"
     assert not list(tmp_path.glob("x.db.bak-*"))
+
+
+def test_cli_reports_busy_database_without_traceback(tmp_path: Path) -> None:
+    db = tmp_path / "x.db"
+    _make_db(db)
+    script = (
+        "from armazenamento.database_lock import database_writer_lock\n"
+        "with database_writer_lock(__import__('sys').argv[1]):\n"
+        " print('ready', flush=True)\n"
+        " input()\n"
+    )
+    holder = subprocess.Popen(
+        [sys.executable, "-c", script, str(db)],
+        cwd=str(_ROOT),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline().strip() == "ready"
+        proc = subprocess.run(
+            [sys.executable, str(_SCRIPT), "--db", str(db), "--force"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert proc.returncode == 1
+        assert "banco ocupado" in proc.stderr
+        assert "Traceback" not in proc.stderr
+        with closing(sqlite3.connect(db)) as conn:
+            assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+                ("202600001",)
+            ]
+    finally:
+        assert holder.stdin is not None
+        holder.stdin.write("\n")
+        holder.stdin.flush()
+        holder.wait(timeout=5)
