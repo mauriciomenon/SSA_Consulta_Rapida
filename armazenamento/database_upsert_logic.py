@@ -323,7 +323,6 @@ def _sync_dynamic_columns_and_schema(
     existing_columns: set[str],
     db_path: str | Any,
     conn: Any,
-    db_module: Any,
 ) -> pd.DataFrame:
     from .identifier_utils import is_valid_identifier
 
@@ -1424,7 +1423,6 @@ def insert_dataframe_with_smart_upsert_impl(
                 existing_columns=existing_columns,
                 db_path=db_path,
                 conn=conn,
-                db_module=_db_mod,
             )
         if "numero_ssa" not in work.columns:
             has_ssa = pd.DataFrame()
