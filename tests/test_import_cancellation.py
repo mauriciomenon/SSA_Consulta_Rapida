@@ -1,6 +1,7 @@
 # tests/test_import_cancellation.py
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -9,8 +10,9 @@ import pytest
 from core.app_logic import run_importer_logic
 
 
+@pytest.mark.parametrize("force_import", [True, False])
 def test_should_cancel_stops_between_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, force_import: bool
 ) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
@@ -44,8 +46,9 @@ def test_should_cancel_stops_between_files(
         )
 
     def fake_insert_dataframe_with_smart_upsert(
-        df, db_path, table_name, *, metrics_out=None
+        df, db_path, table_name, *, metrics_out=None, should_cancel=None
     ):
+        assert should_cancel is not None
         insert_count["n"] += 1
         if metrics_out is not None:
             metrics_out.update({"ssa_inserted": 1, "ssa_updated": 0})
@@ -78,14 +81,15 @@ def test_should_cancel_stops_between_files(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=True,
+        force_import=force_import,
         should_cancel=should_cancel,
         progress_callback=progress_callback,
     )
 
-    assert updated is False
+    assert updated is (not force_import)
     cache_path = data_dir / "file_cache.json"
-    assert not cache_path.exists()
+    if force_import:
+        assert not cache_path.exists()
 
     assert insert_count["n"] == 1
     assert progress_events
@@ -100,3 +104,59 @@ def test_should_cancel_stops_between_files(
     assert finish_payload["processed"] == 1
     assert "errors" in finish_payload
     assert finish_payload["errors"] == []
+
+    from core import import_outcome
+
+    outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
+    assert outcome.cancel_requested is True
+    assert outcome.status is (
+        import_outcome.ImportStatus.CANCELLED
+        if force_import
+        else import_outcome.ImportStatus.UPDATED
+    )
+    assert outcome.blocking_error_count == 0
+    assert outcome.primary_database_changed is (not force_import)
+    assert outcome.report_path is not None
+    with open(outcome.report_path, encoding="utf-8") as report_file:
+        report = json.load(report_file)
+    assert report["cancel_requested"] is True
+
+
+def test_cancel_during_upsert_is_classified_without_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import core.app_logic as app_logic
+
+    file_path = tmp_path / "Consulta SSA - cancel.xlsx"
+    file_path.write_bytes(b"x")
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *_args, **_kwargs: pd.DataFrame(
+            {"numero_ssa": [202600001], "data_cadastro": ["2026-01-01"]}
+        ),
+    )
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *_args, **_kwargs: None
+    )
+    seen_callback = []
+
+    def _cancel_upsert(*_args, should_cancel=None, **_kwargs):
+        seen_callback.append(should_cancel)
+        raise InterruptedError("Upsert cancelado antes do commit")
+
+    monkeypatch.setattr(
+        app_logic.database, "insert_dataframe_with_smart_upsert", _cancel_upsert
+    )
+
+    def callback() -> bool:
+        return False
+
+    with pytest.raises(app_logic.ExtractionError) as exc_info:
+        app_logic._import_single_file(
+            str(file_path), str(tmp_path / "db.sqlite"), "ssa_table", callback
+        )
+
+    assert exc_info.value.error_code == "OPERATION_CANCELLED"
+    assert seen_callback == [callback]

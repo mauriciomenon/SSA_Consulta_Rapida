@@ -112,6 +112,7 @@ def _build_import_run_payload(
     result: bool,
     status: str,
     reason: str,
+    cancel_requested: bool = False,
     force_import: bool,
     table_name: str,
     db_name: str,
@@ -197,6 +198,7 @@ def _build_import_run_payload(
         "result": bool(result),
         "status": status,
         "reason": reason,
+        "cancel_requested": bool(cancel_requested),
         "inputs": {
             "force_import": bool(force_import),
             "table_name": table_name,

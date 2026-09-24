@@ -82,6 +82,7 @@ class ImportOutcome:
     blocking_error_count: int
     integrity_report: Dict[str, Any] = field(default_factory=dict)
     report_path: Optional[str] = None
+    cancel_requested: bool = False
 
     @property
     def reload_required(self) -> bool:
@@ -116,6 +117,7 @@ def build_import_outcome(
     integrity_report: Optional[Dict[str, Any]] = None,
     report_path: Optional[str] = None,
     primary_database_actually_changed: Optional[bool] = None,
+    cancel_requested: bool = False,
 ) -> ImportOutcome:
     status = resolve_import_status(raw_status)
     if primary_database_actually_changed is not None:
@@ -138,6 +140,7 @@ def build_import_outcome(
         blocking_error_count=int(blocking_error_count),
         integrity_report=dict(integrity_report or {}),
         report_path=report_path,
+        cancel_requested=bool(cancel_requested),
     )
 
 

@@ -1080,9 +1080,10 @@ def _process_regular_files_phase(
     deterministic_failed_files: List[str],
     file_reports: List[Dict[str, Any]],
     emit_progress: Callable[[str, Dict[str, Any]], None],
-) -> bool:
-    """Processa arquivos regulares e retorna flag de cancelamento parcial do full rescan."""
+) -> tuple[bool, bool]:
+    """Processa arquivos regulares e informa cancelamento observado."""
     cancelled_full_rescan = False
+    cancel_requested = False
     has_regular_import_candidate = any(
         not os.path.basename(file_path).startswith("~$")
         and not _is_derivadas_sheet_file(file_path)
@@ -1111,12 +1112,13 @@ def _process_regular_files_phase(
             emit_progress=emit_progress,
         )
         if action is FileProcessAction.CANCELLED:
+            cancel_requested = True
             if candidate_db_path is not None:
                 cancelled_full_rescan = True
             break
         if action is FileProcessAction.BREAK:
             break
-    return cancelled_full_rescan
+    return cancelled_full_rescan, cancel_requested
 
 
 def _process_regular_file_step(
@@ -2094,6 +2096,7 @@ def run_importer_logic(
     candidate_db_path: Optional[str] = None
     promoted_backup_path: Optional[str] = None
     cancelled_full_rescan = bool(context["cancelled_full_rescan"])
+    cancel_requested = False
     db_only_derivadas_sync = bool(context["db_only_derivadas_sync"])
     sync_materialized = bool(context["sync_materialized"])
     derivadas_sync_blocking_error = bool(context["derivadas_sync_blocking_error"])
@@ -2102,6 +2105,7 @@ def run_importer_logic(
 
     def _finalize_and_return(result: bool, status: str, reason: str = "") -> bool:
         finished_at = datetime.now()
+        observed_cancel = cancel_requested or status.startswith("cancelled")
         payload = _build_import_run_payload(
             run_id=run_id,
             run_started_at=run_started_at,
@@ -2109,6 +2113,7 @@ def run_importer_logic(
             result=result,
             status=status,
             reason=reason,
+            cancel_requested=observed_cancel,
             force_import=force_import,
             table_name=table_name,
             db_name=db_name,
@@ -2159,6 +2164,7 @@ def run_importer_logic(
                 legacy_result=result,
                 run_id=run_id,
                 reason=reason,
+                cancel_requested=observed_cancel,
                 primary_db_path=primary_db_path,
                 working_db_path=working_db_path,
                 candidate_db_path=candidate_db_path,
@@ -2324,7 +2330,7 @@ def run_importer_logic(
             # --- 2. Processar cada arquivo ---
             file_processing_started = time.perf_counter()
             try:
-                cancelled_full_rescan = _process_regular_files_phase(
+                cancelled_full_rescan, cancel_requested = _process_regular_files_phase(
                     files_to_process=files_to_process,
                     total_files=total_files,
                     should_cancel=should_cancel,
@@ -2338,12 +2344,16 @@ def run_importer_logic(
                     file_reports=file_reports,
                     emit_progress=_emit_progress,
                 )
-                (
-                    sync_materialized,
-                    derivadas_sync_blocking_error,
-                    synced_special_files,
-                ) = (
-                    _run_optional_derivadas_sync(
+                if should_cancel is not None and should_cancel():
+                    cancel_requested = True
+                    if candidate_db_path is not None:
+                        cancelled_full_rescan = True
+                if not cancel_requested:
+                    (
+                        sync_materialized,
+                        derivadas_sync_blocking_error,
+                        synced_special_files,
+                    ) = _run_optional_derivadas_sync(
                         auto_derivadas_sync_enabled=auto_derivadas_sync_enabled,
                         successfully_processed_files=successfully_processed_files,
                         derivadas_sheet_files=derivadas_sheet_files,
@@ -2356,8 +2366,11 @@ def run_importer_logic(
                         emit_progress=_emit_progress,
                         extra_allowed_roots=extra_allowed_roots,
                     )
-                )
-                successfully_processed_files.extend(synced_special_files)
+                    successfully_processed_files.extend(synced_special_files)
+                    if should_cancel is not None and should_cancel():
+                        cancel_requested = True
+                        if candidate_db_path is not None:
+                            cancelled_full_rescan = True
             finally:
                 phase_durations["run_file_processing_seconds"] = (
                     time.perf_counter() - file_processing_started
@@ -2433,6 +2446,13 @@ def run_importer_logic(
                 discovery_settings=discovery_settings,
                 phase_durations=phase_durations,
             )
+            if (
+                cancel_requested
+                and not successfully_processed_files
+                and not sync_materialized
+            ):
+                final_decision["status"] = "cancelled_partial"
+                final_decision["reason"] = "regular_import_cancelled_before_update"
             final_integrity_report = final_decision.get("integrity_report")
             if isinstance(final_integrity_report, dict) and final_integrity_report:
                 integrity_report = final_integrity_report
