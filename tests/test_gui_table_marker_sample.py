@@ -1,10 +1,9 @@
-"""Regression tests: render marker must distinguish equal-sized pages.
+"""Regression tests: page digest must distinguish equal-sized pages.
 
 Covers the 2026-09 bug where a swallowed TypeError in
-_build_render_marker_sample (fillna("") on nullable numeric columns) produced
-an empty marker sample. The empty marker collapsed both the formatted-page
-cache key and the render signature, so applying a filter that kept the page at
-50 rows reused the stale formatted page and the table never changed.
+the previous marker path produced an empty value for nullable numeric columns.
+The digest now covers the full page, so a same-sized filtered page cannot reuse
+stale formatted content.
 """
 
 import os
@@ -108,19 +107,22 @@ class TestRenderMarkerSample:
         second = generate_responsavel_sector_filter_cache_signature(frame, data_load_token=None)
         assert first != second
 
-    def test_marker_non_empty_and_content_sensitive_with_nullable_numbers(self):
+    def test_digest_non_empty_and_content_sensitive_with_nullable_numbers(self):
         frame = _nullable_frame(3, ["IEE3", "MEL4", "XYZ"])
-        marker = gui_table._build_render_marker_sample(frame)
-        assert marker, "marker sample must not be empty for nullable numeric frames"
+        digest = gui_table._build_page_content_digest(frame)
+        assert digest is not None
 
         changed = frame.copy()
         changed.loc[0, "descricao_ssa"] = "Outro texto"
-        assert gui_table._build_render_marker_sample(changed) != marker
+        assert gui_table._build_page_content_digest(changed) != digest
 
-    def test_marker_covers_all_rows_for_large_frames(self):
+    def test_digest_covers_all_rows_for_large_frames(self):
         frame = _nullable_frame(120, ["IEE3"] * 120)
-        marker = gui_table._build_render_marker_sample(frame)
-        assert len(marker) == 120, "S8: marker covers ALL rows, not a sample"
+        digest = gui_table._build_page_content_digest(frame)
+        changed = frame.copy()
+        changed.loc[119, "descricao_ssa"] = "Ultima linha alterada"
+        assert digest is not None
+        assert gui_table._build_page_content_digest(changed) != digest
 
 
 class TestEqualSizedPageRender:
