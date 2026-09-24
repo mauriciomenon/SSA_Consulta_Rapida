@@ -382,6 +382,33 @@ def test_gui_entry_pyinstaller_runtime_uses_meipass_bundle_root(
         sys.path[:] = original_sys_path
 
 
+def test_frozen_runtime_falls_back_when_executable_dir_is_read_only(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from launchers import runtime_entry_helpers as helpers
+
+    executable_dir = tmp_path / "readonly_dist"
+    executable_dir.mkdir()
+    runtime_home = tmp_path / "writable_home"
+    runtime_home.mkdir()
+    monkeypatch.delenv("SSA_RUNTIME_ROOT", raising=False)
+    monkeypatch.setattr(helpers.sys, "argv", ["ssa_app"])
+    monkeypatch.setattr(
+        helpers, "resolve_executable_path", lambda: executable_dir / "ssa_app"
+    )
+    monkeypatch.setattr(helpers, "resolve_runtime_home", lambda: runtime_home)
+    original_temporary_file = helpers.tempfile.TemporaryFile
+
+    def temporary_file(*args, **kwargs):
+        if Path(kwargs["dir"]) == executable_dir:
+            raise PermissionError("instalacao somente leitura")
+        return original_temporary_file(*args, **kwargs)
+
+    monkeypatch.setattr(helpers.tempfile, "TemporaryFile", temporary_file)
+
+    assert helpers._resolve_writable_runtime_dir() == runtime_home
+
+
 @pytest.mark.parametrize("explicit_root", [False, True])
 def test_macos_app_runtime_uses_profile_without_writing_to_bundle(
     monkeypatch, tmp_path: Path, explicit_root: bool,

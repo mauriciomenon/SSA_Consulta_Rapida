@@ -346,6 +346,7 @@ def _resolve_writable_runtime_dir() -> Path:
 
     executable_dir = resolve_executable_path().parent
     explicit_root = os.environ.get("SSA_RUNTIME_ROOT")
+    uses_executable_dir = False
     if explicit_root:
         runtime_dir = Path(explicit_root).expanduser()
     elif RUNTIME_HOME_ARG in sys.argv or (
@@ -355,6 +356,7 @@ def _resolve_writable_runtime_dir() -> Path:
         runtime_dir = resolve_runtime_home()
     else:
         runtime_dir = executable_dir
+        uses_executable_dir = True
     safe_runtime_dir = ensure_path_is_allowed(
         runtime_dir,
         purpose="runtime root",
@@ -362,6 +364,17 @@ def _resolve_writable_runtime_dir() -> Path:
         extra_allowed_roots=_trusted_runtime_roots(),
     )
     safe_runtime_dir.mkdir(parents=True, exist_ok=True)
+    if uses_executable_dir:
+        try:
+            with tempfile.TemporaryFile(dir=safe_runtime_dir):
+                pass
+        except OSError:
+            safe_runtime_dir = ensure_path_is_allowed(
+                resolve_runtime_home(),
+                purpose="runtime root",
+                expect_directory=True,
+                extra_allowed_roots=_trusted_runtime_roots(),
+            )
     return safe_runtime_dir
 
 
