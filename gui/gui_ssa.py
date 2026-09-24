@@ -6092,6 +6092,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "_sector_debounce_timer",
             "_advanced_apply_timer",
             "_active_pai_api_timer",
+            "_resize_recompute_timer",
         ):
             timer = getattr(self, timer_attr, None)
             if timer is not None:

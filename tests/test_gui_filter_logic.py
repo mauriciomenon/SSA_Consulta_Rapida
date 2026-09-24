@@ -14361,6 +14361,16 @@ class TestGUIFilterLogic:
         assert worker.deleted is True
         assert self.window.filter_thread is None
 
+    def test_accepted_close_stops_pending_resize(self):
+        resize_timer = self.window._resize_recompute_timer
+        resize_timer.start(300)
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert resize_timer.isActive() is False
+
     def test_filter_worker_cleanup_accepts_already_deleted_qt_worker(self):
         class _DeletedSignal:
             def disconnect(self, _callback=None):
