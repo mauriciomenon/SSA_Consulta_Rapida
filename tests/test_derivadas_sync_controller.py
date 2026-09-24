@@ -472,6 +472,52 @@ def test_timeout_requests_cancellation_without_finalizing_live_worker(
         _QueuedTimer.callbacks.clear()
 
 
+def test_timeout_preserves_result_published_as_worker_exits(monkeypatch, tmp_path) -> None:
+    _QueuedTimer.callbacks.clear()
+    state = derivadas_sync_controller.DerivadasSyncState()
+    state.mark_started()
+    sync_lock = derivadas_sync_controller._ensure_derivadas_sync_lock(state)
+    finalized: list[dict[str, Any]] = []
+    times = iter([0.0, float(derivadas_sync_controller.DERIVADAS_SYNC_TIMEOUT_SEC + 1)])
+    monkeypatch.setattr(derivadas_sync_controller, "monotonic", lambda: next(times))
+
+    derivadas_sync_controller._start_async_derivadas_sync(
+        derivadas_sync_controller.DerivadasSyncUiRefs(
+            message_parent=object(), status_label=None, progress_bar=None,
+            update_button=None,
+        ),
+        state,
+        db_path=str(tmp_path / "ssas.db"), table_name="ssa_table",
+        special_files=[], sync_lock=sync_lock, qtimer=_QueuedTimer,
+        sip_module=None, thread_factory=_AliveThread,
+        execute_job=lambda **_kwargs: pytest.fail("fake worker does not execute"),
+        finalize_result=lambda _parent, result: finalized.append(result) or result,
+        sync_state_callback=None,
+    )
+    _QueuedTimer.callbacks.pop(0)()
+    assert state.cancel_event.is_set()
+    worker = state.thread
+    assert isinstance(worker, _AliveThread)
+    worker.alive = False
+    original_thread_alive = derivadas_sync_controller._thread_alive
+    published = False
+
+    def _publish_on_exit(thread):
+        nonlocal published
+        if thread is worker and not published:
+            with sync_lock:
+                state.pending_result = {"ok": True, "marker": "real result"}
+            published = True
+        return original_thread_alive(thread)
+
+    monkeypatch.setattr(derivadas_sync_controller, "_thread_alive", _publish_on_exit)
+    _QueuedTimer.callbacks.pop(0)()
+
+    assert finalized == [{"ok": True, "marker": "real result"}]
+    assert state.running is False
+    _QueuedTimer.callbacks.clear()
+
+
 def test_derivadas_worker_does_not_call_gui_state_callback(tmp_path) -> None:
     state = derivadas_sync_controller.DerivadasSyncState()
     state.mark_started()

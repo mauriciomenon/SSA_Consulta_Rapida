@@ -339,7 +339,13 @@ def _start_async_derivadas_sync(
                     else:
                         pending = {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
             if pending is None and cancel_event.is_set() and not _thread_alive(worker):
-                pending = {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
+                with sync_lock:
+                    if not state.running:
+                        return
+                    pending = state.pending_result
+                    state.pending_result = None
+                if pending is None:
+                    pending = {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
             if pending is None:
                 if state.running:
                     qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
@@ -419,7 +425,7 @@ def execute_derivadas_sync_job(
     scan_derivadas_consistency_fn: Callable[..., dict[str, Any]],
     status_callback=None,
     extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
-    cancel_event: threading.Event | None = None,
+    cancel_event: DerivadasSyncCancelEvent | None = None,
 ) -> dict[str, Any]:
     def _status_from_phase(phase_name: str, payload: dict[str, Any]) -> None:
         if not callable(status_callback):
