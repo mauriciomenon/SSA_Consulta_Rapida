@@ -51,7 +51,25 @@ autoria-git:
       if [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ] && ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
         git fetch --no-tags origin "$BASE_SHA"
       fi
-      uv run --no-project --no-sync python scripts/validate_git_authorship.py range "$BASE_SHA" "$HEAD_SHA"
+      if [ "${CI_PIPELINE_SOURCE:-}" = "merge_request_event" ]; then
+        VALIDATOR_PATH="scripts/validate_git_authorship.py"
+        VALIDATOR_SOURCE_SHA="$BASE_SHA"
+        VALIDATOR_ENTRY="$(git ls-tree "$BASE_SHA" -- "$VALIDATOR_PATH")"
+        if [ -z "$VALIDATOR_ENTRY" ]; then
+          BOOTSTRAP_SHA="cd0b092e5acdf15b85d3c816ad04dbc1b3c4e3c8"
+          VALIDATOR_SOURCE_SHA="$BOOTSTRAP_SHA"
+          echo "[autoria-git] Bootstrap explicito: base $BASE_SHA sem $VALIDATOR_PATH; fonte $BOOTSTRAP_SHA."
+          if ! git cat-file -e "${BOOTSTRAP_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$BOOTSTRAP_SHA"
+          fi
+        fi
+        VALIDATOR_FILE="$(mktemp)"
+        trap 'rm -f "$VALIDATOR_FILE"' EXIT
+        git show "${VALIDATOR_SOURCE_SHA}:${VALIDATOR_PATH}" > "$VALIDATOR_FILE"
+        python3 "$VALIDATOR_FILE" range "$BASE_SHA" "$HEAD_SHA"
+      else
+        uv run --no-project --no-sync python scripts/validate_git_authorship.py range "$BASE_SHA" "$HEAD_SHA"
+      fi
 
 quality-gates:
   stage: verify

@@ -702,6 +702,7 @@ def test_authorship_ci_preserves_exact_event_range(
             PR_BASE_SHA=base_sha, PR_HEAD_SHA=head,
             CI_COMMIT_BEFORE_SHA=unknown_sha, CI_COMMIT_SHA=unknown_sha,
             CI_MERGE_REQUEST_DIFF_BASE_SHA=base_sha, CI_MERGE_REQUEST_SOURCE_BRANCH_SHA=head,
+            CI_PIPELINE_SOURCE="merge_request_event",
         )
     result = subprocess.run(
         ["bash", "-c", script], cwd=repo, env=env, capture_output=True, text=True, check=False,
