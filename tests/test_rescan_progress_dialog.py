@@ -175,3 +175,19 @@ def test_rescan_progress_dialog_starts_non_modal():
     dlg = RescanProgressDialog()
 
     assert dlg.isModal() is False
+
+
+def test_rescan_progress_dialog_limits_output_and_error_history():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog
+
+    dlg = RescanProgressDialog()
+    for index in range(dlg.MAX_OUTPUT_BLOCKS + 2):
+        dlg.append_output(f"saida {index}")
+        dlg.append_error(f"erro {index}")
+
+    assert dlg.output_text.document().blockCount() == dlg.MAX_OUTPUT_BLOCKS
+    assert dlg.error_text.document().blockCount() == dlg.MAX_OUTPUT_BLOCKS
+    assert "saida 0" not in dlg.output_text.toPlainText()
+    assert "erro 0" not in dlg.error_text.toPlainText()
+    assert f"saida {dlg.MAX_OUTPUT_BLOCKS + 1}" in dlg.output_text.toPlainText()
+    assert f"erro {dlg.MAX_OUTPUT_BLOCKS + 1}" in dlg.error_text.toPlainText()
