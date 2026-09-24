@@ -98,6 +98,23 @@ def test_read_missing_database_does_not_create_file(tmp_path):
     assert not db_path.exists()
 
 
+def test_read_does_not_recreate_database_removed_during_connect(tmp_path, monkeypatch):
+    db_path = tmp_path / "removed.db"
+    sqlite3.connect(db_path).close()
+    original_connect = sqlite3.connect
+
+    def remove_before_connect(path, *args, **kwargs):
+        db_path.unlink()
+        return original_connect(path, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", remove_before_connect)
+    with pytest.raises(sqlite3.OperationalError):
+        with get_db_connection(str(db_path)):
+            pass
+
+    assert not db_path.exists()
+
+
 def test_get_db_connection_rolls_back_non_sqlite_exception(temp_db_path):
     """Runtime errors inside the context must not leave partial writes."""
     with get_db_connection(temp_db_path) as conn:

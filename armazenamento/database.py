@@ -134,6 +134,10 @@ def read_only_sqlite_uri(db_path: str) -> str:
     inicio do path como ``\\\\servidor\\share``. Assim ``mode=ro`` vale
     tambem para origens UNC.
     """
+    return _existing_sqlite_uri(db_path, mode="ro")
+
+
+def _existing_sqlite_uri(db_path: str, *, mode: str) -> str:
     from pathlib import Path
     from urllib.parse import urlparse
 
@@ -142,7 +146,7 @@ def read_only_sqlite_uri(db_path: str) -> str:
     parsed = urlparse(uri)
     if parsed.netloc not in ("", "localhost"):
         uri = f"file:////{parsed.netloc}{parsed.path}"
-    return f"{uri}?mode=ro"
+    return f"{uri}?mode={mode}"
 
 
 @contextmanager
@@ -185,8 +189,13 @@ def get_db_connection(db_path: str, *, write: bool = False, read_only: bool = Fa
             elif db_path != ":memory:" and not os.path.exists(db_path):
                 raise FileNotFoundError(f"Banco de dados nao encontrado: {db_path}")
 
-            if read_only and not write and db_path != ":memory:":
-                conn = sqlite3.connect(read_only_sqlite_uri(db_path), uri=True)
+            if not write and db_path != ":memory:":
+                uri = (
+                    read_only_sqlite_uri(db_path)
+                    if read_only
+                    else _existing_sqlite_uri(db_path, mode="rw")
+                )
+                conn = sqlite3.connect(uri, uri=True)
             else:
                 conn = sqlite3.connect(db_path)
             # Configuracoes recomendadas para performance e seguranca (FKs, etc.)
