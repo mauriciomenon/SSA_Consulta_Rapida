@@ -107,7 +107,7 @@ class TestPromotionGateWhitelist:
 
 
 class TestLauncherExitCode:
-    """Fix #3: non-blocking outcome overrides event errors."""
+    """Launcher exit codes distinguish controlled rejections from partial writes."""
 
     def test_rejections_only_with_errors_exits_0(self):
         import logging
@@ -138,6 +138,43 @@ class TestLauncherExitCode:
         )
         assert stats["error_count"] == 1
         assert stats["total_candidates"] == 1
+
+    @pytest.mark.parametrize("emit_error", [False, True])
+    def test_updated_with_rejection_exits_partial_error(self, emit_error, capsys):
+        import logging
+
+        from launchers import cli_entry
+
+        def partial_import(**kwargs):
+            if emit_error:
+                kwargs["progress_callback"]("file_error", {"error": "bad.xlsx"})
+            import_outcome.record_import_outcome(
+                import_outcome.build_import_outcome(
+                    raw_status="updated",
+                    legacy_result=True,
+                    run_id="partial",
+                    reason="one file rejected",
+                    primary_db_path="db",
+                    working_db_path="db",
+                    deterministic_failure_count=1,
+                )
+            )
+            return True
+
+        stats = cli_entry._execute_import_and_report(
+            partial_import,
+            docs_dir="docs",
+            data_dir="data",
+            runtime_base="base",
+            logger=logging.getLogger(__name__),
+        )
+
+        captured = capsys.readouterr()
+        assert stats["exit_code"] == 1
+        assert stats["status"] == "partial_error"
+        assert stats["error_count"] == 1
+        assert "Importacao parcial" in captured.err
+        assert "Importacao concluida" not in captured.out
 
 
 class TestPrimaryDatabaseChangedOverride:

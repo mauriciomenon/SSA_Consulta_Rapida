@@ -107,12 +107,20 @@ def _execute_import_and_report(
         progress_callback=summary.capture,
     )
     _outcome_after = import_outcome.get_last_import_outcome()
-    has_errors = bool(summary.errors)
     outcome = (
         _outcome_after
         if _outcome_after is not _outcome_before
         else None
     )
+    error_count = max(
+        len(summary.errors),
+        (
+            outcome.deterministic_failure_count + outcome.blocking_error_count
+            if outcome is not None
+            else 0
+        ),
+    )
+    has_errors = error_count > 0
     if outcome is not None:
         status = outcome.status
     else:
@@ -128,7 +136,7 @@ def _execute_import_and_report(
         updated=updated,
         total_candidates=summary.total_candidates,
         processed_files=summary.processed_files,
-        error_count=len(summary.errors),
+        error_count=error_count,
     )
     if blocking:
         message = (
@@ -146,6 +154,24 @@ def _execute_import_and_report(
         sys.stderr.write(message)
         stats["status"] = "blocked"
         return stats
+    if outcome is not None and has_errors and status in {
+        import_outcome.ImportStatus.UPDATED,
+        import_outcome.ImportStatus.DERIVADAS_MATERIALIZED,
+    }:
+        logger.error(
+            "Importacao parcial com erros. status=%s resultado=%r total=%s processados=%s erros=%s",
+            status.value,
+            updated,
+            summary.total_candidates,
+            summary.processed_files,
+            error_count,
+        )
+        sys.stderr.write(
+            "ERRO: Importacao parcial encontrou falhas em arquivos candidatos. "
+            "Consulte os logs da aplicacao.\n"
+        )
+        stats["status"] = "partial_error"
+        return stats
     if outcome is not None:
         changed = outcome.primary_database_changed
         stats["exit_code"] = 0
@@ -154,7 +180,7 @@ def _execute_import_and_report(
         )
         message = (
             f"Importacao concluida. status={status.value} "
-            f"banco_alterado={changed} rejeicoes={len(summary.errors)}"
+            f"banco_alterado={changed} rejeicoes={error_count}"
         )
         logger.info(message)
         sys.stdout.write(f"{message}\n")
