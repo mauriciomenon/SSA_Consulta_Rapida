@@ -1,5 +1,6 @@
 # ruff: noqa: E402
 # tests/test_extracao.py
+import hashlib
 import json
 import os
 import sys
@@ -7,6 +8,7 @@ from zipfile import ZIP_STORED, ZipFile
 
 import pandas as pd
 import pytest
+from openpyxl import Workbook
 
 # Adiciona a raiz do projeto ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -1075,6 +1077,49 @@ def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
             str(fake_file),
             should_cancel=lambda: True,
         )
+
+
+def test_extract_data_from_excel_cancels_during_sheet_parse(tmp_path, monkeypatch):
+    file_path = tmp_path / "large.xlsx"
+    workbook = Workbook(write_only=True)
+    sheet = workbook.create_sheet()
+    sheet.append(["Nº SSA", "Descricao da SSA"])
+    for row_number in range(10_000):
+        sheet.append([202600000 + row_number, "Texto de teste"])
+    workbook.save(file_path)
+    original_digest = hashlib.sha256(file_path.read_bytes()).digest()
+
+    parse_active = False
+    parse_completed = False
+    checks_during_parse = 0
+    original_parse = pd.ExcelFile.parse
+
+    def tracked_parse(self, *args, **kwargs):
+        nonlocal parse_active, parse_completed
+        parse_active = True
+        try:
+            result = original_parse(self, *args, **kwargs)
+            parse_completed = True
+            return result
+        finally:
+            parse_active = False
+
+    def should_cancel():
+        nonlocal checks_during_parse
+        if parse_active:
+            checks_during_parse += 1
+            return checks_during_parse >= 4
+        return False
+
+    monkeypatch.setattr(pd.ExcelFile, "parse", tracked_parse)
+
+    with pytest.raises(ExtractionError) as exc_info:
+        extract_data_from_excel(str(file_path), should_cancel=should_cancel)
+
+    assert exc_info.value.error_code == "OPERATION_CANCELLED"
+    assert checks_during_parse == 4
+    assert parse_completed is False
+    assert hashlib.sha256(file_path.read_bytes()).digest() == original_digest
 
 
 def test_validate_excel_import_limits_accepts_legitimate_xlsx(tmp_path):

@@ -169,6 +169,28 @@ def open_validated_excel_source(
         ) from exc
 
 
+class _CancellableExcelStream:
+    def __init__(self, source: BinaryIO, check_cancel: Callable[[], None]) -> None:
+        self._source = source
+        self._check_cancel = check_cancel
+
+    def read(self, size: int = -1) -> bytes:
+        self._check_cancel()
+        return self._source.read(size)
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        return self._source.seek(offset, whence)
+
+    def tell(self) -> int:
+        return self._source.tell()
+
+    def seekable(self) -> bool:
+        return self._source.seekable()
+
+    def readable(self) -> bool:
+        return self._source.readable()
+
+
 def _load_column_mappings(
     mappings_path: str | os.PathLike[str] | None = None,
 ) -> dict:
@@ -830,7 +852,12 @@ def extract_data_from_excel(
         }
         with (
             open_validated_excel_source(file_path) as source_stream,
-            pd.ExcelFile(source_stream, engine="openpyxl") as xl_file,
+            pd.ExcelFile(
+                source_stream
+                if should_cancel is None
+                else _CancellableExcelStream(source_stream, _check_cancel),
+                engine="openpyxl",
+            ) as xl_file,
         ):
             for sheet_name in xl_file.sheet_names:
                 _check_cancel()
