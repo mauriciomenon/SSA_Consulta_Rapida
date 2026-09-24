@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
+import stat
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -16,34 +18,47 @@ project_root = str(project_root_path)
 logger = logging.getLogger(__name__)
 
 _MAX_IMPORT_RUN_REPORTS = 50
+_IMPORT_RUN_REPORT_NAME = re.compile(r"^import_run_(\d{8}_\d{6}_\d{6})\.json$")
 
 
 def _prune_import_run_reports(logs_dir: str) -> None:
-    """Descarta relatorios import_run_*.json antigos, mantendo os mais recentes."""
+    """Mantem os relatorios com run_id temporal mais recentes."""
     try:
-        entries = [
-            os.path.join(logs_dir, name)
-            for name in os.listdir(logs_dir)
-            if name.startswith("import_run_") and name.endswith(".json")
-        ]
-        if len(entries) <= _MAX_IMPORT_RUN_REPORTS:
-            return
-        entries.sort(key=lambda p: (os.path.getmtime(p), p))
-        for stale_path in entries[: len(entries) - _MAX_IMPORT_RUN_REPORTS]:
-            try:
-                os.remove(stale_path)
-            except OSError as exc:
-                logger.warning(
-                    "Falha ao descartar relatorio antigo %s: %s",
-                    stale_path,
-                    exc,
-                )
+        names = os.listdir(logs_dir)
     except OSError as exc:
         logger.warning(
-            "Falha ao podar relatorios de importacao em %s: %s",
-            logs_dir,
-            exc,
+            "Falha ao listar relatorios de importacao em %s: %s", logs_dir, exc
         )
+        return
+
+    entries: list[tuple[str, str]] = []
+    for name in names:
+        match = _IMPORT_RUN_REPORT_NAME.fullmatch(name)
+        if match is None:
+            continue
+        try:
+            datetime.strptime(match.group(1), "%Y%m%d_%H%M%S_%f")
+        except ValueError:
+            continue
+        path = os.path.join(logs_dir, name)
+        try:
+            if not stat.S_ISREG(os.stat(path, follow_symlinks=False).st_mode):
+                continue
+        except OSError as exc:
+            logger.warning("Falha ao examinar relatorio %s: %s", path, exc)
+            continue
+        entries.append((match.group(1), path))
+
+    entries.sort()
+    for _, stale_path in entries[: -_MAX_IMPORT_RUN_REPORTS]:
+        try:
+            os.remove(stale_path)
+        except OSError as exc:
+            logger.warning(
+                "Falha ao descartar relatorio antigo %s: %s",
+                stale_path,
+                exc,
+            )
 
 
 def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
