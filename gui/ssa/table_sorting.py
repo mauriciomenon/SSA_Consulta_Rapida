@@ -269,7 +269,12 @@ def _build_sort_cache(
     if source_len > MAX_SORT_CACHE_ROWS:
         return empty_sort_cache(column_name=column_name)
     try:
-        if int(keys_df.memory_usage(deep=True).sum()) > MAX_SORT_CACHE_BYTES // 2:
+        budget = MAX_SORT_CACHE_BYTES // 2
+        # Tamanho raso e limite inferior do profundo: evita a medicao deep
+        # quando o resultado ja esta decidido.
+        if int(keys_df.memory_usage(deep=False).sum()) > budget:
+            return empty_sort_cache(column_name=column_name)
+        if int(keys_df.memory_usage(deep=True).sum()) > budget:
             return empty_sort_cache(column_name=column_name)
     except Exception as exc:
         logger.warning("Sort cache size unavailable; entry not retained: %s", exc)

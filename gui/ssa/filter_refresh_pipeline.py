@@ -15,6 +15,11 @@ _REFRESH_CACHE_MAX_BYTES = 8 * 1024 * 1024  # 8 MiB
 
 def _frame_estimated_bytes(frame: pd.DataFrame) -> int:
     try:
+        # O tamanho raso e limite inferior do profundo: acima do orcamento,
+        # a medicao deep (centenas de ms em frames grandes) nao muda a decisao.
+        shallow = int(frame.memory_usage(deep=False).sum())
+        if shallow > _REFRESH_CACHE_MAX_BYTES:
+            return shallow
         return int(frame.memory_usage(deep=True).sum())
     except Exception:
         return _REFRESH_CACHE_MAX_BYTES + 1  # unknown = skip

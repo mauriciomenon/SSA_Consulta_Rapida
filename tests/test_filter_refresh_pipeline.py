@@ -130,6 +130,33 @@ def test_filter_refresh_cache_respects_memory_budget(monkeypatch, above_budget):
         assert isinstance(cache_update, FilterRefreshLastResult)
 
 
+def test_filter_refresh_skips_deep_estimate_when_shallow_exceeds_budget(monkeypatch):
+    df = pd.DataFrame({"situacao": ["APV", "STE"]})
+    monkeypatch.setattr(filter_refresh_pipeline, "_REFRESH_CACHE_MAX_BYTES", 1)
+    original = pd.DataFrame.memory_usage
+    deep_calls: list[bool] = []
+
+    def _probe(frame, *, deep):
+        deep_calls.append(deep)
+        return original(frame, deep=deep)
+
+    monkeypatch.setattr(pd.DataFrame, "memory_usage", _probe)
+
+    _filtered, cache_update = apply_filter_refresh_pipeline(
+        df,
+        has_post_search_filters=True,
+        has_excluded_terminal_status=False,
+        cache_key=("revision", "shallow-budget"),
+        cached=None,
+        apply_advanced_filters=None,
+        apply_column_filters=lambda frame: frame,
+        measure_timing=_measure,
+    )
+
+    assert cache_update is None
+    assert deep_calls == [False]
+
+
 def test_filter_refresh_skips_cache_when_memory_estimation_fails(monkeypatch):
     df = pd.DataFrame({"situacao": ["APV", "STE"]})
 
