@@ -5,7 +5,7 @@
 - Sync deste guia: `2026-09-24`.
 - Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Caminho operacional principal:
-  - build Windows da candidata local v4.51: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`
+  - comando canonico Windows com banco runtime opcional: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`; os ZIPs locais v4.51 desta rodada nao incluem banco operacional
   - build interno: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`
   - distribuicao: `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`

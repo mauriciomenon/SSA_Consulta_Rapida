@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file.
 
 - Consolida correcoes locais de importacao, cancelamento, armazenamento e GUI ainda em validacao.
 - Registra evidencia, riscos e condicoes de promocao em `RELEASE_NOTES_v4.51.md`.
-- Sem tag, push, CI remoto ou binarios concluidos para esta candidata.
+- Builds locais macOS arm64, Windows arm64 e Windows amd64 concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA.
 
 ## [v4.50] - 2026-09-08
 

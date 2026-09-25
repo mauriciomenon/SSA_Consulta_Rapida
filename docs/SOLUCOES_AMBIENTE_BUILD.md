@@ -8,7 +8,7 @@
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
 - Para a candidata v4.51, gerar artefatos no clone nativo a partir do mesmo commit confirmado para cada alvo; registrar o resultado real de cada build.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
 
 ## HISTORICAL SNAPSHOT 2025-11-14
 

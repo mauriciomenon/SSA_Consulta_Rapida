@@ -15,7 +15,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
   3. distribuicao/report com scripts em `dev_env/build/` e `scripts/create_distribution.py`
 - Cada plataforma usa clone, venv e processo nativos do proprio host. Nao usar checkout Windows montado no WSL.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
-- Comando Windows para build da candidata local v4.51: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- Comando canonico Windows com banco runtime opcional: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`. Os ZIPs locais v4.51 desta rodada nao incluem banco operacional.
 - Fonte da matriz de release: `dev_env/build/release_targets.json`.
 - Matriz ativa:
   - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
@@ -41,7 +41,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 - `release.sh --target all --ssh-host ... --ssh-repo ...` executa macOS local quando em Darwin e chama Debian AMD64 + Debian ARM64 no remoto configurado.
 - `release.sh --target all --dry-run --allow-missing-remote` permite validar macOS local sem host Debian.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
 
 ## Local de saida e staging
 

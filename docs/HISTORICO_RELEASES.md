@@ -2,7 +2,7 @@
 
 ## CANDIDATA LOCAL v4.51 - 2026-09-24
 
-Correcoes locais em validacao. Nao ha tag, push, CI remoto ou binarios concluidos para esta candidata.
+Correcoes locais em validacao. Builds macOS arm64, Windows arm64 e Windows amd64 concluidos localmente a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA.
 Notas e condicoes de promocao: [RELEASE_NOTES_v4.51.md](../RELEASE_NOTES_v4.51.md).
 
 ## RELEASE v4.50 - 2026-09-08

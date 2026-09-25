@@ -12,7 +12,7 @@
 - Integracao de distribuicao: `scripts/create_distribution.py`.
 - Referencias antigas (`windows_x64`, `windows_x86`, `macos_x64`, `linux_x64`) sao historicas.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
 
 ## Inicio Rapido
 

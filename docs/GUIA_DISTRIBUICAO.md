@@ -6,12 +6,12 @@
 - Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
-- Comando para build Windows da candidata local v4.51, ainda sem artefato validado: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`.
+- Comando canonico para build Windows com banco runtime opcional: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`. Os ZIPs locais v4.51 desta rodada foram gerados sem banco operacional.
 - Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
 - Nao compartilhar checkout ou venv entre Windows e WSL/Linux. Validacao Linux exige clone Linux proprio; build Windows usa ferramentas Windows nativas.
 - Artefatos `v4.50` e anteriores seguem historicos e nao validam a candidata `v4.51`.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. A candidata local v4.51 ainda nao possui tag, push, CI remoto ou binarios concluidos; validar os artefatos reais antes de qualquer publicacao.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
 
 ## HISTORICAL SNAPSHOT 2026-06-11 11h
 
