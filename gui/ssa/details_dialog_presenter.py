@@ -72,6 +72,7 @@ def _details_payload_cache_put(
     context: object,
     payload: DetailsDialogRenderPayload,
 ) -> None:
+    cache.pop(normalized, None)
     if len(cache) >= _DETAILS_PAYLOAD_CACHE_MAX_ENTRIES:
         cache.pop(next(iter(cache)))
     cache[normalized] = (context, payload)

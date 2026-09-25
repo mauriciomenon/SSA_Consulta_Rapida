@@ -19,6 +19,7 @@ import logging
 import os
 import re
 import sqlite3
+import threading
 import time
 from datetime import datetime
 from enum import Enum
@@ -101,6 +102,7 @@ _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE: dict[
     tuple[str, str, tuple[tuple[str, int, int], ...]], bool
 ] = {}
 _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE_LIMIT = 128
+_DB_ONLY_DERIVADAS_PREFLIGHT_LOCK = threading.Lock()
 
 
 class FileProcessAction(str, Enum):
@@ -378,7 +380,8 @@ def _needs_db_only_derivadas_sync(
             normalized_table_name,
             _sqlite_file_state_key(resolved_db_path),
         )
-        cached_result = _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE.get(cache_key)
+        with _DB_ONLY_DERIVADAS_PREFLIGHT_LOCK:
+            cached_result = _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE.get(cache_key)
         if cached_result is not None:
             return cached_result
     except OSError as exc:
@@ -386,14 +389,15 @@ def _needs_db_only_derivadas_sync(
 
     def _finish(result: bool) -> bool:
         if cache_key is not None:
-            if (
-                cache_key not in _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE
-                and len(_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE)
-                >= _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE_LIMIT
-            ):
-                oldest_key = next(iter(_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE))
-                _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE.pop(oldest_key, None)
-            _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE[cache_key] = result
+            with _DB_ONLY_DERIVADAS_PREFLIGHT_LOCK:
+                if (
+                    cache_key not in _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE
+                    and len(_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE)
+                    >= _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE_LIMIT
+                ):
+                    oldest_key = next(iter(_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE))
+                    _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE.pop(oldest_key, None)
+                _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE[cache_key] = result
         return result
 
     try:

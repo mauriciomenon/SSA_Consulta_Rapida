@@ -73,7 +73,7 @@ class _MacOSStderrFilter:
                 pass
         self._pipe_write_fd = None
         if self._thread is not None:
-            self._thread.join()
+            self._thread.join(timeout=2.0)
         if stderr_dup_fd is not None:
             try:
                 os.close(stderr_dup_fd)
