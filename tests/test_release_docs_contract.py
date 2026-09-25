@@ -27,7 +27,7 @@ def test_solucoes_ambiente_doc_marks_legacy_body_historical() -> None:
 
     assert text.count("## CURRENT TRUTH") == 1
     assert "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in text
-    assert f"Release ativa: `{RELEASE_TAG}`" in text
+    assert f"candidata local em validacao: `{RELEASE_TAG}`" in text
     assert "Build e testes exigem ferramentas nativas e clone do proprio host" in text
     assert "PR atual: #57" not in text
     assert "- Branch alvo: `dev`." not in text
@@ -46,7 +46,7 @@ def test_release_docs_sync_contract() -> None:
     source_text = read_repo_text("docs", "GUIA_DISTRIBUICAO.md")
     source_truth = source_text.split("## HISTORICAL SNAPSHOT", 1)[0]
 
-    assert f"Release estavel ativa: `{RELEASE_TAG}`" in source_truth
+    assert f"candidata local em validacao: `{RELEASE_TAG}`" in source_truth
     assert "Validacao Linux exige clone Linux proprio" in source_truth
     assert "PR #57: aberto em draft" not in source_truth
     assert "PR #56: merged" not in source_truth
@@ -55,10 +55,10 @@ def test_release_docs_sync_contract() -> None:
         "4705c2e5722c4f3a5266ac02a5d15a1928d5a223" in source_truth
     )  # pragma: allowlist secret
 
-    for doc_name in [
-        "SOLUCOES_AMBIENTE_BUILD.md",
-        "BUILD_3X3_RUNBOOK.md",
-        "BUILD_TOOLING_LESSONS_LEARNED.md",
+    for doc_name, release_line in [
+        ("SOLUCOES_AMBIENTE_BUILD.md", f"candidata local em validacao: `{RELEASE_TAG}`"),
+        ("BUILD_3X3_RUNBOOK.md", f"candidata local em validacao: `{RELEASE_TAG}`"),
+        ("BUILD_TOOLING_LESSONS_LEARNED.md", "Release ativa: `v4.50`"),
     ]:
         current_truth = read_repo_text("docs", doc_name).split(
             "## HISTORICAL SNAPSHOT", 1
@@ -66,7 +66,7 @@ def test_release_docs_sync_contract() -> None:
         assert (
             "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in current_truth
         )
-        assert f"Release ativa: `{RELEASE_TAG}`" in current_truth
+        assert release_line in current_truth
         assert "Build e testes exigem ferramentas nativas e clone do proprio host" in current_truth
         assert "PR atual: #57" not in current_truth
         assert "df0345caea9ac3050c87d2172eb75817b8fc3689" not in current_truth
