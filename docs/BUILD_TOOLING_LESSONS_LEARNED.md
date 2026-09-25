@@ -15,7 +15,6 @@
 - Objetivo: registrar erros reais, causa-raiz, fix aplicado e comandos de validacao.
 - Escopo: Windows 11 + Debian 13 via WSL, com build via `uv`.
 - Regra atual: copia de DB/Excel locais para build agora e opt-in no script; usar `--with-local-data` no script quando o operador realmente quiser empacotar dados locais. O script repassa `--allow-local-data` apenas para `copy_data_to_builds.py`.
-- Relatorio operacional consolidado:
 - Runbook operacional:
   - `docs/BUILD_3X3_RUNBOOK.md`
 

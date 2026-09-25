@@ -235,7 +235,8 @@ $ROWS | Format-Table -AutoSize
 ### Linux/WSL
 
 ```bash
-CLI_BIN="$(ls -t /tmp/SSA_CLI_v*_debian_amd64 2>/dev/null | head -n 1)"
+# -type f: o onedir do PyInstaller tem o mesmo nome e o binario fica dentro.
+CLI_BIN="$(find /tmp -maxdepth 2 -type f -name 'SSA_CLI_v*_debian_amd64' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-)"
 if [ -z "$CLI_BIN" ]; then
   echo "[erro] nenhum binario SSA_CLI_v*_debian_amd64 encontrado em /tmp" >&2
   exit 1

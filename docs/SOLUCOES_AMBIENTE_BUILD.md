@@ -55,8 +55,8 @@ def _get_project_root():
         return os.getcwd()
 ```
 
-### Arquivo Modificado
-- [main.py](../main.py) linha 166-184
+### Arquivo Atual
+- `_get_project_root` fica em [launchers/main_runtime.py](../launchers/main_runtime.py); `main.py` apenas importa a funcao.
 
 ---
 
@@ -74,23 +74,13 @@ O GCC 15.2.0 do MSYS2 UCRT esta no PATH e interfere com o download automatico do
 
 ### Solucao Implementada
 
-Criado script [build_nuitka_clean.bat](../dev_env/build/build_nuitka_clean.bat) que:
+Historico: a primeira versao de
+[build_nuitka_clean.bat](../dev_env/build/build_nuitka_clean.bat) montava um
+PATH limpo sem MSYS2/MinGW antes do Nuitka.
 
-1. Remove temporariamente MSYS2/MinGW do PATH
-2. Mantem apenas Python e Scoop no PATH
-3. Executa build Nuitka
-4. Restaura PATH original
-
-```batch
-REM PATH limpo sem MSYS2
-set "PATH=C:\Windows\System32;C:\Windows;C:\Users\<usuario>\.pyenv\pyenv-win\bin;C:\Users\<usuario>\.pyenv\pyenv-win\shims;C:\Users\<usuario>\scoop\shims"
-
-REM Build com Nuitka
-python -m nuitka --standalone ...
-
-REM Restaurar PATH
-set "PATH=%PATH_BACKUP%"
-```
+O script atual nao altera o PATH. Ele roda sob `setlocal` (variaveis valem so
+dentro do script), usa `uv run --python 3.13` com `UV_MANAGED_PYTHON=true` e o
+ambiente `.venv-win`, e deixa o Nuitka baixar o proprio MinGW64.
 
 ### Arquivo Criado
 - [build_nuitka_clean.bat](../dev_env/build/build_nuitka_clean.bat)
@@ -259,6 +249,6 @@ rm -rf *.spec
 
 ---
 
-**Ultima atualizacao**: 2025-11-14
+**Ultima atualizacao**: 2026-09-25
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

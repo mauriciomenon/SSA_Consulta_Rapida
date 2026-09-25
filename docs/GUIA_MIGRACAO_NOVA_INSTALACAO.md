@@ -1,7 +1,7 @@
-# Guia Completo de Migracao - SSA Consulta Rapida v4.44
+# Guia Completo de Migracao - SSA Consulta Rapida v4.51
 
 **Data de Criacao:** 27 de Agosto de 2025
-**Versao do Sistema:** v4.44 (Baseline local)
+**Versao do Sistema:** v4.51 (candidata local)
 **Tipo:** Migracao Completa para Nova Instalacao
 **Sync:** 06/07/2026 09:45 -0300
 
@@ -92,7 +92,7 @@ python -m venv .venv
 .\.venv\Scripts\activate.bat
 
 # Metodo 3 - Usar script incluido
-.\activate_env.ps1
+.\dev_env\activate_env.ps1
 ```
 
 ### **Passo 4: Instalar Dependencias**
@@ -116,10 +116,8 @@ python -m pip list
 ```
 SSA_Consulta_Rapida/
 ├── main.py                    # ← PONTO DE ENTRADA PRINCIPAL
-├── main_dev.py               # ← Versao de desenvolvimento
 ├── requirements.txt          # ← Dependencias Python
 ├── README.md                 # ← Documentacao principal
-├── GUIA_MODO_OPTIMIZED.md   # ← Guia de otimizacao
 ├── config/
 │   ├── schema.sql            # ← Estrutura do banco
 │   └── gui_*.json           # ← Configuracoes da GUI
@@ -147,10 +145,10 @@ data/                        # ← Criada na primeira execucao
 ### **Passo 1: Ativacao Automatica do Ambiente**
 ```powershell
 # Usar o script incluido (RECOMENDADO)
-.\activate_env.ps1
+.\dev_env\activate_env.ps1
 
 # Ou criar um atalho personalizado
-# Editar activate_env.ps1 se necessario
+# Editar dev_env\activate_env.ps1 se necessario
 ```
 
 ### **Passo 2: Configurar PowerShell (se necessario)**
@@ -217,7 +215,9 @@ except ImportError as e:
 
 ### **Teste 3: Criacao do Banco**
 ```powershell
-# Criar estrutura do banco (sem dados, uv-first)
+# Criar estrutura do banco (sem dados, uv-first).
+# Somente em instalacao nova: --reset-db zera um banco existente
+# (um backup .backup_before_reset_* e criado antes).
 uv run --python $PY_RUNTIME main.py --reset-db
 
 # Fallback manual sem uv
@@ -256,19 +256,19 @@ ls docs_entrada
 
 ### **Passo 2: Importacao Inicial**
 ```powershell
-# Importacao padrao (primeira vez, uv-first)
-uv run --python $PY_RUNTIME main.py
+# A importacao automatica no startup esta desativada: executar main.py
+# sem flags nao importa as planilhas. Use --force-rescan (ou o rescan da GUI).
 
-# Fallback manual sem uv
-python main.py
+# Importacao inicial (uv-first)
+uv run --python $PY_RUNTIME main.py --force-rescan
 
 # Ou importacao otimizada (recomendado para arquivos grandes, uv-first)
-uv run --python $PY_RUNTIME main.py --optimized
+uv run --python $PY_RUNTIME main.py --optimized --force-rescan
 
 # Fallback manual sem uv
-python main.py --optimized
+python main.py --optimized --force-rescan
 
-# Ou forcar reimportacao completa (uv-first)
+# Reimportacao completa posterior (uv-first)
 uv run --python $PY_RUNTIME main.py --force-rescan
 
 # Fallback manual sem uv
@@ -319,13 +319,13 @@ python main.py --gui
 ### **Teste 3: Executar Testes Automatizados**
 ```powershell
 # Executar testes basicos (uv-first)
-uv run --python $PY_RUNTIME -m pytest tests\test_imports.py -v
+uv run --python $PY_RUNTIME python -m pytest tests\test_imports.py -v
 
 # Fallback manual sem uv
 python -m pytest tests\test_imports.py -v
 
 # Executar teste de banco (uv-first)
-uv run --python $PY_RUNTIME -m pytest tests\test_database.py -q
+uv run --python $PY_RUNTIME python -m pytest tests\test_database.py -q
 
 # Fallback manual sem uv
 python -m pytest tests\test_database.py -q
@@ -363,13 +363,14 @@ uv run --python $PY_RUNTIME main.py
 
 ### **Problema: Banco Corrompido**
 ```powershell
-# Reset completo do banco
+# 1. Rode a importacao: ela verifica a integridade e tenta restaurar o
+#    ultimo snapshot valido antes de qualquer reset.
+uv run --python $PY_RUNTIME main.py --force-rescan
+
+# 2. Somente se nao houver snapshot utilizavel: reset (zera o banco e cria
+#    backup .backup_before_reset_*), limpar cache e reimportar.
 uv run --python $PY_RUNTIME main.py --reset-db
-
-# Limpar cache
 del data\file_cache.json
-
-# Reimportar dados
 uv run --python $PY_RUNTIME main.py --force-rescan
 ```
 
@@ -412,9 +413,8 @@ type tests\test_imports.py               # ← Teste de importacao
 
 ### **4. Scripts de Desenvolvimento**
 ```powershell
-type activate_env.ps1                    # ← Script de ativacao
-type activate_env.bat                    # ← Alternativa CMD
-ls scripts_desenvolvimento\              # ← Ferramentas de desenvolvimento
+type dev_env\activate_env.ps1            # ← Script de ativacao
+type dev_env\activate_env.bat            # ← Alternativa CMD
 ls utils\                               # ← Utilitarios diversos
 ```
 
@@ -426,7 +426,7 @@ ls utils\                               # ← Utilitarios diversos
 ```powershell
 # Sequencia completa de inicializacao
 cd C:\Users\[SEU_USUARIO]\git\SSA_Consulta_Rapida
-.\activate_env.ps1
+.\dev_env\activate_env.ps1
 uv run --python $PY_RUNTIME main.py
 ```
 
@@ -444,8 +444,8 @@ uv run --python $PY_RUNTIME main.py --help
 
 ### **Reimportacao Completa**
 ```powershell
-# Quando houver mudancas significativas nos dados
-uv run --python $PY_RUNTIME main.py --reset-db
+# Quando houver mudancas significativas nos dados (--force-rescan reimporta
+# sem zerar o banco; --reset-db so para recomecar do zero)
 uv run --python $PY_RUNTIME main.py --optimized --force-rescan
 ```
 
@@ -508,7 +508,7 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 06/07/2026 - v4.44*
+*Ultima atualizacao: 25/09/2026 - v4.51*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*
 
 

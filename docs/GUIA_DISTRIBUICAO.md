@@ -362,7 +362,7 @@ Politica operacional (v4.43+):
 Texto sugerido:
 
 ```text
-SSA Consulta Rapida v4.43
+SSA Consulta Rapida v<versao publicada>
 
 INSTALACAO
 1. Baixe o arquivo ZIP.
