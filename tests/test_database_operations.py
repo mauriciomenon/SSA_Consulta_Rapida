@@ -460,6 +460,42 @@ def test_sweep_removes_stale_sidecar_of_unregistered_copy(tmp_path):
             ssa_ops.discard_staged_copy(result["staged"])
 
 
+def test_sweep_keeps_foreign_staging_with_recent_sidecar(tmp_path):
+    """Staging de outra instancia com journal ativo nao e removido, mesmo
+    com a base antiga: a idade do grupo e a do arquivo mais recente."""
+    import os
+    import time
+
+    from gui.ssa import database_operations as ssa_ops
+    from gui.ssa.database_operations import (
+        STALE_STAGED_COPY_MIN_AGE_SEC,
+        stage_database_copy,
+    )
+
+    src_dir = tmp_path / "externo"
+    src_dir.mkdir()
+    src = _make_db(src_dir / "src.db", ["a"])
+    dest_dir = tmp_path / "data"
+    dest_dir.mkdir()
+    dest = dest_dir / "src.db"
+
+    foreign = dest_dir / "src.db.copy-20000101_000000_000002"
+    foreign.write_bytes(b"copy from another process")
+    foreign_journal = Path(f"{foreign}-journal")
+    foreign_journal.write_bytes(b"journal still being written")
+    old = time.time() - STALE_STAGED_COPY_MIN_AGE_SEC - 60
+    os.utime(foreign, (old, old))
+
+    result = stage_database_copy(src, dest)
+    try:
+        assert result["ok"] is True, result
+        assert foreign.exists()
+        assert foreign_journal.exists()
+    finally:
+        if result.get("staged"):
+            ssa_ops.discard_staged_copy(result["staged"])
+
+
 def test_stage_database_copy_blocked_while_staging_barred(tmp_path):
     """Apos a barreira de encerramento, nenhum staging novo inicia.
 

@@ -187,12 +187,26 @@ def _is_active_staged_path(path: Path, active: set[str]) -> bool:
     return False
 
 
+def _staged_group_latest_mtime(base: Path) -> float | None:
+    """Mtime mais recente entre staging e sidecars; None se nada existe."""
+    latest: float | None = None
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        try:
+            mtime = Path(f"{base}{suffix}").stat().st_mtime
+        except FileNotFoundError:
+            continue
+        latest = mtime if latest is None else max(latest, mtime)
+    return latest
+
+
 def _sweep_stale_staged_copies(dest: Path) -> None:
     """Remove `.copy-*` orfaos do destino (best-effort).
 
-    Um arquivo so e removido se nao estiver registrado como staging ativo
-    deste processo (nem for sidecar de um) E for mais antigo que a janela
-    minima.
+    Staging e sidecars formam um grupo: o grupo so e removido se a base
+    nao estiver registrada como ativa neste processo E o arquivo mais
+    recente do grupo for mais antigo que a janela minima. O registro vale
+    so neste processo; um backup em andamento em outra instancia continua
+    escrevendo na base ou no journal e renova essa idade.
     """
     cutoff = time.time() - STALE_STAGED_COPY_MIN_AGE_SEC
     try:
@@ -202,14 +216,23 @@ def _sweep_stale_staged_copies(dest: Path) -> None:
         return
     with _ACTIVE_STAGED_LOCK:
         active = set(_ACTIVE_STAGED_COPIES)
-    for stale in siblings:
+    bases: dict[str, Path] = {}
+    for sibling in siblings:
+        name = str(sibling)
+        for suffix in ("-wal", "-shm", "-journal"):
+            if name.endswith(suffix):
+                name = name.removesuffix(suffix)
+                break
+        bases.setdefault(name, Path(name))
+    for base in bases.values():
         try:
-            if _is_active_staged_path(stale, active):
+            if _is_active_staged_path(base, active):
                 continue
-            if stale.stat().st_mtime < cutoff:
-                discard_staged_copy(stale)
+            latest = _staged_group_latest_mtime(base)
+            if latest is not None and latest < cutoff:
+                discard_staged_copy(base)
         except OSError as exc:
-            logger.warning("Falha ao inspecionar copia parcial %s: %s", stale, exc)
+            logger.warning("Falha ao inspecionar copia parcial %s: %s", base, exc)
 
 
 def stage_database_copy(src: Path, dest: Path) -> dict[str, Any]:
