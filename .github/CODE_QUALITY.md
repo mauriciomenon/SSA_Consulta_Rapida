@@ -28,7 +28,7 @@ nao sao cumpridos, independentemente da protecao de merge do GitHub.
 - `.deepsource.toml`: seleciona o analisador; nao configura protecao de merge.
 
 Os comandos locais e detalhes dos artefatos estao em
-[TESTING_STRATEGY.md](../docs/TESTING_STRATEGY.md). A validacao nativa de um
+`docs/TESTING_STRATEGY.md` (documento local, nao versionado). A validacao nativa de um
 build nao pode ser substituida por analise de YAML ou PowerShell.
 
 ## Registro historico da PR 131 (13/09/2026)
@@ -36,12 +36,12 @@ build nao pode ser substituida por analise de YAML ou PowerShell.
 As anotacoes dos oito jobs GitHub em 7015e6fd confirmam bloqueio de faturamento
 antes de iniciar. Isso exige regularizacao da conta, nao mudanca dos gates.
 A pipeline GitLab e o estado dos commits estao na secao M de
-[AUDIT_FIXES_REPORT.md](../docs/AUDIT_FIXES_REPORT.md).
+`docs/AUDIT_FIXES_REPORT.md` (documento local, nao versionado).
 
 O reteste local historico e seus limites estao centralizados na
-[secao L4 do relatorio](../docs/AUDIT_FIXES_REPORT.md#l4-fechamento-da-rodada-a-e).
+secao L4 do mesmo relatorio.
 Esse registro nao comprova execucao de CI nem aprovacao do HEAD atual.
-A entrega de binarios segue [seu procedimento](../docs/BUILD_WINDOWS_ARM64_AMD64.md);
+A entrega de binarios segue `docs/BUILD_WINDOWS_ARM64_AMD64.md` (documento local, nao versionado);
 pendencias historicas nao acrescentam gates, e ajustes apenas documentais nao
 exigem recompilacao. Os gates existentes permanecem com seus contratos.
 

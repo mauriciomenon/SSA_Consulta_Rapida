@@ -8,7 +8,10 @@ desktop (PyQt6) e web (Streamlit).
 
 Versao do codigo nesta candidata local: **4.51**. A ultima release publicada e **v4.50**. As fontes centrais sao `VERSION`, `config/version.json` e os metadados do pacote.
 
-[Notas da candidata](RELEASE_NOTES_v4.51.md) | [Documentacao](docs/INDEX.md)
+[Notas da candidata](RELEASE_NOTES_v4.51.md)
+
+A documentacao operacional detalhada fica em `docs/`; apenas os guias
+exigidos por testes e empacotamento sao versionados.
 
 ## Execucao
 
@@ -52,7 +55,8 @@ No Windows, use PowerShell e o ambiente nativo descrito no [guia de ambiente](de
   sem abortar o lote.
 - Bancos, planilhas e configuracoes pessoais ficam fora do controle de versao.
 
-[Importacao](docs/ARQUITETURA_IMPORTACAO.md) | [Regras de atualizacao](docs/ARCH_DB_UPSERT.md) | [Diagnostico](docs/TROUBLESHOOTING_IMPORTACAO.md)
+Detalhes da importacao nos docs locais `ARQUITETURA_IMPORTACAO.md`,
+`ARCH_DB_UPSERT.md` e `TROUBLESHOOTING_IMPORTACAO.md`.
 
 ## Derivadas
 
@@ -89,9 +93,9 @@ manual concluida. O dialogo oferece JSON, CSV e TSV do ultimo resultado valido
 para o banco atual. Trocar de banco ou iniciar outra sincronizacao invalida esse
 resultado.
 
-[Guia e exemplos de derivadas](docs/DERIVADAS_SYNC_RUNBOOK.md) |
-[Plano de validacao da auditoria](docs/VALIDATION_PLAN.md) |
-[Relatorio de correcoes e estabilizacao de estado](docs/AUDIT_FIXES_REPORT.md)
+Guia de derivadas, plano de validacao e relatorio de correcoes nos docs
+locais `DERIVADAS_SYNC_RUNBOOK.md`, `VALIDATION_PLAN.md` e
+`AUDIT_FIXES_REPORT.md`.
 
 ## Recuperacao do banco
 
@@ -130,8 +134,8 @@ nessas execucoes, a suite completa e automatica e bloqueante. Os gates publicam
 diagnosticos e o GitLab preserva JSONL e relatorio JUnit por 14 dias. O log da
 suite identifica cada teste e resume as 20 maiores duracoes.
 
-[Contratos e comandos de CI](docs/TESTING_STRATEGY.md#ci-github-gitlab-e-release-windows) |
-[Resultados e bloqueios da PR](docs/AUDIT_FIXES_REPORT.md#m-correcao-de-cicd-e-preparacao-da-pr)
+Contratos de CI e resultados de PR nos docs locais `TESTING_STRATEGY.md` e
+`AUDIT_FIXES_REPORT.md`.
 
 ## Distribuicao
 
@@ -159,6 +163,6 @@ Entregar assim que os pacotes solicitados passarem nessas verificacoes. Registra
 limites de validacao no relatorio da entrega; ampliar testes somente diante de
 falha concreta. Uma correcao posterior apenas de documentacao nao exige rebuild.
 
-[Comandos e validacao dos tres alvos](docs/BUILD_WINDOWS_ARM64_AMD64.md) |
-[Guia de distribuicao](docs/GUIA_DISTRIBUICAO.md) |
-[Build multiplataforma](docs/BUILD_MULTIPLATFORM.md)
+[Guia de distribuicao](docs/GUIA_DISTRIBUICAO.md). Comandos por alvo e
+detalhes do builder nos docs locais `BUILD_WINDOWS_ARM64_AMD64.md` e
+`BUILD_MULTIPLATFORM.md`.
