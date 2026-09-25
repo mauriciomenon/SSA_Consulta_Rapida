@@ -23,6 +23,35 @@ SSA_ENV_KEYS = (
 )
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help", "--version"])
+def test_cli_info_flags_exit_without_loading_database(
+    tmp_path: Path, flag: str
+) -> None:
+    env = os.environ.copy()
+    env["SSA_RUNTIME_ROOT"] = str(tmp_path / "runtime")
+    env["SSA_DB_PATH"] = str(tmp_path / "missing.db")
+    env["HOME"] = str(tmp_path / "home")
+    env.pop("SSA_SMOKE_TEST", None)
+
+    process = subprocess.run(  # nosec B603
+        [sys.executable, "-m", "launchers.cli_entry", flag],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+
+    assert process.returncode == 0
+    assert process.stderr == ""
+    assert "v4.51" in process.stdout
+    if flag == "--version":
+        assert process.stdout.strip() == "v4.51"
+    else:
+        assert "Uso: SSA_CLI" in process.stdout
+
+
 @pytest.mark.parametrize("runtime_args", [[], ["--runtime-home"]])
 def test_gui_argument_parser_accepts_launcher_runtime_flag(runtime_args) -> None:
     from interface.cli_args import build_argument_parser

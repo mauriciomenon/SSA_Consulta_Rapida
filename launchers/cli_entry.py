@@ -286,6 +286,25 @@ def _should_run_import(argv: list[str]) -> bool:
     return any(arg in ("--force-rescan", "--rescan") for arg in argv[1:])
 
 
+def _cli_info_exit_code(argv: list[str]) -> int | None:
+    if not any(arg in ("-h", "--help", "--version") for arg in argv[1:]):
+        return None
+
+    from utils.version import get_app_version
+
+    version = get_app_version()
+    if "-h" in argv[1:] or "--help" in argv[1:]:
+        print(f"Consulta Rapida de SSAs v{version}")
+        print("Uso: SSA_CLI [--force-rescan|--rescan] [--help] [--version]")
+        print("Sem opcoes, inicia a consulta interativa.")
+        print("--force-rescan, --rescan  Reimporta planilhas e atualiza derivadas.")
+        print("--help, -h                Exibe esta ajuda e encerra.")
+        print("--version                 Exibe a versao e encerra.")
+    else:
+        print(f"v{version}")
+    return 0
+
+
 def main():
     """Entry point CLI v3.10.
 
@@ -313,6 +332,10 @@ def main():
     smoke_exit_code = _smoke_test_exit_code()
     if smoke_exit_code is not None:
         sys.exit(smoke_exit_code)
+
+    info_exit_code = _cli_info_exit_code(sys.argv)
+    if info_exit_code is not None:
+        sys.exit(info_exit_code)
 
     try:
         from core.app_logic import run_importer_logic
