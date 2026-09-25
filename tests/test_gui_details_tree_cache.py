@@ -55,6 +55,7 @@ def test_materialized_relation_change_invalidates_tree_without_new_sync_run(
             "WHERE parent_ssa = ? AND child_ssa = ?",
             ("Rotulo B", "202600100", "202600101"),
         )
+    os.utime(temp_db, (2_000_000_000, 2_000_000_000))
 
     second = gui_details._collect_derivadas_tree_data(window, "202600100")
     assert second["direct_relation_rows"][0]["relation_raw_label"] == "Rotulo B"

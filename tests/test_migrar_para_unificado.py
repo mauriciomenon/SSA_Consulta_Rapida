@@ -10,6 +10,10 @@ from filelock import Timeout
 
 from scripts.migracao import migrar_para_unificado
 
+pytestmark = pytest.mark.skipif(
+    os.name != "posix", reason="modos de arquivo POSIX e subprocesso com stdin"
+)
+
 
 @pytest.fixture
 def migration_db(tmp_path, monkeypatch):
@@ -76,7 +80,14 @@ def test_migration_refuses_concurrent_project_writer(migration_db, tmp_path):
                 "id"
             ]
     finally:
-        assert process.stdin is not None
-        process.stdin.write("\n")
-        process.stdin.flush()
-        process.wait(timeout=5)
+        try:
+            assert process.stdin is not None
+            process.stdin.write("\n")
+            process.stdin.flush()
+        except (BrokenPipeError, OSError):
+            pass
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)

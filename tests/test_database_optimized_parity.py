@@ -53,7 +53,24 @@ def test_optimized_matches_canonical_persisted_rows(
         assert results[0][0][3]
 
 
-def test_parse_block_metric_matches_canonical_and_optimized(tmp_path):
+@pytest.mark.parametrize(
+    "complementary",
+    [
+        "0",
+        pytest.param(
+            "1",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="divergencia real: optimized nao contabiliza "
+                "ssa_blocked_parse em modo complementary",
+            ),
+        ),
+    ],
+)
+def test_parse_block_metric_matches_canonical_and_optimized(
+    tmp_path, monkeypatch, complementary
+):
+    monkeypatch.setenv("SSA_ENABLE_COMPLEMENTARY", complementary)
     incoming = pd.DataFrame(
         [
             {

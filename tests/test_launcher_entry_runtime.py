@@ -46,6 +46,7 @@ def test_cli_info_flags_exit_without_loading_database(
     assert process.returncode == 0
     assert process.stderr == ""
     assert "v4.51" in process.stdout
+    assert not (tmp_path / "missing.db").exists()
     if flag == "--version":
         assert process.stdout.strip() == "v4.51"
     else:
@@ -191,7 +192,7 @@ def test_gui_entry_uses_shared_launcher_and_preserves_exit_code(
     from PyQt6 import QtWidgets
 
     from core import config_manager
-    from gui import gui_ssa, launcher
+    from gui import gui_ssa
     from launchers import gui_entry
     from utils import setup_project_structure
 
@@ -221,11 +222,11 @@ def test_gui_entry_uses_shared_launcher_and_preserves_exit_code(
     monkeypatch.setattr(config_manager, "ensure_default_settings", lambda **_kw: None)
     monkeypatch.setattr(QtWidgets, "QApplication", FakeApp)
     monkeypatch.setattr(gui_ssa, "SSAMainWindow", FakeWindow)
-    monkeypatch.setattr(
-        launcher,
-        "launch_gui",
-        lambda root, argv, log: calls.append((root, argv, log)) or 7,
-    )
+    fake_launcher = ModuleType("gui.launcher")
+    fake_launcher.launch_gui = lambda root, argv, log: calls.append(  # type: ignore[attr-defined]
+        (root, argv, log)
+    ) or 7
+    monkeypatch.setitem(sys.modules, "gui.launcher", fake_launcher)
 
     with pytest.raises(SystemExit) as exit_info:
         gui_entry.main()

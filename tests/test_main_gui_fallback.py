@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import logging
 import os
 import subprocess
 import sys
@@ -8,6 +9,18 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _restore_root_logging():
+    root = logging.getLogger()
+    level, handlers = root.level, root.handlers[:]
+    yield
+    for handler in root.handlers[:]:
+        if handler not in handlers:
+            root.removeHandler(handler)
+            handler.close()
+    root.setLevel(level)
 
 
 def test_gui_ssa_window_instantiates_when_pyqt_is_available() -> None:
@@ -273,6 +286,8 @@ app.exec()
 print('event-loop-returned')
 """
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    env["PYTHONPATH"] = repo_root
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
@@ -316,6 +331,8 @@ worker.join()
 print('worker-returned')
 """
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    env["PYTHONPATH"] = repo_root
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,

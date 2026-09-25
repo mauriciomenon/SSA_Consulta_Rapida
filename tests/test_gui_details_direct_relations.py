@@ -17,7 +17,7 @@ def _window(db_path: str, rows: list[tuple[str, str]]) -> SimpleNamespace:
     return SimpleNamespace(
         db_path=db_path,
         df_completo=frame,
-        df_exibido=frame,
+        df_exibido=frame.copy(),
         _data_uuid="relations-1",
         _data_revision=1,
         internal_to_display={},

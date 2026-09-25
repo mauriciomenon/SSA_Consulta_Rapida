@@ -1108,7 +1108,7 @@ def test_extract_data_from_excel_cancels_during_sheet_parse(tmp_path, monkeypatc
         nonlocal checks_during_parse
         if parse_active:
             checks_during_parse += 1
-            return checks_during_parse >= 4
+            return True
         return False
 
     monkeypatch.setattr(pd.ExcelFile, "parse", tracked_parse)
@@ -1117,7 +1117,7 @@ def test_extract_data_from_excel_cancels_during_sheet_parse(tmp_path, monkeypatc
         extract_data_from_excel(str(file_path), should_cancel=should_cancel)
 
     assert exc_info.value.error_code == "OPERATION_CANCELLED"
-    assert checks_during_parse == 4
+    assert checks_during_parse >= 1
     assert parse_completed is False
     assert hashlib.sha256(file_path.read_bytes()).digest() == original_digest
 

@@ -180,6 +180,7 @@ class TestRobustLogging(unittest.TestCase):
     def test_console_warning_keeps_json_stdout_clean(self):
         root = logging.getLogger()
         previous_handlers = root.handlers[:]
+        previous_level = root.level
         stdout = StringIO()
         stderr = StringIO()
         try:
@@ -190,6 +191,7 @@ class TestRobustLogging(unittest.TestCase):
         finally:
             current_handlers = root.handlers[:]
             root.handlers[:] = previous_handlers
+            root.setLevel(previous_level)
             for handler in current_handlers:
                 handler.close()
         self.assertEqual(json.loads(stdout.getvalue()), {"status": "ok"})

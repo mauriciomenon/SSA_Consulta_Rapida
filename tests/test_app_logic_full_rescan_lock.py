@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 import subprocess
@@ -70,8 +71,15 @@ def test_rotate_preexisting_database_for_full_rescan_without_external_lock(
         return original_open(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", _open_with_marker_failure)
-
-    rotate_preexisting_database_for_full_rescan(str(db_path))
+    rotation_logger = rotate_preexisting_database_for_full_rescan.__globals__[
+        "logger"
+    ]
+    rotation_logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.WARNING, logger=rotation_logger.name):
+            rotate_preexisting_database_for_full_rescan(str(db_path))
+    finally:
+        rotation_logger.removeHandler(caplog.handler)
 
     backups = sorted(
         p
@@ -264,8 +272,8 @@ def test_reader_never_sees_missing_primary_during_publish(
         future = pool.submit(
             promote_full_rescan_candidate, str(candidate_db), str(primary_db)
         )
-        assert at_publish.wait(10)
         try:
+            assert at_publish.wait(10)
             reader = subprocess.run(
                 [
                     sys.executable,
