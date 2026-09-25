@@ -245,34 +245,54 @@ def _load_runtime_dependencies():
     )
 
 
-def _run_maintenance_action(args: argparse.Namespace) -> bool:
+_MAINTENANCE_DB_BUSY_MESSAGE = (
+    "ERRO: banco em uso por outro processo. Feche a aplicacao e tente novamente."
+)
+
+
+def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
+    """Executa manutencao sobre o banco resolvido (SSA_DB_PATH ou runtime)."""
+    if not (args.reset_db or args.clean_data):
+        return False
+    from filelock import Timeout
+
     if args.reset_db:
-        print("Resetando banco de dados...")
+        print(f"Resetando banco de dados: {db_path}")
         try:
             from scripts_manutencao.gerenciar_banco import reset_database
         except ImportError:
             print("Modulo de gerenciamento de banco nao disponivel")
             return True
-        reset_database()
+        try:
+            reset_database(db_path)
+        except Timeout:
+            print(_MAINTENANCE_DB_BUSY_MESSAGE)
+            return True
         print("Banco de dados resetado com sucesso!")
         return True
 
-    if args.clean_data:
-        print("Limpando pasta data...")
-        try:
-            from scripts_manutencao.gerenciar_banco import (
-                clean_old_backups,
-                sanitize_data_folder,
-            )
-        except ImportError:
-            print("Modulo de gerenciamento de banco nao disponivel")
-            return True
-        clean_old_backups()
-        sanitize_data_folder()
-        print("Limpeza concluida!")
+    data_dir = os.path.dirname(os.path.abspath(db_path))
+    print(f"Limpando pasta data: {data_dir}")
+    try:
+        from armazenamento.database_lock import database_writer_lock
+        from scripts_manutencao.gerenciar_banco import (
+            clean_old_backups,
+            sanitize_data_folder,
+        )
+    except ImportError:
+        print("Modulo de gerenciamento de banco nao disponivel")
         return True
-
-    return False
+    try:
+        # A limpeza remove temporarios e move arquivos da pasta do banco:
+        # sem o lock de escrita poderia atingir staging de importacao ativa.
+        with database_writer_lock(db_path, timeout=0):
+            clean_old_backups(data_dir)
+            sanitize_data_folder(data_dir)
+    except Timeout:
+        print(_MAINTENANCE_DB_BUSY_MESSAGE)
+        return True
+    print("Limpeza concluida!")
+    return True
 
 
 def _log_environment_diagnostics(
@@ -748,7 +768,9 @@ def main(cli_args=None):
             start_cli_loop,
             setup_project_structure,
         ) = dependencies
-        if _run_maintenance_action(args):
+        if (args.reset_db or args.clean_data) and _run_maintenance_action(
+            args, _resolve_database_target(active_runtime_root)[0]
+        ):
             return
         _prepare_application_environment(active_runtime_root, setup_project_structure)
         _ensure_default_configuration(ensure_default_settings)

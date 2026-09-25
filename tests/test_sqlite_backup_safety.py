@@ -4,6 +4,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import threading
 from argparse import Namespace
 from contextlib import closing
 from pathlib import Path
@@ -256,11 +257,92 @@ def test_main_reset_does_not_report_success_after_failure(
     import main as main_module
     from scripts_manutencao import gerenciar_banco
 
-    def fail_reset() -> None:
+    def fail_reset(_db_path: str) -> None:
         raise sqlite3.OperationalError("reset failed")
 
     monkeypatch.setattr(gerenciar_banco, "reset_database", fail_reset)
     with pytest.raises(sqlite3.OperationalError, match="reset failed"):
-        main_module._run_maintenance_action(Namespace(reset_db=True, clean_data=False))
+        main_module._run_maintenance_action(
+            Namespace(reset_db=True, clean_data=False), "unused.db"
+        )
 
     assert "resetado com sucesso" not in capsys.readouterr().out
+
+
+def test_main_maintenance_targets_resolved_database_not_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import main as main_module
+    from scripts_manutencao import gerenciar_banco
+
+    runtime_db = tmp_path / "runtime" / "data" / "custom.db"
+    runtime_db.parent.mkdir(parents=True)
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        gerenciar_banco, "reset_database", lambda path: calls.append(("reset", path))
+    )
+    monkeypatch.setattr(
+        gerenciar_banco, "clean_old_backups", lambda path: calls.append(("clean", path))
+    )
+    monkeypatch.setattr(
+        gerenciar_banco,
+        "sanitize_data_folder",
+        lambda path: calls.append(("sanitize", path)),
+    )
+
+    assert main_module._run_maintenance_action(
+        Namespace(reset_db=True, clean_data=False), str(runtime_db)
+    )
+    assert main_module._run_maintenance_action(
+        Namespace(reset_db=False, clean_data=True), str(runtime_db)
+    )
+
+    data_dir = str(runtime_db.parent)
+    assert calls == [
+        ("reset", str(runtime_db)),
+        ("clean", data_dir),
+        ("sanitize", data_dir),
+    ]
+    assert not (cwd / "data").exists()
+
+
+def test_main_clean_data_refuses_when_writer_lock_is_busy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import main as main_module
+    from armazenamento.database_lock import database_writer_lock
+    from scripts_manutencao import gerenciar_banco
+
+    db_path = tmp_path / "ssas.db"
+    monkeypatch.setattr(
+        gerenciar_banco,
+        "clean_old_backups",
+        lambda _path: pytest.fail("limpeza nao pode rodar com banco em uso"),
+    )
+    busy = threading.Event()
+    release = threading.Event()
+
+    def _hold() -> None:
+        with database_writer_lock(str(db_path)):
+            busy.set()
+            release.wait(10)
+
+    holder = threading.Thread(target=_hold)
+    holder.start()
+    try:
+        assert busy.wait(10)
+        assert main_module._run_maintenance_action(
+            Namespace(reset_db=False, clean_data=True), str(db_path)
+        )
+    finally:
+        release.set()
+        holder.join(10)
+
+    output = capsys.readouterr().out
+    assert "banco em uso" in output
+    assert "Limpeza concluida" not in output
