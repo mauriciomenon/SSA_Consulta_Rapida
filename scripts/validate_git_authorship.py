@@ -56,8 +56,17 @@ def normalize(value: str) -> str:
     ).casefold()
 
 
+# Variantes historicas de nome humano ja usadas neste repositorio.
+# O email autorizado e o criterio primario; o nome e uma variante aceita.
+HUMAN_NAME_VARIANTS = frozenset({"mauricio menon", "menon"})
+
+
 def is_github_committer(name: str, email: str) -> bool:
     return normalize(name) == "github" and email.casefold() == GITHUB_COMMITTER_EMAIL
+
+
+def is_authorized_human(name: str, email: str) -> bool:
+    return email.casefold() in EMAILS and normalize(name) in HUMAN_NAME_VARIANTS
 
 
 def validate_identity(
@@ -70,7 +79,7 @@ def validate_identity(
     if not match:
         raise ValueError(f"{context}: identidade Git invalida")
     name, email = match.groups()
-    if normalize(name) == "mauricio menon" and email.casefold() in EMAILS:
+    if is_authorized_human(name, email):
         return
     if allow_github_committer and is_github_committer(name, email):
         return

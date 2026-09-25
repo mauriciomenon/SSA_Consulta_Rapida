@@ -30,6 +30,7 @@
 ## Verificacao executavel de autoria
 - `scripts/validate_git_authorship.py` valida autor, committer e mensagens; no push tambem valida tagger, mensagens de tags anotadas e conteudo de notas enviadas.
 - Excecao de committer: `GitHub <noreply@github.com>` e aceito apenas como committer (nunca como author) em commits ja existentes cujo author ja passou na validacao humana (caso tipico: merges criados pelo botao de PR do GitHub). Author sempre exige identidade humana autorizada.
+- Variantes de nome humano aceitas com email autorizado: `Mauricio Menon` / `Maurício Menon` / `Menon`. O email autorizado e o criterio primario da identidade.
 - Instalar apenas os hooks de autoria com `bash scripts/install_hooks.sh --authorship-only`. A instalacao preserva hooks diferentes e nao executa bootstrap de dependencias nesse modo.
 - Os hooks exigem Git, uv e Python disponiveis no ambiente local. O instalador Bash suporta macOS/Linux; no Windows, instalar os dois arquivos em `git rev-parse --git-path hooks` com ferramenta nativa e sem sobrescrever hooks existentes.
 - Os nomes humanos com e sem acento sao aceitos por equivalencia de normalizacao; o verificador nao altera a identidade configurada.
