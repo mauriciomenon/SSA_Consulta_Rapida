@@ -108,6 +108,9 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
         ".backup_",
         "_bkp",
         ".bkp",
+        # Arquivo anterior preservado na promocao de copia e no import de
+        # emergencia (<db>.bak-<timestamp> e sidecars).
+        ".bak-",
     ]
 
     data_path = Path(data_dir)

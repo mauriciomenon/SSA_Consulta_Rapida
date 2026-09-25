@@ -346,3 +346,26 @@ def test_main_clean_data_refuses_when_writer_lock_is_busy(
     output = capsys.readouterr().out
     assert "banco em uso" in output
     assert "Limpeza concluida" not in output
+
+
+def test_clean_old_backups_expires_promotion_archives(tmp_path: Path) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    old_archive = tmp_path / "ssas.db.bak-20260101_000000_000000"
+    old_sidecar = tmp_path / "ssas.db.bak-20260101_000000_000000-wal"
+    recent_archive = tmp_path / "ssas.db.bak-20260920_000000_000000"
+    primary = tmp_path / "ssas.db"
+    unrelated = tmp_path / "notas.txt"
+    for path in (old_archive, old_sidecar, recent_archive, primary, unrelated):
+        path.write_bytes(b"x")
+    stale = 1_600_000_000
+    for path in (old_archive, old_sidecar, primary, unrelated):
+        os.utime(path, (stale, stale))
+
+    gerenciar_banco.clean_old_backups(str(tmp_path), days_to_keep=7)
+
+    assert not old_archive.exists()
+    assert not old_sidecar.exists()
+    assert recent_archive.exists()
+    assert primary.exists()
+    assert unrelated.exists()
