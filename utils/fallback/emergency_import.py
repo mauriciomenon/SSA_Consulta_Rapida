@@ -105,8 +105,14 @@ def _emergency_import_locked(db_path: str, force: bool):
     finally:
         for suffix in ("-wal", "-shm", "-journal", ""):
             candidate_file = candidate_path + suffix
-            if os.path.lexists(candidate_file):
-                os.unlink(candidate_file)
+            try:
+                if os.path.lexists(candidate_file):
+                    os.unlink(candidate_file)
+            except OSError as exc:
+                print(
+                    f"AVISO: falha ao remover temporario {candidate_file}: {exc}",
+                    file=sys.stderr,
+                )
 
 
 def _create_and_publish(db_path: str, candidate_path: str, existed: bool) -> bool:

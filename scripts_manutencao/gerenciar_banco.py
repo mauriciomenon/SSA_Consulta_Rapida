@@ -53,6 +53,8 @@ def reset_database(db_path="data/ssas.db"):
                 raise sqlite3.DatabaseError("Schema oficial falhou no quick_check")
 
             destination = Path(db_path)
+            if destination.is_symlink():
+                raise RuntimeError(f"Reset recusado: destino e symlink: {db_path}")
             if destination.exists():
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
                 backup_path = f"{db_path}.backup_before_reset_{timestamp}"

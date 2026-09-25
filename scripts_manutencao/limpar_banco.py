@@ -21,6 +21,9 @@ def limpar_banco():
 
     try:
         with database_writer_lock(str(db_path)):
+            if db_path.is_symlink():
+                logger.error("ERR Limpeza recusada: destino e symlink: %s", db_path)
+                return False
             if not db_path.exists():
                 raise FileNotFoundError(f"Banco nao encontrado: {db_path}")
             if backup_path.exists():
@@ -40,17 +43,17 @@ def limpar_banco():
                 cursor.execute(DELETE_SSA_ROWS_SQL)
                 conn.commit()
                 logger.info("INFO Remocao confirmada: %s registros", f"{count_before:,}")
+
+                cursor.execute(COUNT_SSA_ROWS_SQL)
+                count_after = cursor.fetchone()[0]
+                logger.info("INFO Registros apos limpeza: %s", f"{count_after:,}")
+
                 try:
                     cursor.execute("VACUUM")
                 except sqlite3.Error as exc:
                     logger.warning(
                         "Registros removidos; otimizacao VACUUM pendente: %s", exc
                     )
-                    return True
-
-                cursor.execute(COUNT_SSA_ROWS_SQL)
-                count_after = cursor.fetchone()[0]
-                logger.info("INFO Registros apos limpeza: %s", f"{count_after:,}")
                 logger.info("OK Banco limpo com sucesso!")
 
     except Exception as e:

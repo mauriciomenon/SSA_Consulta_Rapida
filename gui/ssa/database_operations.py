@@ -369,6 +369,14 @@ def _commit_staged_database_copy_locked(
             try:
                 original_mode = snapshot_database_for_replace(str(dest), archived_base)
             except (OSError, sqlite3.Error) as exc:
+                try:
+                    os.remove(archived_base)
+                except OSError as cleanup_exc:
+                    logger.warning(
+                        "Falha ao remover backup parcial %s: %s",
+                        archived_base,
+                        cleanup_exc,
+                    )
                 discard_staged_copy(staged)
                 return {
                     "ok": False,
