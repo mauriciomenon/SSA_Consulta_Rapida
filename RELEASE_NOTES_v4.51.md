@@ -2,15 +2,16 @@
 
 Data do registro: 2026-09-24. Fonte: branch `dev` local.
 
-Esta candidata consolida correcoes locais de importacao, cancelamento, armazenamento, derivadas, caches e GUI. A ultima release publicada e `v4.50`. Os tres alvos nativos foram construidos localmente a partir de `b613fb16820bac49bf4d06c941520a3e0d6f3b62`; nao ha tag, push, release ou CI remota nesse SHA. O PR #135 foi marcado como pronto para revisao, mas o GitHub ainda ve o commit antigo `3be4c350` e indica `BLOCKED`.
+Esta candidata consolida correcoes locais de importacao, cancelamento, armazenamento, derivadas, caches, CLI e GUI. A ultima release publicada e `v4.50`. Os tres alvos nativos foram reconstruidos com saidas limpas a partir de `a2954a489801fed52bc8b29eef43d51d2fc6e0f7`; nao ha tag, push, release ou CI remota nesse SHA. O PR #135 foi marcado como pronto para revisao, mas o GitHub ainda ve o commit antigo `3be4c350` e indica `BLOCKED`.
 
 ## Evidencia local ja obtida
 
 - No tip de codigo `ba9ab08c`, antes da troca de metadados de versao, a suite completa terminou com 3377 testes aprovados, 9 ignorados e 11 subtestes aprovados (`QT_QPA_PLATFORM=offscreen uv run --no-sync pytest -q`, 1072,10 s).
 - Apos a troca dos metadados para 4.51, os testes de versao e inicializacao terminaram com 34 aprovados. `uv lock --check` passou.
 - O patch do builder macOS passou em `py_compile`, Ruff, Ty, Bandit, Vulture, Semgrep (0 achados), Gitleaks (0 vazamentos), detect-secrets (0) e TruffleHog (0); 46 testes focados do builder passaram. `pip-audit` sobre dependencias exportadas do lock nao encontrou vulnerabilidades conhecidas.
+- A CLI empacotada expunha um defeito reproduzido em macOS e Windows: `--help` e `--version` entravam no loop interativo e podiam consultar um banco inexistente. O commit `a2954a48` faz essas opcoes encerrarem antes da carga do banco. `py_compile`, Ruff, Ty e os 35 testes de `tests/test_launcher_entry_runtime.py` passaram; os ZIPs finais foram testados novamente nos tres alvos.
 - Uma revisao local do delta de build pelo CodeRabbit CLI terminou com zero achados; o review remoto do PR ainda nao cobriu o SHA local.
-- Essas verificacoes nao substituem a medicao completa de desempenho nem a CI no commit exato da candidata.
+- A suite completa nao foi repetida depois das mudancas de versao, builder e CLI. Essas verificacoes focadas nao substituem a CI no commit exato da candidata.
 
 ## Pacotes locais v4.51
 
@@ -20,28 +21,47 @@ Os diretorios de saida e temporarios dos tres alvos foram esvaziados por rename 
 
 | Alvo | Pacote em `builds/packages/v4.51/<alvo>/` | SHA-256 |
 | --- | --- | --- |
-| macos_arm64 | `SSA_CLI_v4.51_macos_arm64.zip` | `ee13378e52aa0cec2248ca730848737bd38a146ab2a5e3792ced3fed351ecd38` |
-| macos_arm64 | `SSA_Consulta_Rapida_v4.51_macos_arm64_dmg.zip` | `e560158f5ee55e956f819500b81efaf1f1bd6e980dccd3b72c8b8d891f448083` |
-| macos_arm64 | `SSA_GUI_v4.51_macos_arm64_app.zip` | `c6cda8a50485dd438972280e913986caa2ebbf506593379b05fbdccaa9ace722` |
-| windows_arm64 | `SSA_Consulta_Rapida_v4.51_windows_arm64_pyinstaller.zip` | `c72eeb01482d0cb8927aa8aacc81feaddaa1eecf6a1cdae8d47fa44446215bdd` |
-| windows_arm64 | `SSA_Consulta_Rapida_v4.51_windows_arm64_pyinstaller_cli.zip` | `968a5dbb1738702d036350128a25bc7d429409a56443148f04bb43425b1d7175` |
-| windows_arm64 | `SSA_Consulta_Rapida_v4.51_windows_arm64_pyinstaller_gui.zip` | `1f3a9d70804bdb081ce49ab0ba12e3e43ec7a23c6ed0f97ba3dbd629a337e29b` |
-| windows_amd64 | `SSA_Consulta_Rapida_v4.51_windows_amd64_pyinstaller.zip` | `f1191865a464550a026f084801eff16d61d86636841d9c778cb03b102b33cd30` |
-| windows_amd64 | `SSA_Consulta_Rapida_v4.51_windows_amd64_pyinstaller_cli.zip` | `66f0ac2b1e1c5041d85e4312b7427a83bb84ec808cd5258b613a81a705a9c9a8` |
-| windows_amd64 | `SSA_Consulta_Rapida_v4.51_windows_amd64_pyinstaller_gui.zip` | `357dbbf21636e636de0a673e581be945562aedbc1d886c758043186bd626e615` |
+| macos_arm64 | `SSA_CLI_v4.51_macos_arm64.zip` | `0d30df77fc16c97c0ca87774e32ac2f52379de7f13fb9368cffce559bf8ded5d` |
+| macos_arm64 | `SSA_Consulta_Rapida_v4.51_macos_arm64_dmg.zip` | `8b3eadc77de3b3c56e8b17382a5bd5e2ec81da6eb799aa6eebc8e84c9243c69e` |
+| macos_arm64 | `SSA_GUI_v4.51_macos_arm64_app.zip` | `526f98412522ab48b4e5485fc2c82d926a72f03afcbb3e4e5094945e6b641a12` |
+| windows_arm64 | `SSA_Consulta_Rapida_v4.51_windows_arm64_pyinstaller.zip` | `482cd0e3b993f8751d83bb24c17aff08cf352e0e43acb5e6ad89dc42e0a2c37a` |
+| windows_arm64 | `SSA_Consulta_Rapida_v4.51_windows_arm64_pyinstaller_cli.zip` | `0186b0015ebfdeac4ab3026fa0e0891f4be5ce8a6883d209666060f77af6185f` |
+| windows_arm64 | `SSA_Consulta_Rapida_v4.51_windows_arm64_pyinstaller_gui.zip` | `2e16220c17d010658eed18330ee055c679cb160324d1619ed73f1022f54df835` |
+| windows_amd64 | `SSA_Consulta_Rapida_v4.51_windows_amd64_pyinstaller.zip` | `63e838a05eacf0d5dc57ecd60d9b324b3ae6ec69f2742c0c69d4b41457725d98` |
+| windows_amd64 | `SSA_Consulta_Rapida_v4.51_windows_amd64_pyinstaller_cli.zip` | `5924903ea2330bea6d28aea72b49783326358cff5a36dc07b6f91aa0847e9523` |
+| windows_amd64 | `SSA_Consulta_Rapida_v4.51_windows_amd64_pyinstaller_gui.zip` | `728a54d10efb2dea7e753234276652681dd87a489a525b2668d544e6c4f5e136` |
 
-Os executaveis macOS sao Mach-O ARM64; CLI extraida do ZIP respondeu `SMOKE_CLI_OK v4.51`. A GUI extraida abriu com titulo `Consulta Rapida de SSAs v4.51`; sem banco de teste configurado, exibiu erro de carga, portanto importacao e derivadas nao foram validadas visualmente nesse pacote. Na VM, os EXEs sao PE ARM64 `0xaa64` e AMD64 `0x8664`; a CLI extraida importou uma linha em cada alvo, e a GUI passou no smoke `SMOKE_GUI_OK v4.51` e permaneceu ativa por 10 s em Qt offscreen. A abertura visual Windows nao foi observada porque a sessao grafica permanece bloqueada.
+Os executaveis macOS sao Mach-O ARM64, e os Windows sao PE ARM64 `0xaa64` e AMD64 `0x8664`. Os seis ZIPs Windows e os tres macOS passaram na verificacao CRC; o DMG passou em `hdiutil verify`. Todos os `build_info.json` inspecionados nos pacotes identificam `a2954a48`. Os ZIPs CLI/GUI macOS nao continham banco, XLSX, `.env` ou `.git`; os combinados Windows tambem excluem dados locais. Os hashes dos ZIPs Windows copiados ao Mac conferem com os da VM. Os pacotes anteriores foram preservados fora da pasta candidata.
 
-A assinatura interna macOS passou em `codesign --verify`, mas `spctl` rejeitou o app: esta maquina nao possui identidade Developer ID valida para distribuicao automatica. Os quatro EXEs Windows retornaram `NotSigned` em Authenticode. Esses limites precisam ser resolvidos ou aceitos explicitamente antes de publicar binarios para usuarios finais.
+### CLI e importacao empacotadas
+
+| Verificacao no executavel extraido | macOS ARM64 | Windows ARM64 e AMD64 |
+| --- | --- | --- |
+| `--help`, `-h`, `--version`, sem banco | rc 0; ajuda/versao em stdout; stderr vazio | Mesmo resultado nos dois alvos |
+| `--force-rescan` com XLSX sintetico fora da instalacao | rc 0; `status=updated`, 3 SSAs e 2 arestas ativas; raiz com 1 filho direto e 2 descendentes | rc 0; 3 SSAs e 2 arestas ativas em cada alvo |
+| XLSX invalido | rc 1; stdout vazio; erro `candidate_incomplete` em stderr, sem traceback | rc 1; stdout vazio; erro `candidate_incomplete` em stderr |
+| Menu de consulta com banco sintetico | Busca e saida `q` com rc 0 e stderr vazio | Busca interativa nao exercitada nesta rodada; a GUI nativa exibiu as 3 SSAs |
+
+O utilitario `scripts/derivadas_cli.py` e separado do executavel interativo `SSA_CLI`; passar `--db ... parents` ao executavel empacotado nao chama esse utilitario. No checkout, `sync --require-consistency --report-json` manteve JSON em stdout, gravou o relatorio, e `children`, `info` e `scan` confirmaram a cadeia de tres SSAs; um destino de relatorio igual ao banco falhou com rc 1 sem sobrescreve-lo. No pacote, a importacao executou a sincronizacao de derivadas e a matriz/summary foram conferidas diretamente em SQLite.
+
+Um limite de UX preexistente permanece: iniciar a CLI interativa sem banco ainda registra traceback da consulta inicial em stderr, embora mostre o prompt vazio, aceite `rescan` e encerre com rc 0. `--help`, `-h` e `--version` nao percorrem mais esse caminho. O caso nao altera banco nem impede a importacao explicita; uma mensagem inicial mais curta fica para uma correcao separada.
+
+### GUI empacotada
+
+O app macOS extraido do ZIP com `ditto` passou em `SMOKE_GUI_OK v4.51`. A extracao comum por `zipfile` nao preservou links do bundle e falhou ao iniciar Python; repetir com `ditto` resolveu o problema do harness, sem mudanca no app. Na VM Windows desbloqueada, as GUIs ARM64 e AMD64 extraidas dos ZIPs abriram visualmente com titulo v4.51, exibiram as 3 SSAs sinteticas, os valores `Derivada de` e a hierarquia na aba Derivadas, sem erro de caminho. A coluna `Qtd. Derivadas` e a contagem do painel nao foram comparadas visualmente nessa rodada. A abertura visual do app macOS final com banco de teste tambem nao foi repetida.
+
+A assinatura interna do app macOS final passou em `codesign --verify`; a avaliacao anterior com `spctl` rejeitou distribuicao automatica por falta de Developer ID e nao foi repetida apos este rebuild. Os quatro EXEs Windows finais aparecem como `NotSigned` em Authenticode. A distribuicao sem assinatura paga foi aceita pelo usuario nesta rodada e nao e tratada como defeito ou bloqueio de codigo.
 
 ## Ponto de desempenho pendente
 
-Uma medicao anterior registrou **0,436 s** para um backup SQLite de **161 MiB**. O fluxo atual tem duas copias distintas: `stage_database_copy()` prepara o banco escolhido no worker; `snapshot_database_for_replace()` copia o banco que sera substituido durante `commit_staged_database_copy()`, chamado na thread GUI depois do check de `request_id`. Esta segunda copia pode pausar a interface. Em uma copia local de 161,1 MiB no macOS ARM64, cinco chamadas diretas a `snapshot_database_for_replace()` deram **p50 0,589 s**, **p95 0,662 s** e faixa **0,562-0,665 s**. Dez chamadas separadas ao staging deram p50 0,305 s e p95 0,590 s. As amostras sao pequenas, sem simulacao da GUI nem carga de outras plataformas; nao estabelecem limite de aceitacao ou pico de memoria do fluxo completo.
+Uma medicao anterior registrou **0,436 s** para um backup SQLite de **161 MiB**. O fluxo atual tem duas copias distintas: `stage_database_copy()` prepara o banco escolhido no worker; `snapshot_database_for_replace()` copia o banco que sera substituido durante `commit_staged_database_copy()`, chamado na thread GUI depois do check de `request_id`. Em chamadas diretas anteriores, um banco local de 161,1 MiB deu backup p50 **0,589 s** e p95 **0,662 s** (5 amostras), e staging p50 **0,305 s** e p95 **0,590 s** (10 amostras).
 
-Antes de promover a candidata, medir o fluxo completo de selecao de banco em bancos reais de tamanhos representativos, com repeticoes em cada plataforma alvo. Registrar latencias **p50 e p95** do staging e da promocao, pico e variacao de memoria do processo, e responsividade da GUI durante a operacao. Definir limites de aceitacao com esses dados. Se a pausa ou o uso de memoria excederem os limites, a candidata permanece pendente ate a correcao ser implementada e revalidada.
+Agora o fluxo completo foi medido em tres execucoes no macOS ARM64 com `QApplication`, `SSAMainWindow`, selecao de banco alternativo, worker, promocao e recarga reais, mais `QTimer` de 20 ms. Origem e destino SQLite sinteticos tinham 169.197.568 bytes cada; a tabela principal continha uma SSA e uma tabela de preenchimento aumentava o arquivo. O staging no worker levou **175-199 ms** e permitiu 8-10 ticks; o backup do destino na thread GUI levou **217-296 ms**, com maior intervalo entre ticks de **240-321 ms** (p95 habitual dos ticks: 21 ms). A selecao ate entrega dos dados levou **433-514 ms**. As tres execucoes exibiram a SSA nova, sem erros ou staging pendente. O pico de RSS do processo ficou perto de 171 MiB, aumento de **1,4-1,8 MiB** sobre o inicio da selecao; esse indicador nao inclui cache do kernel.
+
+A pausa da GUI durante o backup esta confirmada, mas estas tres amostras offscreen nao medem pintura visual, espera de dialogos nem recarga de uma tabela com dezenas de milhares de SSAs. A diferenca entre os tempos diretos e o fluxo sintetico depende do conteudo e do cache do filesystem; nao extrapolar um p95 de tres execucoes. O custo fica registrado como limite de desempenho conhecido desta candidata, sem alterar agora a protecao de dados. Medicao com base representativa e interacao visual continua sendo um aperfeicoamento posterior.
 
 A promocao permanece na thread GUI para descartar resultados com `request_id` obsoleto antes de trocar o banco selecionado. Mover a promocao inteira para um worker sem novo protocolo permitiria que um resultado tardio substituisse uma selecao mais recente. Uma correcao futura precisa manter a verificacao de identidade da requisicao, cancelamento e descarte de resultado tardio, com teste de corrida.
 
 ## Condicao de release
 
-Fechar a revisao dos achados, medir responsividade real da GUI e memoria no fluxo de selecao de banco, validar visualmente Windows e o caminho de importacao/derivadas no pacote, decidir a politica de assinatura e executar os gates remotos no commit exato a publicar. O PR remoto continua bloqueado e ainda nao revisou o codigo local v4.51.
+O PR remoto continua bloqueado e ainda nao revisou o codigo local v4.51, pois nao houve push. Antes de merge, faltam os gates remotos no commit a publicar e a revisao correspondente. A suite completa nao foi repetida no SHA dos pacotes, conforme o escopo focal desta rodada. A ausencia de assinatura paga esta aceita; a pausa medida da GUI e os limites visuais acima permanecem documentados, sem serem apresentados como falha de integridade.
