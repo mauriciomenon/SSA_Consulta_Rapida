@@ -7,7 +7,16 @@ from gui.ssa import gui_workers
 
 
 def test_revision_fallback_invalidates_uuid_and_details_cache():
+    class Timer:
+        stopped = False
+
+        def stop(self):
+            self.stopped = True
+
+    timer = Timer()
     window = SimpleNamespace(
+        _pending_details_series=pd.Series({"numero_ssa": "202600000"}),
+        _details_update_timer=timer,
         df_completo=pd.DataFrame({"numero_ssa": ["202600001"]}),
         _data_revision=42,
         _data_uuid="old-uuid",
@@ -32,6 +41,8 @@ def test_revision_fallback_invalidates_uuid_and_details_cache():
     assert window._details_ssa_index_sources is None
     assert window._details_ssa_series_index is None
     assert window._details_render_payload_cache == {}
+    assert window._pending_details_series is None
+    assert timer.stopped is True
 
 
 def test_partial_load_error_invalidates_new_dataframe_identity():

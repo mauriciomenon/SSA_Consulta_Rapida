@@ -1151,6 +1151,17 @@ def _sync_data_revision_after_load(window, request_id: int | None) -> None:
         window._details_ssa_index_sources = None
         window._details_ssa_series_index = None
         window._details_render_payload_cache = {}
+        # Mesmo reset de _bump_data_revision: uma atualizacao de detalhes
+        # agendada antes da recarga renderizaria a serie antiga.
+        window._pending_details_series = None
+        details_timer = getattr(window, "_details_update_timer", None)
+        if details_timer is not None:
+            try:
+                details_timer.stop()
+            except RuntimeError as timer_exc:
+                logger.debug(
+                    "Falha ao parar timer de detalhes no fallback: %s", timer_exc
+                )
     try:
         window._data_uuid = uuid.uuid4().hex
     except Exception as exc:
