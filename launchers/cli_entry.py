@@ -112,13 +112,12 @@ def _execute_import_and_report(
         if _outcome_after is not _outcome_before
         else None
     )
+    # O importador registra rejeicoes deterministicas tambem em
+    # critical_errors: somar os contadores contaria o mesmo arquivo duas vezes.
     error_count = max(
         len(summary.errors),
-        (
-            outcome.deterministic_failure_count + outcome.blocking_error_count
-            if outcome is not None
-            else 0
-        ),
+        outcome.deterministic_failure_count if outcome is not None else 0,
+        outcome.blocking_error_count if outcome is not None else 0,
     )
     has_errors = error_count > 0
     if outcome is not None:

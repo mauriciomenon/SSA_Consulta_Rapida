@@ -156,7 +156,7 @@ class TestLauncherExitCode:
                     reason="one file rejected",
                     primary_db_path="db",
                     working_db_path="db",
-                    deterministic_failure_count=1,
+                    deterministic_failure_count=0 if emit_error else 1,
                 )
             )
             return True
@@ -175,6 +175,40 @@ class TestLauncherExitCode:
         assert stats["error_count"] == 1
         assert "Importacao parcial" in captured.err
         assert "Importacao concluida" not in captured.out
+
+    def test_rejected_file_counted_in_both_counters_is_one_error(self, capsys):
+        import logging
+
+        from launchers import cli_entry
+
+        # O importador registra um arquivo rejeitado em
+        # deterministic_failed_files e em critical_errors.
+        def rejected_import(**kwargs):
+            kwargs["progress_callback"]("file_error", {"error": "bad.xlsx"})
+            import_outcome.record_import_outcome(
+                import_outcome.build_import_outcome(
+                    raw_status="updated",
+                    legacy_result=True,
+                    run_id="double-count",
+                    reason="one file rejected",
+                    primary_db_path="db",
+                    working_db_path="db",
+                    deterministic_failure_count=1,
+                    blocking_error_count=1,
+                )
+            )
+            return True
+
+        stats = cli_entry._execute_import_and_report(
+            rejected_import,
+            docs_dir="docs",
+            data_dir="data",
+            runtime_base="base",
+            logger=logging.getLogger(__name__),
+        )
+        capsys.readouterr()
+
+        assert stats["error_count"] == 1
 
 
 class TestPrimaryDatabaseChangedOverride:
