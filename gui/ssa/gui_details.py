@@ -2147,11 +2147,13 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         target,
         max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
     )
+    # hierarchy_profile existe sempre que o schema existe (profile sintetizado
+    # sem linha em ssa_derivada_summary); so relacoes reais tornam a matriz
+    # autoritativa. SSA ausente da matriz (sync pendente) usa o fallback local.
     snapshot_ready = bool(
         snapshot
         and (
-            snapshot.get("hierarchy_profile")
-            or snapshot.get("parents")
+            snapshot.get("parents")
             or snapshot.get("children")
             or snapshot.get("ancestors")
             or snapshot.get("descendants")

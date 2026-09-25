@@ -110,6 +110,24 @@ def test_details_uses_sheet_snapshot_when_local_family_has_only_unrelated_edge(
     assert other == [{"ssa": sheet_child, "relacao": "Substitui a"}]
 
 
+def test_details_uses_local_children_when_target_absent_from_synced_matrix(
+    temp_db: str, tmp_path: Path
+) -> None:
+    sheet = tmp_path / "other.csv"
+    sheet.write_text(
+        "parent_ssa,child_ssa,relation_label\n202500001,202500002,Derivada da\n",
+        encoding="utf-8",
+    )
+    sync_derivadas(temp_db, include_db_source=False, sheet_file=str(sheet))
+    window = _window(temp_db, [("202600100", ""), ("202600101", "202600100")])
+
+    data = gui_details._collect_derivadas_tree_data(window, "202600100")
+
+    assert data["graph_source"] == "local"
+    assert data["children"] == ["202600101"]
+    assert "direct_relation_rows" not in data
+
+
 def test_details_keeps_local_children_for_legacy_database(tmp_path: Path) -> None:
     window = _window(
         str(tmp_path / "missing.db"),
