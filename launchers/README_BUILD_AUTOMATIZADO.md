@@ -10,7 +10,7 @@
 - Windows usa `release.ps1` em clone nativo; Debian/macOS usam `release.sh` em clones nativos dos respectivos hosts.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `a2954a48`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
 
 ## HISTORICAL SNAPSHOT 2026-05-04 01h14
 
