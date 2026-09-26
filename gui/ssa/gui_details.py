@@ -885,6 +885,16 @@ def _render_main_details_plaintext(window, series, render_signature) -> None:
     _sync_main_details_derivadas_panel(window)
 
 
+def _prefetch_derivadas_tree_data(window, series) -> None:
+    """Aquece o cache de tree_data do alvo selecionado para o duplo clique."""
+    try:
+        _collect_derivadas_tree_data(window, series.get("numero_ssa"))
+    except Exception as exc:
+        logger.debug(
+            "Falha ao pre-aquecer arvore de derivadas na selecao: %s", exc
+        )
+
+
 def _update_details_from_series(window, series):
     """Atualiza o painel de detalhes a partir de uma serie ja resolvida."""
     if series is None:
@@ -902,6 +912,7 @@ def _update_details_from_series(window, series):
         setattr(window, "_details_current_ssa", series.get("numero_ssa"))
     except Exception:
         setattr(window, "_details_current_ssa", None)
+    _prefetch_derivadas_tree_data(window, series)
 
     window._details_active_db_signature = render_signature[2]
     try:

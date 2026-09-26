@@ -526,3 +526,62 @@ def test_details_db_signature_no_reuse_when_generation_stat_fails(
     gui_details._get_details_db_signature(window)
 
     assert len(calls) == 2
+
+
+def test_selection_prefetches_tree_data_for_double_click(
+    tmp_path, monkeypatch
+) -> None:
+    """Selecionar uma linha aquece o cache de tree_data do alvo: o
+    duplo clique seguinte nao paga o snapshot. Selecao repetida com a
+    mesma assinatura nao re-aquece."""
+    db_path = tmp_path / "sig.db"
+    make_sync_run_db(db_path, [(1, "ok", "fp-1")])
+    rendered: list[str] = []
+    properties: dict[str, object] = {}
+    window, series = _details_signature_window(db_path, rendered, properties)
+
+    collected: list[str] = []
+    real_collect = gui_details._collect_derivadas_tree_data
+
+    def spy(_window, ssa):
+        collected.append(str(ssa))
+        return real_collect(_window, ssa)
+
+    def render(_window, current, signature):
+        rendered.append(current["numero_ssa"])
+        properties["details_render_signature"] = signature
+
+    monkeypatch.setattr(gui_details, "_collect_derivadas_tree_data", spy)
+    monkeypatch.setattr(gui_details, "_render_main_details_html", render)
+
+    gui_details._update_details_from_series(window, series)
+    assert collected == ["202600100"]
+    assert rendered == ["202600100"]
+
+    gui_details._update_details_from_series(window, series)
+    assert collected == ["202600100"]
+
+
+def test_selection_prefetch_failure_does_not_block_details_render(
+    tmp_path, monkeypatch
+) -> None:
+    """Falha no prefetch e ignorada: o painel de detalhes renderiza
+    normalmente."""
+    db_path = tmp_path / "sig.db"
+    make_sync_run_db(db_path, [(1, "ok", "fp-1")])
+    rendered: list[str] = []
+    properties: dict[str, object] = {}
+    window, series = _details_signature_window(db_path, rendered, properties)
+
+    def boom(_window, _ssa):
+        raise RuntimeError("falha no prefetch")
+
+    def render(_window, current, signature):
+        rendered.append(current["numero_ssa"])
+        properties["details_render_signature"] = signature
+
+    monkeypatch.setattr(gui_details, "_collect_derivadas_tree_data", boom)
+    monkeypatch.setattr(gui_details, "_render_main_details_html", render)
+
+    gui_details._update_details_from_series(window, series)
+    assert rendered == ["202600100"]
