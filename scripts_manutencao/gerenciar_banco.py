@@ -23,6 +23,8 @@ from shared.db_names import SSA_READ_REQUIRED_COLUMNS  # noqa: E402
 
 
 def _is_symlink_directory(path: str) -> bool:
+    # Ancestrais como /tmp no macOS podem ser aliases validos do sistema.
+    # A limpeza recusa links no proprio data/ ou backups/.
     return Path(path).is_symlink()
 
 

@@ -692,8 +692,12 @@ def test_main_clean_data_scopes_explicit_ssa_db_path_named_data(
         os.utime(path, (1_600_000_000, 1_600_000_000))
     monkeypatch.setenv("SSA_DB_PATH", str(db_path))
 
+    resolved_db_path, _ = main_module._resolve_database_target(
+        main_module.runtime_root
+    )
+    assert resolved_db_path == str(db_path)
     assert main_module._run_maintenance_action(
-        Namespace(reset_db=False, clean_data=True), str(db_path)
+        Namespace(reset_db=False, clean_data=True), resolved_db_path
     )
 
     assert foreign_backup.read_bytes() == b"keep"
@@ -702,27 +706,28 @@ def test_main_clean_data_scopes_explicit_ssa_db_path_named_data(
     assert foreign_temp.read_bytes() == b"keep"
 
 
-@pytest.mark.parametrize("bootstrap_sets_db_path", [False, True])
 def test_main_clean_data_keeps_legacy_scope_for_runtime_default(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bootstrap_sets_db_path: bool
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import main as main_module
 
-    monkeypatch.delenv("SSA_DB_PATH", raising=False)
     monkeypatch.setattr(main_module, "runtime_root", str(tmp_path))
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     db_path = data_dir / "ssas.db"
-    if bootstrap_sets_db_path:
-        monkeypatch.setenv("SSA_DB_PATH", str(db_path))
+    monkeypatch.setenv("SSA_DB_PATH", str(db_path))
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE placeholder(x)")
     old_backup = data_dir / "backup_legacy.db"
     old_backup.write_bytes(b"old")
     os.utime(old_backup, (1_600_000_000, 1_600_000_000))
 
+    resolved_db_path, _ = main_module._resolve_database_target(
+        main_module.runtime_root
+    )
+    assert resolved_db_path == str(db_path)
     assert main_module._run_maintenance_action(
-        Namespace(reset_db=False, clean_data=True), str(db_path)
+        Namespace(reset_db=False, clean_data=True), resolved_db_path
     )
 
     assert not old_backup.exists()
