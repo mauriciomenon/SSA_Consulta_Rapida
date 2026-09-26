@@ -6,6 +6,33 @@ from pathlib import Path
 from scripts import smoke_cli
 
 
+def test_count_imported_rows_closes_connection(monkeypatch, tmp_path: Path) -> None:
+    class FakeCursor:
+        @staticmethod
+        def fetchone() -> tuple[int]:
+            return (1,)
+
+    class FakeConnection:
+        closed = False
+
+        @staticmethod
+        def execute(_query: str, _parameters: tuple[str]) -> FakeCursor:
+            return FakeCursor()
+
+        def close(self) -> None:
+            self.closed = True
+
+    db_path = tmp_path / "ssas.db"
+    db_path.touch()
+    connection = FakeConnection()
+    monkeypatch.setattr(smoke_cli.sqlite3, "connect", lambda _path: connection)
+
+    rows = smoke_cli._count_imported_rows(db_path, smoke_cli.SMOKE_TABLE_NAME)
+
+    assert rows == 1
+    assert connection.closed is True
+
+
 def test_smoke_cleanup_warning_does_not_fail_valid_import(monkeypatch, tmp_path: Path) -> None:
     def fake_copy_runtime_config(runtime_root: Path) -> Path:
         config_dir = runtime_root / "config"

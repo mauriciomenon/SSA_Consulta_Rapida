@@ -12,7 +12,10 @@ import pandas as pd
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
-from extracao.extractor import extract_data_from_excel  # noqa: E402
+from extracao.extractor import (  # noqa: E402
+    extract_data_from_excel,
+    open_validated_excel_source,
+)
 
 
 def diagnosticar_arquivos_problematicos():
@@ -67,7 +70,8 @@ def diagnosticar_arquivos_problematicos():
 
             # Tenta ler diretamente com pandas para ver o problema
             try:
-                df_raw = pd.read_excel(caminho, header=1)
+                with open_validated_excel_source(caminho) as source_stream:
+                    df_raw = pd.read_excel(source_stream, header=1)
                 print(f"  INFO Leitura direta: {len(df_raw)} registros")
 
                 if df_raw.index.duplicated().any():

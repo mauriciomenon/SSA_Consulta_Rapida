@@ -23,12 +23,14 @@ from __future__ import annotations
 
 import argparse
 import re
-import shutil
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
+from armazenamento.database_integrity import create_sqlite_backup
+from armazenamento.database_lock import database_writer_lock
 from armazenamento.identifier_utils import quote_identifier
 
 SCHEMA_PATH = Path("config/schema_unified.sql")
@@ -51,6 +53,7 @@ def infer_type(column_name: str) -> str:
     if any(h in low for h in INT_HINTS):
         return "INTEGER"
     return "TEXT"
+
 
 def parse_target_columns() -> List[str]:
     if not SCHEMA_PATH.exists():
@@ -86,11 +89,11 @@ def parse_target_columns() -> List[str]:
 
 
 def backup_database(db_path: Path) -> Path:
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_dir = Path("data")
     backup_dir.mkdir(exist_ok=True)
     backup_path = backup_dir / f"ssas.db.backup_before_unified_{ts}"
-    shutil.copy2(db_path, backup_path)
+    create_sqlite_backup(db_path, backup_path)
     return backup_path
 
 
@@ -99,33 +102,32 @@ def migrate(db_path: Path) -> None:
         raise SystemExit(f"Banco não encontrado: {db_path}")
     target_cols = parse_target_columns()
     quoted_target_table = quote_identifier(TARGET_TABLE)
-    with sqlite3.connect(db_path) as con:
-        cur = con.cursor()
-        cur.execute(f"PRAGMA table_info({quoted_target_table})")
-        existing = [row[1] for row in cur.fetchall()]
-        missing = [c for c in target_cols if c not in existing]
-        print(
-            f"Colunas alvo: {len(target_cols)} | Existentes: {len(existing)} | Ausentes: {len(missing)}"
-        )
-        if not missing:
-            print("Nada a migrar.")
-            return
-        backup_path = backup_database(db_path)
-        print(f"Backup criado: {backup_path}")
-        try:
-            con.execute("BEGIN")
-            for col in missing:
-                col_type = infer_type(col)
-                quoted_col = quote_identifier(col)
-                sql = (
-                    f"ALTER TABLE {quoted_target_table} ADD COLUMN {quoted_col} {col_type}"
-                )
-                print("> ", sql)
-                cur.execute(sql)
-            con.commit()
-        except sqlite3.Error:
-            con.rollback()
-            raise
+    with database_writer_lock(str(db_path), timeout=0):
+        with closing(sqlite3.connect(db_path)) as con:
+            cur = con.cursor()
+            cur.execute(f"PRAGMA table_info({quoted_target_table})")
+            existing = [row[1] for row in cur.fetchall()]
+            missing = [c for c in target_cols if c not in existing]
+            print(
+                f"Colunas alvo: {len(target_cols)} | Existentes: {len(existing)} | Ausentes: {len(missing)}"
+            )
+            if not missing:
+                print("Nada a migrar.")
+                return
+            backup_path = backup_database(db_path)
+            print(f"Backup criado: {backup_path}")
+            try:
+                con.execute("BEGIN")
+                for col in missing:
+                    col_type = infer_type(col)
+                    quoted_col = quote_identifier(col)
+                    sql = f"ALTER TABLE {quoted_target_table} ADD COLUMN {quoted_col} {col_type}"
+                    print("> ", sql)
+                    cur.execute(sql)
+                con.commit()
+            except sqlite3.Error:
+                con.rollback()
+                raise
     print("Migração concluída.")
     # Log
     Path("logs").mkdir(exist_ok=True)

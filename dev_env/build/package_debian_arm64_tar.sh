@@ -24,6 +24,10 @@ die() {
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 1
+ssa_native_guard_tools uv tar rm mkdir || exit 1
 PLATFORM="debian_arm64"
 
 read_app_version() {

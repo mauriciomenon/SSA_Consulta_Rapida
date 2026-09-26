@@ -48,7 +48,7 @@ die() {
 repo_root() {
   local script_dir
   script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-  cd -- "${script_dir}" && git rev-parse --show-toplevel
+  printf '%s\n' "${script_dir}"
 }
 
 detect_target() {
@@ -207,6 +207,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 ROOT="$(repo_root)"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$ROOT" || exit 1
+ssa_native_guard_tools git uv || exit 1
 TARGET="$(normalize_target "${TARGET}")"
 
 printf '[release] target=%s\n' "${TARGET}"

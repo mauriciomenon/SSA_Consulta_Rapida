@@ -211,7 +211,9 @@ class TestGUIMainConfiguration:
                 config = load_gui_main_preferences()
 
         for required in REQUIRED_DISPLAY_COLUMNS:
-            assert required in config["display_columns"]
+            assert required in (
+                config["display_columns"] + config["hidden_columns"]
+            )
             assert required in config["column_display_names"]
             assert required in config["display_mappings"]
 
@@ -617,8 +619,9 @@ class TestGUIMainConfiguration:
         assert len(columns) > 0
         assert "numero_ssa" in columns
         assert len(columns) == len(set(columns))
+        hidden_columns = GUI_MAIN_PREFERENCES.get("hidden_columns", [])
         for required in REQUIRED_DISPLAY_COLUMNS:
-            assert required in columns
+            assert required in columns or required in hidden_columns
 
     def test_hidden_columns_validation(self):
         """Testa lista de colunas ocultas."""

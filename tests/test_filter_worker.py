@@ -17,7 +17,12 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from gui.cache.filter_cache import FilterCache  # noqa: E402
+from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin  # noqa: E402
 from gui.workers.filter_worker import FilterWorker  # noqa: E402
+from core.search_filter_constants import (  # noqa: E402
+    FILTER_SOURCE_REVISION_ATTR,
+    FILTER_SOURCE_TOKEN_ATTR,
+)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -59,6 +64,51 @@ class TestFilterWorker:
         hash2 = FilterWorker._build_df_hash(df2)
 
         assert hash1 != hash2
+
+    def test_gui_filter_worker_token_changes_after_revision_bump(self):
+        class _Window(FilterGUISSAMixin):
+            _data_revision: int
+            _data_uuid: str
+
+        window = _Window()
+        setattr(window, "_data_revision", 1)
+        setattr(window, "_data_uuid", "load-1")
+        df = pd.DataFrame({"texto": ["alfa", "beta"], "situacao": ["APV", "STE"]})
+
+        first = window._build_filter_worker_df_token(df)
+        df.loc[1, "texto"] = "gamma"
+        unchanged_revision = window._build_filter_worker_df_token(df)
+        window._data_revision = 2
+        after_revision_bump = window._build_filter_worker_df_token(df)
+
+        assert unchanged_revision == first
+        assert after_revision_bump != first
+
+    def test_gui_source_stamps_and_preserves_cache_token_for_worker_copy(self):
+        class _Window(FilterGUISSAMixin):
+            _data_revision: int
+            _data_uuid: str
+            df_completo: pd.DataFrame
+
+        window = _Window()
+        window._data_revision = 7
+        window._data_uuid = "load-7"
+        source = pd.DataFrame({"texto": ["alfa", "beta"]})
+        source.attrs["complex_runtime_attr"] = object()
+        window.df_completo = source
+
+        safe_source = window._get_filter_source_dataframe()
+        worker = FilterWorker(safe_source, [["alfa"]])
+
+        assert FILTER_SOURCE_TOKEN_ATTR in source.attrs
+        assert safe_source.attrs[FILTER_SOURCE_TOKEN_ATTR] == source.attrs[
+            FILTER_SOURCE_TOKEN_ATTR
+        ]
+        assert worker.df_completo.attrs[FILTER_SOURCE_TOKEN_ATTR] == source.attrs[
+            FILTER_SOURCE_TOKEN_ATTR
+        ]
+        assert safe_source.attrs[FILTER_SOURCE_REVISION_ATTR] == ("load-7", 7)
+        assert "complex_runtime_attr" not in safe_source.attrs
 
     def test_cache_does_not_reuse_result_for_different_df_same_shape(self):
         df1 = pd.DataFrame({"texto": ["alfa", "omega"]})

@@ -15,8 +15,11 @@ import argparse
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
+import tempfile
 import zipfile
+from contextlib import closing
 from pathlib import Path
 from typing import Optional
 
@@ -31,11 +34,13 @@ VERSION_FILE = PROJECT_ROOT / "VERSION"
 DIST_OUTPUT = PROJECT_ROOT / "dist_packages"
 PYINSTALLER_CANONICAL_DIRS = (
     "launchers/dist/windows_amd64",
+    "launchers/dist/windows_arm64",
     "launchers/dist/macos_arm64",
     "launchers/dist/debian_amd64",
 )
 PACKAGE_PLATFORMS = (
     "windows_amd64",
+    "windows_arm64",
     "macos_arm64",
     "debian_amd64",
     "debian_arm64",
@@ -51,7 +56,9 @@ EXCLUDED_BUNDLE_ITEMS = {
 
 SENSITIVE_LOCAL_EXTENSIONS: set[str] = {
     ".db",
+    ".ods",
     ".xls",
+    ".xlsm",
     ".xlsx",
 }
 SENSITIVE_LOCAL_NAME_FRAGMENTS = (
@@ -96,6 +103,18 @@ BUILD_SYSTEMS = {
         "internal_dir": None,
     },
 }
+
+if os.environ.get("SSA_RELEASE_PLATFORM") == "windows_arm64":
+    BUILD_SYSTEMS["pyinstaller"].update(
+        {
+            "exe_path": "launchers/dist/windows_arm64/SSA_GUI.exe",
+            "base_dir": "launchers/dist/windows_arm64",
+            "canonical_dirs": [
+                "launchers/dist/windows_arm64",
+                "builds/pyinstaller/windows_arm64",
+            ],
+        }
+    )
 
 # Diretorios que devem ser criados para o usuario
 USER_DIRS = [
@@ -168,6 +187,17 @@ PRIMARY_EXECUTABLE_NAMES = (
     "SSA_GUI.exe",
     "main.exe",
 )
+POSIX_EXECUTABLE_MAGICS = {
+    b"\x7fELF",
+    b"\xfe\xed\xfa\xce",
+    b"\xfe\xed\xfa\xcf",
+    b"\xce\xfa\xed\xfe",
+    b"\xcf\xfa\xed\xfe",
+    b"\xca\xfe\xba\xbe",
+    b"\xbe\xba\xfe\xca",
+    b"\xca\xfe\xba\xbf",
+    b"\xbf\xba\xfe\xca",
+}
 
 
 def _preferred_file_candidates(_source_dir: Path, file_entries: list[Path]) -> list[str]:
@@ -201,7 +231,15 @@ def _exe_file_candidates(
 def _posix_executable_candidates(
     _source_dir: Path, file_entries: list[Path]
 ) -> list[str]:
-    return [p.name for p in sorted(file_entries) if os.access(p, os.X_OK)]
+    candidates = []
+    for path in sorted(file_entries):
+        if not os.access(path, os.X_OK):
+            continue
+        with path.open("rb") as stream:
+            magic = stream.read(4)
+        if magic in POSIX_EXECUTABLE_MAGICS or magic.startswith(b"#!"):
+            candidates.append(path.name)
+    return candidates
 
 
 def _app_bundle_candidates(source_dir: Path, _file_entries: list[Path]) -> list[str]:
@@ -364,10 +402,16 @@ def _resolve_build_directory_failure_reason(build_system: str) -> str:
     return f"Diretorio de build nao resolvido para {build_system}"
 
 
-def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
+def _copy_build_tree_sanitized(
+    source_dir: Path, target_dir: Path, include_runtime_db: bool = False
+) -> None:
     """Copia build para distribuicao, removendo dados locais sensiveis."""
     for item in source_dir.iterdir():
-        if _should_skip_bundle_path(item, bundle_root=source_dir):
+        if _should_skip_bundle_path(
+            item,
+            bundle_root=source_dir,
+            include_runtime_db=include_runtime_db,
+        ):
             continue
         destination = target_dir / item.name
         try:
@@ -379,7 +423,10 @@ def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
                     destination,
                     dirs_exist_ok=True,
                     ignore=lambda src, names: _build_bundle_ignore(
-                        source_dir, src, names
+                        source_dir,
+                        src,
+                        names,
+                        include_runtime_db=include_runtime_db,
                     ),
                 )
         except OSError as exc:
@@ -405,7 +452,21 @@ def _should_skip_bundle_entry(name: str, is_file: bool) -> bool:
     return False
 
 
-def _should_skip_bundle_path(candidate: Path, *, bundle_root: Path | None = None) -> bool:
+def _should_skip_bundle_path(
+    candidate: Path,
+    *,
+    bundle_root: Path | None = None,
+    include_runtime_db: bool = False,
+) -> bool:
+    if include_runtime_db:
+        runtime_data = candidate if candidate.is_dir() else candidate.parent
+        if (
+            runtime_data.name == "data"
+            and "_internal" not in runtime_data.parts
+            and _resolve_primary_executable_name(runtime_data.parent) is not None
+        ):
+            if candidate.is_dir() or candidate.name == "ssas.db":
+                return False
     if _should_skip_bundle_entry(candidate.name, candidate.is_file()):
         return True
     if candidate.is_file() and candidate.name == "__init__.py":
@@ -415,12 +476,29 @@ def _should_skip_bundle_path(candidate: Path, *, bundle_root: Path | None = None
     return False
 
 
-def _build_bundle_ignore(bundle_root: Path, _src: str, names: list[str]) -> set[str]:
+def _build_bundle_ignore(
+    bundle_root: Path,
+    _src: str,
+    names: list[str],
+    include_runtime_db: bool = False,
+) -> set[str]:
     ignored: set[str] = set()
     src_path = Path(_src)
     for name in names:
         candidate = src_path / name
-        if _should_skip_bundle_path(candidate, bundle_root=bundle_root):
+        if (
+            include_runtime_db
+            and src_path.name == "data"
+            and "_internal" not in src_path.parts
+            and _resolve_primary_executable_name(src_path.parent) is not None
+            and not (candidate.is_file() and candidate.name == "ssas.db")
+        ):
+            ignored.add(name)
+        elif _should_skip_bundle_path(
+            candidate,
+            bundle_root=bundle_root,
+            include_runtime_db=include_runtime_db,
+        ):
             ignored.add(name)
     return ignored
 
@@ -523,12 +601,33 @@ def _copy_local_db_asset(target_dir: Path, local_db_path: str) -> bool:
 
     local_db_target_dir = target_dir / PACKAGE_LOCAL_DB_DIR
     local_db_target_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(resolved_local_db, local_db_target_dir / resolved_local_db.name)
+    if not _snapshot_sqlite_database(
+        resolved_local_db, local_db_target_dir / resolved_local_db.name
+    ):
+        return False
     logger.info(
         "Banco local explicitamente escolhido copiado para %s",
         local_db_target_dir,
     )
     return True
+
+
+def _snapshot_sqlite_database(source: Path, target: Path) -> bool:
+    temporary = target.with_name(f"{target.name}.tmp")
+    temporary.unlink(missing_ok=True)
+    try:
+        source_uri = f"{source.resolve().as_uri()}?mode=ro"
+        with closing(sqlite3.connect(source_uri, uri=True, timeout=5)) as source_conn:
+            with closing(sqlite3.connect(temporary)) as target_conn:
+                source_conn.backup(target_conn)
+                if target_conn.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise sqlite3.DatabaseError("snapshot falhou no quick_check")
+        os.replace(temporary, target)
+        return True
+    except (OSError, sqlite3.Error) as exc:
+        temporary.unlink(missing_ok=True)
+        logger.error("Falha ao criar snapshot SQLite de '%s': %s", source, exc)
+        return False
 
 
 def _detect_primary_executable_name(package_dir: Path) -> Optional[str]:
@@ -543,7 +642,7 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
             (
                 PROJECT_ROOT / rel
                 for rel in _get_pyinstaller_canonical_dirs()
-                if "windows_amd64" in rel
+                if rel.startswith("launchers/dist/windows_")
             ),
             PROJECT_ROOT / "launchers" / "dist" / "windows_amd64",
         )
@@ -705,18 +804,20 @@ INSTALACAO E USO
 
 2. IMPORTAR DADOS
    - Na GUI, use Importacao externa ou Abrir pasta de entrada
-   - Em app instalado, a pasta tecnica de runtime e: {APP_RUNTIME_DIR}
-   - A pasta real de entrada fica no perfil do usuario:
+   - No ZIP portatil, docs_entrada fica ao lado do executavel
+   - O atalho do instalador usa --runtime-home e grava no perfil do usuario:
      Windows: %APPDATA%\\{APP_RUNTIME_DIR}\\docs_entrada
      macOS: ~/Library/Application Support/{APP_RUNTIME_DIR}/docs_entrada
      Linux: ${{XDG_DATA_HOME:-~/.local/share}}/{APP_RUNTIME_DIR}/docs_entrada
-   - Nao use a pasta de instalacao como area de trabalho
+   - Para preferir o perfil no ZIP, execute tambem com --runtime-home
 
 3. BANCOS DE DADOS
-   - Banco principal no app instalado:
+   - No ZIP portatil, o banco principal fica em data/ssas.db ao lado do executavel
+   - No app instalado, o banco externo e copiado uma vez para:
      Windows: %APPDATA%\\{APP_RUNTIME_DIR}\\data\\ssas.db
      macOS: ~/Library/Application Support/{APP_RUNTIME_DIR}/data/ssas.db
      Linux: ${{XDG_DATA_HOME:-~/.local/share}}/{APP_RUNTIME_DIR}/data/ssas.db
+   - Um banco ja existente no perfil nunca e substituido pelo instalador
    - Backups automaticos ficam em data/historico_backups dentro da pasta de runtime
 
 4. EXPORTACOES
@@ -731,6 +832,9 @@ MODOS DE USO
 
 1. Interface Grafica (GUI):
    {primary_executable_name} --gui
+
+   Para usar o perfil do usuario:
+   {primary_executable_name} --gui --runtime-home
 
 2. Interface CLI (Linha de Comando):
    {primary_executable_name}
@@ -771,6 +875,7 @@ def _copy_runtime_bundle(
     build_info: dict[str, object],
     build_dir: Path,
     package_dir: Path,
+    include_runtime_db: bool = False,
 ) -> bool:
     """Copia executavel/dependencias e config para o pacote staged."""
     logger.info("  Copiando executavel e dependencias...")
@@ -779,7 +884,9 @@ def _copy_runtime_bundle(
         build_system == "pyinstaller" and _is_canonical_pyinstaller_directory(build_dir)
     )
     if build_system == "nuitka" or is_canonical_pyinstaller:
-        _copy_build_tree_sanitized(build_dir, package_dir)
+        _copy_build_tree_sanitized(
+            build_dir, package_dir, include_runtime_db=include_runtime_db
+        )
     else:
         exe_path_value = build_info.get("exe_path")
         if not isinstance(exe_path_value, str):
@@ -792,6 +899,13 @@ def _copy_runtime_bundle(
             logger.error("Executavel nao encontrado para empacotamento: %s", exe_src)
             return False
         shutil.copy2(exe_src, package_dir / exe_src.name)
+        if include_runtime_db:
+            runtime_db = exe_src.parent / "data" / "ssas.db"
+            if not runtime_db.is_file():
+                logger.error("Banco de runtime ausente: %s", runtime_db)
+                return False
+            (package_dir / "data").mkdir(exist_ok=True)
+            shutil.copy2(runtime_db, package_dir / "data" / "ssas.db")
 
         internal_dir_name = build_info.get("internal_dir")
         if isinstance(internal_dir_name, str) and internal_dir_name:
@@ -802,7 +916,10 @@ def _copy_runtime_bundle(
                     package_dir / internal_dir_name,
                     dirs_exist_ok=True,
                     ignore=lambda src, names: _build_bundle_ignore(
-                        internal_src, src, names
+                        internal_src,
+                        src,
+                        names,
+                        include_runtime_db=include_runtime_db,
                     ),
                 )
 
@@ -860,12 +977,51 @@ def _prepare_package_staging(
     build_name: str,
     include_sample_db: bool = False,
     include_local_db: Optional[str] = None,
+    include_runtime_db: bool = False,
 ) -> bool:
     """Prepara estrutura staged do pacote antes da compactacao."""
-    if not _copy_runtime_bundle(build_system, build_info, build_dir, package_dir):
+    if not _copy_runtime_bundle(
+        build_system,
+        build_info,
+        build_dir,
+        package_dir,
+        include_runtime_db=include_runtime_db,
+    ):
         return False
+    if include_runtime_db:
+        runtime_databases = [
+            path
+            for path in package_dir.rglob("ssas.db")
+            if path.parent.name == "data"
+            and "_internal" not in path.parts
+            and _resolve_primary_executable_name(path.parent.parent) is not None
+        ]
+        if not runtime_databases:
+            logger.error(
+                "Banco de runtime solicitado, mas data/ssas.db externo nao foi staged"
+            )
+            return False
+        internal_sensitive = [
+            path
+            for path in package_dir.rglob("*")
+            if path.is_file()
+            and "_internal" in path.parts
+            and path.suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS
+        ]
+        if internal_sensitive:
+            logger.error(
+                "Pacote contem banco ou planilha em _internal: %s",
+                ", ".join(str(path) for path in internal_sensitive),
+            )
+            return False
 
-    create_user_structure(package_dir)
+    runtime_roots = [
+        path
+        for path in package_dir.iterdir()
+        if path.is_dir() and _resolve_primary_executable_name(path) is not None
+    ]
+    for runtime_root in runtime_roots or [package_dir]:
+        create_user_structure(runtime_root)
     copy_documentation(package_dir)
     if include_sample_db and not _copy_sample_db_assets(package_dir):
         return False
@@ -900,6 +1056,7 @@ def create_zip_package(
     version: str,
     include_sample_db: bool = False,
     include_local_db: Optional[str] = None,
+    include_runtime_db: bool = False,
 ) -> Optional[Path]:
     """Cria pacote ZIP portatil."""
     build_info: dict[str, object] = dict(BUILD_SYSTEMS[build_system])
@@ -921,16 +1078,14 @@ def create_zip_package(
         return None
     package_output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Criar diretorio temporario para montagem
-    timestamp = format_current_timestamp("%Y%m%d_%H%M%S")
-    temp_dir = package_output_dir / f"temp_{build_system}_{timestamp}"
-    temp_dir.mkdir(parents=True, exist_ok=True)
+    # Manter o staging curto para as dependencias aninhadas no Windows.
+    temp_dir = Path(tempfile.mkdtemp(prefix="ssa_pkg_"))
 
     package_name = f"SSA_Consulta_Rapida_v{version}_{build_system}"
     package_dir = temp_dir / package_name
-    package_dir.mkdir(exist_ok=True)
 
     try:
+        package_dir.mkdir(exist_ok=True)
         if not _prepare_package_staging(
             build_system,
             build_info,
@@ -940,17 +1095,8 @@ def create_zip_package(
             build_name,
             include_sample_db,
             include_local_db,
+            include_runtime_db,
         ):
-            if temp_dir.exists():
-                try:
-                    shutil.rmtree(temp_dir)
-                except OSError as exc:
-                    logger.error(
-                        "Falha ao remover diretorio temporario do pacote: %s: %s",
-                        temp_dir,
-                        exc,
-                    )
-                    raise
             return None
 
         # Criar ZIP
@@ -960,8 +1106,12 @@ def create_zip_package(
         logger.info("  Criando arquivo ZIP: %s", zip_name)
 
         _create_package_zip(package_dir, package_name, zip_path)
+        file_size = zip_path.stat().st_size / (1024 * 1024)  # MB
 
-        # Limpar diretorio temporario
+    except Exception as e:
+        logger.error("Erro ao criar ZIP: %s", e)
+        return None
+    finally:
         try:
             shutil.rmtree(temp_dir)
         except OSError as exc:
@@ -972,16 +1122,8 @@ def create_zip_package(
             )
             raise
 
-        file_size = zip_path.stat().st_size / (1024 * 1024)  # MB
-        logger.info("  ZIP criado: %s (%.1f MB)", zip_path.name, file_size)
-
-        return zip_path
-
-    except Exception as e:
-        logger.error("Erro ao criar ZIP: %s", e)
-        if temp_dir.exists():
-            shutil.rmtree(temp_dir)
-        return None
+    logger.info("  ZIP criado: %s (%.1f MB)", zip_path.name, file_size)
+    return zip_path
 
 
 def _normalize_windows_path(raw_value: str) -> str:
@@ -989,7 +1131,7 @@ def _normalize_windows_path(raw_value: str) -> str:
     return raw_value.replace("/", "\\").replace('"', "")
 
 
-def _build_inno_excludes_str() -> str:
+def _build_inno_excludes_str(include_runtime_db: bool = False) -> str:
     """Monta lista de excludes usada pelo template Inno."""
     inno_excludes = ["*.log", "*.tmp", "__pycache__"]
     inno_excludes.extend(
@@ -1051,6 +1193,22 @@ def _build_inno_local_db_blocks(
     return dirs_block, files_block
 
 
+def _build_inno_runtime_db_files_block(
+    runtime_databases: list[Path], source_dir: Path
+) -> str:
+    """Linha [Files] dedicada a data\\ssas.db quando o banco e incluido.
+
+    O exclude global data\\* segue ativo para nao vazar file_cache.json,
+    historico_backups e outros artefatos; so o banco e empacotado,
+    espelhando o conteudo do ZIP.
+    """
+    return "\n".join(
+        f'Source: "{{#SourceDir}}\\{_normalize_windows_path(str(path.relative_to(source_dir)))}"; '
+        f'DestDir: "{{app}}\\{_normalize_windows_path(str(path.parent.relative_to(source_dir)))}"; Flags: ignoreversion'
+        for path in runtime_databases
+    )
+
+
 def _build_inno_iss_content(
     build_system: str,
     version: str,
@@ -1063,6 +1221,7 @@ def _build_inno_iss_content(
     sample_db_files_block: str,
     local_db_dirs_block: str,
     local_db_files_block: str,
+    runtime_db_files_block: str = "",
 ) -> str:
     """Renderiza conteudo do arquivo ISS."""
     setup_icon_line = f"SetupIconFile={setup_icon_spec}" if setup_icon_spec else ""
@@ -1072,6 +1231,9 @@ def _build_inno_iss_content(
     )
     local_db_dirs_section = f"{local_db_dirs_block}\n" if local_db_dirs_block else ""
     local_db_files_section = f"{local_db_files_block}\n" if local_db_files_block else ""
+    runtime_db_files_section = (
+        f"{runtime_db_files_block}\n" if runtime_db_files_block else ""
+    )
     return f"""
 ; Script Inno Setup para SSA Consulta Rapida
 ; Build System: {BUILD_SYSTEMS[build_system]["name"]}
@@ -1115,25 +1277,19 @@ Source: "{{#SourceDir}}\\{exe_name}"; DestDir: "{{app}}"; Flags: ignoreversion
 Source: "{{#SourceDir}}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{inno_excludes_str}"
 {sample_db_files_section}
 {local_db_files_section}
+{runtime_db_files_section}
 
 [Dirs]
-Name: "{{app}}\\data"
-Name: "{{app}}\\data\\historico_backups"
-Name: "{{app}}\\docs_entrada"
-Name: "{{app}}\\docs_saida"
-Name: "{{app}}\\logs"
-Name: "{{app}}\\reports"
-Name: "{{app}}\\exportacao"
 {sample_db_dirs_section}
 {local_db_dirs_section}
 
 [Icons]
-Name: "{{group}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"
-Name: "{{group}}\\{{#MyAppName}} (GUI)"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui"
-Name: "{{autodesktop}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui"; Tasks: desktopicon
+Name: "{{group}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--runtime-home"
+Name: "{{group}}\\{{#MyAppName}} (GUI)"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui --runtime-home"
+Name: "{{autodesktop}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui --runtime-home"; Tasks: desktopicon
 
 [Run]
-Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui"; Description: "{{cm:LaunchProgram,{{#StringChange(MyAppName, '&', '&&')}}}}"; Flags: nowait postinstall skipifsilent
+Filename: "{{app}}\\{{#MyAppExeName}}"; Parameters: "--gui --runtime-home"; Description: "{{cm:LaunchProgram,{{#StringChange(MyAppName, '&', '&&')}}}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
 function InitializeSetup(): Boolean;
@@ -1160,6 +1316,7 @@ def create_inno_setup_script(
     version: str,
     include_sample_db: bool = False,
     include_local_db: Optional[str] = None,
+    include_runtime_db: bool = False,
 ) -> Optional[Path]:
     """Cria script Inno Setup para instalador Windows."""
     logger.info("Criando script Inno Setup para %s", BUILD_SYSTEMS[build_system]["name"])
@@ -1171,10 +1328,32 @@ def create_inno_setup_script(
         return None
 
     source_dir, exe_name = resolved
+    runtime_databases: list[Path] = []
+    if include_runtime_db:
+        sensitive_files = [
+            path
+            for path in source_dir.rglob("*")
+            if path.is_file() and path.suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS
+        ]
+        runtime_databases = [
+            path
+            for path in sensitive_files
+            if path.name == "ssas.db"
+            and path.parent.name == "data"
+            and "_internal" not in path.parts
+            and _resolve_primary_executable_name(path.parent.parent) is not None
+        ]
+        unexpected = [path for path in sensitive_files if path not in runtime_databases]
+        if not runtime_databases or unexpected:
+            logger.error(
+                "Instalador requer somente data/ssas.db externo; encontrados: %s",
+                ", ".join(str(path) for path in sensitive_files) or "nenhum",
+            )
+            return None
     source_dir_spec = _normalize_windows_path(str(source_dir.resolve()))
     dist_output_spec = _normalize_windows_path(str(DIST_OUTPUT.resolve()))
     exe_name = exe_name.replace('"', "")
-    inno_excludes_str = _build_inno_excludes_str()
+    inno_excludes_str = _build_inno_excludes_str(include_runtime_db)
     setup_icon_spec = _resolve_inno_setup_icon()
     if setup_icon_spec is None:
         logger.warning(
@@ -1197,7 +1376,12 @@ def create_inno_setup_script(
         resolved_local_db = _resolve_local_db_asset(include_local_db)
         if resolved_local_db is None:
             return None
-        local_db_source_spec = _normalize_windows_path(str(resolved_local_db.resolve()))
+        installer_asset_dir = DIST_OUTPUT / "installer_assets"
+        installer_asset_dir.mkdir(parents=True, exist_ok=True)
+        installer_db = installer_asset_dir / resolved_local_db.name
+        if not _snapshot_sqlite_database(resolved_local_db, installer_db):
+            return None
+        local_db_source_spec = _normalize_windows_path(str(installer_db.resolve()))
         local_db_name = resolved_local_db.name
     sample_db_dirs_block, sample_db_files_block = _build_inno_sample_db_blocks(
         sample_db_source_spec,
@@ -1219,6 +1403,7 @@ def create_inno_setup_script(
         sample_db_files_block,
         local_db_dirs_block,
         local_db_files_block,
+        _build_inno_runtime_db_files_block(runtime_databases, source_dir),
     )
 
     iss_path = DIST_OUTPUT / f"installer_{build_system}.iss"
@@ -1372,6 +1557,11 @@ def _parse_distribution_args() -> argparse.Namespace:
             "sem liberar outros bancos locais acidentais"
         ),
     )
+    parser.add_argument(
+        "--include-runtime-db",
+        action="store_true",
+        help="Preservar somente data/ssas.db externo no ZIP e instalador",
+    )
 
     args = parser.parse_args()
     if not args.build_system and not args.all:
@@ -1401,6 +1591,7 @@ def _create_distribution_outputs(
                 version,
                 include_sample_db=args.include_sample_db,
                 include_local_db=args.include_local_db,
+                include_runtime_db=args.include_runtime_db,
             )
             results[bs]["zip"] = zip_path
 
@@ -1410,6 +1601,7 @@ def _create_distribution_outputs(
                 version,
                 include_sample_db=args.include_sample_db,
                 include_local_db=args.include_local_db,
+                include_runtime_db=args.include_runtime_db,
             )
             if iss_path:
                 results[bs]["installer"] = compile_installer(iss_path)

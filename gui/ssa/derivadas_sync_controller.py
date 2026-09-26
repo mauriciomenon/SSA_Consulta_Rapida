@@ -6,13 +6,18 @@ import os
 import threading
 from dataclasses import dataclass, field
 from time import monotonic
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
+from armazenamento.derivadas_sync import DerivadasSyncCancelEvent
+from gui.ssa.app_menus import database_operation_in_progress, refresh_database_actions
 from gui.ssa.derivadas_sync_job import (
     DERIVADAS_SYNC_PHASE_DB,
     DERIVADAS_SYNC_PHASE_SHEETS,
     execute_derivadas_sync_job as execute_derivadas_sync_job_headless,
 )
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 DERIVADAS_SYNC_POLL_INTERVAL_MS = 500
 DERIVADAS_SYNC_TIMEOUT_SEC = 30 * 60
@@ -33,8 +38,14 @@ class DerivadasSyncState:
     table_name: str = ""
     last_status_text: str = ""
     lock: threading.Lock | None = None
+    last_report: dict[str, Any] | None = None
+    report_invalidated: bool = False
+    cancel_event: DerivadasSyncCancelEvent = field(default_factory=DerivadasSyncCancelEvent)
 
     def mark_started(self) -> None:
+        self.cancel_event = DerivadasSyncCancelEvent()
+        self.last_report = None
+        self.report_invalidated = False
         self.running = True
         self.thread = None
         self.pending_result = None
@@ -43,13 +54,16 @@ class DerivadasSyncState:
         self.table_name = ""
 
     def mark_finished(self) -> None:
+        thread = self.thread
         self.running = False
-        self.thread = None
+        self.thread = thread if _thread_alive(thread) else None
         self.pending_result = None
         self.phase_status = ""
         self.table_name = ""
 
     def mark_abandoned(self) -> None:
+        self.cancel_event.set()
+        self.last_report = None
         self.pending_result = None
         self.thread = None
         self.running = False
@@ -103,7 +117,11 @@ def update_derivadas_from_sources(
     db_path: str,
     deps: DerivadasSyncDependencies,
 ) -> dict[str, Any] | None:
+    if not (state.running or _thread_alive(state.thread)) and database_operation_in_progress(ui.message_parent):
+        _set_status_label(ui, state, "Status: Aguarde a operacao atual antes de atualizar derivadas.")
+        return {"ok": False, "reason": "operation_in_progress", "db_path": db_path}
     if not _precheck_db_path(ui, db_path, deps.qmessagebox):
+        state.last_report = None
         return None
 
     sync_lock = _ensure_derivadas_sync_lock(state)
@@ -116,6 +134,7 @@ def update_derivadas_from_sources(
     )
     if already_running is not None:
         return already_running
+    refresh_database_actions(ui.message_parent)
 
     try:
         special_files, table_name = _prepare_derivadas_sync_inputs(
@@ -129,6 +148,7 @@ def update_derivadas_from_sources(
         with sync_lock:
             state.running = False
             _sync_state(deps.sync_state_callback)
+        refresh_database_actions(ui.message_parent)
         error = str(exc)
         deps.logger.error("Falha ao preparar sync manual de derivadas: %s", error)
         _set_status_label(ui, state, "Status: Falha ao preparar derivadas.")
@@ -188,7 +208,7 @@ def _begin_derivadas_sync(
     sync_state_callback: Callable[[], None] | None,
 ) -> dict[str, Any] | None:
     with sync_lock:
-        if state.running:
+        if state.running or _thread_alive(state.thread):
             _set_status_label(
                 ui, state, "Status: Atualizacao de derivadas ja em andamento."
             )
@@ -234,10 +254,31 @@ def _start_async_derivadas_sync(
     sync_state_callback: Callable[[], None] | None,
 ) -> dict[str, Any]:
     started = monotonic()
+    cancel_event = state.cancel_event
+
+    def _deliver_result(result: dict[str, Any]) -> dict[str, Any]:
+        try:
+            finalized = finalize_result(ui.message_parent, result)
+            _sync_state(sync_state_callback)
+            return finalized
+        except Exception as exc:
+            logger.exception("Falha ao aplicar resultado de derivadas: %s", exc)
+            with sync_lock:
+                state.mark_finished()
+                state.last_report = None
+                state.report_invalidated = True
+            try:
+                _restore_derivadas_sync_ui_state(ui, state.ui_state, logger)
+                _set_status_label(ui, state, "Status: Falha ao aplicar resultado de derivadas.")
+                _sync_state(sync_state_callback)
+                refresh_database_actions(ui.message_parent)
+            except Exception as ui_exc:
+                logger.exception("Falha ao informar erro de derivadas na interface: %s", ui_exc)
+            return {**result, "ok": False, "reason": "finalize_failed", "error": str(exc)}
 
     def _set_phase_status(text: str) -> None:
         with sync_lock:
-            if state.running:
+            if state.running and not cancel_event.is_set():
                 state.phase_status = str(text or "")
 
     def _work() -> None:
@@ -247,20 +288,35 @@ def _start_async_derivadas_sync(
                 table_name=table_name,
                 special_files=special_files,
                 status_callback=_set_phase_status,
+                cancel_event=cancel_event,
             )
         except Exception as exc:
             result = {"ok": False, "error": str(exc)}
+        current_thread = threading.current_thread()
         with sync_lock:
             if state.running:
                 state.pending_result = result
-        _sync_state(sync_state_callback)
+            if not state.running and (
+                state.thread is current_thread or not _thread_alive(state.thread)
+            ):
+                state.thread = None
 
     def _poll_delivery() -> None:
         if not _window_alive(ui.message_parent, sip_module):
             _clear_abandoned_derivadas_sync(state, sync_lock, sync_state_callback)
             return
+        shutting_down = bool(
+            getattr(ui.message_parent, "_is_shutting_down", False)
+        )
+        if state.thread is not worker or not state.running:
+            refresh_database_actions(ui.message_parent)
+            if state.thread is worker and _thread_alive(worker):
+                qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
+            return
         pending: dict[str, Any] | None
         with sync_lock:
+            if not state.running:
+                return
             phase_status = str(state.phase_status or "")
             pending = state.pending_result
             if pending is not None:
@@ -268,36 +324,68 @@ def _start_async_derivadas_sync(
         if phase_status and phase_status != state.last_status_text:
             _set_status_label(ui, state, phase_status)
         if pending is None:
-            if monotonic() - started > DERIVADAS_SYNC_TIMEOUT_SEC:
+            if not cancel_event.is_set() and monotonic() - started > DERIVADAS_SYNC_TIMEOUT_SEC:
                 with sync_lock:
+                    if not state.running:
+                        return
                     pending = state.pending_result
                     if pending is not None:
                         state.pending_result = None
-                    state.mark_finished()
-                _sync_state(sync_state_callback)
-                result = pending or {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
-                finalize_result(ui.message_parent, result)
+                    elif _thread_alive(worker):
+                        if cancel_event.request_timeout():
+                            state.phase_status = "Status: Prazo esgotado; cancelando derivadas..."
+                        else:
+                            state.phase_status = "Status: Prazo esgotado; gravacao em andamento..."
+                    else:
+                        pending = {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
+            if pending is None and cancel_event.is_set() and not _thread_alive(worker):
+                with sync_lock:
+                    if not state.running:
+                        return
+                    pending = state.pending_result
+                    state.pending_result = None
+                if pending is None:
+                    pending = {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
+            if pending is None:
+                if state.running:
+                    qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
                 return
-            if state.running:
-                qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
-            return
         with sync_lock:
+            if not state.running:
+                return
             state.mark_finished()
         _sync_state(sync_state_callback)
-        finalize_result(ui.message_parent, pending)
+        if not shutting_down:
+            _deliver_result(pending)
+            qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
 
-    worker = thread_factory(target=_work, daemon=True)
-    with sync_lock:
-        if not state.running:
-            return {
-                "ok": False,
-                "reason": "not_running",
-                "db_path": db_path,
-                "table_name": table_name,
-            }
-        state.thread = worker
-        _sync_state(sync_state_callback)
-    worker.start()
+    try:
+        worker = thread_factory(target=_work, daemon=True)
+        with sync_lock:
+            if not state.running:
+                return {
+                    "ok": False,
+                    "reason": "not_running",
+                    "db_path": db_path,
+                    "table_name": table_name,
+                }
+            state.thread = worker
+            _sync_state(sync_state_callback)
+        worker.start()
+    except Exception as exc:
+        logger.error("Falha ao iniciar sync de derivadas: %s", exc)
+        with sync_lock:
+            state.mark_finished()
+        failure_result = {
+            "ok": False,
+            "reason": "start_failed",
+            "error": str(exc),
+            "db_path": db_path,
+            "table_name": table_name,
+        }
+        # Passa pelo finalizador para restaurar barra/botoes/status pelo
+        # mesmo caminho de uma falha de sincronizacao em andamento.
+        return _deliver_result(failure_result)
     qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
     return {
         "ok": True,
@@ -336,6 +424,8 @@ def execute_derivadas_sync_job(
     sync_derivadas_fn: Callable[..., dict[str, Any]],
     scan_derivadas_consistency_fn: Callable[..., dict[str, Any]],
     status_callback=None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+    cancel_event: DerivadasSyncCancelEvent | None = None,
 ) -> dict[str, Any]:
     def _status_from_phase(phase_name: str, payload: dict[str, Any]) -> None:
         if not callable(status_callback):
@@ -357,6 +447,8 @@ def execute_derivadas_sync_job(
         sync_derivadas_fn=sync_derivadas_fn,
         scan_derivadas_consistency_fn=scan_derivadas_consistency_fn,
         phase_callback=_status_from_phase,
+        extra_allowed_roots=extra_allowed_roots,
+        cancel_event=cancel_event,
     )
 
 
@@ -368,13 +460,27 @@ def finalize_derivadas_sync_result(
     previous_ui_state: dict[str, Any] | None = None,
     qmessagebox: Any,
     logger: Any,
+    current_db_path: str | None = None,
 ) -> dict[str, Any]:
     previous = previous_ui_state or state.ui_state or {}
     state.mark_finished()
+    refresh_database_actions(ui.message_parent)
 
     _restore_derivadas_sync_ui_state(ui, previous, logger)
+    state.last_report = None
+    report_db_path = result.get("db_path")
+    if state.report_invalidated or (
+        current_db_path and report_db_path
+        and os.path.realpath(current_db_path) != os.path.realpath(report_db_path)
+    ):
+        _set_status_label(
+            ui, state, "Status: Resultado de derivadas do banco anterior descartado."
+        )
+        return {**result, "ok": False, "reason": "database_changed"}
 
     if bool(result.get("ok")):
+        if result.get("phase_reports") and report_db_path:
+            state.last_report = result
         merged_edges = int(result.get("merged_edges", 0) or 0)
         db_edges = int(result.get("db_edges", 0) or 0)
         sheet_edges = int(result.get("sheet_edges", 0) or 0)
@@ -404,12 +510,100 @@ def finalize_derivadas_sync_result(
     return result
 
 
+def export_derivadas_report(
+    ui: DerivadasSyncUiRefs,
+    state: DerivadasSyncState,
+    *,
+    db_path: str,
+    qfiledialog: Any,
+    qmessagebox: Any,
+) -> None:
+    from armazenamento.derivadas_sync import (
+        export_reconciliation_csv,
+        export_reconciliation_tsv,
+        export_report_json,
+    )
+
+    db_path = os.path.realpath(os.path.expanduser(db_path))
+    report = state.last_report
+    if state.running or not report or os.path.realpath(
+        str(report.get("db_path") or "")
+    ) != os.path.realpath(db_path):
+        qmessagebox.information(
+            ui.message_parent,
+            "Relatorio de derivadas",
+            "Execute 'Atualizar derivadas' neste banco e aguarde a conclusao "
+            "para exportar o relatorio. JSON inclui todos os detalhes; "
+            "CSV e TSV resumem cada fase da sincronizacao.",
+        )
+        return
+
+    formats = {
+        "JSON completo (*.json)": (".json", export_report_json),
+        "CSV por fase (*.csv)": (".csv", export_reconciliation_csv),
+        "TSV por fase (*.tsv)": (".tsv", export_reconciliation_tsv),
+    }
+    output_file, selected_filter = qfiledialog.getSaveFileName(
+        ui.message_parent,
+        "Exportar relatorio de derivadas",
+        "relatorio_derivadas",
+        ";;".join(formats),
+    )
+    if not output_file:
+        return
+    extension, exporter = formats.get(selected_filter, formats["JSON completo (*.json)"])
+    if not os.path.splitext(output_file)[1]:
+        output_file += extension
+        if os.path.exists(output_file) and qmessagebox.question(
+            ui.message_parent,
+            "Substituir relatorio",
+            f"O arquivo ja existe. Substituir {output_file}?",
+            qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
+            qmessagebox.StandardButton.No,
+        ) != qmessagebox.StandardButton.Yes:
+            return
+    if state.last_report is not report or state.report_invalidated or state.running:
+        qmessagebox.information(
+            ui.message_parent,
+            "Relatorio de derivadas",
+            "O banco ou a sincronizacao mudou enquanto o dialogo estava aberto. "
+            "Abra a exportacao novamente apos concluir a sincronizacao.",
+        )
+        return
+    try:
+        exporter(
+            report,
+            output_file,
+            overwrite=True,
+            protected_paths=(
+                db_path, db_path + "-wal", db_path + "-shm", db_path + "-journal",
+                *(report.get("sheet_files") or []),
+            ),
+        )
+    except (OSError, ValueError, TypeError) as exc:
+        logger.error("Falha ao exportar relatorio de derivadas: %s", exc)
+        qmessagebox.critical(
+            ui.message_parent,
+            "Falha ao exportar relatorio",
+            f"A sincronizacao foi mantida. Nao foi possivel salvar o relatorio: {exc}",
+        )
+        return
+    _set_status_label(ui, state, f"Status: Relatorio de derivadas salvo em {output_file}.")
+
+
 def _ensure_derivadas_sync_lock(state: DerivadasSyncState) -> threading.Lock:
     sync_lock = getattr(state, "lock", None)
     if sync_lock is None:
         sync_lock = threading.Lock()
         state.lock = sync_lock
     return sync_lock
+
+
+def _thread_alive(thread: threading.Thread | None) -> bool:
+    if thread is None:
+        return False
+    is_alive = getattr(thread, "is_alive", None)
+    return bool(callable(is_alive) and is_alive())
 
 
 def _set_derivadas_sync_started(state: DerivadasSyncState) -> None:
@@ -470,7 +664,11 @@ def _restore_derivadas_sync_ui_state(
     try:
         if ui.update_button is not None:
             ui.update_button.setEnabled(bool(previous.get("update_enabled", True)))
-        if ui.progress_bar is not None:
+        # Se uma carga de dados assumiu a progress_bar durante o sync, ela
+        # continua dona dela; restaurar o snapshot esconderia o progresso dela.
+        if ui.progress_bar is not None and not getattr(
+            ui.message_parent, "_data_load_busy", False
+        ):
             ui.progress_bar.setVisible(bool(previous.get("progress_visible")))
             progress_range = previous.get("progress_range") or (0, 0)
             ui.progress_bar.setRange(progress_range[0], progress_range[1])

@@ -1,8 +1,10 @@
 # gui/widgets/rescan_progress_dialog.py
 # Progress dialog for database rescanning
 
+from typing import cast
+
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QTextDocument
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -26,6 +28,7 @@ class RescanProgressDialog(QDialog):
     """
 
     cancel_requested = pyqtSignal()
+    MAX_OUTPUT_BLOCKS = 4000
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -72,16 +75,20 @@ class RescanProgressDialog(QDialog):
 
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
+        output_document = cast(QTextDocument, self.output_text.document())
+        output_document.setMaximumBlockCount(self.MAX_OUTPUT_BLOCKS)
         self.output_text.setFont(QFont("Courier New", 9))
         layout.addWidget(self.output_text)
 
         # Error section
-        error_label = QLabel("Erros e Avisos:")
-        error_label.setStyleSheet("font-weight: bold; color: red;")
+        error_label = QLabel("Erros e avisos:")
+        error_label.setStyleSheet("font-weight: bold;")
         layout.addWidget(error_label)
 
         self.error_text = QTextEdit()
         self.error_text.setReadOnly(True)
+        error_document = cast(QTextDocument, self.error_text.document())
+        error_document.setMaximumBlockCount(self.MAX_OUTPUT_BLOCKS)
         self.error_text.setFont(QFont("Courier New", 9))
         self.error_text.setMaximumHeight(150)
         layout.addWidget(self.error_text)
@@ -132,7 +139,22 @@ class RescanProgressDialog(QDialog):
             return
         percentage = max(0, min(100, int(percentage)))
         self.progress_bar.setValue(percentage)
-        self.status_label.setText(message)
+        status_message = str(message or "")
+        self.status_label.setText(status_message)
+        progress_detail = ""
+        for token in status_message.split():
+            candidate = token.strip(".,:;()")
+            if candidate.count("/") != 1:
+                continue
+            current, total = candidate.split("/", 1)
+            if current.isdigit() and total.isdigit():
+                progress_detail = f"{current}/{total}"
+                break
+        if not self._finished:
+            title = f"{self._operation_label} em andamento"
+            if progress_detail:
+                title = f"{title} - {progress_detail}"
+            self.setWindowTitle(title)
 
     def set_finished(self, success: bool, message: str = ""):
         """Mark process as finished."""
@@ -143,12 +165,18 @@ class RescanProgressDialog(QDialog):
         self.close_button.setEnabled(True)
 
         if success:
+            final_message = message.strip() if isinstance(message, str) else ""
             self.status_label.setText(
-                f"Operacao concluida com sucesso: {self._operation_label}."
+                final_message.splitlines()[0] if final_message
+                else f"Operacao concluida com sucesso: {self._operation_label}."
             )
+            color = "#996000" if final_message else "green"
             self.status_label.setStyleSheet(
-                "font-weight: bold; font-size: 12pt; color: green;"
+                f"font-weight: bold; font-size: 12pt; color: {color};"
             )
+            if final_message:
+                self.status_label.setToolTip(final_message)
+                self.append_error(f"[AVISO] {final_message}")
             self.progress_bar.setValue(100)
         else:
             final_message = message.strip() if isinstance(message, str) else ""

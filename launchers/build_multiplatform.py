@@ -15,8 +15,11 @@ import platform
 import plistlib
 import shlex
 import shutil
+import sqlite3
 import subprocess  # nosec B404
 import sys
+import sysconfig
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -40,6 +43,11 @@ class MultiPlatformBuilder:
             "arch": "AMD64",
             "executable_ext": ".exe",
         },
+        "windows_arm64": {
+            "system": "Windows",
+            "arch": "ARM64",
+            "executable_ext": ".exe",
+        },
         "macos_arm64": {"system": "Darwin", "arch": "arm64", "executable_ext": ""},
         "debian_amd64": {"system": "Linux", "arch": "x86_64", "executable_ext": ""},
         "debian_arm64": {"system": "Linux", "arch": "aarch64", "executable_ext": ""},
@@ -58,11 +66,31 @@ class MultiPlatformBuilder:
 
         # Carregar versao
         self.version = self._load_version()
-        self.runtime_python = os.environ.get("UV_PYTHON", "3.13")
+        self.runtime_python = os.environ.get("UV_PYTHON")
         self.uv_cmd = shutil.which("uv") or "uv"
 
         logger.info(f"Iniciando build para SSA Consulta Rapida v{self.version}")
-        logger.info(f"Runtime Python padrao (uv): {self.runtime_python}")
+
+    def _python_specs_for(self, platform_name: str) -> list[str]:
+        """Identificadores uv do runtime Python, em ordem de preferencia.
+
+        Politica do repositorio: 3.13 primeiro, com fallback para
+        3.12/3.11/3.10 quando o uv nao consegue prover o preferido.
+        Um runtime_python explicito sobrepoe a cadeia (override unico).
+        """
+        if self.runtime_python:
+            return [self.runtime_python]
+        arch_map = {
+            "windows_amd64": "windows-x86_64-none",
+            "windows_arm64": "windows-aarch64-none",
+        }
+        suffix = arch_map.get(platform_name)
+        if suffix:
+            return [
+                f"cpython-{version}-{suffix}"
+                for version in ("3.13", "3.12", "3.11", "3.10")
+            ]
+        return ["3.13", "3.12", "3.11", "3.10"]
 
     @staticmethod
     def _run_command(cmd, *, timeout, cwd=None, capture_output=True, text=True):
@@ -223,7 +251,7 @@ VSVersionInfo(
         return version_file_path
 
     def _load_requirements_signature(self, requirements_file: Path) -> str:
-        """Retorna hash deterministico do conteudo de requirements."""
+        """Inclui o lock na assinatura dos ambientes Windows."""
         digest = hashlib.sha256()
         try:
             with requirements_file.open("r", encoding="utf-8") as file_handle:
@@ -232,6 +260,9 @@ VSVersionInfo(
                     if not line or line.startswith("#"):
                         continue
                     digest.update((line + "\n").encode("utf-8"))
+            if requirements_file.parent.name in {"windows_amd64", "windows_arm64"}:
+                digest.update(b"\0uv.lock\0")
+                digest.update((self.base_dir / "uv.lock").read_bytes())
             return digest.hexdigest()
         except OSError as exc:
             logger.warning(
@@ -260,8 +291,12 @@ VSVersionInfo(
         system = platform.system()
         machine = platform.machine().lower()
 
-        if system == "Windows" and machine in ["amd64", "x86_64"]:
-            return "windows_amd64"
+        if system == "Windows":
+            windows_platform = sysconfig.get_platform()
+            if windows_platform == "win-amd64":
+                return "windows_amd64"
+            if windows_platform == "win-arm64":
+                return "windows_arm64"
         elif system == "Darwin" and machine in ["arm64", "aarch64"]:
             return "macos_arm64"
         elif system == "Linux" and machine in ["x86_64", "amd64"]:
@@ -279,12 +314,29 @@ VSVersionInfo(
             return venv_dir / "Scripts" / "python.exe"
         return venv_dir / "bin" / "python"
 
-    def _is_python_executable_ok(self, python_exe: Path) -> bool:
-        """Verifica se o python do venv responde normalmente."""
+    def _is_python_executable_ok(self, python_exe: Path, platform_name: str) -> bool:
+        """Verifica se o Python responde e tem a arquitetura Windows solicitada."""
         result = self._run_command(
-            [python_exe, "-c", "import sys"], timeout=15, capture_output=True, text=True
+            [python_exe, "-c", "import sysconfig; print(sysconfig.get_platform())"],
+            timeout=15,
+            capture_output=True,
+            text=True,
         )
-        return result.returncode == 0
+        if result.returncode != 0:
+            return False
+        expected_platform = {
+            "windows_amd64": "win-amd64",
+            "windows_arm64": "win-arm64",
+        }.get(platform_name)
+        if expected_platform and result.stdout.strip() != expected_platform:
+            logger.error(
+                "Python %s usa %s; esperado %s",
+                python_exe,
+                result.stdout.strip(),
+                expected_platform,
+            )
+            return False
+        return True
 
     def _is_venv_compatible(self, platform_name: str, requirements_file: Path) -> bool:
         """Valida se o venv existente pode ser reutilizado."""
@@ -292,7 +344,7 @@ VSVersionInfo(
         python_exe = self._python_executable(platform_name)
         if not (venv_dir.exists() and python_exe.exists()):
             return False
-        if not self._is_python_executable_ok(python_exe):
+        if not self._is_python_executable_ok(python_exe, platform_name):
             return False
 
         if not requirements_file.exists():
@@ -354,20 +406,56 @@ VSVersionInfo(
         # Remover venv antigo se existir
         if venv_dir.exists():
             logger.info("Removendo ambiente virtual antigo")
-            shutil.rmtree(venv_dir)
+            try:
+                shutil.rmtree(venv_dir)
+            except OSError as exc:
+                logger.error("Falha removendo ambiente virtual %s: %s", venv_dir, exc)
+                return False
 
         logger.info(f"Criando novo ambiente virtual: {venv_dir}")
 
-        cmd = [
-            self.uv_cmd,
-            "venv",
-            "--python",
-            self.runtime_python,
-            str(venv_dir),
-        ]
-        result = self._run_command(cmd, timeout=600, capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error("Erro criando venv via uv: %s", result.stderr.strip())
+        venv_created = False
+        last_venv_error = ""
+        python_specs = self._python_specs_for(platform_name)
+        for python_spec in python_specs:
+            cmd = [
+                self.uv_cmd,
+                "venv",
+                "--python",
+                python_spec,
+                str(venv_dir),
+            ]
+            result = self._run_command(cmd, timeout=600, capture_output=True, text=True)
+            if result.returncode == 0:
+                venv_created = True
+                if python_spec != python_specs[0]:
+                    logger.warning(
+                        "Python preferido indisponivel; venv criado com %s",
+                        python_spec,
+                    )
+                break
+            last_venv_error = result.stderr.strip()
+            logger.warning(
+                "uv venv falhou com %s: %s; tentando proximo spec",
+                python_spec,
+                last_venv_error,
+            )
+            if venv_dir.exists():
+                try:
+                    shutil.rmtree(venv_dir)
+                except OSError as exc:
+                    logger.error(
+                        "Falha removendo venv parcial %s apos uv falhar com %s: %s",
+                        venv_dir,
+                        python_spec,
+                        exc,
+                    )
+                    return False
+        if not venv_created:
+            logger.error("Erro criando venv via uv: %s", last_venv_error)
+            return False
+        if not self._is_python_executable_ok(python_exe, platform_name):
+            logger.error("Python do novo ambiente e incompativel com %s", platform_name)
             return False
 
         # Instalar dependencias
@@ -382,6 +470,20 @@ VSVersionInfo(
                 "-r",
                 str(requirements_file),
             ]
+            if platform_name in {"windows_amd64", "windows_arm64"}:
+                constraints_file = venv_dir / ".lock-constraints.txt"
+                export_cmd = [
+                    self.uv_cmd, "export", "--frozen", "--project", str(self.base_dir),
+                    "--extra", "build", "--no-dev", "--no-emit-project",
+                    "--format", "requirements-txt", "--output-file", str(constraints_file),
+                ]
+                exported = self._run_command(
+                    export_cmd, timeout=120, capture_output=True, text=True,
+                )
+                if exported.returncode != 0:
+                    logger.error("Erro exportando lock do build: %s", exported.stderr.strip())
+                    return False
+                cmd.extend(["--constraint", str(constraints_file)])
             result = self._run_command(cmd, timeout=1200, capture_output=True, text=True)
             if result.returncode != 0:
                 logger.error("Erro instalando dependencias: %s", result.stderr.strip())
@@ -458,13 +560,32 @@ VSVersionInfo(
             logger.error(f"Erro executando conversao de icones: {e}")
             return False
 
-    def build_executable(self, platform_name, app_type, python_exe, config):
+    def build_executable(
+        self, platform_name, app_type, python_exe, config, runtime_db=None
+    ):
         """Constroi executavel para tipo especifico (cli/gui)"""
         logger.info(f"Construindo {app_type.upper()} para {platform_name}")
 
         # Configuracao base
         app_config = config[f"{app_type}_config"]
         pyinstaller_args = config["pyinstaller_args"]
+        if pyinstaller_args.get("onefile", False) or not pyinstaller_args.get(
+            "onedir", False
+        ):
+            logger.error("Build de distribuicao exige modo onedir: %s", platform_name)
+            return False
+        if runtime_db is None and pyinstaller_args.get("include_local_data", False):
+            runtime_db = self.base_dir / "data" / "ssas.db"
+            logger.warning(
+                "include_local_data legado ativado; somente data/ssas.db sera "
+                "copiado externamente."
+            )
+        runtime_db_path = None
+        if runtime_db is not None:
+            runtime_db_path = Path(runtime_db).resolve()
+            if runtime_db_path.name != "ssas.db" or not runtime_db_path.is_file():
+                logger.error("Banco de runtime invalido ou ausente: %s", runtime_db_path)
+                return False
 
         # Comando base
         cmd = [
@@ -525,24 +646,39 @@ VSVersionInfo(
 
         # Dados adicionais
         config_path = self.base_dir / "config"
-        data_path = self.base_dir / "data"
         guide_path = self.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
         build_info_path = self._write_build_info_file("pyinstaller", platform_name)
         add_data_sep = ";" if platform_name.startswith("windows") else ":"
 
+        tracked_config = self._run_command(
+            ["git", "ls-files", "-z", "--", "config"],
+            timeout=30,
+            cwd=self.base_dir,
+        )
+        if tracked_config.returncode != 0:
+            logger.error("Falha ao listar config versionada: %s", tracked_config.stderr)
+            return False
         if config_path.exists():
-            cmd.extend(["--add-data", f"{config_path}{add_data_sep}config"])
+            for relative_path in sorted(filter(None, tracked_config.stdout.split("\0"))):
+                config_file = self.base_dir / relative_path
+                if (
+                    not config_file.is_file()
+                    or "__pycache__" in config_file.parts
+                    or config_file.suffix.lower() in {".py", ".pyc"}
+                ):
+                    continue
+                config_destination = Path("config") / config_file.relative_to(
+                    config_path
+                ).parent
+                cmd.extend(
+                    [
+                        "--add-data",
+                        f"{config_file}{add_data_sep}{config_destination.as_posix()}",
+                    ]
+                )
         if guide_path.exists():
             cmd.extend(["--add-data", f"{guide_path}{add_data_sep}docs"])
         cmd.extend(["--add-data", f"{build_info_path}{add_data_sep}config"])
-        include_local_data = bool(pyinstaller_args.get("include_local_data", False))
-        if include_local_data and data_path.exists():
-            logger.warning(
-                "include_local_data ativado; data/ sera embedado no build. "
-                "Use apenas em ambiente controlado."
-            )
-            cmd.extend(["--add-data", f"{data_path}{add_data_sep}data"])
-
         # Argumentos adicionais
         for arg in app_config.get("additional_args", []):
             cmd.append(arg)
@@ -563,6 +699,65 @@ VSVersionInfo(
         )
 
         if result.returncode == 0:
+            bundle_root = self.dist_dir / platform_name / app_config["name"]
+            runtime_root = bundle_root
+            if platform_name == "macos_arm64" and app_config.get("windowed", False):
+                bundle_root = bundle_root.parent / f"{bundle_root.name}.app"
+                runtime_root = bundle_root / "Contents" / "MacOS"
+            if runtime_db_path is not None:
+                if not bundle_root.is_dir():
+                    logger.error("Bundle onedir nao encontrado: %s", bundle_root)
+                    return False
+                internal_sensitive = [
+                    path
+                    for path in bundle_root.rglob("*")
+                    if path.is_file()
+                    and "_internal" in path.parts
+                    and path.suffix.lower()
+                    in {".db", ".xls", ".xlsx", ".xlsm", ".ods"}
+                ]
+                if internal_sensitive:
+                    logger.error(
+                        "Bundle contem banco ou planilha em _internal: %s",
+                        ", ".join(str(path) for path in internal_sensitive),
+                    )
+                    return False
+                runtime_data = runtime_root / "data"
+                runtime_data.mkdir(parents=True, exist_ok=True)
+                runtime_db_target = runtime_data / "ssas.db"
+                runtime_db_temporary = runtime_data / "ssas.db.tmp"
+                runtime_db_temporary.unlink(missing_ok=True)
+                try:
+                    source_uri = f"{runtime_db_path.as_uri()}?mode=ro"
+                    with closing(
+                        sqlite3.connect(source_uri, uri=True, timeout=5)
+                    ) as source_conn:
+                        with closing(sqlite3.connect(runtime_db_temporary)) as target_conn:
+                            source_conn.backup(target_conn)
+                            if target_conn.execute("PRAGMA quick_check").fetchone() != (
+                                "ok",
+                            ):
+                                raise sqlite3.DatabaseError(
+                                    "snapshot do banco de runtime falhou no quick_check"
+                                )
+                    os.replace(runtime_db_temporary, runtime_db_target)
+                except (OSError, sqlite3.Error) as exc:
+                    runtime_db_temporary.unlink(missing_ok=True)
+                    logger.error("Falha ao criar snapshot do banco de runtime: %s", exc)
+                    return False
+                logger.info(
+                    "Banco operacional copiado externamente: %s",
+                    runtime_db_target,
+                )
+            for folder in (
+                runtime_root / "data" / "historico_backups",
+                runtime_root / "docs_entrada",
+                runtime_root / "docs_saida",
+                runtime_root / "logs",
+                runtime_root / "reports",
+                runtime_root / "exportacao",
+            ):
+                folder.mkdir(parents=True, exist_ok=True)
             logger.info(f"{app_type.upper()} construido com sucesso")
             return True
         else:
@@ -841,6 +1036,9 @@ VSVersionInfo(
                 continue
             if name.startswith("."):
                 continue
+            if name.startswith(("SSA_CLI_v", "SSA_GUI_v", "SSA_Consulta_Rapida_v")):
+                if f"_v{self.version}_{platform_name}" not in name:
+                    continue
 
             if artifact.is_file():
                 size_bytes = artifact.stat().st_size
@@ -897,7 +1095,9 @@ VSVersionInfo(
 
         return total
 
-    def build_platform(self, platform_name, apps=None, skip_venv=False):
+    def build_platform(
+        self, platform_name, apps=None, skip_venv=False, runtime_db=None
+    ):
         """Constroi executaveis para uma plataforma especifica"""
         if platform_name not in self.PLATFORMS:
             logger.error(f"Plataforma nao suportada: {platform_name}")
@@ -924,7 +1124,9 @@ VSVersionInfo(
         success = True
 
         for app_type in apps:
-            if not self.build_executable(platform_name, app_type, python_exe, config):
+            if not self.build_executable(
+                platform_name, app_type, python_exe, config, runtime_db=runtime_db
+            ):
                 success = False
 
         # Pos-processamento
@@ -1164,8 +1366,9 @@ VSVersionInfo(
         ]
 
         unnecessary_patterns = [
-            # Arquivos de controle
+            # Artefatos gerados, incluindo bancos com nome sem extensao.
             "file_cache.json",
+            "file_cache.*.json",
             "*.backup_*",
             # Cache e temporarios
             "*.pyc",
@@ -1236,7 +1439,13 @@ VSVersionInfo(
         # Escopo restrito para dados: arquivos explicitos para evitar varredura ampla
         data_dir = self.base_dir / "data"
         if data_dir.exists():
-            collect_for_cleanup(data_dir / "file_cache.json")
+            for cache_pattern in ("file_cache.json", "file_cache.*.*.json"):
+                for file_path in data_dir.glob(cache_pattern):
+                    collect_for_cleanup(file_path)
+            for file_path in data_dir.glob("file_cache.*.json"):
+                database_name = file_path.name[len("file_cache.") : -len(".json")]
+                if "." not in database_name and (data_dir / database_name).is_file():
+                    collect_for_cleanup(file_path)
             for file_path in data_dir.glob("*.backup_*"):
                 collect_for_cleanup(file_path)
             historico_backups = data_dir / "historico_backups"
@@ -1383,6 +1592,12 @@ def main(argv=None):
     )
 
     parser.add_argument(
+        "--runtime-db",
+        type=Path,
+        help="Embedar exatamente um data/ssas.db no bundle onedir",
+    )
+
+    parser.add_argument(
         "--auto-cleanup",
         action="store_true",
         help="Executar limpeza automatica apos build bem-sucedido",
@@ -1486,7 +1701,12 @@ def main(argv=None):
     # Executar builds
     success = True
     for plat in platforms_to_build:
-        if not builder.build_platform(plat, args.apps, skip_venv=args.skip_venv):
+        if not builder.build_platform(
+            plat,
+            args.apps,
+            skip_venv=args.skip_venv,
+            runtime_db=args.runtime_db,
+        ):
             success = False
 
     if success:

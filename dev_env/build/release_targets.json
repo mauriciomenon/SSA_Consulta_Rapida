@@ -5,6 +5,7 @@
       "name": "pyinstaller",
       "order": 1,
       "windows_amd64": true,
+      "windows_arm64": true,
       "debian_amd64": true,
       "debian_arm64": true,
       "macos_arm64": true
@@ -46,7 +47,8 @@
     {
       "name": "zip",
       "order": 4,
-      "windows_amd64": true
+      "windows_amd64": true,
+      "windows_arm64": true
     },
     {
       "name": "dmg",
@@ -83,6 +85,9 @@
     },
     "macos_arm64": {
       "dmg": "SSA_Consulta_Rapida_v{app_version}_macos_arm64.dmg"
+    },
+    "windows_arm64": {
+      "zip": "SSA_Consulta_Rapida_v{app_version}_windows_arm64_{backend}.zip"
     }
   }
 }

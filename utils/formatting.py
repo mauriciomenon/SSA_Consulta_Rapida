@@ -20,6 +20,24 @@ import pandas as pd
 
 from armazenamento.numero_ssa_utils import normalize_numero_ssa as _normalize_ssa_str
 
+# C0 perigosos + DEL + C1: mantidos \t \n \r (ver format_table_cell).
+_DISPLAY_UNSAFE_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+
+def _safe_str(v) -> str:
+    """str() sem controles perigosos de exibicao.
+
+    ESC (\x1b) e C1 (\x80-\x9f) injetam sequencias ANSI/OSC no terminal
+    com dados vindos de planilhas importadas; C0 sem uso em exibicao e
+    DEL tambem sao neutralizados. Cada caractere removido vira U+FFFD:
+    corrupcao/mojibake fica visivel em vez de sumir sem rastro.
+    \r e removido silenciosamente (CRLF legitimo vira LF); \x85 (NEL)
+    vira espaco para nao colar palavras. \t e \n ficam: \n tem uso
+    massivo legitimo em descricoes e \t so afeta alinhamento.
+    """
+    text = str(v).replace("\r", "").replace("\x85", " ")
+    return _DISPLAY_UNSAFE_CHARS_RE.sub("\ufffd", text)
+
 
 def _is_nullish(v) -> bool:
     if v is None:
@@ -58,7 +76,7 @@ def _format_number(v) -> str:
         # Caso contrário, usa formato compacto sem zeros à direita excessivos
         s = "%g" % v
         return s
-    return str(v)
+    return _safe_str(v)
 
 
 def _format_date_like(v) -> str:
@@ -95,7 +113,7 @@ def _format_date_like(v) -> str:
             return ""
         return ts.strftime("%d/%m/%Y")
     except Exception:
-        return str(v)
+        return _safe_str(v)
 
 
 def format_cell(value, column: Optional[str] = None) -> str:
@@ -110,8 +128,8 @@ def format_cell(value, column: Optional[str] = None) -> str:
                 s = _normalize_ssa_str(value)
                 return s or ""
             except Exception:
-                return str(value)
-        return str(value)
+                return _safe_str(value)
+        return _safe_str(value)
 
     # Colunas que parecem data
     if column and ("data" in column.lower() or column.lower().startswith("dt_")):
@@ -134,8 +152,9 @@ def format_cell(value, column: Optional[str] = None) -> str:
     if isinstance(value, (pd.Timestamp, datetime, date)):
         return _format_date_like(value)
 
-    # Strings genéricas: retorna como está (CLI pode higienizar)
-    return str(value)
+    # Strings genéricas: sanitiza controles perigosos antes de ir para
+    # o terminal (ver _safe_str).
+    return _safe_str(value)
 
 
 def _format_dataframe_with(df: pd.DataFrame, formatter) -> pd.DataFrame:

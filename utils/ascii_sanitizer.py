@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import unicodedata
 from collections.abc import Mapping
 
 ASCII_ARG_LIMIT = 50
@@ -8,7 +9,8 @@ ASCII_ARG_DEPTH_LIMIT = 3
 
 
 def sanitize_ascii_text(value: object) -> str:
-    return str(value).encode("ascii", "ignore").decode("ascii")
+    normalized = unicodedata.normalize("NFKD", str(value))
+    return normalized.encode("ascii", "ignore").decode("ascii")
 
 
 def sanitize_ascii_arg(value: object, depth: int = 0) -> object:

@@ -53,6 +53,31 @@ def test_get_files_to_process_all_new(temp_docs_dir):
     assert "relatorio_b.xlsx" in filenames
 
 
+def test_hash_scan_stops_during_file_read_without_updating_cache(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    file_path = docs_dir / "large.xlsx"
+    file_path.write_bytes(b"x" * (65536 * 4))
+    cache_file = tmp_path / "cache.json"
+    cache_file.write_text(json.dumps({"large.xlsx": "old_hash"}), encoding="utf-8")
+    callback_calls = 0
+
+    def should_cancel():
+        nonlocal callback_calls
+        callback_calls += 1
+        return callback_calls >= 3
+
+    with pytest.raises(InterruptedError, match="cancelada"):
+        get_files_to_process(
+            str(docs_dir), str(cache_file), should_cancel=should_cancel
+        )
+
+    assert callback_calls == 3
+    assert json.loads(cache_file.read_text(encoding="utf-8")) == {
+        "large.xlsx": "old_hash"
+    }
+
+
 def test_get_files_to_process_one_modified(temp_docs_dir):
     """
     Testa o cenário onde um arquivo foi modificado e deve ser reprocessado.
@@ -237,6 +262,35 @@ def test_get_all_xlsx_files_includes_processadas_and_ignores_nosurvivor(tmp_path
         "raiz.xlsx",
         "raiz_upper.XLSX",
     ]
+
+
+def test_get_all_xlsx_files_rejects_processadas_escape(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "escape.xlsx").write_text("x", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="fora de docs_dir"):
+        get_all_xlsx_files(
+            str(docs_dir),
+            include_processadas=True,
+            processadas_subdir="../outside",
+        )
+
+
+def test_get_all_xlsx_files_rejects_symlink_outside_docs_dir(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    outside = tmp_path / "outside.xlsx"
+    outside.write_text("x", encoding="utf-8")
+    try:
+        (docs_dir / "link.xlsx").symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="fora de docs_dir"):
+        get_all_xlsx_files(str(docs_dir))
 
 
 def test_update_cache_for_files_uses_relative_keys_when_docs_dir_provided(tmp_path):

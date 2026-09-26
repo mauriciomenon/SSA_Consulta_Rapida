@@ -13,8 +13,8 @@ from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
-DEFAULT_CACHE_MAX_ENTRY_MB = 64.0
-DEFAULT_CACHE_MAX_TOTAL_MB = 256.0
+DEFAULT_CACHE_MAX_ENTRY_MB = 16.0
+DEFAULT_CACHE_MAX_TOTAL_MB = 16.0
 
 
 def _resolve_cache_limit_bytes(env_name: str, default_mb: float) -> int | None:
@@ -25,10 +25,10 @@ def _resolve_cache_limit_bytes(env_name: str, default_mb: float) -> int | None:
         max_mb = float(raw)
     except ValueError:
         logger.warning("Invalid %s value: %r", env_name, raw)
-        return None
+        return int(default_mb * 1024 * 1024)
     if not math.isfinite(max_mb):
         logger.warning("Invalid %s non-finite value: %r", env_name, raw)
-        return None
+        return int(default_mb * 1024 * 1024)
     if max_mb <= 0:
         return None
     return int(max_mb * 1024 * 1024)
@@ -144,6 +144,13 @@ class FilterCache:
         entry_bytes = None
         if self._max_entry_bytes is not None or self._max_total_bytes is not None:
             entry_bytes = self._estimate_result_bytes(result)
+            if entry_bytes is None:
+                with self._lock:
+                    self._stats["skipped_large_entries"] += 1
+                logger.info(
+                    "FilterCache.put skipped entry with unknown byte size"
+                )
+                return
         if self._max_entry_bytes is not None:
             if entry_bytes is not None and entry_bytes > self._max_entry_bytes:
                 with self._lock:
@@ -157,8 +164,8 @@ class FilterCache:
         key = self._generate_key(
             df_hash, search_chunks, default_mode, cache_context=cache_context
         )
-        # Keep cache isolation without cloning the full data payload again.
-        result_copy = result.copy(deep=False)
+        result_copy = result.copy(deep=True)
+        result_copy.attrs = dict(getattr(result, "attrs", {}))
 
         with self._lock:
             # Remove entrada existente se houver
@@ -225,31 +232,10 @@ class FilterCache:
 
     def _estimate_result_bytes(self, result: pd.DataFrame) -> int | None:
         try:
-            shallow_bytes = int(result.memory_usage(index=True, deep=False).sum())
-            row_count = len(result.index)
-            if (
-                row_count == 0
-                or row_count * max(len(result.columns), 1) <= 10_000
-                or shallow_bytes <= 8 * 1024 * 1024
-            ):
-                return shallow_bytes
-            sample_size = min(64, row_count)
-            sampled_text_bytes = 0
-            for column_name in result.columns:
-                series = result[column_name]
-                if not (
-                    pd.api.types.is_string_dtype(series.dtype)
-                    or pd.api.types.is_object_dtype(series.dtype)
-                ):
-                    continue
-                sample = series.iloc[:sample_size]
-                sample_bytes = int(sample.memory_usage(index=False, deep=True))
-                avg_bytes = sample_bytes / float(sample_size)
-                sampled_text_bytes += int(avg_bytes * row_count)
-            return shallow_bytes + sampled_text_bytes
+            return int(result.memory_usage(index=True, deep=True).sum())
         except Exception as exc:
             logger.warning(
-                "FilterCache.put falhou ao medir tamanho da entrada; ignorando limite (erro=%s)",
+                "FilterCache.put falhou ao medir tamanho; entrada nao retida (erro=%s)",
                 exc,
             )
             return None

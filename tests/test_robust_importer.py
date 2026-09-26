@@ -14,10 +14,14 @@ Estes testes usam DataFrame sintetico em memoria para simular planilha.
 from __future__ import annotations
 
 import io
+import json
+import logging
+from contextlib import contextmanager
 
 import pandas as pd
 import pytest
 
+from utils import robust_importer
 from utils.robust_importer import import_excel_robust
 
 
@@ -34,6 +38,149 @@ def _roundtrip_import(df: pd.DataFrame, tmp_path) -> tuple[pd.DataFrame, dict]:
     file_path.write_bytes(content)
     out_df, stats = import_excel_robust(str(file_path))
     return out_df, stats
+
+
+def _write_reheader_case(tmp_path):
+    file_path = tmp_path / "reheader.xlsx"
+    mapping_path = tmp_path / "mapping.json"
+    pd.DataFrame(
+        [
+            ["A", "B", "C", "D", "E", "F"],
+            ["Numero SSA", "Status", "x", "y", "z", "w"],
+            ["202500001", "ABERTA", 1, 2, 3, 4],
+        ]
+    ).to_excel(file_path, header=False, index=False)
+    mapping_path.write_text(
+        json.dumps(
+            {
+                "grupo": ["A", "B", "C", "D", "E", "F"],
+                "numero_ssa": ["Numero SSA"],
+                "situacao": ["Status"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return file_path, mapping_path
+
+
+def test_reheader_scan_reuses_validated_workbook(tmp_path, monkeypatch):
+    from extracao import extractor
+
+    file_path, mapping_path = _write_reheader_case(tmp_path)
+    original_open = extractor.open_validated_excel_source
+    open_count = 0
+
+    @contextmanager
+    def counted_open(path):
+        nonlocal open_count
+        open_count += 1
+        with original_open(path) as source:
+            yield source
+
+    monkeypatch.setattr(extractor, "open_validated_excel_source", counted_open)
+    result, stats = import_excel_robust(
+        str(file_path), mappings_path=str(mapping_path)
+    )
+
+    assert open_count == 2
+    assert stats["selected_header_line_index"] == 1
+    assert result.loc[0, "numero_ssa"] == "202500001"
+    assert result.loc[0, "situacao"] == "ABERTA"
+
+
+def test_reheader_open_failure_does_not_count_unread_candidates(
+    tmp_path, monkeypatch
+):
+    from extracao import extractor
+
+    file_path, mapping_path = _write_reheader_case(tmp_path)
+    original_open = extractor.open_validated_excel_source
+    open_count = 0
+
+    @contextmanager
+    def fail_second_open(path):
+        nonlocal open_count
+        open_count += 1
+        if open_count == 2:
+            raise OSError("fonte indisponivel")
+        with original_open(path) as source:
+            yield source
+
+    monkeypatch.setattr(extractor, "open_validated_excel_source", fail_second_open)
+    _, stats = import_excel_robust(str(file_path), mappings_path=str(mapping_path))
+
+    assert open_count == 2
+    assert stats["header_candidate_lines_considered"] == 0
+
+
+def test_import_debug_does_not_change_shared_logger_level(tmp_path, monkeypatch):
+    file_path = tmp_path / "normal.xlsx"
+    pd.DataFrame({"Numero SSA": ["202500001"]}).to_excel(file_path, index=False)
+    monkeypatch.setenv("SSA_IMPORT_DEBUG", "1")
+    previous_level = robust_importer.logger.level
+    robust_importer.logger.setLevel(logging.WARNING)
+    try:
+        result, _ = import_excel_robust(str(file_path))
+        assert result.loc[0, "numero_ssa"] == "202500001"
+        assert robust_importer.logger.level == logging.WARNING
+    finally:
+        robust_importer.logger.setLevel(previous_level)
+
+
+def test_reheader_candidate_failure_logs_debug_without_env(
+    tmp_path, monkeypatch, caplog
+):
+    file_path, mapping_path = _write_reheader_case(tmp_path)
+    monkeypatch.delenv("SSA_IMPORT_DEBUG", raising=False)
+    original_read = robust_importer._read_excel_source
+
+    def failing_first_candidate(source, *, sheet_name, header):
+        if isinstance(source, pd.ExcelFile) and header == 0:
+            raise ValueError("candidate parse failed")
+        return original_read(source, sheet_name=sheet_name, header=header)
+
+    monkeypatch.setattr(robust_importer, "_read_excel_source", failing_first_candidate)
+    with caplog.at_level(logging.DEBUG, logger=robust_importer.__name__):
+        result, stats = import_excel_robust(
+            str(file_path), mappings_path=str(mapping_path)
+        )
+
+    assert stats["selected_header_line_index"] == 1
+    assert result.loc[0, "numero_ssa"] == "202500001"
+    assert any(
+        "Falha ao ler candidato de header 0" in record.message
+        and record.exc_info is not None
+        for record in caplog.records
+    )
+
+
+def test_merged_header_retry_failure_logs_without_env(tmp_path, monkeypatch, caplog):
+    file_path = tmp_path / "merged.xlsx"
+    pd.DataFrame([["Titulo"] * 6, ["202500001"] + [None] * 5]).to_excel(
+        file_path, header=False, index=False
+    )
+    monkeypatch.delenv("SSA_IMPORT_DEBUG", raising=False)
+    original_read = robust_importer._read_excel_source
+
+    def fail_raw_retry(source, *, sheet_name, header):
+        if header is None:
+            raise ValueError("retry unavailable")
+        frame = original_read(source, sheet_name=sheet_name, header=header)
+        frame.columns = ["Titulo"] + [
+            f"Unnamed: {index}" for index in range(1, len(frame.columns))
+        ]
+        return frame
+
+    monkeypatch.setattr(robust_importer, "_read_excel_source", fail_raw_retry)
+    with caplog.at_level(logging.WARNING, logger=robust_importer.__name__):
+        import_excel_robust(str(file_path))
+
+    assert any(
+        "Falha ao reprocessar header mesclado" in record.message
+        and "ValueError" in record.message
+        and record.levelno == logging.WARNING
+        for record in caplog.records
+    )
 
 
 def test_raw_mode_preserves_derivadas_columns_with_excelfile_input(tmp_path):
@@ -81,6 +228,28 @@ def test_raise_on_error_propagates_missing_workbook(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         import_excel_robust(str(file_path), raise_on_error=True)
+
+
+def test_import_excel_robust_rejects_size_before_read(tmp_path, monkeypatch):
+    from extracao.extractor import ExtractionError
+    from utils import robust_importer
+
+    file_path = tmp_path / "large.xlsx"
+    file_path.write_bytes(b"12345")
+    read_called = False
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    def _unexpected_read(*_args, **_kwargs):
+        nonlocal read_called
+        read_called = True
+        raise AssertionError("read_excel must not run")
+
+    monkeypatch.setattr(robust_importer.pd, "read_excel", _unexpected_read)
+
+    with pytest.raises(ExtractionError, match="excede o limite"):
+        import_excel_robust(str(file_path), raise_on_error=True)
+
+    assert read_called is False
 
 
 def test_synonym_collapse_and_coalescence(tmp_path):

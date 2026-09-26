@@ -4,6 +4,7 @@ Testes unitários para o módulo armazenamento.database.
 """
 
 import concurrent.futures
+from contextlib import closing
 import os
 import logging
 import shutil
@@ -11,6 +12,7 @@ import sqlite3
 import sys
 import tempfile
 import threading
+from time import monotonic
 
 import pandas as pd
 import pytest
@@ -38,6 +40,8 @@ def temp_db_path():
     """Cria um caminho temporário para o banco de dados de teste."""
     temp_dir = tempfile.mkdtemp()
     db_path = os.path.join(temp_dir, "test_db.sqlite")
+    with closing(sqlite3.connect(db_path)):
+        pass
     yield db_path
     shutil.rmtree(temp_dir)
 
@@ -72,12 +76,43 @@ def sample_schema_file():
 
 def test_get_db_connection_context_manager(temp_db_path):
     """Testa o context manager get_db_connection."""
-    with get_db_connection(temp_db_path) as conn:
+    with get_db_connection(temp_db_path, write=True) as conn:
         assert isinstance(conn, sqlite3.Connection)
         assert conn.total_changes == 0  # Nenhuma mudança ainda
 
     # Verifica se a conexão foi fechada implicitamente
     # (Difícil de testar diretamente, mas o contexto garante)
+
+
+def test_read_missing_database_does_not_create_file(tmp_path):
+    db_path = tmp_path / "missing.db"
+    with pytest.raises(FileNotFoundError, match="Banco de dados nao encontrado"):
+        with get_db_connection(str(db_path)):
+            pass
+    assert not db_path.exists()
+
+    assert query_db(str(db_path), "ssa_table").empty
+    assert not db_path.exists()
+    with pytest.raises(FileNotFoundError, match="Banco de dados nao encontrado"):
+        query_db(str(db_path), "ssa_table", raise_on_error=True)
+    assert not db_path.exists()
+
+
+def test_read_does_not_recreate_database_removed_during_connect(tmp_path, monkeypatch):
+    db_path = tmp_path / "removed.db"
+    sqlite3.connect(db_path).close()
+    original_connect = sqlite3.connect
+
+    def remove_before_connect(path, *args, **kwargs):
+        db_path.unlink()
+        return original_connect(path, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", remove_before_connect)
+    with pytest.raises(sqlite3.OperationalError):
+        with get_db_connection(str(db_path)):
+            pass
+
+    assert not db_path.exists()
 
 
 def test_get_db_connection_rolls_back_non_sqlite_exception(temp_db_path):
@@ -147,7 +182,7 @@ def test_initialize_database_connection_clears_only_current_db_cache(
     from armazenamento import database as database_module
 
     try:
-        with sqlite3.connect(temp_db_path) as conn:
+        with closing(sqlite3.connect(temp_db_path)) as conn:
             current_key = (database_module._get_connection_db_path(conn), "usuarios")
             other_key = (os.path.abspath(temp_db_path + ".other"), "usuarios")
             database_module._resolved_table_cache.clear()
@@ -190,7 +225,7 @@ def test_resolved_table_cache_prunes_oldest_entry():
 def test_resolved_table_cache_handles_concurrent_resolve_and_clear(temp_db_path):
     from armazenamento import database as database_module
 
-    with sqlite3.connect(temp_db_path) as conn:
+    with closing(sqlite3.connect(temp_db_path)) as conn:
         conn.execute("CREATE TABLE ssa_table (id INTEGER)")
 
     workers = 8
@@ -199,7 +234,7 @@ def test_resolved_table_cache_handles_concurrent_resolve_and_clear(temp_db_path)
 
     def resolve_worker():
         barrier.wait()
-        with sqlite3.connect(temp_db_path) as conn:
+        with closing(sqlite3.connect(temp_db_path)) as conn:
             for _ in range(iterations):
                 assert resolve_target_table(conn, "ssas") == "ssa_table"
 
@@ -319,6 +354,56 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
     assert df_result.empty
     # Verifica se as colunas estão corretas mesmo com resultado vazio
     assert list(df_result.columns) == ["id", "nome", "idade"]
+
+
+def test_query_db_interrupts_long_running_query(temp_db_path):
+    callback_calls = 0
+
+    def _cancel_query() -> bool:
+        nonlocal callback_calls
+        callback_calls += 1
+        return callback_calls >= 2
+
+    started = monotonic()
+    with pytest.raises(InterruptedError, match="Database query cancelled"):
+        query_db(
+            temp_db_path,
+            "",
+            """
+            WITH RECURSIVE numbers(value) AS (
+                VALUES(1)
+                UNION ALL
+                SELECT value + 1 FROM numbers WHERE value < 1000000
+            )
+            SELECT sum(value) FROM numbers
+            """,
+            cancel_callback=_cancel_query,
+        )
+
+    assert callback_calls >= 2
+    assert monotonic() - started < 2.0
+
+
+def test_query_db_propagates_cancel_callback_failure(temp_db_path):
+    def _broken_cancel_callback() -> bool:
+        raise ValueError("cancel callback failed")
+
+    with pytest.raises(RuntimeError, match="query_db cancel callback failed") as exc_info:
+        query_db(
+            temp_db_path,
+            "",
+            """
+            WITH RECURSIVE numbers(value) AS (
+                VALUES(1)
+                UNION ALL
+                SELECT value + 1 FROM numbers WHERE value < 1000000
+            )
+            SELECT sum(value) FROM numbers
+            """,
+            cancel_callback=_broken_cancel_callback,
+        )
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
 
 
 def test_query_db_rejects_non_read_only_custom_query(temp_db_path):
@@ -652,6 +737,58 @@ def test_resolve_target_table_returns_actual_database_identifier_casing(temp_db_
     assert resolved == "SSA_TABLE"
 
 
+def test_resolve_target_table_rejects_multiple_physical_ssa_tables(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        conn.commit()
+
+        with pytest.raises(ValueError, match="Ambiguous SSA storage tables"):
+            resolve_target_table(conn, "ssas")
+
+
+def test_resolve_target_table_rechecks_ssa_schema_after_cached_resolution(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.commit()
+        assert resolve_target_table(conn, "ssas") == "ssa_table"
+
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        conn.commit()
+
+        with pytest.raises(ValueError, match="Ambiguous SSA storage tables"):
+            resolve_target_table(conn, "ssas")
+
+
+def test_resolve_target_table_reuses_single_legacy_for_canonical_request(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        conn.commit()
+
+        resolved = resolve_target_table(conn, "ssa_table")
+
+    assert resolved == "ssas"
+
+
+def test_standard_insert_canonical_request_does_not_create_second_ssa_table(
+    temp_db_path,
+):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT, situacao TEXT)")
+        conn.commit()
+    frame = pd.DataFrame({"numero_ssa": ["202500113"], "situacao": ["STE"]})
+
+    assert insert_dataframe_to_db(frame, temp_db_path, "ssa_table") is True
+
+    with get_db_connection(temp_db_path) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssas").fetchone() == (
+            "202500113",
+        )
+        assert conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ssa_table'"
+        ).fetchone() is None
+
+
 def test_resolve_target_table_ignores_indexes_when_matching_identifier(temp_db_path):
     with get_db_connection(temp_db_path) as conn:
         conn.execute("CREATE TABLE indexed_source (id INTEGER)")
@@ -682,14 +819,15 @@ def test_resolve_target_table_cache_is_connection_specific_for_memory_db():
 
 
 def test_vacuum_analyze_database_runs_sqlite_maintenance(temp_db_path):
-    with sqlite3.connect(temp_db_path) as conn:
+    with closing(sqlite3.connect(temp_db_path)) as conn:
         conn.execute("CREATE TABLE maint(a INTEGER)")
         conn.execute("INSERT INTO maint(a) VALUES (1)")
+        conn.commit()
 
     result = vacuum_analyze_database(temp_db_path)
 
     assert result == {"ok": True, "db_path": temp_db_path}
-    with sqlite3.connect(temp_db_path) as conn:
+    with closing(sqlite3.connect(temp_db_path)) as conn:
         rows = conn.execute("SELECT a FROM maint").fetchall()
     assert rows == [(1,)]
 

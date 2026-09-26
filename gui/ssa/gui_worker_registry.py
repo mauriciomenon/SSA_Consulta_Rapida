@@ -42,13 +42,9 @@ def _classify_workers_for_ttl(
             key=lambda candidate: now - float(global_meta.get(candidate, now)),
             reverse=True,
         )[:overflow_count]
-        overflow_set = set(overflow_workers)
         expired_workers.extend(
             worker for worker in overflow_workers if worker not in expired_set
         )
-        running_workers = [
-            worker for worker in running_workers if worker not in overflow_set
-        ]
     return running_workers, expired_workers
 
 

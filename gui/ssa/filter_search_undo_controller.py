@@ -259,7 +259,10 @@ def restore_filter_search_state(window: Any, state: dict) -> str:
     window._set_search_text_across_tabs(restored_search_text)
     window._pending_search_display = state.get("pending_search_display")
     if not restored_search_text.strip():
-        window._df_last_search_filtered = window.df_completo
+        window._df_last_search_filtered = window.df_completo.copy(deep=True)
+        window._df_last_search_filtered.attrs = dict(
+            getattr(window.df_completo, "attrs", {})
+        )
     return restored_search_text
 
 
@@ -297,6 +300,11 @@ def restore_filter_advanced_state(window: Any, state: dict) -> None:
     window._advanced_filters_active = bool(state.get("advanced_filters_active"))
     try:
         window._sync_advanced_filter_ui()
+        refresh_quick_situacao = getattr(
+            window, "_refresh_quick_situacao_buttons", None
+        )
+        if callable(refresh_quick_situacao):
+            refresh_quick_situacao()
     except Exception as exc:
         logger.warning(
             "Falha ao sincronizar UI de filtros avancados no restore: %s", exc

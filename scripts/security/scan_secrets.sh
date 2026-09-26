@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 1
+ssa_native_guard_tools git grep awk mktemp sed || exit 1
+
 readonly TOKEN_CHARS='[A-Za-z0-9]'
 readonly API_KEY_VALUE_MIN="${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}"
 readonly PROVIDER_TOKEN_MIN="${API_KEY_VALUE_MIN}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}${TOKEN_CHARS}"

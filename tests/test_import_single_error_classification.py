@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import pytest
@@ -17,6 +18,12 @@ def _valid_df() -> pd.DataFrame:
             "descricao_ssa": ["ok"],
         }
     )
+
+
+def _successful_upsert(*args, metrics_out=None, **kwargs) -> bool:
+    assert isinstance(metrics_out, dict)
+    metrics_out.update({"ssa_inserted": 1, "ssa_updated": 0})
+    return True
 
 
 @pytest.fixture(autouse=True)
@@ -49,6 +56,128 @@ def test_import_single_file_fails_before_extraction_when_file_is_missing(
 
     assert getattr(exc_info.value, "error_code", None) == "MISSING_FILE"
     assert called is False
+
+
+def test_import_single_file_blocks_unsafe_identity_payload_before_validation_or_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    file_path = tmp_path / "input.xlsx"
+    pd.DataFrame(
+        {
+            "numero_ssa": [202600107, None, None],
+            "descricao_ssa": ["SSA pai", None, None],
+            "data_cadastro": ["2026-01-01 10:00:00", None, None],
+            "Deviation Records": ["Deviation #1", "Deviation #2", "TOTAL"],
+            "payload_evento": ["primeiro", "segundo", "rodape"],
+        }
+    ).to_excel(file_path, index=False)
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "_load_column_mappings",
+        lambda _mappings_path=None: {},
+    )
+
+    def _must_not_run(*args, **kwargs):
+        raise AssertionError("validation or database write must not run")
+
+    monkeypatch.setattr(
+        app_logic.database,
+        "validate_dataframe_before_insert",
+        _must_not_run,
+    )
+    monkeypatch.setattr(app_logic.database, "ensure_column_exists", _must_not_run)
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        _must_not_run,
+    )
+    metrics: dict[str, object] = {}
+
+    with pytest.raises(app_logic.ExtractionError) as exc_info:
+        app_logic._import_single_file(
+            str(file_path),
+            str(tmp_path / "db.sqlite"),
+            "ssa_table",
+            _metrics_out=metrics,
+        )
+
+    assert exc_info.value.error_code == "UNSAFE_INVALID_IDENTITY_PAYLOAD"
+    assert "1 linha(s)" in str(exc_info.value)
+    assert "Deviation Records" in str(exc_info.value)
+    assert "payload_evento" in str(exc_info.value)
+    invalid_identity = metrics["invalid_identity"]
+    assert isinstance(invalid_identity, dict)
+    invalid_identity_metrics = cast(dict[str, object], invalid_identity)
+    assert invalid_identity_metrics["payload_removed"] == 1
+    assert invalid_identity_metrics["hierarchical_rows_captured"] == 1
+
+
+def test_import_single_file_keeps_safe_hierarchical_records(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    safe = _valid_df()
+    event = {
+        "numero_ssa": "123456789",
+        "record_type": "numero_desvios",
+        "record_order": 2,
+        "record_label": "Desvio #2",
+        "payload_json": '{"numero_desvios":"Desvio #2"}',
+        "source_sheet": "Planilha1",
+        "source_row": 3,
+    }
+    safe.attrs["invalid_row_summary"] = {
+        "total_removed": 0,
+        "payload_removed": 0,
+        "hierarchical_rows_captured": 1,
+    }
+    safe.attrs["ssa_event_records"] = [event]
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: safe,
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "validate_dataframe_before_insert",
+        lambda *args, **kwargs: {
+            "is_valid": True,
+            "violations": [],
+            "invalid_by_column": {},
+            "issues": [],
+        },
+    )
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
+
+    def _upsert(df, *args, metrics_out=None, **kwargs):
+        assert df.attrs["ssa_event_records"] == [event]
+        assert isinstance(metrics_out, dict)
+        metrics_out.update(
+            {
+                "ssa_inserted": 1,
+                "ssa_updated": 0,
+                "ssa_event_records_processed": 1,
+            }
+        )
+        return True
+
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        _upsert,
+    )
+
+    ok, count = app_logic._import_single_file(
+        str(tmp_path / "input.xlsx"),
+        str(tmp_path / "db.sqlite"),
+        "ssa_table",
+    )
+
+    assert ok is True
+    assert count == 1
 
 
 def test_import_single_file_preserves_database_error(
@@ -182,7 +311,7 @@ def test_import_single_file_tolerates_missing_is_valid_in_validation_report(
     monkeypatch.setattr(
         app_logic.database,
         "insert_dataframe_with_smart_upsert",
-        lambda *args, **kwargs: True,
+        _successful_upsert,
     )
 
     file_path = str(tmp_path / "input.xlsx")
@@ -192,6 +321,44 @@ def test_import_single_file_tolerates_missing_is_valid_in_validation_report(
 
     assert ok is True
     assert count == 1
+
+
+def test_import_single_file_rejects_upsert_success_without_ssa_metrics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: _valid_df(),
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "validate_dataframe_before_insert",
+        lambda *args, **kwargs: {
+            "is_valid": True,
+            "violations": [],
+            "invalid_by_column": {},
+            "issues": [],
+        },
+    )
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        lambda *args, **kwargs: True,
+    )
+
+    with pytest.raises(
+        app_logic.ImportMetricsContractError,
+        match="Upsert concluido sem metricas obrigatorias",
+    ):
+        app_logic._import_single_file(
+            str(tmp_path / "input.xlsx"),
+            str(tmp_path / "db.sqlite"),
+            "ssa_table",
+        )
 
 
 def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cast_error(
@@ -250,6 +417,191 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cas
             },
         )
     ]
+
+
+def test_process_file_with_resilience_records_metrics_contract_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def _raise_metrics_contract(*args, **kwargs):
+        raise app_logic.ImportMetricsContractError(
+            "Metricas SSA ausentes no resultado de input.xlsx",
+            record_count=1,
+        )
+
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        _raise_metrics_contract,
+    )
+
+    successful_files: list[str] = []
+    successful_with_records: list[tuple[str, int]] = []
+    critical_errors: list[tuple[str, str, str]] = []
+    file_reports: list[dict[str, object]] = []
+    progress_events: list[tuple[str, dict[str, object]]] = []
+
+    action = app_logic._process_file_with_resilience(
+        file_path=str(tmp_path / "input.xlsx"),
+        base_name="input.xlsx",
+        working_db_path=str(tmp_path / "db.sqlite"),
+        table_name="ssa_table",
+        should_cancel=None,
+        candidate_db_path=None,
+        successfully_processed_files=successful_files,
+        successful_regular_files_with_records=successful_with_records,
+        critical_errors=critical_errors,
+        deterministic_failed_files=[],
+        file_reports=file_reports,
+        emit_progress=lambda event_type, data: progress_events.append(
+            (event_type, data)
+        ),
+    )
+
+    assert action == app_logic.FileProcessAction.CONTINUE
+    input_path = str(tmp_path / "input.xlsx")
+    assert successful_files == [input_path]
+    assert successful_with_records == [(input_path, 1)]
+    assert critical_errors == [
+        (
+            "metrics_contract",
+            input_path,
+            "Metricas SSA ausentes no resultado de input.xlsx",
+        )
+    ]
+    assert progress_events[-1] == (
+        "file_error",
+        {
+            "filename": "input.xlsx",
+            "error": "Metricas SSA ausentes no resultado de input.xlsx",
+        },
+    )
+    assert file_reports == [
+        {
+            "file": "input.xlsx",
+            "status": "metrics_contract_error",
+            "records": 1,
+            "error": "Metricas SSA ausentes no resultado de input.xlsx",
+        }
+    ]
+
+
+def test_all_rows_rejected_progress_is_deterministic(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def _reject_all_rows(*args, **kwargs):
+        raise app_logic.ExtractionError(
+            "todas as linhas foram rejeitadas",
+            error_code="ALL_ROWS_REJECTED",
+        )
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _reject_all_rows)
+    deterministic_failed: list[str] = []
+    progress_events: list[tuple[str, dict[str, object]]] = []
+
+    action = app_logic._process_file_with_resilience(
+        file_path=str(tmp_path / "input.xlsx"),
+        base_name="input.xlsx",
+        working_db_path=str(tmp_path / "db.sqlite"),
+        table_name="ssa_table",
+        should_cancel=None,
+        candidate_db_path=None,
+        successfully_processed_files=[],
+        successful_regular_files_with_records=[],
+        critical_errors=[],
+        deterministic_failed_files=deterministic_failed,
+        file_reports=[],
+        emit_progress=lambda event_type, data: progress_events.append(
+            (event_type, data)
+        ),
+    )
+
+    assert action == app_logic.FileProcessAction.CONTINUE
+    assert deterministic_failed == [str(tmp_path / "input.xlsx")]
+    assert progress_events[-1][1]["deterministic"] is True
+
+
+def test_unsafe_identity_payload_stops_batch_without_deterministic_cache(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    unsafe_error = app_logic.ExtractionError(
+        "1 linha(s) sem identidade ainda possuem payload",
+        error_code="UNSAFE_INVALID_IDENTITY_PAYLOAD",
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        lambda *args, **kwargs: (_ for _ in ()).throw(unsafe_error),
+    )
+    input_path = str(tmp_path / "input.xlsx")
+    critical_errors: list[tuple[str, str, str]] = []
+    deterministic_failed: list[str] = []
+    file_reports: list[dict[str, object]] = []
+    progress_events: list[tuple[str, dict[str, object]]] = []
+
+    with pytest.raises(app_logic.ExtractionError) as exc_info:
+        app_logic._process_file_with_resilience(
+            file_path=input_path,
+            base_name="input.xlsx",
+            working_db_path=str(tmp_path / "db.sqlite"),
+            table_name="ssa_table",
+            should_cancel=None,
+            candidate_db_path=None,
+            successfully_processed_files=[],
+            successful_regular_files_with_records=[],
+            critical_errors=critical_errors,
+            deterministic_failed_files=deterministic_failed,
+            file_reports=file_reports,
+            emit_progress=lambda event_type, data: progress_events.append(
+                (event_type, data)
+            ),
+        )
+
+    assert exc_info.value is unsafe_error
+    assert deterministic_failed == []
+    assert critical_errors == [("extraction", input_path, str(unsafe_error))]
+    assert file_reports[-1]["error_code"] == "UNSAFE_INVALID_IDENTITY_PAYLOAD"
+    assert progress_events[-1][1]["deterministic"] is False
+
+
+def test_incremental_unsafe_payload_does_not_preflight_source_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    unsafe_error = app_logic.ExtractionError(
+        "unsafe payload",
+        error_code="UNSAFE_INVALID_IDENTITY_PAYLOAD",
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "ensure_source_metadata_columns",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("incremental metadata preflight must not run")
+        ),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_process_regular_file_step",
+        lambda **kwargs: (_ for _ in ()).throw(unsafe_error),
+    )
+
+    with pytest.raises(app_logic.ExtractionError) as exc_info:
+        app_logic._process_regular_files_phase(
+            files_to_process=[str(tmp_path / "input.xlsx")],
+            total_files=1,
+            should_cancel=None,
+            candidate_db_path=None,
+            working_db_path=str(tmp_path / "db.sqlite"),
+            table_name="ssa_table",
+            successfully_processed_files=[],
+            successful_regular_files_with_records=[],
+            critical_errors=[],
+            deterministic_failed_files=[],
+            file_reports=[],
+            emit_progress=lambda *args, **kwargs: None,
+        )
+
+    assert exc_info.value is unsafe_error
 
 
 @pytest.mark.parametrize(
@@ -369,6 +721,27 @@ def test_import_single_file_honors_cancel_before_empty_dataframe_branch(
         )
 
 
+def test_import_single_file_rejects_dataframe_emptied_by_identity_filter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    rejected = pd.DataFrame()
+    rejected.attrs["row_count_before_invalid_filter"] = 3
+    rejected.attrs["invalid_row_summary"] = {"total_removed": 3}
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: rejected,
+    )
+
+    file_path = str(tmp_path / "input.xlsx")
+    with pytest.raises(app_logic.ExtractionError) as exc_info:
+        app_logic._import_single_file(
+            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+        )
+
+    assert exc_info.value.error_code == "ALL_ROWS_REJECTED"
+
+
 def test_import_single_file_logs_friendly_duplicate_labels(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -408,7 +781,7 @@ def test_import_single_file_logs_friendly_duplicate_labels(
     monkeypatch.setattr(
         app_logic.database,
         "insert_dataframe_with_smart_upsert",
-        lambda *args, **kwargs: True,
+        _successful_upsert,
     )
 
     caplog.set_level("WARNING")
@@ -461,6 +834,9 @@ def test_import_single_file_drops_invalid_numero_ssa_rows_before_insert(
     def _fake_insert(dataframe, *args, **kwargs):
         captured["rows"] = len(dataframe)
         captured["ssas"] = dataframe["numero_ssa"].astype(str).tolist()
+        metrics_out = kwargs.get("metrics_out")
+        assert isinstance(metrics_out, dict)
+        metrics_out.update({"ssa_inserted": len(dataframe), "ssa_updated": 0})
         return True
 
     monkeypatch.setattr(

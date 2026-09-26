@@ -1,8 +1,9 @@
 # Sistema de Build - Launchers
 
-## CURRENT TRUTH (v4.33)
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
 - Pipeline oficial de build: `launchers/build_multiplatform.py`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Plataformas ativas:
   - `windows_amd64`
   - `macos_arm64`
@@ -10,6 +11,8 @@
 - Saida canonica: `launchers/dist/<plataforma>/`.
 - Integracao de distribuicao: `scripts/create_distribution.py`.
 - Referencias antigas (`windows_x64`, `windows_x86`, `macos_x64`, `linux_x64`) sao historicas.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
 
 ## Inicio Rapido
 
@@ -89,6 +92,6 @@ uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 ## Historical Snapshot
 
 - Este README substitui texto legado v3.10 com targets antigos.
-- Estado oficial de runtime/build para este ciclo e v4.33.
+- Estado oficial de runtime/build deste snapshot antigo foi substituido pelo bloco `CURRENT TRUTH`.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

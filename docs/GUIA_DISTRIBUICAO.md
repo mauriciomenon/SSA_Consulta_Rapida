@@ -1,12 +1,25 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH 2026-06-11 11h
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
+
+- Branch fonte local: `dev`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
+- Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
+- Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
+- Comando canonico para build Windows com banco runtime opcional: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`. Os ZIPs locais v4.51 desta rodada foram gerados sem banco operacional.
+- Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
+- Nao compartilhar checkout ou venv entre Windows e WSL/Linux. Validacao Linux exige clone Linux proprio; build Windows usa ferramentas Windows nativas.
+- Artefatos `v4.50` e anteriores seguem historicos e nao validam a candidata `v4.51`.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
+
+## HISTORICAL SNAPSHOT 2026-06-11 11h
 
 - Branch fonte: `dev`.
 - Branch destino: `main`.
 - Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
 - PR #58 e PR #59: merged; `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados antes de qualquer rebuild.
-- Artefatos v4.42 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
+- Artefatos v4.43 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
   - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
   - Debian AMD64/ARM64: `pyinstaller`, `nuitka`, `pyoxidizer` + `deb`, `appimage`, `tar`; `pyoxidizer/appimage` nao e suportado.
@@ -28,26 +41,20 @@
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
 - `setup_env.sh` e `setup_env.ps1` nao executam instalador remoto de pyenv sem opt-in e SHA256 explicitos.
 - `dev_env/setup_msvc_path.ps1` e diagnostico/sessao; nao altera PATH permanente do usuario por padrao.
-- Proximo passo operacional: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.42.
+- Proximo passo operacional historico: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.43.
 
 ## Comandos Simples De Release
 
 Use estes comandos como entrada primaria. Os scripts em `dev_env/build/` sao
 implementacao interna e devem ser usados diretamente apenas para diagnostico.
 
-Windows AMD64, default Nuitka com instalador:
+Windows AMD64, comando para a candidata local v4.51, PyInstaller com banco runtime e instalador:
 
 ```powershell
-.\release.ps1 -Yes
+.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes
 ```
 
-Windows + Debian via WSL, default Nuitka e `.deb`:
-
-```powershell
-.\release.ps1 -Target all -Yes
-```
-
-Debian AMD64, default Nuitka e `.deb`:
+Debian AMD64 em host/VM e clone Linux nativos:
 
 ```bash
 ./release.sh
@@ -90,10 +97,10 @@ Dry-run macOS sem remoto Debian:
 - Backends de release operacional neste baseline: `pyinstaller`, `nuitka`, `pyoxidizer`.
 - `pytoexe`/`py2exe`: nao suportados neste repositorio (fora das choices dos scripts atuais).
 
-## Release Automatico Local
+## Release Automatico Local (historico)
 
-Use PowerShell no Windows para orquestrar Windows AMD64 e Debian AMD64 via WSL sem
-misturar sintaxe no terminal:
+O bloco abaixo preserva o fluxo antigo Windows + WSL para auditoria. Ele nao e permitido
+na release v4.50 e nao deve ser executado.
 
 ```powershell
 .\dev_env\build\release_local.ps1 -Backend all -DebianPackage all -Yes
@@ -111,10 +118,11 @@ Somente Windows:
 .\dev_env\build\release_windows.ps1 -Backend all -Yes
 ```
 
-Somente Debian AMD64 via WSL:
+Somente Debian AMD64 no clone Linux nativo:
 
-```powershell
-wsl -d Debian -- bash -lc 'cd <WSL-repo-path> && bash dev_env/build/release_debian.sh --backend all --package all -y'
+```bash
+cd "$HOME/gitlab/ssa_consulta_rapida_pyqt6"
+bash dev_env/build/release_debian.sh --backend all --package all -y
 ```
 
 Contrato do fluxo:
@@ -122,7 +130,7 @@ Contrato do fluxo:
 - `-DryRun`/`--dry-run` deve validar ambiente e plano sem build nem pacote.
 - `release_windows.ps1` nao chama Bash/WSL.
 - `release_debian.sh` nao chama PowerShell, `.bat` ou Inno Setup.
-- `release_local.ps1` apenas orquestra os dois scripts e nao contem logica de build.
+- `release_local.ps1` e legado e nao faz parte do fluxo permitido da v4.50.
 
 ## Validacao Operacional 2026-03-10 (host macOS arm64)
 
@@ -141,9 +149,9 @@ Resultado de tentativa de pacote (scripts/create_distribution.py):
 - `pyoxidizer --skip-installer`: FAIL (build ausente em `builds/pyoxidizer`)
 - `pytoexe`: FAIL esperado (choice invalida)
 
-Evidencia local desta rodada:
+Evidencia local desta publicacao:
 - logs consolidados: `/tmp/ssa_pack_audit_20260310_1030/summary.log`
-- artefato alvo desta rodada: `dist_packages/SSA_Consulta_Rapida_v4.37_pyinstaller.zip`
+- artefato alvo desta publicacao: `dist_packages/SSA_Consulta_Rapida_v4.37_pyinstaller.zip`
 
 ## Visao Geral
 
@@ -336,7 +344,7 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 - `reports`
 - `exportacao`
 
-Politica operacional (v4.42+):
+Politica operacional (v4.43+):
 - build canonico nao embeda `data/` por padrao.
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
   - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
@@ -354,7 +362,7 @@ Politica operacional (v4.42+):
 Texto sugerido:
 
 ```text
-SSA Consulta Rapida v4.42
+SSA Consulta Rapida v<versao publicada>
 
 INSTALACAO
 1. Baixe o arquivo ZIP.

@@ -117,7 +117,9 @@ def build_column_mask(
         text_series.index
     ):
         casefolded_series = text_series.str.casefold()
-    tokens = [token.strip() for token in str(raw).split(",") if token.strip()]
+    tokens = [
+        token.strip() for token in str(raw).split(",") if token.strip() not in ("", "!")
+    ]
     if not tokens:
         return _true_mask(text_series)
 
@@ -171,6 +173,8 @@ def build_column_mask(
     )
     if plain_exclude_mask is not None:
         mask = mask & ~plain_exclude_mask
+    else:
+        complex_excludes = excludes
     for token in complex_excludes:
         # _match_column_token keeps the "!" prefix and returns the negated mask.
         mask = mask & _match_column_token(

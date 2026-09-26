@@ -22,6 +22,28 @@ def test_normalize_pai_xlsx_reports_read_failure(tmp_path: Path) -> None:
         normalize_pai_xlsx_for_ssa_import(source, tmp_path / "out.xlsx")
 
 
+def test_normalize_pai_xlsx_rejects_size_before_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "large.xlsx"
+    source.write_bytes(b"12345")
+    read_called = False
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    def _unexpected_read(*_args, **_kwargs):
+        nonlocal read_called
+        read_called = True
+        raise AssertionError("read_excel must not run")
+
+    monkeypatch.setattr(pai_xlsx_normalizer.pd, "read_excel", _unexpected_read)
+
+    with pytest.raises(ValueError, match="excede o limite"):
+        normalize_pai_xlsx_for_ssa_import(source, tmp_path / "out.xlsx")
+
+    assert read_called is False
+
+
 def test_build_normalized_pai_dataframe_maps_situation_desc_to_situacao() -> None:
     normalized = build_normalized_pai_dataframe(
         pai_xlsx_normalizer.pd.DataFrame(

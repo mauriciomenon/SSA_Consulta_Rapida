@@ -1,10 +1,13 @@
 # Build Tooling Lessons Learned (PyInstaller/Nuitka/PyOxidizer)
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH (2026-09-08, v4.50)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58 e PR #59: merged; usar base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
+- Release ativa: `v4.50`; tag anterior: `v4.46`.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Este documento registra aprendizados; nao deve duplicar a matriz completa de release.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 desta publicacao publica fontes; nenhum binario ou instalador novo foi gerado. Para build futuro, usar os entrypoints nativos e validar o artefato real.
 
 ## HISTORICAL SNAPSHOT (4.37 local / v4.36 published)
 
@@ -12,8 +15,6 @@
 - Objetivo: registrar erros reais, causa-raiz, fix aplicado e comandos de validacao.
 - Escopo: Windows 11 + Debian 13 via WSL, com build via `uv`.
 - Regra atual: copia de DB/Excel locais para build agora e opt-in no script; usar `--with-local-data` no script quando o operador realmente quiser empacotar dados locais. O script repassa `--allow-local-data` apenas para `copy_data_to_builds.py`.
-- Relatorio operacional consolidado:
-  - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional:
   - `docs/BUILD_3X3_RUNBOOK.md`
 
@@ -155,5 +156,23 @@
 - Regra:
   - nao esconder essas pastas em runtime.
   - seed inicial nao deve sobrescrever customizacao local do usuario.
+
+## Licao 9 - Ambiente de teste isolado por SO (2026-09-19)
+
+- Linux: container exclusivo via `container` da Apple — imagem `ssa-test`
+  (linux/amd64, mesma base/apt/uv do job `pytest-full` do GitLab), definida
+  em `~/.local/share/ssa-test-linux/` (local, fora do repo). Execucao
+  efemera `--rm`, repo read-only. Build/uso: `build.sh`/`run.sh` la.
+- macOS: nao existe runtime de container para guests macOS (o `container`
+  da Apple so roda Linux). Opcao analoga registrada, NAO instalada:
+  **Tart** (`brew install cirruslabs/cli/tart`, Apple Silicon) — imagem
+  dourada OCI (~25 GB), clone copy-on-write descartavel por execucao.
+  Wrappers uteis: `macbox` (teste de .app/.dmg/.pkg em VM descartavel),
+  `tart-xcode-runner`, `tartci`. Criar apenas se houver necessidade real
+  de isolacao; a suite macOS roda nativa no host.
+- Windows: VM VMware W11 ARM com acesso definitivo via tunel SSH reverso
+  (`ssh -i ~/.ssh/ssa_debian_arm64 -p 2224 build@127.0.0.1`) ou
+  `vmrun -gu build`; detalhes em
+  [BUILD_WINDOWS_ARM64_AMD64.md](BUILD_WINDOWS_ARM64_AMD64.md).
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

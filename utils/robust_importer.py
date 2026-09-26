@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import unicodedata
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Tuple
 
@@ -31,6 +32,8 @@ from shared.date_utils import parse_any_date
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 
 logger = logging.getLogger(__name__)
+debug_logger = logger.getChild("import_debug")
+debug_logger.setLevel(logging.DEBUG)
 
 _DOTTED_DUPLICATE_RE = re.compile(r"^(?P<base>.+)\.(?P<suffix>\d+)$")
 _SEMANTIC_DUPLICATE_COLUMNS: dict[str, list[str]] = {
@@ -123,7 +126,7 @@ def _strip_accents(text: str) -> str:
     return "".join(ch for ch in nfkd if not unicodedata.combining(ch))
 
 
-def _canonicalize_header(h: str) -> str:
+def canonicalize_header(h: str) -> str:
     h2 = h.replace("\n", " ")
     h2 = re.sub(r"\s+", " ", h2).strip()
     h2 = _strip_accents(h2)
@@ -144,10 +147,10 @@ def _build_alias_mapping(
     for canonical, aliases in data.items():
         all_names = [canonical] + list(aliases)
         for name in all_names:
-            alias_norm = _canonicalize_header(name)
+            alias_norm = canonicalize_header(name)
             if alias_norm not in alias_to_canonical:  # first wins
                 alias_to_canonical[alias_norm] = canonical
-        canonical_to_aliases[canonical] = [_canonicalize_header(a) for a in aliases]
+        canonical_to_aliases[canonical] = [canonicalize_header(a) for a in aliases]
     return alias_to_canonical, canonical_to_aliases
 
 
@@ -168,13 +171,16 @@ def _read_excel_source(
             header=header,
             dtype_backend="numpy_nullable",
         )
-    return pd.read_excel(
-        excel_source,
-        sheet_name=sheet_name,
-        header=header,
-        engine="openpyxl",
-        dtype_backend="numpy_nullable",
-    )
+    from extracao.extractor import open_validated_excel_source
+
+    with open_validated_excel_source(excel_source) as source_stream:
+        return pd.read_excel(
+            source_stream,
+            sheet_name=sheet_name,
+            header=header,
+            engine="openpyxl",
+            dtype_backend="numpy_nullable",
+        )
 
 
 def _coalesce_columns(df: pd.DataFrame, columns: List[str]) -> pd.Series:
@@ -199,7 +205,7 @@ def _resolve_semantic_duplicate_columns(
     used: set[str] = set()
 
     for original_name in columns:
-        normalized_name = _canonicalize_header(str(original_name))
+        normalized_name = canonicalize_header(str(original_name))
         match = _DOTTED_DUPLICATE_RE.fullmatch(normalized_name)
         base_name = match.group("base") if match else normalized_name
         suffix_index = int(match.group("suffix")) if match else 0
@@ -275,9 +281,9 @@ def import_excel_robust(
         return pd.DataFrame(), stats.to_dict()
 
     debug_enabled = bool(os.environ.get("SSA_IMPORT_DEBUG"))
+    diagnostic_logger = debug_logger if debug_enabled else logger
     if debug_enabled:
-        logger.setLevel(logging.DEBUG)
-        logger.debug("[import_excel_robust] Lendo planilha %s", source_label)
+        debug_logger.debug("[import_excel_robust] Lendo planilha %s", source_label)
 
     try:
         raw_df = _read_excel_source(
@@ -306,7 +312,7 @@ def import_excel_robust(
         return raw_df, stats.to_dict()
 
     if debug_enabled:
-        logger.debug(
+        debug_logger.debug(
             "[import_excel_robust] Linhas lidas=%d colunas=%d",
             len(raw_df),
             len(raw_df.columns),
@@ -321,7 +327,7 @@ def import_excel_robust(
     }
     if len(distinct_non_empty) == 1 and raw_df.shape[1] > 5:
         if debug_enabled:
-            logger.debug(
+            debug_logger.debug(
                 "[import_excel_robust] Detectado header mesclado único (%s). Tentando reinterpretar próxima linha como cabeçalho real.",
                 list(distinct_non_empty)[0],
             )
@@ -348,7 +354,7 @@ def import_excel_robust(
                     break
             if candidate_idx is not None:
                 if debug_enabled:
-                    logger.debug(
+                    debug_logger.debug(
                         "[import_excel_robust] Linha %d escolhida como header real.",
                         candidate_idx,
                     )
@@ -359,14 +365,14 @@ def import_excel_robust(
                 )
             else:
                 if debug_enabled:
-                    logger.debug(
+                    debug_logger.debug(
                         "[import_excel_robust] Nenhuma linha candidata encontrada; mantendo header original."
                     )
-        except Exception as e:  # pragma: no cover
-            if debug_enabled:
-                logger.debug(
-                    "[import_excel_robust] Falha ao reprocessar header mesclado: %s", e
-                )
+        except Exception as exc:
+            logger.warning(
+                "[import_excel_robust] Falha ao reprocessar header mesclado (%s)",
+                type(exc).__name__,
+            )
 
     stats.total_rows_in = len(raw_df)
     stats.original_columns_count = len(raw_df.columns)
@@ -379,19 +385,25 @@ def import_excel_robust(
     # Função auxiliar interna para tentar reconstruir DataFrame com um header específico e remapear.
     def _attempt_reheader(
         candidate_header_row: int,
+        scan_source: pd.ExcelFile,
     ) -> tuple[pd.DataFrame, dict[str, list[str]], dict[str, str]]:
         try:
             tmp_df = _read_excel_source(
-                excel_source,
+                scan_source,
                 sheet_name=sheet_name,
                 header=candidate_header_row,
             )
         except Exception:
+            diagnostic_logger.debug(
+                "[import_excel_robust] Falha ao ler candidato de header %d",
+                candidate_header_row,
+                exc_info=True,
+            )
             return raw_df, {}, {}
         orig_to_can: Dict[str, str] = {}
         can_groups: Dict[str, List[str]] = {}
         for c in tmp_df.columns:
-            n = _canonicalize_header(str(c))
+            n = canonicalize_header(str(c))
             can = alias_map.get(n, n)
             orig_to_can[c] = can
             can_groups.setdefault(can, []).append(c)
@@ -404,7 +416,7 @@ def import_excel_robust(
         raw_col_str = str(col)
         norm = _header_cache.get(raw_col_str)
         if norm is None:
-            norm = _canonicalize_header(raw_col_str)
+            norm = canonicalize_header(raw_col_str)
             _header_cache[raw_col_str] = norm
         canonical = alias_map.get(norm, norm)  # se não mapeado, usar normalização
         if canonical != norm:
@@ -416,7 +428,7 @@ def import_excel_robust(
     # tentar detectar linha de cabeçalho real entre as primeiras 10 linhas.
     if len(canonical_groups) <= 1 and raw_df.shape[1] > 5:
         if debug_enabled:
-            logger.debug(
+            debug_logger.debug(
                 "[import_excel_robust] Apenas %d colunas canônicas detectadas; tentando reheader multi-linha.",
                 len(canonical_groups),
             )
@@ -431,28 +443,52 @@ def import_excel_robust(
         except ValueError:  # pragma: no cover
             max_scan_conf = 10
         scan_limit = min(max_scan_conf, max(1, raw_df.shape[0]))
+        candidates_considered = 0
         selected_header_line_index: int | None = None
-        for candidate in range(scan_limit):
-            tmp_df, tmp_groups, tmp_map = _attempt_reheader(candidate)
-            if len(tmp_groups) > len(best_groups):
-                best_df, best_groups, best_map = tmp_df, tmp_groups, tmp_map
-                improved = True
-                selected_header_line_index = candidate
-                if debug_enabled:
-                    logger.debug(
-                        "[import_excel_robust] Reheader candidate %d => %d grupos.",
-                        candidate,
-                        len(tmp_groups),
+        with ExitStack() as stack:
+            try:
+                if isinstance(excel_source, pd.ExcelFile):
+                    scan_source = excel_source
+                else:
+                    from extracao.extractor import open_validated_excel_source
+
+                    source_stream = stack.enter_context(
+                        open_validated_excel_source(excel_source)
                     )
-                if len(best_groups) >= 5:  # heurística de suficiência
-                    break
-        stats.header_candidate_lines_considered = scan_limit
+                    scan_source = stack.enter_context(
+                        pd.ExcelFile(source_stream, engine="openpyxl")
+                    )
+            except Exception:
+                diagnostic_logger.debug(
+                    "[import_excel_robust] Falha ao abrir fonte para reheader",
+                    exc_info=True,
+                )
+                scan_source = None
+            if scan_source is not None:
+                for candidate in range(scan_limit):
+                    candidates_considered += 1
+                    tmp_df, tmp_groups, tmp_map = _attempt_reheader(
+                        candidate, scan_source
+                    )
+                    if len(tmp_groups) > len(best_groups):
+                        best_df, best_groups, best_map = tmp_df, tmp_groups, tmp_map
+                        improved = True
+                        selected_header_line_index = candidate
+                        if debug_enabled:
+                            debug_logger.debug(
+                                "[import_excel_robust] Reheader candidate %d => %d grupos.",
+                                candidate,
+                                len(tmp_groups),
+                            )
+                        if len(best_groups) >= 5:  # heurística de suficiência
+                            break
+        stats.header_candidate_lines_considered = candidates_considered
         if improved:
             raw_df = best_df
             canonical_groups = best_groups
             original_to_canonical = best_map
             if debug_enabled:
-                logger.debug(
+                debug_logger.debug(
                     "[import_excel_robust] Reheader aplicado com sucesso. Total grupos=%d",
                     len(canonical_groups),
                 )
@@ -463,7 +499,7 @@ def import_excel_robust(
         numero_alias_keys = [k for k, v in alias_map.items() if v == "numero_ssa"]
         candidate_cols = []
         for col in raw_df.columns:
-            norm = _canonicalize_header(str(col))
+            norm = canonicalize_header(str(col))
             if norm in numero_alias_keys:
                 candidate_cols.append(col)
         if candidate_cols:
@@ -471,7 +507,7 @@ def import_excel_robust(
             canonical_groups["numero_ssa"] = [sel]
             original_to_canonical[sel] = "numero_ssa"
             if debug_enabled:
-                logger.debug(
+                debug_logger.debug(
                     "[import_excel_robust] Promovida coluna '%s' a numero_ssa (fallback explicito)",
                     sel,
                 )
@@ -499,7 +535,7 @@ def import_excel_robust(
                     base = f"col_{idx}"
                 new_headers.append(base)
             if debug_enabled:
-                logger.debug(
+                debug_logger.debug(
                     "[import_excel_robust] Reinterpretando primeira linha como cabeçalho: %s",
                     new_headers,
                 )
@@ -512,7 +548,7 @@ def import_excel_robust(
                 raw_col_str = str(col)
                 norm = _header_cache.get(raw_col_str)
                 if norm is None:
-                    norm = _canonicalize_header(raw_col_str)
+                    norm = canonicalize_header(raw_col_str)
                     _header_cache[raw_col_str] = norm
                 canonical = alias_map.get(norm, norm)
                 if canonical != norm:
@@ -525,14 +561,14 @@ def import_excel_robust(
                     k for k, v in alias_map.items() if v == "numero_ssa"
                 ]
                 for col in raw_df.columns:
-                    norm = _canonicalize_header(str(col))
+                    norm = canonicalize_header(str(col))
                     if norm in numero_alias_keys:
                         canonical_groups["numero_ssa"] = [col]
                         original_to_canonical[col] = "numero_ssa"
                         break
 
     if debug_enabled:
-        logger.debug(
+        debug_logger.debug(
             "[import_excel_robust] Mapeamento colunas => %s", original_to_canonical
         )
 
@@ -579,10 +615,10 @@ def import_excel_robust(
         original = work_df["numero_ssa"].copy()
         cleaned_series, valid_mask = _clean_numero_ssa_series(original)
         if debug_enabled:
-            logger.debug(
+            debug_logger.debug(
                 "[import_excel_robust] original numero_ssa=%s", original.tolist()
             )
-            logger.debug(
+            debug_logger.debug(
                 "[import_excel_robust] cleaned numero_ssa=%s valid_mask=%s",
                 cleaned_series.tolist(),
                 valid_mask.tolist(),
@@ -599,13 +635,13 @@ def import_excel_robust(
             before = len(work_df)
             work_df = work_df[work_df["numero_ssa"].notna()].reset_index(drop=True)
             if debug_enabled:
-                logger.debug(
+                debug_logger.debug(
                     "[import_excel_robust] removidas %d linhas com numero_ssa vazio/invalido",
                     before - len(work_df),
                 )
         work_df["numero_ssa"] = work_df["numero_ssa"].astype("string")
         if debug_enabled:
-            logger.debug(
+            debug_logger.debug(
                 "[import_excel_robust] numero_ssa apos limpeza: %s",
                 work_df["numero_ssa"].head().tolist(),
             )
@@ -616,7 +652,7 @@ def import_excel_robust(
         cleaned_series, _ = _clean_numero_ssa_series(work_df[column_name])
         work_df[column_name] = cleaned_series.astype("string")
         if debug_enabled:
-            logger.debug(
+            debug_logger.debug(
                 "[import_excel_robust] %s apos limpeza canonica: %s",
                 column_name,
                 work_df[column_name].head().tolist(),
@@ -658,7 +694,7 @@ def import_excel_robust(
                 temp.drop(columns=["_dt"], inplace=True)
                 work_df = temp.reset_index(drop=True)
                 if debug_enabled:
-                    logger.debug(
+                    debug_logger.debug(
                         "[import_excel_robust] Deduplicacao: removidos=%d linhas_finais=%d",
                         stats.duplicate_rows_dropped,
                         len(work_df),
@@ -697,7 +733,7 @@ def import_excel_robust(
     stats.dropped_columns = dropped
 
     if debug_enabled:
-        logger.debug(
+        debug_logger.debug(
             "[import_excel_robust] Final rows=%d cols=%d",
             len(work_df),
             len(work_df.columns),

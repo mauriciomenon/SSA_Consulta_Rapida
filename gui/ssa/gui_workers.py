@@ -12,13 +12,14 @@ import uuid
 from time import perf_counter
 
 import pandas as pd
+from gui.ssa.app_menus import database_operation_in_progress, refresh_database_actions
 from gui.ssa.gui_filters_responsavel_state import responsavel_materialization_state
 from gui.ssa.gui_loaded_dataframes import (
     LoadedDataFrames,
     prepare_loaded_dataframes,
     resolve_loaded_columns_with_values,
 )
-from gui.ssa.gui_worker_registry import (
+from gui.ssa.gui_worker_registry import (  # noqa: F401
     GLOBAL_WORKERS_LOCK as _GLOBAL_WORKERS_LOCK,
     _classify_and_update_global_workers_locked,
     _classify_workers_for_ttl,  # noqa: F401 - re-exported for existing tests
@@ -75,7 +76,32 @@ def _set_status_label_text(window, text: str, *, context: str) -> bool:
         return False
 
 
-def _connect_signal(signal, slot, *, label: str) -> bool:
+def _is_qobject_deleted(obj) -> bool:
+    """True somente quando o Qt confirma a destruicao do objeto."""
+    if obj is None:
+        return False
+    try:
+        from PyQt6 import sip
+    except ImportError:
+        return False
+    try:
+        return bool(sip.isdeleted(obj))
+    except Exception:
+        return False
+
+
+def _connect_signal(signal, slot, *, label: str, window=None) -> bool:
+    if window is not None:
+        original_slot = slot
+
+        def _guarded_slot(*args, **kwargs):
+            # Callback tardio pode chegar depois de WA_DeleteOnClose destruir
+            # a janela; sem a guarda o acesso a widgets destruidos aborta.
+            if _is_qobject_deleted(window):
+                return None
+            return original_slot(*args, **kwargs)
+
+        slot = _guarded_slot
     if signal is None:
         logger.debug("Signal ausente para %s; pulando conexao.", label)
         return False
@@ -200,29 +226,13 @@ def retain_data_loader_worker_until_finished(
             )
 
     finished_signal = getattr(worker, "finished", None)
-    if not _connect_signal(
+    release_connected = _connect_signal(
         finished_signal, _release_worker_ref, label="data_loader.finished.cleanup"
-    ):
-        try:
-            if hasattr(worker, "isRunning") and worker.isRunning():
-                if hasattr(worker, "quit"):
-                    worker.quit()
-                if hasattr(worker, "wait"):
-                    worker.wait(retired_force_wait_ms)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao encerrar worker de carga apos erro de conexao de sinal: %s",
-                exc,
-            )
-        try:
-            if hasattr(worker, "deleteLater"):
-                worker.deleteLater()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao agendar deleteLater de worker apos erro de conexao de sinal: %s",
-                exc,
-            )
-        return
+    )
+    if not release_connected:
+        logger.warning(
+            "DataLoader sem callback finished; mantendo ownership ate prune observar termino."
+        )
     with _GLOBAL_WORKERS_LOCK:
         retired = getattr(window, "_retired_data_loader_workers", None)
         if retired is None:
@@ -233,24 +243,12 @@ def retain_data_loader_worker_until_finished(
         if worker not in global_workers:
             global_workers.append(worker)
         global_meta[worker] = now
-        if max_global_workers > 0 and len(global_workers) > max_global_workers:
-            overflow = len(global_workers) - max_global_workers
-            dropped_workers = global_workers[:overflow]
-            dropped_worker_ids = {id(worker_ref) for worker_ref in dropped_workers}
-            del global_workers[:overflow]
-            for dropped_worker in dropped_workers:
-                global_meta.pop(dropped_worker, None)
-            retired[:] = [
-                worker_ref
-                for worker_ref in retired
-                if id(worker_ref) not in dropped_worker_ids
-            ]
     destroyed_signal = getattr(worker, "destroyed", None)
     if destroyed_signal is not None:
         _connect_signal(
             destroyed_signal, _release_worker_ref, label="data_loader.destroyed.cleanup"
         )
-    if finished_signal is not None and hasattr(worker, "deleteLater"):
+    if release_connected and finished_signal is not None and hasattr(worker, "deleteLater"):
         _connect_signal(
             finished_signal,
             worker.deleteLater,
@@ -348,18 +346,16 @@ def prune_retired_data_loader_workers(
     )
 
     def _stop_data_loader_worker(worker, **_unused) -> bool:
-        return cleanup_data_loader_worker(
-            window,
-            worker,
-            wait_ms=retired_force_wait_ms,
-            run_prune=False,
-            global_workers=global_workers,
-            global_meta=global_meta,
-            max_global_workers=max_global_workers,
-            retired_ttl_sec=retired_ttl_sec,
-            retired_force_wait_ms=retired_force_wait_ms,
-            sip_module=sip_module,
-        )
+        cancel_fn = getattr(worker, "cancel", None)
+        interruption_fn = getattr(worker, "requestInterruption", None)
+        if callable(cancel_fn):
+            cancel_fn()
+        elif callable(interruption_fn):
+            interruption_fn()
+        quit_fn = getattr(worker, "quit", None)
+        if callable(quit_fn):
+            quit_fn()
+        return not is_data_loader_worker_running(worker, sip_module)
 
     removed_by_ttl = _process_expired_workers(
         expired_all,
@@ -402,13 +398,12 @@ def is_rescan_worker_running(worker, sip_module) -> bool:
 def _enforce_global_worker_cap(
     global_workers: list, global_meta: dict, max_global_workers: int
 ) -> None:
-    if len(global_workers) <= max_global_workers:
-        return
-    overflow = len(global_workers) - max_global_workers
-    dropped_workers = global_workers[:overflow]
-    global_workers[:] = global_workers[overflow:]
-    for dropped_worker in dropped_workers:
-        global_meta.pop(dropped_worker, None)
+    if max_global_workers > 0 and len(global_workers) > max_global_workers:
+        logger.warning(
+            "Registry de workers acima do cap (%s > %s); mantendo workers ativos.",
+            len(global_workers),
+            max_global_workers,
+        )
 
 
 def retain_rescan_worker_global(
@@ -495,23 +490,14 @@ def cleanup_rescan_worker_on_close(
                     "Falha ao solicitar quit do RescanWorker no closeEvent: %s",
                     exc,
                 )
-        if running_now and not retained_globally:
-            try:
-                if hasattr(worker, "wait"):
-                    worker.wait(max(0, int(retired_force_wait_ms)))
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aguardar RescanWorker no closeEvent: %s",
-                    exc,
-                )
     except Exception as exc:
         logger.debug("Falha ao encerrar RescanWorker durante closeEvent: %s", exc)
     finally:
-        if (
-            not retained_globally
-            and is_worker_alive(worker, sip_module)
-            and is_rescan_worker_running(worker, sip_module)
-        ):
+        try:
+            running_after_request = is_rescan_worker_running(worker, sip_module)
+        except Exception:
+            running_after_request = True
+        if running_after_request and not retained_globally:
             retain_rescan_worker_global(
                 worker,
                 reason="fallback-finally",
@@ -520,7 +506,11 @@ def cleanup_rescan_worker_on_close(
                 max_global_workers=max_global_workers,
                 sip_module=sip_module,
             )
-        window._active_rescan_worker = None
+        if (
+            not running_after_request
+            and getattr(window, "_active_rescan_worker", None) is worker
+        ):
+            window._active_rescan_worker = None
 
 
 def cleanup_window_workers_on_close(
@@ -539,10 +529,9 @@ def cleanup_window_workers_on_close(
     data_worker = getattr(window, "data_loader_thread", None)
     if data_worker is not None:
         try:
-            cleanup_data_loader_worker(
+            retain_data_loader_worker_until_finished(
                 window,
                 data_worker,
-                wait_ms=0,
                 global_workers=data_loader_workers,
                 global_meta=data_loader_meta,
                 max_global_workers=max_data_loader_workers,
@@ -550,11 +539,16 @@ def cleanup_window_workers_on_close(
                 retired_force_wait_ms=retired_force_wait_ms,
                 sip_module=sip_module,
             )
+            cancel_fn = getattr(data_worker, "cancel", None)
+            interruption_fn = getattr(data_worker, "requestInterruption", None)
+            if callable(cancel_fn):
+                cancel_fn()
+            elif callable(interruption_fn):
+                interruption_fn()
+            if hasattr(data_worker, "quit"):
+                data_worker.quit()
         except Exception as exc:
             logger.debug("Falha no cleanup do data loader durante closeEvent: %s", exc)
-        finally:
-            if getattr(window, "data_loader_thread", None) is data_worker:
-                window.data_loader_thread = None
 
     filter_worker = getattr(window, "filter_thread", None)
     filter_worker_running = False
@@ -576,7 +570,6 @@ def cleanup_window_workers_on_close(
                 worker_for_fallback = filter_worker
                 if worker_for_fallback is not None:
                     worker_for_fallback.quit()
-                    worker_for_fallback.wait(3000)
             except Exception as fallback_exc:
                 logger.debug(
                     "Falha no fallback de encerramento do filter worker: %s",
@@ -607,6 +600,21 @@ def cleanup_window_workers_on_close(
         sip_module=sip_module,
     )
 
+    pai_worker = getattr(window, "_active_pai_api_worker", None)
+    if pai_worker is not None and hasattr(pai_worker, "isRunning"):
+        try:
+            if pai_worker.isRunning():
+                cancel_fn = getattr(pai_worker, "cancel", None)
+                if callable(cancel_fn):
+                    cancel_fn()
+                else:
+                    pai_worker.requestInterruption()
+                pai_worker.quit()
+        except Exception as exc:
+            logger.debug(
+                "Falha no cleanup do PaiApi worker no closeEvent: %s", exc
+            )
+
 
 def prune_retired_rescan_workers(
     window,
@@ -619,7 +627,7 @@ def prune_retired_rescan_workers(
     sip_module,
 ) -> None:
     now = perf_counter()
-    wait_ms = int(retired_force_wait_ms or 0)
+    _ = retired_force_wait_ms
     expired_global = []
     with _GLOBAL_WORKERS_LOCK:
         expired_global = _classify_and_update_global_workers_locked(
@@ -637,15 +645,6 @@ def prune_retired_rescan_workers(
             worker.stop()
         if hasattr(worker, "quit"):
             worker.quit()
-        if hasattr(worker, "wait"):
-            worker.wait(wait_ms)
-        if (
-            hasattr(worker, "isRunning")
-            and worker.isRunning()
-            and hasattr(worker, "terminate")
-        ):
-            worker.terminate()
-            worker.wait(wait_ms)
         return not is_rescan_worker_running(worker, sip_module)
 
     _process_expired_workers(
@@ -676,6 +675,9 @@ def cleanup_data_loader_worker(
         return True
     still_running = False
     try:
+        _safe_disconnect(
+            getattr(worker, "data_prepared", None), "data_prepared do worker de carga"
+        )
         _safe_disconnect(
             getattr(worker, "data_loaded", None), "data_loaded do worker de carga"
         )
@@ -762,6 +764,11 @@ def _prepare_data_load_request(window) -> int:
     return request_id
 
 
+def _derivadas_sync_in_progress(window) -> bool:
+    state = getattr(window, "_derivadas_sync_state", None)
+    return bool(getattr(state, "running", False))
+
+
 def _set_data_load_busy_state(
     window,
     *,
@@ -769,17 +776,24 @@ def _set_data_load_busy_state(
     status_text: str | None = None,
     context: str,
 ) -> None:
+    window._data_load_busy = busy
     if status_text is not None:
         _set_status_label_text(window, status_text, context=context)
     progress_bar = getattr(window, "progress_bar", None)
     if progress_bar is not None and hasattr(progress_bar, "setVisible"):
-        progress_bar.setVisible(busy)
+        # Nao esconde a barra enquanto o sync de derivadas estiver usando-a.
+        if busy or not _derivadas_sync_in_progress(window):
+            progress_bar.setVisible(busy)
     load_button = getattr(window, "load_button", None)
     if load_button is not None and hasattr(load_button, "setEnabled"):
         load_button.setEnabled(not busy)
     search_button = getattr(window, "search_button", None)
     if search_button is not None and hasattr(search_button, "setEnabled"):
         search_button.setEnabled(not busy)
+    api_button = getattr(window, "api_button", None)
+    if api_button is not None and hasattr(api_button, "setEnabled"):
+        api_button.setEnabled(not busy)
+    refresh_database_actions(window)
 
 
 def _cleanup_previous_data_loader_before_start(
@@ -859,6 +873,11 @@ def _connect_data_loader_callbacks(
     sip_module,
 ) -> None:
     def _handle_data_loaded(data, rid=request_id):
+        if bool(getattr(window, "_is_shutting_down", False)):
+            logger.debug(
+                "Ignorando entrega de carga durante shutdown (request_id=%s)", rid
+            )
+            return None
         handler = getattr(window, "on_data_loaded", None)
         if callable(handler):
             return handler(data, request_id=rid)
@@ -914,15 +933,25 @@ def _connect_data_loader_callbacks(
         data_prepared_signal,
         _handle_data_loaded,
         label="data_loader.data_prepared",
+        window=window,
     ):
         _connect_signal(
-            worker.data_loaded, _handle_data_loaded, label="data_loader.data_loaded"
+            worker.data_loaded,
+            _handle_data_loaded,
+            label="data_loader.data_loaded",
+            window=window,
         )
     _connect_signal(
-        worker.error_occurred, _handle_load_error, label="data_loader.error_occurred"
+        worker.error_occurred,
+        _handle_load_error,
+        label="data_loader.error_occurred",
+        window=window,
     )
     _connect_signal(
-        worker.finished, _handle_load_finished, label="data_loader.finished"
+        worker.finished,
+        _handle_load_finished,
+        label="data_loader.finished",
+        window=window,
     )
     _connect_signal(
         worker.finished, worker.deleteLater, label="data_loader.finished.deleteLater"
@@ -965,6 +994,14 @@ def load_data(
             "Status: Banco de dados nao encontrado.",
             context="load_data_missing_db",
         )
+        if bool(getattr(window, "_startup_show_pending", False)):
+            try:
+                window.show()
+                window._startup_show_pending = False
+            except (RuntimeError, AttributeError) as exc:
+                logger.warning(
+                    "Falha ao mostrar janela sem banco no startup: %s", exc
+                )
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return
         if qmessagebox is not None:
@@ -1059,7 +1096,24 @@ def load_data(
         retired_force_wait_ms=retired_force_wait_ms,
         sip_module=sip_module,
     )
-    worker.start()
+    try:
+        worker.start()
+    except Exception as exc:
+        logger.error("Falha ao iniciar DataLoaderWorker: %s", exc)
+        window.data_loader_thread = None
+        on_load_error(
+            window,
+            str(exc),
+            request_id=request_id,
+            db_path=db_path,
+            qmessagebox=qmessagebox,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
 
 
 def _is_stale_data_load_result(window, request_id: int | None) -> bool:
@@ -1075,27 +1129,45 @@ def _is_stale_data_load_result(window, request_id: int | None) -> bool:
 
 
 def _sync_data_revision_after_load(window, request_id: int | None) -> None:
+    last_req = getattr(window, "_data_revision_request_id", None)
+    if request_id is not None and request_id == last_req:
+        return
     try:
-        last_req = getattr(window, "_data_revision_request_id", None)
-        if request_id is not None and request_id == last_req:
-            return
+        previous_revision = int(getattr(window, "_data_revision", 0) or 0)
+    except (TypeError, ValueError):
+        previous_revision = 0
+    try:
         if hasattr(window, "_bump_data_revision"):
             window._bump_data_revision("data_loaded")
         else:
-            window._data_revision = int(getattr(window, "_data_revision", 0) or 0) + 1
-        try:
-            window._data_uuid = uuid.uuid4().hex
-        except Exception as exc:
-            logger.debug(
-                "Falha ao gerar UUID de dados; usando fallback textual: %s", exc
-            )
-            window._data_uuid = f"fallback-{time.time_ns()}-{int(getattr(window, '_data_revision', 0) or 0)}"
-        window._data_revision_request_id = request_id
+            window._data_revision = previous_revision + 1
     except Exception as exc:
-        logger.debug(
-            "Falha ao atualizar revisao de dados; resetando para baseline: %s", exc
+        logger.warning(
+            "Falha ao atualizar revisao de dados; invalidando caches por fallback: %s",
+            exc,
         )
-        window._data_revision = 1
+        window._data_revision = previous_revision + 1
+        window._data_revision_df_ids = id(window.df_completo)
+        window._details_ssa_index_sources = None
+        window._details_ssa_series_index = None
+        window._details_render_payload_cache = {}
+        # Mesmo reset de _bump_data_revision: uma atualizacao de detalhes
+        # agendada antes da recarga renderizaria a serie antiga.
+        window._pending_details_series = None
+        details_timer = getattr(window, "_details_update_timer", None)
+        if details_timer is not None:
+            try:
+                details_timer.stop()
+            except RuntimeError as timer_exc:
+                logger.debug(
+                    "Falha ao parar timer de detalhes no fallback: %s", timer_exc
+                )
+    try:
+        window._data_uuid = uuid.uuid4().hex
+    except Exception as exc:
+        logger.debug("Falha ao gerar UUID de dados; usando fallback textual: %s", exc)
+        window._data_uuid = f"fallback-{time.time_ns()}-{window._data_revision}"
+    window._data_revision_request_id = request_id
 
 
 def _reset_post_load_filter_state(window) -> None:
@@ -1173,6 +1245,7 @@ def _sync_column_selector_after_load(window) -> None:
 
 def _sync_filter_controls_after_load(window) -> None:
     has_active_filters = False
+    refreshed = True
     try:
         has_active_filters = bool(window._has_any_active_filters())
         window.clear_filter_button.setEnabled(has_active_filters)
@@ -1184,7 +1257,7 @@ def _sync_filter_controls_after_load(window) -> None:
         window.clear_filter_button.setEnabled(True)
         has_active_filters = True
     if has_active_filters:
-        window._refresh_after_filter_change()
+        refreshed = window._refresh_after_filter_change()
     else:
         try:
             current_details_ssa = getattr(window, "_details_current_ssa", None)
@@ -1232,7 +1305,9 @@ def _sync_filter_controls_after_load(window) -> None:
                 "Falha no caminho rapido de sync pos-load; usando refresh completo: %s",
                 exc,
             )
-            window._refresh_after_filter_change()
+            refreshed = window._refresh_after_filter_change()
+    if refreshed is False:
+        raise RuntimeError("Falha ao aplicar filtros aos dados carregados.")
     try:
         if getattr(window, "_active_filter_panel_kind", None) == "advanced":
             window._refresh_advanced_filter_options()
@@ -1274,21 +1349,44 @@ def _update_loaded_data_status(window) -> None:
 
 
 def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
-    if _is_stale_data_load_result(window, request_id):
+    if bool(getattr(window, "_is_shutting_down", False)):
+        logger.debug(
+            "Ignorando resultado de carga durante shutdown (request_id=%s)",
+            request_id,
+        )
         return
-    loaded = prepare_loaded_dataframes(df)
-    window.df_completo = loaded.complete
-    window.df_exibido = loaded.display
-    window._df_last_search_filtered = (
-        window.df_completo if loaded.preprocessed_for_gui else window.df_exibido
-    )
-    _sync_data_revision_after_load(window, request_id)
-    _reset_post_load_filter_state(window)
-    _reset_post_load_sort_and_width_state(window)
-    _sync_non_null_column_cache_after_load(window, loaded)
-    _sync_column_selector_after_load(window)
-    _sync_filter_controls_after_load(window)
-    _update_loaded_data_status(window)
+    if _is_stale_data_load_result(window, request_id):
+        return False
+    data_applied = False
+    try:
+        loaded = prepare_loaded_dataframes(df)
+        window.df_completo = loaded.complete
+        data_applied = True
+        window.df_exibido = loaded.display
+        window._df_last_search_filtered = (
+            window.df_completo if loaded.preprocessed_for_gui else window.df_exibido
+        )
+        _sync_data_revision_after_load(window, request_id)
+        _reset_post_load_filter_state(window)
+        _reset_post_load_sort_and_width_state(window)
+        _sync_non_null_column_cache_after_load(window, loaded)
+        _sync_column_selector_after_load(window)
+        _sync_filter_controls_after_load(window)
+        from gui.ssa import gui_details
+
+        try:
+            gui_details.refresh_derivadas_context_after_reload(window)
+        except Exception:
+            logger.exception("Falha ao atualizar contexto de derivadas apos recarga")
+        _update_loaded_data_status(window)
+    except Exception as exc:
+        handler = getattr(window, "on_load_error", None)
+        if callable(handler):
+            handler(str(exc), request_id=request_id, data_applied=data_applied)
+        else:
+            on_load_error(window, str(exc), request_id=request_id, data_applied=data_applied)
+        return False
+    return True
 
 
 def _mask_db_path(error_msg: str, db_path: str | None) -> str:
@@ -1325,6 +1423,7 @@ def on_load_error(
     *,
     request_id: int | None = None,
     db_path: str | None = None,
+    data_applied: bool = False,
     qmessagebox=None,
     global_workers: list | None = None,
     global_meta: dict | None = None,
@@ -1340,7 +1439,7 @@ def on_load_error(
             request_id,
             active_id,
         )
-        return
+        return False
     safe_error_msg = (
         "Nao foi possivel carregar os dados. Consulte os logs para detalhes tecnicos."
     )
@@ -1348,14 +1447,27 @@ def on_load_error(
     logger.error(
         "Erro no carregamento de dados (request_id=%s): %s", request_id, masked_error
     )
+    if bool(getattr(window, "_is_shutting_down", False)):
+        window._data_load_busy = False
+        return False
     if os.environ.get("PYTEST_CURRENT_TEST"):
         logger.debug("PYTEST_CURRENT_TEST set; skipping modal load error dialog.")
     else:
         if qmessagebox is not None:
             qmessagebox.critical(window, "Erro de Carregamento", safe_error_msg)
+    window._data_load_busy = False
+    previous_data = getattr(window, "df_completo", None)
+    if data_applied:
+        _sync_data_revision_after_load(window, request_id)
+        retained_data_notice = " A exibicao pode estar incompleta. Recarregue os dados."
+    else:
+        retained_data_notice = (
+            " A tabela anterior foi mantida e pode estar desatualizada."
+            if previous_data is not None and not previous_data.empty else ""
+        )
     _set_status_label_text(
         window,
-        "Status: Erro ao carregar dados.",
+        "Status: Erro ao carregar dados." + retained_data_notice,
         context="on_load_error",
     )
     load_button = getattr(window, "load_button", None)
@@ -1364,8 +1476,16 @@ def on_load_error(
     search_button = getattr(window, "search_button", None)
     if search_button is not None and hasattr(search_button, "setEnabled"):
         search_button.setEnabled(True)
+    api_button = getattr(window, "api_button", None)
+    if api_button is not None and hasattr(api_button, "setEnabled"):
+        api_button.setEnabled(True)
+    refresh_database_actions(window)
     progress_bar = getattr(window, "progress_bar", None)
-    if progress_bar is not None and hasattr(progress_bar, "setVisible"):
+    if (
+        progress_bar is not None
+        and hasattr(progress_bar, "setVisible")
+        and not _derivadas_sync_in_progress(window)
+    ):
         progress_bar.setVisible(False)
     if global_workers is not None and global_meta is not None:
         try:
@@ -1387,9 +1507,15 @@ def on_load_error(
 
 
 def _restore_data_load_controls(window) -> None:
-    window.progress_bar.setVisible(False)
+    window._data_load_busy = False
+    if not _derivadas_sync_in_progress(window):
+        window.progress_bar.setVisible(False)
     window.load_button.setEnabled(True)
     window.search_button.setEnabled(True)
+    api_button = getattr(window, "api_button", None)
+    if api_button is not None and hasattr(api_button, "setEnabled"):
+        api_button.setEnabled(True)
+    refresh_database_actions(window)
 
 
 def _update_load_finished_status_if_needed(window) -> None:
@@ -1495,8 +1621,9 @@ def on_load_finished(
         )
         return
 
-    _restore_data_load_controls(window)
-    _update_load_finished_status_if_needed(window)
+    if not bool(getattr(window, "_is_shutting_down", False)):
+        _restore_data_load_controls(window)
+        _update_load_finished_status_if_needed(window)
     _cleanup_finished_data_loader_request(
         window,
         target_worker,
@@ -1530,7 +1657,13 @@ def rescan_data(
     operation_label: str = "Reescaneamento",
     reload_on_success: bool = False,
     operation_kind: str = "import",
-) -> None:
+) -> bool:
+    if database_operation_in_progress(window):
+        _set_status_label_text(
+            window, "Status: Aguarde a operacao atual antes de importar ou reescanear.",
+            context="rescan.operation_in_progress",
+        )
+        return False
     normalized_mode = str(rescan_mode or "prompt").strip().lower()
     explicit_files_tuple = tuple(str(path) for path in explicit_files or ())
     source_files_tuple = tuple(str(path) for path in source_files or ())
@@ -1581,12 +1714,19 @@ def rescan_data(
                 "Status: Reescaneamento cancelado pelo usuario.",
                 context="rescan.cancel.mode",
             )
-            return
+            return False
         force_import = clicked == full_btn
     else:
         logger.warning(
             "QMessageBox indisponivel em modo prompt; usando Atualizar Dados por seguranca."
         )
+
+    if database_operation_in_progress(window):
+        _set_status_label_text(
+            window, "Status: Outra operacao foi iniciada. Aguarde antes de reescanear.",
+            context="rescan.operation_started_during_prompt",
+        )
+        return False
 
     try:
         prune_retired_rescan_workers(
@@ -1616,7 +1756,7 @@ def rescan_data(
                     running_text,
                     context=running_context,
                 )
-                return
+                return False
         except Exception as exc:
             logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
         try:
@@ -1636,60 +1776,91 @@ def rescan_data(
         )
         main_py_path = "main.py"
 
-    progress_dialog = rescan_dialog_cls(window)
-    _configure_operation_dialog(progress_dialog, operation_label)
+    progress_dialog = None
+    worker = None
     try:
+        progress_dialog = rescan_dialog_cls(window)
+        _configure_operation_dialog(progress_dialog, operation_label)
         window._active_rescan_dialog = progress_dialog
-    except Exception as exc:
-        logger.debug(
-            "Falha ao registrar referencia do dialogo de reescaneamento: %s", exc
+
+        worker = _build_rescan_worker(
+            rescan_worker_cls,
+            main_py_path=main_py_path,
+            project_root=project_root,
+            force_import=force_import,
+            explicit_files=explicit_files_tuple,
+            source_files=source_files_tuple,
+            db_path=db_path,
+            operation_label=operation_label,
+            operation_kind=normalized_kind,
+        )
+        window._active_rescan_worker = worker
+
+        _connect_signal(
+            worker.output_line,
+            progress_dialog.append_output,
+            label="rescan.output_line",
+            window=progress_dialog,
+        )
+        _connect_signal(
+            worker.error_line,
+            progress_dialog.append_error,
+            label="rescan.error_line",
+            window=progress_dialog,
+        )
+        _connect_signal(
+            worker.progress,
+            progress_dialog.update_progress,
+            label="rescan.progress",
+            window=progress_dialog,
         )
 
-    worker = _build_rescan_worker(
-        rescan_worker_cls,
-        main_py_path=main_py_path,
-        project_root=project_root,
-        force_import=force_import,
-        explicit_files=explicit_files_tuple,
-        source_files=source_files_tuple,
-        db_path=db_path,
-        operation_label=operation_label,
-        operation_kind=normalized_kind,
-    )
-    window._active_rescan_worker = worker
+        should_reload_on_success = bool(reload_on_success or normalized_mode == "full")
 
-    _connect_signal(
-        worker.output_line, progress_dialog.append_output, label="rescan.output_line"
-    )
-    _connect_signal(
-        worker.error_line, progress_dialog.append_error, label="rescan.error_line"
-    )
-    _connect_signal(
-        worker.progress, progress_dialog.update_progress, label="rescan.progress"
-    )
+        connect_rescan_worker_lifecycle(
+            window,
+            worker,
+            progress_dialog,
+            reload_on_success=should_reload_on_success,
+            is_explicit_import=is_explicit_import,
+            normalized_kind=normalized_kind,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+            connect_signal=_connect_signal,
+            prune_retired_workers=prune_retired_rescan_workers,
+            is_worker_running=is_rescan_worker_running,
+            set_status_label_text=_set_status_label_text,
+        )
 
-    should_reload_on_success = bool(reload_on_success or normalized_mode == "full")
-
-    connect_rescan_worker_lifecycle(
-        window,
-        worker,
-        progress_dialog,
-        reload_on_success=should_reload_on_success,
-        is_explicit_import=is_explicit_import,
-        normalized_kind=normalized_kind,
-        global_workers=global_workers,
-        global_meta=global_meta,
-        max_global_workers=max_global_workers,
-        retired_ttl_sec=retired_ttl_sec,
-        retired_force_wait_ms=retired_force_wait_ms,
-        sip_module=sip_module,
-        connect_signal=_connect_signal,
-        prune_retired_workers=prune_retired_rescan_workers,
-        is_worker_running=is_rescan_worker_running,
-        set_status_label_text=_set_status_label_text,
-    )
-
-    worker.start()
+        worker.start()
+    except Exception as exc:
+        logger.warning("Falha ao iniciar RescanWorker: %s", exc)
+        if worker is not None and getattr(window, "_active_rescan_worker", None) is worker:
+            window._active_rescan_worker = None
+        with _GLOBAL_WORKERS_LOCK:
+            global_workers[:] = [item for item in global_workers if item is not worker]
+            global_meta.pop(worker, None)
+        refresh_database_actions(window)
+        try:
+            if getattr(window, "_active_rescan_dialog", None) is progress_dialog:
+                window._active_rescan_dialog = None
+            if progress_dialog is not None:
+                progress_dialog.close()
+            if worker is not None:
+                worker.deleteLater()
+        except Exception as close_exc:
+            logger.warning("Falha na limpeza apos erro ao iniciar rescan: %s", close_exc)
+        _set_status_label_text(
+            window,
+            "Status: Falha ao iniciar reescaneamento.",
+            context="rescan.start_error",
+        )
+        return False
+    refresh_database_actions(window)
     if normalized_kind == "consolidate":
         _set_status_label_text(
             window,
@@ -1706,3 +1877,4 @@ def rescan_data(
         progress_dialog.show_non_modal()
     else:
         progress_dialog.show()
+    return True

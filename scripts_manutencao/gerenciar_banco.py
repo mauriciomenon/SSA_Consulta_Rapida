@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -15,8 +16,31 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-# Imports simplificados - evita dependncias complexas durante import
-# from armazenamento.database import get_db_connection
+from armazenamento.database import _clear_resolved_table_cache  # noqa: E402
+from armazenamento.database_integrity import create_sqlite_backup  # noqa: E402
+from armazenamento.database_lock import database_writer_lock  # noqa: E402
+from shared.db_names import SSA_READ_REQUIRED_COLUMNS  # noqa: E402
+
+
+def _is_symlink_directory(path: str) -> bool:
+    # Ancestrais como /tmp no macOS podem ser aliases validos do sistema.
+    # A limpeza recusa links no proprio data/ ou backups/.
+    return Path(path).is_symlink()
+
+
+def _is_db_backup_name(name: str, db_name: str) -> bool:
+    # Backups com apenas o stem nao identificam um banco unico em pasta
+    # compartilhada; bancos com extensoes diferentes podem ter o mesmo stem.
+    return name.removeprefix(".").startswith(
+        (
+            f"{db_name}.bak-",
+            f"{db_name}.backup_",
+            f"{db_name}.full_rescan_backup_",
+            f"{db_name}_backup_",
+            f"{db_name}.bkp",
+            f"{db_name}_bkp",
+        )
+    )
 
 
 def reset_database(db_path="data/ssas.db"):
@@ -27,50 +51,69 @@ def reset_database(db_path="data/ssas.db"):
         db_path (str): Caminho para o arquivo do banco de dados
     """
     print(f"  Resetando banco de dados: {db_path}")
+    schema_path = Path(__file__).parent.parent / "config" / "schema.sql"
+    schema_sql = schema_path.read_text(encoding="utf-8")
 
-    # Remove o arquivo do banco se existir
-    if os.path.exists(db_path):
-        # Faz backup antes de remover
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = f"{db_path}.backup_before_reset_{timestamp}"
-        shutil.copy2(db_path, backup_path)
-        print(f" Backup criado: {backup_path}")
+    with database_writer_lock(db_path):
+        with closing(sqlite3.connect(":memory:")) as candidate:
+            candidate.executescript(schema_sql)
+            tables = {
+                row[0]
+                for row in candidate.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            if not {"ssa_table", "ssa_event_records"} <= tables:
+                raise sqlite3.DatabaseError("Schema oficial incompleto")
+            columns = {
+                row[1] for row in candidate.execute("PRAGMA table_info(ssa_table)")
+            }
+            if set(SSA_READ_REQUIRED_COLUMNS) - columns:
+                raise sqlite3.DatabaseError("Schema oficial sem colunas obrigatorias")
+            if candidate.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                raise sqlite3.DatabaseError("Schema oficial falhou no quick_check")
 
-        os.remove(db_path)
-        print(f" Arquivo do banco removido: {db_path}")
+            destination = Path(db_path)
+            if destination.is_symlink():
+                raise RuntimeError(f"Reset recusado: destino e symlink: {db_path}")
+            if destination.exists():
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                backup_path = f"{db_path}.backup_before_reset_{timestamp}"
+                create_sqlite_backup(destination, backup_path)
+                print(f" Backup criado: {backup_path}")
 
-    # Cria o banco usando o schema oficial
-    schema_path = os.path.join(os.path.dirname(__file__), "..", "config", "schema.sql")
+            created_here = False
+            try:
+                if not destination.exists():
+                    # Instalacao nova: a pasta de dados pode ainda nao existir.
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    sidecars = (
+                        Path(f"{db_path}-wal"),
+                        Path(f"{db_path}-shm"),
+                        Path(f"{db_path}-journal"),
+                    )
+                    if any(os.path.lexists(path) for path in sidecars):
+                        raise RuntimeError(
+                            "Banco novo recusado: sidecars SQLite preexistentes"
+                        )
+                    descriptor = os.open(destination, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                    created_here = True
+                    os.close(descriptor)
+                with closing(sqlite3.connect(destination, timeout=5)) as current:
+                    candidate.backup(current)
+            except Exception:
+                if created_here:
+                    for created_path in (destination, *sidecars):
+                        created_path.unlink(missing_ok=True)
+                raise
 
-    with sqlite3.connect(db_path) as conn:
-        # Lê e executa o schema oficial
-        if os.path.exists(schema_path):
-            with open(schema_path, "r", encoding="utf-8") as f:
-                schema_sql = f.read()
-            conn.executescript(schema_sql)
-            print(" Estrutura das tabelas recriada usando schema oficial")
-        else:
-            # Fallback - cria tabela básica caso schema.sql não exista
-            create_table_sql = """
-            CREATE TABLE IF NOT EXISTS ssa_table (
-                numero_ssa INTEGER PRIMARY KEY,
-                situacao TEXT,
-                setor_executor TEXT,
-                descricao_ssa TEXT,
-                data_cadastro TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """
-            conn.execute(create_table_sql)
-            print(" Estrutura básica da tabela criada (schema.sql não encontrado)")
-
-        conn.commit()
-
+        _clear_resolved_table_cache(db_path)
     print(f" Reset completo! Banco zerado em: {db_path}")
 
 
-def clean_old_backups(data_dir="data", days_to_keep=7):
+def clean_old_backups(
+    data_dir="data", days_to_keep=7, db_basename=None, scope_name=None
+):
     """
     Remove backups antigos da pasta data (mantm apenas os ltimos X dias).
 
@@ -92,13 +135,33 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
         ".backup_",
         "_bkp",
         ".bkp",
+        # Arquivo anterior preservado na promocao de copia e no import de
+        # emergencia (<db>.bak-<timestamp> e sidecars).
+        ".bak-",
     ]
 
+    if _is_symlink_directory(data_dir):
+        raise RuntimeError(f"Limpeza recusada: diretorio contem symlink: {data_dir}")
     data_path = Path(data_dir)
+    backups_path = data_path / "backups"
+    if _is_symlink_directory(str(backups_path)):
+        raise RuntimeError(f"Limpeza recusada: backups contem symlink: {backups_path}")
+    # Escopo customizado usa o nome completo do banco. Nome parecido de outro
+    # arquivo nao autoriza limpeza em pasta compartilhada.
+    scope = scope_name if scope_name is not None else db_basename
+    # O banco ativo e seus sidecars nunca entram na limpeza, mesmo quando o
+    # nome nao e o literal "ssas.db" (SSA_DB_PATH customizado).
+    protected = {
+        f"{db_basename}{suffix}"
+        for suffix in ("", "-wal", "-shm", "-journal")
+    } if db_basename else {"ssas.db"}
+
+    def _in_scope(name: str) -> bool:
+        return not scope or _is_db_backup_name(name, scope)
 
     # Limpa pasta data principal
     for file_path in data_path.glob("*"):
-        if file_path.is_file():
+        if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
             # Verifica se  um arquivo de backup
             is_backup = any(
                 pattern in file_path.name.lower() for pattern in backup_patterns
@@ -113,11 +176,16 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
                     removed_count += 1
                     total_size_removed += file_size
 
-    # Limpa pasta backups
-    backups_path = data_path / "backups"
+    # Limpa pasta backups (mesmo filtro de padrao da pasta principal:
+    # arquivo solto ali que nao seja backup nao pode ser removido)
     if backups_path.exists():
         for file_path in backups_path.glob("*"):
-            if file_path.is_file():
+            if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
+                is_backup = any(
+                    pattern in file_path.name.lower() for pattern in backup_patterns
+                )
+                if not is_backup:
+                    continue
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
                 if file_time < cutoff_date:
                     file_size = file_path.stat().st_size
@@ -134,7 +202,47 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
     )
 
 
-def sanitize_data_folder(data_dir="data"):
+def _remove_temporary_files(data_path: Path, scope: str | None, protected: set[str]) -> int:
+    removed_temp = 0
+    if scope:
+        def _is_scoped_temp(name: str) -> bool:
+            candidate = name.removeprefix(".")
+            if candidate in {
+                f"{scope}.tmp", f"{scope}.temp", f"{scope}.swp",
+                f"{scope}.bak", f"{scope}~",
+            }:
+                return True
+            if candidate.startswith(
+                (f"{scope}.tmp-", f"{scope}.tmp.", f"{scope}.temp-", f"{scope}.temp.")
+            ):
+                return True
+            return candidate.endswith(".tmp") and (
+                candidate.startswith(
+                    (f"{scope}.integrity_", f"{scope}.restore_", f"{scope}.rollback_")
+                )
+                or name.startswith(f".{scope}.")
+            )
+
+        temp_files = (
+            path for path in data_path.glob("*")
+            if _is_scoped_temp(path.name)
+        )
+    else:
+        temp_files = (
+            path
+            for pattern in ("*.tmp", "*.temp", "*~", "*.swp", "*.bak")
+            for path in data_path.glob(pattern)
+        )
+    for file_path in temp_files:
+        if not file_path.is_file() or file_path.name in protected:
+            continue
+        print(f"    Removendo temp: {file_path.name}")
+        file_path.unlink()
+        removed_temp += 1
+    return removed_temp
+
+
+def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
     """
     Sanitiza a pasta data removendo arquivos temporrios e organizando estrutura.
 
@@ -144,19 +252,30 @@ def sanitize_data_folder(data_dir="data"):
     print(f" Sanitizando pasta: {data_dir}")
 
     data_path = Path(data_dir)
+    if _is_symlink_directory(data_dir):
+        print(f"  Sanitizacao recusada: caminho contem symlink: {data_dir}")
+        return
+    if data_path.exists() and not data_path.is_dir():
+        print(
+            "  Sanitizacao recusada: caminho existe e nao e diretorio: "
+            f"{data_dir}"
+        )
+        return
+    if not data_path.is_dir():
+        data_path.mkdir(parents=True, exist_ok=True)
+    backups_path = data_path / "backups"
+    if _is_symlink_directory(str(backups_path)):
+        print(f"  Sanitizacao recusada: backups contem symlink: {backups_path}")
+        return
 
-    # Remove arquivos temporrios
-    temp_patterns = ["*.tmp", "*.temp", "*~", "*.swp", "*.bak"]
-    removed_temp = 0
-
-    for pattern in temp_patterns:
-        for file_path in data_path.glob(pattern):
-            print(f"    Removendo temp: {file_path.name}")
-            file_path.unlink()
-            removed_temp += 1
+    scope = scope_name if scope_name is not None else db_basename
+    protected_sanitize = {
+        f"{db_basename}{suffix}"
+        for suffix in ("", "-wal", "-shm", "-journal")
+    } if db_basename else {"ssas.db"}
+    removed_temp = _remove_temporary_files(data_path, scope, protected_sanitize)
 
     # Garante que a pasta backups existe
-    backups_path = data_path / "backups"
     if not backups_path.exists():
         backups_path.mkdir()
         print("   Pasta backups criada")
@@ -166,7 +285,9 @@ def sanitize_data_folder(data_dir="data"):
     backup_patterns = ["backup_", "ssas_backup_", "ssas_emergency_backup_", ".backup_"]
 
     for file_path in data_path.glob("*"):
-        if file_path.is_file() and file_path.name != "ssas.db":
+        if file_path.is_file() and file_path.name not in protected_sanitize:
+            if scope and not _is_db_backup_name(file_path.name, scope):
+                continue
             is_backup = any(
                 pattern in file_path.name.lower() for pattern in backup_patterns
             )
@@ -287,10 +408,10 @@ def main():
                     print(" Operao cancelada")
                 break
             elif choice == "2":
-                days = input(
+                days_text = input(
                     "Manter backups dos ltimos quantos dias? (padro: 7): "
                 ).strip()
-                days = int(days) if days.isdigit() else 7
+                days = int(days_text) if days_text.isdigit() else 7
                 clean_old_backups(days_to_keep=days)
                 break
             elif choice == "3":

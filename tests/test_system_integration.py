@@ -42,7 +42,10 @@ def test_validate_local_open_target_rejects_symlink_escape(tmp_path):
     target = blocked / "file.txt"
     target.write_text("x", encoding="utf-8")
     symlink = allowed / "linked.txt"
-    symlink.symlink_to(target)
+    try:
+        symlink.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
 
     with pytest.raises(ValueError, match="fora da base permitida"):
         system_integration.validate_local_open_target(

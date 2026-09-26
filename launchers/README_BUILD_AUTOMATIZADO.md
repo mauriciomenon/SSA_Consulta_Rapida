@@ -1,26 +1,37 @@
 # README – PIPELINE DE BUILD AUTOMATIZADO (RASCUNHO)
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
+
+- Branch fonte local: `dev`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
+- Artefatos antigos versionados sao ruido historico/local e nao devem ser usados para publicacao final.
+- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
+- Fluxo da candidata local `v4.51`: validar codigo, documentacao e artefatos antes de decidir a publicacao. Nenhum envio foi feito nesta rodada.
+- Windows usa `release.ps1` em clone nativo; Debian/macOS usam `release.sh` em clones nativos dos respectivos hosts.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `a2954a48`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
+
+## HISTORICAL SNAPSHOT 2026-05-04 01h14
 
 - Branch alvo operacional: `dev` e `main` sincronizados.
 - Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
 - PR #58 e PR #59: merged.
 - PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #59.
 - `main`, `dev`, `origin/main` e `origin/dev` apontam para o mesmo HEAD.
-- Artefatos v4.42 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
+- Artefatos antigos anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
 - Orquestradores ativos:
   - Windows AMD64: `dev_env/build/release_windows.ps1`.
   - Debian AMD64: `dev_env/build/release_debian.sh`.
   - Orquestrador local Windows+WSL: `dev_env/build/release_local.ps1`.
 - Checks GitHub do merge PR #58:
-  - Pass: `minimal-ci`, `Secret Scan`, `codeql-security-scan`, `opencode-pr-review`, `semgrep-cloud-platform/scan`, `security/snyk`, `GitGuardian`, `Socket`, `CodeFactor`, `DeepScan`, `CodeQL`.
   - Externos/advisory: `code/snyk (mauriciomenon)` falhou por limite `Code test limit reached`; `DeepSource: Python` falhou no dashboard externo.
 - Protecao de codigo:
   - Nuitka continua backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e atualizar release v4.42 somente com pacotes novos.
+- Proximo passo operacional historico: rebuildar Windows AMD64 e Debian AMD64 a partir daquele HEAD, validar artefatos e atualizar a release somente com pacotes novos.
 
 ## 1. Objetivos
 | Objetivo | Beneficio |

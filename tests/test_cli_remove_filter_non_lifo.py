@@ -21,7 +21,7 @@ def test_remove_filter_non_lifo_reapplies_from_base(monkeypatch):
 
     def _fake_filter_dataframe(df: pd.DataFrame, terms):
         calls["df"] = df
-        calls["terms"] = list(terms)
+        calls["terms"] = terms
         return target_df
 
     monkeypatch.setattr(cli, "filter_dataframe", _fake_filter_dataframe)
@@ -31,7 +31,9 @@ def test_remove_filter_non_lifo_reapplies_from_base(monkeypatch):
     cli._handle_remove_filter(["-x", "b"], results_stack, {}, {}, {})
 
     assert calls["df"] is base_df
-    assert calls["terms"] == ["a", "c"]
+    parsed_terms = calls["terms"]
+    assert isinstance(parsed_terms, list)
+    assert [term["raw"] for term in parsed_terms] == ["a", "c"]
     assert results_stack[-1][0] is target_df
     assert results_stack[-1][1] == ["a", "c"]
 
@@ -52,7 +54,7 @@ def test_remove_filter_lifo_reapplies_from_previous_state(monkeypatch):
 
     def _fake_filter_dataframe(df: pd.DataFrame, terms):
         calls["df"] = df
-        calls["terms"] = list(terms)
+        calls["terms"] = terms
         return target_df
 
     monkeypatch.setattr(cli, "filter_dataframe", _fake_filter_dataframe)
@@ -62,4 +64,6 @@ def test_remove_filter_lifo_reapplies_from_previous_state(monkeypatch):
     cli._handle_remove_filter(["-x", "b"], results_stack, {}, {}, {})
 
     assert calls["df"] is mid_df
-    assert calls["terms"] == ["a"]
+    parsed_terms = calls["terms"]
+    assert isinstance(parsed_terms, list)
+    assert [term["raw"] for term in parsed_terms] == ["a"]

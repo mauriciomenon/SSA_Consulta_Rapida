@@ -1,16 +1,22 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Get-ReleaseTargetNames', Justification = 'Internal helper returns a list of release target names.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Get-SelectedBackends', Justification = 'Internal helper returns a list of selected backends.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Assert-ExeMetadata', Justification = 'Metadata is the conventional noun for executable version records.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Write-BackendReleaseZips', Justification = 'Internal helper writes multiple backend ZIP artifacts.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', 'Assert-ZipContents', Justification = 'Internal helper validates ZIP content records.')]
 param(
     [string[]] $Backend,
     [switch] $Yes,
     [switch] $SkipBuild,
     [switch] $SkipPackage,
     [switch] $SkipInstaller,
-    [switch] $DryRun
+    [switch] $IncludeRuntimeDb,
+    [switch] $DryRun,
+    [string] $Platform = "windows_amd64"
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
 
-$Platform = "windows_amd64"
 $DistributionModule = "scripts.create_distribution"
 $MandatoryGuideName = "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
 
@@ -23,6 +29,15 @@ function Assert-WindowsHost {
 function Assert-PowerShellHost {
     if ($PSVersionTable.PSVersion.Major -lt 5) {
         throw "PowerShell 5 ou superior e requerido."
+    }
+}
+
+function Assert-WindowsReleasePlatform {
+    if ($Platform -notin @("windows_amd64", "windows_arm64")) {
+        throw "Plataforma Windows invalida: $Platform. Use windows_amd64 ou windows_arm64."
+    }
+    if ($Platform -eq "windows_arm64" -and -not $SkipInstaller -and -not $SkipPackage) {
+        throw "Instalador Windows ARM64 indisponivel. Use -SkipInstaller para gerar ZIP."
     }
 }
 
@@ -150,7 +165,7 @@ function Get-SelectedBackends {
 
     $valid = @($ValidBackends)
     if (-not $RequestedBackends -or $RequestedBackends.Count -eq 0) {
-        Write-Host "Backends disponiveis: $($valid -join ', '), all"
+        Write-Information "Backends disponiveis: $($valid -join ', '), all" -InformationAction Continue
         $raw = Read-Host "Informe um ou mais backends separados por virgula"
         $RequestedBackends = $raw -split "," | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ }
     }
@@ -197,8 +212,37 @@ function Get-BackendScorecard {
 function Get-BackendConfig {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
-        [Parameter(Mandatory = $true)] [string] $Version
+        [Parameter(Mandatory = $true)] [string] $Version,
+        [Parameter(Mandatory = $true)] [string] $TargetPlatform
     )
+
+    if ($TargetPlatform -eq "windows_arm64") {
+        return @{
+            pyinstaller = [ordered]@{
+                build_script = (Join-Path $RepoRoot "dev_env\build\build_pyinstaller_windows_arm64.bat")
+                package_system = "pyinstaller"
+                cli_exe = (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_CLI_v$($Version)_windows_arm64\SSA_CLI_v$($Version)_windows_arm64.exe")
+                gui_exe = (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_GUI_v$($Version)_windows_arm64\SSA_GUI_v$($Version)_windows_arm64.exe")
+                build_info = @(
+                    (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_CLI_v$($Version)_windows_arm64\_internal\config\build_info.json"),
+                    (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_GUI_v$($Version)_windows_arm64\_internal\config\build_info.json")
+                )
+                release_zips = @(
+                    [ordered]@{
+                        source = (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_CLI_v$($Version)_windows_arm64")
+                        zip = (Join-Path $RepoRoot "builds\packages\windows_arm64\SSA_Consulta_Rapida_v$($Version)_windows_arm64_pyinstaller_cli.zip")
+                    },
+                    [ordered]@{
+                        source = (Join-Path $RepoRoot "launchers\dist\windows_arm64\SSA_GUI_v$($Version)_windows_arm64")
+                        zip = (Join-Path $RepoRoot "builds\packages\windows_arm64\SSA_Consulta_Rapida_v$($Version)_windows_arm64_pyinstaller_gui.zip")
+                    }
+                )
+            }
+        }
+    }
+    if ($TargetPlatform -ne "windows_amd64") {
+        throw "Configuracao ausente para plataforma Windows: $TargetPlatform"
+    }
 
     return @{
         pyinstaller = [ordered]@{
@@ -257,6 +301,126 @@ function Get-BackendConfig {
             )
         }
     }
+}
+
+function Get-UserWorkspaceRelativeDirectory {
+    return @(
+        "data",
+        "data\historico_backups",
+        "docs_entrada",
+        "docs_saida",
+        "logs",
+        "reports",
+        "exportacao"
+    )
+}
+
+function Get-BackendCleanupPath {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string] $BackendName,
+        [Parameter(Mandatory = $true)] [string] $Version,
+        [Parameter(Mandatory = $true)] [string] $TargetPlatform
+    )
+
+    if ($TargetPlatform -eq "windows_arm64") {
+        if ($BackendName -ne "pyinstaller") {
+            throw "Backend nao suportado em Windows ARM64: $BackendName"
+        }
+        return @(
+            (Join-Path $RepoRoot "launchers\dist\windows_arm64"),
+            (Join-Path $RepoRoot "builds\pyinstaller\windows_arm64"),
+            (Join-Path $RepoRoot "launchers\platforms\windows_arm64\temp")
+        )
+    }
+
+    switch ($BackendName) {
+        'pyinstaller' {
+            return @(
+                (Join-Path $RepoRoot "launchers\dist\windows_amd64"),
+                (Join-Path $RepoRoot "builds\pyinstaller\windows_amd64"),
+                (Join-Path $RepoRoot "launchers\platforms\windows_amd64\temp")
+            )
+        }
+        'nuitka' {
+            $nuitkaRoot = Join-Path $RepoRoot "builds\nuitka\windows_amd64"
+            return @(
+                (Join-Path $nuitkaRoot "gui_entry.dist"),
+                (Join-Path $nuitkaRoot "cli_entry.dist"),
+                (Join-Path $nuitkaRoot "gui_entry.build"),
+                (Join-Path $nuitkaRoot "cli_entry.build"),
+                (Join-Path $nuitkaRoot "SSA_GUI_v$($Version)_windows_amd64.dist"),
+                (Join-Path $nuitkaRoot "SSA_CLI_v$($Version)_windows_amd64.dist")
+            )
+        }
+        'pyoxidizer' {
+            return @(
+                (Join-Path $RepoRoot "builds\pyoxidizer\windows_amd64")
+            )
+        }
+        default {
+            throw "Backend sem paths de cleanup: $BackendName"
+        }
+    }
+}
+
+function Invoke-BackendCleanup {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string] $BackendName,
+        [Parameter(Mandatory = $true)] [string] $Version,
+        [Parameter(Mandatory = $true)] [string] $TargetPlatform
+    )
+
+    $removed = @()
+    $paths = Get-BackendCleanupPath -RepoRoot $RepoRoot -BackendName $BackendName -Version $Version -TargetPlatform $TargetPlatform
+    foreach ($path in $paths) {
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Recurse -Force
+            $removed += $path
+        }
+    }
+    return $removed
+}
+
+function Get-RuntimeBundleRoot {
+    param(
+        [Parameter(Mandatory = $true)] [hashtable] $Config
+    )
+
+    $roots = @()
+    foreach ($item in $Config.release_zips) {
+        if ($item.source -and ($roots -notcontains $item.source)) {
+            $roots += $item.source
+        }
+    }
+    return $roots
+}
+
+function Initialize-UserWorkspaceDirectory {
+    param(
+        [Parameter(Mandatory = $true)] [string[]] $RuntimeRoot
+    )
+
+    $created = @()
+    $relativeDirs = Get-UserWorkspaceRelativeDirectory
+    foreach ($root in $RuntimeRoot) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+            continue
+        }
+        foreach ($rel in $relativeDirs) {
+            $dir = Join-Path $root $rel
+            if (-not (Test-Path -LiteralPath $dir)) {
+                New-Item -ItemType Directory -Path $dir -Force | Out-Null
+                $created += $dir
+            }
+            $gitkeep = Join-Path $dir ".gitkeep"
+            if (-not (Test-Path -LiteralPath $gitkeep -PathType Leaf)) {
+                New-Item -ItemType File -Path $gitkeep -Force | Out-Null
+            }
+        }
+    }
+    return $created
 }
 
 function Invoke-CheckedProcess {
@@ -440,7 +604,8 @@ function Write-BackendReleaseZips {
 
 function Assert-ZipContents {
     param(
-        [Parameter(Mandatory = $true)] [array] $ZipPaths
+        [Parameter(Mandatory = $true)] [array] $ZipPaths,
+        [string] $ExpectedRuntimeDbHash
     )
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -453,6 +618,15 @@ function Assert-ZipContents {
             $hasBuildInfo = [bool]($entries | Where-Object { $_ -like "*config/build_info.json" -or $_ -like "*config\build_info.json" })
             $hasGuide = [bool]($entries | Where-Object { $_ -like "*$MandatoryGuideName" })
             $hasExe = [bool]($entries | Where-Object { $_ -like "*.exe" })
+            $sensitiveEntries = @($archive.Entries | Where-Object {
+                [System.IO.Path]::GetExtension($_.FullName).ToLowerInvariant() -in @(".db", ".ods", ".xls", ".xlsm", ".xlsx")
+            })
+            $runtimeEntries = @($sensitiveEntries | Where-Object {
+                $normalized = $_.FullName.Replace("\", "/")
+                ($normalized -eq "data/ssas.db" -or $normalized.EndsWith("/data/ssas.db")) -and
+                    -not $normalized.Contains("/_internal/")
+            })
+            $runtimeHash = $null
             if (-not $hasBuildInfo) {
                 throw "ZIP sem build_info.json: $path"
             }
@@ -462,12 +636,38 @@ function Assert-ZipContents {
             if (-not $hasExe) {
                 throw "ZIP sem exe: $path"
             }
+            if ([string]::IsNullOrWhiteSpace($ExpectedRuntimeDbHash)) {
+                if ($sensitiveEntries.Count -gt 0) {
+                    throw "ZIP contem DB/XLS/XLSX sem autorizacao: $path"
+                }
+            } else {
+                if ($sensitiveEntries.Count -ne 1 -or $runtimeEntries.Count -ne 1) {
+                    throw "ZIP deve conter somente data/ssas.db externo: $path"
+                }
+                $runtimeStream = $runtimeEntries[0].Open()
+                $runtimeSha256 = $null
+                try {
+                    $runtimeSha256 = [System.Security.Cryptography.SHA256]::Create()
+                    $runtimeHashBytes = $runtimeSha256.ComputeHash($runtimeStream)
+                    $runtimeHash = ([System.BitConverter]::ToString($runtimeHashBytes) -replace "-", "").ToUpperInvariant()
+                }
+                finally {
+                    if ($runtimeSha256) {
+                        $runtimeSha256.Dispose()
+                    }
+                    $runtimeStream.Dispose()
+                }
+                if ($runtimeHash -ne $ExpectedRuntimeDbHash) {
+                    throw "Hash do banco de runtime diverge no ZIP ${path}: $runtimeHash != $ExpectedRuntimeDbHash"
+                }
+            }
             $records += [ordered]@{
                 path = $path
                 entry_count = $entries.Count
                 has_build_info = $hasBuildInfo
                 has_guide = $hasGuide
                 has_exe = $hasExe
+                runtime_db_sha256 = $runtimeHash
             }
         }
         finally {
@@ -548,18 +748,85 @@ function Get-ArtifactHash {
     return $records
 }
 
+function Assert-RuntimeDatabase {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string[]] $RuntimeRoot
+    )
+
+    $sourcePath = Join-Path $RepoRoot "data\ssas.db"
+    Assert-ExistingFile $sourcePath
+    $sourceResolved = (Resolve-Path -LiteralPath $sourcePath).Path
+    $sourceHash = @(Get-ArtifactHash @($sourceResolved))[0]['sha256']
+    $records = @()
+    foreach ($root in $RuntimeRoot) {
+        Assert-ExistingDirectory $root
+        $runtimePath = Join-Path $root "data\ssas.db"
+        $runtimeHash = @(Get-ArtifactHash @($runtimePath))[0]
+        if ($runtimeHash['sha256'] -ne $sourceHash) {
+            throw "Hash do banco de runtime diverge da origem em ${runtimePath}: $($runtimeHash['sha256']) != $sourceHash"
+        }
+        $sensitiveFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
+            $_.Extension.ToLowerInvariant() -in @(".db", ".ods", ".xls", ".xlsm", ".xlsx")
+        })
+        $unexpected = @($sensitiveFiles | Where-Object {
+            $_.FullName -ne $runtimeHash.path
+        })
+        if ($unexpected.Count -gt 0) {
+            throw "Bundle contem DB/XLS/XLSX nao autorizado: $($unexpected.FullName -join ', ')"
+        }
+        $records += [ordered]@{
+            source = $sourceResolved
+            path = $runtimeHash.path
+            sha256 = $runtimeHash['sha256']
+            length = $runtimeHash.length
+        }
+    }
+    return $records
+}
+
 function Invoke-DistributionPackage {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
         [Parameter(Mandatory = $true)] [string] $BackendName,
-        [Parameter(Mandatory = $true)] [bool] $SkipInstallerFlag
+        [Parameter(Mandatory = $true)] [bool] $SkipInstallerFlag,
+        [Parameter(Mandatory = $true)] [bool] $IncludeRuntimeDbFlag,
+        [string] $TargetPlatform = "windows_amd64"
     )
 
-    $distributionArgs = @("run", "--python", "3.13", "python", "-m", $DistributionModule, "--build-system", $BackendName)
-    if ($SkipInstallerFlag) {
-        $distributionArgs += "--skip-installer"
+    $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
+    $previousReleasePlatform = $env:SSA_RELEASE_PLATFORM
+    $previousManagedPython = $env:UV_MANAGED_PYTHON
+    try {
+        $pythonRequest = "3.13"
+        if ($BackendName -eq "pyinstaller") {
+            $pythonRequest = if ($TargetPlatform -eq "windows_arm64") { $env:SSA_WINDOWS_ARM64_PYTHON } else { "cpython-3.13-windows-x86_64-none" }
+            if ($TargetPlatform -eq "windows_arm64") {
+                if ([string]::IsNullOrWhiteSpace($pythonRequest)) {
+                    $pythonRequest = Join-Path $env:LOCALAPPDATA "Programs\Python\Python313-arm64\python.exe"
+                }
+                $env:UV_MANAGED_PYTHON = "false"
+            }
+            $buildEnvironment = if ($TargetPlatform -eq "windows_arm64") { ".venv-win-arm64" } else { ".venv-win" }
+            $env:UV_PROJECT_ENVIRONMENT = Join-Path $RepoRoot $buildEnvironment
+        }
+        $env:SSA_RELEASE_PLATFORM = $TargetPlatform
+        $distributionArgs = @("run", "--python", $pythonRequest, "python", "-m", $DistributionModule, "--build-system", $BackendName)
+        if ($TargetPlatform -eq "windows_arm64") {
+            $distributionArgs = @("run", "--no-sync") + $distributionArgs[1..($distributionArgs.Count - 1)]
+        }
+        if ($SkipInstallerFlag) {
+            $distributionArgs += "--skip-installer"
+        }
+        if ($IncludeRuntimeDbFlag) {
+            $distributionArgs += "--include-runtime-db"
+        }
+        Invoke-CheckedProcess $RepoRoot "uv" $distributionArgs
+    } finally {
+        $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnvironment
+        $env:SSA_RELEASE_PLATFORM = $previousReleasePlatform
+        $env:UV_MANAGED_PYTHON = $previousManagedPython
     }
-    Invoke-CheckedProcess $RepoRoot "uv" $distributionArgs
 }
 
 function Write-ReleaseReport {
@@ -570,19 +837,25 @@ function Write-ReleaseReport {
 
     $reportDir = Join-Path $RepoRoot "builds\reports"
     New-Item -ItemType Directory -Force $reportDir | Out-Null
-    $reportPath = Join-Path $reportDir "release_report_windows_amd64.json"
+    $reportName = if ($Platform -eq "windows_amd64") { "release_report_windows_amd64.json" } else { "release_report_windows_arm64.json" }
+    $reportPath = Join-Path $reportDir $reportName
     $reportJson = $Report | ConvertTo-Json -Depth 12
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText($reportPath, $reportJson + [Environment]::NewLine, $utf8NoBom)
     return $reportPath
 }
 
+$scriptRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $scriptRepoRoot 'scripts\env\native_host_guard.ps1')
+Assert-SsaWindowsHost -RepoRoot $scriptRepoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
 Assert-WindowsHost
 Assert-PowerShellHost
+Assert-WindowsReleasePlatform
 Assert-Tool "git" "instale Git para Windows"
 Assert-Tool "uv" "instale uv"
 
 $repoRoot = Resolve-RepoRoot
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
 $validBackends = Get-ReleaseTargetNames $repoRoot "backends"
 $selectedBackends = Get-SelectedBackends $Backend $validBackends
 if ((-not $DryRun) -and (-not $SkipInstaller)) {
@@ -612,57 +885,88 @@ $dirtyEntries = Assert-CleanReleaseWorkspace $repoRoot
 $scorecard = Get-BackendScorecard $repoRoot
 
 if ($DryRun) {
-    Write-Host "Dry-run Windows concluido sem build/pacote."
-    Write-Host "Repo: $repoRoot"
-    Write-Host "HEAD: $($gitHead.commit)"
-    Write-Host "Versao: $version"
-    Write-Host "Backends: $($selectedBackends -join ', ')"
+    Write-Output "Dry-run Windows concluido sem build/pacote."
+    Write-Output "Repo: $repoRoot"
+    Write-Output "HEAD: $($gitHead.commit)"
+    Write-Output "Versao: $version"
+    Write-Output "Backends: $($selectedBackends -join ', ')"
     foreach ($backendName in $selectedBackends) {
         $backendScore = $scorecard[$backendName]
-        Write-Host "Scorecard ${backendName}: seguranca=$($backendScore.security_score); python=$($backendScore.source_protection_score); pastas=$($backendScore.easy_user_dirs_score); tamanho=$($backendScore.package_size_score); nota=$($backendScore.note)"
+        Write-Output "Scorecard ${backendName}: seguranca=$($backendScore.security_score); python=$($backendScore.source_protection_score); pastas=$($backendScore.easy_user_dirs_score); tamanho=$($backendScore.package_size_score); nota=$($backendScore.note)"
     }
     return
 }
 
 if (-not $Yes) {
-    Write-Host "Repo: $repoRoot"
-    Write-Host "HEAD: $($gitHead.commit)"
-    Write-Host "Backends: $($selectedBackends -join ', ')"
+    Write-Output "Repo: $repoRoot"
+    Write-Output "HEAD: $($gitHead.commit)"
+    Write-Output "Backends: $($selectedBackends -join ', ')"
     $confirm = Read-Host "Continuar? [s/N]"
     if ($confirm.ToLowerInvariant() -ne "s") {
         throw "Operacao cancelada pelo usuario."
     }
+    $runtimeDbRelevant = ($selectedBackends -contains "pyinstaller") -and (-not ($SkipBuild -and $SkipPackage))
+    if ($runtimeDbRelevant -and -not $PSBoundParameters.ContainsKey('IncludeRuntimeDb')) {
+        # Default seguro: nao incluir o banco operacional no pacote.
+        $includeDbAnswer = Read-Host "Incluir data\ssas.db no pacote? [s/N]"
+        if ($includeDbAnswer.Trim().ToLowerInvariant() -eq "s") {
+            $IncludeRuntimeDb = $true
+        }
+    }
 }
 
-$configs = Get-BackendConfig $repoRoot $version
+$configs = Get-BackendConfig $repoRoot $version $Platform
 $results = @()
 
 foreach ($backendName in $selectedBackends) {
     $config = $configs[$backendName]
+    $cleanupRemoved = @()
+    $userDirsCreated = @()
+    $runtimeProtectionRecords = @()
+    $runtimeDatabaseRecords = @()
     if (-not $SkipBuild) {
-        Invoke-CheckedProcess $repoRoot $config.build_script @("--silent")
+        $cleanupRemoved = @(Invoke-BackendCleanup -RepoRoot $repoRoot -BackendName $backendName -Version $version -TargetPlatform $Platform)
+        $buildArgs = @("--silent")
+        if ($IncludeRuntimeDb -and $backendName -eq "pyinstaller") {
+            $buildArgs += "--with-runtime-db"
+        }
+        Invoke-CheckedProcess $repoRoot $config.build_script $buildArgs
     }
 
     $buildInfoRecords = Assert-BuildInfo $config.build_info $gitHead.commit $Platform $config.package_system
     $exePaths = @($config.cli_exe, $config.gui_exe) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $metadataRecords = Assert-ExeMetadata $exePaths $windowsVersion
     $smokeRecord = Invoke-Smoke $backendName $config
+    $runtimeRoots = @(Get-RuntimeBundleRoot -Config $config)
+    if ($IncludeRuntimeDb -and $backendName -eq "pyinstaller") {
+        $runtimeDatabaseRecords = @(Assert-RuntimeDatabase -RepoRoot $repoRoot -RuntimeRoot $runtimeRoots)
+    }
+    $userDirsCreated = @(Initialize-UserWorkspaceDirectory -RuntimeRoot $runtimeRoots)
+    $runtimeProtectionRecords = @(Assert-SourceProtection $repoRoot $runtimeRoots)
+    $zipRecords = @()
+    $zipProtectionRecords = @()
+    $hashRecords = @()
     if (-not $SkipPackage) {
         Write-BackendReleaseZips $config.release_zips
-        Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller)
+        $includeBackendRuntimeDb = [bool]($IncludeRuntimeDb -and $backendName -eq "pyinstaller")
+        Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller) $includeBackendRuntimeDb $Platform
+        $zipPaths = @($config.release_zips | ForEach-Object { $_.zip })
+        $runtimeDbHash = if ($runtimeDatabaseRecords.Count -gt 0) { $runtimeDatabaseRecords[0]['sha256'] } else { $null }
+        $zipRecords = @(Assert-ZipContents $zipPaths $runtimeDbHash)
+        $zipProtectionRecords = @(Assert-SourceProtection $repoRoot $zipPaths)
+        $hashRecords = @(Get-ArtifactHash $zipPaths)
     }
-
-    $zipPaths = @($config.release_zips | ForEach-Object { $_.zip })
-    $zipRecords = Assert-ZipContents $zipPaths
-    $zipProtectionRecords = @(Assert-SourceProtection $repoRoot $zipPaths)
-    $hashRecords = Get-ArtifactHash $zipPaths
 
     $results += [ordered]@{
         backend = $backendName
         scorecard = $scorecard[$backendName]
+        cleanup_removed = $cleanupRemoved
+        user_dirs_created = $userDirsCreated
         build_info = $buildInfoRecords
         exe_metadata = $metadataRecords
         smoke = $smokeRecord
+        runtime_source_protection = $runtimeProtectionRecords
+        runtime_database = $runtimeDatabaseRecords
         zip_validation = $zipRecords
         zip_source_protection = $zipProtectionRecords
         hashes = $hashRecords
@@ -687,4 +991,4 @@ $report = [ordered]@{
 }
 
 $reportPath = Write-ReleaseReport $repoRoot $report
-Write-Host "Release Windows concluido. Report: $reportPath"
+Write-Output "Release Windows concluido. Report: $reportPath"

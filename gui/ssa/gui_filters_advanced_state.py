@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from gui.ssa.column_filter_engine import _trim_cache_dict
+ADV_FILTER_CACHE_MAX_BYTES = 8 * 1024 * 1024
 
 DIVISAO_SETORES = {}
 SECTOR_TO_DIV = {}
@@ -17,18 +19,10 @@ ADV_FILTER_CACHE_ATTRS = (
 
 
 def prune_adv_cache(cache: dict, max_entries: int) -> None:
-    if len(cache) <= max_entries:
-        return
-    if isinstance(cache, OrderedDict):
-        while len(cache) > max_entries:
-            cache.popitem(last=False)
-        return
-    while len(cache) > max_entries:
-        try:
-            oldest_key = next(iter(cache))
-        except StopIteration:
-            break
-        cache.pop(oldest_key, None)
+    _trim_cache_dict(
+        cache, max_entries,
+        max_bytes=ADV_FILTER_CACHE_MAX_BYTES // len(ADV_FILTER_CACHE_ATTRS),
+    )
 
 
 def configure_adv_filters_constants(divisao_setores, sector_to_div, mono_font_family):

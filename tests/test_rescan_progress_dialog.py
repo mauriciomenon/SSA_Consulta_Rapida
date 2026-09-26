@@ -146,9 +146,52 @@ def test_rescan_progress_dialog_update_progress_clamps_percentage():
     assert dlg.progress_bar.value() == 100
 
 
+def test_rescan_progress_dialog_title_shows_global_file_progress():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    dlg.set_operation_label("Importacao")
+
+    dlg.update_progress(42, "Arquivo 60/1359")
+
+    assert dlg.windowTitle() == "Importacao em andamento - 60/1359"
+
+
+def test_rescan_progress_dialog_error_section_uses_neutral_lowercase_label():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    labels = dlg.findChildren(type(dlg.status_label))
+
+    error_label = next(label for label in labels if label.text() == "Erros e avisos:")
+
+    assert error_label.text() == "Erros e avisos:"
+    assert "color: red" not in error_label.styleSheet()
+
+
 def test_rescan_progress_dialog_starts_non_modal():
     from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
 
     dlg = RescanProgressDialog()
 
     assert dlg.isModal() is False
+
+
+def test_rescan_progress_dialog_limits_output_and_error_history():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog
+
+    dlg = RescanProgressDialog()
+    for index in range(dlg.MAX_OUTPUT_BLOCKS + 2):
+        dlg.append_output(f"saida {index}")
+        dlg.append_error(f"erro {index}")
+
+    output_document = dlg.output_text.document()
+    error_document = dlg.error_text.document()
+    assert output_document is not None
+    assert error_document is not None
+    assert output_document.blockCount() == dlg.MAX_OUTPUT_BLOCKS
+    assert error_document.blockCount() == dlg.MAX_OUTPUT_BLOCKS
+    assert "saida 0" not in dlg.output_text.toPlainText()
+    assert "erro 0" not in dlg.error_text.toPlainText()
+    assert f"saida {dlg.MAX_OUTPUT_BLOCKS + 1}" in dlg.output_text.toPlainText()
+    assert f"erro {dlg.MAX_OUTPUT_BLOCKS + 1}" in dlg.error_text.toPlainText()

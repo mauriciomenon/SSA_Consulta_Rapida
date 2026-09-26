@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Entry point CLI para executavel v3.10
+Entry point CLI para executavel empacotado
 Separado do main.py principal
 """
 
@@ -94,9 +94,11 @@ def _execute_import_and_report(
     logger: Any,
 ) -> ImportExecutionStats:
     from core.import_progress import ImportProgressSummary
+    from core import import_outcome
 
     summary = ImportProgressSummary()
 
+    _outcome_before = import_outcome.get_last_import_outcome()
     updated = run_importer_logic(
         docs_dir=docs_dir,
         data_dir=data_dir,
@@ -104,21 +106,99 @@ def _execute_import_and_report(
         extra_allowed_roots=[runtime_base],
         progress_callback=summary.capture,
     )
-    has_errors = bool(summary.errors)
+    _outcome_after = import_outcome.get_last_import_outcome()
+    outcome = (
+        _outcome_after
+        if _outcome_after is not _outcome_before
+        else None
+    )
+    # O importador registra rejeicoes deterministicas tambem em
+    # critical_errors: somar os contadores contaria o mesmo arquivo duas vezes.
+    error_count = max(
+        len(summary.errors),
+        outcome.deterministic_failure_count if outcome is not None else 0,
+        outcome.blocking_error_count if outcome is not None else 0,
+    )
+    has_errors = error_count > 0
+    if outcome is not None:
+        status = outcome.status
+    else:
+        status = (
+            import_outcome.ImportStatus.UPDATED
+            if updated
+            else import_outcome.ImportStatus.NO_CHANGES
+        )
+    blocking = import_outcome.is_blocking_status(status)
     stats = ImportExecutionStats(
         exit_code=1,
         status="failed",
         updated=updated,
         total_candidates=summary.total_candidates,
         processed_files=summary.processed_files,
-        error_count=len(summary.errors),
+        error_count=error_count,
     )
-    if updated and not has_errors:
-        logger.info("Importacao concluida. resultado=%r", updated)
-        sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
-        stats["exit_code"] = 0
-        stats["status"] = "success"
+    if blocking:
+        message = (
+            "ERRO: Importacao terminou com status bloqueante "
+            f"({status.value}). Consulte os logs da aplicacao.\n"
+        )
+        logger.error(
+            "Importacao bloqueante. status=%s resultado=%r total=%s processados=%s erros=%s",
+            status.value,
+            updated,
+            summary.total_candidates,
+            summary.processed_files,
+            len(summary.errors),
+        )
+        sys.stderr.write(message)
+        stats["status"] = "blocked"
         return stats
+    if outcome is not None and has_errors and status in {
+        import_outcome.ImportStatus.UPDATED,
+        import_outcome.ImportStatus.DERIVADAS_MATERIALIZED,
+    }:
+        logger.error(
+            "Importacao parcial com erros. status=%s resultado=%r total=%s processados=%s erros=%s",
+            status.value,
+            updated,
+            summary.total_candidates,
+            summary.processed_files,
+            error_count,
+        )
+        sys.stderr.write(
+            "ERRO: Importacao parcial encontrou falhas em arquivos candidatos. "
+            "Consulte os logs da aplicacao.\n"
+        )
+        stats["status"] = "partial_error"
+        return stats
+    if outcome is not None:
+        changed = outcome.primary_database_changed
+        stats["exit_code"] = 0
+        stats["status"] = (
+            "no_work" if status == import_outcome.ImportStatus.NO_CHANGES else "success"
+        )
+        message = (
+            f"Importacao concluida. status={status.value} "
+            f"banco_alterado={changed} rejeicoes={error_count}"
+        )
+        logger.info(message)
+        sys.stdout.write(f"{message}\n")
+        return stats
+    if not blocking:
+        if updated and not has_errors:
+            logger.info("Importacao concluida. resultado=%r status=%s", updated, status.value)
+            sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
+            stats["exit_code"] = 0
+            stats["status"] = "success"
+            return stats
+        if not updated and not has_errors:
+            message = f"Importacao concluida sem atualizacoes. resultado={updated!r} status={status.value}"
+            logger.info(message)
+            sys.stdout.write(f"{message}\n")
+            stats["exit_code"] = 0
+            stats["status"] = "no_work"
+            return stats
+
     if updated and has_errors:
         logger.error(
             "Importacao parcial com erros. resultado=%r total=%s processados=%s erros=%s",
@@ -134,28 +214,20 @@ def _execute_import_and_report(
         stats["status"] = "partial_error"
         return stats
 
-    observed_candidate_work = (
-        summary.total_candidates > 0 or summary.processed_files > 0
-    )
-    if not observed_candidate_work and not has_errors:
-        message = f"Importacao concluida sem atualizacoes. resultado={updated!r}"
-        logger.info(message)
-        sys.stdout.write(f"{message}\n")
-        stats["exit_code"] = 0
-        stats["status"] = "no_work"
+    if not updated and has_errors:
+        logger.error(
+            "Importacao nao gravou atualizacoes. resultado=%r total=%s processados=%s erros=%s",
+            updated,
+            summary.total_candidates,
+            summary.processed_files,
+            len(summary.errors),
+        )
+        sys.stderr.write(
+            "ERRO: Importacao nao gravou atualizacoes para arquivos candidatos. "
+            "Consulte os logs da aplicacao.\n"
+        )
         return stats
 
-    logger.error(
-        "Importacao nao gravou atualizacoes. resultado=%r total=%s processados=%s erros=%s",
-        updated,
-        summary.total_candidates,
-        summary.processed_files,
-        len(summary.errors),
-    )
-    sys.stderr.write(
-        "ERRO: Importacao nao gravou atualizacoes para arquivos candidatos. "
-        "Consulte os logs da aplicacao.\n"
-    )
     return stats
 
 
@@ -213,6 +285,25 @@ def _should_run_import(argv: list[str]) -> bool:
     return any(arg in ("--force-rescan", "--rescan") for arg in argv[1:])
 
 
+def _cli_info_exit_code(argv: list[str]) -> int | None:
+    if not any(arg in ("-h", "--help", "--version") for arg in argv[1:]):
+        return None
+
+    from utils.version import get_app_version
+
+    version = get_app_version()
+    if "-h" in argv[1:] or "--help" in argv[1:]:
+        print(f"Consulta Rapida de SSAs v{version}")
+        print("Uso: SSA_CLI [--force-rescan|--rescan] [--help] [--version]")
+        print("Sem opcoes, inicia a consulta interativa.")
+        print("--force-rescan, --rescan  Reimporta planilhas e atualiza derivadas.")
+        print("--help, -h                Exibe esta ajuda e encerra.")
+        print("--version                 Exibe a versao e encerra.")
+    else:
+        print(f"v{version}")
+    return 0
+
+
 def main():
     """Entry point CLI v3.10.
 
@@ -240,6 +331,10 @@ def main():
     smoke_exit_code = _smoke_test_exit_code()
     if smoke_exit_code is not None:
         sys.exit(smoke_exit_code)
+
+    info_exit_code = _cli_info_exit_code(sys.argv)
+    if info_exit_code is not None:
+        sys.exit(info_exit_code)
 
     try:
         from core.app_logic import run_importer_logic
