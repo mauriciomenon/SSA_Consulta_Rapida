@@ -90,7 +90,9 @@ def reset_database(db_path="data/ssas.db"):
     print(f" Reset completo! Banco zerado em: {db_path}")
 
 
-def clean_old_backups(data_dir="data", days_to_keep=7, db_basename=None):
+def clean_old_backups(
+    data_dir="data", days_to_keep=7, db_basename=None, scope_name=None
+):
     """
     Remove backups antigos da pasta data (mantm apenas os ltimos X dias).
 
@@ -120,14 +122,20 @@ def clean_old_backups(data_dir="data", days_to_keep=7, db_basename=None):
     data_path = Path(data_dir)
     # Fora da pasta "data" convencional, so artefatos do banco resolvido podem
     # ser removidos: padoes genericos apagariam arquivos do usuario.
-    stem = os.path.splitext(db_basename)[0] if db_basename else None
+    stem = os.path.splitext(scope_name)[0] if scope_name else None
+    # O banco ativo e seus sidecars nunca entram na limpeza, mesmo quando o
+    # nome nao e o literal "ssas.db" (SSA_DB_PATH customizado).
+    protected = {
+        f"{db_basename}{suffix}"
+        for suffix in ("", "-wal", "-shm", "-journal")
+    } if db_basename else {"ssas.db"}
 
     def _in_scope(name: str) -> bool:
         return stem is None or name.lstrip(".").startswith(stem)
 
     # Limpa pasta data principal
     for file_path in data_path.glob("*"):
-        if file_path.is_file() and _in_scope(file_path.name):
+        if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
             # Verifica se  um arquivo de backup
             is_backup = any(
                 pattern in file_path.name.lower() for pattern in backup_patterns
@@ -147,7 +155,7 @@ def clean_old_backups(data_dir="data", days_to_keep=7, db_basename=None):
     backups_path = data_path / "backups"
     if backups_path.exists():
         for file_path in backups_path.glob("*"):
-            if file_path.is_file() and _in_scope(file_path.name):
+            if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
                 is_backup = any(
                     pattern in file_path.name.lower() for pattern in backup_patterns
                 )
@@ -169,7 +177,7 @@ def clean_old_backups(data_dir="data", days_to_keep=7, db_basename=None):
     )
 
 
-def sanitize_data_folder(data_dir="data", db_basename=None):
+def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
     """
     Sanitiza a pasta data removendo arquivos temporrios e organizando estrutura.
 
@@ -193,7 +201,7 @@ def sanitize_data_folder(data_dir="data", db_basename=None):
 
     # Remove arquivos temporrios. Fora da pasta "data", limita a artefatos
     # com o mesmo nome-base do banco resolvido.
-    stem = os.path.splitext(db_basename)[0] if db_basename else None
+    stem = os.path.splitext(scope_name)[0] if scope_name else None
     temp_patterns = ["*.tmp", "*.temp", "*~", "*.swp", "*.bak"]
     if stem:
         temp_patterns = [
@@ -222,8 +230,12 @@ def sanitize_data_folder(data_dir="data", db_basename=None):
     moved_backups = 0
     backup_patterns = ["backup_", "ssas_backup_", "ssas_emergency_backup_", ".backup_"]
 
+    protected_sanitize = {
+        f"{db_basename}{suffix}"
+        for suffix in ("", "-wal", "-shm", "-journal")
+    } if db_basename else {"ssas.db"}
     for file_path in data_path.glob("*"):
-        if file_path.is_file() and file_path.name not in {"ssas.db", db_basename}:
+        if file_path.is_file() and file_path.name not in protected_sanitize:
             if stem and not file_path.name.lstrip(".").startswith(stem):
                 continue
             is_backup = any(

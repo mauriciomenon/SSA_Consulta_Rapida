@@ -287,15 +287,15 @@ def test_main_maintenance_targets_resolved_database_not_cwd(
     monkeypatch.setattr(
         gerenciar_banco,
         "clean_old_backups",
-        lambda path, db_basename=None: calls.append(
-            ("clean", path, db_basename)
+        lambda path, db_basename=None, scope_name=None: calls.append(
+            ("clean", path, db_basename, scope_name)
         ),
     )
     monkeypatch.setattr(
         gerenciar_banco,
         "sanitize_data_folder",
-        lambda path, db_basename=None: calls.append(
-            ("sanitize", path, db_basename)
+        lambda path, db_basename=None, scope_name=None: calls.append(
+            ("sanitize", path, db_basename, scope_name)
         ),
     )
 
@@ -309,8 +309,8 @@ def test_main_maintenance_targets_resolved_database_not_cwd(
     data_dir = str(runtime_db.parent)
     assert calls == [
         ("reset", str(runtime_db)),
-        ("clean", data_dir, None),
-        ("sanitize", data_dir, None),
+        ("clean", data_dir, "custom.db", None),
+        ("sanitize", data_dir, "custom.db", None),
     ]
     assert not (cwd / "data").exists()
 
@@ -503,7 +503,7 @@ def test_clean_old_backups_stem_scope_preserves_foreign_files(
         os.utime(path, (stale, stale))
 
     gerenciar_banco.clean_old_backups(
-        str(tmp_path), days_to_keep=7, db_basename="ssas.db"
+        str(tmp_path), days_to_keep=7, scope_name="ssas.db"
     )
 
     assert not db_artifact.exists()
@@ -523,9 +523,32 @@ def test_sanitize_stem_scope_preserves_foreign_temp_files(
     for path in (db_temp, hidden_staging, foreign_temp, foreign_bak):
         path.write_bytes(b"x")
 
-    gerenciar_banco.sanitize_data_folder(str(tmp_path), db_basename="ssas.db")
+    gerenciar_banco.sanitize_data_folder(str(tmp_path), scope_name="ssas.db")
 
     assert not db_temp.exists()
     assert not hidden_staging.exists()
     assert foreign_temp.exists()
     assert foreign_bak.exists()
+
+
+def test_clean_old_backups_protects_custom_named_active_db(tmp_path: Path) -> None:
+    """Banco ativo com nome fora do literal ssas.db nao pode entrar na limpeza."""
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    active_db = data_dir / "ssas_backup_prod.db"
+    with sqlite3.connect(active_db) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    stale = 1_600_000_000
+    os.utime(active_db, (stale, stale))
+
+    gerenciar_banco.clean_old_backups(
+        str(data_dir), days_to_keep=7, db_basename="ssas_backup_prod.db"
+    )
+    gerenciar_banco.sanitize_data_folder(
+        str(data_dir), db_basename="ssas_backup_prod.db"
+    )
+
+    assert active_db.is_file()
+    assert not (data_dir / "backups" / active_db.name).exists()

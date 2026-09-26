@@ -279,8 +279,8 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         try:
             from scripts_manutencao.gerenciar_banco import reset_database
         except ImportError:
-            print("Modulo de gerenciamento de banco nao disponivel")
-            return True
+            print("ERRO: modulo de gerenciamento de banco nao disponivel")
+            sys.exit(1)
         try:
             reset_database(db_path)
         except Timeout:
@@ -310,21 +310,21 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
             sanitize_data_folder,
         )
     except ImportError:
-        print("Modulo de gerenciamento de banco nao disponivel")
-        return True
+        print("ERRO: modulo de gerenciamento de banco nao disponivel")
+        sys.exit(1)
     try:
         # Fora da pasta "data", a varredura so pode tocar artefatos com o
-        # mesmo nome-base do banco resolvido.
+        # mesmo nome-base do banco resolvido; o nome real do banco sempre
+        # fica protegido, mesmo customizado via SSA_DB_PATH.
+        db_name = os.path.basename(db_path)
         stem_scope = (
-            os.path.basename(db_path)
-            if os.path.basename(data_dir) != "data"
-            else None
+            db_name if os.path.basename(data_dir) != "data" else None
         )
         # A limpeza remove temporarios e move arquivos da pasta do banco:
         # sem o lock de escrita poderia atingir staging de importacao ativa.
         with database_writer_lock(db_path, timeout=0):
-            clean_old_backups(data_dir, db_basename=stem_scope)
-            sanitize_data_folder(data_dir, db_basename=stem_scope)
+            clean_old_backups(data_dir, db_basename=db_name, scope_name=stem_scope)
+            sanitize_data_folder(data_dir, db_basename=db_name, scope_name=stem_scope)
     except Timeout:
         print(_MAINTENANCE_DB_BUSY_MESSAGE)
         sys.exit(1)
