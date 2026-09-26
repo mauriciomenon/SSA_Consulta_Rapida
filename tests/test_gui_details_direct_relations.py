@@ -125,6 +125,8 @@ def test_details_uses_local_children_when_target_absent_from_synced_matrix(
 
     assert data["graph_source"] == "local"
     assert data["children"] == ["202600101"]
+    assert data["direct_children_count"] == 1
+    assert data["descendants_count"] == 1
     assert "direct_relation_rows" not in data
 
 

@@ -196,6 +196,14 @@ def _promote_full_rescan_candidate_locked(
         "Promovendo DB candidato de full rescan para principal: %s",
         os.path.basename(candidate_db_path),
     )
+    if os.path.islink(primary_db_path):
+        raise DatabaseError(
+            f"Promocao recusada: destino e symlink: {primary_db_path}"
+        )
+    if os.path.islink(candidate_db_path):
+        raise DatabaseError(
+            f"Promocao recusada: candidato e symlink: {candidate_db_path}"
+        )
     ensure_wal_checkpointed(
         candidate_db_path,
         log_label="DB candidato de full rescan",
@@ -210,10 +218,6 @@ def _promote_full_rescan_candidate_locked(
         cleanup_sidecars=True,
     )
 
-    if os.path.islink(primary_db_path):
-        raise DatabaseError(
-            f"Promocao recusada: destino e symlink: {primary_db_path}"
-        )
     backup_path: str | None = None
     original_mode: str | None = None
     if os.path.exists(primary_db_path):

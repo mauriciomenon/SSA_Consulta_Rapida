@@ -249,6 +249,20 @@ _MAINTENANCE_DB_BUSY_MESSAGE = (
     "ERRO: banco em uso por outro processo. Feche a aplicacao e tente novamente."
 )
 
+_SQLITE_MAGIC = b"SQLite format 3\x00"
+
+
+def _looks_like_sqlite_file(path: str) -> bool:
+    """Arquivo regular, nao-symlink, vazio ou com cabecalho SQLite."""
+    if os.path.islink(path) or not os.path.isfile(path):
+        return False
+    try:
+        with open(path, "rb") as handle:
+            head = handle.read(16)
+    except OSError:
+        return False
+    return not head or head == _SQLITE_MAGIC
+
 
 def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
     """Executa manutencao sobre o banco resolvido (SSA_DB_PATH ou runtime)."""
@@ -278,9 +292,11 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         print("Banco de dados resetado com sucesso!")
         return True
     data_dir = os.path.dirname(os.path.abspath(db_path))
-    # A limpeza remove *.tmp/*.bak/*~ e move backup_*: so roda quando o
-    # diretorio contem o banco resolvido ou e a pasta convencional "data".
-    if os.path.basename(data_dir) != "data" and not os.path.exists(db_path):
+    # A limpeza remove *.tmp/*.bak/*~ e move backup_*: fora da pasta "data"
+    # so roda quando o destino e um banco SQLite regular e nao-symlink.
+    if os.path.basename(data_dir) != "data" and not _looks_like_sqlite_file(
+        db_path
+    ):
         print(
             f"Limpeza recusada: {data_dir} nao contem o banco resolvido "
             "nem se chama 'data'."
@@ -297,11 +313,18 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         print("Modulo de gerenciamento de banco nao disponivel")
         return True
     try:
+        # Fora da pasta "data", a varredura so pode tocar artefatos com o
+        # mesmo nome-base do banco resolvido.
+        stem_scope = (
+            os.path.basename(db_path)
+            if os.path.basename(data_dir) != "data"
+            else None
+        )
         # A limpeza remove temporarios e move arquivos da pasta do banco:
         # sem o lock de escrita poderia atingir staging de importacao ativa.
         with database_writer_lock(db_path, timeout=0):
-            clean_old_backups(data_dir)
-            sanitize_data_folder(data_dir)
+            clean_old_backups(data_dir, db_basename=stem_scope)
+            sanitize_data_folder(data_dir, db_basename=stem_scope)
     except Timeout:
         print(_MAINTENANCE_DB_BUSY_MESSAGE)
         sys.exit(1)

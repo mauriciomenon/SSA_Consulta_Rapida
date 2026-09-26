@@ -64,6 +64,8 @@ def reset_database(db_path="data/ssas.db"):
             created_here = False
             try:
                 if not destination.exists():
+                    # Instalacao nova: a pasta de dados pode ainda nao existir.
+                    destination.parent.mkdir(parents=True, exist_ok=True)
                     sidecars = (
                         Path(f"{db_path}-wal"),
                         Path(f"{db_path}-shm"),
@@ -88,7 +90,7 @@ def reset_database(db_path="data/ssas.db"):
     print(f" Reset completo! Banco zerado em: {db_path}")
 
 
-def clean_old_backups(data_dir="data", days_to_keep=7):
+def clean_old_backups(data_dir="data", days_to_keep=7, db_basename=None):
     """
     Remove backups antigos da pasta data (mantm apenas os ltimos X dias).
 
@@ -116,10 +118,16 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
     ]
 
     data_path = Path(data_dir)
+    # Fora da pasta "data" convencional, so artefatos do banco resolvido podem
+    # ser removidos: padoes genericos apagariam arquivos do usuario.
+    stem = os.path.splitext(db_basename)[0] if db_basename else None
+
+    def _in_scope(name: str) -> bool:
+        return stem is None or name.lstrip(".").startswith(stem)
 
     # Limpa pasta data principal
     for file_path in data_path.glob("*"):
-        if file_path.is_file():
+        if file_path.is_file() and _in_scope(file_path.name):
             # Verifica se  um arquivo de backup
             is_backup = any(
                 pattern in file_path.name.lower() for pattern in backup_patterns
@@ -139,7 +147,7 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
     backups_path = data_path / "backups"
     if backups_path.exists():
         for file_path in backups_path.glob("*"):
-            if file_path.is_file():
+            if file_path.is_file() and _in_scope(file_path.name):
                 is_backup = any(
                     pattern in file_path.name.lower() for pattern in backup_patterns
                 )
@@ -161,7 +169,7 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
     )
 
 
-def sanitize_data_folder(data_dir="data"):
+def sanitize_data_folder(data_dir="data", db_basename=None):
     """
     Sanitiza a pasta data removendo arquivos temporrios e organizando estrutura.
 
@@ -171,11 +179,31 @@ def sanitize_data_folder(data_dir="data"):
     print(f" Sanitizando pasta: {data_dir}")
 
     data_path = Path(data_dir)
+    if data_path.is_symlink():
+        print(f"  Sanitizacao recusada: caminho e symlink: {data_dir}")
+        return
+    if data_path.exists() and not data_path.is_dir():
+        print(
+            "  Sanitizacao recusada: caminho existe e nao e diretorio: "
+            f"{data_dir}"
+        )
+        return
     if not data_path.is_dir():
         data_path.mkdir(parents=True, exist_ok=True)
 
-    # Remove arquivos temporrios
+    # Remove arquivos temporrios. Fora da pasta "data", limita a artefatos
+    # com o mesmo nome-base do banco resolvido.
+    stem = os.path.splitext(db_basename)[0] if db_basename else None
     temp_patterns = ["*.tmp", "*.temp", "*~", "*.swp", "*.bak"]
+    if stem:
+        temp_patterns = [
+            f"{stem}*.tmp*",
+            f"{stem}*.temp*",
+            f"{stem}*~",
+            f"{stem}*.swp",
+            f"{stem}*.bak",
+            f".{stem}*.tmp*",
+        ]
     removed_temp = 0
 
     for pattern in temp_patterns:
@@ -195,7 +223,9 @@ def sanitize_data_folder(data_dir="data"):
     backup_patterns = ["backup_", "ssas_backup_", "ssas_emergency_backup_", ".backup_"]
 
     for file_path in data_path.glob("*"):
-        if file_path.is_file() and file_path.name != "ssas.db":
+        if file_path.is_file() and file_path.name not in {"ssas.db", db_basename}:
+            if stem and not file_path.name.lstrip(".").startswith(stem):
+                continue
             is_backup = any(
                 pattern in file_path.name.lower() for pattern in backup_patterns
             )

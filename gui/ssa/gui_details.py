@@ -2178,7 +2178,9 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         target_status = ""
     tree_data = details_derivadas_model.normalize_tree_data(
         target=target,
-        snapshot=snapshot,
+        # Snapshot nao autoritativo so traz profile sintetizado com contagens
+        # zeradas, que contradiz o payload local.
+        snapshot=snapshot if snapshot_ready else None,
         fallback_children=(
             []
             if snapshot_ready or local_has_relation_data

@@ -226,6 +226,38 @@ def test_promote_refuses_corrupt_primary_without_removing_it(tmp_path: Path) -> 
     assert not list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
 
 
+def test_promote_refuses_symlink_primary(tmp_path: Path) -> None:
+    primary_link = tmp_path / "ssas.db"
+    real_primary = tmp_path / "real_ssas.db"
+    candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
+    _build_value_db(real_primary, "primary_old")
+    _build_value_db(candidate_db, "candidate_new")
+    primary_link.symlink_to(real_primary)
+
+    with pytest.raises(DatabaseError, match="destino e symlink"):
+        promote_full_rescan_candidate(str(candidate_db), str(primary_link))
+
+    assert primary_link.is_symlink()
+    assert _read_value(real_primary) == "primary_old"
+    assert _read_value(candidate_db) == "candidate_new"
+
+
+def test_promote_refuses_symlink_candidate(tmp_path: Path) -> None:
+    primary_db = tmp_path / "ssas.db"
+    real_candidate = tmp_path / "real_candidate.db"
+    candidate_link = tmp_path / "ssas.db.full_rescan_candidate_test"
+    _build_value_db(primary_db, "primary_old")
+    _build_value_db(real_candidate, "candidate_new")
+    candidate_link.symlink_to(real_candidate)
+
+    with pytest.raises(DatabaseError, match="candidato e symlink"):
+        promote_full_rescan_candidate(str(candidate_link), str(primary_db))
+
+    assert candidate_link.is_symlink()
+    assert _read_value(primary_db) == "primary_old"
+    assert _read_value(real_candidate) == "candidate_new"
+
+
 def test_promote_keeps_primary_visible_until_atomic_replace(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
