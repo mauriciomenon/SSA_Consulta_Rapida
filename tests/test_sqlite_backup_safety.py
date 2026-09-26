@@ -319,6 +319,7 @@ def test_main_clean_data_refuses_when_writer_lock_is_busy(
     from scripts_manutencao import gerenciar_banco
 
     db_path = tmp_path / "ssas.db"
+    db_path.write_bytes(b"\x00")
     monkeypatch.setattr(
         gerenciar_banco,
         "clean_old_backups",

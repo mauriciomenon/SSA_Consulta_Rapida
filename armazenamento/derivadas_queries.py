@@ -741,6 +741,7 @@ def get_ssa_hierarchy_snapshot(
             "family_roots": [],
             "family_descendants": [],
             "family_truncated": False,
+            "in_matrix": False,
         }
     safe_max_distance = _normalize_max_distance(max_distance)
     safe_max_nodes = max(1, min(int(max_nodes), DERIVADAS_FAMILY_NODE_LIMIT))
@@ -761,6 +762,7 @@ def get_ssa_hierarchy_snapshot(
                 "family_roots": [],
                 "family_descendants": [],
                 "family_truncated": False,
+                "in_matrix": False,
             }
         conn = cast(sqlite3.Connection, conn)
         conn.execute("BEGIN")
@@ -785,6 +787,18 @@ def get_ssa_hierarchy_snapshot(
             (target_ssa,),
         ).fetchall()
         children = [row[0] for row in children_rows]
+
+        in_matrix = bool(
+            conn.execute(
+                """
+                SELECT 1
+                FROM ssa_derivada_matrix
+                WHERE (child_ssa = ? OR parent_ssa = ?)
+                LIMIT 1
+                """,
+                (target_ssa, target_ssa),
+            ).fetchone()
+        )
 
         profile_row = conn.execute(
             """
@@ -918,4 +932,5 @@ def get_ssa_hierarchy_snapshot(
             "family_roots": family_roots,
             "family_descendants": family_descendants,
             "family_truncated": family_truncated,
+            "in_matrix": in_matrix,
         }

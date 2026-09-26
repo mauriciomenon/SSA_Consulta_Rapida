@@ -128,6 +128,33 @@ def test_details_uses_local_children_when_target_absent_from_synced_matrix(
     assert "direct_relation_rows" not in data
 
 
+def test_details_does_not_resurrect_deactivated_matrix_edge(
+    temp_db: str, tmp_path: Path
+) -> None:
+    root = "202600200"
+    child = "202600201"
+    sheet = tmp_path / "rel.csv"
+    sheet.write_text(
+        "parent_ssa,child_ssa,relation_label\n"
+        f"{root},{child},Derivada da\n",
+        encoding="utf-8",
+    )
+    sync_derivadas(temp_db, include_db_source=False, sheet_file=str(sheet))
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute(
+            "UPDATE ssa_derivada_matrix SET active = 0 "
+            "WHERE parent_ssa = ? AND child_ssa = ?",
+            (root, child),
+        )
+
+    window = _window(temp_db, [(root, ""), (child, root)])
+    data = gui_details._collect_derivadas_tree_data(window, root)
+
+    assert data["graph_source"] == "matrix"
+    assert data["children"] == []
+    assert data["direct_relation_rows"] is not None
+
+
 def test_details_keeps_local_children_for_legacy_database(tmp_path: Path) -> None:
     window = _window(
         str(tmp_path / "missing.db"),

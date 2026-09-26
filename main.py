@@ -278,6 +278,14 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         print("Banco de dados resetado com sucesso!")
         return True
     data_dir = os.path.dirname(os.path.abspath(db_path))
+    # A limpeza remove *.tmp/*.bak/*~ e move backup_*: so roda quando o
+    # diretorio contem o banco resolvido ou e a pasta convencional "data".
+    if os.path.basename(data_dir) != "data" and not os.path.exists(db_path):
+        print(
+            f"Limpeza recusada: {data_dir} nao contem o banco resolvido "
+            "nem se chama 'data'."
+        )
+        sys.exit(1)
     print(f"Limpando pasta data: {data_dir}")
     try:
         from armazenamento.database_lock import database_writer_lock

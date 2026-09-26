@@ -411,7 +411,7 @@ def _build_column_widths_section(
                 )
         try:
             return int(persisted_column_widths.get(col_key, 120) or 120)
-        except (TypeError, ValueError, AttributeError):
+        except (TypeError, ValueError, AttributeError, OverflowError):
             return 120
 
     table_group = QGroupBox("Tabela e colunas exibidas")
