@@ -117,13 +117,15 @@ def build_import_outcome(
     integrity_report: Optional[Dict[str, Any]] = None,
     report_path: Optional[str] = None,
     primary_database_actually_changed: Optional[bool] = None,
-    cancel_requested: bool = False,
+    cancel_requested: Optional[bool] = None,
 ) -> ImportOutcome:
     status = resolve_import_status(raw_status)
     if primary_database_actually_changed is not None:
         changed = bool(primary_database_actually_changed)
     else:
         changed = status in _PRIMARY_CHANGING_STATUSES
+    if cancel_requested is None:
+        cancel_requested = status == ImportStatus.CANCELLED
     return ImportOutcome(
         run_id=run_id,
         status=status,

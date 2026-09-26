@@ -197,26 +197,30 @@ class CacheManager:
         logger = get_robust_logger().get_logger(__name__, "core")
         with self._lock:
             cache = self._caches["dataframes"]
-            previous_frame = cache.pop(df_hash, None)
-            if previous_frame is not None:
-                self._mark_cache_details_dirty()
-            previous_access = self._access_times["dataframes"].pop(df_hash, None)
+            # Mede e copia antes de remover a entrada anterior: falha de
+            # medicao nao pode derrubar um frame valido ainda em cache.
             try:
                 entry_bytes = int(formatted_df.memory_usage(deep=True).sum())
-                if entry_bytes > self.max_dataframe_bytes:
-                    return
-                sizes = {
-                    key: int(frame.memory_usage(deep=True).sum())
-                    for key, frame in cache.items()
-                }
+                sizes = (
+                    {}
+                    if entry_bytes > self.max_dataframe_bytes
+                    else {
+                        key: int(frame.memory_usage(deep=True).sum())
+                        for key, frame in cache.items()
+                        if key != df_hash
+                    }
+                )
             except (TypeError, ValueError, OverflowError, RuntimeError, AttributeError) as exc:
                 logger.warning("Formatted cache size unavailable; entry not retained: %s", exc)
-                if previous_frame is not None:
-                    cache[df_hash] = previous_frame
-                    if previous_access is not None:
-                        self._access_times["dataframes"][df_hash] = previous_access
                 return
-            retained_frame = formatted_df.copy()
+            retained_frame = None
+            if entry_bytes <= self.max_dataframe_bytes:
+                retained_frame = formatted_df.copy()
+            if cache.pop(df_hash, None) is not None:
+                self._mark_cache_details_dirty()
+            self._access_times["dataframes"].pop(df_hash, None)
+            if retained_frame is None:
+                return
             retained_bytes = sum(sizes.values())
             while cache and retained_bytes + entry_bytes > self.max_dataframe_bytes:
                 previous_count = len(cache)
