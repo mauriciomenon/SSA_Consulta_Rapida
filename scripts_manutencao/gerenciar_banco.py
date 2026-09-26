@@ -200,39 +200,7 @@ def clean_old_backups(
     )
 
 
-def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
-    """
-    Sanitiza a pasta data removendo arquivos temporrios e organizando estrutura.
-
-    Args:
-        data_dir (str): Diretrio data
-    """
-    print(f" Sanitizando pasta: {data_dir}")
-
-    data_path = Path(data_dir)
-    if _has_symlink_component(data_dir):
-        print(f"  Sanitizacao recusada: caminho contem symlink: {data_dir}")
-        return
-    if data_path.exists() and not data_path.is_dir():
-        print(
-            "  Sanitizacao recusada: caminho existe e nao e diretorio: "
-            f"{data_dir}"
-        )
-        return
-    if not data_path.is_dir():
-        data_path.mkdir(parents=True, exist_ok=True)
-    backups_path = data_path / "backups"
-    if _has_symlink_component(str(backups_path)):
-        print(f"  Sanitizacao recusada: backups contem symlink: {backups_path}")
-        return
-
-    # Remove arquivos temporrios. Fora da pasta "data", limita a artefatos
-    # com o mesmo nome-base do banco resolvido.
-    scope = scope_name if scope_name is not None else db_basename
-    protected_sanitize = {
-        f"{db_basename}{suffix}"
-        for suffix in ("", "-wal", "-shm", "-journal")
-    } if db_basename else {"ssas.db"}
+def _remove_temporary_files(data_path: Path, scope: str | None, protected: set[str]) -> int:
     removed_temp = 0
     if scope:
         def _is_scoped_temp(name: str) -> bool:
@@ -264,11 +232,46 @@ def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
             for path in data_path.glob(pattern)
         )
     for file_path in temp_files:
-        if not file_path.is_file() or file_path.name in protected_sanitize:
+        if not file_path.is_file() or file_path.name in protected:
             continue
         print(f"    Removendo temp: {file_path.name}")
         file_path.unlink()
         removed_temp += 1
+    return removed_temp
+
+
+def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
+    """
+    Sanitiza a pasta data removendo arquivos temporrios e organizando estrutura.
+
+    Args:
+        data_dir (str): Diretrio data
+    """
+    print(f" Sanitizando pasta: {data_dir}")
+
+    data_path = Path(data_dir)
+    if _has_symlink_component(data_dir):
+        print(f"  Sanitizacao recusada: caminho contem symlink: {data_dir}")
+        return
+    if data_path.exists() and not data_path.is_dir():
+        print(
+            "  Sanitizacao recusada: caminho existe e nao e diretorio: "
+            f"{data_dir}"
+        )
+        return
+    if not data_path.is_dir():
+        data_path.mkdir(parents=True, exist_ok=True)
+    backups_path = data_path / "backups"
+    if _has_symlink_component(str(backups_path)):
+        print(f"  Sanitizacao recusada: backups contem symlink: {backups_path}")
+        return
+
+    scope = scope_name if scope_name is not None else db_basename
+    protected_sanitize = {
+        f"{db_basename}{suffix}"
+        for suffix in ("", "-wal", "-shm", "-journal")
+    } if db_basename else {"ssas.db"}
+    removed_temp = _remove_temporary_files(data_path, scope, protected_sanitize)
 
     # Garante que a pasta backups existe
     if not backups_path.exists():
