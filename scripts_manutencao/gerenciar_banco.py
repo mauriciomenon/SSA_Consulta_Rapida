@@ -172,7 +172,7 @@ def sanitize_data_folder(data_dir="data"):
 
     data_path = Path(data_dir)
     if not data_path.is_dir():
-        data_path.mkdir(parents=True)
+        data_path.mkdir(parents=True, exist_ok=True)
 
     # Remove arquivos temporrios
     temp_patterns = ["*.tmp", "*.temp", "*~", "*.swp", "*.bak"]
