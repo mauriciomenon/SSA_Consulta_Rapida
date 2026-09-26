@@ -280,9 +280,11 @@ def test_main_maintenance_targets_resolved_database_not_cwd(
     cwd = tmp_path / "cwd"
     cwd.mkdir()
     monkeypatch.chdir(cwd)
-    calls: list[tuple[str, str, str | None]] = []
+    calls: list[tuple[str, str, str | None, str | None]] = []
     monkeypatch.setattr(
-        gerenciar_banco, "reset_database", lambda path: calls.append(("reset", path))
+        gerenciar_banco,
+        "reset_database",
+        lambda path: calls.append(("reset", path, None, None)),
     )
     monkeypatch.setattr(
         gerenciar_banco,
@@ -308,9 +310,9 @@ def test_main_maintenance_targets_resolved_database_not_cwd(
 
     data_dir = str(runtime_db.parent)
     assert calls == [
-        ("reset", str(runtime_db)),
-        ("clean", data_dir, "custom.db", None),
-        ("sanitize", data_dir, "custom.db", None),
+        ("reset", str(runtime_db), None, None),
+        ("clean", data_dir, "custom.db", "custom.db"),
+        ("sanitize", data_dir, "custom.db", "custom.db"),
     ]
     assert not (cwd / "data").exists()
 
@@ -552,3 +554,208 @@ def test_clean_old_backups_protects_custom_named_active_db(tmp_path: Path) -> No
 
     assert active_db.is_file()
     assert not (data_dir / "backups" / active_db.name).exists()
+
+
+def test_clean_old_backups_uses_db_basename_as_scope(tmp_path: Path) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "shared"
+    data_dir.mkdir()
+    own_backup = data_dir / "custom.db.bak-20260101_000000_000000"
+    foreign_backup = data_dir / "backup_unrelated.db"
+    for path in (own_backup, foreign_backup):
+        path.write_bytes(b"x")
+        os.utime(path, (1_600_000_000, 1_600_000_000))
+    own_temp = data_dir / "custom.db.tmp-123"
+    foreign_temp = data_dir / "other.tmp"
+    own_temp.write_bytes(b"x")
+    foreign_temp.write_bytes(b"x")
+
+    gerenciar_banco.clean_old_backups(
+        str(data_dir), days_to_keep=7, db_basename="custom.db"
+    )
+    gerenciar_banco.sanitize_data_folder(str(data_dir), db_basename="custom.db")
+
+    assert not own_backup.exists()
+    assert not own_temp.exists()
+    assert foreign_backup.exists()
+    assert foreign_temp.exists()
+
+
+@pytest.mark.parametrize("db_name", ["live.tmp", "live.bak"])
+def test_sanitize_preserves_active_db_with_temp_extension(
+    tmp_path: Path, db_name: str
+) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    active_db = data_dir / db_name
+    with sqlite3.connect(active_db) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+
+    gerenciar_banco.sanitize_data_folder(
+        str(data_dir), db_basename=active_db.name, scope_name=""
+    )
+
+    assert active_db.is_file()
+    with sqlite3.connect(active_db) as conn:
+        assert conn.execute("PRAGMA quick_check").fetchone() == ("ok",)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_main_clean_data_refuses_symlinked_directory_before_cleanup(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import main as main_module
+
+    target = tmp_path / "shared"
+    target.mkdir()
+    with sqlite3.connect(target / "ssas.db") as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    foreign_backup = target / "backup_unrelated.db"
+    foreign_backup.write_bytes(b"keep")
+    os.utime(foreign_backup, (1_600_000_000, 1_600_000_000))
+    link = tmp_path / "data"
+    link.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(SystemExit) as exit_info:
+        main_module._run_maintenance_action(
+            Namespace(reset_db=False, clean_data=True), str(link / "ssas.db")
+        )
+
+    assert exit_info.value.code == 1
+    assert foreign_backup.read_bytes() == b"keep"
+    output = capsys.readouterr().out
+    assert "Limpeza recusada" in output
+    assert "Limpeza concluida" not in output
+
+
+def test_main_clean_data_limits_custom_db_to_its_full_basename(
+    tmp_path: Path,
+) -> None:
+    import main as main_module
+
+    data_dir = tmp_path / "shared"
+    data_dir.mkdir()
+    db_path = data_dir / "foo.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    own_backup = data_dir / "foo.db.bak-20260101_000000_000000"
+    own_temp = data_dir / "foo.db.tmp-123"
+    foreign_backup = data_dir / "foobar_backup_old.db"
+    foreign_temp = data_dir / "foobar.tmp"
+    near_name = data_dir / "foo.dbx.tmp"
+    same_prefix_backup = data_dir / "foo.db.other_backup_old.db"
+    same_prefix_temp = data_dir / "foo.db.other.tmp"
+    for path in (
+        own_backup, own_temp, foreign_backup, foreign_temp, near_name,
+        same_prefix_backup, same_prefix_temp,
+    ):
+        path.write_bytes(b"keep")
+    for path in (own_backup, foreign_backup, same_prefix_backup):
+        os.utime(path, (1_600_000_000, 1_600_000_000))
+
+    assert main_module._run_maintenance_action(
+        Namespace(reset_db=False, clean_data=True), str(db_path)
+    )
+
+    assert not own_backup.exists()
+    assert not own_temp.exists()
+    assert foreign_backup.read_bytes() == b"keep"
+    assert foreign_temp.read_bytes() == b"keep"
+    assert near_name.read_bytes() == b"keep"
+    assert same_prefix_backup.read_bytes() == b"keep"
+    assert same_prefix_temp.read_bytes() == b"keep"
+
+
+def test_main_clean_data_scopes_explicit_ssa_db_path_named_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import main as main_module
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    foreign_backup = data_dir / "backup_unrelated.db"
+    foreign_temp = data_dir / "notes.tmp"
+    foreign_backup.write_bytes(b"keep")
+    foreign_temp.write_bytes(b"keep")
+    os.utime(foreign_backup, (1_600_000_000, 1_600_000_000))
+    monkeypatch.setenv("SSA_DB_PATH", str(db_path))
+
+    assert main_module._run_maintenance_action(
+        Namespace(reset_db=False, clean_data=True), str(db_path)
+    )
+
+    assert foreign_backup.read_bytes() == b"keep"
+    assert foreign_temp.read_bytes() == b"keep"
+
+
+def test_main_clean_data_keeps_legacy_scope_for_runtime_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import main as main_module
+
+    monkeypatch.delenv("SSA_DB_PATH", raising=False)
+    monkeypatch.setattr(main_module, "runtime_root", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    old_backup = data_dir / "backup_legacy.db"
+    old_backup.write_bytes(b"old")
+    os.utime(old_backup, (1_600_000_000, 1_600_000_000))
+
+    assert main_module._run_maintenance_action(
+        Namespace(reset_db=False, clean_data=True), str(db_path)
+    )
+
+    assert not old_backup.exists()
+    assert db_path.is_file()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_clean_refuses_symlinked_backups_before_removing_files(tmp_path: Path) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    external = tmp_path / "external"
+    external.mkdir()
+    (data_dir / "backups").symlink_to(external, target_is_directory=True)
+    local_backup = data_dir / "ssas.db.bak-20260101_000000_000000"
+    external_backup = external / "ssas.db.bak-20260101_000000_000000"
+    for path in (local_backup, external_backup):
+        path.write_bytes(b"keep")
+        os.utime(path, (1_600_000_000, 1_600_000_000))
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        gerenciar_banco.clean_old_backups(str(data_dir))
+
+    assert local_backup.read_bytes() == b"keep"
+    assert external_backup.read_bytes() == b"keep"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_sanitize_refuses_symlinked_backups_before_moving_files(
+    tmp_path: Path,
+) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    external = tmp_path / "external"
+    external.mkdir()
+    (data_dir / "backups").symlink_to(external, target_is_directory=True)
+    local_backup = data_dir / "ssas_backup_old.db"
+    local_backup.write_bytes(b"keep")
+
+    gerenciar_banco.sanitize_data_folder(str(data_dir))
+
+    assert local_backup.read_bytes() == b"keep"
+    assert not (external / local_backup.name).exists()

@@ -22,6 +22,25 @@ from armazenamento.database_lock import database_writer_lock  # noqa: E402
 from shared.db_names import SSA_READ_REQUIRED_COLUMNS  # noqa: E402
 
 
+def _has_symlink_component(path: str) -> bool:
+    return os.path.normcase(os.path.realpath(path)) != os.path.normcase(
+        os.path.abspath(path)
+    )
+
+
+def _is_db_backup_name(name: str, db_name: str) -> bool:
+    return name.removeprefix(".").startswith(
+        (
+            f"{db_name}.bak-",
+            f"{db_name}.backup_",
+            f"{db_name}.full_rescan_backup_",
+            f"{db_name}_backup_",
+            f"{db_name}.bkp",
+            f"{db_name}_bkp",
+        )
+    )
+
+
 def reset_database(db_path="data/ssas.db"):
     """
     Zera o banco de dados e recria apenas a estrutura das tabelas.
@@ -119,10 +138,15 @@ def clean_old_backups(
         ".bak-",
     ]
 
+    if _has_symlink_component(data_dir):
+        raise RuntimeError(f"Limpeza recusada: diretorio contem symlink: {data_dir}")
     data_path = Path(data_dir)
-    # Fora da pasta "data" convencional, so artefatos do banco resolvido podem
-    # ser removidos: padoes genericos apagariam arquivos do usuario.
-    stem = os.path.splitext(scope_name)[0] if scope_name else None
+    backups_path = data_path / "backups"
+    if _has_symlink_component(str(backups_path)):
+        raise RuntimeError(f"Limpeza recusada: backups contem symlink: {backups_path}")
+    # Escopo customizado usa o nome completo do banco. Nome parecido de outro
+    # arquivo nao autoriza limpeza em pasta compartilhada.
+    scope = scope_name if scope_name is not None else db_basename
     # O banco ativo e seus sidecars nunca entram na limpeza, mesmo quando o
     # nome nao e o literal "ssas.db" (SSA_DB_PATH customizado).
     protected = {
@@ -131,7 +155,7 @@ def clean_old_backups(
     } if db_basename else {"ssas.db"}
 
     def _in_scope(name: str) -> bool:
-        return stem is None or name.lstrip(".").startswith(stem)
+        return not scope or _is_db_backup_name(name, scope)
 
     # Limpa pasta data principal
     for file_path in data_path.glob("*"):
@@ -152,7 +176,6 @@ def clean_old_backups(
 
     # Limpa pasta backups (mesmo filtro de padrao da pasta principal:
     # arquivo solto ali que nao seja backup nao pode ser removido)
-    backups_path = data_path / "backups"
     if backups_path.exists():
         for file_path in backups_path.glob("*"):
             if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
@@ -187,8 +210,8 @@ def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
     print(f" Sanitizando pasta: {data_dir}")
 
     data_path = Path(data_dir)
-    if data_path.is_symlink():
-        print(f"  Sanitizacao recusada: caminho e symlink: {data_dir}")
+    if _has_symlink_component(data_dir):
+        print(f"  Sanitizacao recusada: caminho contem symlink: {data_dir}")
         return
     if data_path.exists() and not data_path.is_dir():
         print(
@@ -198,30 +221,56 @@ def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
         return
     if not data_path.is_dir():
         data_path.mkdir(parents=True, exist_ok=True)
+    backups_path = data_path / "backups"
+    if _has_symlink_component(str(backups_path)):
+        print(f"  Sanitizacao recusada: backups contem symlink: {backups_path}")
+        return
 
     # Remove arquivos temporrios. Fora da pasta "data", limita a artefatos
     # com o mesmo nome-base do banco resolvido.
-    stem = os.path.splitext(scope_name)[0] if scope_name else None
-    temp_patterns = ["*.tmp", "*.temp", "*~", "*.swp", "*.bak"]
-    if stem:
-        temp_patterns = [
-            f"{stem}*.tmp*",
-            f"{stem}*.temp*",
-            f"{stem}*~",
-            f"{stem}*.swp",
-            f"{stem}*.bak",
-            f".{stem}*.tmp*",
-        ]
+    scope = scope_name if scope_name is not None else db_basename
+    protected_sanitize = {
+        f"{db_basename}{suffix}"
+        for suffix in ("", "-wal", "-shm", "-journal")
+    } if db_basename else {"ssas.db"}
     removed_temp = 0
+    if scope:
+        def _is_scoped_temp(name: str) -> bool:
+            candidate = name.removeprefix(".")
+            if candidate in {
+                f"{scope}.tmp", f"{scope}.temp", f"{scope}.swp",
+                f"{scope}.bak", f"{scope}~",
+            }:
+                return True
+            if candidate.startswith(
+                (f"{scope}.tmp-", f"{scope}.tmp.", f"{scope}.temp-", f"{scope}.temp.")
+            ):
+                return True
+            return candidate.endswith(".tmp") and (
+                candidate.startswith(
+                    (f"{scope}.integrity_", f"{scope}.restore_", f"{scope}.rollback_")
+                )
+                or name.startswith(f".{scope}.")
+            )
 
-    for pattern in temp_patterns:
-        for file_path in data_path.glob(pattern):
-            print(f"    Removendo temp: {file_path.name}")
-            file_path.unlink()
-            removed_temp += 1
+        temp_files = (
+            path for path in data_path.glob("*")
+            if _is_scoped_temp(path.name)
+        )
+    else:
+        temp_files = (
+            path
+            for pattern in ("*.tmp", "*.temp", "*~", "*.swp", "*.bak")
+            for path in data_path.glob(pattern)
+        )
+    for file_path in temp_files:
+        if not file_path.is_file() or file_path.name in protected_sanitize:
+            continue
+        print(f"    Removendo temp: {file_path.name}")
+        file_path.unlink()
+        removed_temp += 1
 
     # Garante que a pasta backups existe
-    backups_path = data_path / "backups"
     if not backups_path.exists():
         backups_path.mkdir()
         print("   Pasta backups criada")
@@ -230,13 +279,9 @@ def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
     moved_backups = 0
     backup_patterns = ["backup_", "ssas_backup_", "ssas_emergency_backup_", ".backup_"]
 
-    protected_sanitize = {
-        f"{db_basename}{suffix}"
-        for suffix in ("", "-wal", "-shm", "-journal")
-    } if db_basename else {"ssas.db"}
     for file_path in data_path.glob("*"):
         if file_path.is_file() and file_path.name not in protected_sanitize:
-            if stem and not file_path.name.lstrip(".").startswith(stem):
+            if scope and not _is_db_backup_name(file_path.name, scope):
                 continue
             is_backup = any(
                 pattern in file_path.name.lower() for pattern in backup_patterns

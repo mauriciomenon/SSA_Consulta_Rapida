@@ -297,10 +297,7 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
     if os.path.basename(data_dir) != "data" and not _looks_like_sqlite_file(
         db_path
     ):
-        print(
-            f"Limpeza recusada: {data_dir} nao contem o banco resolvido "
-            "nem se chama 'data'."
-        )
+        print(f"Limpeza recusada: banco ausente, symlink ou nao SQLite: {db_path}")
         sys.exit(1)
     print(f"Limpando pasta data: {data_dir}")
     try:
@@ -313,20 +310,24 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         print("ERRO: modulo de gerenciamento de banco nao disponivel")
         sys.exit(1)
     try:
-        # Fora da pasta "data", a varredura so pode tocar artefatos com o
-        # mesmo nome-base do banco resolvido; o nome real do banco sempre
-        # fica protegido, mesmo customizado via SSA_DB_PATH.
+        # So o banco padrao do runtime conserva a limpeza ampla historica.
+        # Um SSA_DB_PATH explicito usa escopo mesmo se terminar em data/ssas.db.
         db_name = os.path.basename(db_path)
-        stem_scope = (
-            db_name if os.path.basename(data_dir) != "data" else None
-        )
+        default_db_path = os.path.join(runtime_root, "data", "ssas.db")
+        is_default_db = not os.environ.get("SSA_DB_PATH") and os.path.normcase(
+            os.path.abspath(db_path)
+        ) == os.path.normcase(os.path.abspath(default_db_path))
+        scope_name = "" if is_default_db else db_name
         # A limpeza remove temporarios e move arquivos da pasta do banco:
         # sem o lock de escrita poderia atingir staging de importacao ativa.
         with database_writer_lock(db_path, timeout=0):
-            clean_old_backups(data_dir, db_basename=db_name, scope_name=stem_scope)
-            sanitize_data_folder(data_dir, db_basename=db_name, scope_name=stem_scope)
+            clean_old_backups(data_dir, db_basename=db_name, scope_name=scope_name)
+            sanitize_data_folder(data_dir, db_basename=db_name, scope_name=scope_name)
     except Timeout:
         print(_MAINTENANCE_DB_BUSY_MESSAGE)
+        sys.exit(1)
+    except RuntimeError as exc:
+        print(f"ERRO: {exc}")
         sys.exit(1)
     print("Limpeza concluida!")
     return True
