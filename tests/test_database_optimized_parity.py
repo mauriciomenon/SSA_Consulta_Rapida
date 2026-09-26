@@ -53,20 +53,7 @@ def test_optimized_matches_canonical_persisted_rows(
         assert results[0][0][3]
 
 
-@pytest.mark.parametrize(
-    "complementary",
-    [
-        "0",
-        pytest.param(
-            "1",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="divergencia real: optimized nao contabiliza "
-                "ssa_blocked_parse em modo complementary",
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("complementary", ["0", "1"])
 def test_parse_block_metric_matches_canonical_and_optimized(
     tmp_path, monkeypatch, complementary
 ):
@@ -109,18 +96,26 @@ def test_parse_block_metric_matches_canonical_and_optimized(
             )
         metrics: dict[str, int] = {}
         assert insert(incoming.copy(), path, "ssa_table", metrics_out=metrics)
-        expected_metrics = {
-            "ssa_inserted": 0,
-            "ssa_updated": 1,
-            "ssa_blocked_parse": 1,
-        }
+        if complementary == "1":
+            expected_metrics = {"ssa_inserted": 0, "ssa_updated": 2}
+            expected_rows = [("original",), ("original",)]
+        else:
+            expected_metrics = {
+                "ssa_inserted": 0,
+                "ssa_updated": 1,
+                "ssa_blocked_parse": 1,
+            }
+            expected_rows = [("original",), ("atualizada",)]
         if name == "canonical":
             expected_metrics["ssa_event_records_processed"] = 0
         assert metrics == expected_metrics
         with sqlite3.connect(path) as conn:
-            assert conn.execute(
-                "SELECT descricao_ssa FROM ssa_table ORDER BY numero_ssa"
-            ).fetchall() == [("original",), ("atualizada",)]
+            assert (
+                conn.execute(
+                    "SELECT descricao_ssa FROM ssa_table ORDER BY numero_ssa"
+                ).fetchall()
+                == expected_rows
+            )
 
 
 @pytest.mark.parametrize("column", ["ate", "desde_2", "data_programacao"])
