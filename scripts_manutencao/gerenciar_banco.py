@@ -22,13 +22,13 @@ from armazenamento.database_lock import database_writer_lock  # noqa: E402
 from shared.db_names import SSA_READ_REQUIRED_COLUMNS  # noqa: E402
 
 
-def _has_symlink_component(path: str) -> bool:
-    return os.path.normcase(os.path.realpath(path)) != os.path.normcase(
-        os.path.abspath(path)
-    )
+def _is_symlink_directory(path: str) -> bool:
+    return Path(path).is_symlink()
 
 
 def _is_db_backup_name(name: str, db_name: str) -> bool:
+    # Backups com apenas o stem nao identificam um banco unico em pasta
+    # compartilhada; bancos com extensoes diferentes podem ter o mesmo stem.
     return name.removeprefix(".").startswith(
         (
             f"{db_name}.bak-",
@@ -138,11 +138,11 @@ def clean_old_backups(
         ".bak-",
     ]
 
-    if _has_symlink_component(data_dir):
+    if _is_symlink_directory(data_dir):
         raise RuntimeError(f"Limpeza recusada: diretorio contem symlink: {data_dir}")
     data_path = Path(data_dir)
     backups_path = data_path / "backups"
-    if _has_symlink_component(str(backups_path)):
+    if _is_symlink_directory(str(backups_path)):
         raise RuntimeError(f"Limpeza recusada: backups contem symlink: {backups_path}")
     # Escopo customizado usa o nome completo do banco. Nome parecido de outro
     # arquivo nao autoriza limpeza em pasta compartilhada.
@@ -250,7 +250,7 @@ def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
     print(f" Sanitizando pasta: {data_dir}")
 
     data_path = Path(data_dir)
-    if _has_symlink_component(data_dir):
+    if _is_symlink_directory(data_dir):
         print(f"  Sanitizacao recusada: caminho contem symlink: {data_dir}")
         return
     if data_path.exists() and not data_path.is_dir():
@@ -262,7 +262,7 @@ def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
     if not data_path.is_dir():
         data_path.mkdir(parents=True, exist_ok=True)
     backups_path = data_path / "backups"
-    if _has_symlink_component(str(backups_path)):
+    if _is_symlink_directory(str(backups_path)):
         print(f"  Sanitizacao recusada: backups contem symlink: {backups_path}")
         return
 

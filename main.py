@@ -311,12 +311,12 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         sys.exit(1)
     try:
         # So o banco padrao do runtime conserva a limpeza ampla historica.
-        # Um SSA_DB_PATH explicito usa escopo mesmo se terminar em data/ssas.db.
+        # O launcher tambem define SSA_DB_PATH para esse mesmo caminho.
         db_name = os.path.basename(db_path)
         default_db_path = os.path.join(runtime_root, "data", "ssas.db")
-        is_default_db = not os.environ.get("SSA_DB_PATH") and os.path.normcase(
-            os.path.abspath(db_path)
-        ) == os.path.normcase(os.path.abspath(default_db_path))
+        is_default_db = os.path.normcase(os.path.abspath(db_path)) == os.path.normcase(
+            os.path.abspath(default_db_path)
+        )
         scope_name = "" if is_default_db else db_name
         # A limpeza remove temporarios e move arquivos da pasta do banco:
         # sem o lock de escrita poderia atingir staging de importacao ativa.

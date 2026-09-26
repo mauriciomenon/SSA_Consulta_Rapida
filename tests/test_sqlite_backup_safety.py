@@ -681,10 +681,15 @@ def test_main_clean_data_scopes_explicit_ssa_db_path_named_data(
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE placeholder(x)")
     foreign_backup = data_dir / "backup_unrelated.db"
+    legacy_backup = data_dir / "ssas_backup_unrelated.db"
+    emergency_backup = data_dir / "ssas_emergency_backup_unrelated.db"
     foreign_temp = data_dir / "notes.tmp"
     foreign_backup.write_bytes(b"keep")
+    legacy_backup.write_bytes(b"keep")
+    emergency_backup.write_bytes(b"keep")
     foreign_temp.write_bytes(b"keep")
-    os.utime(foreign_backup, (1_600_000_000, 1_600_000_000))
+    for path in (foreign_backup, legacy_backup, emergency_backup):
+        os.utime(path, (1_600_000_000, 1_600_000_000))
     monkeypatch.setenv("SSA_DB_PATH", str(db_path))
 
     assert main_module._run_maintenance_action(
@@ -692,11 +697,14 @@ def test_main_clean_data_scopes_explicit_ssa_db_path_named_data(
     )
 
     assert foreign_backup.read_bytes() == b"keep"
+    assert legacy_backup.read_bytes() == b"keep"
+    assert emergency_backup.read_bytes() == b"keep"
     assert foreign_temp.read_bytes() == b"keep"
 
 
+@pytest.mark.parametrize("bootstrap_sets_db_path", [False, True])
 def test_main_clean_data_keeps_legacy_scope_for_runtime_default(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bootstrap_sets_db_path: bool
 ) -> None:
     import main as main_module
 
@@ -705,6 +713,8 @@ def test_main_clean_data_keeps_legacy_scope_for_runtime_default(
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     db_path = data_dir / "ssas.db"
+    if bootstrap_sets_db_path:
+        monkeypatch.setenv("SSA_DB_PATH", str(db_path))
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE placeholder(x)")
     old_backup = data_dir / "backup_legacy.db"
@@ -717,6 +727,28 @@ def test_main_clean_data_keeps_legacy_scope_for_runtime_default(
 
     assert not old_backup.exists()
     assert db_path.is_file()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_clean_accepts_symlinked_ancestor_with_regular_data_directory(
+    tmp_path: Path,
+) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    real_parent = tmp_path / "real_parent"
+    data_dir = real_parent / "data"
+    data_dir.mkdir(parents=True)
+    alias = tmp_path / "alias"
+    alias.symlink_to(real_parent, target_is_directory=True)
+    old_backup = data_dir / "backup_legacy.db"
+    old_backup.write_bytes(b"old")
+    os.utime(old_backup, (1_600_000_000, 1_600_000_000))
+
+    gerenciar_banco.clean_old_backups(str(alias / "data"))
+    gerenciar_banco.sanitize_data_folder(str(alias / "data"))
+
+    assert not old_backup.exists()
+    assert (data_dir / "backups").is_dir()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
