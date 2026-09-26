@@ -336,9 +336,11 @@ def test_main_clean_data_refuses_when_writer_lock_is_busy(
     holder.start()
     try:
         assert busy.wait(10)
-        assert main_module._run_maintenance_action(
-            Namespace(reset_db=False, clean_data=True), str(db_path)
-        )
+        with pytest.raises(SystemExit) as exit_info:
+            main_module._run_maintenance_action(
+                Namespace(reset_db=False, clean_data=True), str(db_path)
+            )
+        assert exit_info.value.code == 1
     finally:
         release.set()
         holder.join(10)

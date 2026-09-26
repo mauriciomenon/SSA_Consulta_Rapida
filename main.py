@@ -256,6 +256,10 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         return False
     from filelock import Timeout
 
+    if db_path == ":memory:":
+        print("Nada a manter: banco em memoria.")
+        return True
+
     if args.reset_db:
         print(f"Resetando banco de dados: {db_path}")
         try:
@@ -267,15 +271,11 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
             reset_database(db_path)
         except Timeout:
             print(_MAINTENANCE_DB_BUSY_MESSAGE)
-            return True
+            sys.exit(1)
         except RuntimeError as exc:
             print(f"ERRO: {exc}")
-            return True
+            sys.exit(1)
         print("Banco de dados resetado com sucesso!")
-        return True
-
-    if db_path == ":memory:":
-        print("Nada a limpar: banco em memoria.")
         return True
     data_dir = os.path.dirname(os.path.abspath(db_path))
     print(f"Limpando pasta data: {data_dir}")
@@ -296,7 +296,7 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
             sanitize_data_folder(data_dir)
     except Timeout:
         print(_MAINTENANCE_DB_BUSY_MESSAGE)
-        return True
+        sys.exit(1)
     print("Limpeza concluida!")
     return True
 
