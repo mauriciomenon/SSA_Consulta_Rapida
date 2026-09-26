@@ -606,6 +606,27 @@ def test_commit_staged_database_copy_refuses_residual_sidecar(tmp_path, suffix):
     assert not Path(f"{staged}{suffix}").exists()
 
 
+def test_commit_staged_database_copy_refuses_symlink_dest(tmp_path):
+    from gui.ssa import database_operations as ssa_ops
+
+    target = _make_db(tmp_path / "real.db", ["vitima"])
+    dest = tmp_path / "x.db"
+    try:
+        dest.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"Symlink indisponivel: {exc}")
+    staged = _make_db(tmp_path / "x.db.copy-20260101_000000_000000", ["novo"])
+
+    result = ssa_ops.commit_staged_database_copy(str(staged), str(dest))
+
+    assert result["ok"] is False
+    assert "symlink" in result["error"]
+    assert dest.is_symlink()
+    assert _read_rows(target) == ["vitima"]
+    assert not list(tmp_path.glob("x.db.bak-*"))
+    assert not staged.exists()
+
+
 def test_commit_staged_database_copy_keeps_primary_on_snapshot_failure(
     tmp_path, monkeypatch
 ):

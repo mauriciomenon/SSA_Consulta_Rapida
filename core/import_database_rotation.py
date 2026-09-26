@@ -210,6 +210,10 @@ def _promote_full_rescan_candidate_locked(
         cleanup_sidecars=True,
     )
 
+    if os.path.islink(primary_db_path):
+        raise DatabaseError(
+            f"Promocao recusada: destino e symlink: {primary_db_path}"
+        )
     backup_path: str | None = None
     original_mode: str | None = None
     if os.path.exists(primary_db_path):

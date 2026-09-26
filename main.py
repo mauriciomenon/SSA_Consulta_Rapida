@@ -268,9 +268,15 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         except Timeout:
             print(_MAINTENANCE_DB_BUSY_MESSAGE)
             return True
+        except RuntimeError as exc:
+            print(f"ERRO: {exc}")
+            return True
         print("Banco de dados resetado com sucesso!")
         return True
 
+    if db_path == ":memory:":
+        print("Nada a limpar: banco em memoria.")
+        return True
     data_dir = os.path.dirname(os.path.abspath(db_path))
     print(f"Limpando pasta data: {data_dir}")
     try:

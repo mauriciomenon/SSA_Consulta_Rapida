@@ -299,7 +299,8 @@ def discard_staged_copy(staged: str | Path) -> None:
     _unregister_staged_copy(Path(staged))
     for suffix in ("-wal", "-shm", "-journal", ""):
         partial = Path(f"{staged}{suffix}")
-        if partial.exists():
+        # lexists: symlink pendurado de staging tambem deve ser removido.
+        if os.path.lexists(partial):
             try:
                 os.remove(partial)
             except OSError as exc:
@@ -344,6 +345,16 @@ def _commit_staged_database_copy_locked(
     staged: str, dest_str: str
 ) -> dict[str, Any]:
     dest = Path(dest_str)
+    if dest.is_symlink():
+        # Politica C11: promover sobre symlink mutaria journal/backup do alvo.
+        discard_staged_copy(staged)
+        return {
+            "ok": False,
+            "db_file": str(dest),
+            "copied": False,
+            "archived": None,
+            "error": "destino de copia e symlink; promocao recusada",
+        }
     if any(Path(f"{staged}{suffix}").exists() for suffix in ("-wal", "-shm", "-journal")):
         # Um WAL pode conter commits; remover apenas o sidecar perderia dados.
         discard_staged_copy(staged)
@@ -369,14 +380,15 @@ def _commit_staged_database_copy_locked(
             try:
                 original_mode = snapshot_database_for_replace(str(dest), archived_base)
             except (OSError, sqlite3.Error) as exc:
-                try:
-                    os.remove(archived_base)
-                except OSError as cleanup_exc:
-                    logger.warning(
-                        "Falha ao remover backup parcial %s: %s",
-                        archived_base,
-                        cleanup_exc,
-                    )
+                if os.path.exists(archived_base):
+                    try:
+                        os.remove(archived_base)
+                    except OSError as cleanup_exc:
+                        logger.warning(
+                            "Falha ao remover backup parcial %s: %s",
+                            archived_base,
+                            cleanup_exc,
+                        )
                 discard_staged_copy(staged)
                 return {
                     "ok": False,
