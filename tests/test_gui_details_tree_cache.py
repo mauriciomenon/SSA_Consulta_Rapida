@@ -540,26 +540,30 @@ def test_selection_prefetches_tree_data_for_double_click(
     properties: dict[str, object] = {}
     window, series = _details_signature_window(db_path, rendered, properties)
 
-    collected: list[str] = []
-    real_collect = gui_details._collect_derivadas_tree_data
+    loads: list[str] = []
+    real_load = details_data_provider.load_derivadas_snapshot
 
-    def spy(_window, ssa):
-        collected.append(str(ssa))
-        return real_collect(_window, ssa)
+    def count_loads(db_path, target, **kwargs):
+        loads.append(target)
+        return real_load(db_path, target, **kwargs)
 
     def render(_window, current, signature):
         rendered.append(current["numero_ssa"])
         properties["details_render_signature"] = signature
 
-    monkeypatch.setattr(gui_details, "_collect_derivadas_tree_data", spy)
+    monkeypatch.setattr(details_data_provider, "load_derivadas_snapshot", count_loads)
     monkeypatch.setattr(gui_details, "_render_main_details_html", render)
 
     gui_details._update_details_from_series(window, series)
-    assert collected == ["202600100"]
     assert rendered == ["202600100"]
+    assert loads == ["202600100"]
+
+    cached = gui_details._collect_derivadas_tree_data(window, series["numero_ssa"])
+    assert isinstance(cached, dict)
+    assert loads == ["202600100"]
 
     gui_details._update_details_from_series(window, series)
-    assert collected == ["202600100"]
+    assert loads == ["202600100"]
 
 
 def test_selection_prefetch_failure_does_not_block_details_render(
