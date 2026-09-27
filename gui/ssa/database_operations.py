@@ -251,8 +251,11 @@ def stage_database_copy(
 ) -> dict[str, Any]:
     """Grava o snapshot da origem em arquivo de staging ao lado do destino.
 
-    Nao toca no destino: a promocao acontece em commit_staged_database_copy,
-    o que permite ao chamador decidir (ou descartar) depois da copia pesada.
+    `timeout` e o teto total da copia; o helper tambem aborta copias sem
+    progresso pelo seu stall_timeout, o que ocorrer primeiro. Nao toca no
+    destino: a promocao acontece
+    em commit_staged_database_copy, o que permite ao chamador decidir (ou
+    descartar) depois da copia pesada.
     """
     _sweep_stale_staged_copies(dest)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")

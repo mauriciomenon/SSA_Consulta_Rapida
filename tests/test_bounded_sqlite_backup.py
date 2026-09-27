@@ -1,4 +1,4 @@
-"""Verifica prazo real e cancelamento com SQLite bloqueado."""
+"""Verifica prazo real, prazo sem progresso e cancelamento no backup."""
 
 import sqlite3
 import subprocess
@@ -11,7 +11,7 @@ import pytest
 from utils.sqlite_backup import bounded_sqlite_backup
 
 
-@pytest.mark.parametrize("action", ["timeout", "cancel"])
+@pytest.mark.parametrize("action", ["timeout", "stall", "cancel"])
 @pytest.mark.parametrize("locked_side", ["source", "target"])
 def test_locked_backup_terminates_and_restores_connection_settings(
     tmp_path: Path, action: str, locked_side: str
@@ -35,10 +35,14 @@ locker.execute('BEGIN EXCLUSIVE')
 started = time.monotonic()
 cancel = (lambda: time.monotonic() - started > 0.08) if action == 'cancel' else None
 expected = InterruptedError if action == 'cancel' else TimeoutError
+kwargs = {'timeout': 0.15} if action == 'timeout' else {
+    'timeout': 5.0, 'stall_timeout': 0.15}
 try:
-    bounded_sqlite_backup(source, target, timeout=0.15, cancel_check=cancel)
-except expected:
+    bounded_sqlite_backup(source, target, cancel_check=cancel, **kwargs)
+except expected as exc:
     assert time.monotonic() - started < 1.5
+    if action == 'stall':
+        assert 'sem progresso' in str(exc)
 else:
     raise AssertionError('backup deveria interromper')
 assert source.execute('PRAGMA busy_timeout').fetchone() == (5000,)
@@ -72,6 +76,77 @@ def test_backup_preserves_committed_wal_content(tmp_path: Path) -> None:
                 ("preservado",)
             ]
             assert target.execute("PRAGMA quick_check").fetchone() == ("ok",)
+
+
+def test_stall_deadline_only_renews_on_new_remaining_minimum() -> None:
+    from utils.sqlite_backup import _progress_checker
+
+    current = [0.0]
+    check = _progress_checker(
+        timeout=100.0,
+        stall_timeout=5.0,
+        cancel_check=None,
+        now=lambda: current[0],
+    )
+    check(0, 100, 200)
+    current[0] = 4.0
+    check(0, 60, 200)
+    current[0] = 8.0
+    check(0, 90, 200)
+    current[0] = 9.5
+    with pytest.raises(TimeoutError, match="sem progresso"):
+        check(0, 50, 200)
+
+
+def test_stall_deadline_renews_when_remaining_beats_minimum() -> None:
+    from utils.sqlite_backup import _progress_checker
+
+    current = [0.0]
+    check = _progress_checker(
+        timeout=100.0,
+        stall_timeout=5.0,
+        cancel_check=None,
+        now=lambda: current[0],
+    )
+    check(0, 100, 200)
+    current[0] = 4.0
+    check(0, 60, 200)
+    current[0] = 8.0
+    check(0, 40, 200)
+    current[0] = 12.0
+    check(0, 40, 200)
+    current[0] = 13.5
+    with pytest.raises(TimeoutError, match="sem progresso"):
+        check(0, 40, 200)
+
+
+def test_total_deadline_caps_progressing_backup() -> None:
+    from utils.sqlite_backup import _progress_checker
+
+    current = [0.0]
+    check = _progress_checker(
+        timeout=5.0,
+        stall_timeout=100.0,
+        cancel_check=None,
+        now=lambda: current[0],
+    )
+    check(0, 100, 200)
+    current[0] = 4.0
+    check(0, 10, 200)
+    current[0] = 5.5
+    with pytest.raises(TimeoutError, match="Prazo total"):
+        check(0, 5, 200)
+
+
+def test_backup_rejects_invalid_deadlines() -> None:
+    with (
+        closing(sqlite3.connect(":memory:")) as source,
+        closing(sqlite3.connect(":memory:")) as target,
+    ):
+        with pytest.raises(ValueError, match="timeout"):
+            bounded_sqlite_backup(source, target, timeout=0)
+        with pytest.raises(ValueError, match="stall_timeout"):
+            bounded_sqlite_backup(source, target, stall_timeout=-1)
 
 
 def test_completed_backup_does_not_report_late_cancellation() -> None:

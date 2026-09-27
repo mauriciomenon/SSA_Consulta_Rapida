@@ -165,7 +165,7 @@ def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | N
     temporary = snapshot.with_suffix(".tmp")
     backup_created = False
     try:
-        create_sqlite_backup(db, temporary, pages=1000)
+        create_sqlite_backup(db, temporary)
         backup_created = True
         os.replace(temporary, snapshot)
         _prune_integrity_snapshots(db_path)
