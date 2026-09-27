@@ -1,4 +1,7 @@
 function Get-SsaWindowsRepoRoot {
+    if ($env:GITHUB_ACTIONS -eq 'true' -and -not [string]::IsNullOrWhiteSpace($env:GITHUB_WORKSPACE)) {
+        return [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+    }
     if ([string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
         throw "[native-guard] BLOCKED: USERPROFILE is required for the Windows harness."
     }

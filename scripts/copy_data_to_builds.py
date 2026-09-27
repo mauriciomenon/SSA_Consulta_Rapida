@@ -29,6 +29,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from armazenamento.database import read_only_sqlite_uri  # noqa: E402
 from armazenamento.database_lock import database_writer_lock  # noqa: E402
+from utils.sqlite_backup import bounded_sqlite_backup  # noqa: E402
 
 MultiPlatformBuilder = importlib.import_module(
     "launchers.build_multiplatform"
@@ -252,7 +253,7 @@ def copy_data_to_build(
                             sqlite3.connect(source_uri, uri=True, timeout=5)
                         ) as source_conn:
                             with closing(sqlite3.connect(temporary_db)) as target_conn:
-                                source_conn.backup(target_conn)
+                                bounded_sqlite_backup(source_conn, target_conn)
                                 if target_conn.execute("PRAGMA quick_check").fetchone() != (
                                     "ok",
                                 ):

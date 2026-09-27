@@ -27,6 +27,7 @@ from shared.numero_ssa import normalize_strict
 from utils.db_maintenance_report import render_database_analysis_report
 from utils.path_safety import ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger
+from armazenamento.database_integrity import create_sqlite_backup
 
 logger = get_robust_logger().get_logger(__name__, "maintenance")
 
@@ -129,9 +130,7 @@ class DatabaseAnalyzer:
         backup_path = str(backup_dir_path / backup_filename)
 
         try:
-            with closing(sqlite3.connect(self.db_path)) as source_conn:
-                with closing(sqlite3.connect(backup_path)) as backup_conn:
-                    source_conn.backup(backup_conn, pages=1000)
+            create_sqlite_backup(self.db_path, backup_path, pages=128)
             try:
                 shutil.copystat(self.db_path, backup_path)
             except OSError as exc:

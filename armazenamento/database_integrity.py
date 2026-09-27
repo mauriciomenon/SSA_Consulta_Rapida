@@ -20,6 +20,7 @@ from shared.db_names import (
 )
 from shared.ssa_status import SSA_ACCEPTED_STATUS_VALUES, get_status_code
 from utils.robust_logging import get_robust_logger
+from utils.sqlite_backup import bounded_sqlite_backup
 
 from .database_lock import database_writer_lock
 from .identifier_utils import is_valid_identifier, quote_identifier as _quote_identifier
@@ -35,6 +36,9 @@ _OPTIONAL_REPAIR_COLUMNS = {
 }
 _FILE_REPLACE_RETRY_DELAYS = (0.0, 0.05, 0.15, 0.35)
 _BACKUP_TIMESTAMP_PATTERN = re.compile(r"\d{8}_\d{6}_\d{6}")
+_SQLITE_CORRUPT_PRIMARY = 11
+_SQLITE_NOTADB_PRIMARY = 26
+IMPORT_CACHE_RECOVERY_SUFFIX = ".import_cache_pending"
 
 
 def _is_ssa_table_name(table_name: str) -> bool:
@@ -74,7 +78,7 @@ def create_sqlite_backup(
     try:
         with closing(_read_only_connection(source_path)) as source_conn:
             with closing(sqlite3.connect(destination_path)) as backup_conn:
-                source_conn.backup(backup_conn, pages=pages)
+                bounded_sqlite_backup(source_conn, backup_conn, pages=pages)
                 if backup_conn.execute("PRAGMA quick_check").fetchone() != ("ok",):
                     raise sqlite3.DatabaseError("backup falhou no quick_check")
         os.chmod(destination_path, source_mode)
@@ -282,6 +286,15 @@ def _restore_latest_valid_snapshot_locked(
         moved_sidecars: list[tuple[Path, Path]] = []
         try:
             shutil.copy2(snapshot, temporary)
+            recovery_marker = Path(f"{db}{IMPORT_CACHE_RECOVERY_SUFFIX}")
+            try:
+                with recovery_marker.open("x", encoding="ascii") as pending:
+                    pending.write("Revalidar cache apos tentativa de restauracao.\n")
+                    pending.flush()
+                    os.fsync(pending.fileno())
+            except FileExistsError:
+                if recovery_marker.is_symlink() or not recovery_marker.is_file():
+                    raise OSError("Marcador de recuperacao invalido") from None
             if had_existing_db:
                 shutil.copy2(db, forensic)
             # Inclui -journal: um rollback journal quente deixado no caminho
@@ -310,7 +323,22 @@ def _restore_latest_valid_snapshot_locked(
             continue
 
         final_report = verify_database_integrity(str(db), table_name)
-        if final_report["is_valid"]:
+        structure_valid = all(
+            final_report.get(key, False)
+            for key in (
+                "database_accessible",
+                "sqlite_integrity_ok",
+                "table_exists",
+                "schema_valid",
+                "file_permissions_ok",
+            )
+        ) and not final_report.get("verification_inconclusive", False)
+        data_only_issues = (
+            not final_report["is_valid"]
+            and not final_report["data_consistent"]
+            and bool(final_report["invalid_data"])
+        )
+        if structure_valid and (final_report["is_valid"] or data_only_issues):
             if report_out is not None:
                 report_out.update(final_report)
             _prune_forensic_backups(db_path)
@@ -466,6 +494,8 @@ def verify_database_integrity(
         "database_exists": False,
         "database_accessible": False,
         "sqlite_integrity_ok": False,
+        "sqlite_corruption_confirmed": False,
+        "verification_inconclusive": False,
         "table_exists": False,
         "schema_valid": False,
         "data_consistent": False,
@@ -522,10 +552,16 @@ def verify_database_integrity(
 
         with closing(_read_only_connection(db_path)) as conn:
             integrity_result = conn.execute("PRAGMA integrity_check").fetchone()
-            if not integrity_result or integrity_result[0] != "ok":
+            if not integrity_result or integrity_result[0] is None:
+                report["issues"].append("Verificacao de integridade SQLite sem resultado")
+                report["verification_inconclusive"] = True
+                report["is_valid"] = False
+                return report
+            if integrity_result[0] != "ok":
                 report["issues"].append(
                     f"Falha na verificacao de integridade SQLite: {integrity_result}"
                 )
+                report["sqlite_corruption_confirmed"] = True
                 report["is_valid"] = False
                 return report
             report["database_accessible"] = True
@@ -587,9 +623,27 @@ def verify_database_integrity(
             if _is_ssa_table_name(resolved_table_name):
                 _validate_ssa_data(conn, resolved_table_name, report)
     except (OSError, sqlite3.Error, ValueError) as exc:
+        error_code = getattr(exc, "sqlite_errorcode", None)
+        report["sqlite_corruption_confirmed"] = isinstance(
+            error_code, int
+        ) and (error_code & 0xFF) in (
+            _SQLITE_CORRUPT_PRIMARY,
+            _SQLITE_NOTADB_PRIMARY,
+        )
+        if error_code is None and isinstance(exc, sqlite3.DatabaseError):
+            report["sqlite_corruption_confirmed"] = str(exc).strip().casefold() in {
+                "database disk image is malformed",
+                "file is not a database",
+            }
+        report["verification_inconclusive"] = not report[
+            "sqlite_corruption_confirmed"
+        ]
+        if report["sqlite_corruption_confirmed"]:
+            report["sqlite_integrity_ok"] = False
         report["issues"].append(f"Erro ao verificar integridade/schema do banco: {exc}")
         report["is_valid"] = False
     except Exception as exc:  # pragma: no cover
+        report["verification_inconclusive"] = True
         report["issues"].append(f"Erro inesperado na verificacao: {exc}")
         report["is_valid"] = False
 
@@ -671,10 +725,17 @@ def _repair_database_if_needed_locked(
             logger.error("Schema criado falhou na validacao: %s", final_report["issues"])
             return False, final_report
 
+        if report.get("verification_inconclusive", False):
+            logger.error("Verificacao do banco inconclusiva; restauracao bloqueada")
+            return False, report
+
         sqlite_integrity_ok = bool(
             report.get("sqlite_integrity_ok", report.get("data_consistent", False))
         )
         if not sqlite_integrity_ok:
+            if not report.get("sqlite_corruption_confirmed", False):
+                logger.error("Integridade SQLite nao confirmada; restauracao bloqueada")
+                return False, report
             restored_report: Dict[str, Any] = {}
             if _restore_latest_valid_snapshot(db_path, table_name, report_out=restored_report):
                 restored_report["restored_from_snapshot"] = True

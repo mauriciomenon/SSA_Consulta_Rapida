@@ -794,8 +794,16 @@ def _handle_rescan(
 
     try:
         _outcome_before = import_outcome.get_last_import_outcome()
+        db_parent = os.path.dirname(os.path.abspath(db_path))
+        runtime_root = os.environ.get("SSA_RUNTIME_ROOT") or project_root
         updated = run_importer_logic(
-            force_import=True, progress_callback=progress_callback
+            docs_dir=os.path.join(runtime_root, "docs_entrada"),
+            data_dir=db_parent,
+            db_name=os.path.basename(db_path),
+            table_name=table_name,
+            force_import=True,
+            progress_callback=progress_callback,
+            extra_allowed_roots=(db_parent, runtime_root),
         )
         _outcome_after = import_outcome.get_last_import_outcome()
         outcome = (

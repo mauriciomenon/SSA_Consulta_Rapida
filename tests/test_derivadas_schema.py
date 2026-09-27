@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from typing import cast
 
@@ -83,6 +84,25 @@ def test_read_schema_scan_from_missing_path_does_not_create_database(tmp_path):
     assert report["is_ready"] is False
     assert not db_path.exists()
     assert "ssa_derivada_matrix" in report["missing_tables"]
+
+
+@pytest.mark.parametrize(
+    "scan",
+    [
+        scan_derivadas_schema_readiness_from_path,
+        scan_derivadas_read_schema_readiness_from_path,
+    ],
+)
+def test_schema_scan_uses_exact_special_character_path(tmp_path, scan):
+    name = "base#teste.db" if os.name == "nt" else "base?teste#x.db"
+    db_path = tmp_path / name
+    ensure_derivadas_schema(str(db_path))
+    before = {path.name for path in tmp_path.iterdir()}
+
+    report = scan(str(db_path), extra_allowed_roots=[tmp_path])
+
+    assert report["is_ready"] is True
+    assert {path.name for path in tmp_path.iterdir()} == before
 
 
 def test_has_derivadas_schema_rejects_invalid_identifier(temp_db):

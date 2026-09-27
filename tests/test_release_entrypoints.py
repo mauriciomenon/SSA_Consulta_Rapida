@@ -17,6 +17,31 @@ from tests.release_script_assertions import (
 )
 
 
+@pytest.mark.parametrize("github_actions,workspace_set", [("true", True), ("false", True), ("", True), ("true", False)])
+def test_windows_guard_selects_only_the_declared_github_checkout(
+    tmp_path: Path, github_actions: str, workspace_set: bool,
+) -> None:
+    powershell = shutil.which("pwsh") or shutil.which("powershell")
+    if powershell is None:
+        pytest.skip("PowerShell necessario para validar raiz do checkout")
+    profile = tmp_path / "usuario"
+    workspace = tmp_path / "checkout"
+    env = os.environ | {
+        "USERPROFILE": str(profile),
+        "GITHUB_ACTIONS": github_actions,
+        "GITHUB_WORKSPACE": str(workspace) if workspace_set else "",
+        "SSA_TEST_GUARD": str(PROJECT_ROOT / "scripts/env/native_host_guard.ps1"),
+    }
+    result = subprocess.run(
+        [powershell, "-NoProfile", "-NonInteractive", "-Command",
+         ". $env:SSA_TEST_GUARD; Get-SsaWindowsRepoRoot"],
+        env=env, capture_output=True, text=True, check=False, timeout=15,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    expected = workspace if github_actions == "true" and workspace_set else profile / "gitlab" / "ssa_consulta_rapida_pyqt6"
+    assert Path(result.stdout.strip()) == expected
+
+
 def test_root_release_powershell_exposes_simple_defaults() -> None:
     script = read_repo_text("release.ps1")
 

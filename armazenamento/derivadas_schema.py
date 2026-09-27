@@ -12,7 +12,7 @@ import sqlite3
 from contextlib import closing
 from typing import Any, Iterable
 
-from armazenamento.database import get_db_connection
+from armazenamento.database import get_db_connection, read_only_sqlite_uri
 from armazenamento.identifier_utils import is_valid_identifier
 from utils.path_safety import ensure_path_is_allowed
 
@@ -510,7 +510,7 @@ def scan_derivadas_schema_readiness_from_path(
             "missing_columns": {},
             "existing_columns": {},
         }
-    with closing(sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True)) as conn:
+    with closing(sqlite3.connect(read_only_sqlite_uri(safe_db_path), uri=True)) as conn:
         return scan_derivadas_schema_readiness(conn)
 
 
@@ -560,7 +560,7 @@ def scan_derivadas_read_schema_readiness_from_path(
             "missing_tables": required_tables,
             "missing_columns": {},
         }
-    with closing(sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True)) as conn:
+    with closing(sqlite3.connect(read_only_sqlite_uri(safe_db_path), uri=True)) as conn:
         return scan_derivadas_read_schema_readiness(conn)
 
 

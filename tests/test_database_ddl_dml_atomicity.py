@@ -103,9 +103,13 @@ def test_external_connection_rollback_undoes_ddl_and_dml(db):
     with sqlite3.connect(str(db)) as conn:
         conn.execute("BEGIN")
         try:
-            database.insert_dataframe_with_smart_upsert(
-                base_df(), conn, "ssa_table"
-            )
+            assert database.insert_dataframe_with_smart_upsert(
+                conn, base_df(), "ssa_table"
+            ) is True
+            assert "nome_paciente" in {
+                row[1] for row in conn.execute("PRAGMA table_info(ssa_table)")
+            }
+            assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (1,)
         except Exception:
             conn.rollback()
             raise

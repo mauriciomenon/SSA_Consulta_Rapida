@@ -748,6 +748,63 @@ function Get-ArtifactHash {
     return $records
 }
 
+function Get-RuntimeDbLogicalSignature {
+    param(
+        [Parameter(Mandatory = $true)] [string] $DbPath,
+        [Parameter(Mandatory = $true)] [string] $RepoRoot
+    )
+
+    $logicalScript = @'
+import json
+import pathlib
+import sqlite3
+import sys
+
+uri = pathlib.Path(sys.argv[1]).resolve().as_uri() + "?mode=ro"
+conn = sqlite3.connect(uri, uri=True)
+try:
+    quick_check = conn.execute("PRAGMA quick_check").fetchone()[0]
+    tables = {}
+    rows = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    ).fetchall()
+    for (name,) in rows:
+        escaped = name.replace('"', '""')
+        tables[name] = conn.execute(
+            'SELECT COUNT(*) FROM "' + escaped + '"'
+        ).fetchone()[0]
+    print(json.dumps({"quick_check": quick_check, "tables": tables}, sort_keys=True))
+finally:
+    conn.close()
+'@
+
+    $pythonCandidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:SSA_TEST_PYTHON)) {
+        $pythonCandidates += $env:SSA_TEST_PYTHON
+    }
+    $pythonCandidates += @("python", "python3")
+    $output = $null
+    $ran = $false
+    foreach ($candidate in $pythonCandidates) {
+        if (Get-Command $candidate -ErrorAction SilentlyContinue) {
+            $output = & $candidate -c $logicalScript $DbPath 2>&1
+            $ran = $true
+            break
+        }
+    }
+    if (-not $ran -and (Get-Command uv -ErrorAction SilentlyContinue)) {
+        $output = & uv run --no-sync --project $RepoRoot python -c $logicalScript $DbPath 2>&1
+        $ran = $true
+    }
+    if (-not $ran) {
+        throw "Nenhum interpretador Python disponivel para a checagem logica de ${DbPath}."
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Checagem logica do banco falhou para ${DbPath}: $($output -join ' ')"
+    }
+    return ([string]($output | Select-Object -Last 1)).Trim()
+}
+
 function Assert-RuntimeDatabase {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
@@ -758,13 +815,21 @@ function Assert-RuntimeDatabase {
     Assert-ExistingFile $sourcePath
     $sourceResolved = (Resolve-Path -LiteralPath $sourcePath).Path
     $sourceHash = @(Get-ArtifactHash @($sourceResolved))[0]['sha256']
+    $sourceSignature = Get-RuntimeDbLogicalSignature -DbPath $sourceResolved -RepoRoot $RepoRoot
+    $snapshotHash = $null
     $records = @()
     foreach ($root in $RuntimeRoot) {
         Assert-ExistingDirectory $root
         $runtimePath = Join-Path $root "data\ssas.db"
         $runtimeHash = @(Get-ArtifactHash @($runtimePath))[0]
-        if ($runtimeHash['sha256'] -ne $sourceHash) {
-            throw "Hash do banco de runtime diverge da origem em ${runtimePath}: $($runtimeHash['sha256']) != $sourceHash"
+        if ($null -eq $snapshotHash) {
+            $snapshotHash = $runtimeHash['sha256']
+        } elseif ($runtimeHash['sha256'] -ne $snapshotHash) {
+            throw "Hash do banco de runtime diverge entre snapshots em ${runtimePath}: $($runtimeHash['sha256']) != $snapshotHash"
+        }
+        $snapshotSignature = Get-RuntimeDbLogicalSignature -DbPath $runtimeHash.path -RepoRoot $RepoRoot
+        if ($snapshotSignature -ne $sourceSignature) {
+            throw "Conteudo logico do banco de runtime diverge da origem em ${runtimePath}"
         }
         $sensitiveFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
             $_.Extension.ToLowerInvariant() -in @(".db", ".ods", ".xls", ".xlsm", ".xlsx")
@@ -777,6 +842,7 @@ function Assert-RuntimeDatabase {
         }
         $records += [ordered]@{
             source = $sourceResolved
+            source_sha256 = $sourceHash
             path = $runtimeHash.path
             sha256 = $runtimeHash['sha256']
             length = $runtimeHash.length

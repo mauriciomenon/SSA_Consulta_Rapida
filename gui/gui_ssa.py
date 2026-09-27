@@ -29,7 +29,7 @@ import socket
 import subprocess  # nosec B404
 import sys
 import threading
-from threading import Lock
+from threading import Event, Lock
 import time
 from collections import OrderedDict
 from typing import Any, TypedDict, cast
@@ -5488,6 +5488,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pending_result: dict[str, Any] | None = None
             request_id = getattr(self, "_other_db_validation_request_id", 0) + 1
             self._other_db_validation_request_id = request_id
+            cancel_event = Event()
+            self._other_db_validation_cancel_event = cancel_event
             validation_deadline = time.monotonic() + OTHER_DB_VALIDATION_TIMEOUT_SEC
             # Coordena publicacao do worker com a invalidacao do poll: sem
             # o lock, um resultado publicado entre a leitura e a
@@ -5540,7 +5542,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         else:
                             staged_result = (
                                 ssa_database_operations.stage_database_copy(
-                                    src, dest
+                                    src, dest,
+                                    timeout=max(0.0, validation_deadline - time.monotonic()),
+                                    cancel_check=lambda: (
+                                        cancel_event.is_set()
+                                        or request_id != self._other_db_validation_request_id
+                                    ),
                                 )
                             )
                             staged_created = (
@@ -5600,6 +5607,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             def _poll_delivery() -> None:
                 nonlocal pending_result
                 if request_id != self._other_db_validation_request_id:
+                    cancel_event.set()
                     with delivery_lock:
                         stale_pending = pending_result
                         pending_result = None
@@ -5614,8 +5622,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         ssa_database_operations.discard_staged_copy(
                             stale_staged
                         )
+                    if getattr(self, "_other_db_validation_cancel_event", None) is cancel_event:
+                        if worker.is_alive():
+                            QTimer.singleShot(100, _poll_delivery)
+                        else:
+                            self._other_db_validation_running = False
+                            self._other_db_validation_thread = None
+                            if _window_alive():
+                                ssa_app_menus.refresh_database_actions(self)
                     return
                 if not _window_alive():
+                    cancel_event.set()
                     with delivery_lock:
                         pending = pending_result
                         pending_result = None
@@ -5648,6 +5665,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         pending = pending_result
                         if pending is None:
                             self._other_db_validation_request_id += 1
+                            cancel_event.set()
                     if pending is None:
                         logger.error(
                             "Validacao de banco alternativo excedeu %ss sem resultado.",
@@ -5760,6 +5778,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         O metodo nao aguarda workers em serie. Cada nova tentativa de fechamento
         consulta novamente o estado nativo e aceita somente quando todos pararam.
         """
+        copy_cancel_event = getattr(self, "_other_db_validation_cancel_event", None)
+        if copy_cancel_event is not None and not copy_cancel_event.is_set():
+            copy_cancel_event.set()
+            self._other_db_validation_request_id += 1
         worker_candidates = list(getattr(self, "_shutdown_pending_workers", []) or [])
         for worker_attr in (
             "data_loader_thread",

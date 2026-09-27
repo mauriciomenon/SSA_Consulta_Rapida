@@ -311,9 +311,9 @@ def test_export_controller_updates_status_on_gui_thread(tmp_path):
     status_threads = []
 
     class _StatusLabel(QLabel):
-        def setText(self, text):
+        def setText(self, a0: str | None) -> None:
             status_threads.append(QThread.currentThread())
-            super().setText(text)
+            super().setText(a0)
 
     class _Window:
         def __init__(self):

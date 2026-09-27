@@ -80,8 +80,38 @@ def test_ensure_corrupted_db_returns_false_with_issues(tmp_path, monkeypatch):
 
     assert ok is False
     assert report["is_valid"] is False
+    assert report["sqlite_corruption_confirmed"] is True
     assert report["issues"]
     assert counter["calls"] == 1
+
+
+@pytest.mark.parametrize(
+    ("error", "confirmed"),
+    [
+        (sqlite3.DatabaseError("file is not a database"), True),
+        (sqlite3.DatabaseError("database disk image is malformed"), True),
+        (sqlite3.OperationalError("database is locked"), False),
+        (sqlite3.OperationalError("disk I/O error"), False),
+        (sqlite3.OperationalError("unable to open database file"), False),
+        (OSError("file is not a database"), False),
+        (ValueError("database disk image is malformed"), False),
+    ],
+)
+def test_sqlite_errors_without_codes_keep_corruption_classification(
+    tmp_path, monkeypatch, error, confirmed
+):
+    db_path = _healthy_db(tmp_path)
+    assert not hasattr(error, "sqlite_errorcode")
+
+    def legacy_connection(_path):
+        raise error
+
+    monkeypatch.setattr(database_integrity, "_read_only_connection", legacy_connection)
+
+    report = database_integrity.verify_database_integrity(db_path)
+
+    assert report["sqlite_corruption_confirmed"] is confirmed
+    assert report["verification_inconclusive"] is not confirmed
 
 
 def test_repair_wrapper_keeps_boolean_contract(tmp_path):
@@ -121,6 +151,55 @@ def _seeded_db_with_snapshot(tmp_path: Path) -> str:
                      "VALUES ('202600001', 'ADM', '2026-01-01 00:00:00')")
     assert database_integrity._create_integrity_snapshot(db_path, force=True)
     return db_path
+
+
+def test_locked_database_is_not_replaced_by_snapshot(tmp_path):
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute(
+            "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+            "VALUES ('202600002', 'ADM', '2026-01-02 00:00:00')"
+        )
+    original = Path(db_path).read_bytes()
+
+    with closing(sqlite3.connect(db_path, isolation_level=None)) as locked_conn:
+        locked_conn.execute("BEGIN EXCLUSIVE")
+        try:
+            ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+        finally:
+            locked_conn.execute("ROLLBACK")
+
+    assert ok is False
+    assert report["verification_inconclusive"] is True
+    assert report["sqlite_corruption_confirmed"] is False
+    assert "restored_from_snapshot" not in report
+    assert Path(db_path).read_bytes() == original
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone() == (2,)
+
+
+def test_missing_database_restores_snapshot_with_repairable_data(tmp_path):
+    db_path = _healthy_db(tmp_path)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute(
+            "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+            "VALUES ('invalid', 'ADM', '2026-01-01 00:00:00')"
+        )
+    assert database_integrity._create_integrity_snapshot(db_path, force=True)
+    Path(db_path).unlink()
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is True
+    assert report["restored_from_snapshot"] is True
+    assert report["is_valid"] is False
+    assert report["sqlite_integrity_ok"] is True
+    assert report["schema_valid"] is True
+    assert report["invalid_data"]["invalid_numero_ssa"] == 1
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchone() == (
+            "invalid",
+        )
 
 
 def test_ensure_missing_db_restores_snapshot_instead_of_empty(tmp_path):

@@ -68,6 +68,19 @@ def make_exe():
             ],
         )
     )
+    exe.add_python_resource(
+        exe.make_python_module_source(name="launchers", source="", is_package=True)
+    )
+    for resource in exe.read_package_root(
+        path=PROJECT_PREFIX + "launchers", packages=["main_runtime"]
+    ):
+        exe.add_python_resource(
+            exe.make_python_module_source(
+                name="launchers." + resource.name,
+                source=resource.source,
+                is_package=resource.is_package,
+            )
+        )
     return exe
 
 

@@ -435,7 +435,9 @@ def load_cache(cache_file: str) -> Dict[str, Any]:
         return {}
 
 
-def save_cache(cache: Dict[str, Any], cache_file: str):
+def save_cache(
+    cache: Dict[str, Any], cache_file: str, *, raise_on_error: bool = False
+):
     """Salva o cache em um arquivo JSON."""
     try:
         lock_path = _cache_lock_path(cache_file)
@@ -449,6 +451,8 @@ def save_cache(cache: Dict[str, Any], cache_file: str):
         # Cache nao eh critico para a importacao; nao deve derrubar o processo.
         # Ainda assim, logamos o erro para diagnostico.
         logger.exception("Erro ao salvar cache em '%s': %s", cache_file, e)
+        if raise_on_error:
+            raise
 
 
 def get_files_to_process(

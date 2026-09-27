@@ -20,6 +20,7 @@ from armazenamento.database_publication import (
     restore_journal_mode,
     snapshot_database_for_replace,
 )
+from utils.sqlite_backup import bounded_sqlite_backup
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,12 @@ def validate_database_candidate(
     except Exception as exc:
         return {"ok": False, "error": str(exc), "db_file": db_file}
     has_rows = bool(test_df is not None and not test_df.empty)
+    if has_rows and "numero_ssa" not in test_df.columns:
+        return {
+            "ok": False,
+            "error": "Banco alternativo exige a coluna 'numero_ssa'.",
+            "db_file": db_file,
+        }
     return {"ok": has_rows, "db_file": db_file}
 
 
@@ -235,7 +242,13 @@ def _sweep_stale_staged_copies(dest: Path) -> None:
             logger.warning("Falha ao inspecionar copia parcial %s: %s", base, exc)
 
 
-def stage_database_copy(src: Path, dest: Path) -> dict[str, Any]:
+def stage_database_copy(
+    src: Path,
+    dest: Path,
+    *,
+    timeout: float = 30.0,
+    cancel_check: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
     """Grava o snapshot da origem em arquivo de staging ao lado do destino.
 
     Nao toca no destino: a promocao acontece em commit_staged_database_copy,
@@ -263,7 +276,9 @@ def stage_database_copy(src: Path, dest: Path) -> dict[str, Any]:
         source_uri = read_only_sqlite_uri(str(src))
         with closing(sqlite3.connect(source_uri, uri=True)) as source_conn:
             with closing(sqlite3.connect(str(staged))) as staged_conn:
-                source_conn.backup(staged_conn)
+                bounded_sqlite_backup(
+                    source_conn, staged_conn, timeout=timeout, cancel_check=cancel_check
+                )
                 if staged_conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal":
                     checkpoint = staged_conn.execute(
                         "PRAGMA wal_checkpoint(TRUNCATE)"

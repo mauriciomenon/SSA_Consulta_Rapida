@@ -20,6 +20,7 @@ from armazenamento.database import _clear_resolved_table_cache  # noqa: E402
 from armazenamento.database_integrity import create_sqlite_backup  # noqa: E402
 from armazenamento.database_lock import database_writer_lock  # noqa: E402
 from shared.db_names import SSA_READ_REQUIRED_COLUMNS  # noqa: E402
+from utils.sqlite_backup import bounded_sqlite_backup  # noqa: E402
 
 
 def _is_symlink_directory(path: str) -> bool:
@@ -100,7 +101,7 @@ def reset_database(db_path="data/ssas.db"):
                     created_here = True
                     os.close(descriptor)
                 with closing(sqlite3.connect(destination, timeout=5)) as current:
-                    candidate.backup(current)
+                    bounded_sqlite_backup(candidate, current)
             except Exception:
                 if created_here:
                     for created_path in (destination, *sidecars):

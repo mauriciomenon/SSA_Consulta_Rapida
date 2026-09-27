@@ -25,6 +25,7 @@ from typing import Optional
 
 from shared.date_utils import format_current_timestamp
 from utils.robust_logging import get_robust_logger
+from utils.sqlite_backup import bounded_sqlite_backup
 
 logger = get_robust_logger().get_logger(__name__, "distribution")
 
@@ -619,7 +620,7 @@ def _snapshot_sqlite_database(source: Path, target: Path) -> bool:
         source_uri = f"{source.resolve().as_uri()}?mode=ro"
         with closing(sqlite3.connect(source_uri, uri=True, timeout=5)) as source_conn:
             with closing(sqlite3.connect(temporary)) as target_conn:
-                source_conn.backup(target_conn)
+                bounded_sqlite_backup(source_conn, target_conn)
                 if target_conn.execute("PRAGMA quick_check").fetchone() != ("ok",):
                     raise sqlite3.DatabaseError("snapshot falhou no quick_check")
         os.replace(temporary, target)

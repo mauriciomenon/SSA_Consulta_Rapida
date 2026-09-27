@@ -153,3 +153,33 @@ def test_no_changes_run_records_outcome(workspace):
     assert outcome.status is import_outcome.ImportStatus.NO_CHANGES
     assert outcome.legacy_result is False
     assert outcome.primary_database_changed is False
+
+
+def test_diff_partial_failure_records_blocking_outcome_and_keeps_committed_rows(workspace):
+    docs, data, tmp = workspace
+    make_xlsx(docs / "good.xlsx", "202640001")
+    (docs / "bad.xlsx").write_bytes(b"Arquivo XLSX invalido")
+
+    assert run(docs, data, tmp) is True
+
+    outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
+    assert outcome.status is import_outcome.ImportStatus.UPDATED_PARTIAL
+    assert import_outcome.is_blocking_status(outcome.status)
+    assert outcome.primary_database_changed
+    assert outcome.processed_file_count == 1
+    assert outcome.blocking_error_count == 1
+
+
+def test_diff_deterministic_rejection_remains_non_blocking(workspace):
+    docs, data, tmp = workspace
+    make_xlsx(docs / "good.xlsx", "202640001")
+    pd.DataFrame({"foo": ["bar"]}).to_excel(docs / "rejected.xlsx", index=False)
+
+    assert run(docs, data, tmp) is True
+
+    outcome = import_outcome.get_last_import_outcome()
+    assert outcome is not None
+    assert outcome.status is import_outcome.ImportStatus.UPDATED
+    assert not import_outcome.is_blocking_status(outcome.status)
+    assert outcome.deterministic_failure_count == 1

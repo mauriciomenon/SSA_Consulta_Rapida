@@ -4,7 +4,11 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sqlite3
 import subprocess
+import sys
+import hashlib
+from contextlib import closing
 
 import pytest
 
@@ -240,17 +244,83 @@ def test_release_windows_declares_native_arm64_target() -> None:
     ]
 
 
-def test_release_windows_runtime_db_hash_compares_sqlite_snapshots_between_bundles() -> None:
-    script = _script_text()
-    runtime_body = section_between(
-        script,
-        "function Assert-RuntimeDatabase",
-        "function Invoke-DistributionPackage",
+@pytest.mark.parametrize(
+    "scenario", ["ok", "divergent_snapshot", "divergent_content"]
+)
+def test_release_windows_runtime_db_hash_compares_sqlite_snapshots_between_bundles(
+    tmp_path: Path, scenario: str,
+) -> None:
+    powershell = shutil.which("pwsh") or shutil.which("powershell")
+    if powershell is None:
+        pytest.skip("PowerShell necessario para validar hashes dos snapshots")
+    source = tmp_path / "data" / "ssas.db"
+    source.parent.mkdir()
+    roots = [tmp_path / "cli", tmp_path / "gui"]
+    for root in roots:
+        (root / "data").mkdir(parents=True)
+    first = roots[0] / "data" / "ssas.db"
+    second = roots[1] / "data" / "ssas.db"
+    with closing(sqlite3.connect(source)) as source_conn:
+        source_conn.execute("CREATE TABLE probe(value INTEGER)")
+        for value in range(5):
+            source_conn.execute("INSERT INTO probe VALUES (?)", (value,))
+            source_conn.commit()
+        with closing(sqlite3.connect(first)) as snapshot_conn:
+            source_conn.backup(snapshot_conn)
+    shutil.copy2(first, second)
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest().upper()
+    snapshot_hash = hashlib.sha256(first.read_bytes()).hexdigest().upper()
+    assert source_hash != snapshot_hash
+    if scenario == "divergent_snapshot":
+        with closing(sqlite3.connect(second)) as other:
+            other.execute("INSERT INTO probe VALUES (99)")
+            other.commit()
+    elif scenario == "divergent_content":
+        # Snapshots identicos entre si, mas com conteudo logico diferente
+        # da fonte: so a checagem logica detecta.
+        for snapshot in (first, second):
+            with closing(sqlite3.connect(snapshot)) as other:
+                other.execute("INSERT INTO probe VALUES (99)")
+                other.commit()
+    script = r"""
+$ErrorActionPreference = 'Stop'
+$ast = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_SCRIPT, [ref]$null, [ref]$null)
+foreach ($statement in $ast.EndBlock.Statements) {
+    if ($statement -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $statement.Name -in @('Assert-ExistingFile', 'Assert-ExistingDirectory', 'Get-ArtifactHash', 'Get-RuntimeDbLogicalSignature', 'Assert-RuntimeDatabase')) {
+        . ([scriptblock]::Create($statement.Extent.Text))
+    }
+}
+try {
+    $roots = @(ConvertFrom-Json $env:SSA_TEST_ROOTS)
+    $records = @(Assert-RuntimeDatabase -RepoRoot $env:SSA_TEST_REPO -RuntimeRoot $roots)
+    ConvertTo-Json -InputObject $records -Compress
+} catch {
+    Write-Error $_
+    exit 1
+}
+"""
+    result = subprocess.run(
+        [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+        env=os.environ | {
+            "SSA_TEST_SCRIPT": str(SCRIPT), "SSA_TEST_REPO": str(tmp_path),
+            "SSA_TEST_ROOTS": json.dumps([str(root) for root in roots]),
+            "SSA_TEST_PYTHON": sys.executable,
+        },
+        capture_output=True, text=True, check=False, timeout=30,
     )
-
-    assert "$sourceHash" in runtime_body
-    assert "$runtimeHash['sha256'] -ne $sourceHash" in runtime_body
-    assert "Hash do banco de runtime diverge da origem" in runtime_body
+    if scenario == "divergent_snapshot":
+        assert result.returncode != 0
+        assert "diverge entre snapshots" in result.stderr
+    elif scenario == "divergent_content":
+        assert result.returncode != 0
+        assert "diverge da origem" in result.stderr
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        records = json.loads(result.stdout)
+        assert len(records) == 2
+        assert {record["sha256"] for record in records} == {snapshot_hash}
+        assert {record["source_sha256"] for record in records} == {source_hash}
 
 
 def test_release_windows_smoke_uses_isolated_user_environment() -> None:

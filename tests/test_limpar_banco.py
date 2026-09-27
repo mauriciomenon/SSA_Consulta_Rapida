@@ -84,7 +84,7 @@ def test_limpar_banco_keeps_rows_and_existing_backup_on_collision(
 
     class FixedDatetime(datetime):
         @classmethod
-        def now(cls):
+        def now(cls, tz=None):
             return cls(2026, 1, 2, 3, 4, 5, 123456)
 
     monkeypatch.chdir(tmp_path)

@@ -6,12 +6,15 @@ armazenamento/database_lock.py imports it and REL-01 shipped a frozen
 venv without it.
 """
 
+import importlib
 import re
-try:
-    import tomllib
-except ImportError:  # Python <3.11
-    import tomli as tomllib  # ty: ignore[unresolved-import]
+import sys
 from pathlib import Path
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    tomllib = importlib.import_module("tomli")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 

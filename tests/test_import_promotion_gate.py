@@ -111,7 +111,7 @@ def run(
         return original_step(file_path=file_path, **kwargs)
 
     if fail_suffix:
-        app_logic._process_regular_file_step = patched_step
+        setattr(app_logic, "_process_regular_file_step", patched_step)
     try:
         result = run_importer_logic(
             docs_dir=str(docs),
@@ -120,7 +120,7 @@ def run(
             extra_allowed_roots=[str(tmp)],
         )
     finally:
-        app_logic._process_regular_file_step = original_step
+        setattr(app_logic, "_process_regular_file_step", original_step)
     return result
 
 

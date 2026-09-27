@@ -17,6 +17,7 @@ from contextlib import closing, contextmanager, nullcontext
 from typing import Any, Callable, Literal, cast
 
 import pandas as pd
+from utils.sqlite_backup import bounded_sqlite_backup
 
 # Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
 from shared.db_names import (
@@ -923,7 +924,7 @@ def reset_database(
                             get_db_connection(db_path) as source,
                             get_db_connection(candidate_path, write=True) as candidate,
                         ):
-                            source.backup(candidate)
+                            bounded_sqlite_backup(source, candidate)
                     with get_db_connection(candidate_path, write=True) as conn:
                         if _is_ssa_target_alias(_table_name):
                             conn.execute("DROP TABLE IF EXISTS ssa_event_records")
@@ -1021,7 +1022,7 @@ def reset_database(
                                 destination_created_here = True
                                 os.close(descriptor)
                             with get_db_connection(db_path, write=True) as destination:
-                                candidate.backup(destination)
+                                bounded_sqlite_backup(candidate, destination)
                             promotion_completed = True
                         finally:
                             if destination_created_here and not promotion_completed:

@@ -701,18 +701,19 @@ def _apply_derivada_filter(
     cache_token: int,
     normalize_ssa_series,
 ):
-    if not callable(normalize_ssa_series):
-        logger.debug(
-            "Skipping derivada filters because normalize_ssa_series is unavailable."
-        )
-        return mask, None
-
     derivada_has = bool(filters.get("derivada_has"))
     derivada_all_ste = bool(filters.get("derivada_all_ste"))
     derivada_is = bool(filters.get("derivada_is"))
-
-    if "derivada_de" not in df.columns:
+    if not (derivada_has or derivada_all_ste or derivada_is):
         return mask, None
+    if "derivada_de" not in df.columns:
+        raise AdvancedFilterMaskError(
+            "Filtro de derivadas ativo exige a coluna 'derivada_de'."
+        )
+    if not callable(normalize_ssa_series):
+        raise AdvancedFilterMaskError(
+            "Filtro de derivadas ativo exige normalizador de numeros SSA."
+        )
 
     norm_cache = state.get_cache("_adv_norm_cache")
     deriv_key = _cache_key(cache_token, df, "derivada_de")

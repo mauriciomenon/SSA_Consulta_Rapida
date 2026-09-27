@@ -11,6 +11,7 @@ the last dataframe (filter_gui_ssa_mixin._refresh_after_filter_change).
 
 import os
 import sys
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -28,19 +29,13 @@ from gui.ssa.gui_filters_advanced_logic import (  # noqa: E402
     _apply_year_emissao_filter,
     _apply_year_execucao_filter,
 )
+from gui.ssa.gui_filters_advanced_state import AdvancedFilterState  # noqa: E402
 
 CACHE_TOKEN = 1
 
 
-class _CacheState:
-    def __init__(self):
-        self._caches: dict[str, dict] = {}
-
-    def get_cache(self, name: str) -> dict:
-        return self._caches.setdefault(name, {})
-
-    def clear_caches(self) -> None:
-        self._caches.clear()
+def _state() -> AdvancedFilterState:
+    return AdvancedFilterState(SimpleNamespace())
 
 
 def _frame() -> pd.DataFrame:
@@ -66,7 +61,7 @@ def test_filter_with_missing_column_raises_instead_of_passing_all():
     df = _frame().drop(columns=["setor_executor"])
     filters = {"setor_executor": ["IEE3"]}
     with pytest.raises(AdvancedFilterMaskError, match="setor_executor"):
-        _apply_include_exclude_filters(df, filters, _mask(df), _CacheState(), CACHE_TOKEN)  # ty: ignore[invalid-argument-type]
+        _apply_include_exclude_filters(df, filters, _mask(df), _state(), CACHE_TOKEN)
 
 
 def test_broken_mask_computation_raises_instead_of_ignoring_filter():
@@ -88,7 +83,7 @@ def test_broken_mask_computation_raises_instead_of_ignoring_filter():
     try:
         with pytest.raises(AdvancedFilterMaskError, match="include filter"):
             _apply_include_exclude_filters(
-                df, filters, _mask(df), _CacheState(), CACHE_TOKEN
+                df, filters, _mask(df), _state(), CACHE_TOKEN
             )
     finally:
         _IncludeExcludeSeriesCache.get_str = original_get_str
@@ -97,13 +92,13 @@ def test_broken_mask_computation_raises_instead_of_ignoring_filter():
 def test_valid_filter_still_applies_unchanged():
     df = _frame()
     filters = {"setor_executor": ["IEE3"]}
-    mask = _apply_include_exclude_filters(df, filters, _mask(df), _CacheState(), CACHE_TOKEN)  # ty: ignore[invalid-argument-type]
+    mask = _apply_include_exclude_filters(df, filters, _mask(df), _state(), CACHE_TOKEN)
     assert mask.tolist() == [True, False, True]
 
     exclude_filters = {"setor_executor_exclude_values": ["IEE3"]}
     mask = _apply_include_exclude_filters(
-        df, exclude_filters, _mask(df), _CacheState(), CACHE_TOKEN
-    )  # ty: ignore[invalid-argument-type]
+        df, exclude_filters, _mask(df), _state(), CACHE_TOKEN
+    )
     assert mask.tolist() == [False, True, False]
 
 
@@ -121,13 +116,13 @@ def test_ano_emissao_active_without_date_columns_raises():
     df = _frame().drop(columns=["data_cadastro", "semana_cadastro"])
     filters = {"ano_emissao_values": ["2026"]}
     with pytest.raises(AdvancedFilterMaskError, match="ano emissao"):
-        _apply_year_emissao_filter(df, filters, _mask(df), _CacheState(), CACHE_TOKEN)  # ty: ignore[invalid-argument-type]
+        _apply_year_emissao_filter(df, filters, _mask(df), _state(), CACHE_TOKEN)
 
 
 def test_ano_emissao_inactive_without_columns_is_valid():
     df = _frame().drop(columns=["data_cadastro", "semana_cadastro"])
     mask, _ = _apply_year_emissao_filter(
-        df, {}, _mask(df), _CacheState(), CACHE_TOKEN
+        df, {}, _mask(df), _state(), CACHE_TOKEN
     )
     assert mask.tolist() == [True, True, True]
 
@@ -144,8 +139,35 @@ def test_derivada_active_without_numero_ssa_raises():
     filters = {"derivada_has": True}
     with pytest.raises(AdvancedFilterMaskError, match="numero_ssa"):
         _apply_derivada_filter(
-            df, filters, _mask(df), _CacheState(), CACHE_TOKEN, lambda series: series
-        )  # ty: ignore[invalid-argument-type]
+            df, filters, _mask(df), _state(), CACHE_TOKEN, lambda series: series
+        )
+
+
+@pytest.mark.parametrize("filter_name", ["derivada_has", "derivada_is", "derivada_all_ste"])
+def test_derivada_active_without_relation_column_raises(filter_name):
+    df = _frame().drop(columns=["derivada_de"])
+    with pytest.raises(AdvancedFilterMaskError, match="derivada_de"):
+        _apply_derivada_filter(
+            df, {filter_name: True}, _mask(df), _state(), CACHE_TOKEN,
+            lambda series: series,
+        )
+
+
+def test_derivada_inactive_accepts_legacy_schema_without_normalizer():
+    df = _frame().drop(columns=["derivada_de"])
+    result, notice = _apply_derivada_filter(
+        df, {}, _mask(df), _state(), CACHE_TOKEN, None,
+    )
+    assert result.all()
+    assert notice is None
+
+
+def test_derivada_active_without_normalizer_raises():
+    df = _frame()
+    with pytest.raises(AdvancedFilterMaskError, match="normalizador"):
+        _apply_derivada_filter(
+            df, {"derivada_has": True}, _mask(df), _state(), CACHE_TOKEN, None,
+        )
 
 
 def test_derivada_all_ste_without_situacao_raises():
@@ -153,5 +175,5 @@ def test_derivada_all_ste_without_situacao_raises():
     filters = {"derivada_all_ste": True}
     with pytest.raises(AdvancedFilterMaskError, match="situacao"):
         _apply_derivada_filter(
-            df, filters, _mask(df), _CacheState(), CACHE_TOKEN, lambda series: series
-        )  # ty: ignore[invalid-argument-type]
+            df, filters, _mask(df), _state(), CACHE_TOKEN, lambda series: series
+        )

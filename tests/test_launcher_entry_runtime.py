@@ -223,9 +223,9 @@ def test_gui_entry_uses_shared_launcher_and_preserves_exit_code(
     monkeypatch.setattr(QtWidgets, "QApplication", FakeApp)
     monkeypatch.setattr(gui_ssa, "SSAMainWindow", FakeWindow)
     fake_launcher = ModuleType("gui.launcher")
-    fake_launcher.launch_gui = lambda root, argv, log: calls.append(  # type: ignore[attr-defined]
+    setattr(fake_launcher, "launch_gui", lambda root, argv, log: calls.append(
         (root, argv, log)
-    ) or 7
+    ) or 7)
     monkeypatch.setitem(sys.modules, "gui.launcher", fake_launcher)
 
     with pytest.raises(SystemExit) as exit_info:

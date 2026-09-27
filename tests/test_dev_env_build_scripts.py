@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import ast
+from types import SimpleNamespace
 
 import pytest
 
@@ -120,6 +122,48 @@ def test_pyoxidizer_config_embeds_app_code_without_filesystem_python_sources() -
     assert '"main"' in root_text
     assert '"core/*.py"' not in root_text
     assert '"main.py"' not in root_text
+
+
+def test_pyoxidizer_includes_only_the_required_launcher_module() -> None:
+    root_text = (PROJECT_ROOT / "pyoxidizer.bzl").read_text(encoding="utf-8")
+    make_exe = next(node for node in ast.parse(root_text).body if isinstance(node, ast.FunctionDef) and node.name == "make_exe")
+    added = []
+    scanned = []
+
+    def read_package_root(*, path, packages):
+        if path == str(PROJECT_ROOT):
+            assert "launchers" not in packages
+            return []
+        scanned.append((path, packages))
+        return [SimpleNamespace(name="main_runtime", source=(PROJECT_ROOT / "launchers/main_runtime.py").read_text(), is_package=False)]
+
+    exe = SimpleNamespace(
+        pip_install=lambda _args: [],
+        read_package_root=read_package_root,
+        make_python_module_source=lambda **fields: SimpleNamespace(**fields),
+        add_python_resource=added.append,
+        add_python_resources=added.extend,
+    )
+    distribution = SimpleNamespace(
+        make_python_packaging_policy=lambda: SimpleNamespace(set_resource_handling_mode=lambda _mode: None),
+        make_python_interpreter_config=SimpleNamespace,
+        to_python_executable=lambda **_kwargs: exe,
+    )
+    namespace = {
+        "PROJECT_ROOT": str(PROJECT_ROOT), "PROJECT_PREFIX": f"{PROJECT_ROOT}/",
+        "default_python_distribution": lambda: distribution,
+    }
+    exec(compile(ast.Module(body=[make_exe], type_ignores=[]), "pyoxidizer.bzl", "exec"), namespace)
+    build_executable = namespace["make_exe"]
+    assert callable(build_executable)
+    build_executable()
+    assert scanned == [(f"{PROJECT_ROOT}/launchers", ["main_runtime"])]
+    assert [(resource.name, resource.is_package) for resource in added] == [
+        ("launchers", True), ("launchers.main_runtime", False),
+    ]
+    compile(added[1].source, "launchers.main_runtime", "exec")
+    stage = (PROJECT_ROOT / "dev_env/build/build_pyoxidizer.bat").read_text()
+    assert 'copy /Y "%REPO_ROOT%\\launchers\\main_runtime.py" "%STAGE_DIR%\\launchers\\main_runtime.py"' in stage
 
 
 def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:

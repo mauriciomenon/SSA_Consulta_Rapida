@@ -30,6 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
 robust_logging = importlib.import_module("utils.robust_logging")
 logger = robust_logging.get_robust_logger().get_logger(__name__, "maintenance")
 write_build_info = importlib.import_module("dev_env.build.write_build_info")
+from utils.sqlite_backup import bounded_sqlite_backup  # noqa: E402
 
 
 class MultiPlatformBuilder:
@@ -733,7 +734,7 @@ VSVersionInfo(
                         sqlite3.connect(source_uri, uri=True, timeout=5)
                     ) as source_conn:
                         with closing(sqlite3.connect(runtime_db_temporary)) as target_conn:
-                            source_conn.backup(target_conn)
+                            bounded_sqlite_backup(source_conn, target_conn)
                             if target_conn.execute("PRAGMA quick_check").fetchone() != (
                                 "ok",
                             ):

@@ -43,6 +43,20 @@ def test_validate_database_candidate_accepts_non_empty_table():
     assert result == {"ok": True, "db_file": "/tmp/candidate.db"}
 
 
+def test_validate_database_candidate_rejects_unrelated_schema(tmp_path):
+    from armazenamento.database import query_db
+
+    candidate = tmp_path / "unrelated.db"
+    with sqlite3.connect(candidate) as conn:
+        conn.execute("CREATE TABLE ssa_table (unrelated TEXT)")
+        conn.execute("INSERT INTO ssa_table VALUES ('value')")
+    result = validate_database_candidate(
+        str(candidate), table_name="ssa_table", query_db_fn=query_db,
+    )
+    assert result["ok"] is False
+    assert "numero_ssa" in result["error"]
+
+
 def _make_db(path: Path, rows: list[str], wal: bool = False) -> Path:
     conn = sqlite3.connect(str(path))
     if wal:
@@ -57,6 +71,33 @@ def _make_db(path: Path, rows: list[str], wal: bool = False) -> Path:
 def _read_rows(path: Path) -> list[str]:
     with sqlite3.connect(str(path)) as conn:
         return [r[0] for r in conn.execute("SELECT numero_ssa FROM ssa_table")]
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_stage_copy_stops_under_source_lock_and_cleans_staging(tmp_path, cancel):
+    import time
+
+    from gui.ssa import database_operations as ssa_ops
+
+    src = _make_db(tmp_path / "source.db", ["202600001"])
+    dest = _make_db(tmp_path / "target.db", ["202600002"])
+    active_before = ssa_ops.active_staged_copy_count()
+    with sqlite3.connect(src) as blocker:
+        blocker.execute("BEGIN EXCLUSIVE")
+        started = time.monotonic()
+        result = ssa_ops.stage_database_copy(
+            src, dest, timeout=0.1 if not cancel else 5.0,
+            cancel_check=lambda: cancel and time.monotonic() - started >= 0.05,
+        )
+        elapsed = time.monotonic() - started
+        blocker.rollback()
+    assert not result["ok"]
+    assert elapsed < 1.0
+    assert ("cancelado" if cancel else "esgotado") in result["error"]
+    assert ssa_ops.active_staged_copy_count() == active_before
+    assert not list(tmp_path.glob("target.db.copy-*"))
+    assert _read_rows(dest) == ["202600002"]
+    assert _read_rows(src) == ["202600001"]
 
 
 def test_copy_database_into_data_dir_copies_external_db(tmp_path):

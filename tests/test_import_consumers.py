@@ -9,6 +9,7 @@ so the identity-snapshot pattern keeps the legacy fallback intact.
 
 import os
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -127,12 +128,21 @@ class TestCliEntryExitCodes:
 class TestPaiImportServiceFlag:
     def _make_preview(self):
         from core.pai_import_service import PaiFetchedXlsxPreview
+        from core.pai_scrap_report_provider import PaiScrapReportExport
 
+        xlsx_path = Path("import.xlsx")
         return PaiFetchedXlsxPreview(
-            export="",
-            import_xlsx_path="import.xlsx",
+            export=PaiScrapReportExport(
+                command=(),
+                scrap_report_root=Path("."),
+                manifest_path=Path("manifest.json"),
+                xlsx_path=xlsx_path,
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=xlsx_path,
             normalized_rows=0,
-            xlsx_summary={},
         )
 
     def test_imported_uses_primary_database_changed(self, tmp_path):
@@ -236,3 +246,23 @@ class TestRescanWorkerClassification:
             worker, monkeypatch, success=True, outcome=None, processed=5
         )
         assert worker.last_outcome is RescanOutcome.UPDATED
+
+    def test_partial_update_emits_error_and_preserves_reload(self, worker, monkeypatch):
+        from gui.workers.rescan_worker import RescanOutcome
+
+        successes = []
+        errors = []
+        progress = []
+        worker.finished_success.connect(lambda: successes.append(True))
+        worker.finished_error.connect(errors.append)
+        worker.progress.connect(lambda _value, message: progress.append(message))
+        self._run_with(
+            worker, monkeypatch, success=True,
+            outcome=outcome_for(ImportStatus.UPDATED_PARTIAL, changed=True),
+            processed=1,
+        )
+        assert worker.last_outcome is RescanOutcome.UPDATED
+        assert successes == []
+        assert len(errors) == 1
+        assert "updated_partial" in errors[0]
+        assert "Concluido com sucesso" not in progress

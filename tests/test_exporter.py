@@ -5,6 +5,7 @@ Testes unitários para o módulo exportacao.exporter.
 """
 
 import os
+import csv
 import shutil
 import sys
 import tempfile
@@ -139,6 +140,26 @@ def test_sanitize_spreadsheet_cell_only_changes_formula_like_strings():
     assert sanitize_spreadsheet_cell("\t=A1") == "'\t=A1"
     assert sanitize_spreadsheet_cell(" text") == " text"
     assert sanitize_spreadsheet_cell(123) == 123
+
+
+@pytest.mark.parametrize("labels", [("Nome", "Nome"), ("=1", "'=1")])
+def test_export_preserves_duplicate_labels_and_formula_safety(tmp_path, labels):
+    dataframe = pd.DataFrame({"a": ["=A1"], "b": [42]})
+    original = dataframe.copy(deep=True)
+    display_map = dict(zip(dataframe.columns, labels))
+
+    export_dataframe(dataframe, "duplicados", str(tmp_path), display_map)
+
+    expected_header = [sanitize_spreadsheet_cell(label) for label in labels]
+    with (tmp_path / "duplicados.csv").open(encoding="utf-8-sig", newline="") as output:
+        assert list(csv.reader(output)) == [expected_header, ["'=A1", "42"]]
+    workbook = load_workbook(tmp_path / "duplicados.xlsx")
+    try:
+        assert list(workbook.active.values) == [tuple(expected_header), ("'=A1", 42)]
+        assert workbook.active["A2"].data_type == "s"
+    finally:
+        workbook.close()
+    pd.testing.assert_frame_equal(dataframe, original)
 
 
 def test_export_dataframe_neutralizes_formulas_in_mixed_categories(temp_output_dir):

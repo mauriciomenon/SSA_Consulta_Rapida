@@ -33,6 +33,7 @@ project_root_path = Path(
 )
 
 from armazenamento import database  # noqa: E402
+from armazenamento.database_integrity import IMPORT_CACHE_RECOVERY_SUFFIX  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
     mark_latest_sync_run_failed,
     scan_derivadas_consistency,
@@ -1548,6 +1549,7 @@ def _resolve_import_work_items(
     force_import: bool,
     explicit_files: Optional[Sequence[str | os.PathLike[str]]],
     should_cancel: Optional[Callable[[], bool]],
+    discovery_settings: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Resolve arquivos de trabalho e politicas de discovery para a rodada."""
     if should_cancel is not None and should_cancel():
@@ -1560,7 +1562,11 @@ def _resolve_import_work_items(
             ", ".join(os.path.basename(path) for path in ignored_legacy_excel_files[:5]),
         )
 
-    discovery_settings = _load_import_discovery_settings()
+    discovery_settings = (
+        dict(discovery_settings)
+        if discovery_settings is not None
+        else _load_import_discovery_settings()
+    )
 
     include_processadas = bool(discovery_settings.get("include_processadas", False))
     ignore_subdirs = list(discovery_settings.get("ignore_subdirs", []))
@@ -1703,11 +1709,12 @@ def _finalize_import_run_outcome(
             "working_db_path": working_db_path,
         }
 
-    if candidate_db_path is not None and _has_blocking_candidate_errors(
+    has_blocking_file_errors = _has_blocking_candidate_errors(
         files_to_process=files_to_process,
         critical_errors=critical_errors,
         deterministic_failed_files=deterministic_failed_files,
-    ):
+    )
+    if candidate_db_path is not None and has_blocking_file_errors:
         regular_candidates = {
             file_path
             for file_path in files_to_process
@@ -1802,8 +1809,12 @@ def _finalize_import_run_outcome(
         logger.info("=== Processo de importacao concluido com atualizacoes ===")
         return {
             "result": True,
-            "status": "updated",
-            "reason": "files_processed_or_cache_updated",
+            "status": "updated_partial" if has_blocking_file_errors else "updated",
+            "reason": (
+                "non_deterministic_file_errors_after_update"
+                if has_blocking_file_errors
+                else "files_processed_or_cache_updated"
+            ),
             "integrity_report": (
                 next_integrity_report
                 if isinstance(next_integrity_report, dict) and next_integrity_report
@@ -1844,8 +1855,14 @@ def _finalize_import_run_outcome(
         )
         return {
             "result": True,
-            "status": "derivadas_materialized",
-            "reason": "derivadas_sync_materialized_without_cache_update",
+            "status": (
+                "updated_partial" if has_blocking_file_errors else "derivadas_materialized"
+            ),
+            "reason": (
+                "non_deterministic_file_errors_after_update"
+                if has_blocking_file_errors
+                else "derivadas_sync_materialized_without_cache_update"
+            ),
             "integrity_report": (
                 next_integrity_report
                 if isinstance(next_integrity_report, dict) and next_integrity_report
@@ -2291,6 +2308,49 @@ def run_importer_logic(
                     table_name=table_name,
                 )
             )
+
+            # O marcador fica ao lado do banco primario, mesmo quando a
+            # rodada opera num candidato de full rescan.
+            recovery_marker = Path(
+                f"{Path(primary_db_path).resolve()}{IMPORT_CACHE_RECOVERY_SUFFIX}"
+            )
+            if os.path.lexists(recovery_marker):
+                if recovery_marker.is_symlink() or not recovery_marker.is_file():
+                    raise CacheError("Marcador de recuperacao invalido")
+                # Fora do full rescan o cache e invalidado para reprocessar
+                # as fontes presentes; no full rescan a propria rodada ja
+                # reprocessa todo o escopo, entao basta consumir o marcador.
+                if candidate_db_path is None:
+                    caching.save_cache({}, cache_file, raise_on_error=True)
+                recovery_marker.unlink()
+                recovery_warning = (
+                    "Cache revalidado apos tentativa de restauracao. Somente fontes "
+                    "existentes no escopo solicitado serao reprocessadas; a cobertura "
+                    "de fontes removidas ou excluidas nao foi verificada."
+                )
+                integrity_report.setdefault("warnings", []).append(recovery_warning)
+                logger.warning(recovery_warning)
+                if candidate_db_path is None:
+                    try:
+                        work_items = _resolve_import_work_items(
+                            docs_dir=docs_dir,
+                            docs_dir_path=docs_dir_path,
+                            cache_file=cache_file,
+                            force_import=force_import,
+                            explicit_files=explicit_files,
+                            should_cancel=should_cancel,
+                            discovery_settings=discovery_settings,
+                        )
+                    except InterruptedError:
+                        return _finalize_and_return(
+                            False,
+                            "cancelled_preflight",
+                            "file_discovery_cancelled_after_recovery",
+                        )
+                    files_to_process = cast(List[str], work_items["files_to_process"])
+                    derivadas_sheet_files = cast(
+                        List[str], work_items["derivadas_sheet_files"]
+                    )
 
             # Revalida o banco de trabalho apos a criacao do candidato.
             try:

@@ -92,6 +92,8 @@ def _execute_import_and_report(
     data_dir: str,
     runtime_base: str,
     logger: Any,
+    db_name: str = "ssas.db",
+    table_name: str = "ssa_table",
 ) -> ImportExecutionStats:
     from core.import_progress import ImportProgressSummary
     from core import import_outcome
@@ -102,6 +104,8 @@ def _execute_import_and_report(
     updated = run_importer_logic(
         docs_dir=docs_dir,
         data_dir=data_dir,
+        db_name=db_name,
+        table_name=table_name,
         force_import=True,
         extra_allowed_roots=[runtime_base],
         progress_callback=summary.capture,
@@ -358,7 +362,9 @@ def main():
             import_stats = _execute_import_and_report(
                 run_importer_logic,
                 docs_dir=runtime_paths.docs_dir,
-                data_dir=runtime_paths.data_dir,
+                data_dir=os.path.dirname(runtime_paths.db_path),
+                db_name=os.path.basename(runtime_paths.db_path),
+                table_name=table_name,
                 runtime_base=runtime_paths.runtime_base,
                 logger=logger,
             )

@@ -20,6 +20,104 @@ class _DummyLabel:
         self.text = value
 
 
+def test_shutdown_cancels_locked_staging_and_releases_window(tmp_path):
+    from threading import Event, Thread
+
+    src = tmp_path / "source.db"
+    dest = tmp_path / "target.db"
+    with sqlite3.connect(src) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.execute("INSERT INTO ssa_table VALUES ('202600001')")
+    cancel_event = Event()
+    entered_backup = Event()
+    results = []
+
+    def cancel_check():
+        entered_backup.set()
+        return cancel_event.is_set()
+
+    worker = Thread(target=lambda: results.append(
+        gui_ssa.ssa_database_operations.stage_database_copy(
+            src, dest, timeout=5.0, cancel_check=cancel_check,
+        )
+    ))
+    window = SimpleNamespace(
+        status_label=_DummyLabel(),
+        _other_db_validation_cancel_event=cancel_event,
+        _other_db_validation_request_id=1,
+        _other_db_validation_thread=worker,
+    )
+    with sqlite3.connect(src) as blocker:
+        blocker.execute("BEGIN EXCLUSIVE")
+        worker.start()
+        try:
+            assert entered_backup.wait(1.0)
+            gui_ssa.SSAMainWindow.shutdown(cast(Any, window))
+            worker.join(1.0)
+            assert not worker.is_alive()
+            assert cancel_event.is_set()
+            assert window._other_db_validation_request_id == 2
+            assert not results[0]["ok"]
+            assert gui_ssa.SSAMainWindow.shutdown(cast(Any, window))
+        finally:
+            cancel_event.set()
+            blocker.rollback()
+            worker.join(2.0)
+    assert not list(tmp_path.glob("target.db.copy-*"))
+    assert not dest.exists()
+
+
+def test_cancelled_database_copy_releases_busy_state_after_worker_stops(monkeypatch, tmp_path):
+    from PyQt6.QtGui import QCloseEvent
+
+    candidate = tmp_path / "candidate.db"
+    candidate.touch()
+    scheduled = []
+    action_states = []
+
+    class _SlowThread:
+        def __init__(self, target, **kwargs):
+            self.alive = True
+
+        def start(self):
+            pass
+
+        def is_alive(self):
+            return self.alive
+
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr(gui_ssa, "threading", SimpleNamespace(Thread=_SlowThread))
+    monkeypatch.setattr(gui_ssa, "QTimer", SimpleNamespace(
+        singleShot=lambda _ms, callback: scheduled.append(callback)))
+    monkeypatch.setattr(gui_ssa, "QFileDialog", lambda: SimpleNamespace(
+        getOpenFileName=lambda *_args: (str(candidate), "")))
+    window = SimpleNamespace(
+        status_label=_DummyLabel(),
+        _database_operation_actions=[SimpleNamespace(setEnabled=action_states.append)],
+    )
+    window.shutdown = lambda: gui_ssa.SSAMainWindow.shutdown(cast(Any, window))
+    assert gui_ssa.SSAMainWindow.load_other_database(cast(Any, window))["started"]
+    old_worker = window._other_db_validation_thread
+    old_poll = scheduled.pop(0)
+    close_event = QCloseEvent()
+    gui_ssa.SSAMainWindow.closeEvent(cast(Any, window), close_event)
+    assert not close_event.isAccepted()
+    old_poll()
+    assert window._other_db_validation_running
+    assert gui_ssa.SSAMainWindow.load_other_database(cast(Any, window))["reason"] == "database_busy"
+    old_worker.alive = False
+    scheduled.pop(0)()
+    assert not window._other_db_validation_running
+    assert window._other_db_validation_thread is None
+    assert action_states[-1] is True
+    assert gui_ssa.SSAMainWindow.load_other_database(cast(Any, window))["started"]
+    new_worker = window._other_db_validation_thread
+    old_poll()
+    assert window._other_db_validation_running
+    assert window._other_db_validation_thread is new_worker
+    assert action_states[-1] is False
+
+
 class _DummyMenu:
     def __init__(self) -> None:
         self.actions: list[Any] = []
@@ -935,7 +1033,7 @@ def test_database_result_delivery_failure_allows_retry(monkeypatch, tmp_path, op
     monkeypatch.setattr(
         gui_ssa.ssa_database_operations,
         "stage_database_copy",
-        lambda _src, _dest: {
+        lambda _src, _dest, **_kwargs: {
             "ok": True,
             "staged": str(tmp_path / "candidate.staged"),
             "dest": str(copied_candidate),
@@ -1025,7 +1123,7 @@ def test_other_db_timeout_discards_late_staging(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         gui_ssa.ssa_database_operations, "stage_database_copy",
-        lambda _s, dest: {
+        lambda _s, dest, **_kwargs: {
             "ok": True, "staged": str(staged_file), "dest": str(dest),
             "db_file": str(dest), "copied": True, "archived": None,
             "error": None,
@@ -1055,6 +1153,7 @@ def test_other_db_timeout_discards_late_staging(monkeypatch, tmp_path):
     scheduled.pop(0)()
     assert window._other_db_validation_request_id != request_id
     assert window._other_db_validation_running is False
+    assert window._other_db_validation_cancel_event.is_set()
 
     # Worker termina tarde: o staging virou stale e deve ser descartado.
     threads[0].target()
@@ -1120,7 +1219,7 @@ def test_other_db_publish_after_invalidation_discards_staged(
     )
     monkeypatch.setattr(
         gui_ssa.ssa_database_operations, "stage_database_copy",
-        lambda _s, dest: {
+        lambda _s, dest, **_kwargs: {
             "ok": True, "staged": str(staged_file), "dest": str(dest),
             "db_file": str(dest), "copied": True, "archived": None,
             "error": None,

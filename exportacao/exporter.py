@@ -32,13 +32,14 @@ def sanitize_spreadsheet_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     sanitized.columns = [
         sanitize_spreadsheet_cell(str(column)) for column in sanitized.columns
     ]
-    for column in sanitized.columns:
+    for position in range(len(sanitized.columns)):
+        column = sanitized.iloc[:, position]
         if (
-            pd.api.types.is_object_dtype(sanitized[column])
-            or pd.api.types.is_string_dtype(sanitized[column])
-            or isinstance(sanitized[column].dtype, pd.CategoricalDtype)
+            pd.api.types.is_object_dtype(column)
+            or pd.api.types.is_string_dtype(column)
+            or isinstance(column.dtype, pd.CategoricalDtype)
         ):
-            sanitized[column] = sanitized[column].map(sanitize_spreadsheet_cell)
+            sanitized.isetitem(position, column.map(sanitize_spreadsheet_cell))
     return sanitized
 
 def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, display_map: Dict[str, str]):

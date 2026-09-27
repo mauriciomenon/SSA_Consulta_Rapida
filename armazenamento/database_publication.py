@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from utils.sqlite_backup import bounded_sqlite_backup
 from contextlib import closing
 from pathlib import Path
 from urllib.parse import urlparse
@@ -65,7 +66,7 @@ def snapshot_database_for_replace(db_path: str, backup_path: str) -> str:
             with closing(
                 sqlite3.connect(_rw_sqlite_uri(backup_path), uri=True)
             ) as backup:
-                source.backup(backup)
+                bounded_sqlite_backup(source, backup)
                 if backup.execute("PRAGMA quick_check").fetchone() != ("ok",):
                     raise sqlite3.DatabaseError("Backup falhou no quick_check")
         if any(os.path.lexists(f"{db_path}{suffix}") for suffix in _SIDECARS):
