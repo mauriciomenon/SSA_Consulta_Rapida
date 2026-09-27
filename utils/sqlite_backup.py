@@ -29,16 +29,15 @@ def _progress_checker(
 
     def check_progress(status: int, remaining: int, _total: int) -> None:
         nonlocal stall_deadline, minimum
-        if status == _SQLITE_DONE:
-            # Copia concluida produz arquivo valido: abortar aqui faria o
-            # chamador descartar trabalho pronto. Prazos limitam a espera,
-            # nao invalidam um backup terminado.
-            return
         if cancel_check is not None and cancel_check():
             raise InterruptedError("Backup SQLite cancelado")
         current = now()
         if current >= total_deadline:
             raise TimeoutError("Prazo total do backup SQLite esgotado")
+        if status == _SQLITE_DONE:
+            # Copia terminada nao pode estar parada: DONE dispensa stall,
+            # mas cancelamento e teto total ja foram fiscalizados acima.
+            return
         if current >= stall_deadline:
             raise TimeoutError("Backup SQLite sem progresso")
         if remaining < minimum:

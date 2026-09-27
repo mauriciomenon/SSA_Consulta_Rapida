@@ -284,11 +284,13 @@ def _restore_latest_valid_snapshot_locked(
         temporary = Path(f"{db}.restore_{timestamp}.tmp")
         forensic = backup_dir / f"{db.name}.corrupt_{timestamp}.db"
         moved_sidecars: list[tuple[Path, Path]] = []
+        marker_created = False
         try:
             shutil.copy2(snapshot, temporary)
             recovery_marker = Path(f"{db}{IMPORT_CACHE_RECOVERY_SUFFIX}")
             try:
                 with recovery_marker.open("x", encoding="ascii") as pending:
+                    marker_created = True
                     pending.write("Revalidar cache apos tentativa de restauracao.\n")
                     pending.flush()
                     os.fsync(pending.fileno())
@@ -308,6 +310,10 @@ def _restore_latest_valid_snapshot_locked(
             _replace_file_with_retry(temporary, db)
         except (OSError, sqlite3.Error) as exc:
             logger.error("Falha ao preparar restauracao do snapshot '%s': %s", snapshot, exc)
+            if marker_created:
+                # Restauracao nao aconteceu: marcador criado nesta rodada
+                # viraria orfao e dispararia revalidacao indevida.
+                recovery_marker.unlink(missing_ok=True)
             temporary.unlink(missing_ok=True)
             try:
                 for original, archived in moved_sidecars:
@@ -380,6 +386,10 @@ def _restore_latest_valid_snapshot_locked(
                     _replace_file_with_retry(original, archived)
             logger.critical("Falha ao restaurar banco original apos rollback: %s", exc)
             return "critical"
+        if marker_created:
+            # Rollback devolveu o banco original: a restauracao nao pegou,
+            # entao o marcador criado nesta rodada nao deve sobreviver.
+            recovery_marker.unlink(missing_ok=True)
         _prune_forensic_backups(db_path)
     return "unavailable"
 

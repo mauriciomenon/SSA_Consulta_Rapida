@@ -1425,6 +1425,19 @@ def _validate_and_promote_candidate_if_needed(
         result["status"] = "candidate_promotion_failed"
         result["reason"] = str(exc)
         return result
+    # O marcador de recuperacao e consumido somente apos a promocao do
+    # candidato: em falha ou cancelamento anterior ele permanece ao lado
+    # do primario para revalidar o cache na proxima rodada incremental.
+    # Se a remocao falhar, o marcador sobrevive e gera apenas uma
+    # revalidacao extra — direcao segura da falha.
+    try:
+        Path(
+            f"{Path(primary_db_path).resolve()}{IMPORT_CACHE_RECOVERY_SUFFIX}"
+        ).unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning(
+            "Marcador de recuperacao nao removido apos promocao: %s", exc
+        )
     result["promoted_backup_path"] = promoted_backup_path
     result["working_db_path"] = primary_db_path
     return result
@@ -2318,11 +2331,14 @@ def run_importer_logic(
                 if recovery_marker.is_symlink() or not recovery_marker.is_file():
                     raise CacheError("Marcador de recuperacao invalido")
                 # Fora do full rescan o cache e invalidado para reprocessar
-                # as fontes presentes; no full rescan a propria rodada ja
-                # reprocessa todo o escopo, entao basta consumir o marcador.
+                # as fontes presentes e o marcador e consumido. No full
+                # rescan o marcador permanece ate a promocao do candidato:
+                # se a rodada falhar ou for cancelada, o primario restaurado
+                # continua sinalizado e o proximo incremental revalida o
+                # cache.
                 if candidate_db_path is None:
                     caching.save_cache({}, cache_file, raise_on_error=True)
-                recovery_marker.unlink()
+                    recovery_marker.unlink()
                 recovery_warning = (
                     "Cache revalidado apos tentativa de restauracao. Somente fontes "
                     "existentes no escopo solicitado serao reprocessadas; a cobertura "

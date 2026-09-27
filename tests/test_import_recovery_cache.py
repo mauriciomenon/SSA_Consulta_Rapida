@@ -222,6 +222,35 @@ def test_full_rescan_consumes_marker_without_extra_incremental_run(
     assert not marker.exists()
 
 
+def test_failed_full_rescan_preserves_marker_for_next_incremental(
+    recovery_workspace, monkeypatch: pytest.MonkeyPatch
+):
+    _docs, _data, db, args = recovery_workspace
+    db.write_bytes(b"Banco corrompido para teste")
+    assert database_integrity.ensure_database_integrity(str(db))[0]
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+    assert marker.is_file()
+
+    import core.app_logic as app_logic
+    from core.import_errors import DatabaseError
+
+    def fail_promote(*_args: object, **_kwargs: object) -> None:
+        raise DatabaseError("promocao simulada falhou")
+
+    monkeypatch.setattr(app_logic, "_promote_full_rescan_candidate", fail_promote)
+    assert not run_importer_logic(**args, force_import=True)
+
+    # A rodada falhou antes da promocao: o primario continua sendo o
+    # snapshot restaurado e o marcador precisa sobreviver para forcar a
+    # revalidacao do cache no proximo incremental.
+    assert marker.is_file()
+    assert _rows(db) == ["202640001", "202649999"]
+
+    assert run_importer_logic(**args)
+    assert not marker.exists()
+    assert _rows(db) == ["202640001", "202640002", "202649999"]
+
+
 def test_recovery_recaches_deterministic_rejections_without_repeating_forever(
     recovery_workspace,
 ):

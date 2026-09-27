@@ -149,7 +149,7 @@ def test_backup_rejects_invalid_deadlines() -> None:
             bounded_sqlite_backup(source, target, stall_timeout=-1)
 
 
-def test_completed_backup_does_not_report_late_cancellation() -> None:
+def test_cancellation_at_completion_boundary_reports_interruption() -> None:
     checks = 0
 
     def cancelled() -> bool:
@@ -165,6 +165,18 @@ def test_completed_backup_does_not_report_late_cancellation() -> None:
             connection.execute("CREATE TABLE dados(value TEXT)")
             connection.execute("INSERT INTO dados VALUES (?)", (value,))
             connection.commit()
-        bounded_sqlite_backup(source, target, cancel_check=cancelled)
-        assert target.execute("SELECT value FROM dados").fetchall() == [("novo",)]
-        assert checks == 1
+        with pytest.raises(InterruptedError):
+            bounded_sqlite_backup(source, target, cancel_check=cancelled)
+        assert checks == 2
+
+
+def test_backup_reports_timeout_when_completion_passes_deadline() -> None:
+    with (
+        closing(sqlite3.connect(":memory:")) as source,
+        closing(sqlite3.connect(":memory:")) as target,
+    ):
+        source.execute("CREATE TABLE dados(value TEXT)")
+        source.execute("INSERT INTO dados VALUES ('registro')")
+        source.commit()
+        with pytest.raises(TimeoutError, match="Prazo total"):
+            bounded_sqlite_backup(source, target, timeout=1e-9)

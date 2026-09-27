@@ -2212,7 +2212,7 @@ def self_heal_derivadas(
     actor: str | None = None,
     extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> dict[str, Any]:
-    """Attempt self-healing by running sync only when scan indicates issues."""
+    """Corrige as derivadas executando o sync apenas quando o scan indica problemas."""
 
     extra_allowed_roots = (
         tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
