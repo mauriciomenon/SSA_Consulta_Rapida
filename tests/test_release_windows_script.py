@@ -245,7 +245,8 @@ def test_release_windows_declares_native_arm64_target() -> None:
 
 
 @pytest.mark.parametrize(
-    "scenario", ["ok", "divergent_snapshot", "divergent_content"]
+    "scenario",
+    ["ok", "divergent_snapshot", "divergent_content", "same_count_different_values"],
 )
 def test_release_windows_runtime_db_hash_compares_sqlite_snapshots_between_bundles(
     tmp_path: Path, scenario: str,
@@ -282,6 +283,13 @@ def test_release_windows_runtime_db_hash_compares_sqlite_snapshots_between_bundl
             with closing(sqlite3.connect(snapshot)) as other:
                 other.execute("INSERT INTO probe VALUES (99)")
                 other.commit()
+    elif scenario == "same_count_different_values":
+        # Contagens iguais as da fonte em ambos os snapshots: so o hash de
+        # conteudo distingue a divergencia.
+        for snapshot in (first, second):
+            with closing(sqlite3.connect(snapshot)) as other:
+                other.execute("UPDATE probe SET value = value + 100")
+                other.commit()
     script = r"""
 $ErrorActionPreference = 'Stop'
 $ast = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_SCRIPT, [ref]$null, [ref]$null)
@@ -312,7 +320,7 @@ try {
     if scenario == "divergent_snapshot":
         assert result.returncode != 0
         assert "diverge entre snapshots" in result.stderr
-    elif scenario == "divergent_content":
+    elif scenario in ("divergent_content", "same_count_different_values"):
         assert result.returncode != 0
         assert "diverge da origem" in result.stderr
     else:

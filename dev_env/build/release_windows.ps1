@@ -755,6 +755,7 @@ function Get-RuntimeDbLogicalSignature {
     )
 
     $logicalScript = @'
+import hashlib
 import json
 import pathlib
 import sqlite3
@@ -763,17 +764,35 @@ import sys
 uri = pathlib.Path(sys.argv[1]).resolve().as_uri() + "?mode=ro"
 conn = sqlite3.connect(uri, uri=True)
 try:
+    # Snapshot unico de leitura: sem BEGIN cada statement veria uma versao
+    # diferente se a origem for escrita durante a checagem.
+    conn.execute("BEGIN")
     quick_check = conn.execute("PRAGMA quick_check").fetchone()[0]
     tables = {}
-    rows = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    schema_lines = conn.execute(
+        "SELECT type, name, sql FROM sqlite_master ORDER BY type, name"
     ).fetchall()
-    for (name,) in rows:
+    schema = hashlib.new("sha256")
+    for row in schema_lines:
+        schema.update(repr(row).encode("utf-8"))
+        schema.update(b"\x00")
+    for name in (row[1] for row in schema_lines if row[0] == "table"):
         escaped = name.replace('"', '""')
-        tables[name] = conn.execute(
+        count = conn.execute(
             'SELECT COUNT(*) FROM "' + escaped + '"'
         ).fetchone()[0]
-    print(json.dumps({"quick_check": quick_check, "tables": tables}, sort_keys=True))
+        # Soma dos hashes por linha: independente de ordem fisica e de
+        # collation, sem materializar nem ordenar a tabela.
+        total = 0
+        for row in conn.execute('SELECT * FROM "' + escaped + '"'):
+            digest = hashlib.new("sha256", repr(row).encode("utf-8"))
+            total = (total + int.from_bytes(digest.digest(), "big")) % (1 << 256)
+        tables[name] = [count, f"{total:064x}"]
+    print(json.dumps({
+        "quick_check": quick_check,
+        "schema": schema.hexdigest(),
+        "tables": tables,
+    }, sort_keys=True))
 finally:
     conn.close()
 '@
