@@ -1196,13 +1196,13 @@ def test_run_importer_logic_moves_processed_files_and_updates_cache_paths(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file, docs_dir: None,
+        lambda failed_files, cache_file, docs_dir, *_a, **_k: None,
     )
 
     captured_cache: dict[str, Any] = {}
 
     def _capture_cache_paths(
-        processed_files: list[str], cache_file: str, docs_dir: str
+        processed_files: list[str], cache_file: str, docs_dir: str, *_a, **_k
     ) -> None:
         captured_cache["paths"] = list(processed_files)
         captured_cache["cache_file"] = cache_file

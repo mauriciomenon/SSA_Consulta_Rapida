@@ -116,7 +116,7 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(
 
     cached_files: list[str] = []
 
-    def _fake_cache_update(processed_files, cache_file, docs_dir):
+    def _fake_cache_update(processed_files, cache_file, docs_dir, *_a, **_k):
         cached_files.extend(processed_files)
 
     monkeypatch.setattr(app_logic, "_update_cache_after_import", _fake_cache_update)

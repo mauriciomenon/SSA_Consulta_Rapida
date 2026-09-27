@@ -93,7 +93,7 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(
+        lambda failed_files, cache_file, docs_dir, *_a, **_k: deterministic_calls.append(
             list(failed_files)
         ),
     )
@@ -170,7 +170,7 @@ def test_run_importer_does_not_mark_cancelled_as_deterministic_failure(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(
+        lambda failed_files, cache_file, docs_dir, *_a, **_k: deterministic_calls.append(
             list(failed_files)
         ),
     )
@@ -214,7 +214,7 @@ def test_update_cache_for_deterministic_failures_tolerates_cache_merge_error(
 ) -> None:
     calls: list[tuple[list[str], str, str]] = []
 
-    def _explode(file_paths, cache_file, docs_dir):
+    def _explode(file_paths, cache_file, docs_dir, **_k):
         calls.append((list(file_paths), cache_file, docs_dir))
         raise RuntimeError("forced cache failure")
 
