@@ -121,6 +121,27 @@ def test_fresh_database_creation_marks_cache_for_revalidation(recovery_workspace
     assert _rows(db) == ["202640001", "202640002"]
 
 
+def test_failed_marker_write_leaves_no_partial_marker(
+    recovery_workspace, monkeypatch: pytest.MonkeyPatch
+):
+    _docs, data, db, _args = recovery_workspace
+    db.unlink()
+    for snapshot in (data / "historico_backups").iterdir():
+        snapshot.unlink()
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+
+    def fail_fsync(_fd: int) -> None:
+        raise OSError("fsync simulado falhou")
+
+    monkeypatch.setattr(database_integrity.os, "fsync", fail_fsync)
+    assert not database_integrity.ensure_database_integrity(str(db))[0]
+    assert not marker.exists()
+
+    monkeypatch.undo()
+    assert database_integrity.ensure_database_integrity(str(db))[0]
+    assert marker.is_file()
+
+
 def test_recovery_keeps_explicit_scope_and_pending_sources_eligible(recovery_workspace):
     docs, data, db, args = recovery_workspace
     db.write_bytes(b"Banco corrompido para teste")

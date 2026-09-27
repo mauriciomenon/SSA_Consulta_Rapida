@@ -235,8 +235,10 @@ def _mark_import_cache_pending(db: Path) -> bool:
     # existia. Caminho existente como symlink ou nao-arquivo falha
     # fechado.
     marker = Path(f"{db}{IMPORT_CACHE_RECOVERY_SUFFIX}")
+    created = False
     try:
         with marker.open("x", encoding="ascii") as pending:
+            created = True
             pending.write("Revalidar cache apos restauracao ou recriacao do banco.\n")
             pending.flush()
             os.fsync(pending.fileno())
@@ -244,6 +246,12 @@ def _mark_import_cache_pending(db: Path) -> bool:
         if marker.is_symlink() or not marker.is_file():
             raise OSError("Marcador de recuperacao invalido") from None
         return False
+    except OSError:
+        # open("x") criou o arquivo mas a gravacao falhou: um marcador
+        # parcial nao pode sobreviver como se fosse valido.
+        if created:
+            marker.unlink(missing_ok=True)
+        raise
     return True
 
 
