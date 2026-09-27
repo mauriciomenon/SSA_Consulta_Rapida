@@ -7,6 +7,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 
+_SQLITE_OK = 0
 _SQLITE_DONE = 101
 
 
@@ -18,10 +19,13 @@ def _progress_checker(
 ) -> Callable[[int, int, int], None]:
     """Callback de backup que aborta por teto total ou falta de progresso.
 
-    Progresso so conta quando `remaining` bate um novo minimo: a API de
-    backup do SQLite reinicia a copia do zero se a origem for escrita,
-    devolvendo `remaining` ao total. Renovar o prazo por qualquer queda
-    permitiria livelock de restarts consecutivos.
+    Progresso so conta quando um passo bem-sucedido (SQLITE_OK) reporta um
+    `remaining` positivo novo minimo: a API de backup do SQLite reinicia a
+    copia do zero se a origem for escrita, devolvendo `remaining` ao total,
+    e callbacks de BUSY/LOCKED apenas repetem o estado do ultimo passo —
+    inclusive `remaining=0` na espera do finalize, que aceitar como minimo
+    impediria qualquer renovacao apos um restart. Renovar o prazo por
+    qualquer queda ou por contencao permitiria livelock de restarts.
     """
     total_deadline = now() + timeout
     stall_deadline = now() + stall_timeout
@@ -40,7 +44,7 @@ def _progress_checker(
             return
         if current >= stall_deadline:
             raise TimeoutError("Backup SQLite sem progresso")
-        if remaining < minimum:
+        if status == _SQLITE_OK and 0 < remaining < minimum:
             minimum = remaining
             stall_deadline = current + stall_timeout
 

@@ -438,7 +438,11 @@ def load_cache(cache_file: str) -> Dict[str, Any]:
 def save_cache(
     cache: Dict[str, Any], cache_file: str, *, raise_on_error: bool = False
 ):
-    """Salva o cache em um arquivo JSON."""
+    """Salva o cache em um arquivo JSON.
+
+    Falhas sao logadas e engolidas por padrao; `raise_on_error` propaga a
+    excecao para callers que precisam garantir a invalidacao do cache.
+    """
     try:
         lock_path = _cache_lock_path(cache_file)
         lock_fd = _acquire_cache_lock(lock_path)

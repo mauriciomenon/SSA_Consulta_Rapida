@@ -120,6 +120,52 @@ def test_stall_deadline_renews_when_remaining_beats_minimum() -> None:
         check(0, 40, 200)
 
 
+def test_busy_callback_with_zero_remaining_does_not_poison_minimum() -> None:
+    from utils.sqlite_backup import _progress_checker
+
+    # BUSY na espera do finalize reporta remaining=0; aceitar esse valor como
+    # minimo historico impediria a renovacao do prazo apos um restart e a
+    # copia morreria por falso stall mesmo progredindo.
+    current = [0.0]
+    check = _progress_checker(
+        timeout=100.0,
+        stall_timeout=5.0,
+        cancel_check=None,
+        now=lambda: current[0],
+    )
+    check(0, 100, 200)
+    current[0] = 1.0
+    check(5, 0, 200)  # SQLITE_BUSY aguardando finalize: nao e progresso.
+    current[0] = 4.0
+    check(0, 60, 200)
+    current[0] = 8.0
+    check(0, 40, 200)
+    current[0] = 12.0
+    check(0, 40, 200)
+    current[0] = 13.5
+    with pytest.raises(TimeoutError, match="sem progresso"):
+        check(0, 40, 200)
+
+
+def test_locked_and_done_callbacks_never_renew_stall_deadline() -> None:
+    from utils.sqlite_backup import _progress_checker
+
+    current = [0.0]
+    check = _progress_checker(
+        timeout=100.0,
+        stall_timeout=5.0,
+        cancel_check=None,
+        now=lambda: current[0],
+    )
+    check(0, 100, 200)
+    for status in (5, 6):  # BUSY/LOCKED repetem o estado, nao sao progresso.
+        current[0] += 1.0
+        check(status, 10, 200)
+    current[0] = 5.5
+    with pytest.raises(TimeoutError, match="sem progresso"):
+        check(0, 10, 200)
+
+
 def test_total_deadline_caps_progressing_backup() -> None:
     from utils.sqlite_backup import _progress_checker
 
