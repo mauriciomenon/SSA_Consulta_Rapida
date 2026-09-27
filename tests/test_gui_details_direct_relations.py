@@ -154,7 +154,7 @@ def test_details_does_not_resurrect_deactivated_matrix_edge(
 
     assert data["graph_source"] == "matrix"
     assert data["children"] == []
-    assert data["direct_relation_rows"] is not None
+    assert data["direct_relation_rows"] == []
 
 
 def test_details_keeps_local_children_for_legacy_database(tmp_path: Path) -> None:
