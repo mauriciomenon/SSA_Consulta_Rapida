@@ -292,10 +292,11 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
         print("Banco de dados resetado com sucesso!")
         return True
     data_dir = os.path.dirname(os.path.abspath(db_path))
-    # A limpeza remove *.tmp/*.bak/*~ e move backup_*: fora da pasta "data"
-    # so roda quando o destino e um banco SQLite regular e nao-symlink.
-    if os.path.basename(data_dir) != "data" and not _looks_like_sqlite_file(
-        db_path
+    # A limpeza remove *.tmp/*.bak/*~ e move backup_*. Pasta "data" ainda
+    # permite alvo ausente (instalacao nova). Arquivo existente, symlink ou
+    # lixo nao-SQLite e recusado mesmo nessa pasta.
+    if not _looks_like_sqlite_file(db_path) and (
+        os.path.basename(data_dir) != "data" or os.path.lexists(db_path)
     ):
         print(f"Limpeza recusada: banco ausente, symlink ou nao SQLite: {db_path}")
         sys.exit(1)

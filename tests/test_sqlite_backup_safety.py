@@ -332,7 +332,7 @@ def test_main_clean_data_refuses_when_writer_lock_is_busy(
     monkeypatch.setattr(
         gerenciar_banco,
         "clean_old_backups",
-        lambda _path: pytest.fail("limpeza nao pode rodar com banco em uso"),
+        lambda _path, **_kwargs: pytest.fail("limpeza nao pode rodar com banco em uso"),
     )
     busy = threading.Event()
     release = threading.Event()
@@ -398,12 +398,12 @@ def test_main_clean_data_refuses_non_sqlite_target_dir(
     monkeypatch.setattr(
         gerenciar_banco,
         "clean_old_backups",
-        lambda _path: pytest.fail("limpeza nao pode varrer diretorio estranho"),
+        lambda _path, **_kwargs: pytest.fail("limpeza nao pode varrer diretorio estranho"),
     )
     monkeypatch.setattr(
         gerenciar_banco,
         "sanitize_data_folder",
-        lambda _path: pytest.fail("limpeza nao pode varrer diretorio estranho"),
+        lambda _path, **_kwargs: pytest.fail("limpeza nao pode varrer diretorio estranho"),
     )
 
     with pytest.raises(SystemExit) as exit_info:
@@ -434,7 +434,7 @@ def test_main_clean_data_refuses_symlink_db_in_foreign_dir(
     monkeypatch.setattr(
         gerenciar_banco,
         "clean_old_backups",
-        lambda _path: pytest.fail("limpeza nao pode seguir symlink"),
+        lambda _path, **_kwargs: pytest.fail("limpeza nao pode seguir symlink"),
     )
 
     with pytest.raises(SystemExit) as exit_info:
@@ -546,10 +546,15 @@ def test_clean_old_backups_protects_custom_named_active_db(tmp_path: Path) -> No
     os.utime(active_db, (stale, stale))
 
     gerenciar_banco.clean_old_backups(
-        str(data_dir), days_to_keep=7, db_basename="ssas_backup_prod.db"
+        str(data_dir),
+        days_to_keep=7,
+        db_basename="ssas_backup_prod.db",
+        scope_name="ssas_backup_prod.db",
     )
     gerenciar_banco.sanitize_data_folder(
-        str(data_dir), db_basename="ssas_backup_prod.db"
+        str(data_dir),
+        db_basename="ssas_backup_prod.db",
+        scope_name="ssas_backup_prod.db",
     )
 
     assert active_db.is_file()
@@ -681,8 +686,8 @@ def test_main_clean_data_scopes_explicit_ssa_db_path_named_data(
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE placeholder(x)")
     foreign_backup = data_dir / "backup_unrelated.db"
-    legacy_backup = data_dir / "ssas_backup_unrelated.db"
-    emergency_backup = data_dir / "ssas_emergency_backup_unrelated.db"
+    legacy_backup = data_dir / "ssas_backup_legado.db"
+    emergency_backup = data_dir / "ssas_emergency_backup_legado.db"
     foreign_temp = data_dir / "notes.tmp"
     foreign_backup.write_bytes(b"keep")
     legacy_backup.write_bytes(b"keep")
@@ -701,6 +706,8 @@ def test_main_clean_data_scopes_explicit_ssa_db_path_named_data(
     )
 
     assert foreign_backup.read_bytes() == b"keep"
+    # Escopo explicito segue estrito: nomes legados ssas_* podem ser bancos
+    # reais do usuario (ex.: ssas_backup_prod.db) e nao sao tocados.
     assert legacy_backup.read_bytes() == b"keep"
     assert emergency_backup.read_bytes() == b"keep"
     assert foreign_temp.read_bytes() == b"keep"
@@ -796,3 +803,105 @@ def test_sanitize_refuses_symlinked_backups_before_moving_files(
 
     assert local_backup.read_bytes() == b"keep"
     assert not (external / local_backup.name).exists()
+
+
+def test_main_clean_data_refuses_non_sqlite_file_in_data_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import main as main_module
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    fake_db = data_dir / "ssas.db"
+    fake_db.write_bytes(b"not a sqlite file at all")
+    foreign_backup = data_dir / "backup_unrelated.db"
+    foreign_temp = data_dir / "notes.tmp"
+    foreign_backup.write_bytes(b"keep")
+    foreign_temp.write_bytes(b"keep")
+    monkeypatch.setattr(
+        gerenciar_banco,
+        "clean_old_backups",
+        lambda _path, **_kwargs: pytest.fail(
+            "limpeza nao pode varrer data/ com alvo nao SQLite"
+        ),
+    )
+    monkeypatch.setattr(
+        gerenciar_banco,
+        "sanitize_data_folder",
+        lambda _path, **_kwargs: pytest.fail(
+            "limpeza nao pode varrer data/ com alvo nao SQLite"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main_module._run_maintenance_action(
+            Namespace(reset_db=False, clean_data=True), str(fake_db)
+        )
+
+    assert exit_info.value.code == 1
+    assert "Limpeza recusada" in capsys.readouterr().out
+    assert foreign_backup.read_bytes() == b"keep"
+    assert foreign_temp.read_bytes() == b"keep"
+
+
+def test_main_clean_data_allows_missing_db_in_data_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import main as main_module
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    missing_db = data_dir / "ssas.db"
+    calls: list[str] = []
+    monkeypatch.setattr(
+        gerenciar_banco,
+        "clean_old_backups",
+        lambda _path, **_kwargs: calls.append("clean"),
+    )
+    monkeypatch.setattr(
+        gerenciar_banco,
+        "sanitize_data_folder",
+        lambda _path, **_kwargs: calls.append("sanitize"),
+    )
+
+    assert main_module._run_maintenance_action(
+        Namespace(reset_db=False, clean_data=True), str(missing_db)
+    )
+    assert calls == ["clean", "sanitize"]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_main_clean_data_refuses_symlink_db_in_data_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import main as main_module
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    real_db = tmp_path / "real.db"
+    with sqlite3.connect(real_db) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    link_db = data_dir / "ssas.db"
+    link_db.symlink_to(real_db)
+    monkeypatch.setattr(
+        gerenciar_banco,
+        "clean_old_backups",
+        lambda _path, **_kwargs: pytest.fail(
+            "limpeza nao pode seguir symlink em data/"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main_module._run_maintenance_action(
+            Namespace(reset_db=False, clean_data=True), str(link_db)
+        )
+
+    assert exit_info.value.code == 1
+    assert "Limpeza recusada" in capsys.readouterr().out
