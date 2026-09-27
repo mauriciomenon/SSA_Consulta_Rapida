@@ -13,7 +13,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from utils.file_metadata import best_datetime_for_file
 from utils.path_safety import ensure_path_is_allowed
@@ -69,7 +69,10 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
                 )
 
 
-def _cache_lock_path(cache_file: str) -> str:
+def _cache_lock_path(
+    cache_file: str,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike]] = None,
+) -> str:
     """Return sidecar lock path used to serialize cache writes across processes."""
     lock_path = f"{cache_file}.lock"
     return str(
@@ -77,6 +80,7 @@ def _cache_lock_path(cache_file: str) -> str:
             lock_path,
             purpose="cache_lock",
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     )
 
@@ -230,12 +234,16 @@ def _release_cache_lock(lock_fd: int, lock_path: str) -> None:
             time.sleep(_CACHE_LOCK_RETRY_SEC)
 
 
-def _merge_cache_updates(cache_updates: Dict[str, Any], cache_file: str) -> None:
+def _merge_cache_updates(
+    cache_updates: Dict[str, Any],
+    cache_file: str,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike]] = None,
+) -> None:
     """Merge cache updates under lock to reduce lost updates across concurrent runs."""
     if not cache_updates:
         return
 
-    lock_path = _cache_lock_path(cache_file)
+    lock_path = _cache_lock_path(cache_file, extra_allowed_roots)
     lock_fd = _acquire_cache_lock(lock_path)
     try:
         current_cache = load_cache(cache_file)
@@ -436,15 +444,21 @@ def load_cache(cache_file: str) -> Dict[str, Any]:
 
 
 def save_cache(
-    cache: Dict[str, Any], cache_file: str, *, raise_on_error: bool = False
+    cache: Dict[str, Any],
+    cache_file: str,
+    *,
+    raise_on_error: bool = False,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike]] = None,
 ):
     """Salva o cache em um arquivo JSON.
 
     Falhas sao logadas e engolidas por padrao; `raise_on_error` propaga a
     excecao para callers que precisam garantir a invalidacao do cache.
+    `extra_allowed_roots` libera caches fora das bases padrao (ex.: banco
+    alternativo selecionado pelo usuario).
     """
     try:
-        lock_path = _cache_lock_path(cache_file)
+        lock_path = _cache_lock_path(cache_file, extra_allowed_roots)
         lock_fd = _acquire_cache_lock(lock_path)
         try:
             _atomic_write_json(cache, cache_file)
@@ -467,6 +481,7 @@ def get_files_to_process(
     processadas_subdir: str = "processadas",
     ignore_subdirs: Optional[List[str]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike]] = None,
 ) -> List[str]:
     """
     Compara hashes atuais com o cache para determinar arquivos modificados/novos.
@@ -586,7 +601,9 @@ def get_files_to_process(
 
         if cache_updates:
             try:
-                _merge_cache_updates(cache_updates, cache_file_path)
+                _merge_cache_updates(
+                    cache_updates, cache_file_path, extra_allowed_roots
+                )
             except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
                 logger.exception(
                     "Erro ao mesclar atualizacao de cache em '%s': %s",
@@ -597,7 +614,11 @@ def get_files_to_process(
 
 
 def update_cache_for_files(
-    file_paths: List[str], cache_file: str, docs_dir: Optional[str] = None
+    file_paths: List[str],
+    cache_file: str,
+    docs_dir: Optional[str] = None,
+    *,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike]] = None,
 ):
     """
     Atualiza o cache com os hashes dos arquivos processados com sucesso.
@@ -631,7 +652,7 @@ def update_cache_for_files(
 
     if cache_updates:
         try:
-            _merge_cache_updates(cache_updates, cache_file)
+            _merge_cache_updates(cache_updates, cache_file, extra_allowed_roots)
         except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
             logger.exception(
                 "Erro ao mesclar atualizacao de cache em '%s': %s", cache_file, exc

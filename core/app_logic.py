@@ -24,7 +24,7 @@ import time
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, cast
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, cast
 
 import pandas as pd
 
@@ -224,6 +224,7 @@ def _get_files_to_process(
     processadas_subdir: str = "processadas",
     ignore_subdirs: Optional[List[str]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
 ) -> List[str]:
     """
     Determina quais arquivos precisam ser processados.
@@ -273,6 +274,7 @@ def _get_files_to_process(
             processadas_subdir=processadas_subdir,
             ignore_subdirs=ignore_subdirs,
             should_cancel=should_cancel,
+            extra_allowed_roots=extra_allowed_roots,
         )
         logger.debug(
             f"Arquivos identificados para processamento: {len(files_to_process)}"
@@ -683,7 +685,10 @@ def _run_derivadas_sync_phase(
 
 
 def _update_cache_after_import(
-    processed_files: List[str], cache_file: str, docs_dir: str
+    processed_files: List[str],
+    cache_file: str,
+    docs_dir: str,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
 ) -> None:
     """
     Atualiza o arquivo de cache apos uma importacao bem-sucedida.
@@ -699,7 +704,12 @@ def _update_cache_after_import(
     logger.debug("Atualizando cache...")
     try:
         # Atualiza o cache apenas para os arquivos processados com sucesso
-        caching.update_cache_for_files(processed_files, cache_file, docs_dir=docs_dir)
+        caching.update_cache_for_files(
+            processed_files,
+            cache_file,
+            docs_dir=docs_dir,
+            extra_allowed_roots=extra_allowed_roots,
+        )
         logger.info("Cache atualizado com sucesso.")
     except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
         logger.error("Erro ao atualizar o cache: %s", exc)
@@ -707,7 +717,10 @@ def _update_cache_after_import(
 
 
 def _update_cache_for_deterministic_failures(
-    failed_files: List[str], cache_file: str, docs_dir: str
+    failed_files: List[str],
+    cache_file: str,
+    docs_dir: str,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
 ) -> None:
     """Atualiza cache para arquivos com falha deterministica para evitar retrabalho inutil."""
     if not failed_files:
@@ -718,7 +731,12 @@ def _update_cache_for_deterministic_failures(
     if not deduped:
         return
     try:
-        caching.update_cache_for_files(deduped, cache_file, docs_dir=docs_dir)
+        caching.update_cache_for_files(
+            deduped,
+            cache_file,
+            docs_dir=docs_dir,
+            extra_allowed_roots=extra_allowed_roots,
+        )
         logger.info(
             "Cache atualizado para %s arquivo(s) com falha deterministica (aguardando mudanca de hash).",
             len(deduped),
@@ -1563,6 +1581,7 @@ def _resolve_import_work_items(
     explicit_files: Optional[Sequence[str | os.PathLike[str]]],
     should_cancel: Optional[Callable[[], bool]],
     discovery_settings: Optional[Dict[str, Any]] = None,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
 ) -> Dict[str, Any]:
     """Resolve arquivos de trabalho e politicas de discovery para a rodada."""
     if should_cancel is not None and should_cancel():
@@ -1633,6 +1652,7 @@ def _resolve_import_work_items(
             processadas_subdir=str(discovery_settings["processadas_subdir"]),
             ignore_subdirs=ignore_subdirs,
             should_cancel=should_cancel,
+            extra_allowed_roots=extra_allowed_roots,
         )
         derivadas_sheet_files = _discover_derivadas_sheet_files(
             docs_dir,
@@ -1668,6 +1688,7 @@ def _finalize_import_run_outcome(
     move_processed_after_import: bool,
     discovery_settings: Dict[str, Any],
     phase_durations: Dict[str, float],
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
 ) -> Dict[str, Any]:
     """Fecha promocao/cache e devolve a decisao final da rodada."""
     deterministic_cache_started = time.perf_counter()
@@ -1675,6 +1696,7 @@ def _finalize_import_run_outcome(
         deterministic_failed_files,
         cache_file,
         docs_dir,
+        extra_allowed_roots,
     )
     phase_durations["run_deterministic_cache_update_seconds"] = (
         time.perf_counter() - deterministic_cache_started
@@ -1815,7 +1837,9 @@ def _finalize_import_run_outcome(
             cache_success_paths = [moved_paths.get(path, path) for path in cache_success_paths]
 
         cache_update_started = time.perf_counter()
-        _update_cache_after_import(cache_success_paths, cache_file, docs_dir)
+        _update_cache_after_import(
+            cache_success_paths, cache_file, docs_dir, extra_allowed_roots
+        )
         phase_durations["run_success_cache_update_seconds"] = (
             time.perf_counter() - cache_update_started
         )
@@ -2269,6 +2293,7 @@ def run_importer_logic(
                     force_import=force_import,
                     explicit_files=explicit_files,
                     should_cancel=should_cancel,
+                    extra_allowed_roots=extra_allowed_roots,
                 )
             except InterruptedError:
                 _emit_progress("start", {"total": 0})
@@ -2337,7 +2362,12 @@ def run_importer_logic(
                 # continua sinalizado e o proximo incremental revalida o
                 # cache.
                 if candidate_db_path is None:
-                    caching.save_cache({}, cache_file, raise_on_error=True)
+                    caching.save_cache(
+                        {},
+                        cache_file,
+                        raise_on_error=True,
+                        extra_allowed_roots=extra_allowed_roots,
+                    )
                     recovery_marker.unlink()
                 recovery_warning = (
                     "Cache revalidado apos tentativa de restauracao. Somente fontes "
@@ -2356,6 +2386,7 @@ def run_importer_logic(
                             explicit_files=explicit_files,
                             should_cancel=should_cancel,
                             discovery_settings=discovery_settings,
+                            extra_allowed_roots=extra_allowed_roots,
                         )
                     except InterruptedError:
                         return _finalize_and_return(
@@ -2572,6 +2603,7 @@ def run_importer_logic(
                 move_processed_after_import=move_processed_after_import,
                 discovery_settings=discovery_settings,
                 phase_durations=phase_durations,
+                extra_allowed_roots=extra_allowed_roots,
             )
             if (
                 cancel_requested
