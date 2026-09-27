@@ -228,6 +228,25 @@ def _prune_forensic_backups(db_path: str) -> None:
                 break
 
 
+def _mark_import_cache_pending(db: Path) -> bool:
+    # Marcador consumido pelo importador para revalidar o cache apos
+    # restauracao ou recriacao do banco. Retorna True quando o marcador
+    # foi criado nesta chamada; False quando um marcador valido ja
+    # existia. Caminho existente como symlink ou nao-arquivo falha
+    # fechado.
+    marker = Path(f"{db}{IMPORT_CACHE_RECOVERY_SUFFIX}")
+    try:
+        with marker.open("x", encoding="ascii") as pending:
+            pending.write("Revalidar cache apos restauracao ou recriacao do banco.\n")
+            pending.flush()
+            os.fsync(pending.fileno())
+    except FileExistsError:
+        if marker.is_symlink() or not marker.is_file():
+            raise OSError("Marcador de recuperacao invalido") from None
+        return False
+    return True
+
+
 def _restore_latest_valid_snapshot(
     db_path: str, table_name: str, *, report_out: Dict[str, Any] | None = None
 ) -> bool:
@@ -288,15 +307,7 @@ def _restore_latest_valid_snapshot_locked(
         try:
             shutil.copy2(snapshot, temporary)
             recovery_marker = Path(f"{db}{IMPORT_CACHE_RECOVERY_SUFFIX}")
-            try:
-                with recovery_marker.open("x", encoding="ascii") as pending:
-                    marker_created = True
-                    pending.write("Revalidar cache apos tentativa de restauracao.\n")
-                    pending.flush()
-                    os.fsync(pending.fileno())
-            except FileExistsError:
-                if recovery_marker.is_symlink() or not recovery_marker.is_file():
-                    raise OSError("Marcador de recuperacao invalido") from None
+            marker_created = _mark_import_cache_pending(db)
             if had_existing_db:
                 shutil.copy2(db, forensic)
             # Inclui -journal: um rollback journal quente deixado no caminho
@@ -725,6 +736,10 @@ def _repair_database_if_needed_locked(
             logger.info(
                 "Banco ausente sem snapshot utilizavel; criacao inicial sera executada"
             )
+            # Sem marcador, um cache sobrevivente faria o incremental pular
+            # as fontes e o schema recem-criado ficaria vazio ate o rescan
+            # manual.
+            _mark_import_cache_pending(Path(db_path))
             from .database import initialize_database
 
             initialize_database(db_path, schema_file)

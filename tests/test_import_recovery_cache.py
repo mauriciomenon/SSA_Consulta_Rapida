@@ -105,6 +105,22 @@ def test_recovery_marker_survives_restore_before_importer_resumes(recovery_works
     assert _rows(db) == ["202640001", "202640002", "202649999"]
 
 
+def test_fresh_database_creation_marks_cache_for_revalidation(recovery_workspace):
+    _docs, data, db, args = recovery_workspace
+    db.unlink()
+    for snapshot in (data / "historico_backups").iterdir():
+        snapshot.unlink()
+
+    assert database_integrity.ensure_database_integrity(str(db))[0]
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+    assert marker.is_file()
+
+    assert run_importer_logic(**args)
+
+    assert not marker.exists()
+    assert _rows(db) == ["202640001", "202640002"]
+
+
 def test_recovery_keeps_explicit_scope_and_pending_sources_eligible(recovery_workspace):
     docs, data, db, args = recovery_workspace
     db.write_bytes(b"Banco corrompido para teste")
