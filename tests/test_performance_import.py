@@ -88,8 +88,10 @@ def test_large_spreadsheet_import(tmp_path: Path, monkeypatch):
     }
     # Write local temp copy and persistent report
     (tmp_path / "perf_report.json").write_text(json.dumps(report, indent=2))
-    reports_dir = Path("reports")
-    reports_dir.mkdir(exist_ok=True)
+    reports_dir = Path(
+        os.environ.get("SSA_PERF_REPORTS_DIR", str(tmp_path / "reports"))
+    )
+    reports_dir.mkdir(parents=True, exist_ok=True)
     (reports_dir / "perf_last_import.json").write_text(json.dumps(report, indent=2))
     if verbose:
         print("PERF_REPORT_WRITTEN", flush=True)
@@ -100,8 +102,6 @@ def test_large_spreadsheet_import(tmp_path: Path, monkeypatch):
         pytest.xfail(f"Import took {import_s:.2f}s > threshold {threshold:.2f}s (set ALLOW_SLOW_IMPORT=1 to ignore)")
 
     # Append history
-    history_dir = Path("reports")
-    history_dir.mkdir(exist_ok=True)
     history_line = json.dumps({**report, "ts": time.time()})
-    with (history_dir / "perf_history.jsonl").open("a", encoding="utf-8") as fh:
+    with (reports_dir / "perf_history.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(history_line + "\n")

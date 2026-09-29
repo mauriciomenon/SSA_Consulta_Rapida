@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 
 class VisibleWidget(Protocol):
@@ -26,11 +26,13 @@ class FilterUiStatePresenter:
         search_button: EnabledWidget | None,
         status_label: TextWidget | None,
         logger: Any,
+        preserve_operation_feedback: Callable[[], bool] | None = None,
     ) -> None:
         self._progress_bar = progress_bar
         self._buttons = (("load_button", load_button), ("search_button", search_button))
         self._status_label = status_label
         self._logger = logger
+        self._preserve_operation_feedback = preserve_operation_feedback
 
     def set_idle(self) -> None:
         self._set_status_text("Status: Pronto.", "idle")
@@ -52,6 +54,8 @@ class FilterUiStatePresenter:
         self._set_buttons_enabled(True, "cleanup")
 
     def _set_progress_visible(self, visible: bool, context: str) -> None:
+        if self._preserve_operation_feedback and self._preserve_operation_feedback():
+            return
         try:
             if self._progress_bar is not None:
                 self._progress_bar.setVisible(bool(visible))
@@ -76,6 +80,8 @@ class FilterUiStatePresenter:
                 )
 
     def _set_status_text(self, text: str, context: str) -> None:
+        if self._preserve_operation_feedback and self._preserve_operation_feedback():
+            return
         try:
             if self._status_label is not None:
                 self._status_label.setText(text)

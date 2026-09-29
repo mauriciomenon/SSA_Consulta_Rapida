@@ -5,12 +5,15 @@ try:
 
     import openpyxl  # noqa: F401
 
+    from extracao.extractor import open_validated_excel_source
+
     print("2. Openpyxl importado")
 
     arquivo = r"c:\Users\menon\git\SSA_Consulta_Rapida\docs_entrada\Em Execução_15-08-2025_0416PM.xlsx"
     print(f"3. Tentando ler: {arquivo}")
 
-    df = pd.read_excel(arquivo, header=1)
+    with open_validated_excel_source(arquivo) as source_stream:
+        df = pd.read_excel(source_stream, header=1)
     print(f"4. SUCESSO! {len(df)} linhas, {len(df.columns)} colunas")
 
 except ImportError as e:

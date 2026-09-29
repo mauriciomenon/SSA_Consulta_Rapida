@@ -229,8 +229,6 @@ def _advance_suffix_cache_after_conflict(
 def _move_without_overwrite(source: Path, destination: Path) -> None:
     try:
         os.link(source, destination)
-        source.unlink()
-        return
     except FileExistsError:
         raise
     except OSError as exc:
@@ -269,9 +267,9 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
                     os.fsync(reserved.fileno())
                 except OSError as fsync_exc:
                     logger.debug(
-                        "fsync failed for postprocess destination '%s': %s",
-                        destination,
-                        fsync_exc,
+                        "fsync failed for postprocess destination (%s, errno=%s)",
+                        type(fsync_exc).__name__,
+                        fsync_exc.errno,
                     )
             shutil.copystat(source, destination, follow_symlinks=True)
             source.unlink()
@@ -282,6 +280,28 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
             if destination_created:
                 destination.unlink(missing_ok=True)
             raise
+    else:
+        # Link criado: falha no unlink da origem NAO pode cair no
+        # fallback de copia (o destino ja existe e seria confundido com
+        # conflito de nome, gerando hardlinks orfaos e mantendo o source
+        # para reprocessamento). Desfaz o link e propaga o erro real.
+        try:
+            source.unlink()
+        except OSError:
+            # A falha de limpeza do destino nao pode substituir o erro
+            # original: sem isso o hardlink orfao seria reportado como
+            # conflito de nome, escondendo a causa real.
+            try:
+                destination.unlink(missing_ok=True)
+            except OSError as cleanup_exc:
+                logger.warning(
+                    "Falha ao remover destino apos erro no unlink da origem "
+                    "(%s, errno=%s)",
+                    type(cleanup_exc).__name__,
+                    cleanup_exc.errno,
+                )
+            raise
+        return
 
 
 def route_and_move_processed_files(

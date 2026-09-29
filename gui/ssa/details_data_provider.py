@@ -36,6 +36,48 @@ def get_db_mtime(db_path: str | None) -> float | None:
         return None
 
 
+def get_derivadas_graph_cache_token(db_path: str | None) -> tuple[str, object]:
+    """Token de invalidacao para dados derivados do grafo de derivadas.
+
+    Usa o graph_fingerprint do ultimo sync_run com status 'ok'; cai para o
+    mtime do arquivo quando a tabela nao existe, o ultimo run falhou ou o
+    fingerprint esta ausente.
+    """
+    fingerprint = _latest_derivadas_graph_fingerprint(db_path)
+    if fingerprint:
+        return ("graph", fingerprint)
+    return ("mtime", get_db_mtime(db_path))
+
+
+def _latest_derivadas_graph_fingerprint(db_path: str | None) -> str | None:
+    if not db_path or not os.path.exists(db_path):
+        return None
+    try:
+        from armazenamento.database import get_db_connection
+    except Exception as exc:
+        logger.debug("Falha ao importar conexao para fingerprint: %s", exc)
+        return None
+    try:
+        with get_db_connection(db_path, read_only=True) as conn:
+            row = conn.execute(
+                """
+                SELECT graph_fingerprint, status
+                FROM ssa_derivada_sync_run
+                ORDER BY sync_run_id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+    except Exception as exc:
+        logger.debug("Falha ao ler fingerprint do grafo de derivadas: %s", exc)
+        return None
+    if not row or row[1] != "ok":
+        return None
+    fingerprint = row[0]
+    if not fingerprint:
+        return None
+    return str(fingerprint)
+
+
 def load_derivadas_snapshot(
     db_path: str | None,
     target: str,
@@ -56,6 +98,40 @@ def load_derivadas_snapshot(
     except Exception as exc:
         logger.debug(
             "Falha ao coletar arvore de derivadas no DB para %s: %s", target, exc
+        )
+        return None
+
+
+def load_direct_relation_rows(
+    db_path: str | None, target: str
+) -> list[dict[str, Any]] | None:
+    if not db_path or not os.path.exists(db_path):
+        return None
+    try:
+        from armazenamento.database import get_db_connection
+
+        with get_db_connection(db_path, read_only=True) as conn:
+            rows = conn.execute(
+                """
+                SELECT child_ssa, source_flags, relation_type, relation_raw_label
+                FROM ssa_derivada_matrix
+                WHERE parent_ssa = ? AND active = 1
+                ORDER BY child_ssa
+                """,
+                (target,),
+            ).fetchall()
+        return [
+            {
+                "ssa": row[0],
+                "source_flags": row[1],
+                "relation_type": row[2],
+                "relation_raw_label": row[3],
+            }
+            for row in rows
+        ]
+    except Exception as exc:
+        logger.warning(
+            "Falha ao coletar tipos de relacao direta para %s: %s", target, exc
         )
         return None
 

@@ -1,40 +1,60 @@
 #!/usr/bin/env python3
-import shutil
 import sqlite3
+from contextlib import closing
+from datetime import datetime
 from pathlib import Path
 
+from armazenamento.database_integrity import create_sqlite_backup
+from armazenamento.database_lock import database_writer_lock
 from utils.robust_logging import get_robust_logger
 
-TABLE_NAME = "ssa_table"
+COUNT_SSA_ROWS_SQL = "SELECT COUNT(*) FROM ssa_table"
+DELETE_SSA_ROWS_SQL = "DELETE FROM ssa_table"
 logger = get_robust_logger().get_logger(__name__, "maintenance")
 
 
 def limpar_banco():
     """Limpa completamente o banco de dados"""
     db_path = Path("data/ssas.db")
-    backup_path = Path("data/ssas_backup_antes_limpeza_final.db")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup_path = Path("data") / f"ssas_backup_antes_limpeza_final_{timestamp}.db"
 
     try:
-        # Fazer backup se banco existir
-        if db_path.exists():
-            shutil.copy2(db_path, backup_path)
+        with database_writer_lock(str(db_path)):
+            if db_path.is_symlink():
+                logger.error("ERR Limpeza recusada: destino e symlink: %s", db_path)
+                return False
+            if not db_path.exists():
+                raise FileNotFoundError(f"Banco nao encontrado: {db_path}")
+            if backup_path.exists():
+                logger.error(
+                    "ERR Backup ja existe e nao sera sobrescrito: %s", backup_path
+                )
+                return False
+            create_sqlite_backup(db_path, backup_path)
             logger.info("OK Backup criado: %s", backup_path)
 
-        # Limpar tabela
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
-            count_before = cursor.fetchone()[0]
-            logger.info("INFO Registros antes da limpeza: %s", f"{count_before:,}")
+            with closing(sqlite3.connect(db_path)) as conn:
+                cursor = conn.cursor()
+                cursor.execute(COUNT_SSA_ROWS_SQL)
+                count_before = cursor.fetchone()[0]
+                logger.info("INFO Registros antes da limpeza: %s", f"{count_before:,}")
 
-            cursor.execute(f"DELETE FROM {TABLE_NAME}")
-            conn.commit()
-            cursor.execute("VACUUM")  # Otimizar o banco
+                cursor.execute(DELETE_SSA_ROWS_SQL)
+                conn.commit()
+                logger.info("INFO Remocao confirmada: %s registros", f"{count_before:,}")
 
-            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
-            count_after = cursor.fetchone()[0]
-            logger.info("INFO Registros apos limpeza: %s", f"{count_after:,}")
-            logger.info("OK Banco limpo com sucesso!")
+                cursor.execute(COUNT_SSA_ROWS_SQL)
+                count_after = cursor.fetchone()[0]
+                logger.info("INFO Registros apos limpeza: %s", f"{count_after:,}")
+
+                try:
+                    cursor.execute("VACUUM")
+                except sqlite3.Error as exc:
+                    logger.warning(
+                        "Registros removidos; otimizacao VACUUM pendente: %s", exc
+                    )
+                logger.info("OK Banco limpo com sucesso!")
 
     except Exception as e:
         logger.error("ERR Erro ao limpar banco: %s", e)

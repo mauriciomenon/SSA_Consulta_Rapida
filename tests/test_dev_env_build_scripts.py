@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
+import ast
+from types import SimpleNamespace
 
 import pytest
 
 from launchers.build_complete import _get_project_root
+from tests.release_script_assertions import section_between
 
 
 PROJECT_ROOT = _get_project_root()
@@ -49,9 +52,9 @@ def test_launcher_version_info_uses_explicit_version_fallback(tmp_path) -> None:
     version_file = tmp_path / "config" / "version.json"
     version_file.parent.mkdir()
     version_file.write_text("{}", encoding="utf-8")
-    (tmp_path / "VERSION").write_text("4.42", encoding="utf-8")
+    (tmp_path / "VERSION").write_text("4.44", encoding="utf-8")
 
-    assert module.get_current_version() == "4.42"
+    assert module.get_current_version() == "4.44"
 
 
 def test_launcher_version_info_does_not_return_implicit_zero_version(tmp_path) -> None:
@@ -119,6 +122,48 @@ def test_pyoxidizer_config_embeds_app_code_without_filesystem_python_sources() -
     assert '"main"' in root_text
     assert '"core/*.py"' not in root_text
     assert '"main.py"' not in root_text
+
+
+def test_pyoxidizer_includes_only_the_required_launcher_module() -> None:
+    root_text = (PROJECT_ROOT / "pyoxidizer.bzl").read_text(encoding="utf-8")
+    make_exe = next(node for node in ast.parse(root_text).body if isinstance(node, ast.FunctionDef) and node.name == "make_exe")
+    added = []
+    scanned = []
+
+    def read_package_root(*, path, packages):
+        if path == str(PROJECT_ROOT):
+            assert "launchers" not in packages
+            return []
+        scanned.append((path, packages))
+        return [SimpleNamespace(name="main_runtime", source=(PROJECT_ROOT / "launchers/main_runtime.py").read_text(), is_package=False)]
+
+    exe = SimpleNamespace(
+        pip_install=lambda _args: [],
+        read_package_root=read_package_root,
+        make_python_module_source=lambda **fields: SimpleNamespace(**fields),
+        add_python_resource=added.append,
+        add_python_resources=added.extend,
+    )
+    distribution = SimpleNamespace(
+        make_python_packaging_policy=lambda: SimpleNamespace(set_resource_handling_mode=lambda _mode: None),
+        make_python_interpreter_config=SimpleNamespace,
+        to_python_executable=lambda **_kwargs: exe,
+    )
+    namespace = {
+        "PROJECT_ROOT": str(PROJECT_ROOT), "PROJECT_PREFIX": f"{PROJECT_ROOT}/",
+        "default_python_distribution": lambda: distribution,
+    }
+    exec(compile(ast.Module(body=[make_exe], type_ignores=[]), "pyoxidizer.bzl", "exec"), namespace)
+    build_executable = namespace["make_exe"]
+    assert callable(build_executable)
+    build_executable()
+    assert scanned == [(f"{PROJECT_ROOT}/launchers", ["main_runtime"])]
+    assert [(resource.name, resource.is_package) for resource in added] == [
+        ("launchers", True), ("launchers.main_runtime", False),
+    ]
+    compile(added[1].source, "launchers.main_runtime", "exec")
+    stage = (PROJECT_ROOT / "dev_env/build/build_pyoxidizer.bat").read_text()
+    assert 'copy /Y "%REPO_ROOT%\\launchers\\main_runtime.py" "%STAGE_DIR%\\launchers\\main_runtime.py"' in stage
 
 
 def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
@@ -228,6 +273,96 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
     assert "--build-system pyoxidizer" in pyoxidizer_script
     assert "--platform windows_amd64" in pyoxidizer_script
+
+
+def test_pyinstaller_windows_checks_clean_errorlevel() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--platform windows_amd64 --clean" in script
+    assert "if errorlevel 1 (" in script
+    assert "Limpeza PyInstaller falhou." in script
+    clean_block = section_between(
+        script,
+        "--platform windows_amd64 --clean",
+        "--platform windows_amd64 --apps cli gui",
+    )
+    assert "if errorlevel 1 (" in clean_block
+
+
+def test_pyinstaller_windows_pins_x64_python_for_every_stage() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'set "UV_PYTHON=cpython-3.13-windows-x86_64-none"' in script
+    commands = [line.strip() for line in script.splitlines() if line.strip().startswith("uv run ")]
+    assert commands
+    assert all(
+        'uv run --frozen --python "%UV_PYTHON%" ' in command for command in commands
+    )
+
+
+def test_pyinstaller_windows_arm64_build_script_isolated_from_x64() -> None:
+    script = (
+        PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller_windows_arm64.bat"
+    ).read_text(encoding="utf-8")
+
+    assert "windows_arm64" in script
+    assert "--platform windows_arm64 --clean" in script
+    assert "--platform windows_arm64 --apps cli gui" in script
+    assert "cpython-3.13-windows-x86_64-none" not in script
+    assert 'set "UV_PROJECT_ENVIRONMENT=.venv-win-arm64"' in script
+    assert 'set "UV_PYTHON=%SSA_WINDOWS_ARM64_PYTHON%"' in script
+    assert 'set "UV_MANAGED_PYTHON=false"' in script
+    assert script.index("sysconfig.get_platform() == 'win-arm64'") < script.index(
+        "--platform windows_arm64 --clean"
+    )
+    commands = [line.strip() for line in script.splitlines() if line.strip().startswith("uv run ")]
+    assert all("--no-sync" in command for command in commands)
+
+
+def test_pyinstaller_windows_embeds_only_explicit_runtime_database() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyinstaller.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--with-runtime-db" in script
+    assert '--runtime-db "%REPO_ROOT%\\data\\ssas.db"' in script
+    assert "copy_data_to_builds.py" not in script
+    assert "--allow-local-data" not in script
+
+
+def test_nuitka_windows_cleanup_and_canonical_dist_names() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_clean.bat").read_text(
+        encoding="utf-8"
+    )
+    post_build_block = section_between(
+        script,
+        'if "%WITH_LOCAL_DATA%"=="1" (',
+        "echo Build Nuitka concluido com sucesso.",
+    )
+
+    assert "gui_entry.dist" in script
+    assert "cli_entry.dist" in script
+    assert "gui_entry.build" in script
+    assert "cli_entry.build" in script
+    assert "ren " in script
+    assert (
+        'if not exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\gui_entry.dist" '
+        'if exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\SSA_GUI_v%APP_VERSION%_windows_amd64.dist"'
+        in script
+    )
+    assert (
+        'if not exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\cli_entry.dist" '
+        'if exist "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\SSA_CLI_v%APP_VERSION%_windows_amd64.dist"'
+        in script
+    )
+    assert 'rmdir /s /q "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\gui_entry.dist"' not in post_build_block
+    assert 'rmdir /s /q "%REPO_ROOT%\\builds\\nuitka\\windows_amd64\\cli_entry.dist"' not in post_build_block
+    assert "gui_entry.dist canonico" in script
+    assert "cli_entry.dist canonico" in script
 
 
 def test_setup_msvc_path_is_session_only_diagnostic() -> None:

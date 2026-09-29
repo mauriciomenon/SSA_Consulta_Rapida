@@ -71,7 +71,7 @@ def _is_within(path: Path, base: Path) -> bool:
     try:
         path.resolve().relative_to(base.resolve())
         return True
-    except Exception:
+    except (OSError, RuntimeError, ValueError):
         return False
 
 

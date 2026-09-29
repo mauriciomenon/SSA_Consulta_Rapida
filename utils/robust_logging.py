@@ -157,7 +157,7 @@ class JSONFormatter(logging.Formatter):
 
         # Adiciona exceção se presente
         if record.exc_info:
-            log_obj["exception"] = self.formatException(record.exc_info)
+            log_obj["exception"] = record.exc_text or self.formatException(record.exc_info)
 
         return json.dumps(log_obj, ensure_ascii=False)
 
@@ -236,7 +236,7 @@ class RobustLogger:
 
     def _load_config(self, config_path: Optional[str]) -> Dict:
         """Carrega configuração do logging."""
-        base_config = {
+        base_config: dict[str, Any] = {
             "version": "1.0",
             "level": "INFO",
             "console_level": "WARNING",
@@ -272,7 +272,15 @@ class RobustLogger:
             with open(config_path, "r", encoding="utf-8") as f:
                 loaded_config = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            print(f"Erro ao carregar config de logging: {e}. Usando padrão.")
+            print(f"Erro ao carregar config de logging: {e}. Usando padrao.", file=sys.stderr)
+            return base_config
+
+        if not isinstance(loaded_config, dict):
+            print(
+                "Configuracao de logging deve ser um objeto JSON. "
+                "Usando padrao.",
+                file=sys.stderr,
+            )
             return base_config
 
         # Configuração estruturada (logging/paths) ou chave/valor plana.
@@ -323,13 +331,33 @@ class RobustLogger:
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
 
-        # Cria diretório de logs
+        # Cria diretório de logs. Caminho relativo ancora no runtime root
+        # (gravavel em modo empacotado) ou na raiz do projeto como fallback —
+        # nunca no CWD, para que import-time loggers nao criem logs/ perdidos.
         log_dir = Path(self.config["log_dir"])
-        log_dir.mkdir(exist_ok=True)
+        if not log_dir.is_absolute():
+            runtime_root = os.environ.get("SSA_RUNTIME_ROOT")
+            anchor = (
+                Path(runtime_root)
+                if runtime_root
+                else Path(__file__).resolve().parents[1]
+            )
+            log_dir = anchor / log_dir
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            # CWD/raiz sem permissao de escrita nao pode derrubar o import.
+            print(
+                f"[robust_logging] log dir '{log_dir}' indisponivel ({exc}); "
+                "logging em arquivo desativado.",
+                file=sys.stderr,
+            )
+            self.config["enable_file"] = False
+            self.config["enable_json"] = False
 
         # Handler para console
         if self.config["enable_console"]:
-            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler = logging.StreamHandler(sys.stderr)
             console_handler.setLevel(getattr(logging, self.config["console_level"]))
             console_formatter = SafeFormatter(
                 self.config["format"], datefmt=self.config["date_format"]
@@ -340,39 +368,57 @@ class RobustLogger:
 
         # Handler para arquivo texto
         if self.config["enable_file"]:
-            file_handler = logging.handlers.RotatingFileHandler(
-                filename=log_dir / self.config["filename"],
-                maxBytes=self.config["max_file_size"],
-                backupCount=self.config["backup_count"],
-                encoding="utf-8",
-            )
-            file_handler.setLevel(getattr(logging, self.config["file_level"]))
-            file_formatter = SafeFormatter(
-                self.config["format"], datefmt=self.config["date_format"]
-            )
-            file_handler.setFormatter(file_formatter)
-            file_handler.addFilter(ContextFilter())
-            root_logger.addHandler(file_handler)
+            try:
+                file_handler = logging.handlers.RotatingFileHandler(
+                    filename=log_dir / self.config["filename"],
+                    maxBytes=self.config["max_file_size"],
+                    backupCount=self.config["backup_count"],
+                    encoding="utf-8",
+                )
+            except OSError as exc:
+                print(
+                    f"[robust_logging] handler de texto indisponivel ({exc}).",
+                    file=sys.stderr,
+                )
+            else:
+                file_handler.setLevel(
+                    getattr(logging, self.config["file_level"])
+                )
+                file_formatter = SafeFormatter(
+                    self.config["format"], datefmt=self.config["date_format"]
+                )
+                file_handler.setFormatter(file_formatter)
+                file_handler.addFilter(ContextFilter())
+                root_logger.addHandler(file_handler)
 
         # Handler para JSON estruturado
         if self.config["enable_json"]:
-            json_handler = logging.handlers.RotatingFileHandler(
-                filename=log_dir / self.config["json_filename"],
-                maxBytes=self.config["max_file_size"],
-                backupCount=self.config["json_backup_count"],
-                encoding="utf-8",
-            )
-            json_handler.setLevel(getattr(logging, self.config["json_level"]))
-            json_formatter = JSONFormatter(
-                include_metrics=self.config["enable_metrics"]
-            )
-            json_handler.setFormatter(json_formatter)
-            json_handler.addFilter(ContextFilter())
-            root_logger.addHandler(json_handler)
+            try:
+                json_handler = logging.handlers.RotatingFileHandler(
+                    filename=log_dir / self.config["json_filename"],
+                    maxBytes=self.config["max_file_size"],
+                    backupCount=self.config["json_backup_count"],
+                    encoding="utf-8",
+                )
+            except OSError as exc:
+                print(
+                    f"[robust_logging] handler JSON indisponivel ({exc}).",
+                    file=sys.stderr,
+                )
+            else:
+                json_handler.setLevel(
+                    getattr(logging, self.config["json_level"])
+                )
+                json_formatter = JSONFormatter(
+                    include_metrics=self.config["enable_metrics"]
+                )
+                json_handler.setFormatter(json_formatter)
+                json_handler.addFilter(ContextFilter())
+                root_logger.addHandler(json_handler)
 
-            # Compartilha métricas com JSONFormatter
-            if self.config["enable_metrics"]:
-                self.metrics = json_formatter.metrics
+                # Compartilha métricas com JSONFormatter
+                if self.config["enable_metrics"]:
+                    self.metrics = json_formatter.metrics
 
     def get_logger(self, name: str, component: Optional[str] = None) -> logging.Logger:
         """Retorna logger configurado para um componente específico."""

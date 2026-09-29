@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from typing import Any
+from uuid import uuid4
 
 import pandas as pd
+
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
@@ -26,6 +31,14 @@ SECTOR_EXECUTOR_PRIORITY = (
 SECTOR_EXECUTOR_PRIORITY_INDEX = {
     sector: index for index, sector in enumerate(SECTOR_EXECUTOR_PRIORITY)
 }
+RESPONSAVEL_SECTOR_SIGNATURE_COLUMNS = (
+    "setor_executor",
+    "setor_emissor",
+    "solicitante",
+    "responsavel_solicitante",
+    "responsavel_programacao",
+    "responsavel_execucao",
+)
 
 
 def normalize_nonempty_string_series(series: pd.Series) -> pd.Series:
@@ -43,8 +56,8 @@ def exclude_terminal_status_rows(df: pd.DataFrame) -> pd.DataFrame:
 def collect_nonempty_column_values(df: pd.DataFrame, column: str) -> list[str]:
     if not isinstance(df, pd.DataFrame) or df.empty or column not in df.columns:
         return []
-    series = normalize_nonempty_string_series(df[column].dropna())
-    return series[series != ""].astype(str).tolist()
+    series = normalize_nonempty_string_series(df[column])
+    return series[series != ""].tolist()
 
 
 def dedupe_nonempty_strings(values: Iterable[Any] | None) -> list[str]:
@@ -342,21 +355,24 @@ def generate_responsavel_sector_filter_cache_signature(
     )
 
 
-def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
-    # Fallback for callers without a data version token; structure-level only.
+def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int | str:
     try:
-        first_index = df.index[0] if len(df.index) else None
-        last_index = df.index[-1] if len(df.index) else None
-        return hash(
-            (
-                len(df),
-                first_index,
-                last_index,
-                tuple(str(column) for column in df.columns),
-            )
+        columns = [
+            column
+            for column in RESPONSAVEL_SECTOR_SIGNATURE_COLUMNS
+            if column in df.columns
+        ]
+        frame = df.loc[:, columns] if columns else df
+        data_hash = int(
+            pd.util.hash_pandas_object(frame, index=True).sum()
         )
-    except Exception:
-        return hash(len(df))
+        return hash((data_hash, len(df), tuple(str(column) for column in df.columns)))
+    except Exception as exc:
+        logger.warning(
+            "Falha ao computar hash do DataFrame; cache invalidado (%s)",
+            type(exc).__name__,
+        )
+        return uuid4().hex
 
 
 def filter_responsavel_frame_by_sector_selection(
@@ -419,13 +435,14 @@ ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "ano_emissao": ("data_cadastro",),
     "ano_emissao_values": ("data_cadastro",),
     "ano_emissao_exclude_values": ("data_cadastro",),
-    "ano_execucao": ("data_programada",),
-    "ano_execucao_values": ("data_programada",),
-    "ano_execucao_exclude_values": ("data_programada",),
+    "ano_execucao": ("semana_executada",),
+    "ano_execucao_values": ("semana_executada",),
+    "ano_execucao_exclude_values": ("semana_executada",),
+    "num_reprogramacoes_values": ("num_reprogramacoes",),
     "semana_emissao_inicio": ("semana_cadastro",),
     "semana_emissao_fim": ("semana_cadastro",),
-    "semana_execucao_inicio": ("semana_programada",),
-    "semana_execucao_fim": ("semana_programada",),
+    "semana_execucao_inicio": ("semana_executada",),
+    "semana_execucao_fim": ("semana_executada",),
     "derivada_include_values": ("derivada_de",),
     "derivada_has": ("derivada_de",),
     "derivada_all_ste": ("derivada_de",),

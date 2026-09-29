@@ -7,6 +7,11 @@ Mantido como referência histórica e não deve rodar em CI.
 # import pandas as pd  # legacy
 # from armazenamento.database import insert_data_in_database  # legacy
 
+import pytest
+
+pytest.skip("legacy placeholder (minimal insert)", allow_module_level=True)
+
+
 def test_minimal_insert():  # legacy placeholder
     """Placeholder desativado (testes modernos cobrem cenário)."""
     return

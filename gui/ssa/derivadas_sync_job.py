@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
+
+from armazenamento.derivadas_sync import DerivadasSyncCancelEvent
 
 DERIVADAS_SYNC_PHASE_DB = "db"
 DERIVADAS_SYNC_PHASE_SHEETS = "sheets"
@@ -18,7 +20,15 @@ def execute_derivadas_sync_job(
     sync_derivadas_fn: Callable[..., dict[str, Any]],
     scan_derivadas_consistency_fn: Callable[..., dict[str, Any]],
     phase_callback: Callable[[str, dict[str, Any]], None] | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
+    cancel_event: DerivadasSyncCancelEvent | None = None,
 ) -> dict[str, Any]:
+    # Materializa: o valor alimenta duas fases de sync e a verificacao de
+    # consistencia; iteravel de uso unico esgotaria na primeira chamada.
+    extra_allowed_roots = (
+        tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+    )
+
     def _emit_phase(name: str, **payload: Any) -> None:
         if callable(phase_callback):
             phase_callback(name, payload)
@@ -31,6 +41,8 @@ def execute_derivadas_sync_job(
             include_db_source=True,
             verify_only=False,
             actor="gui-derivadas-db-phase",
+            extra_allowed_roots=extra_allowed_roots,
+            cancel_event=cancel_event,
         )
 
         phase_reports = [db_phase_report]
@@ -45,20 +57,32 @@ def execute_derivadas_sync_job(
                 sheet_files=special_files,
                 verify_only=False,
                 actor="gui-derivadas-sheet-phase",
+                extra_allowed_roots=extra_allowed_roots,
+                cancel_event=cancel_event,
             )
             phase_reports.append(sheet_phase_report)
             _verify_special_sheet_coverage(sheet_phase_report, special_files)
         else:
             sheet_phase_report = None
 
-        merged_edges = 0
-        for phase_report in phase_reports:
-            merge_stats = phase_report.get("merge_stats") or {}
-            merged_edges += int(merge_stats.get("merged_edges", 0) or 0)
+        # Somar merge_stats.merged_edges das fases conta em dobro arestas
+        # presentes nas duas fontes (DB + planilha): cada fase reporta o
+        # merge apenas das arestas que ela coletou. O total real e a
+        # matriz materializada do ultimo relatorio (uniao das fontes).
+        merged_edges_raw = phase_reports[-1].get("active_edges")
+        if merged_edges_raw is None:
+            merged_edges_raw = sum(
+                int((report.get("merge_stats") or {}).get("merged_edges", 0) or 0)
+                for report in phase_reports
+            )
+        merged_edges = int(merged_edges_raw or 0)
         sheet_stats = sheet_phase_report.get("sheet_stats") if sheet_phase_report else {}
         sheet_edges = int((sheet_stats or {}).get("accepted_edges", 0) or 0)
         try:
-            consistency = scan_derivadas_consistency_fn(db_path=db_path)
+            consistency = scan_derivadas_consistency_fn(
+                db_path=db_path,
+                extra_allowed_roots=extra_allowed_roots,
+            )
         except Exception as exc:
             return {
                 "ok": False,
@@ -78,6 +102,14 @@ def execute_derivadas_sync_job(
             )
         return {
             "ok": True,
+            "db_path": os.path.realpath(db_path),
+            "table_name": table_name,
+            "sheet_files": list(special_files),
+            "phase_reports": [
+                {**report, "phase": "db" if index == 0 else "sheets"}
+                for index, report in enumerate(phase_reports)
+            ],
+            "consistency": consistency,
             "db_edges": db_edges,
             "sheet_edges": sheet_edges,
             "merged_edges": merged_edges,

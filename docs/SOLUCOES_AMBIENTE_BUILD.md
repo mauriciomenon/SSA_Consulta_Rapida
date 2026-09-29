@@ -1,17 +1,19 @@
 # Solucoes para Problemas de Ambiente - Build Systems
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58 e PR #59: merged; base minima sincronizada `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
-- Proximo passo operacional: rebuildar artefatos v4.42 no Windows AMD64 e Debian AMD64 a partir do HEAD sincronizado.
+- Para a candidata v4.51, gerar artefatos no clone nativo a partir do mesmo commit confirmado para cada alvo; registrar o resultado real de cada build.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
 
 ## HISTORICAL SNAPSHOT 2025-11-14
 
 Conteudo legado preservado apenas como referencia historica; o bloco `CURRENT TRUTH` acima e a fonte operacional atual.
 
-**Autor**: Claude Code
 
 ## Problema 1: PyOxidizer - Erro `ntpath.abspath`
 
@@ -53,8 +55,8 @@ def _get_project_root():
         return os.getcwd()
 ```
 
-### Arquivo Modificado
-- [main.py](../main.py) linha 166-184
+### Arquivo Atual
+- `_get_project_root` fica em [launchers/main_runtime.py](../launchers/main_runtime.py); `main.py` apenas importa a funcao.
 
 ---
 
@@ -72,26 +74,16 @@ O GCC 15.2.0 do MSYS2 UCRT esta no PATH e interfere com o download automatico do
 
 ### Solucao Implementada
 
-Criado script [build_nuitka_clean.bat](../build_nuitka_clean.bat) que:
+Historico: a primeira versao de
+[build_nuitka_clean.bat](../dev_env/build/build_nuitka_clean.bat) montava um
+PATH limpo sem MSYS2/MinGW antes do Nuitka.
 
-1. Remove temporariamente MSYS2/MinGW do PATH
-2. Mantem apenas Python e Scoop no PATH
-3. Executa build Nuitka
-4. Restaura PATH original
-
-```batch
-REM PATH limpo sem MSYS2
-set "PATH=C:\Windows\System32;C:\Windows;C:\Users\<usuario>\.pyenv\pyenv-win\bin;C:\Users\<usuario>\.pyenv\pyenv-win\shims;C:\Users\<usuario>\scoop\shims"
-
-REM Build com Nuitka
-python -m nuitka --standalone ...
-
-REM Restaurar PATH
-set "PATH=%PATH_BACKUP%"
-```
+O script atual nao altera o PATH. Ele roda sob `setlocal` (variaveis valem so
+dentro do script), usa `uv run --python 3.13` com `UV_MANAGED_PYTHON=true` e o
+ambiente `.venv-win`, e deixa o Nuitka baixar o proprio MinGW64.
 
 ### Arquivo Criado
-- [build_nuitka_clean.bat](../build_nuitka_clean.bat)
+- [build_nuitka_clean.bat](../dev_env/build/build_nuitka_clean.bat)
 
 ---
 
@@ -257,7 +249,6 @@ rm -rf *.spec
 
 ---
 
-**Ultima atualizacao**: 2025-11-14
+**Ultima atualizacao**: 2026-09-25
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

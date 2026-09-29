@@ -20,23 +20,25 @@ Ferramentas de build Python (PyInstaller, Nuitka, PyOxidizer) geram executaveis 
 3. Manage settings
 4. Add or remove exclusions
 5. Adicionar:
-   - `C:\Users\menon\git\SSA_Consulta_Rapida\build\`
-   - `C:\Users\menon\git\SSA_Consulta_Rapida\dist\`
-   - `C:\Users\menon\git\SSA_Consulta_Rapida\*.exe`
+   - `<repo>\build\`
+   - `<repo>\dist\`
 
 **Via PowerShell (Admin):**
 
 ```powershell
-Add-MpPreference -ExclusionPath "C:\Users\menon\git\SSA_Consulta_Rapida\build"
-Add-MpPreference -ExclusionPath "C:\Users\menon\git\SSA_Consulta_Rapida\dist"
-Add-MpPreference -ExclusionExtension "*.exe" -ExclusionPath "C:\Users\menon\git\SSA_Consulta_Rapida"
+$Repo = "C:\caminho\para\SSA_Consulta_Rapida"
+Add-MpPreference -ExclusionPath "$Repo\build"
+Add-MpPreference -ExclusionPath "$Repo\dist"
 ```
+
+Nao use `-ExclusionExtension "*.exe"`: a exclusao por extensao vale para o
+sistema inteiro, nao so para o repositorio.
 
 ### Outros Antivirus
 
 **Avast/AVG:**
 - Settings > General > Exclusions
-- Add folder: `C:\Users\menon\git\SSA_Consulta_Rapida\`
+- Add folders: `<repo>\build\` e `<repo>\dist\`
 
 **Kaspersky:**
 - Settings > Additional > Threats and Exclusions > Exclusions > Manage Exclusions

@@ -10,6 +10,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+. (Join-Path $PSScriptRoot 'native_host_guard.ps1')
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv')
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv_ft')
 
 function Write-EnvLog {
     param([string]$Message)
@@ -96,7 +101,6 @@ if (-not $SkipPyenv) {
 }
 
 # Determinar versão
-$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $pythonVersionFile = Join-Path $repoRoot ".python-version"
 
 if (Test-Path $pythonVersionFile) {
@@ -147,13 +151,26 @@ try {
 Write-EnvLog "`nInstalar dependências agora? (y/N)"
 $install = Read-Host
 if ($install -eq "y" -or $install -eq "Y") {
-    $reqFile = Join-Path $repoRoot "requirements_dev.txt"
-    if (Test-Path $reqFile) {
-        Write-EnvLog "Instalando dependências de desenvolvimento..."
-        pip install -r $reqFile
+    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw 'uv nao encontrado no PATH.' }
+    if ($SkipPyenv) { $env:SSA_SKIP_PYENV = '1' }
+    $env:SSA_PYTHON_VARIANT = $Variant
+    if ($Variant -eq 'free-threaded') {
+        $env:SSA_PYTHON_FT_VERSION = $pythonVersion
     } else {
-        Write-EnvLog "requirements_dev.txt não encontrado"
+        $env:SSA_PYTHON_STABLE_VERSION = $pythonVersion
     }
+    . (Join-Path $repoRoot 'scripts/env/direnv_common.ps1')
+    if (-not (ssa_env_apply manual)) { throw 'Falha ao ativar ambiente selecionado.' }
+    if ($env:SSA_ENV_SOURCE -eq 'pyenv-local') {
+        if (-not (ssa_env__activate_local_venv)) { throw 'Falha ao ativar venv local.' }
+    }
+    if (-not $env:VIRTUAL_ENV) { throw 'Nenhum ambiente virtual ativo para instalar dependencias.' }
+    $selectedPython = python -c 'import sys; print(sys.executable)'
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao identificar Python do ambiente selecionado.' }
+    $env:UV_PROJECT_ENVIRONMENT = $env:VIRTUAL_ENV
+    Write-EnvLog "Instalando dependencias de desenvolvimento com uv..."
+    uv sync --project $repoRoot --python $selectedPython --frozen --inexact
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao instalar dependencias com uv.' }
 }
 
 Write-EnvLog "`nSetup concluído!"

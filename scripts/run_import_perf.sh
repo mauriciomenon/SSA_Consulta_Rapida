@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 1
+ssa_native_guard_tools pytest || exit 1
+cd "$REPO_ROOT"
+
 # Usage: scripts/run_import_perf.sh [extra-pytest-args]
 # Environment variables:
 #   SSA_PERF_ROWS=40000        number of generated rows

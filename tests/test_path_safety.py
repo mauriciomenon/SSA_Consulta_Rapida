@@ -6,7 +6,12 @@ from typing import Any, cast
 
 import pytest
 
-from utils.path_safety import PathSafetyError, ensure_path_is_allowed, reserve_unique_path
+from utils.path_safety import (
+    PathSafetyError,
+    ensure_path_is_allowed,
+    get_allowed_roots,
+    reserve_unique_path,
+)
 
 
 @pytest.mark.parametrize("value", ["", "   ", b"", b"   "])
@@ -133,3 +138,25 @@ def test_reserve_unique_path_with_touch_and_reserved_set_retries_file_exists_rac
     assert result == str(expected)
     assert touched == [target, expected]
     assert expected.exists()
+
+
+def test_get_allowed_roots_tracks_env_var_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_allowed_roots() reflete SSA_EXTRA_ALLOWED_PATHS sem restart.
+
+    E o mecanismo que a UI Streamlit usa para autorizar caminhos digitados:
+    acrescentar a variavel e ver a raiz aparecer; remover e ver sumir.
+    """
+    extra = tmp_path / "digitado"
+    extra.mkdir()
+
+    monkeypatch.delenv("SSA_EXTRA_ALLOWED_PATHS", raising=False)
+    baseline = get_allowed_roots()
+    assert extra.resolve() not in baseline
+
+    monkeypatch.setenv("SSA_EXTRA_ALLOWED_PATHS", str(extra))
+    assert extra.resolve() in get_allowed_roots()
+
+    monkeypatch.delenv("SSA_EXTRA_ALLOWED_PATHS")
+    assert extra.resolve() not in get_allowed_roots()

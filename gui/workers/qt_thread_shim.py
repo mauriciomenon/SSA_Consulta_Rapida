@@ -15,7 +15,7 @@ except Exception:
 
     class _SignalInstance:
         def __init__(self) -> None:
-            self._slots = []
+            self._slots: list[Any] = []
             self._lock = threading.RLock()
 
         def connect(self, slot, *_args, **_kwargs):
@@ -47,6 +47,8 @@ except Exception:
         return _SignalDescriptor()
 
     class _FallbackQThread:
+        finished = _SignalDescriptor()
+
         def __init__(self, *_args, **_kwargs) -> None:
             self._running = False
             self._thread = None
@@ -57,14 +59,25 @@ except Exception:
                 return
 
             def _target() -> None:
-                self._running = True
                 try:
                     self.run()
                 finally:
                     self._running = False
+                    self.finished.emit()
 
-            self._thread = threading.Thread(target=_target, daemon=True)
-            self._thread.start()
+            thread = threading.Thread(target=_target, daemon=True)
+            self._thread = thread
+            self._running = True
+            try:
+                thread.start()
+            except RuntimeError:
+                self._running = False
+                self._thread = None
+                raise
+
+        def deleteLater(self) -> None:
+            """Sem recursos Qt; a coleta Python libera o objeto e seus sinais."""
+            return None
 
         def run(self) -> None:
             return None

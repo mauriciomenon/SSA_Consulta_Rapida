@@ -2,6 +2,7 @@
 """Inspect Excel file headers and data for SSA 202207421."""
 
 import pandas as pd
+from extracao.extractor import open_validated_excel_source
 
 print("=" * 80)
 print("INSPECTING: Consulta SSA - 03-11-2025_0851AM.xlsx")
@@ -10,7 +11,10 @@ print("=" * 80)
 filepath = "docs_entrada/Consulta SSA - 03-11-2025_0851AM.xlsx"
 
 # Read Excel WITHOUT any header processing
-df_raw = pd.read_excel(filepath, header=None)
+with open_validated_excel_source(filepath) as source_stream:
+    df_raw = pd.read_excel(source_stream, header=None)
+    source_stream.seek(0)
+    df_default = pd.read_excel(source_stream)
 
 print("\nRAW DATA (first 10 rows, all columns):")
 print(df_raw.head(10).to_string())
@@ -18,9 +22,6 @@ print(df_raw.head(10).to_string())
 print("\n" + "=" * 80)
 print("SHAPE:", df_raw.shape)
 print("=" * 80)
-
-# Now read with default header (row 0)
-df_default = pd.read_excel(filepath)
 
 print("\nDEFAULT READ (with header=0):")
 print(f"Columns: {list(df_default.columns)}")

@@ -49,7 +49,11 @@ except ImportError:
 
 # Imports do core
 from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_MARKER_ATTR
-from core.search_filter_constants import FILTER_SEARCH_SIGNATURE_CACHE_ATTR
+from core.search_filter_constants import (
+    FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+    FILTER_SOURCE_REVISION_ATTR,
+    FILTER_SOURCE_TOKEN_ATTR,
+)
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.search_filter import apply_general_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
@@ -70,6 +74,7 @@ from gui.ssa.column_filter_runtime import (
 )
 from gui.ssa.column_filter_engine import ColumnFilterCaches
 from gui.ssa.column_filter_engine import apply_column_filters as apply_column_filters
+from gui.ssa.gui_filters_advanced_state import ADV_FILTER_CACHE_ATTRS
 from gui.ssa.column_filter_panel import (
     build_column_filters_panel,
     open_add_column_filter_menu,
@@ -123,6 +128,7 @@ from gui.ssa.filter_summary_removal import (
     SummaryRemovalPlan,
     build_summary_removal_plan,
 )
+from gui.ssa.gui_filters_advanced_logic import AdvancedFilterMaskError
 from gui.ssa import filter_search_undo_controller as search_undo_controller
 from gui.ssa.filter_state_utils import copy_filter_mapping as _copy_filter_mapping
 from utils.robust_logging import get_robust_logger
@@ -193,7 +199,28 @@ def _has_named_alias(mapping: dict[str, str] | None, col: str) -> bool:
     return bool(value and value != col)
 
 
-def _connect_filter_signal(signal, slot, *, label: str) -> bool:
+def _is_window_deleted(obj: Any) -> bool:
+    if obj is None or sip is None:
+        return False
+    try:
+        return bool(sip.isdeleted(obj))
+    except Exception:
+        return False
+
+
+def _connect_filter_signal(signal, slot, *, label: str, window: Any = None) -> bool:
+    if window is not None:
+        original_slot = slot
+
+        def _guarded_slot(*args, **kwargs):
+            # Callback tardio pode ser entregue apos a destruicao da janela
+            # (WA_DeleteOnClose + sinais enfileirados); sem a guarda o acesso
+            # a widgets destruidos aborta o processo.
+            if _is_window_deleted(window):
+                return None
+            return original_slot(*args, **kwargs)
+
+        slot = _guarded_slot
     if signal is None:
         logger.debug("Signal ausente para %s; pulando conexao.", label)
         return False
@@ -432,6 +459,11 @@ class FilterGUISSAMixin:
                 "Estado visual de filtro ignorado antes da UI de filtro estar pronta"
             )
             return
+        if getattr(self, "_data_load_busy", False):
+            logger.debug(
+                "set_idle de filtro ignorado: carga de dados em andamento"
+            )
+            return
         self._filter_ui_state().set_idle()
 
     def _set_checked_without_signal(
@@ -477,6 +509,10 @@ class FilterGUISSAMixin:
                 search_button=getattr(self, "search_button", None),
                 status_label=getattr(self, "status_label", None),
                 logger=logger,
+                preserve_operation_feedback=lambda: bool(
+                    getattr(self, "_data_load_busy", False)
+                    or getattr(self, "_derivadas_sync_running", False)
+                ),
             )
             self._filter_ui_state_presenter = presenter
         return presenter
@@ -547,12 +583,29 @@ class FilterGUISSAMixin:
         self._clear_all_filters_global()
         self._maybe_offer_hard_reset_after_repeated_clear_click()
 
+    def _stamp_filter_source_attrs(self, source: pd.DataFrame) -> str:
+        revision_marker = (
+            getattr(self, "_data_uuid", None),
+            int(getattr(self, "_data_revision", 0) or 0),
+        )
+        attrs = dict(getattr(source, "attrs", {}) or {})
+        source_token = attrs.get(FILTER_SOURCE_TOKEN_ATTR)
+        if attrs.get(FILTER_SOURCE_REVISION_ATTR) != revision_marker or not source_token:
+            source_token = repr(
+                ("gui-filter-source", revision_marker, id(source))
+            )
+            attrs[FILTER_SOURCE_REVISION_ATTR] = revision_marker
+            attrs[FILTER_SOURCE_TOKEN_ATTR] = source_token
+            source.attrs = attrs
+        return str(source_token)
+
     def _get_filter_source_dataframe(
         self, source: pd.DataFrame | None = None
     ) -> pd.DataFrame:
         """Retorna a fonte de busca preservando cache seguro entre requests."""
         source = self.df_completo if source is None else source
         try:
+            self._stamp_filter_source_attrs(source)
             source_attrs = getattr(source, "attrs", {})
         except Exception as exc:
             logger.debug(
@@ -568,6 +621,8 @@ class FilterGUISSAMixin:
             FILTER_SEARCH_MARKER_ATTR,
             FILTER_SEARCH_CACHE_ATTR,
             FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+            FILTER_SOURCE_REVISION_ATTR,
+            FILTER_SOURCE_TOKEN_ATTR,
             "ssa_preprocessed_for_gui",
             "ssa_non_null_cols",
         }
@@ -598,23 +653,12 @@ class FilterGUISSAMixin:
 
     def _build_filter_worker_df_token(self, source: pd.DataFrame) -> str:
         shape = tuple(getattr(source, "shape", (0, 0)))
-        revision = getattr(self, "_data_revision", None)
-        data_uuid = getattr(self, "_data_uuid", None)
-        cached = getattr(self, "_filter_worker_df_token_cache", None)
-        if isinstance(cached, tuple) and len(cached) == 4:
-            cached_source_id, cached_shape, cached_revision, cached_token = cached
-            if (
-                cached_source_id == id(source)
-                and cached_shape == shape
-                and cached_revision == (revision, data_uuid)
-            ):
-                return str(cached_token)
+        source_token = self._stamp_filter_source_attrs(source)
         columns = tuple(str(column) for column in getattr(source, "columns", ()))
-        token = repr(
-            ("gui-filter-source", id(source), shape, columns, revision, data_uuid)
+        dtypes = tuple(str(dtype) for dtype in getattr(source, "dtypes", ()))
+        return repr(
+            ("gui-filter-source", source_token, shape, columns, dtypes)
         )
-        self._filter_worker_df_token_cache = (id(source), shape, (revision, data_uuid), token)
-        return token
 
     def _reset_repeated_clear_click_tracking(self) -> None:
         self._clear_filter_click_count = 0
@@ -750,50 +794,61 @@ class FilterGUISSAMixin:
         general_search_columns: list[str],
         request_id: int,
     ) -> None:
-        filter_cache_context = self._build_filter_cache_context()
-        worker = FilterWorker(
-            filter_source,
-            search_chunks,
-            search_columns=general_search_columns,
-            default_mode=default_mode,
-            cache_context=filter_cache_context,
-            df_hash=self._build_filter_worker_df_token(filter_source),
-        )
-        self.filter_thread = worker
-        filter_finished_connected = _connect_filter_signal(
-            worker.filter_finished,
-            lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid),
-            label="filter_worker.filter_finished",
-        )
-        error_connected = _connect_filter_signal(
-            worker.error_occurred,
-            lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid),
-            label="filter_worker.error_occurred",
-        )
-        _connect_filter_signal(
-            worker.finished,
-            lambda *_, w=worker, rid=request_id: self.on_filter_finished_cleanup(
-                w, request_id=rid
-            ),
-            label="filter_worker.finished.cleanup",
-        )
-        if not (filter_finished_connected and error_connected):
-            logger.warning(
-                "Falha ao conectar sinais criticos de filtro; abortando inicio do worker."
+        if bool(getattr(self, "_is_shutting_down", False)):
+            return
+        worker = None
+        try:
+            worker = FilterWorker(
+                filter_source,
+                search_chunks,
+                search_columns=general_search_columns,
+                default_mode=default_mode,
+                cache_context="",
+                df_hash=self._build_filter_worker_df_token(filter_source),
             )
-            self._cleanup_filter_worker(worker)
-            self._clear_active_filter_worker_reference(worker)
+            self.filter_thread = worker
+            filter_finished_connected = _connect_filter_signal(
+                worker.filter_finished,
+                lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid),
+                label="filter_worker.filter_finished",
+                window=self,
+            )
+            error_connected = _connect_filter_signal(
+                worker.error_occurred,
+                lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid),
+                label="filter_worker.error_occurred",
+                window=self,
+            )
+            cleanup_connected = _connect_filter_signal(
+                worker.finished,
+                lambda *_, w=worker, rid=request_id: self.on_filter_finished_cleanup(
+                    w, request_id=rid
+                ),
+                label="filter_worker.finished.cleanup",
+                window=self,
+            )
+            if not (filter_finished_connected and error_connected and cleanup_connected):
+                raise RuntimeError("Conexoes de sinais de filtro indisponiveis.")
+            self._retain_filter_worker_until_finished(worker)
+            worker.start()
+        except Exception as exc:
+            logger.error("Falha ao iniciar FilterWorker: %s", exc)
+            if worker is not None:
+                self._cleanup_filter_worker(worker)
+                self._clear_active_filter_worker_reference(worker)
             self.on_filter_error(
-                "Falha ao iniciar filtro: conexoes de sinais indisponiveis.",
+                "Falha ao iniciar filtro.",
                 request_id=request_id,
             )
-            return
-        self._retain_filter_worker_until_finished(worker)
-        worker.start()
 
     def initiate_filtering(self):
         if self.df_completo.empty:
             self._set_filter_ui_idle()
+            if getattr(self, "_data_load_busy", False):
+                logger.debug(
+                    "initiate_filtering ignorado: carga de dados em andamento"
+                )
+                return
             QMessageBox.information(
                 _qt_parent(self), "Aviso", "Nenhum dado carregado para filtrar."
             )
@@ -808,30 +863,47 @@ class FilterGUISSAMixin:
             search_text_override=previous_search_text,
             pending_search_display_override=previous_search_text,
         )
+
+        # Blank search: synchronous, no worker, no deep copy (S6)
+        if not search_text.strip():
+            self._abort_active_filtering("initiate_filtering_blank")
+            self._active_filter_search_display = ""
+            self._active_filter_search_request_id = None
+            self._pending_search_display = ""
+            self._df_last_search_filtered = self.df_completo
+            self._sync_clear_filter_button_state()
+            refresh_ok = self._refresh_after_filter_change(
+                commit_pending_search=False
+            )
+            if not refresh_ok:
+                self._df_last_search_filtered = self.df_completo
+            return
+
         try:
             self._debounce_timer.stop()
         except Exception as exc:
             logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
         request_id = self._invalidate_active_filter_request("initiate_filtering")
 
-        raw_chunks = self._prepare_search_chunks(search_text) if search_text else []
-        search_chunks_for_worker = raw_chunks
+        try:
+            search_chunks_for_worker = self._prepare_search_chunks(search_text)
+            self._sync_clear_filter_button_state()
+            filter_source_candidate = self._select_general_filter_source_candidate(
+                search_text
+            )
+            default_mode = self._get_default_filter_mode()
+            filter_source = self._get_filter_source_dataframe(filter_source_candidate)
+            general_search_columns = build_gui_general_search_columns(filter_source)
+        except Exception as exc:
+            logger.error("Falha ao preparar filtro: %s", exc)
+            self._cancel_active_filter_worker("initiate_filtering_prepare_failed")
+            self.on_filter_error("Falha ao preparar filtro.", request_id=request_id)
+            return
 
-        self._sync_clear_filter_button_state()
-
-        display_text = search_text if search_text else ""
-        filter_source_candidate = self._select_general_filter_source_candidate(
-            search_text
-        )
-        self._pending_search_display = display_text
-        self._active_filter_search_display = display_text
+        self._pending_search_display = search_text
+        self._active_filter_search_display = search_text
         self._active_filter_search_request_id = request_id
-
         self._filter_ui_state().set_busy()
-
-        default_mode = self._get_default_filter_mode()
-        filter_source = self._get_filter_source_dataframe(filter_source_candidate)
-        general_search_columns = build_gui_general_search_columns(filter_source)
 
         # Modo síncrono (sem QThread) opcional para testes
         if getattr(self, "_sync_filtering", False):
@@ -872,6 +944,8 @@ class FilterGUISSAMixin:
     def on_filter_finished(
         self, df_filtrado: pd.DataFrame, request_id: int | None = None
     ):
+        if bool(getattr(self, "_is_shutting_down", False)):
+            return
         active_id = getattr(self, "_active_filter_request_id", None)
         effective_request_id = request_id if request_id is not None else active_id
         if request_id is not None and active_id is not None and request_id != active_id:
@@ -887,8 +961,30 @@ class FilterGUISSAMixin:
                 "table_widget indisponivel no inicio de on_filter_finished; ignorando resultado."
             )
             return
+        has_post_search_filters = True
         try:
-            if not df_filtrado.empty and "numero_ssa" in df_filtrado.columns:
+            (
+                has_column_filters,
+                has_advanced_filters,
+                has_excluded_terminal_status,
+            ) = self._filter_refresh_flags()
+            has_post_search_filters = self._compute_has_post_search_filters(
+                has_column_filters=has_column_filters,
+                has_advanced_filters=has_advanced_filters,
+                has_excluded_terminal_status=has_excluded_terminal_status,
+                for_sort_defer=True,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Falha ao avaliar pos-filtros antes do sort de busca geral: %s",
+                exc,
+            )
+        try:
+            if (
+                not has_post_search_filters
+                and not df_filtrado.empty
+                and "numero_ssa" in df_filtrado.columns
+            ):
                 df_filtrado = df_filtrado.sort_values(
                     "numero_ssa", ascending=False
                 )
@@ -897,11 +993,21 @@ class FilterGUISSAMixin:
             logger.warning(
                 "Falha ao ordenar numero_ssa no fim do filtro geral: %s", exc
             )
-        # Atualiza baseline do resultado da busca global
+        previous_search_baseline = self._df_last_search_filtered
+        # Atualiza baseline do resultado da busca global para o refresh pos-busca
         self._df_last_search_filtered = df_filtrado
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
-        self._refresh_after_filter_change(commit_pending_search=False)
+        refresh_completed = self._refresh_after_filter_change(
+            commit_pending_search=False
+        )
+        if not refresh_completed:
+            self._df_last_search_filtered = previous_search_baseline
+            self._sync_clear_filter_button_state()
+            self._apply_search_display()
+            self._apply_filter_result_width_safety("filter_finished", deferred=True)
+            self._consume_pending_jump_to_ssa(effective_request_id)
+            return
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
         search_text = ""
         current_search_request_id = getattr(
@@ -948,6 +1054,8 @@ class FilterGUISSAMixin:
         self._consume_pending_jump_to_ssa(effective_request_id)
 
     def on_filter_error(self, error_msg: str, request_id: int | None = None):
+        if bool(getattr(self, "_is_shutting_down", False)):
+            return
         active_id = getattr(self, "_active_filter_request_id", None)
         if request_id is not None and active_id is not None and request_id != active_id:
             logger.debug(
@@ -1159,7 +1267,8 @@ class FilterGUISSAMixin:
                 worker if worker is not None else getattr(self, "filter_thread", None)
             )
             self._cleanup_filter_worker(target_worker)
-            self._filter_ui_state().set_cleanup()
+            if not getattr(self, "_data_load_busy", False):
+                self._filter_ui_state().set_cleanup()
             try:
                 self._prune_retired_filter_workers()
             except Exception as exc:
@@ -1240,15 +1349,33 @@ class FilterGUISSAMixin:
 
     def clear_filter_cache(self):
         """Limpa o cache de filtros."""
-        # Usa logger e verifica disponibilidade do FilterWorker e cache
         if FilterWorker is not None:
-            try:
-                FilterWorker.clear_shared_cache()
-                logger.debug("Cache de filtros limpo")
-            except Exception as e:  # pragma: no cover
-                logger.debug("Falha ao limpar cache de filtros: %s", e)
-        else:
-            logger.debug("FilterWorker indisponivel; cache nao limpo")
+            FilterWorker.clear_shared_cache()
+        for attr in (*ADV_FILTER_CACHE_ATTRS,
+                     "_column_filter_series_cache", "_column_filter_casefold_cache",
+                     "_column_filter_mask_cache", "_column_filter_date_parsed_cache",
+                     "_column_filter_date_cache", "_column_filter_frame_tokens"):
+            cache = getattr(self, attr, None)
+            if isinstance(cache, dict):
+                cache.clear()
+        self._filter_refresh_result_cache = None
+        self._column_filter_series_cache_revision = None
+        self._column_filter_date_cache_scope = None
+        cache_manager = getattr(self, "cache_manager", None)
+        if cache_manager is not None:
+            formatted_cache = getattr(cache_manager, "_formatted_cache", None)
+            if isinstance(formatted_cache, dict):
+                formatted_cache.clear()
+            else:
+                cache_manager.invalidate_cache("dataframes")
+        refresher = getattr(self, "_responsavel_options_refresher", None)
+        if refresher is not None:
+            for cache in (refresher.cache.filtered, refresher.cache.rank,
+                          refresher.cache.values, refresher.cache.frame_tokens):
+                cache.clear()
+        self._reset_num_reprogramacoes_sort_cache()
+        self._reset_mixed_text_sort_cache()
+        logger.debug("Filter caches cleared")
 
     # --- Slots e Handlers ---
 
@@ -1665,6 +1792,7 @@ class FilterGUISSAMixin:
                 "Falha ao sincronizar UI de filtros avancados em clear_all_filters_global: %s",
                 exc,
             )
+        self._refresh_quick_situacao_buttons()
 
         # Restaura linhas ocultas e limpa Filtro OU dedicado (exibição)
         try:
@@ -1767,6 +1895,7 @@ class FilterGUISSAMixin:
 
     def _render_filter_reset_baseline(self) -> None:
         """Render the full dataset after a full filter reset through one path."""
+        self.clear_filter_cache()
         self.df_exibido = self.df_completo
         self._last_table_render_signature = None
         try:
@@ -2230,6 +2359,7 @@ class FilterGUISSAMixin:
                 date_parsed=getattr(self, "_column_filter_date_parsed_cache", {}) or {},
                 date=getattr(self, "_column_filter_date_cache", {}) or {},
                 frame_tokens=getattr(self, "_column_filter_frame_tokens", {}) or {},
+                default_mode=self._get_default_filter_mode(),
             )
         )
 
@@ -2360,6 +2490,29 @@ class FilterGUISSAMixin:
             bool(getattr(self, "_exclude_ste_sca", False)),
         )
 
+    def _compute_has_post_search_filters(
+        self,
+        *,
+        has_column_filters: bool,
+        has_advanced_filters: bool,
+        has_excluded_terminal_status: bool,
+        for_sort_defer: bool,
+    ) -> bool:
+        """Return whether post-search filter stages should affect the current gate.
+
+        Contract:
+        - for_sort_defer=True (on_filter_finished pre-sort gate): includes terminal
+          exclusion because refresh applies STE/SCA without column/advanced stages;
+          pre-sort must defer when terminal-only is active.
+        - for_sort_defer=False (refresh pipeline gate): excludes terminal exclusion;
+          terminal is handled separately via has_excluded_terminal_status in the
+          pipeline cache path (see _apply_filter_refresh_filters_and_update_cache).
+        """
+        base = has_column_filters or has_advanced_filters
+        if for_sort_defer:
+            return base or has_excluded_terminal_status
+        return base
+
     def _apply_filter_refresh_filters_and_update_cache(
         self,
         filtered: pd.DataFrame,
@@ -2369,9 +2522,10 @@ class FilterGUISSAMixin:
         measure_timing,
     ) -> pd.DataFrame:
         cache_key = None
-        if has_post_search_filters:
+        if has_post_search_filters or has_excluded_terminal_status:
             cache_context = self._build_filter_cache_context()
             cache_key = (
+                self._get_default_filter_mode(),
                 getattr(self, "_data_revision", None),
                 getattr(self, "_data_uuid", None),
                 id(getattr(self, "df_completo", None)),
@@ -2391,8 +2545,7 @@ class FilterGUISSAMixin:
             apply_column_filters=self._apply_column_filters,
             measure_timing=measure_timing,
         )
-        if cache_update is not None:
-            self._filter_refresh_result_cache = cache_update
+        self._filter_refresh_result_cache = cache_update
         return filtered
 
     def _sort_filter_refresh_result(
@@ -2439,18 +2592,13 @@ class FilterGUISSAMixin:
 
     def _bump_filter_refresh_revision(self) -> None:
         try:
-            if hasattr(self, "_bump_data_revision"):
-                self._bump_data_revision("filter_refresh")
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar data revision em refresh de filtros: %s", exc
-            )
-        try:
             if hasattr(self, "_ensure_data_revision"):
                 self._ensure_data_revision()
         except Exception as exc:
-            logger.debug(
-                "Falha ao garantir data revision no refresh de filtros: %s", exc
+            logger.warning(
+                "Falha ao garantir data revision no refresh de filtros "
+                "(risco de render stale): %s",
+                exc,
             )
 
     def _render_filter_refresh_page(self, current_details_ssa, measure_timing) -> None:
@@ -2554,19 +2702,22 @@ class FilterGUISSAMixin:
             )
             update_details_if_current()
 
-    def _finish_filter_refresh_ui(self, measure_timing) -> None:
+    def _finish_filter_refresh_ui(
+        self, measure_timing, *, skip_status_update: bool = False
+    ) -> None:
         measure_timing("status_indicator", self._update_col_filter_indicator)
         try:
             measure_timing("summary", self._update_filters_summary)
         except Exception as exc:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
         self._sync_clear_filter_button_state()
-        try:
-            measure_timing("status", self._set_filtered_count_status)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar status de total filtrado no refresh: %s", exc
-            )
+        if not skip_status_update:
+            try:
+                measure_timing("status", self._set_filtered_count_status)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao atualizar status de total filtrado no refresh: %s", exc
+                )
         try:
             sync_combo = getattr(
                 self, "_sync_quick_setor_executor_combo_from_filters", None
@@ -2611,8 +2762,15 @@ class FilterGUISSAMixin:
             filtered_rows,
         )
 
-    def _refresh_after_filter_change(self, *, commit_pending_search: bool = True):
-        """Reaplica filtros de coluna, atualiza tabela e indicadores."""
+    def _refresh_after_filter_change(
+        self, *, commit_pending_search: bool = True
+    ) -> bool:
+        """Reaplica filtros de coluna, atualiza tabela e indicadores.
+
+        Returns:
+            False when advanced filter mask evaluation fails and the visible
+            dataframe was preserved; True when refresh completed normally.
+        """
         timer = FilterRefreshTimer()
         current_details_ssa = getattr(self, "_details_current_ssa", None)
         active_search_display = str(
@@ -2621,7 +2779,7 @@ class FilterGUISSAMixin:
         current_search_text = self._current_general_search_text()
         if commit_pending_search and current_search_text != active_search_display:
             self.initiate_filtering()
-            return
+            return True
         has_general_search = (
             self._filter_refresh_has_general_search()
             if commit_pending_search
@@ -2634,17 +2792,33 @@ class FilterGUISSAMixin:
             has_advanced_filters,
             has_excluded_terminal_status,
         ) = self._filter_refresh_flags()
-        has_post_search_filters = (
-            has_column_filters
-            or has_advanced_filters
-            or has_excluded_terminal_status
-        )
-        filtered = self._apply_filter_refresh_filters_and_update_cache(
-            filtered,
-            has_post_search_filters=has_post_search_filters,
+        has_post_search_filters = self._compute_has_post_search_filters(
+            has_column_filters=has_column_filters,
+            has_advanced_filters=has_advanced_filters,
             has_excluded_terminal_status=has_excluded_terminal_status,
-            measure_timing=timer.measure,
+            for_sort_defer=False,
         )
+        try:
+            filtered = self._apply_filter_refresh_filters_and_update_cache(
+                filtered,
+                has_post_search_filters=has_post_search_filters,
+                has_excluded_terminal_status=has_excluded_terminal_status,
+                measure_timing=timer.measure,
+            )
+        except AdvancedFilterMaskError as exc:
+            from gui.ssa.gui_filters_advanced_ui import (
+                _sync_status_after_advanced_filter_failure,
+            )
+
+            logger.warning(
+                "Falha ao aplicar filtros avancados no refresh pos-busca: %s",
+                exc,
+            )
+            _sync_status_after_advanced_filter_failure(self)
+            self._finish_filter_refresh_ui(
+                timer.measure, skip_status_update=True
+            )
+            return False
         filtered = self._sort_filter_refresh_result(
             filtered,
             has_general_search=has_general_search,
@@ -2656,7 +2830,10 @@ class FilterGUISSAMixin:
         self.df_exibido = filtered
         self._bump_filter_refresh_revision()
         timer.measure(
-            "paginate", lambda: self.paginator.set_dataframe(self.df_exibido)
+            "paginate",
+            lambda: self.paginator.set_dataframe(
+                self.df_exibido, emit_page_changed=False
+            ),
         )
         self._render_filter_refresh_page(current_details_ssa, timer.measure)
         self._finish_filter_refresh_ui(timer.measure)
@@ -2666,6 +2843,7 @@ class FilterGUISSAMixin:
             base=base,
             filtered=filtered,
         )
+        return True
 
     def _build_filter_cache_context(self) -> str:
         """Gera contexto deterministico do estado efetivo de filtros para o cache."""

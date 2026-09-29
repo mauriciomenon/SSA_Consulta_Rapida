@@ -240,6 +240,7 @@ def prepare_external_import_selection(
     skipped = 0
     failed = 0
     unsupported = 0
+    unsupported_files: list[str] = []
     safe_selected_files: list[str] = []
     explicit_allowed_files = _normalize_explicit_allowed_files(selected_files)
     for raw_source in selected_files:
@@ -259,6 +260,7 @@ def prepare_external_import_selection(
                 exc,
             )
             unsupported += 1
+            unsupported_files.append(f"{os.path.basename(source)}: {exc}")
             continue
         except Exception as exc:
             logger.warning(
@@ -274,6 +276,7 @@ def prepare_external_import_selection(
         "skipped": skipped,
         "failed": failed,
         "unsupported": unsupported,
+        "unsupported_files": unsupported_files,
     }
 
 

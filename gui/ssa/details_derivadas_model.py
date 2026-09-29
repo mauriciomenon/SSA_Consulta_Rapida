@@ -85,8 +85,6 @@ def normalize_tree_data(
     ancestors.sort(key=_ancestor_sort_key)
     if not family_roots and ancestors:
         family_roots = _family_roots_from_ancestors(ancestors)
-    if not family_roots:
-        family_roots = list(dict.fromkeys(parents or [target]))
 
     if not family_descendants and local_payload:
         local_state = _local_family_state(local_payload)
@@ -98,6 +96,8 @@ def normalize_tree_data(
             family_roots = local_state["family_roots"]
         family_descendants = local_state["family_descendants"]
         descendants_partial = local_state["descendants_partial"]
+    if not family_roots:
+        family_roots = list(dict.fromkeys(parents or [target]))
 
     if family_descendants:
         descendants = family_descendants

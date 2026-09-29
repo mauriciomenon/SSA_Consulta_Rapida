@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
+import stat
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -14,6 +16,49 @@ from utils.path_safety import PathSafetyError, ensure_path_is_allowed
 project_root_path = Path(__file__).resolve().parents[1]
 project_root = str(project_root_path)
 logger = logging.getLogger(__name__)
+
+_MAX_IMPORT_RUN_REPORTS = 50
+_IMPORT_RUN_REPORT_NAME = re.compile(r"^import_run_(\d{8}_\d{6}_\d{6})\.json$")
+
+
+def _prune_import_run_reports(logs_dir: str) -> None:
+    """Mantem os relatorios com run_id temporal mais recentes."""
+    try:
+        names = os.listdir(logs_dir)
+    except OSError as exc:
+        logger.warning(
+            "Falha ao listar relatorios de importacao em %s: %s", logs_dir, exc
+        )
+        return
+
+    entries: list[tuple[str, str]] = []
+    for name in names:
+        match = _IMPORT_RUN_REPORT_NAME.fullmatch(name)
+        if match is None:
+            continue
+        try:
+            datetime.strptime(match.group(1), "%Y%m%d_%H%M%S_%f")
+        except ValueError:
+            continue
+        path = os.path.join(logs_dir, name)
+        try:
+            if not stat.S_ISREG(os.stat(path, follow_symlinks=False).st_mode):
+                continue
+        except OSError as exc:
+            logger.warning("Falha ao examinar relatorio %s: %s", path, exc)
+            continue
+        entries.append((match.group(1), path))
+
+    entries.sort()
+    for _, stale_path in entries[: -_MAX_IMPORT_RUN_REPORTS]:
+        try:
+            os.remove(stale_path)
+        except OSError as exc:
+            logger.warning(
+                "Falha ao descartar relatorio antigo %s: %s",
+                stale_path,
+                exc,
+            )
 
 
 def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
@@ -52,6 +97,7 @@ def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
         report_path = os.path.join(logs_dir, f"import_run_{run_id}.json")
         with open(report_path, "w", encoding="utf-8") as fp:
             json.dump(payload, fp, ensure_ascii=False, indent=2, default=str)
+        _prune_import_run_reports(logs_dir)
         return report_path
     except (OSError, TypeError, ValueError) as exc:
         logger.warning("Falha ao gravar relatorio JSON de importacao: %s", exc)
@@ -66,6 +112,7 @@ def _build_import_run_payload(
     result: bool,
     status: str,
     reason: str,
+    cancel_requested: bool = False,
     force_import: bool,
     table_name: str,
     db_name: str,
@@ -89,23 +136,49 @@ def _build_import_run_payload(
     integrity_report: Dict[str, Any],
     file_reports: List[Dict[str, Any]],
     phase_durations: Dict[str, float],
+    blocked_files: Optional[List[str]] = None,
+    clean_retry_candidates: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     total_rows_extracted = 0
     total_rows_removed_invalid_identity = 0
+    total_rows_captured_hierarchical = 0
+    total_event_records_processed = 0
     total_rows_ready_for_insert = 0
     total_rows_inserted = 0
+    total_ssa_inserted = 0
+    total_ssa_updated = 0
+    total_ssa_blocked_parse = 0
     total_extraction_seconds = 0.0
     total_validation_seconds = 0.0
     total_insert_seconds = 0.0
     for entry in file_reports:
-        counts = entry.get("counts") or {}
+        counts_value = entry.get("counts")
+        counts = counts_value if isinstance(counts_value, dict) else {}
+        if entry.get("status") == "success" and not {
+            "ssa_inserted",
+            "ssa_updated",
+        }.issubset(counts):
+            filename = str(entry.get("file") or "arquivo desconhecido")
+            raise ValueError(
+                f"Relatorio de sucesso sem metricas SSA obrigatorias: {filename}"
+            )
         durations = entry.get("durations") or {}
         total_rows_extracted += int(counts.get("rows_extracted", 0) or 0)
         total_rows_removed_invalid_identity += int(
             counts.get("rows_removed_invalid_identity", 0) or 0
         )
+        total_rows_captured_hierarchical += int(
+            counts.get("rows_captured_hierarchical", 0) or 0
+        )
+        total_event_records_processed += int(
+            counts.get("event_records_processed", 0) or 0
+        )
         total_rows_ready_for_insert += int(counts.get("rows_ready_for_insert", 0) or 0)
         total_rows_inserted += int(counts.get("rows_inserted", 0) or 0)
+        if entry.get("status") == "success":
+            total_ssa_inserted += int(counts["ssa_inserted"])
+            total_ssa_updated += int(counts["ssa_updated"])
+            total_ssa_blocked_parse += int(counts.get("ssa_blocked_parse", 0) or 0)
         total_extraction_seconds += float(durations.get("extraction_seconds", 0) or 0)
         total_validation_seconds += float(durations.get("validation_seconds", 0) or 0)
         total_insert_seconds += float(durations.get("insert_seconds", 0) or 0)
@@ -129,6 +202,9 @@ def _build_import_run_payload(
         "result": bool(result),
         "status": status,
         "reason": reason,
+        "cancel_requested": bool(cancel_requested),
+        "blocked_files": list(blocked_files or []),
+        "clean_retry_candidates": list(clean_retry_candidates or []),
         "inputs": {
             "force_import": bool(force_import),
             "table_name": table_name,
@@ -161,8 +237,13 @@ def _build_import_run_payload(
             "ignored_legacy_excel_count": len(ignored_legacy_excel_files),
             "rows_extracted_total": total_rows_extracted,
             "rows_removed_invalid_identity_total": total_rows_removed_invalid_identity,
+            "rows_captured_hierarchical_total": total_rows_captured_hierarchical,
+            "event_records_processed_total": total_event_records_processed,
             "rows_ready_for_insert_total": total_rows_ready_for_insert,
             "rows_inserted_total": total_rows_inserted,
+            "ssa_inserted_total": total_ssa_inserted,
+            "ssa_updated_total": total_ssa_updated,
+            "ssa_blocked_parse_total": total_ssa_blocked_parse,
         },
         "files": {
             "candidates": [os.path.basename(p) for p in files_to_process],

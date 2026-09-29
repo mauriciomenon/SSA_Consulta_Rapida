@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from typing import cast
 
@@ -83,6 +84,25 @@ def test_read_schema_scan_from_missing_path_does_not_create_database(tmp_path):
     assert report["is_ready"] is False
     assert not db_path.exists()
     assert "ssa_derivada_matrix" in report["missing_tables"]
+
+
+@pytest.mark.parametrize(
+    "scan",
+    [
+        scan_derivadas_schema_readiness_from_path,
+        scan_derivadas_read_schema_readiness_from_path,
+    ],
+)
+def test_schema_scan_uses_exact_special_character_path(tmp_path, scan):
+    name = "base#teste.db" if os.name == "nt" else "base?teste#x.db"
+    db_path = tmp_path / name
+    ensure_derivadas_schema(str(db_path))
+    before = {path.name for path in tmp_path.iterdir()}
+
+    report = scan(str(db_path), extra_allowed_roots=[tmp_path])
+
+    assert report["is_ready"] is True
+    assert {path.name for path in tmp_path.iterdir()} == before
 
 
 def test_has_derivadas_schema_rejects_invalid_identifier(temp_db):
@@ -188,7 +208,7 @@ def test_ensure_derivadas_schema_validates_path_before_open(tmp_path, monkeypatc
     db_path = tmp_path / "blocked_derivadas.db"
     captured = {}
 
-    def _raise_blocked(path, purpose):
+    def _raise_blocked(path, purpose, **_kwargs):
         captured["path"] = path
         captured["purpose"] = purpose
         raise PermissionError("blocked")
@@ -204,3 +224,34 @@ def test_ensure_derivadas_schema_validates_path_before_open(tmp_path, monkeypatc
         "path": str(db_path),
         "purpose": "ensure derivadas schema",
     }
+
+
+def test_schema_functions_external_db_respect_extra_roots(
+    temp_db, monkeypatch, tmp_path
+):
+    from pathlib import Path
+
+    from utils import path_safety
+    from utils.path_safety import PathSafetyError
+
+    project_only = tmp_path / "project_root"
+    project_only.mkdir()
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [project_only])
+    db_parent = str(Path(temp_db).resolve().parent)
+
+    with pytest.raises(PathSafetyError):
+        ensure_derivadas_schema(temp_db)
+    with pytest.raises(PathSafetyError):
+        scan_derivadas_schema_readiness_from_path(temp_db)
+    with pytest.raises(PathSafetyError):
+        scan_derivadas_read_schema_readiness_from_path(temp_db)
+
+    ensure_derivadas_schema(temp_db, extra_allowed_roots=[db_parent])
+    report = scan_derivadas_schema_readiness_from_path(
+        temp_db, extra_allowed_roots=[db_parent]
+    )
+    read_report = scan_derivadas_read_schema_readiness_from_path(
+        temp_db, extra_allowed_roots=[db_parent]
+    )
+    assert report["is_ready"] is True
+    assert read_report["is_ready"] is True

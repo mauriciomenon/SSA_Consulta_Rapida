@@ -5,6 +5,7 @@ Verificação rápida de integridade do banco após importação
 
 import sqlite3
 import sys
+from contextlib import closing
 
 TABLE_NAME = "ssa_table"
 COUNT_TOTAL_SQL = "SELECT COUNT(*) FROM ssa_table"
@@ -25,36 +26,36 @@ def verificar_integridade():
     print("=" * 60)
 
     try:
-        conn = sqlite3.connect("data/ssas.db")
-        cursor = conn.cursor()
+        with closing(sqlite3.connect("data/ssas.db")) as conn:
+            cursor = conn.cursor()
 
-        # Verificações básicas
-        total = cursor.execute(COUNT_TOTAL_SQL).fetchone()[0]
-        unicos = cursor.execute(COUNT_DISTINCT_SQL).fetchone()[0]
-        nulls_ssa = cursor.execute(COUNT_NULL_NUMERO_SQL).fetchone()[0]
-        vazios_desc = cursor.execute(COUNT_EMPTY_DESC_SQL).fetchone()[0]
+            # Verificações básicas
+            total = cursor.execute(COUNT_TOTAL_SQL).fetchone()[0]
+            unicos = cursor.execute(COUNT_DISTINCT_SQL).fetchone()[0]
+            nulls_ssa = cursor.execute(COUNT_NULL_NUMERO_SQL).fetchone()[0]
+            vazios_desc = cursor.execute(COUNT_EMPTY_DESC_SQL).fetchone()[0]
 
-        print(f"INFO Total de registros: {total}")
-        print(f" Registros únicos por numero_ssa: {unicos}")
-        print(f"ERR Registros com numero_ssa NULL: {nulls_ssa}")
-        print(f"ERR Registros sem descrição: {vazios_desc}")
+            print(f"INFO Total de registros: {total}")
+            print(f" Registros únicos por numero_ssa: {unicos}")
+            print(f"ERR Registros com numero_ssa NULL: {nulls_ssa}")
+            print(f"ERR Registros sem descrição: {vazios_desc}")
 
-        # Amostra de dados
-        print("\nINFO AMOSTRA DOS DADOS:")
-        amostras = cursor.execute(SAMPLE_ROWS_SQL).fetchall()
-        for ssa, situacao, desc in amostras:
-            desc_preview = (
-                (desc[:50] + "...") if desc and len(desc) > 50 else (desc or "N/A")
-            )
-            print(f"  SSA {ssa}: {situacao} - {desc_preview}")
+            # Amostra de dados
+            print("\nINFO AMOSTRA DOS DADOS:")
+            amostras = cursor.execute(SAMPLE_ROWS_SQL).fetchall()
+            for ssa, situacao, desc in amostras:
+                desc_preview = (
+                    (desc[:50] + "...")
+                    if desc and len(desc) > 50
+                    else (desc or "N/A")
+                )
+                print(f"  SSA {ssa}: {situacao} - {desc_preview}")
 
-        # Verificar situações
-        print("\nSTAT SITUAÇÕES ENCONTRADAS:")
-        situacoes = cursor.execute(STATUS_TOP_SQL).fetchall()
-        for sit, count in situacoes:
-            print(f"  {sit}: {count} registros")
-
-        conn.close()
+            # Verificar situações
+            print("\nSTAT SITUAÇÕES ENCONTRADAS:")
+            situacoes = cursor.execute(STATUS_TOP_SQL).fetchall()
+            for sit, count in situacoes:
+                print(f"  {sit}: {count} registros")
 
         # Status geral
         duplicatas = total - unicos

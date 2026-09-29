@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from extracao.extractor import open_validated_excel_source
+
 
 def investigar_arquivos_problematicos():
     """Investigar arquivos Excel que falham na importação."""
@@ -31,7 +33,8 @@ def investigar_arquivos_problematicos():
             print(f"\nFILE Investigando: {arquivo}")
             try:
                 # Ler apenas as primeiras linhas para ver a estrutura
-                df = pd.read_excel(arquivo_path, header=1, nrows=3)
+                with open_validated_excel_source(arquivo_path) as source_stream:
+                    df = pd.read_excel(source_stream, header=1, nrows=3)
                 print(f"  OK Leitura OK: {len(df)} linhas de exemplo")
                 print(f"  INFO Colunas ({len(df.columns)}): {list(df.columns)[:5]}...")
 
@@ -42,7 +45,8 @@ def investigar_arquivos_problematicos():
                     print(f"     Total de duplicados: {duplicados}")
 
                 # Verificar tamanho total
-                df_full = pd.read_excel(arquivo_path, header=1)
+                with open_validated_excel_source(arquivo_path) as source_stream:
+                    df_full = pd.read_excel(source_stream, header=1)
                 print(f"  INFO Tamanho total: {len(df_full)} linhas")
 
                 if df_full.index.duplicated().any():

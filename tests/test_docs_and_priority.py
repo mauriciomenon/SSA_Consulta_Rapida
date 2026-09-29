@@ -6,11 +6,8 @@ def test_readme_exists_and_has_core_sections():
     assert os.path.exists('README.md')
     with open('README.md', 'r', encoding='utf-8') as f:
         content = f.read()
-    # Check some key headings/phrases
-    assert '# SSA_Consulta_Rapida' in content
-    assert 'Instalação' in content
-    assert 'Uso' in content
-    assert 'Testes' in content
+    headings = {line.strip() for line in content.splitlines() if line.startswith('#')}
+    assert {'# SSA Consulta Rapida', '## Execucao', '## Dados e importacao', '## Distribuicao'} <= headings
 
 
 def test_changelog_full_exists_and_has_history():

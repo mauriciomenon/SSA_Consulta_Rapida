@@ -67,6 +67,7 @@ class _Window:
         self.reload_count = 0
         self.confirm_count = 0
         self.last_decision_request: Any | None = None
+        self.accept_workers = True
 
     def pai_api_preferences(self) -> dict[str, Any]:
         return self.preferences
@@ -82,8 +83,11 @@ class _Window:
     def active_pai_api_worker(self) -> Any:
         return self.worker
 
-    def set_active_pai_api_worker(self, worker: Any | None) -> None:
+    def set_active_pai_api_worker(self, worker: Any | None) -> bool:
+        if worker is not None and not self.accept_workers:
+            return False
         self.worker = worker
+        return True
 
     def active_pai_api_timer(self) -> Any:
         return self.timer
@@ -115,6 +119,7 @@ class _Worker:
         self.import_decision_required = _Signal()
         self.finished_success = _Signal()
         self.finished_error = _Signal()
+        self.finished = _Signal()
         self.started = False
         self.import_decision: bool | None = None
 
@@ -131,6 +136,32 @@ class _Worker:
 class _WorkerWithEmptySummary(_Worker):
     def summary(self) -> None:
         return None
+
+
+def test_refresh_does_not_start_worker_when_ownership_is_rejected(
+    tmp_path: Path,
+) -> None:
+    created_workers = []
+
+    class _RejectedWorker(_Worker):
+        def __init__(self, config: Any) -> None:
+            super().__init__(config)
+            created_workers.append(self)
+
+    window = _Window()
+    window.accept_workers = False
+    preferences = _preferences(auto_enabled=False)
+
+    assert not pai_api_controller.start_pai_api_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        worker_cls=_RejectedWorker,
+    )
+
+    assert window.worker is None
+    assert len(created_workers) == 1
+    assert created_workers[0].started is False
 
 
 @pytest.fixture(autouse=True)
@@ -191,7 +222,7 @@ def test_auto_refresh_timeout_starts_worker_without_reload_prompt(tmp_path: Path
     assert window.reload_count == 1
 
 
-def test_finish_success_clears_worker_when_summary_is_none(tmp_path: Path) -> None:
+def test_finish_success_retains_worker_until_native_finished(tmp_path: Path) -> None:
     window = _Window()
     preferences = _preferences(auto_enabled=False)
     window.preferences = preferences
@@ -209,6 +240,8 @@ def test_finish_success_clears_worker_when_summary_is_none(tmp_path: Path) -> No
     worker = window.worker
     worker.finished_success.emit()
 
+    assert window.worker is worker
+    worker.finished.emit()
     assert window.worker is None
     assert window.reload_count == 1
 
@@ -233,6 +266,96 @@ def test_refresh_without_prompt_still_imports_by_default(tmp_path: Path) -> None
     window.worker.finished_success.emit()
     assert window.confirm_count == 0
     assert window.reload_count == 1
+
+
+def test_previous_worker_signals_do_not_change_current_operation(tmp_path: Path) -> None:
+    window = _Window()
+    options: dict[str, Any] = dict(
+        preferences=_preferences(auto_enabled=False),
+        context=_context(tmp_path),
+        worker_cls=_Worker,
+    )
+    assert pai_api_controller.start_pai_api_refresh(window, **options)
+    old_worker = window.worker
+    assert isinstance(old_worker, _Worker)
+    old_worker.started = False
+    assert pai_api_controller.start_pai_api_refresh(window, **options)
+    current_worker = window.worker
+    assert isinstance(current_worker, _Worker)
+    statuses = list(window.statuses)
+
+    old_worker.progress.emit(80, "mensagem antiga")
+    old_worker.preview_ready.emit(None)
+    old_worker.import_decision_required.emit(None)
+    old_worker.finished_success.emit()
+    old_worker.finished_error.emit("erro antigo")
+    old_worker.finished.emit()
+
+    assert window.worker is current_worker
+    assert window.statuses == statuses
+    assert window.reload_count == 0
+    assert window.confirm_count == 0
+    assert old_worker.import_decision is None
+    current_worker.progress.emit(10, "operacao atual")
+    current_worker.finished_success.emit()
+    assert "operacao atual" in window.statuses[-2]
+    assert window.reload_count == 1
+
+
+@pytest.mark.parametrize("stage", ["constructor", "reset", "connect", "start"])
+def test_refresh_setup_failure_allows_next_attempt(tmp_path: Path, stage: str) -> None:
+    class FailedSignal(_Signal):
+        def connect(self, *_args, **_kwargs):
+            raise RuntimeError("falha ao conectar")
+
+    class FailedWorker(_Worker):
+        def __init__(self, config):
+            if stage == "constructor":
+                raise RuntimeError("falha ao construir")
+            super().__init__(config)
+            if stage == "connect":
+                self.finished_error = FailedSignal()
+
+        def reset_for_start(self):
+            if stage == "reset":
+                raise RuntimeError("falha ao preparar")
+
+        def start(self):
+            if stage == "start":
+                raise RuntimeError("falha ao iniciar")
+            super().start()
+
+    window = _Window()
+    options: dict[str, Any] = dict(
+        preferences=_preferences(auto_enabled=False), context=_context(tmp_path)
+    )
+    assert not pai_api_controller.start_pai_api_refresh(
+        window, **options, worker_cls=FailedWorker
+    )
+    assert window.worker is None
+    assert window.statuses[-1] == "Status: Falha ao iniciar SAM API."
+    assert pai_api_controller.start_pai_api_refresh(window, **options, worker_cls=_Worker)
+
+
+def test_success_reports_reload_failure_without_losing_worker(tmp_path: Path) -> None:
+    class FailedReloadWindow(_Window):
+        def reload_pai_api_data(self):
+            raise OSError("falha no reload")
+
+    window = FailedReloadWindow()
+    assert pai_api_controller.start_pai_api_refresh(
+        window,
+        preferences=_preferences(auto_enabled=False),
+        context=_context(tmp_path),
+        worker_cls=_Worker,
+    )
+    worker = window.worker
+    assert isinstance(worker, _Worker)
+    worker.finished_success.emit()
+    assert "falha ao recarregar" in window.statuses[-1]
+    assert window.worker is worker
+    worker.finished.emit()
+    assert window.worker is None
 
 
 def test_manual_refresh_decision_imports_after_preview_confirmation(
@@ -430,7 +553,7 @@ def test_pai_api_error_status_is_short() -> None:
 
     pai_api_controller._finish_error(window, worker, long_error)
 
-    assert window.worker is None
+    assert window.worker is worker
     assert len(window.statuses[-1]) <= 120
     assert window.statuses[-1].endswith("...")
 

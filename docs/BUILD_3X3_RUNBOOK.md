@@ -1,10 +1,13 @@
 # Build 3x3 Runbook (Windows Linux macOS x PyInstaller Nuitka PyOxidizer)
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH (2026-09-24, candidata local v4.51)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58 e PR #59: merged; usar base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
+- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Este runbook detalha execucao 3x3; nao deve duplicar a matriz completa de release.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
+- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
+- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
 
 ## Objetivo
 
@@ -18,9 +21,10 @@ Padrao reproduzivel para gerar e validar build nas 3 plataformas e 3 backends, c
 4. Garantir runtime dirs visiveis: `config`, `data`, `docs_entrada`, `docs_saida`, `exportacao`.
 5. Nao misturar shells:
    - Windows: PowerShell chama `.bat` com `.\` e caminhos `\`.
-   - Debian/WSL/Linux: shell POSIX chama `.sh` com `/`.
+   - Debian/Linux: shell POSIX chama `.sh` com `/` em clone Linux nativo.
    - macOS: shell POSIX chama `.sh` ou `uv` com `/`.
-6. Nao chamar `bash dev_env/...` no PowerShell e nao chamar `.\dev_env\...bat` no WSL/Linux/macOS.
+6. Nao chamar `bash dev_env/...` no PowerShell e nao chamar `.\dev_env\...bat` no Linux/macOS.
+7. Nao usar checkout em `/mnt/*`, executavel Windows ou venv Windows para build/teste Linux.
 
 ## Pre requisitos por host
 
@@ -51,7 +55,7 @@ Regra de uso no projeto:
 3. PyOxidizer Windows usa `rcedit` no script de build para aplicar icone e metadata.
 4. Nuitka Windows deve continuar usando recursos/versionamento no proprio fluxo de build.
 
-### Debian 13 via WSL
+### Debian 13 em host/VM Linux nativo
 
 1. `uv` instalado e funcional.
 2. Python 3.13 mais recente disponivel no uv.
@@ -74,7 +78,7 @@ sudo apt-get install -y patchelf build-essential
 # Windows
 set UV_PROJECT_ENVIRONMENT=.venv-win
 
-# Linux/WSL
+# Linux
 export UV_PROJECT_ENVIRONMENT=.venv-linux
 ```
 
@@ -128,7 +132,7 @@ Use este fluxo para release Debian AMD64. Ele roda somente em shell POSIX,
 chama somente wrappers `.sh`, valida workspace limpo, `build_info.json`,
 guia de migracao, conteudo do `.deb` e escreve relatorio com hashes.
 
-Local no Debian/WSL:
+Local no clone Debian nativo:
 
 ```bash
 bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y
@@ -204,12 +208,15 @@ if (-not $CLI_BIN) {
 
 ### Windows metadata (PowerShell)
 
+Executar somente depois de gerar os binarios da versao local.
+
 ```powershell
+$APP_VERSION = (Get-Content -Raw .\config\version.json | ConvertFrom-Json).version_short
 $EXES = @(
-  ".\launchers\dist\windows_amd64\SSA_CLI_v4.42_windows_amd64\SSA_CLI_v4.42_windows_amd64.exe",
-  ".\launchers\dist\windows_amd64\SSA_GUI_v4.42_windows_amd64\SSA_GUI_v4.42_windows_amd64.exe",
-  ".\builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v4.42_windows_amd64.exe",
-  ".\builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v4.42_windows_amd64.exe",
+  ".\launchers\dist\windows_amd64\SSA_CLI_v${APP_VERSION}_windows_amd64\SSA_CLI_v${APP_VERSION}_windows_amd64.exe",
+  ".\launchers\dist\windows_amd64\SSA_GUI_v${APP_VERSION}_windows_amd64\SSA_GUI_v${APP_VERSION}_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v${APP_VERSION}_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v${APP_VERSION}_windows_amd64.exe",
   ".\builds\pyoxidizer\windows_amd64\SSA_Consulta_Rapida.exe"
 )
 $ROWS = @()
@@ -228,7 +235,8 @@ $ROWS | Format-Table -AutoSize
 ### Linux/WSL
 
 ```bash
-CLI_BIN="$(ls -t /tmp/SSA_CLI_v*_debian_amd64 2>/dev/null | head -n 1)"
+# -type f: o onedir do PyInstaller tem o mesmo nome e o binario fica dentro.
+CLI_BIN="$(find /tmp -maxdepth 2 -type f -name 'SSA_CLI_v*_debian_amd64' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-)"
 if [ -z "$CLI_BIN" ]; then
   echo "[erro] nenhum binario SSA_CLI_v*_debian_amd64 encontrado em /tmp" >&2
   exit 1
@@ -278,7 +286,6 @@ uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
 3. commit atomico por slice
 4. push para `dev`
 5. atualizar:
-   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
    - `README.md`
    - `docs/README.md`
 
@@ -286,7 +293,7 @@ uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
 
 1. Confirmar prerequisitos de empacotamento no host antes de iniciar o ciclo.
 2. Validar instalador `pyinstaller` e artefatos em `dist_packages/` no proprio host de release.
-3. No Debian/WSL, garantir `patchelf` presente antes do preflight do Nuitka.
+3. No host/VM Debian nativo, garantir `patchelf` presente antes do preflight do Nuitka.
 4. Tratar performance do build Nuitka Debian como rodada dedicada quando o host estiver sob carga.
 5. Nao versionar caminhos locais de host neste runbook.
 

@@ -9,6 +9,8 @@ from typing import Optional
 
 import pandas as pd
 
+from extracao.extractor import open_validated_excel_source
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +78,8 @@ class EnhancedAMSImporter:
     def import_with_format_detection(self, file_path: str) -> Optional[pd.DataFrame]:
         """Importa arquivo com detecção automática de formato."""
         try:
-            df = pd.read_excel(file_path)
+            with open_validated_excel_source(file_path) as source_stream:
+                df = pd.read_excel(source_stream)
             format_type = self.detect_format(df)
 
             # Aplicar transformações específicas do formato se necessário

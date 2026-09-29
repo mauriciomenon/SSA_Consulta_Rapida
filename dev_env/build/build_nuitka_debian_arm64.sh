@@ -16,6 +16,10 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 1
+ssa_native_guard_tools uv rm mkdir || exit 1
 LOG_DIR="${REPO_ROOT}/launchers/logs"
 LOG_FILE="${LOG_DIR}/build_nuitka_debian_arm64.log"
 REQUIREMENTS_FILE="${REPO_ROOT}/launchers/platforms/debian_arm64/requirements.txt"
@@ -30,6 +34,7 @@ if [[ "${REPO_ROOT}" == /mnt/* ]]; then
 else
   VENV_DIR="${REPO_ROOT}/launchers/platforms/debian_arm64/venv"
 fi
+ssa_native_guard_path "$VENV_DIR" "$REPO_ROOT" || exit 1
 PYTHON_EXE="${VENV_DIR}/bin/python"
 
 cleanup_build_work_dir() {

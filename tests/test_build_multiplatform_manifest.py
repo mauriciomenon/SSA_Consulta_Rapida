@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import plistlib
 import os
+import shutil
 import subprocess
+import sqlite3
 import sys
+import sysconfig
+import zipfile
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -40,6 +46,231 @@ def test_load_version_rejects_empty_release_version(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="version_short ausente"):
         builder._load_version()
+
+
+@pytest.mark.parametrize("platform_name", ["windows_amd64", "macos_arm64"])
+def test_python_probe_checks_windows_interpreter_architecture(platform_name: str) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    expected = platform_name != "windows_amd64" or sysconfig.get_platform() == "win-amd64"
+
+    assert builder._is_python_executable_ok(Path(sys.executable), platform_name) is expected
+
+
+def test_python_probe_accepts_native_windows_arm64(monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    monkeypatch.setattr(
+        builder,
+        "_run_command",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, stdout="win-arm64\n", stderr=""
+        ),
+    )
+
+    assert builder._is_python_executable_ok(Path("arm-python.exe"), "windows_arm64")
+
+
+def test_detect_current_platform_maps_windows_arm64(monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Windows")
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.sysconfig.get_platform", lambda: "win-arm64"
+    )
+
+    assert builder.detect_current_platform() == "windows_arm64"
+
+
+def test_python_probe_rejects_missing_executable(tmp_path: Path) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+
+    assert not builder._is_python_executable_ok(tmp_path / "missing-python", "windows_amd64")
+
+
+def test_setup_virtual_environment_creates_and_reuses_native_python(tmp_path: Path) -> None:
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv necessario para validar criacao real da venv")
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.platforms_dir = tmp_path / "platforms"
+    builder.runtime_python = sys.executable
+    builder.uv_cmd = uv
+    platform_name = builder.detect_current_platform()
+    if platform_name is None:
+        pytest.skip("interpreter atual nao e um alvo de build suportado")
+    platform_dir = builder.platforms_dir / platform_name
+    platform_dir.mkdir(parents=True)
+
+    python_exe = builder.setup_virtual_environment(platform_name)
+    assert python_exe == builder._python_executable(platform_name)
+    preserved = platform_dir / "venv" / "preserved.txt"
+    preserved.write_text("preservado", encoding="utf-8")
+
+    assert builder.setup_virtual_environment(platform_name, skip_if_exists=True) == python_exe
+    assert preserved.read_text(encoding="utf-8") == "preservado"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="requer Python POSIX real como candidato incompativel")
+def test_setup_virtual_environment_rejects_wrong_architecture_before_install(tmp_path: Path) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.platforms_dir = tmp_path / "platforms"
+    builder.runtime_python = "cpython-3.13-windows-x86_64-none"
+    platform_dir = builder.platforms_dir / "windows_amd64"
+    platform_dir.mkdir(parents=True)
+    (platform_dir / "requirements.txt").write_text("must-not-install\n", encoding="utf-8")
+    fake_uv = tmp_path / "uv"
+    calls_file = tmp_path / "uv_calls.json"
+    fake_uv.write_text(
+        f"#!{sys.executable}\n"
+        "import json, pathlib, sys\n"
+        f"with pathlib.Path({str(calls_file)!r}).open('a') as log:\n"
+        "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "if sys.argv[1] != 'venv':\n"
+        "    raise SystemExit(91)\n"
+        "scripts = pathlib.Path(sys.argv[-1]) / 'Scripts'\n"
+        "scripts.mkdir(parents=True)\n"
+        "(scripts / 'python.exe').symlink_to(sys.executable)\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+    builder.uv_cmd = str(fake_uv)
+
+    assert builder.setup_virtual_environment("windows_amd64") is False
+    calls = [json.loads(line) for line in calls_file.read_text(encoding="utf-8").splitlines()]
+    assert calls == [["venv", "--python", builder.runtime_python, str(platform_dir / "venv")]]
+    assert not (platform_dir / "venv" / ".requirements_signature").exists()
+
+
+@pytest.mark.parametrize("platform_name", ["windows_amd64", "windows_arm64"])
+@pytest.mark.parametrize("failure", [None, "export", "install"])
+def test_windows_builder_installs_platform_requirements_with_frozen_constraints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, platform_name: str, failure: str | None,
+) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.base_dir = tmp_path
+    builder.platforms_dir = tmp_path / "platforms"
+    builder.runtime_python = "python-do-alvo"
+    builder.uv_cmd = "uv"
+    platform_dir = builder.platforms_dir / platform_name
+    platform_dir.mkdir(parents=True)
+    requirements = platform_dir / "requirements.txt"
+    requirements.write_text("pyinstaller>=6,<7\n", encoding="utf-8")
+    (tmp_path / "uv.lock").write_text("lock original\n", encoding="utf-8")
+    calls = []
+
+    def run_command(command, **_kwargs):
+        calls.append(command)
+        if command[1] == "venv":
+            builder._python_executable(platform_name).parent.mkdir(parents=True)
+            builder._python_executable(platform_name).touch()
+        operation = command[2] if command[1] == "pip" else command[1]
+        return subprocess.CompletedProcess(command, int(operation == failure), stderr="falha teste")
+
+    monkeypatch.setattr(builder, "_run_command", run_command)
+    monkeypatch.setattr(builder, "_is_python_executable_ok", lambda *_args: True)
+    result = builder.setup_virtual_environment(platform_name)
+    assert calls[1][1:] == [
+        "export", "--frozen", "--project", str(tmp_path), "--extra", "build",
+        "--no-dev", "--no-emit-project", "--format", "requirements-txt",
+        "--output-file", str(platform_dir / "venv" / ".lock-constraints.txt"),
+    ]
+    if failure == "export":
+        assert len(calls) == 2
+    else:
+        assert calls[2][1:] == [
+            "pip", "install", "--python", str(builder._python_executable(platform_name)),
+            "-r", str(requirements), "--constraint",
+            str(platform_dir / "venv" / ".lock-constraints.txt"),
+        ]
+    marker = platform_dir / "venv" / ".requirements_signature"
+    assert marker.exists() is (failure is None)
+    assert result == (builder._python_executable(platform_name) if failure is None else False)
+    if failure is None:
+        assert builder._is_venv_compatible(platform_name, requirements)
+        (tmp_path / "uv.lock").write_text("lock alterado\n", encoding="utf-8")
+        assert not builder._is_venv_compatible(platform_name, requirements)
+        assert builder.setup_virtual_environment(platform_name, skip_if_exists=True) is False
+        assert len(calls) == 3
+
+
+def test_non_windows_signature_does_not_depend_on_lock(tmp_path: Path) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.base_dir = tmp_path
+    requirements = tmp_path / "macos_arm64" / "requirements.txt"
+    requirements.parent.mkdir()
+    requirements.write_text("pyinstaller>=6,<7\n", encoding="utf-8")
+    before = builder._load_requirements_signature(requirements)
+    (tmp_path / "uv.lock").write_text("lock alterado\n", encoding="utf-8")
+    assert builder._load_requirements_signature(requirements) == before
+
+
+@pytest.mark.parametrize("requirement,success", [("ssa-lock-probe>=1,<3", True), ("ssa-lock-probe>=2,<3", False)])
+def test_uv_constraints_pin_versions_and_reject_conflicts_without_installing(
+    tmp_path: Path, requirement: str, success: bool,
+) -> None:
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv necessario para validar constraints")
+    for version in ("1.0.0", "2.0.0"):
+        wheel = tmp_path / f"ssa_lock_probe-{version}-py3-none-any.whl"
+        metadata = f"ssa_lock_probe-{version}.dist-info"
+        with zipfile.ZipFile(wheel, "w") as archive:
+            archive.writestr("ssa_lock_probe.py", "")
+            archive.writestr(f"{metadata}/METADATA", f"Metadata-Version: 2.3\nName: ssa-lock-probe\nVersion: {version}\n")
+            archive.writestr(f"{metadata}/WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+            archive.writestr(f"{metadata}/RECORD", "")
+    constraints = tmp_path / "constraints.txt"
+    digest = hashlib.sha256((tmp_path / "ssa_lock_probe-1.0.0-py3-none-any.whl").read_bytes()).hexdigest()
+    constraints.write_text(
+        f"ssa-lock-probe==1.0.0 --hash=sha256:{digest}\nbackend-nao-solicitado==9.0.0\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [uv, "pip", "install", "--dry-run", "--offline", "--no-cache", "--no-index",
+         "--find-links", str(tmp_path), "--python", sys.executable,
+         "--constraint", str(constraints), requirement],
+        cwd=tmp_path, text=True, capture_output=True, check=False, timeout=30,
+    )
+    assert (result.returncode == 0) is success, result.stdout + result.stderr
+    if success:
+        assert "ssa-lock-probe==1.0.0" in result.stderr
+        assert "ssa-lock-probe==2.0.0" not in result.stderr
+        assert "backend-nao-solicitado" not in result.stderr
+    else:
+        assert "unsatisfiable" in result.stderr.lower()
+
+
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_venv_fallback_requires_successful_partial_cleanup(tmp_path, monkeypatch, caplog, cleanup_fails):
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.platforms_dir = tmp_path
+    builder.runtime_python = None
+    builder.uv_cmd = "uv"
+    venv_dir = tmp_path / "windows_amd64" / "venv"
+    attempts = []
+
+    def run_command(cmd, **_kwargs):
+        attempts.append(cmd)
+        venv_dir.mkdir(parents=True)
+        return subprocess.CompletedProcess(cmd, int(len(attempts) == 1), stderr="indisponivel")
+
+    def fail_cleanup(_path):
+        raise PermissionError("arquivo bloqueado")
+
+    monkeypatch.setattr(builder, "_run_command", run_command)
+    monkeypatch.setattr(builder, "_is_venv_compatible", lambda *_args: False)
+    monkeypatch.setattr(builder, "_is_python_executable_ok", lambda *_args: True)
+    if cleanup_fails:
+        monkeypatch.setattr("launchers.build_multiplatform.shutil.rmtree", fail_cleanup)
+
+    result = builder.setup_virtual_environment("windows_amd64")
+
+    if cleanup_fails:
+        assert result is False
+        assert len(attempts) == 1
+        assert "Falha removendo venv parcial" in caplog.text
+        assert "arquivo bloqueado" in caplog.text
+    else:
+        assert result == builder._python_executable("windows_amd64")
+        assert len(attempts) == 2
 
 
 def test_command_stdout_logs_metadata_command_failure(monkeypatch):
@@ -152,7 +383,7 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
         tmp_path,
         "nuitka",
         "debian_amd64",
-        "4.42",
+        "4.44",
     )
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
@@ -224,13 +455,13 @@ def test_write_build_info_main_reports_output_write_errors(
             "--platform",
             "debian_amd64",
             "--app-version",
-            "4.42",
+            "4.44",
         ],
     )
     monkeypatch.setattr(
         write_build_info,
         "build_payload",
-        lambda *_args: {"app_version": "4.42"},
+        lambda *_args: {"app_version": "4.44"},
     )
 
     assert write_build_info.main() == 1
@@ -253,17 +484,17 @@ def test_write_build_info_main_writes_valid_json(monkeypatch, tmp_path) -> None:
             "--platform",
             "debian_amd64",
             "--app-version",
-            "4.42",
+            "4.44",
         ],
     )
     monkeypatch.setattr(
         write_build_info,
         "build_payload",
-        lambda *_args: {"app_version": "4.42"},
+        lambda *_args: {"app_version": "4.44"},
     )
 
     assert write_build_info.main() == 0
-    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.42"}
+    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.44"}
 
 
 def test_pyinstaller_build_info_write_logs_before_raising(monkeypatch) -> None:
@@ -301,21 +532,23 @@ def test_upx_contract_uses_system_binary_not_python_package():
 
 def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     builder = MultiPlatformBuilder()
+    builder.version = "4.44"
     builder.dist_dir = tmp_path / "dist"
     platform_dir = builder.dist_dir / "macos_arm64"
     platform_dir.mkdir(parents=True)
 
-    cli_dir = platform_dir / "SSA_CLI_v4.33_macos_arm64"
+    cli_dir = platform_dir / "SSA_CLI_v4.44_macos_arm64"
     cli_dir.mkdir()
-    (cli_dir / "SSA_CLI_v4.33_macos_arm64").write_bytes(b"cli-bin")
+    (cli_dir / "SSA_CLI_v4.44_macos_arm64").write_bytes(b"cli-bin")
 
-    gui_app = platform_dir / "SSA_GUI_v4.33_macos_arm64.app"
-    gui_app_bin = gui_app / "Contents" / "MacOS" / "SSA_GUI_v4.33_macos_arm64"
+    gui_app = platform_dir / "SSA_GUI_v4.44_macos_arm64.app"
+    gui_app_bin = gui_app / "Contents" / "MacOS" / "SSA_GUI_v4.44_macos_arm64"
     gui_app_bin.parent.mkdir(parents=True)
     gui_app_bin.write_bytes(b"gui-bin")
 
     (platform_dir / ".DS_Store").write_bytes(b"junk")
     (platform_dir / "notes.txt").write_text("ok", encoding="utf-8")
+    (platform_dir / "SSA_GUI_v4.43_macos_arm64.app").mkdir()
 
     builder._create_manifest("macos_arm64", platform_dir)
 
@@ -325,11 +558,12 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
 
     assert ".DS_Store" not in entries
     assert "build_manifest.json" not in entries
-    assert entries["SSA_CLI_v4.33_macos_arm64"]["kind"] == "directory"
-    assert entries["SSA_GUI_v4.33_macos_arm64.app"]["kind"] == "directory"
+    assert "SSA_GUI_v4.43_macos_arm64.app" not in entries
+    assert entries["SSA_CLI_v4.44_macos_arm64"]["kind"] == "directory"
+    assert entries["SSA_GUI_v4.44_macos_arm64.app"]["kind"] == "directory"
     assert entries["notes.txt"]["kind"] == "file"
     assert (
-        entries["SSA_GUI_v4.33_macos_arm64.app"]["path"]
+        entries["SSA_GUI_v4.44_macos_arm64.app"]["path"]
         .replace("\\", "/")
         .startswith("macos_arm64/")
     )
@@ -342,12 +576,33 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     builder.base_dir = tmp_path
     builder.launchers_dir = tmp_path / "launchers"
     builder.platforms_dir = builder.launchers_dir / "platforms"
+    builder.dist_dir = builder.launchers_dir / "dist"
 
     (builder.launchers_dir / "cli_entry.py").parent.mkdir(parents=True, exist_ok=True)
     (builder.launchers_dir / "cli_entry.py").write_text(
         "print('ok')\n", encoding="utf-8"
     )
     (builder.base_dir / "config").mkdir(parents=True, exist_ok=True)
+    (builder.base_dir / "config" / "settings.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    (builder.base_dir / "config" / "__init__.py").write_text(
+        "", encoding="utf-8"
+    )
+    config_cache = builder.base_dir / "config" / "__pycache__"
+    config_cache.mkdir()
+    (config_cache / "__init__.pyc").write_bytes(b"bytecode")
+    (builder.base_dir / ".gitignore").write_text(
+        "config/*.bak-*\nconfig/preferences.json\n", encoding="utf-8"
+    )
+    (builder.base_dir / "config" / "settings.json.bak-20260914").write_text(
+        '{"private": true}', encoding="utf-8"
+    )
+    (builder.base_dir / "config" / "preferences.json").write_text(
+        '{"local": true}', encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "config"], check=True)
     (builder.base_dir / "docs").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md").write_text(
         "guide",
@@ -356,6 +611,13 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     (builder.base_dir / "resources").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "resources" / "app_icon.ico").write_bytes(b"ico")
     (builder.base_dir / "resources" / "app_icon.icns").write_bytes(b"icns")
+    runtime_db = builder.base_dir / "data" / "ssas.db"
+    runtime_db.parent.mkdir(parents=True)
+    source_conn = sqlite3.connect(runtime_db)
+    source_conn.execute("PRAGMA journal_mode=WAL")
+    source_conn.execute("CREATE TABLE build_probe(value TEXT)")
+    source_conn.execute("INSERT INTO build_probe(value) VALUES ('from_wal')")
+    source_conn.commit()
 
     captured_cmds = []
 
@@ -364,7 +626,11 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         stdout = ""
         stderr = ""
 
+    real_run = subprocess.run
+
     def _fake_run(cmd, **_kwargs):
+        if cmd[:2] == ["git", "ls-files"]:
+            return real_run(cmd, **_kwargs)
         captured_cmds.append(cmd)
         return _Result()
 
@@ -372,7 +638,8 @@ def test_build_executable_uses_platform_specific_add_data_separator(
 
     config = {
         "pyinstaller_args": {
-            "onefile": True,
+            "onefile": False,
+            "onedir": True,
             "exclude_modules": [],
             "hidden_imports": [],
         },
@@ -383,10 +650,19 @@ def test_build_executable_uses_platform_specific_add_data_separator(
             "additional_args": [],
         },
     }
+    windows_bundle = builder.dist_dir / "windows_amd64" / "SSA_CLI_test"
+    windows_bundle.mkdir(parents=True)
 
-    ok = builder.build_executable(
-        "windows_amd64", "cli", tmp_path / "python.exe", config
-    )
+    try:
+        ok = builder.build_executable(
+            "windows_amd64",
+            "cli",
+            tmp_path / "python.exe",
+            config,
+            runtime_db=runtime_db,
+        )
+    finally:
+        source_conn.close()
     assert ok is True
     assert captured_cmds, "subprocess.run nao foi chamado"
     windows_cmd = captured_cmds[-1]
@@ -404,6 +680,30 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         for idx, value in enumerate(windows_cmd)
         if idx > 0 and windows_cmd[idx - 1] == "--add-data"
     )
+    config_add_data = [
+        value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";config")
+    ]
+    assert any("settings.json" in value for value in config_add_data)
+    assert not any(
+        "bak-20260914" in value or "preferences.json" in value
+        for value in windows_cmd
+    )
+    assert not any("__init__.py" in value or "__pycache__" in value for value in windows_cmd)
+    runtime_db_args = [
+        value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data" and value.endswith(";data")
+    ]
+    assert runtime_db_args == []
+    bundled_db = windows_bundle / "data" / "ssas.db"
+    with closing(sqlite3.connect(bundled_db)) as bundled_conn:
+        assert bundled_conn.execute("SELECT value FROM build_probe").fetchone() == (
+            "from_wal",
+        )
+    assert not (windows_bundle / "_internal" / "data" / "ssas.db").exists()
+    assert (windows_bundle / "docs_entrada").is_dir()
     assert "--icon" in windows_cmd
     icon_value = windows_cmd[windows_cmd.index("--icon") + 1]
     assert icon_value.replace("\\", "/").endswith("resources/app_icon.ico")
@@ -434,6 +734,32 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         if idx > 0 and mac_cmd[idx - 1] == "--add-data"
     )
     assert "--version-file" not in mac_cmd
+    assert not any(
+        "bak-20260914" in value or "preferences.json" in value for value in mac_cmd
+    )
+
+    gui_name = f"SSA_GUI_v{builder.version}_macos_arm64"
+    config["gui_config"] = {
+        "windowed": True,
+        "icon": "resources/app_icon.icns",
+        "name": gui_name,
+        "additional_args": [],
+    }
+    assert builder.build_executable("macos_arm64", "gui", tmp_path / "python3", config)
+    assert (
+        builder.dist_dir / "macos_arm64" / f"{gui_name}.app" / "Contents" / "MacOS" / "data"
+    ).is_dir()
+    assert not (builder.dist_dir / "macos_arm64" / "SSA_GUI_v4.app").exists()
+
+    def _failed_git(cmd, **kwargs):
+        if cmd[:2] == ["git", "ls-files"]:
+            return subprocess.CompletedProcess(cmd, 128, "", "not a git repository")
+        return _fake_run(cmd, **kwargs)
+
+    captured_cmds.clear()
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _failed_git)
+    assert builder.build_executable("macos_arm64", "cli", tmp_path / "python3", config) is False
+    assert not any("PyInstaller" in cmd for cmd in captured_cmds)
 
 
 def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
@@ -882,6 +1208,13 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
 
     (build_dir / "artifact.pyc").write_text("stub", encoding="utf-8")
     (builds_dir / "old.pyo").write_text("stub", encoding="utf-8")
+    (build_dir / "file_cache.archive.json").write_text("{}", encoding="utf-8")
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "archive").write_bytes(b"SQLite format 3\x00")
+    (data_dir / "file_cache.archive.json").write_text("{}", encoding="utf-8")
+    (data_dir / "file_cache.notas.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "file_cache.archive.json").write_text("{}", encoding="utf-8")
 
     git_rm_batches: list[list[str]] = []
 
@@ -898,6 +1231,10 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
                 "launchers/dist_simple/gui/SSA_GUI.exe",
                 "build/artifact.pyc",
                 "builds/old.pyo",
+                "build/file_cache.archive.json",
+                "data/file_cache.archive.json",
+                "data/file_cache.notas.json",
+                "file_cache.archive.json",
                 "other/ignored.txt",
             ]
             return _FakeResult(stdout="\n".join(tracked) + "\n")
@@ -921,6 +1258,10 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
     assert "launchers/dist_simple/gui/SSA_GUI.exe" in removed
     assert "build/artifact.pyc" in removed
     assert "builds/old.pyo" in removed
+    assert "build/file_cache.archive.json" in removed
+    assert "data/file_cache.archive.json" in removed
+    assert "data/file_cache.notas.json" not in removed
+    assert "file_cache.archive.json" not in removed
 
 
 def test_auto_cleanup_preserves_final_distribution_outputs(tmp_path):

@@ -150,7 +150,7 @@ def test_insert_dataframe_optimized_begins_immediate_transaction(
         conn.close()
 
     @contextmanager
-    def _tracking_connection(path: str):
+    def _tracking_connection(path: str, **_kwargs):
         tracked_conn = sqlite3.connect(path)
         tracked_conn.set_trace_callback(statements.append)
         try:
@@ -270,7 +270,7 @@ def test_insert_dataframe_optimized_releases_savepoint_after_rollback(
         conn.close()
 
     @contextmanager
-    def _tracking_connection(path: str):
+    def _tracking_connection(path: str, **_kwargs):
         tracked_conn = sqlite3.connect(path)
         tracked_conn.set_trace_callback(statements.append)
         try:
@@ -371,7 +371,7 @@ def test_insert_dataframe_optimized_aborts_when_update_lookup_is_incomplete(
         conn.close()
 
     @contextmanager
-    def _tracking_connection(path: str):
+    def _tracking_connection(path: str, **_kwargs):
         tracked_conn = sqlite3.connect(path)
         tracked_conn.set_trace_callback(statements.append)
         try:

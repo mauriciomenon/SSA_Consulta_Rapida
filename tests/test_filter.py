@@ -1,27 +1,27 @@
-import sys
-sys.path.insert(0, '.')
+from __future__ import annotations
 
 import pandas as pd
-from core.app_logic import parse_search_terms, filter_dataframe
 
-# Create test dataframe
-df = pd.DataFrame({'col1': ['svp', 'test', 'svp test', 'SP', 's/p', 'sp']})
-print('Test DataFrame:')
-print(df)
-print()
+from core.app_logic import filter_dataframe, parse_search_terms
 
-# Parse and filter
-terms = parse_search_terms(['svp'])
-print(f'Parsed terms: {terms}')
-print()
 
-filtered = filter_dataframe(df, terms, ['col1'])
-print('Filtered result:')
-print(filtered)
-print()
+def test_parse_search_terms_preserves_single_literal_token():
+    terms = parse_search_terms(["svp"])
 
-# Test if 'svp' matches
-for idx, row in df.iterrows():
-    val = str(row['col1']).lower()
-    if 'svp' in val:
-        print(f"Row {idx}: '{row['col1']}' matches 'svp'")
+    assert terms == [
+        {
+            "raw": "svp",
+            "mode": "contains",
+            "value": "svp",
+            "negative": False,
+            "group": 0,
+        }
+    ]
+
+
+def test_filter_dataframe_matches_literal_token_without_alias_expansion():
+    df = pd.DataFrame({"col1": ["svp", "test", "svp test", "SP", "s/p", "sp"]})
+
+    filtered = filter_dataframe(df, ["svp"], ["col1"])
+
+    assert filtered["col1"].tolist() == ["svp", "svp test"]

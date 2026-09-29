@@ -3,8 +3,23 @@
 Script de importação de emergência - sem dependências pesadas
 """
 
+import argparse
 import os
 import sqlite3
+import sys
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
+from filelock import Timeout
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from armazenamento.database_lock import database_writer_lock
+from armazenamento.database_publication import (
+    restore_journal_mode,
+    snapshot_database_for_replace,
+)
 
 
 def create_basic_table(cursor):
@@ -62,16 +77,46 @@ def create_basic_table(cursor):
     """)
 
 
-def emergency_import():
+def emergency_import(db_path: str = "data/ssas.db", force: bool = False):
     """Importação de emergência usando apenas SQLite"""
-    db_path = "data/ssas.db"
-    os.makedirs("data", exist_ok=True)
+    db_path = os.path.realpath(db_path)
+    with database_writer_lock(db_path, timeout=0):
+        return _emergency_import_locked(db_path, force)
 
-    # Remove banco anterior se existir
-    if os.path.exists(db_path):
-        os.remove(db_path)
 
-    conn = sqlite3.connect(db_path)
+def _emergency_import_locked(db_path: str, force: bool):
+    parent_dir = os.path.dirname(db_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+
+    existed = os.path.exists(db_path)
+    if existed and not force:
+        print(
+            f"ERRO: {db_path} ja existe. "
+            "Use --force para arquiva-lo como .bak antes de recriar."
+        )
+        return False
+    candidate_fd, candidate_path = tempfile.mkstemp(
+        prefix=f".{os.path.basename(db_path)}.tmp-", dir=parent_dir
+    )
+    os.close(candidate_fd)
+    try:
+        return _create_and_publish(db_path, candidate_path, existed)
+    finally:
+        for suffix in ("-wal", "-shm", "-journal", ""):
+            candidate_file = candidate_path + suffix
+            try:
+                if os.path.lexists(candidate_file):
+                    os.unlink(candidate_file)
+            except OSError as exc:
+                print(
+                    f"AVISO: falha ao remover temporario {candidate_file}: {exc}",
+                    file=sys.stderr,
+                )
+
+
+def _create_and_publish(db_path: str, candidate_path: str, existed: bool) -> bool:
+    conn = sqlite3.connect(candidate_path)
     cursor = conn.cursor()
 
     try:
@@ -197,10 +242,8 @@ def emergency_import():
 
         # Verifica quantos registros foram inseridos
         count = cursor.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
-        print(f"Banco criado com sucesso! {count} registros inseridos.")
-
-        return True
-
+        if cursor.execute("PRAGMA quick_check").fetchone() != ("ok",):
+            raise sqlite3.DatabaseError("Banco candidato falhou no quick_check")
     except Exception as e:
         print(f"Erro durante importação: {e}")
         conn.rollback()
@@ -208,12 +251,90 @@ def emergency_import():
     finally:
         conn.close()
 
+    suffixes = ("-wal", "-shm", "-journal")
+    if any(os.path.lexists(candidate_path + suffix) for suffix in suffixes):
+        raise OSError("DB candidato manteve sidecar SQLite apos fechamento")
+    moved: list[tuple[str, str]] = []
+    backup_created = False
+    original_mode: str | None = None
+    backup_path = f"{db_path}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+    try:
+        if any(os.path.lexists(backup_path + suffix) for suffix in (*suffixes, "")):
+            raise FileExistsError(f"Backup de emergencia ja existe: {backup_path}")
+        if existed:
+            original_mode = snapshot_database_for_replace(db_path, backup_path)
+            backup_created = True
+        for suffix in (() if existed else suffixes):
+            src = db_path + suffix
+            if os.path.lexists(src):
+                dst = backup_path + suffix
+                os.replace(src, dst)
+                moved.append((src, dst))
+        os.replace(candidate_path, db_path)
+    except (OSError, sqlite3.Error) as exc:
+        rollback_errors: list[str] = []
+        for src, dst in reversed(moved):
+            if os.path.exists(src):
+                rollback_errors.append(f"{src}: caminho ocupado; backup preservado em {dst}")
+                continue
+            try:
+                os.replace(dst, src)
+            except OSError as rollback_exc:
+                rollback_errors.append(f"{dst}: {rollback_exc}")
+        if original_mode is not None:
+            try:
+                restore_journal_mode(db_path, original_mode)
+            except (OSError, sqlite3.Error) as restore_exc:
+                rollback_errors.append(f"journal: {restore_exc}")
+        if (
+            backup_created
+            and not rollback_errors
+            and os.path.exists(db_path)
+            and os.path.exists(backup_path)
+        ):
+            try:
+                os.unlink(backup_path)
+            except OSError as cleanup_exc:
+                rollback_errors.append(
+                    f"{backup_path}: backup preservado apos falha de limpeza: {cleanup_exc}"
+                )
+        detail = (
+            f" Rollback incompleto: {'; '.join(rollback_errors)}"
+            if rollback_errors
+            else " Arquivos ja movidos restaurados."
+        )
+        raise OSError(f"Falha ao publicar banco de teste: {exc}.{detail}") from exc
+
+    if moved or existed:
+        label = "Banco existente" if existed else "Sidecars orfaos"
+        print(f"{label} arquivado(s) em {backup_path}")
+    print(f"Banco criado com sucesso! {count} registros inseridos.")
+    return True
+
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Importacao de emergencia - cria banco com dados de TESTE."
+    )
+    parser.add_argument(
+        "--db", default="data/ssas.db", help="Caminho do banco a criar"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Arquiva banco existente como .bak-<timestamp> antes de recriar",
+    )
+    args = parser.parse_args()
     print("Importação de emergência iniciada...")
-    success = emergency_import()
+    print("ATENCAO: este script insere dados de TESTE, nao dados reais.")
+    try:
+        success = emergency_import(args.db, force=args.force)
+    except Timeout:
+        print("ERRO: banco ocupado por outra escrita; tente novamente mais tarde.", file=sys.stderr)
+        success = False
     if success:
         print(" Banco de dados criado com dados de teste")
         print(" Agora você pode testar o CLI e GUI")
     else:
         print(" Falha na criação do banco de dados")
+    sys.exit(0 if success else 1)

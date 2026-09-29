@@ -21,6 +21,8 @@ def _patch_integrity_ok(monkeypatch: pytest.MonkeyPatch) -> None:
             "database_accessible": True,
             "table_exists": True,
             "schema_valid": True,
+            "sqlite_integrity_ok": True,
+            "file_permissions_ok": True,
             "data_consistent": True,
             "disk_space_sufficient": True,
             "warnings": [],
@@ -91,7 +93,7 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(
+        lambda failed_files, cache_file, docs_dir, *_a, **_k: deterministic_calls.append(
             list(failed_files)
         ),
     )
@@ -117,7 +119,10 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
         force_import=False,
     )
 
-    assert updated is True
+    # deterministic_rejections_only nao atualiza o banco: result=False reflete
+    # o contrato "result == DB atualizado" e permite a GUI exibir o banner
+    # correto em vez de "concluido sem alteracoes".
+    assert updated is False
     assert deterministic_calls == [[str(bad_file)]]
     assert cache_after_calls["n"] == 0
     payload = cast(dict[str, Any], captured["payload"])
@@ -165,7 +170,7 @@ def test_run_importer_does_not_mark_cancelled_as_deterministic_failure(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(
+        lambda failed_files, cache_file, docs_dir, *_a, **_k: deterministic_calls.append(
             list(failed_files)
         ),
     )
@@ -209,7 +214,7 @@ def test_update_cache_for_deterministic_failures_tolerates_cache_merge_error(
 ) -> None:
     calls: list[tuple[list[str], str, str]] = []
 
-    def _explode(file_paths, cache_file, docs_dir):
+    def _explode(file_paths, cache_file, docs_dir, **_k):
         calls.append((list(file_paths), cache_file, docs_dir))
         raise RuntimeError("forced cache failure")
 

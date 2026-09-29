@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -277,6 +278,7 @@ def _normalize_ordered_values(
 def _normalize_extra_sectors(raw_values: object) -> tuple[str, ...]:
     if raw_values is None:
         return ()
+    values: Sequence[object]
     if isinstance(raw_values, str):
         values = raw_values.split(",")
     elif isinstance(raw_values, (list, tuple)):

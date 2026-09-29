@@ -116,6 +116,25 @@ CREATE TABLE IF NOT EXISTS ssa_table (
     relacao TEXT
 );
 
+-- Eventos hierarquicos de relatorios (desvios, reprogramacoes e parciais).
+-- Variantes de payload sao preservadas para evitar sobrescrita silenciosa.
+CREATE TABLE IF NOT EXISTS ssa_event_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero_ssa TEXT NOT NULL,
+    record_type TEXT NOT NULL,
+    record_order INTEGER NOT NULL CHECK (record_order > 0),
+    record_label TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    arquivo_origem TEXT NOT NULL,
+    data_planilha TEXT,
+    data_arquivo_origem TEXT,
+    source_sheet TEXT NOT NULL,
+    source_row INTEGER NOT NULL CHECK (source_row > 0),
+    UNIQUE (numero_ssa, record_type, record_order, payload_json)
+);
+CREATE INDEX IF NOT EXISTS idx_ssa_event_records_lookup
+    ON ssa_event_records (numero_ssa, record_type, record_order);
+
 -- Índices essenciais
 CREATE INDEX IF NOT EXISTS idx_ssa_numero ON ssa_table (numero_ssa);
 CREATE INDEX IF NOT EXISTS idx_ssa_situacao ON ssa_table (situacao);

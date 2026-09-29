@@ -59,12 +59,12 @@ Test-Condition "direnv_common.sh existe" {
 }
 
 Test-Condition ".envrc existe na raiz" {
-    Test-Path "$PSScriptRoot\..\..\envrc"
+    Test-Path "$PSScriptRoot\..\..\.envrc"
 }
 
 # Test 2: .python-version tem conteúdo válido
 Test-Condition ".python-version tem formato válido" {
-    $pythonVersionFile = "$PSScriptRoot\...\.python-version"
+    $pythonVersionFile = "$PSScriptRoot\..\..\.python-version"
     if (Test-Path $pythonVersionFile) {
         $version = (Get-Content $pythonVersionFile).Trim()
         $version -match '^\d+\.\d+(\.\d+)?$'
@@ -90,43 +90,43 @@ try {
     # Limpar ambiente primeiro
     Remove-Item Env:SSA_* -ErrorAction SilentlyContinue
     Remove-Item Env:PYENV_VERSION -ErrorAction SilentlyContinue
-    
+
     # Source o script
     . "$PSScriptRoot\direnv_common.ps1"
-    
+
     # Test 5: Funções foram definidas
     Test-Condition "Função ssa_env_apply definida" {
         Get-Command ssa_env_apply -ErrorAction SilentlyContinue
     }
-    
+
     Test-Condition "Função ssa_env__determine_variant definida" {
         Get-Command ssa_env__determine_variant -ErrorAction SilentlyContinue
     }
-    
+
     Test-Condition "Função ssa_env__init_pyenv definida" {
         Get-Command ssa_env__init_pyenv -ErrorAction SilentlyContinue
     }
-    
+
     # Test 6: Variáveis de ambiente foram setadas
     Test-Condition "SSA_ENV_COMMON_SOURCED está setado" {
         $env:SSA_ENV_COMMON_SOURCED -eq "1"
     }
-    
+
     # Test 7: Determinar variante funciona
     ssa_env__determine_variant
-    
+
     Test-Condition "SSA_ENV_VARIANT foi definido" {
         $null -ne $env:SSA_ENV_VARIANT
     }
-    
+
     Test-Condition "SSA_ENV_PY_VERSION foi definido" {
         $null -ne $env:SSA_ENV_PY_VERSION
     }
-    
+
     Test-Condition "SSA_ENV_VENV_DIR foi definido" {
         $null -ne $env:SSA_ENV_VENV_DIR
     }
-    
+
     if ($Verbose) {
         Write-TestLog ""
         Write-TestLog "Variáveis de ambiente detectadas:" "INFO"
@@ -135,7 +135,7 @@ try {
         Write-TestLog "  SSA_ENV_VENV_DIR: $env:SSA_ENV_VENV_DIR"
         Write-TestLog "  SSA_ENV_PYENV_NAME: $env:SSA_ENV_PYENV_NAME"
     }
-    
+
 } catch {
     Write-TestLog "Erro ao carregar direnv_common.ps1: $_" "FAIL"
     $testsFailed++
@@ -145,13 +145,13 @@ try {
 if (Get-Command pyenv -ErrorAction SilentlyContinue) {
     Write-TestLog "pyenv está disponível: $(pyenv --version)" "PASS"
     $testsPassed++
-    
+
     # Test 9: Versão Python do .python-version está instalada
-    $pythonVersionFile = "$PSScriptRoot\...\.python-version"
+    $pythonVersionFile = "$PSScriptRoot\..\..\.python-version"
     if (Test-Path $pythonVersionFile) {
         $requiredVersion = (Get-Content $pythonVersionFile).Trim()
         $installedVersions = pyenv versions --bare 2>$null
-        
+
         if ($installedVersions -contains $requiredVersion) {
             Write-TestLog "Python $requiredVersion está instalado via pyenv" "PASS"
             $testsPassed++

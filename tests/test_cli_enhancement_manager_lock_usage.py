@@ -4,6 +4,8 @@ import errno as errno_mod
 import os
 import types
 
+import pytest
+
 import interface.cli_enhancement_manager as cli_mgr_mod
 from interface.cli_enhancement_manager import CLIEnhancementManager
 
@@ -140,14 +142,8 @@ def test_lock_file_retries_and_succeeds_for_busy_msvcrt(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_mgr_mod, "msvcrt", fake_msvcrt)
     monkeypatch.setattr(cli_mgr_mod.time, "sleep", lambda _s: None)
 
-    class DummyFile:
-        def fileno(self):
-            return 1
-
-        def tell(self):
-            return 0
-
-    manager._lock_file_if_possible(DummyFile())
+    with (tmp_path / "settings.lock").open("a+") as lock_file:
+        manager._lock_file_if_possible(lock_file)
     assert call_count["value"] == 3
     assert lock_lens == [1, 1, 1]
 
@@ -164,21 +160,18 @@ def test_lock_file_fails_fast_for_non_lock_msvcrt_error(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_mgr_mod, "msvcrt", fake_msvcrt)
     monkeypatch.setattr(cli_mgr_mod.time, "sleep", lambda _s: None)
 
-    class DummyFile:
-        def fileno(self):
-            return 1
+    with (tmp_path / "settings.lock").open("a+") as lock_file:
+        with pytest.raises(RuntimeError, match="Falha critica"):
+            manager._lock_file_if_possible(lock_file)
 
-        def tell(self):
-            return 0
 
-    try:
-        manager._lock_file_if_possible(DummyFile())
-        raised = False
-    except RuntimeError as exc:
-        raised = True
-        assert "Falha critica" in str(exc)
-
-    assert raised
+@pytest.mark.skipif(os.name != "nt", reason="Backend msvcrt requer Windows nativo")
+def test_windows_lock_propagates_seek_failure(tmp_path):
+    manager = CLIEnhancementManager()
+    with (tmp_path / "settings.lock").open("a+") as lock_file:
+        lock_file.close()
+        with pytest.raises(ValueError, match="closed file"):
+            manager._lock_file_if_possible(lock_file)
 
 
 def test_save_settings_does_not_remove_preexisting_lock_file_on_lock_failure(

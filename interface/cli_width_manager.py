@@ -264,8 +264,8 @@ class CLIWidthManager:
 
         # Word wrap para colunas de descrição
         words = text.split()
-        lines = []
-        current_line = []
+        lines: list[str] = []
+        current_line: list[str] = []
         current_length = 0
 
         for word in words:
@@ -330,13 +330,12 @@ class CLIWidthManager:
         if not s:
             return "-"
 
-        # Já com 9 dígitos
+        # 9 digitos: forma canonica
         if len(s) == 9:
             return s
 
-        # 3-5 dígitos -> prefixa ano corrente 2025
-        if len(s) <= 5:
-            return f"2025{s.zfill(5)}"
-
-        # 7-8 dígitos -> zfill para 9
-        return s.zfill(9)
+        # IDs fora do formato canonico (curtos ou longos) sao exibidos como
+        # estao — paridade com _normalize_ssa_value da GUI. Nao fabricar
+        # prefixo de ano nem padding: isso produziria um numero de SSA
+        # diferente do armazenado.
+        return s

@@ -8,7 +8,7 @@ function Write-EnvLog {
     Write-Host "[env] $Message"
 }
 
-function Sanitize-ForName {
+function ConvertTo-EnvNameSegment {
     param([string]$Value)
     if (-not $Value) { return 'python' }
     $result = $Value.ToLowerInvariant()
@@ -18,23 +18,15 @@ function Sanitize-ForName {
     return $result
 }
 
-function Invoke-Python {
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        & python @Args
-        return $LASTEXITCODE
-    }
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3 @Args
-        return $LASTEXITCODE
-    }
-    throw "Python interpreter not found on PATH"
-}
-
-$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if (-not $repoRoot) {
     $repoRoot = (Get-Location).Path
 }
+$guardScript = Join-Path $repoRoot 'scripts\env\native_host_guard.ps1'
+. $guardScript
+Assert-SsaWindowsHost -RepoRoot $repoRoot -ExpectedRoot (Get-SsaWindowsRepoRoot)
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv')
+Assert-SsaWindowsVenv -VenvDir (Join-Path $repoRoot '.venv_ft')
 
 $requestedVariant = if ($Variant) {
     $Variant
@@ -67,7 +59,7 @@ switch ($requestedVariant.ToLowerInvariant()) {
     }
 }
 
-$pyenvEnvName = "ssa_consulta_{0}_{1}" -f ($variant -replace '-', '_'), (Sanitize-ForName -Value $targetVersion)
+$pyenvEnvName = "ssa_consulta_{0}_{1}" -f ($variant -replace '-', '_'), (ConvertTo-EnvNameSegment -Value $targetVersion)
 $envSource = $null
 
 $pyenv = Get-Command pyenv -ErrorAction SilentlyContinue
@@ -76,17 +68,15 @@ $pyenvHasVirtualenv = $false
 if ($pyenv) {
     $pyenvAvailable = $true
     try {
-        $init = (pyenv init -) 2>$null
-        if ($init) { Invoke-Expression $init }
-    } catch {}
-    try {
         $commands = pyenv commands
+        if ($LASTEXITCODE -ne 0) {
+            throw "pyenv commands failed with exit code $LASTEXITCODE"
+        }
         if ($commands -match '(?m)^virtualenv$') {
             $pyenvHasVirtualenv = $true
-            $virt = (pyenv virtualenv-init -) 2>$null
-            if ($virt) { Invoke-Expression $virt }
         }
     } catch {
+        Write-EnvLog "warn: pyenv inspection failed; using local venv fallback ($_)"
         $pyenvAvailable = $false
     }
 }
@@ -94,24 +84,51 @@ if ($pyenv) {
 if ($pyenvAvailable) {
     try {
         $versions = (pyenv versions --bare) 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "pyenv versions failed with exit code $LASTEXITCODE"
+        }
         $versionList = @()
         if ($versions) { $versionList = $versions -split "`n" }
         if (-not ($versionList -contains $targetVersion)) {
             Write-EnvLog "pyenv: installing Python $targetVersion (first run may take a while)"
             pyenv install $targetVersion | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv install failed with exit code $LASTEXITCODE"
+            }
         }
         if ($pyenvHasVirtualenv) {
             $venvs = (pyenv virtualenvs --bare) 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv virtualenvs failed with exit code $LASTEXITCODE"
+            }
             $venvList = @()
             if ($venvs) { $venvList = $venvs -split "`n" }
             if (-not ($venvList -contains $pyenvEnvName)) {
                 Write-EnvLog "pyenv: creating virtualenv $pyenvEnvName"
-                pyenv virtualenv $targetVersion $pyenvEnvName | Out-Null
+                $previousVersion = $env:PYENV_VERSION
+                try {
+                    $env:PYENV_VERSION = $targetVersion
+                    $backend = pyenv virtualenv --version
+                    if ($LASTEXITCODE -ne 0) { throw 'Falha ao identificar backend do pyenv virtualenv' }
+                } finally {
+                    $env:PYENV_VERSION = $previousVersion
+                }
+                $pipOption = if ($backend -match '\(virtualenv ') { '--no-pip' } else { '--without-pip' }
+                pyenv virtualenv $pipOption $targetVersion $pyenvEnvName | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    throw "pyenv virtualenv failed with exit code $LASTEXITCODE"
+                }
             }
             pyenv activate $pyenvEnvName | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv activate failed with exit code $LASTEXITCODE"
+            }
             $envSource = "pyenv-virtualenv:$pyenvEnvName"
         } else {
             pyenv shell $targetVersion | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "pyenv shell failed with exit code $LASTEXITCODE"
+            }
             $envSource = "pyenv:$targetVersion"
         }
     } catch {
@@ -123,19 +140,43 @@ if ($pyenvAvailable) {
 if (-not $envSource) {
     $venvPath = Join-Path $repoRoot $venvDir
     $activatePath = Join-Path $venvPath 'Scripts/Activate.ps1'
+    $numericVersion = if ($targetVersion -match '^(\d+\.\d+(?:\.\d+)?)(?:t|\+freethreaded)?(?:-dev)?$') { $Matches[1] } else { $null }
     if (-not (Test-Path $activatePath)) {
-        if ($variant -eq 'free-threaded') {
-            Write-EnvLog "warn: free-threaded variant requested but pyenv unavailable; creating fallback venv $venvDir"
-        } else {
-            Write-EnvLog "creating fallback venv $venvDir"
+        if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+            throw 'uv nao encontrado no PATH para criar o ambiente.'
         }
-        $result = Invoke-Python -Args @('-m', 'venv', $venvPath)
-        if ($result -ne 0) {
-            throw "Failed to create fallback venv $venvPath"
+        $uvPythonVersion = if ($variant -eq 'free-threaded' -and $numericVersion) {
+            "$numericVersion+freethreaded"
+        } else { $targetVersion }
+        Write-EnvLog "Criando $venvDir com Python $uvPythonVersion via uv"
+        uv venv --python $uvPythonVersion $venvPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao criar $venvPath com Python $uvPythonVersion"
         }
     }
-    . $activatePath
+    $venvPython = Join-Path $venvPath 'Scripts/python.exe'
+    if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
+        throw "Executavel Python ausente em $venvPath"
+    }
+    if ($numericVersion) {
+        $actualVersion = & $venvPython -c 'import platform; print(platform.python_version())'
+        if ($LASTEXITCODE -ne 0 -or $actualVersion -notmatch ('^' + [regex]::Escape($numericVersion) + '(\.|$)')) {
+            throw "Versao Python invalida em $venvPath; esperado $targetVersion"
+        }
+    }
     $envSource = "venv:$venvDir"
+}
+
+if ($variant -eq 'free-threaded') {
+    $selectedPython = if ($envSource -like 'venv:*') { $venvPython } else { 'python' }
+    & $selectedPython -c 'import sys, sysconfig; sys.exit(0 if sysconfig.get_config_var("Py_GIL_DISABLED") else 1)'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'O Python selecionado nao e uma build free-threaded.'
+    }
+}
+
+if ($envSource -like 'venv:*') {
+    . $activatePath
 }
 
 $env:PYTHONUTF8 = '1'
@@ -157,7 +198,4 @@ foreach ($path in @($scriptPath, $maintPath)) {
 
 $pyVersion = try { (& python --version 2>$null).Split()[1] } catch { 'unknown' }
 Write-EnvLog ("python {0} ({1} via {2})" -f $pyVersion, $variant, $envSource)
-if ($variant -eq 'free-threaded' -and ($envSource -notlike 'pyenv-virtualenv*')) {
-    Write-EnvLog 'note: fallback venv may not include the free-threaded build'
-}
 

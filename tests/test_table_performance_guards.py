@@ -78,12 +78,14 @@ def test_compute_widths_passes_sample_for_large_dataframe_to_width_manager():
     assert width_manager.column_order == ["#", "numero_ssa", "descricao_ssa"]
 
 
-def test_render_marker_sample_includes_all_rows_for_small_page():
+def test_page_digest_includes_all_rows_for_small_page():
     df = pd.DataFrame({"numero_ssa": [1, 2, 3], "situacao": ["A", "B", "C"]})
 
-    marker_sample = gui_table._build_render_marker_sample(df)
+    digest = gui_table._build_page_content_digest(df)
+    df.loc[2, "situacao"] = "D"
 
-    assert marker_sample == (("1", "A"), ("2", "B"), ("3", "C"))
+    assert digest is not None
+    assert gui_table._build_page_content_digest(df) != digest
 
 
 def test_mixed_text_sort_does_not_retain_cache_above_row_limit():

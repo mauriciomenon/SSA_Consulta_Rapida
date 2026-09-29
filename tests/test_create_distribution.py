@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import json
+import shutil
+import sqlite3
+import subprocess
 import sys
+import tempfile
 import zipfile
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -100,15 +106,22 @@ def test_create_zip_package_logs_temp_cleanup_failure(
     monkeypatch.setattr(
         create_distribution, "_prepare_package_staging", lambda *_, **__: False
     )
+    temporary_paths: set[Path] = set()
+    original_rmtree = create_distribution.shutil.rmtree
 
     def fail_rmtree(path):
-        assert Path(path).name.startswith("temp_fake_")
+        assert Path(path).name.startswith("ssa_pkg_")
+        temporary_paths.add(Path(path))
         raise PermissionError("locked")
 
     monkeypatch.setattr(create_distribution.shutil, "rmtree", fail_rmtree)
 
-    with pytest.raises(PermissionError, match="locked"):
-        create_distribution.create_zip_package("fake", "1.0.0")
+    try:
+        with pytest.raises(PermissionError, match="locked"):
+            create_distribution.create_zip_package("fake", "1.0.0")
+    finally:
+        for path in temporary_paths:
+            original_rmtree(path)
 
     assert any(
         "Falha ao remover diretorio temporario do pacote" in record.getMessage()
@@ -301,8 +314,9 @@ def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> Non
     assert r"%APPDATA%\SSA_Consulta_Rapida\docs_entrada" in content
     assert "~/Library/Application Support/SSA_Consulta_Rapida/docs_entrada" in content
     assert "${XDG_DATA_HOME:-~/.local/share}/SSA_Consulta_Rapida/docs_entrada" in content
-    assert "Nao use a pasta de instalacao como area de trabalho" in content
-    assert "na pasta tecnica SSA_Consulta_Rapida" in content
+    assert "No ZIP portatil, docs_entrada fica ao lado do executavel" in content
+    assert "--gui --runtime-home" in content
+    assert "nunca e substituido pelo instalador" in content
 
 
 def test_get_version_reads_config_version_without_default(
@@ -313,14 +327,14 @@ def test_get_version_reads_config_version_without_default(
     config_dir = project_root / "config"
     config_dir.mkdir(parents=True)
     (config_dir / "version.json").write_text(
-        '{"version_short": "4.42"}',
+        '{"version_short": "4.44"}',
         encoding="utf-8",
     )
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "VERSION_FILE", project_root / "VERSION")
 
-    assert create_distribution.get_version() == "4.42"
+    assert create_distribution.get_version() == "4.44"
 
 
 def test_get_version_rejects_missing_release_version(
@@ -404,6 +418,92 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
             name.endswith("docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md")
             for name in names
         )
+
+
+@pytest.mark.parametrize(
+    ("version", "include_missing_sample_db"),
+    [("4.50", False), ("4.50", True), ("4.50/missing", False)],
+)
+def test_create_zip_package_uses_short_staging_and_removes_it(
+    version: str,
+    include_missing_sample_db: bool,
+) -> None:
+    source_script = Path(create_distribution.__file__).resolve()
+    package_name = "SSA_Consulta_Rapida_v4.50_pyinstaller"
+    runtime_name = "SSA_CLI_v4.50_windows_amd64"
+    deep_files = (
+        "lxml/isoschematron/resources/xsl/iso-schematron-xslt1/"
+        "iso_schematron_skeleton_for_xslt1.xsl",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/multiarray/"
+        "dragon4_LICENSE.txt",
+    )
+    with tempfile.TemporaryDirectory(prefix="ssa_test_") as workspace:
+        project_root = Path(workspace) / "ssa_consulta_rapida_pyqt6"
+        script = project_root / "scripts" / source_script.name
+        script.parent.mkdir(parents=True)
+        shutil.copy2(source_script, script)
+        runtime_dir = (
+            project_root / "launchers" / "dist" / "windows_amd64" / runtime_name
+        )
+        runtime_dir.mkdir(parents=True)
+        (runtime_dir / f"{runtime_name}.exe").write_bytes(b"executable fixture")
+        for relative_path in deep_files:
+            resource = runtime_dir / "_internal" / relative_path
+            resource.parent.mkdir(parents=True, exist_ok=True)
+            resource.write_text(relative_path, encoding="utf-8")
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                """
+import json
+import runpy
+import sys
+
+namespace = runpy.run_path(sys.argv[1])
+staging = []
+
+def observe(event, args):
+    if event == "tempfile.mkdtemp":
+        staging.append(args[0])
+
+sys.addaudithook(observe)
+result = namespace["create_zip_package"](
+    "pyinstaller", sys.argv[3], include_sample_db=sys.argv[2] == "True"
+)
+print(json.dumps({"zip": str(result) if result else None, "staging": staging}))
+""",
+                str(script),
+                str(include_missing_sample_db),
+                version,
+            ],
+            cwd=source_script.parent.parent,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        report = json.loads(completed.stdout.splitlines()[-1])
+        assert len(report["staging"]) == 1
+        staging = Path(report["staging"][0])
+        assert staging.parent.resolve() == Path(tempfile.gettempdir()).resolve()
+        assert not staging.exists()
+        if include_missing_sample_db or "/" in version:
+            assert report["zip"] is None
+            return
+
+        zip_path = Path(report["zip"])
+        assert zip_path == (
+            project_root / "builds" / "packages" / "windows_amd64"
+            / f"{package_name}.zip"
+        )
+        with zipfile.ZipFile(zip_path) as archive:
+            assert archive.testzip() is None
+            for relative_path in deep_files:
+                entry = f"{package_name}/{runtime_name}/_internal/{relative_path}"
+                assert archive.read(entry).decode("utf-8") == relative_path
 
 
 def test_create_zip_package_returns_none_when_platform_is_not_in_build_path(
@@ -501,6 +601,102 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
         assert not any(name.endswith("input.xlsx") for name in names)
 
 
+def test_create_zip_package_preserves_only_external_runtime_database(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    app_dir = canonical_dir / "SSA_GUI_v1_windows_amd64"
+    internal_data = app_dir / "_internal" / "data"
+    external_data = app_dir / "data"
+    internal_data.mkdir(parents=True)
+    external_data.mkdir()
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    (app_dir / "SSA_GUI_v1_windows_amd64.exe").write_text(
+        "fake exe", encoding="utf-8"
+    )
+    (external_data / "ssas.db").write_bytes(b"runtime db")
+    (external_data / "other.db").write_bytes(b"other db")
+    (external_data / "input.xlsx").write_bytes(b"xlsx")
+    (external_data / "note.txt").write_text("not allowed", encoding="utf-8")
+    (internal_data / "ssas.db").write_bytes(b"internal db")
+    (internal_data / "other.db").write_bytes(b"other db")
+    (internal_data / "input.xlsx").write_bytes(b"xlsx")
+    (internal_data / "note.txt").write_text("not allowed", encoding="utf-8")
+    (canonical_dir / "ssas.db").write_bytes(b"top-level db")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package(
+        "pyinstaller", "1.0.0", include_runtime_db=True
+    )
+
+    assert result is not None
+    with zipfile.ZipFile(result, "r") as zf:
+        sensitive_names = [
+            name
+            for name in zf.namelist()
+            if Path(name).suffix.lower() in {".db", ".xls", ".xlsx"}
+        ]
+        assert len(sensitive_names) == 1
+        assert sensitive_names[0].endswith(
+            "SSA_GUI_v1_windows_amd64/data/ssas.db"
+        )
+        assert zf.read(sensitive_names[0]) == b"runtime db"
+        assert "_internal/data/ssas.db" not in sensitive_names[0]
+        assert not any(name.endswith("note.txt") for name in zf.namelist())
+
+
+@pytest.mark.parametrize("has_database", [True, False])
+def test_pyoxidizer_zip_includes_only_requested_runtime_database(
+    tmp_path: Path, monkeypatch, has_database: bool
+) -> None:
+    build_dir = tmp_path / "builds" / "pyoxidizer" / "windows_amd64"
+    data_dir = build_dir / "data"
+    data_dir.mkdir(parents=True)
+    (build_dir / "SSA_Consulta_Rapida.exe").write_bytes(b"exe")
+    (data_dir / "file_cache.json").write_text("{}", encoding="utf-8")
+    (data_dir / "other.db").write_bytes(b"private")
+    if has_database:
+        (data_dir / "ssas.db").write_bytes(b"runtime db")
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", tmp_path)
+
+    result = create_distribution.create_zip_package(
+        "pyoxidizer", "1.0.0", include_runtime_db=True
+    )
+
+    if not has_database:
+        assert result is None
+        assert not list((tmp_path / "builds" / "packages").rglob("*.zip"))
+        return
+    assert result is not None
+    with zipfile.ZipFile(result) as archive:
+        data_files = [
+            name for name in archive.namelist()
+            if "/data/" in name and not name.endswith("/.gitkeep")
+        ]
+        assert len(data_files) == 1
+        assert data_files[0].endswith("/data/ssas.db")
+        assert archive.read(data_files[0]) == b"runtime db"
+
+
 def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
     tmp_path: Path,
     monkeypatch,
@@ -570,6 +766,17 @@ def test_inno_excludes_match_backup_fragments() -> None:
     assert "*.backup" in excludes
     assert "*.backup*" in excludes
     assert "*.backup_*" in excludes
+
+
+def test_inno_excludes_preserve_nested_runtime_database_only_when_requested() -> None:
+    default_excludes = create_distribution._build_inno_excludes_str().split(",")
+    runtime_excludes = create_distribution._build_inno_excludes_str(True).split(",")
+
+    assert "data\\*" in default_excludes
+    # data\* segue excluido mesmo com runtime db: so ssas.db entra via
+    # linha Source dedicada; file_cache/historico_backups nao vazam.
+    assert "data\\*" in runtime_excludes
+    assert "docs_entrada\\*" in runtime_excludes
 
 
 def test_create_zip_package_keeps_sample_db_out_by_default(
@@ -711,7 +918,10 @@ def test_create_zip_package_includes_only_selected_local_db_when_option_enabled(
 
     (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
     selected_local_db = local_db_dir / "ssas.db"
-    selected_local_db.write_text("local db", encoding="utf-8")
+    with closing(sqlite3.connect(selected_local_db)) as conn:
+        conn.execute("CREATE TABLE probe(value TEXT)")
+        conn.execute("INSERT INTO probe(value) VALUES ('local db')")
+        conn.commit()
     (build_dir / "other.db").write_text("other db", encoding="utf-8")
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
@@ -1048,6 +1258,20 @@ def test_detect_primary_executable_name_returns_none_when_package_has_no_binary(
     assert detected is None
 
 
+def test_detect_primary_executable_name_accepts_posix_binary_without_suffix(
+    tmp_path: Path,
+) -> None:
+    package_dir = tmp_path / "package"
+    package_dir.mkdir(parents=True)
+    binary = package_dir / "SSA_GUI_v4.45_linux_amd64"
+    binary.write_bytes(b"\x7fELFbinary")
+    binary.chmod(0o755)
+
+    detected = create_distribution._detect_primary_executable_name(package_dir)
+
+    assert detected == binary.name
+
+
 def test_detect_primary_executable_name_accepts_app_bundle_directory(
     tmp_path: Path,
 ) -> None:
@@ -1098,6 +1322,8 @@ def test_create_inno_setup_script_uses_sourcepath_outputdir(
     assert f'#define SourceDir "{expected_source}"' in iss_content
     assert '#define SourcePathMode "absolute"' in iss_content
     assert 'Source: "{#SourceDir}\\SSA_GUI.exe"' in iss_content
+    assert 'Parameters: "--gui --runtime-home"' in iss_content
+    assert 'Name: "{app}\\data"' not in iss_content
 
 
 def test_create_inno_setup_script_includes_sample_db_when_option_enabled(
@@ -1152,6 +1378,58 @@ def test_create_inno_setup_script_includes_sample_db_when_option_enabled(
     )
 
 
+@pytest.mark.parametrize("app_subdir", ["", "SSA_GUI_v1_windows_amd64"])
+@pytest.mark.parametrize("has_database", [True, False])
+def test_create_inno_setup_script_accepts_only_external_runtime_database(
+    tmp_path: Path,
+    monkeypatch,
+    app_subdir: str,
+    has_database: bool,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    dist_output = project_root / "dist_packages"
+    app_dir = canonical_dir / app_subdir
+    runtime_data = app_dir / "data"
+    runtime_data.mkdir(parents=True)
+    dist_output.mkdir(parents=True)
+    (app_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
+    if has_database:
+        (runtime_data / "ssas.db").write_text("runtime db", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    iss_path = create_distribution.create_inno_setup_script(
+        "pyinstaller", "1.0.0", include_runtime_db=True
+    )
+
+    if not has_database:
+        assert iss_path is None
+        assert not (dist_output / "installer_pyinstaller.iss").exists()
+        return
+    assert iss_path is not None
+    content = iss_path.read_text(encoding="utf-8")
+    assert "data\\*" in content
+    relative_data = f"{app_subdir}\\data" if app_subdir else "data"
+    assert f'Source: "{{#SourceDir}}\\{relative_data}\\ssas.db"' in content
+    assert f'DestDir: "{{app}}\\{relative_data}"' in content
+    assert 'Parameters: "--gui --runtime-home"' in content
+
+
 def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled(
     tmp_path: Path,
     monkeypatch,
@@ -1165,7 +1443,10 @@ def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled
     local_db_dir.mkdir(parents=True)
     (canonical_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
     selected_local_db = local_db_dir / "ssas.db"
-    selected_local_db.write_text("local db", encoding="utf-8")
+    with closing(sqlite3.connect(selected_local_db)) as conn:
+        conn.execute("CREATE TABLE probe(value TEXT)")
+        conn.execute("INSERT INTO probe(value) VALUES ('local db')")
+        conn.commit()
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
@@ -1191,7 +1472,9 @@ def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled
 
     assert iss_path is not None
     iss_content = iss_path.read_text(encoding="utf-8")
-    expected_db = str(selected_local_db.resolve()).replace("/", "\\")
+    expected_db = str(
+        (dist_output / "installer_assets" / "ssas.db").resolve()
+    ).replace("/", "\\")
     assert 'Name: "{userdocs}\\SSA Consulta Rapida\\BancoLocal"' in iss_content
     assert (
         f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoLocal"; DestName: "ssas.db"; Flags: ignoreversion'

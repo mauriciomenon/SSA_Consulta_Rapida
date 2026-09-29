@@ -159,6 +159,10 @@ Ficam fora automaticamente:
 2. sufixos `_ts`, `_timestamp`, `_str`;
 3. qualquer coluna explicitamente listada como excluida.
 
+Excecao: colunas `prioridade_*` nunca sao excluidas pelas regras de prefixo e
+sufixo acima (`_is_general_search_auto_excluded` retorna antes delas); so a
+lista explicita de exclusao as remove.
+
 Importante:
 1. `semana*` e `grau_prioridade*` sao dados relevantes e permanecem dentro da busca geral;
 2. datas puras continuam fora da busca livre por decisao de produto deste ciclo.
@@ -173,9 +177,7 @@ Importante:
 ## Doc De Continuidade
 
 Ao retomar esta frente, conferir tambem:
-1. `docs/README.md`
-2. `README.md`
-3. `AGENTS.md`
+1. `README.md`
 
 ## Deferido
 

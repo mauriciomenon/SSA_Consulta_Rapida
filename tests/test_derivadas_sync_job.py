@@ -105,3 +105,96 @@ def test_derivadas_sync_job_reports_schema_not_ready_separately(
     assert result["ok"] is False
     assert "Schema de derivadas indisponivel" in str(result["error"])
     assert "missing_table" in str(result["error"])
+
+
+def test_derivadas_sync_job_merged_edges_uses_materialized_union(
+    tmp_path: Path,
+) -> None:
+    """Aresta presente nas duas fontes conta uma vez: o total exibido
+    deve ser a matriz materializada (active_edges), nao a soma por fase."""
+    special_sheet = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0100PM.xlsx"
+
+    def _sync_derivadas(**kwargs: Any) -> dict[str, Any]:
+        if kwargs.get("include_db_source"):
+            return {
+                "merge_stats": {"merged_edges": 5},
+                "active_edges": 5,
+                "db_stats": {"accepted_edges": 5},
+                "sheet_stats": {"accepted_edges": 0},
+            }
+        return {
+            "sheet_files": [str(special_sheet)],
+            "sheet_file_reports": [
+                {
+                    "sheet_file": str(special_sheet),
+                    "has_parse_evidence": True,
+                    "stats": {"accepted_edges": 3},
+                }
+            ],
+            "merge_stats": {"merged_edges": 3},
+            # 5 do DB + 3 da planilha, com 2 arestas sobrepostas -> 6 unicas
+            "active_edges": 6,
+            "db_stats": {"accepted_edges": 5},
+            "sheet_stats": {"accepted_edges": 3},
+        }
+
+    result = execute_derivadas_sync_job(
+        db_path=str(tmp_path / "ssas.db"),
+        table_name="ssa_table",
+        special_files=[str(special_sheet)],
+        sync_derivadas_fn=_sync_derivadas,
+        scan_derivadas_consistency_fn=lambda **_kwargs: {
+            "schema_ready": True,
+            "is_consistent": True,
+            "issue_counts": {},
+        },
+    )
+
+    assert result["ok"] is True
+    assert result["merged_edges"] == 6
+
+
+def test_derivadas_sync_job_forwards_extra_allowed_roots(
+    tmp_path: Path,
+) -> None:
+    captured: list[dict[str, Any]] = []
+    roots = [str(tmp_path)]
+    sheet = str(tmp_path / "derivadas.xlsx")
+
+    def _sync_derivadas(**kwargs: Any) -> dict[str, Any]:
+        captured.append(kwargs)
+        return {
+            "merge_stats": {"merged_edges": 1},
+            "db_stats": {"accepted_edges": 1},
+            "sheet_stats": {"accepted_edges": 1},
+            "sheet_files": [sheet] if not kwargs["include_db_source"] else [],
+            "sheet_file_reports": [
+                {"sheet_file": sheet, "has_parse_evidence": True}
+            ],
+        }
+
+    def _scan_consistency(**kwargs: Any) -> dict[str, Any]:
+        captured.append(kwargs)
+        return {
+            "schema_ready": True,
+            "is_consistent": True,
+            "issue_counts": {},
+        }
+
+    result = execute_derivadas_sync_job(
+        db_path=str(tmp_path / "ssas.db"),
+        table_name="ssa_table",
+        special_files=[sheet],
+        sync_derivadas_fn=_sync_derivadas,
+        scan_derivadas_consistency_fn=_scan_consistency,
+        extra_allowed_roots=roots,
+    )
+
+    assert result["ok"] is True
+    assert len(captured) == 3
+    assert captured[0]["include_db_source"] is True
+    assert captured[1]["include_db_source"] is False
+    assert captured[1]["sheet_files"] == [sheet]
+    assert all(
+        list(call.get("extra_allowed_roots") or []) == roots for call in captured
+    )

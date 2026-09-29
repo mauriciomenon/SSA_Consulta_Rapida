@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import os
 import sqlite3
 import threading
@@ -12,6 +13,7 @@ import pandas as pd
 import pytest
 
 import armazenamento.derivadas_sync as derivadas_sync
+from armazenamento.database import get_db_connection
 from armazenamento.derivadas_schema import ensure_derivadas_schema_on_connection
 from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
 from utils.path_safety import PathSafetyError
@@ -46,6 +48,7 @@ def test_sync_from_db_materializes_matrix_closure_summary(temp_db):
     assert report["closure_rows"] == 4
     assert report["summary_rows"] == 4
     assert report["reconciliation"]["db_vs_sheet_conflict_count"] == 0
+    assert report["reconciliation"]["source_distribution"] == {"1": 3}
 
     with sqlite3.connect(temp_db) as conn:
         matrix_active = conn.execute(
@@ -67,6 +70,60 @@ def test_sync_from_db_materializes_matrix_closure_summary(temp_db):
     assert summary_root == (2, 3)
 
 
+def test_cancel_before_materialization_commit_rolls_back_and_finishes_run(
+    temp_db, monkeypatch
+):
+    _insert_ssa_rows(temp_db, [("202500001", None), ("202500002", "202500001")])
+    cancel_event = derivadas_sync.DerivadasSyncCancelEvent()
+    original_build_closure = derivadas_sync._build_closure_rows
+
+    def cancel_after_closure(*args, **kwargs):
+        result = original_build_closure(*args, **kwargs)
+        cancel_event.set()
+        return result
+
+    monkeypatch.setattr(derivadas_sync, "_build_closure_rows", cancel_after_closure)
+
+    with pytest.raises(derivadas_sync.DerivadasSyncCancelled):
+        sync_derivadas(temp_db, cancel_event=cancel_event)
+
+    with sqlite3.connect(temp_db) as conn:
+        run = conn.execute(
+            "SELECT status, finished_at FROM ssa_derivada_sync_run "
+            "ORDER BY sync_run_id DESC LIMIT 1"
+        ).fetchone()
+        assert run is not None
+        assert run[0] == "error" and run[1]
+        assert conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0] == 0
+
+
+def test_timeout_request_does_not_block_commit_already_started() -> None:
+    cancel_event = derivadas_sync.DerivadasSyncCancelEvent()
+    committing = threading.Event()
+    release = threading.Event()
+
+    class _Connection:
+        def commit(self) -> None:
+            committing.set()
+            assert release.wait(timeout=5)
+
+    conn = cast(sqlite3.Connection, _Connection())
+    worker = threading.Thread(target=cancel_event.commit_if_active, args=(conn,))
+    worker.start()
+    try:
+        assert committing.wait(timeout=5)
+        assert cancel_event.request_timeout() is False
+        assert cancel_event.is_set() is False
+    finally:
+        release.set()
+        worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert cancel_event.request_timeout() is True
+    with pytest.raises(derivadas_sync.DerivadasSyncCancelled):
+        cancel_event.commit_if_active(conn)
+
+
 def test_sync_persists_actor_in_sync_run(temp_db):
     _insert_ssa_rows(
         temp_db,
@@ -84,6 +141,23 @@ def test_sync_persists_actor_in_sync_run(temp_db):
         ).fetchone()[0]
 
     assert actor == "test-actor"
+
+
+def test_consistency_preserves_legacy_fingerprint_until_next_sync(temp_db):
+    _insert_ssa_rows(temp_db, [("202500001", None), ("202500002", "202500001")])
+    sync_derivadas(temp_db)
+    legacy = hashlib.sha256(b"202500001->202500002:1;").hexdigest()
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute("UPDATE ssa_derivada_sync_run SET graph_fingerprint = ?", (legacy,))
+
+    scan = derivadas_sync.scan_derivadas_consistency(temp_db)
+    assert scan["is_consistent"]
+    assert scan["graph_fingerprint"] == legacy
+
+    sync_derivadas(temp_db)
+    updated = derivadas_sync.scan_derivadas_consistency(temp_db)
+    assert updated["is_consistent"]
+    assert updated["graph_fingerprint"].startswith("v2:")
 
 
 def test_sync_validates_database_path_before_open(temp_db, monkeypatch):
@@ -733,6 +807,28 @@ def test_schema_migration_handles_legacy_matrix_without_active_column(temp_db):
     assert row == (0, "Derivada da", 1)
 
 
+def test_derivadas_xlsx_limit_rejects_before_excel_open(tmp_path, monkeypatch):
+    from extracao.extractor import ExtractionError
+
+    source = tmp_path / "large.xlsx"
+    source.write_bytes(b"12345")
+    excel_opened = False
+    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+
+    def _unexpected_excel_file(*_args, **_kwargs):
+        nonlocal excel_opened
+        excel_opened = True
+        raise AssertionError("ExcelFile must not run")
+
+    monkeypatch.setattr(derivadas_sync.pd, "ExcelFile", _unexpected_excel_file)
+
+    with pytest.raises(ValueError, match="excede o limite") as exc_info:
+        derivadas_sync._load_excel_frames(str(source))
+
+    assert isinstance(exc_info.value.__cause__, ExtractionError)
+    assert excel_opened is False
+
+
 def test_sync_succeeds_after_short_write_lock_contention(temp_db):
     _insert_ssa_rows(
         temp_db,
@@ -768,6 +864,89 @@ def test_sync_succeeds_after_short_write_lock_contention(temp_db):
         releaser.join(timeout=2.0)
 
     assert report["active_edges"] == 1
+
+
+@pytest.mark.parametrize("verify_only", [False, True])
+def test_sheet_parse_does_not_hold_database_writer_lock(
+    temp_db, tmp_path: Path, monkeypatch, verify_only: bool
+):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+            ("202500003", None),
+        ],
+    )
+    sheet_file = tmp_path / "derivadas.csv"
+    sheet_file.write_text(
+        "parent_ssa,child_ssa\n202500001,202500003\n", encoding="utf-8"
+    )
+    parsing = threading.Event()
+    continue_parsing = threading.Event()
+    writer_done = threading.Event()
+    reports: list[dict[str, Any]] = []
+    failures: list[BaseException] = []
+    original_collect = derivadas_sync.collect_sheet_edges
+
+    def slow_collect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        parsing.set()
+        if not continue_parsing.wait(timeout=5):
+            raise TimeoutError("sheet parse was not released")
+        return original_collect(*args, **kwargs)
+
+    def run_sync() -> None:
+        try:
+            reports.append(
+                sync_derivadas(
+                    temp_db, sheet_file=str(sheet_file), verify_only=verify_only
+                )
+            )
+        except BaseException as exc:
+            failures.append(exc)
+
+    def write_during_parse() -> None:
+        try:
+            with get_db_connection(temp_db, write=True) as conn:
+                conn.execute(
+                    "UPDATE ssa_table SET derivada_de = ? WHERE numero_ssa = ?",
+                    ("202500001", "202500002"),
+                )
+                conn.commit()
+            writer_done.set()
+        except BaseException as exc:
+            failures.append(exc)
+
+    monkeypatch.setattr(derivadas_sync, "collect_sheet_edges", slow_collect)
+    sync_thread = threading.Thread(target=run_sync)
+    writer_thread = threading.Thread(target=write_during_parse)
+    sync_thread.start()
+    try:
+        assert parsing.wait(timeout=3)
+        writer_thread.start()
+        assert writer_done.wait(timeout=2)
+    finally:
+        continue_parsing.set()
+        sync_thread.join(timeout=5)
+        if writer_thread.ident is not None:
+            writer_thread.join(timeout=5)
+
+    assert not sync_thread.is_alive()
+    assert not writer_thread.is_alive()
+    assert not failures
+    report = reports[0]
+    assert report["db_stats"]["accepted_edges"] == 1
+    assert report["sheet_stats"]["accepted_edges"] == 1
+    assert report["merge_stats"]["merged_edges"] == 2
+    if verify_only:
+        assert report["verify_only"] is True
+        with sqlite3.connect(temp_db) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master "
+                "WHERE type = 'table' AND name = 'ssa_derivada_matrix'"
+            ).fetchone()[0] == 0
+    else:
+        assert report["active_edges"] == 2
 
 
 def test_get_sync_stats_remains_read_only_under_write_lock(temp_db):
@@ -846,7 +1025,7 @@ def test_sync_validates_sheet_file_path_before_read(temp_db, tmp_path: Path, mon
     sheet_file = tmp_path / "blocked_derivadas.csv"
     sheet_file.write_text("parent_ssa,child_ssa\n202500001,202500002\n", encoding="utf-8")
 
-    def _guard_path(path, *, purpose, expect_directory):
+    def _guard_path(path, *, purpose, expect_directory, **_kwargs):
         assert expect_directory is False
         if "sheet file" in purpose:
             raise PathSafetyError("blocked derivadas sheet")
@@ -882,7 +1061,7 @@ def test_sync_validates_sheet_files_paths_before_read(temp_db, tmp_path: Path, m
             encoding="utf-8",
         )
 
-    def _guard_path(path, *, purpose, expect_directory):
+    def _guard_path(path, *, purpose, expect_directory, **_kwargs):
         assert expect_directory is False
         if "sheet file" in purpose and Path(path).name == blocked.name:
             raise PathSafetyError("blocked derivadas sheet list")
@@ -1062,6 +1241,58 @@ def test_sync_rolls_back_partial_writes_and_persists_error_run(temp_db, monkeypa
     assert latest_run == ("error", 0)
 
 
+def test_sync_closes_orphaned_running_run_before_starting_next(temp_db):
+    _insert_ssa_rows(temp_db, [("202500001", None)])
+    sync_derivadas(temp_db)
+    with sqlite3.connect(temp_db) as conn:
+        orphan_id = conn.execute(
+            """
+            INSERT INTO ssa_derivada_sync_run
+                (mode, actor, managed_sources, started_at, status,
+                 db_edges, sheet_edges, merged_edges)
+            VALUES ('sync', 'test', 'db_field', '2025-01-01T00:00:00Z',
+                    'running', 0, 0, 0)
+            """
+        ).lastrowid
+
+    sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        orphan = conn.execute(
+            "SELECT status, finished_at, message FROM ssa_derivada_sync_run "
+            "WHERE sync_run_id = ?",
+            (orphan_id,),
+        ).fetchone()
+    assert orphan[0] == "error"
+    assert orphan[1] is not None
+    assert "interromp" in orphan[2].lower()
+
+
+def test_sync_keyboard_interrupt_rolls_back_and_finishes_run(temp_db, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [("202500001", None), ("202500002", "202500001")],
+    )
+
+    def interrupt_summary(*_args, **_kwargs):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(derivadas_sync, "_replace_summary", interrupt_summary)
+    with pytest.raises(KeyboardInterrupt):
+        sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        matrix_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix"
+        ).fetchone()[0]
+        status = conn.execute(
+            "SELECT status FROM ssa_derivada_sync_run "
+            "ORDER BY sync_run_id DESC LIMIT 1"
+        ).fetchone()[0]
+    assert matrix_total == 0
+    assert status == "error"
+
+
 def test_sync_aborts_when_integrity_check_fails(temp_db, monkeypatch):
     _insert_ssa_rows(
         temp_db,
@@ -1118,3 +1349,108 @@ def test_sync_aborts_when_integrity_check_fails(temp_db, monkeypatch):
 
     assert matrix_total == 0
     assert latest_run == ("error", 0)
+
+
+def _restrict_allowed_roots(monkeypatch, roots: list) -> None:
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", [Path(root) for root in roots]
+    )
+
+
+def test_sync_derivadas_external_db_requires_explicit_root(
+    temp_db, monkeypatch, tmp_path: Path
+):
+    project_only = tmp_path / "project_root"
+    project_only.mkdir()
+    _restrict_allowed_roots(monkeypatch, [project_only])
+
+    with pytest.raises(PathSafetyError):
+        sync_derivadas(temp_db)
+
+    report = sync_derivadas(
+        temp_db,
+        extra_allowed_roots=[str(Path(temp_db).resolve().parent)],
+    )
+    assert report["active_edges"] == 0
+
+
+def test_scan_and_stats_external_db_respect_extra_roots(
+    temp_db, monkeypatch, tmp_path: Path
+):
+    project_only = tmp_path / "project_root"
+    project_only.mkdir()
+    _restrict_allowed_roots(monkeypatch, [project_only])
+    db_parent = str(Path(temp_db).resolve().parent)
+
+    with pytest.raises(PathSafetyError):
+        derivadas_sync.scan_derivadas_consistency(temp_db)
+    with pytest.raises(PathSafetyError):
+        get_sync_stats(temp_db)
+
+    scan = derivadas_sync.scan_derivadas_consistency(
+        temp_db, extra_allowed_roots=[db_parent]
+    )
+    stats = get_sync_stats(temp_db, extra_allowed_roots=[db_parent])
+    assert "is_consistent" in scan
+    assert "matrix_total" in stats
+
+
+def test_self_heal_and_maintenance_propagate_extra_roots(
+    temp_db, monkeypatch, tmp_path: Path
+):
+    project_only = tmp_path / "project_root"
+    project_only.mkdir()
+    _restrict_allowed_roots(monkeypatch, [project_only])
+    db_parent = str(Path(temp_db).resolve().parent)
+
+    with pytest.raises(PathSafetyError):
+        derivadas_sync.self_heal_derivadas(temp_db, force=True)
+    healed = derivadas_sync.self_heal_derivadas(
+        temp_db, force=True, extra_allowed_roots=[db_parent]
+    )
+    assert healed["healed"] is True
+
+    with pytest.raises(PathSafetyError):
+        derivadas_sync.run_derivadas_maintenance(temp_db)
+    result = derivadas_sync.run_derivadas_maintenance(
+        temp_db,
+        min_interval_seconds=0,
+        extra_allowed_roots=[db_parent],
+    )
+    assert "ran" in result
+
+
+def test_sync_derivadas_sheet_file_respects_extra_roots(
+    temp_db, monkeypatch, tmp_path: Path
+):
+    sheets_dir = tmp_path / "external_sheets"
+    sheets_dir.mkdir()
+    sheet_file = sheets_dir / "derivadas.csv"
+    with sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"]
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "parent_ssa": "202500001",
+                "child_ssa": "202500002",
+                "relation_label": "Derivada da",
+            }
+        )
+
+    _restrict_allowed_roots(
+        monkeypatch, [Path(temp_db).resolve().parent]
+    )
+
+    with pytest.raises(PathSafetyError, match="sheet file"):
+        sync_derivadas(temp_db, sheet_file=str(sheet_file))
+
+    report = sync_derivadas(
+        temp_db,
+        sheet_file=str(sheet_file),
+        extra_allowed_roots=[str(sheets_dir)],
+    )
+    assert report["sheet_stats"]["accepted_edges"] == 1

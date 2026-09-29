@@ -8,7 +8,6 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 fi
 
 # shellcheck disable=SC1090
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/env/direnv_common.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/env/direnv_common.sh"
 
 ssa_env::apply manual
-

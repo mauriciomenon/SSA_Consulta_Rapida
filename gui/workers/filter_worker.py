@@ -6,6 +6,7 @@ import logging
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from core import search_filter
 from core.dataframe_fingerprint import build_dataframe_filter_hash
 from core.search_filter import (
     GeneralSearchCancelled,
@@ -53,6 +54,9 @@ class FilterWorker(QThread):
     @classmethod
     def clear_shared_cache(cls) -> None:
         cls._cache.clear()
+        with search_filter._NORMALIZED_SEARCH_CACHE_LOCK:
+            search_filter._NORMALIZED_SEARCH_CACHE.clear()
+            search_filter._NORMALIZED_SEARCH_CACHE_GENERATION += 1
 
     def __init__(
         self,
@@ -65,7 +69,11 @@ class FilterWorker(QThread):
         cache: FilterCache | None = None,
     ):
         super().__init__()
-        self.df_completo = df_completo
+        self.df_completo = (
+            df_completo.copy(deep=False)
+            if isinstance(df_completo, pd.DataFrame)
+            else df_completo
+        )
         self.search_chunks = list(search_chunks or [])
         self.search_columns = (
             list(search_columns) if search_columns is not None else None
@@ -111,9 +119,14 @@ class FilterWorker(QThread):
                 )
                 self.filter_finished.emit(pd.DataFrame())
                 return
+            search_chunks = _normalize_search_chunks(self.search_chunks)
+            if not search_chunks:
+                if self._is_cancelled():
+                    return
+                self.filter_finished.emit(self.df_completo.copy(deep=True))
+                return
             if self.df_hash is None:
                 self.df_hash = self._build_df_hash(self.df_completo)
-            search_chunks = _normalize_search_chunks(self.search_chunks)
             # Verifica cache primeiro
             cached_result = self._worker_cache.get(
                 self.df_hash,
@@ -127,19 +140,15 @@ class FilterWorker(QThread):
                 self.filter_finished.emit(cached_result)
                 return
 
-            # Cache miss - executa filtro
-            if search_chunks:
-                df_filtrado = apply_general_search_terms(
-                    self.df_completo,
-                    search_chunks,
-                    default_mode=self.default_mode,
-                    general_search_columns=self.search_columns,
-                    parse_terms_func=parse_search_terms,
-                    filter_dataframe_func=filter_dataframe,
-                    should_cancel=self._is_cancelled,
-                )
-            else:
-                df_filtrado = self.df_completo.copy(deep=True)
+            df_filtrado = apply_general_search_terms(
+                self.df_completo,
+                search_chunks,
+                default_mode=self.default_mode,
+                general_search_columns=self.search_columns,
+                parse_terms_func=parse_search_terms,
+                filter_dataframe_func=filter_dataframe,
+                should_cancel=self._is_cancelled,
+            )
 
             if self._is_cancelled():
                 return

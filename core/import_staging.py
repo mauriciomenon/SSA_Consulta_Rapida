@@ -91,6 +91,8 @@ def stage_external_import_files(
     project_root: str | os.PathLike[str],
     docs_dir: str | os.PathLike[str] | None = None,
     source_files: Sequence[str | os.PathLike[str]],
+    progress_offset: int = 0,
+    progress_total: int | None = None,
     should_cancel: CancelCallback | None = None,
     output_callback: LineCallback | None = None,
     error_callback: LineCallback | None = None,
@@ -106,65 +108,104 @@ def stage_external_import_files(
     )
     docs_path.mkdir(parents=True, exist_ok=True)
 
+    from extracao.extractor import ExtractionError, validate_excel_import_limits
+
+    try:
+        validate_excel_import_limits(
+            source_files,
+            inspect_archives=False,
+            ignore_unavailable=True,
+        )
+    except ExtractionError as exc:
+        raise ValueError(str(exc)) from exc
+
     reserved_paths = {
         os.path.abspath(str(path)) for path in docs_path.iterdir() if path.is_file()
     }
     summary = empty_external_staging_summary()
     staged_files: list[str] = []
+    copied_staged_files: list[str] = []
     total_sources = len(source_files)
+    normalized_progress_offset = max(int(progress_offset), 0)
+    normalized_progress_total = max(
+        int(progress_total or total_sources), total_sources
+    )
     explicit_allowed_files = _normalize_explicit_allowed_files(source_files)
 
-    for index, raw_source in enumerate(tuple(source_files), start=1):
-        if callable(should_cancel) and should_cancel():
-            break
-        source = str(raw_source or "").strip()
-        if not source:
-            summary["skipped"] += 1
-            continue
-        _emit_stage_prepare(output_callback, source=source, index=index, total=total_sources)
-        try:
-            validated_source = validate_external_source_path(
-                source,
-                normalized_allowed_files=explicit_allowed_files,
-            )
-        except FileNotFoundError:
-            summary["failed"] += 1
-            _emit_stage_error(error_callback, f"Arquivo inexistente: {source}")
-            continue
-        except ValueError as exc:
-            summary["unsupported"] += 1
-            _emit_stage_ignored(output_callback, str(exc))
-            continue
-        except OSError as exc:
-            summary["failed"] += 1
-            _emit_stage_error(
-                error_callback,
-                f"Falha ao validar arquivo externo '{source}': {exc}",
-            )
-            continue
-
-        try:
-            staged_file, was_copied, cancelled = _stage_validated_external_source(
-                validated_source=validated_source,
-                docs_path=docs_path,
-                reserved_paths=reserved_paths,
-                should_cancel=should_cancel,
-                error_callback=error_callback,
-            )
-            if cancelled:
+    try:
+        for index, raw_source in enumerate(tuple(source_files), start=1):
+            if callable(should_cancel) and should_cancel():
                 break
-            if staged_file:
-                staged_files.append(staged_file)
-                if was_copied:
-                    summary["copied"] += 1
-                else:
-                    summary["already_staged"] += 1
-        except OSError as exc:
-            summary["failed"] += 1
-            _emit_stage_error(
-                error_callback,
-                f"Falha ao copiar arquivo externo '{validated_source}': {exc}",
+            source = str(raw_source or "").strip()
+            if not source:
+                summary["skipped"] += 1
+                continue
+            _emit_stage_prepare(
+                output_callback,
+                source=source,
+                index=normalized_progress_offset + index,
+                total=normalized_progress_total,
             )
+            try:
+                validated_source = validate_external_source_path(
+                    source,
+                    normalized_allowed_files=explicit_allowed_files,
+                )
+            except FileNotFoundError:
+                summary["failed"] += 1
+                _emit_stage_error(error_callback, f"Arquivo inexistente: {source}")
+                continue
+            except ValueError as exc:
+                summary["unsupported"] += 1
+                _emit_stage_ignored(output_callback, str(exc))
+                continue
+            except OSError as exc:
+                summary["failed"] += 1
+                _emit_stage_error(
+                    error_callback,
+                    f"Falha ao validar arquivo externo '{source}': {exc}",
+                )
+                continue
+
+            try:
+                staged_file, was_copied, cancelled = _stage_validated_external_source(
+                    validated_source=validated_source,
+                    docs_path=docs_path,
+                    reserved_paths=reserved_paths,
+                    should_cancel=should_cancel,
+                    error_callback=error_callback,
+                )
+                if cancelled:
+                    break
+                if staged_file:
+                    if was_copied:
+                        copied_staged_files.append(staged_file)
+                    validate_excel_import_limits(
+                        (staged_file,),
+                        reject_invalid_archives=False,
+                    )
+                    staged_files.append(staged_file)
+                    if was_copied:
+                        summary["copied"] += 1
+                    else:
+                        summary["already_staged"] += 1
+            except OSError as exc:
+                summary["failed"] += 1
+                _emit_stage_error(
+                    error_callback,
+                    f"Falha ao copiar arquivo externo '{validated_source}': {exc}",
+                )
+
+        validate_excel_import_limits(staged_files, inspect_archives=False)
+    except ExtractionError as exc:
+        for copied_file in copied_staged_files:
+            _remove_destination(
+                Path(copied_file),
+                error_callback=error_callback,
+                context="apos rejeicao do lote",
+                ignore_missing=True,
+            )
+        raise ValueError(str(exc)) from exc
 
     summary["staged"] = len(staged_files)
     _emit_stage_summary(output_callback, summary)
@@ -198,6 +239,7 @@ def _stage_validated_external_source(
 
         destination_created = False
         try:
+            # A exclusividade real e o open("xb") da copia; a reserva nao cria arquivo.
             copy_source_without_execute_bit(validated_source, destination)
             destination_created = True
             if callable(should_cancel) and should_cancel():

@@ -18,7 +18,10 @@ CHECK_SECRETS=0
 MODE_QUICK=0
 MODE_FULL=0
 SELF_TEST=0
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/env/native_host_guard.sh"
 ZDOTDIR_REAL="${ZDOTDIR:-$HOME}"
 ZSHRC_FILE="$ZDOTDIR_REAL/.zshrc"
 ZCOMPDUMP_FILE="$ZDOTDIR_REAL/.zcompdump"
@@ -207,7 +210,7 @@ check_commit_history(){
   local joined shas
   joined=$(printf '%s|' "${SECRET_REGEXPS[@]}")
   joined=${joined%|}
-  shas=$(git log --all --format='%H' -E -G "$joined" 2>/dev/null | sort -u || true)
+  shas=$(git -C "$REPO_ROOT" log --all --format='%H' -E -G "$joined" 2>/dev/null | sort -u || true)
   if [[ -n $shas ]]; then
     log_issue "Padrao sensivel presente em commits: $(echo "$shas" | tr '\n' ' ')"
     log_action "Considerar git filter-repo para remover segredos antigos (apos ROTACIONAR)"
@@ -258,7 +261,11 @@ summarize(){
 
 main(){
   parse_args "$@"
+  ssa_native_guard_repo "$REPO_ROOT" || exit 2
   [[ $SELF_TEST -eq 1 ]] && { self_test; summarize; exit $?; }
+  if [[ $CHECK_HISTORY -eq 1 ]]; then
+    ssa_native_guard_tools git || exit 2
+  fi
   log_info "Repo root: $REPO_ROOT"
   log_info "ZDOTDIR efetivo: $ZDOTDIR_REAL"
   log_info ".zshrc alvo: $ZSHRC_FILE"

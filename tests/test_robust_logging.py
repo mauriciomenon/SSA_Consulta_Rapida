@@ -6,6 +6,8 @@ Testes do sistema de logging robusto.
 import json
 import logging
 import os
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 
 # Importar o módulo de logging robusto
 import sys
@@ -175,6 +177,26 @@ class TestRobustLogging(unittest.TestCase):
         self.assertIsNotNone(logger)
         self.assertEqual(logger.name, "test_module")
 
+    def test_console_warning_keeps_json_stdout_clean(self):
+        root = logging.getLogger()
+        previous_handlers = root.handlers[:]
+        previous_level = root.level
+        stdout = StringIO()
+        stderr = StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                RobustLogger(str(self.config_file))
+                logging.getLogger("cli").warning("aviso de importacao")
+                print('{"status":"ok"}')
+        finally:
+            current_handlers = root.handlers[:]
+            root.handlers[:] = previous_handlers
+            root.setLevel(previous_level)
+            for handler in current_handlers:
+                handler.close()
+        self.assertEqual(json.loads(stdout.getvalue()), {"status": "ok"})
+        self.assertIn("aviso de importacao", stderr.getvalue())
+
     def test_get_robust_logger_function(self):
         """Testa função de conveniência get_robust_logger."""
         robust_logger_instance = get_robust_logger(str(self.config_file))
@@ -240,6 +262,12 @@ class TestRobustLogging(unittest.TestCase):
 
         robust_logger = RobustLogger(str(invalid_config))
         self.assertIsNotNone(robust_logger.config)
+
+        # JSON valido, mas com raiz estruturalmente invalida.
+        malformed_shape_config = self.temp_dir / "malformed_shape.json"
+        malformed_shape_config.write_text("[]", encoding="utf-8")
+        robust_logger = RobustLogger(str(malformed_shape_config))
+        self.assertEqual(robust_logger.config["version"], "1.0")
 
 
 def run_performance_test():

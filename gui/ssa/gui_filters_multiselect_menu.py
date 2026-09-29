@@ -192,7 +192,9 @@ def _update_multiselect_button(
     total = len(checks or [])
     if total == 0 and not selected and not excluded:
         try:
-            button.setText("Sem dados")
+            button.setText(
+                _fit_button_text(button, ("Sem dados", "N/D"), "N/D")
+            )
             button.setEnabled(False)
             button.setToolTip("Nenhum dado disponivel")
         except Exception as exc:

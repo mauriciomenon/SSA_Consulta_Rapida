@@ -83,6 +83,5 @@ def _configure_table_header(window: Any, header: Any) -> None:
         header.sectionMoved.connect(window._on_header_section_moved)
         header.setContextMenuPolicy(cast(Any, Qt.ContextMenuPolicy.CustomContextMenu))
         header.customContextMenuRequested.connect(window.show_header_context_menu)
-        header.installEventFilter(window)
     except Exception as exc:
         logger.warning("Falha ao configurar comportamento do header da tabela: %s", exc)

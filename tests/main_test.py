@@ -3,20 +3,22 @@
 Versão simplificada do main.py para teste
 """
 
+import logging
 import os
 import sys
 import argparse
 
 # Adiciona o diretório raiz do projeto ao sys.path
-project_root = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 def get_app_version():
     try:
         from utils.version import get_app_version as _get_version
         return _get_version()
-    except ImportError:
-        return "3.0.7"
+    except ImportError as exc:
+        logging.getLogger(__name__).warning("Falha ao importar versao: %s", exc)
+        return "indisponivel"
 
 APP_VERSION = get_app_version()
 

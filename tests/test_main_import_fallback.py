@@ -65,12 +65,86 @@ def test_main_force_rescan_does_not_fallback_when_optimized_import_is_missing(
     assert calls["importer"] == 0
 
 
+def test_run_data_import_external_db_path_propagates_allowed_roots(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """SSA_DB_PATH fora do project_root deve liberar o diretorio no path-safety.
+
+    Espelha o comportamento do RescanWorker da GUI: o diretorio do banco
+    configurado externamente entra em extra_allowed_roots para que
+    ensure_path_is_allowed nao recuse o caminho.
+    """
+    import argparse
+
+    import main
+
+    captured: dict = {}
+
+    def fake_run_importer_logic(force_import: bool = False, **kwargs):  # noqa: ARG001
+        captured.update(kwargs)
+        return False
+
+    db_dir = tmp_path / "external_db_dir"
+    db_dir.mkdir()
+    db_path = db_dir / "ssas.db"
+    docs_dir = tmp_path / "external_docs"
+    docs_dir.mkdir()
+
+    args = argparse.Namespace(force_rescan=True, standard=True, optimized=False)
+    main._run_data_import(
+        args,
+        fake_run_importer_logic,
+        docs_dir=str(docs_dir),
+        db_path=str(db_path),
+        table_name="ssa_table",
+    )
+
+    assert captured["data_dir"] == str(db_dir)
+    assert captured["db_name"] == "ssas.db"
+    assert captured["docs_dir"] == str(docs_dir)
+    assert captured["table_name"] == "ssa_table"
+    roots = captured["extra_allowed_roots"]
+    assert str(db_dir) in roots
+    assert str(tmp_path) in roots
+
+
 def test_main_version_handles_missing_sys_argv(monkeypatch: pytest.MonkeyPatch) -> None:
     import main
 
     monkeypatch.delattr(sys, "argv", raising=False)
 
     main.main(cli_args=["--version"])
+
+
+def test_uninspectable_importer_logs_warning_and_preserves_explicit_paths(
+    tmp_path, caplog: pytest.LogCaptureFixture,
+) -> None:
+    import argparse
+    import main
+
+    captured: dict = {}
+
+    class Importer:
+        __signature__ = "invalid"
+
+        def __call__(self, **kwargs):
+            captured.update(kwargs)
+            return False
+
+    caplog.set_level(logging.WARNING, logger=main.logger.name)
+    main._run_data_import(
+        argparse.Namespace(force_rescan=True, standard=True, optimized=False),
+        Importer(), docs_dir=str(tmp_path / "docs"),
+        db_path=str(tmp_path / "data" / "ssas.db"), table_name="ssa_table",
+    )
+
+    assert captured["force_import"] is True
+    assert captured["data_dir"] == str(tmp_path / "data")
+    assert captured["db_name"] == "ssas.db"
+    assert captured["docs_dir"] == str(tmp_path / "docs")
+    assert captured["table_name"] == "ssa_table"
+    assert set(captured["extra_allowed_roots"]) == {str(tmp_path), str(tmp_path / "data")}
+    assert "assinatura do importador" in caplog.text
 
 
 def test_main_log_level_updates_root_handlers(monkeypatch: pytest.MonkeyPatch) -> None:

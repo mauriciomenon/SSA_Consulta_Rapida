@@ -1,5 +1,12 @@
 # CHANGELOG DE IMPLEMENTACOES
 
+## 2026-08-09 - Release v4.47 (filtros, cache e integridade)
+- Barra rapida de situacao alterna inclusao, exclusao (`!STATUS`) e estado neutro sem novo operador.
+- Estado visual fica sincronizado com filtros ativos, por coluna e avancados; multiplos setores exibem `...`.
+- Cache normalizado atua no DataFrame real e sobrevive a refresh apenas visual.
+- Mascaras nullable, recovery canonico, WAL ativo, classificacao de importacao e conexoes SQLite foram endurecidos.
+- Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
+
 ## 2026-03-02 - Release v4.29 (tema geral + legibilidade)
 - Baseline de release patch atualizado:
   - `VERSION` para `4.29`
@@ -31,7 +38,6 @@
   - `README.md`
   - `docs/HISTORICO_RELEASES.md`
   - `docs/NEXT_CHAT_MIGRATION.md`
-  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
   - `docs/RECOVERY_BACKLOG.md`
 - Escopo de seguranca:
   - sem mudanca em logica streamlit.
@@ -43,7 +49,6 @@
   - cancelamento e guardrails de extracao em `core/app_logic.py`
   - validacao de path/mapping em `interface/command_handlers.py`
 - Regressoes focadas adicionadas para command handlers, importer e wrappers.
-- Sync de docs de handoff e backlog para continuidade do ciclo.
 
 ## 2026-02-28 - Release v4.24.1 (Streamlit filtros estaveis)
 - Expansao de filtros selecionaveis e dica de busca no streamlit.
@@ -53,7 +58,6 @@
 ## 2025-08-14 - Ajustes de exibição e filtros críticos
 - Revisado `column_priority.json` para estabilizar `essential` e `always_visible`, evitando regressao de colunas em dashboards CLI/GUI.
 - GUI recebeu correcoes nos tooltips de filtros, mantendo paridade textual com o CLI e reduzindo duvida em conectivos OU/OR.
-- Atualizacao do README enfatizando politicas de remocao de artefatos de IA e links diretos para o changelog tecnico.
 
 ## 2025-07-29 - Preparacao release 4.12
 - Sincronizacao dos metadados de versao (arquivo `VERSION` + `config/version.json`) antes do congelamento de build.
@@ -68,4 +72,3 @@
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

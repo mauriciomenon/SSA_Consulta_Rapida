@@ -9,6 +9,18 @@ from typing import Any
 from gui.ssa.list_exporter import ListExportResult, resolve_export_columns
 from gui.workers.list_export_worker import ListExportWorker
 
+
+def _window_deleted(window: Any) -> bool:
+    """True somente quando o Qt confirma a destruicao do objeto."""
+    try:
+        from PyQt6 import sip
+    except ImportError:
+        return False
+    try:
+        return bool(sip.isdeleted(window))
+    except Exception:
+        return False
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,7 +61,6 @@ def export_current_list_tsv(
     state.worker = worker
 
     def _on_success(result: Any) -> None:
-        state.clear()
         if isinstance(result, ListExportResult):
             logger.info(
                 "Lista exportada para %s (%s linhas, %s colunas).",
@@ -57,17 +68,38 @@ def export_current_list_tsv(
                 result.rows,
                 result.columns,
             )
+            if not _window_deleted(window):
+                status_label = getattr(window, "status_label", None)
+                if status_label is not None:
+                    status_label.setText(
+                        f"Status: Lista exportada: {result.rows} linhas em {result.path}."
+                    )
 
     def _on_error(error: str) -> None:
-        state.clear()
         logger.error("Falha ao exportar lista para arquivo: %s", error)
+        if _window_deleted(window):
+            return
         message_box.information(window, "Aviso", "Falha ao exportar a lista.")
 
+    def _on_finished() -> None:
+        if state.worker is worker:
+            state.clear()
+
+    # Conexoes feitas na GUI entregam estes callbacks no event loop da GUI.
     worker.export_finished.connect(_on_success)
     worker.error_occurred.connect(_on_error)
-    if hasattr(worker, "finished") and hasattr(worker, "deleteLater"):
-        worker.finished.connect(worker.deleteLater)
-    worker.start()
+    if hasattr(worker, "finished"):
+        worker.finished.connect(_on_finished)
+        if hasattr(worker, "deleteLater"):
+            worker.finished.connect(worker.deleteLater)
+    try:
+        worker.start()
+    except Exception as exc:
+        # Sem rollback, state.running ficaria True para sempre e bloquearia
+        # exportacoes futuras com "Exportacao em andamento".
+        logger.error("Falha ao iniciar exportacao de lista: %s", exc)
+        state.clear()
+        message_box.information(window, "Aviso", "Falha ao iniciar a exportacao.")
 
 
 def _choose_export_path(window: Any, file_dialog: Any) -> str:

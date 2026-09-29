@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Union
 
@@ -202,45 +203,45 @@ def _log_recommendations(has_duplicates: bool, total_duplicated: int) -> None:
 def verify_database_integrity():
     """Analisa a integridade do banco e identifica problemas."""
 
-    conn = sqlite3.connect(_get_db_path())
-
     logger.info("INFO ANALISE DE INTEGRIDADE DO BANCO DE DADOS")
     logger.info("=" * 60)
+    with closing(sqlite3.connect(_get_db_path())) as conn:
+        total_records, empty_counts, empty_records = _query_core_metrics(conn)
+        logger.info("INFO Total de registros: %s", f"{total_records:,}")
 
-    total_records, empty_counts, empty_records = _query_core_metrics(conn)
-    logger.info("INFO Total de registros: %s", f"{total_records:,}")
+        duplicates, total_duplicated = _query_duplicates(conn)
+        _log_duplicates(duplicates, total_duplicated)
 
-    duplicates, total_duplicated = _query_duplicates(conn)
-    _log_duplicates(duplicates, total_duplicated)
+        logger.info("INFO VERIFICACAO DE CAMPOS OBRIGATORIOS:")
+        any_empty_fields = False
+        for field, empty_count in empty_counts.items():
+            if empty_count > 0:
+                any_empty_fields = True
+                percentage = (
+                    (empty_count / total_records * 100) if total_records else 0.0
+                )
+                logger.warning(
+                    "   ERR %s: %s vazios (%.1f%%)",
+                    field,
+                    f"{empty_count:,}",
+                    percentage,
+                )
+            else:
+                logger.info("   OK %s: Todos preenchidos", field)
 
-    # 3. Verificar campos vazios críticos
-    logger.info("INFO VERIFICACAO DE CAMPOS OBRIGATORIOS:")
-    any_empty_fields = False
-    for field, empty_count in empty_counts.items():
-        if empty_count > 0:
-            any_empty_fields = True
-            percentage = (empty_count / total_records * 100) if total_records else 0.0
+        if empty_records > 0:
             logger.warning(
-                "   ERR %s: %s vazios (%.1f%%)", field, f"{empty_count:,}", percentage
+                "ERR REGISTROS VAZIOS: %s registros sem dados essenciais",
+                f"{empty_records:,}",
             )
-        else:
-            logger.info("   OK %s: Todos preenchidos", field)
 
-    if empty_records > 0:
-        logger.warning(
-            "ERR REGISTROS VAZIOS: %s registros sem dados essenciais",
-            f"{empty_records:,}",
-        )
-
-    import_dates = pd.DataFrame(columns=["date", "count"])
-    try:
-        import_dates = _query_import_dates(conn)
-        _log_import_dates(import_dates)
-    except Exception as exc:
-        logger.debug("DEBUG Detalhe da consulta data_importacao: %s", exc)
-        logger.warning("WARN Falha ao consultar data_importacao: %s", exc)
-
-    conn.close()
+        import_dates = pd.DataFrame(columns=["date", "count"])
+        try:
+            import_dates = _query_import_dates(conn)
+            _log_import_dates(import_dates)
+        except Exception as exc:
+            logger.debug("DEBUG Detalhe da consulta data_importacao: %s", exc)
+            logger.warning("WARN Falha ao consultar data_importacao: %s", exc)
 
     _log_recommendations(len(duplicates) > 0, total_duplicated)
 

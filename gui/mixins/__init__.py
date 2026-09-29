@@ -6,11 +6,6 @@
 
 from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin
 
-# TODO: Implementar outros mixins
-# from gui.mixins.display_gui_ssa_mixin import DisplayGUISSAMixin
-# from gui.mixins.event_gui_ssa_mixin import EventGUISSAMixin
-# from gui.mixins.theme_gui_ssa_mixin import ThemeGUISSAMixin
-
 __all__ = [
     "FilterGUISSAMixin",
     # 'DisplayGUISSAMixin',

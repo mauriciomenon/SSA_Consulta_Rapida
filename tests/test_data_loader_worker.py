@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from contextlib import closing
 from unittest.mock import patch
@@ -20,7 +21,7 @@ from gui.workers.data_loader_query import (
     build_default_ui_order_clause,
     normalize_order_by,
 )
-from gui.workers.data_loader_repository import resolve_target_table
+from gui.workers.data_loader_repository import resolve_table_columns, resolve_target_table
 from gui.workers.data_loader_worker import DataLoaderWorker
 
 
@@ -60,6 +61,63 @@ def test_resolve_target_table_accepts_second_legacy_alias(tmp_path):
 
 def test_resolve_target_table_invalid_identifier_falls_back_to_canonical():
     assert resolve_target_table(":memory:", 'ssa_table"; DROP TABLE ssa_table; --') == "ssa_table"
+
+
+def test_resolve_target_table_rechecks_replaced_database(tmp_path):
+    db_path = tmp_path / "current.db"
+    replacement = tmp_path / "replacement.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE ssas(numero_ssa TEXT)")
+    with closing(sqlite3.connect(replacement)) as conn:
+        conn.execute("CREATE TABLE ssa_table(numero_ssa TEXT)")
+
+    assert resolve_target_table(str(db_path), "ssa_table") == "ssas"
+    os.replace(replacement, db_path)
+    assert resolve_target_table(str(db_path), "ssa_table") == "ssa_table"
+
+
+def test_loader_metadata_does_not_create_missing_database(tmp_path):
+    db_path = tmp_path / "missing.db"
+    assert resolve_target_table(str(db_path), "ssa_table") == "ssa_table"
+    assert resolve_table_columns(str(db_path), "ssa_table") == ()
+    assert not db_path.exists()
+
+
+def test_resolve_table_columns_reads_valid_columns_from_sqlite(tmp_path):
+    db_path = tmp_path / "columns.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            'CREATE TABLE ssa_table (numero_ssa TEXT, situacao TEXT, "bad-name" TEXT)'
+        )
+
+    assert resolve_table_columns(str(db_path), "ssa_table") == (
+        "numero_ssa",
+        "situacao",
+    )
+
+
+def test_resolve_table_columns_returns_empty_on_connection_failure(tmp_path):
+    with patch(
+        "gui.workers.data_loader_repository._connect_metadata",
+        side_effect=sqlite3.OperationalError("connection unavailable"),
+    ):
+        assert resolve_table_columns(str(tmp_path / "columns.db"), "ssa_table") == ()
+
+
+def test_resolve_table_columns_returns_empty_on_pragma_failure():
+    class FailingPragmaConnection(sqlite3.Connection):
+        def execute(self, sql, parameters=()):
+            if sql.startswith("PRAGMA table_info"):
+                raise sqlite3.OperationalError("schema unavailable")
+            return super().execute(sql, parameters)
+
+    with patch(
+        "gui.workers.data_loader_repository._connect_metadata",
+        side_effect=lambda _path: sqlite3.connect(
+            ":memory:", factory=FailingPragmaConnection
+        ),
+    ):
+        assert resolve_table_columns(":memory:", "ssa_table") == ()
 
 
 def test_run_builds_safe_paginated_query_and_emits_data():
@@ -320,6 +378,76 @@ def test_run_skips_emit_when_interrupted_after_query():
         return pd.DataFrame({"numero_ssa": ["1"]})
 
     with patch("gui.workers.data_loader_worker.query_db", side_effect=_fake_query):
+        worker.run()
+
+    assert emitted == []
+    assert errors == []
+
+
+def test_run_reports_unexpected_interrupted_error_without_cancel():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+    worker.error_occurred.connect(lambda msg: errors.append(msg))
+
+    with patch(
+        "gui.workers.data_loader_worker.query_db",
+        side_effect=InterruptedError("Database query cancelled"),
+    ):
+        worker.run()
+
+    assert emitted == []
+    assert errors == ["Falha ao carregar dados do banco."]
+
+
+def test_run_skips_error_signal_for_requested_sqlite_cancellation():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+    worker.error_occurred.connect(lambda msg: errors.append(msg))
+
+    def _cancelled_query(*_args, **_kwargs):
+        worker.cancel()
+        raise InterruptedError("Database query cancelled")
+
+    with patch(
+        "gui.workers.data_loader_worker.query_db",
+        side_effect=_cancelled_query,
+    ):
+        worker.run()
+
+    assert emitted == []
+    assert errors == []
+
+
+def test_run_skips_emit_when_cancelled_during_preprocessing():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    worker.data_prepared.connect(emitted.append)
+    worker.error_occurred.connect(errors.append)
+
+    from gui.workers import data_loader_worker as worker_module
+
+    original_prepare = worker_module.prepare_loaded_payload
+
+    def _prepare_then_cancel(*args, **kwargs):
+        loaded = original_prepare(*args, **kwargs)
+        worker.cancel()
+        return loaded
+
+    with (
+        patch(
+            "gui.workers.data_loader_worker.query_db",
+            return_value=pd.DataFrame({"numero_ssa": ["1"]}),
+        ),
+        patch(
+            "gui.workers.data_loader_worker.prepare_loaded_payload",
+            side_effect=_prepare_then_cancel,
+        ),
+    ):
         worker.run()
 
     assert emitted == []

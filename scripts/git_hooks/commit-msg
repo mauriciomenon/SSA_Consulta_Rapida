@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+repo_root=$(git rev-parse --show-toplevel)
+exec uv run --no-sync python "$repo_root/scripts/validate_git_authorship.py" commit-msg "$1"

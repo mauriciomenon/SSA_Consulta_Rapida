@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import weakref
 from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional, cast
 
@@ -19,6 +18,8 @@ from core.search_filter_constants import (
     FILTER_SEARCH_CACHE_ATTR,
     FILTER_SEARCH_MARKER_ATTR,
     FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+    FILTER_SOURCE_REVISION_ATTR,
+    FILTER_SOURCE_TOKEN_ATTR,
 )
 from core.search_filter_defaults import DEFAULT_FILTER_SEARCH_COLUMNS
 from core.regex_safety import safe_regex_contains
@@ -26,11 +27,19 @@ from core.regex_safety import safe_regex_contains
 logger = logging.getLogger(__name__)
 _NORMALIZED_SEARCH_CACHE_LOCK = threading.Lock()
 _NORMALIZED_SEARCH_CACHE_MAX_ENTRIES = 1
-_NORMALIZED_SEARCH_CACHE_MAX_BYTES = 256 * 1024 * 1024
+_NORMALIZED_SEARCH_CACHE_MAX_BYTES = 64 * 1024 * 1024
 _NORMALIZED_SEARCH_CACHE: OrderedDict[tuple[Any, ...], dict[str, Any]] = OrderedDict()
+_NORMALIZED_SEARCH_CACHE_GENERATION: int = 0
 
 class GeneralSearchCancelled(Exception):
     """Internal cancellation signal for background general-search execution."""
+
+
+def _raise_if_search_cancelled(
+    should_cancel: Callable[[], bool] | None,
+) -> None:
+    if should_cancel is not None and should_cancel():
+        raise GeneralSearchCancelled
 
 
 def clear_filter_search_attrs(result_df: pd.DataFrame) -> pd.DataFrame:
@@ -100,19 +109,19 @@ def _identifier_column_match_mask(
     numeric_identifier: int | None,
 ) -> pd.Series:
     if numeric_identifier is not None and pd.api.types.is_numeric_dtype(column.dtype):
-        return column.eq(numeric_identifier)
+        return column.eq(numeric_identifier).fillna(False).astype(bool)
 
     direct_mask = column.eq(identifier_text)
     if numeric_identifier is not None:
         direct_mask = direct_mask | column.eq(numeric_identifier)
 
     if numeric_identifier is None:
-        return direct_mask
+        return direct_mask.fillna(False).astype(bool)
 
-    return direct_mask | _float_artifact_identifier_mask(
-        column,
-        identifier_text,
-    )
+    return (
+        direct_mask.fillna(False)
+        | _float_artifact_identifier_mask(column, identifier_text)
+    ).fillna(False).astype(bool)
 
 
 def _float_artifact_identifier_mask(
@@ -127,8 +136,8 @@ def _float_artifact_identifier_mask(
     decimal_tail = text.str.slice(len(decimal_prefix))
     return (
         text.str.startswith(decimal_prefix).fillna(False)
-        & decimal_tail.ne("")
-        & decimal_tail.str.strip("0").eq("")
+        & decimal_tail.ne("").fillna(False)
+        & decimal_tail.str.strip("0").eq("").fillna(False)
     ).fillna(False).astype(bool)
 
 
@@ -145,44 +154,52 @@ def _normalize_filter_search_series(series: pd.Series) -> pd.Series:
 def _build_normalized_column_cache(
     df: pd.DataFrame,
     available_search_cols: list[str],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, pd.Series]:
-    revision = df.attrs.get("ssa_data_revision")
-    if revision is None:
-        return _build_normalized_columns(df, available_search_cols)
+    revision = df.attrs.get(FILTER_SOURCE_REVISION_ATTR)
+    source_token = df.attrs.get(FILTER_SOURCE_TOKEN_ATTR)
+    if revision is None or source_token is None:
+        return _build_normalized_columns(df, available_search_cols, should_cancel)
 
     cache_key = (
-        id(df),
+        str(source_token),
+        str(revision),
         tuple(available_search_cols),
         len(df.index),
-        str(revision),
+        tuple(str(df[column].dtype) for column in available_search_cols),
     )
     with _NORMALIZED_SEARCH_CACHE_LOCK:
+        cache_generation = _NORMALIZED_SEARCH_CACHE_GENERATION
         cached = _NORMALIZED_SEARCH_CACHE.get(cache_key)
         if (
             isinstance(cached, dict)
-            and callable(cached.get("df_ref"))
-            and cached["df_ref"]() is df
+            and isinstance(cached.get("index"), pd.Index)
+            and cached["index"].equals(df.index)
             and isinstance(cached.get("columns"), dict)
         ):
             _NORMALIZED_SEARCH_CACHE.move_to_end(cache_key)
             return dict(cached["columns"])
 
-    normalized_columns = _build_normalized_columns(df, available_search_cols)
+    normalized_columns = _build_normalized_columns(
+        df, available_search_cols, should_cancel
+    )
     estimated_bytes = _estimate_normalized_cache_bytes(normalized_columns)
     if estimated_bytes > _NORMALIZED_SEARCH_CACHE_MAX_BYTES:
         return normalized_columns
     with _NORMALIZED_SEARCH_CACHE_LOCK:
+        if cache_generation != _NORMALIZED_SEARCH_CACHE_GENERATION:
+            return normalized_columns
         cached = _NORMALIZED_SEARCH_CACHE.get(cache_key)
         if (
             isinstance(cached, dict)
-            and callable(cached.get("df_ref"))
-            and cached["df_ref"]() is df
+            and isinstance(cached.get("index"), pd.Index)
+            and cached["index"].equals(df.index)
             and isinstance(cached.get("columns"), dict)
         ):
             _NORMALIZED_SEARCH_CACHE.move_to_end(cache_key)
             return dict(cached["columns"])
         _NORMALIZED_SEARCH_CACHE[cache_key] = {
-            "df_ref": weakref.ref(df),
+            "index": df.index.copy(deep=False),
             "columns": normalized_columns,
         }
         while len(_NORMALIZED_SEARCH_CACHE) > _NORMALIZED_SEARCH_CACHE_MAX_ENTRIES:
@@ -193,11 +210,15 @@ def _build_normalized_column_cache(
 def _build_normalized_columns(
     df: pd.DataFrame,
     available_search_cols: list[str],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, pd.Series]:
-    return {
-        column_name: _normalize_filter_search_series(df[column_name])
-        for column_name in available_search_cols
-    }
+    normalized_columns: dict[str, pd.Series] = {}
+    for column_name in available_search_cols:
+        _raise_if_search_cancelled(should_cancel)
+        normalized_columns[column_name] = _normalize_filter_search_series(
+            df[column_name]
+        )
+    return normalized_columns
 
 
 def parse_search_terms(
@@ -353,6 +374,7 @@ def _combine_filter_term_masks(
     df: pd.DataFrame,
     terms: List[Dict[str, Any]],
     mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> pd.Series:
     has_non_default_groups = any(
         int(term.get("group", FILTER_DEFAULT_GROUP_INDEX) or 0)
@@ -360,26 +382,32 @@ def _combine_filter_term_masks(
         for term in terms
     )
     if not has_non_default_groups:
-        return _combine_and_term_masks(df.index, terms, mask_for_term)
+        return _combine_and_term_masks(df.index, terms, mask_for_term, should_cancel)
 
     grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
     for term in terms:
         group_idx = term.get("group", FILTER_DEFAULT_GROUP_INDEX)
         grouped_terms.setdefault(int(group_idx), []).append(term)
 
-    return _combine_or_of_and_group_masks(df.index, grouped_terms, mask_for_term)
+    return _combine_or_of_and_group_masks(
+        df.index, grouped_terms, mask_for_term, should_cancel
+    )
 
 
 def _combine_and_term_masks(
     full_index: pd.Index,
     terms: List[Dict[str, Any]],
     mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> pd.Series:
     if full_index.has_duplicates:
-        return _combine_and_term_masks_full_index(full_index, terms, mask_for_term)
+        return _combine_and_term_masks_full_index(
+            full_index, terms, mask_for_term, should_cancel
+        )
 
     active_index = full_index
     for term in terms:
+        _raise_if_search_cancelled(should_cancel)
         if len(active_index) == 0:
             break
         candidate_mask = mask_for_term(term, active_index)
@@ -398,9 +426,11 @@ def _combine_and_term_masks_full_index(
     full_index: pd.Index,
     terms: List[Dict[str, Any]],
     mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> pd.Series:
     final_mask = pd.Series(True, index=full_index)
     for term in terms:
+        _raise_if_search_cancelled(should_cancel)
         term_mask = mask_for_term(term, full_index)
         if not term_mask.index.equals(full_index):
             term_mask = pd.Series(term_mask.to_numpy(dtype=bool), index=full_index)
@@ -417,32 +447,43 @@ def _combine_or_of_and_group_masks(
     full_index: pd.Index,
     grouped_terms: Dict[int, List[Dict[str, Any]]],
     mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> pd.Series:
-    final_mask = pd.Series(False, index=full_index)
+    final_values = np.zeros(len(full_index), dtype=bool)
     for group_terms in grouped_terms.values():
-        candidate_index = final_mask[~final_mask].index
-        if len(candidate_index) == 0:
+        _raise_if_search_cancelled(should_cancel)
+        candidate_positions = (
+            np.arange(len(full_index))
+            if full_index.has_duplicates
+            else np.flatnonzero(~final_values)
+        )
+        if len(candidate_positions) == 0:
             break
-        group_mask = pd.Series(True, index=candidate_index)
+        candidate_index = full_index.take(candidate_positions)
+        group_values = np.ones(len(candidate_positions), dtype=bool)
         positives = [t for t in group_terms if not t.get("negative")]
         negatives = [t for t in group_terms if t.get("negative")]
 
         for term in positives:
-            term_mask = mask_for_term(term, candidate_index).reindex(
-                candidate_index,
-                fill_value=False,
+            _raise_if_search_cancelled(should_cancel)
+            term_values = mask_for_term(term, candidate_index).to_numpy(
+                dtype=bool, copy=False
             )
-            group_mask = group_mask & term_mask
+            if len(term_values) != len(candidate_positions):
+                raise ValueError("Search term mask length does not match candidate rows")
+            group_values &= term_values
 
         for term in negatives:
-            term_mask = mask_for_term(term, candidate_index).reindex(
-                candidate_index,
-                fill_value=False,
+            _raise_if_search_cancelled(should_cancel)
+            term_values = mask_for_term(term, candidate_index).to_numpy(
+                dtype=bool, copy=False
             )
-            group_mask = group_mask & (~term_mask)
+            if len(term_values) != len(candidate_positions):
+                raise ValueError("Search term mask length does not match candidate rows")
+            group_values &= ~term_values
 
-        final_mask.loc[candidate_index] = group_mask
-    return final_mask
+        final_values[candidate_positions] |= group_values
+    return pd.Series(final_values, index=full_index)
 
 
 def _candidate_series(series: pd.Series, candidate_index: pd.Index) -> pd.Series:
@@ -452,19 +493,14 @@ def _candidate_series(series: pd.Series, candidate_index: pd.Index) -> pd.Series
 
 
 def _estimate_normalized_cache_bytes(normalized_columns: dict[str, pd.Series]) -> int:
-    total_bytes = 0
-    for series in normalized_columns.values():
-        row_count = len(series.index)
-        if row_count == 0:
-            continue
-        sample_size = min(row_count, 1024)
-        sample = series.iloc[:sample_size]
-        shallow_bytes = int(series.memory_usage(index=False, deep=False))
-        average_chars = float(sample.str.len().fillna(0).mean())
-        if pd.isna(average_chars):
-            average_chars = 0.0
-        total_bytes += shallow_bytes + int(average_chars * row_count)
-    return total_bytes
+    try:
+        return sum(
+            int(series.memory_usage(index=True, deep=True))
+            for series in normalized_columns.values()
+        )
+    except Exception as exc:
+        logger.warning("Normalized search cache size unavailable; skipping retention: %s", exc)
+        return _NORMALIZED_SEARCH_CACHE_MAX_BYTES + 1
 
 
 def _column_match_mask(
@@ -474,9 +510,11 @@ def _column_match_mask(
     normalized_column_cache: dict[str, pd.Series],
     mode: str,
     lowered_value: str,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> pd.Series:
     column_masks: list[np.ndarray] = []
     for column_name in available_search_cols:
+        _raise_if_search_cancelled(should_cancel)
         column_text = _candidate_series(
             normalized_column_cache[column_name],
             candidate_index,
@@ -492,7 +530,7 @@ def _column_match_mask(
         column_masks.append(column_mask.to_numpy(dtype=bool, copy=False))
     if not column_masks:
         return pd.Series(False, index=candidate_index)
-    return pd.Series(np.logical_or.reduce(column_masks), index=candidate_index)
+    return pd.Series(np.any(column_masks, axis=0), index=candidate_index)
 
 
 def _regex_column_match_mask(
@@ -502,9 +540,11 @@ def _regex_column_match_mask(
     normalized_column_cache: dict[str, pd.Series],
     pattern: str,
     reject_quantifiers: bool = False,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> pd.Series:
     column_masks: list[np.ndarray] = []
     for column_name in available_search_cols:
+        _raise_if_search_cancelled(should_cancel)
         column_text = _candidate_series(
             normalized_column_cache[column_name],
             candidate_index,
@@ -518,7 +558,7 @@ def _regex_column_match_mask(
         column_masks.append(column_mask.to_numpy(dtype=bool, copy=False))
     if not column_masks:
         return pd.Series(False, index=candidate_index)
-    return pd.Series(np.logical_or.reduce(column_masks), index=candidate_index)
+    return pd.Series(np.any(column_masks, axis=0), index=candidate_index)
 
 
 def _mask_for_filter_term(
@@ -527,6 +567,7 @@ def _mask_for_filter_term(
     candidate_index: pd.Index,
     available_search_cols: list[str],
     normalized_column_cache: dict[str, pd.Series],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> pd.Series:
     mode = term.get("mode", "contains")
     value = term.get("value", "") or ""
@@ -543,6 +584,7 @@ def _mask_for_filter_term(
             normalized_column_cache=normalized_column_cache,
             pattern=pattern,
             reject_quantifiers=reject_quantifiers,
+            should_cancel=should_cancel,
         )
 
     if mode in {"prefix", "suffix", "exact"}:
@@ -552,6 +594,7 @@ def _mask_for_filter_term(
             normalized_column_cache=normalized_column_cache,
             mode=mode,
             lowered_value=lowered_value,
+            should_cancel=should_cancel,
         )
     return _column_match_mask(
         candidate_index=candidate_index,
@@ -559,11 +602,16 @@ def _mask_for_filter_term(
         normalized_column_cache=normalized_column_cache,
         mode="contains",
         lowered_value=lowered_value,
+        should_cancel=should_cancel,
     )
 
 
 def filter_dataframe(
-    df: pd.DataFrame, search_terms: Any, search_columns: Optional[list] = None
+    df: pd.DataFrame,
+    search_terms: Any,
+    search_columns: Optional[list] = None,
+    *,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> pd.DataFrame:
     """
     Filtra um DataFrame com base em uma lista de termos de busca (strings) ou
@@ -592,6 +640,7 @@ def filter_dataframe(
         return pd.DataFrame()
     if df.empty:
         return df
+    _raise_if_search_cancelled(should_cancel)
     prepared_inputs = _prepare_filter_dataframe_inputs(df, search_terms, search_columns)
     if prepared_inputs is None:
         return df
@@ -607,7 +656,9 @@ def filter_dataframe(
         if exact_identifier_result is not None:
             return exact_identifier_result
 
-    normalized_column_cache = _build_normalized_column_cache(df, available_search_cols)
+    normalized_column_cache = _build_normalized_column_cache(
+        df, available_search_cols, should_cancel
+    )
 
     logger.debug(
         "Buscando em %s colunas: %s",
@@ -622,11 +673,37 @@ def filter_dataframe(
             candidate_index=candidate_index,
             available_search_cols=available_search_cols,
             normalized_column_cache=normalized_column_cache,
+            should_cancel=should_cancel,
         ),
+        should_cancel=should_cancel,
     )
     if final_mask.any():
         return clear_filter_search_attrs(df[final_mask])
     return clear_filter_search_attrs(df.iloc[0:0])
+
+
+def _run_filter_dataframe_func(
+    filter_dataframe_func: Callable[..., pd.DataFrame],
+    filter_source: pd.DataFrame,
+    terms: list[Dict[str, Any]],
+    *,
+    general_search_columns: list[str] | None,
+    should_cancel: Callable[[], bool] | None,
+) -> pd.DataFrame:
+    if filter_dataframe_func is filter_dataframe:
+        return filter_dataframe(
+            filter_source,
+            terms,
+            search_columns=general_search_columns,
+            should_cancel=should_cancel,
+        )
+    if general_search_columns is None:
+        return filter_dataframe_func(filter_source, terms)
+    return filter_dataframe_func(
+        filter_source,
+        terms,
+        search_columns=general_search_columns,
+    )
 
 
 def apply_general_search_terms(
@@ -648,14 +725,13 @@ def apply_general_search_terms(
         parsed = parse_terms_func(unique_chunk_terms_lists[0], default_mode)
         if should_cancel is not None and should_cancel():
             raise GeneralSearchCancelled
-        if general_search_columns is None:
-            result = filter_dataframe_func(filter_source, parsed)
-        else:
-            result = filter_dataframe_func(
-                filter_source,
-                parsed,
-                search_columns=general_search_columns,
-            )
+        result = _run_filter_dataframe_func(
+            filter_dataframe_func,
+            filter_source,
+            parsed,
+            general_search_columns=general_search_columns,
+            should_cancel=should_cancel,
+        )
         return clear_filter_search_attrs(result.copy(deep=False))
 
     grouped_terms: list[Dict[str, Any]] = []
@@ -670,12 +746,11 @@ def apply_general_search_terms(
         raise GeneralSearchCancelled
     if not grouped_terms:
         return clear_filter_search_attrs(filter_source.copy(deep=False))
-    if general_search_columns is None:
-        result = filter_dataframe_func(filter_source, grouped_terms)
-    else:
-        result = filter_dataframe_func(
-            filter_source,
-            grouped_terms,
-            search_columns=general_search_columns,
-        )
+    result = _run_filter_dataframe_func(
+        filter_dataframe_func,
+        filter_source,
+        grouped_terms,
+        general_search_columns=general_search_columns,
+        should_cancel=should_cancel,
+    )
     return clear_filter_search_attrs(result.copy(deep=False))

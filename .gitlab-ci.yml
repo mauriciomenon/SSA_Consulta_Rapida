@@ -1,0 +1,200 @@
+stages:
+  - verify
+  - security
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^fix\//'
+
+variables:
+  QT_QPA_PLATFORM: "offscreen"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+
+default:
+  image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim@sha256:531f855bda2c73cd6ef67d56b733b357cea384185b3022bd09f05e002cd144ca
+  interruptible: true
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .uv-cache/
+
+.python_setup:
+  before_script:
+    - apt-get update
+    - >-
+      apt-get install --yes --no-install-recommends
+      git jq libdbus-1-3 libegl1 libfontconfig1 libgl1 libglib2.0-0 libopengl0
+      libxkbcommon-x11-0 libxcb-cursor0
+    - uv sync --frozen --extra dev
+    - export PATH="$CI_PROJECT_DIR/.venv/bin:$PATH"
+
+autoria-git:
+  stage: verify
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    - apt-get update
+    - apt-get install --yes --no-install-recommends git
+  cache: []
+  script:
+    - |
+      set -eu
+      BASE_SHA="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-${CI_COMMIT_BEFORE_SHA:-0000000000000000000000000000000000000000}}"
+      HEAD_SHA="${CI_MERGE_REQUEST_SOURCE_BRANCH_SHA:-$CI_COMMIT_SHA}"
+      if [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ] && ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+        git fetch --no-tags origin "$BASE_SHA"
+      fi
+      if [ "${CI_PIPELINE_SOURCE:-}" = "merge_request_event" ]; then
+        VALIDATOR_PATH="scripts/validate_git_authorship.py"
+        VALIDATOR_SOURCE_SHA="$BASE_SHA"
+        VALIDATOR_ENTRY="$(git ls-tree "$BASE_SHA" -- "$VALIDATOR_PATH")"
+        if [ -z "$VALIDATOR_ENTRY" ]; then
+          BOOTSTRAP_SHA="cd0b092e5acdf15b85d3c816ad04dbc1b3c4e3c8"
+          VALIDATOR_SOURCE_SHA="$BOOTSTRAP_SHA"
+          echo "[autoria-git] Bootstrap explicito: base $BASE_SHA sem $VALIDATOR_PATH; fonte $BOOTSTRAP_SHA."
+          if ! git cat-file -e "${BOOTSTRAP_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$BOOTSTRAP_SHA"
+          fi
+        fi
+        VALIDATOR_FILE="$(mktemp)"
+        trap 'rm -f "$VALIDATOR_FILE"' EXIT
+        git show "${VALIDATOR_SOURCE_SHA}:${VALIDATOR_PATH}" > "$VALIDATOR_FILE"
+        python3 "$VALIDATOR_FILE" range "$BASE_SHA" "$HEAD_SHA"
+      else
+        uv run --no-project --no-sync python scripts/validate_git_authorship.py range "$BASE_SHA" "$HEAD_SHA"
+      fi
+
+quality-gates:
+  stage: verify
+  extends: .python_setup
+  script:
+    - PYTHON="$CI_PROJECT_DIR/.venv/bin/python" bash scripts/ci_quality_gates.sh
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - quality_gates_output.jsonl
+
+pytest-full:
+  stage: verify
+  extends: .python_setup
+  timeout: 40 minutes
+  variables:
+    PYTEST_ADDOPTS: "--timeout=45 --timeout-method=thread --durations=20 --junitxml=pytest-results.xml"
+  script:
+    - bash scripts/run_tests.sh full
+  artifacts:
+    when: always
+    expire_in: 14 days
+    reports:
+      junit: pytest-results.xml
+
+dependency-audit:
+  stage: security
+  timeout: 10 minutes
+  before_script: []
+  cache: []
+  script:
+    - >-
+      uv export --frozen --all-extras --all-groups --no-hashes --no-emit-project
+      --output-file dependency-audit-requirements.txt > /dev/null
+    - >-
+      uv tool run --isolated --from pip-audit==2.10.1 pip-audit
+      --disable-pip --no-deps --strict --progress-spinner off --timeout 30
+      --requirement dependency-audit-requirements.txt
+      --format json --output dependency-audit.json
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - dependency-audit-requirements.txt
+      - dependency-audit.json
+
+secret-scan:
+  stage: security
+  variables:
+    GIT_DEPTH: "0"
+  image:
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+    entrypoint: [""]
+  before_script: []
+  cache: []
+  script:
+    - |
+      set -eu
+      ZERO_SHA=0000000000000000000000000000000000000000
+      HEAD_SHA="${CI_COMMIT_SHA:?Commit do evento ausente}"
+      case "${CI_PIPELINE_SOURCE:-}" in
+        merge_request_event)
+          BASE_SHA="${CI_MERGE_REQUEST_DIFF_BASE_SHA:?Base do MR ausente}"
+          HEAD_SHA="${CI_MERGE_REQUEST_SOURCE_BRANCH_SHA:-$HEAD_SHA}"
+          ;;
+        push) BASE_SHA="${CI_COMMIT_BEFORE_SHA:?Base do push ausente}" ;;
+        *) BASE_SHA="$ZERO_SHA" ;;
+      esac
+      for EVENT_SHA in "$BASE_SHA" "$HEAD_SHA"; do
+        if [ "${#EVENT_SHA}" -ne 40 ] || ! printf '%s\n' "$EVENT_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'; then
+          echo "ERRO: SHA invalido no evento." >&2
+          exit 1
+        fi
+      done
+      git cat-file -e "${HEAD_SHA}^{commit}"
+      if [ "$BASE_SHA" = "$ZERO_SHA" ]; then
+        LOG_OPTS="-1 $HEAD_SHA"
+      else
+        if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+          git fetch --no-tags origin "$BASE_SHA"
+        fi
+        git cat-file -e "${BASE_SHA}^{commit}"
+        LOG_OPTS="$BASE_SHA..$HEAD_SHA"
+      fi
+      BOOTSTRAP_SHA="cd0b092e5acdf15b85d3c816ad04dbc1b3c4e3c8"
+      POLICY_SHA="$BASE_SHA"
+      if [ "$POLICY_SHA" = "$ZERO_SHA" ]; then
+        POLICY_SHA="$BOOTSTRAP_SHA"
+      fi
+      if ! git cat-file -e "${POLICY_SHA}^{commit}" 2>/dev/null; then
+        git fetch --no-tags origin "$POLICY_SHA"
+      fi
+      CONFIG_SHA="$POLICY_SHA"
+      CONFIG_ENTRY="$(git ls-tree "$POLICY_SHA" -- .gitleaks.toml)"
+      if [ -z "$CONFIG_ENTRY" ]; then
+        CONFIG_SHA="$BOOTSTRAP_SHA"
+        echo "Base sem .gitleaks.toml; bootstrap fixo: $CONFIG_SHA"
+        if ! git cat-file -e "${CONFIG_SHA}^{commit}" 2>/dev/null; then
+          git fetch --no-tags origin "$CONFIG_SHA"
+        fi
+      fi
+      TRUSTED_DIR="$(mktemp -d)"
+      CHECKOUT_IGNORE=""
+      trap 'if [ -n "$CHECKOUT_IGNORE" ]; then mv "$CHECKOUT_IGNORE" .gitleaksignore; fi; rm -rf "$TRUSTED_DIR"' EXIT
+      git show "$CONFIG_SHA:.gitleaks.toml" > "$TRUSTED_DIR/.gitleaks.toml"
+      IGNORE_ENTRY="$(git ls-tree "$POLICY_SHA" -- .gitleaksignore)"
+      if [ -n "$IGNORE_ENTRY" ]; then
+        git show "$POLICY_SHA:.gitleaksignore" > "$TRUSTED_DIR/.gitleaksignore"
+      else
+        : > "$TRUSTED_DIR/.gitleaksignore"
+      fi
+      # Gitleaks8.30.1 soma o ignore do diretorio mesmo com caminho explicito.
+      if [ -f .gitleaksignore ] || [ -L .gitleaksignore ]; then
+        CANDIDATE_IGNORE="$(mktemp ./gitleaks-checkout-ignore.XXXXXX)"
+        if ! mv .gitleaksignore "$CANDIDATE_IGNORE"; then
+          rm -f "$CANDIDATE_IGNORE"
+          exit 1
+        fi
+        CHECKOUT_IGNORE="$CANDIDATE_IGNORE"
+      fi
+      echo "Politica: config=$CONFIG_SHA; ignore=$POLICY_SHA"
+      # A integridade deste YAML ainda depende da revisao da pipeline.
+      echo "Escopo do historico: $LOG_OPTS"
+      SCAN_STATUS=0
+      gitleaks dir . --config "$TRUSTED_DIR/.gitleaks.toml" --gitleaks-ignore-path "$TRUSTED_DIR/.gitleaksignore" --redact --exit-code 1 --no-banner || SCAN_STATUS=$?
+      gitleaks git . --log-opts="$LOG_OPTS" --config "$TRUSTED_DIR/.gitleaks.toml" --gitleaks-ignore-path "$TRUSTED_DIR/.gitleaksignore" --redact --exit-code 1 --no-banner || SCAN_STATUS=$?
+      exit "$SCAN_STATUS"

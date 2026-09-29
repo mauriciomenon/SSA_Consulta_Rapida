@@ -6,10 +6,10 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
 
 import pandas as pd
 
+from gui.ssa.column_filter_engine import _trim_cache_dict
 from utils.robust_logging import get_robust_logger
 
 from .filter_domain_rules import (
@@ -25,6 +25,7 @@ from .gui_filters_responsavel_state import responsavel_materialization_state
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 RESPONSAVEL_CACHE_MAX_ENTRIES = 8
+RESPONSAVEL_CACHE_MAX_BYTES = 8 * 1024 * 1024
 RESPONSAVEL_WIDGET_BINDINGS = {
     "adv_responsavel_solicitante": (
         "adv_responsavel_solicitante_box",
@@ -254,14 +255,12 @@ class ResponsavelRefreshCache:
         return ("frame_token", self.frame_token(source_df), len(source_df))
 
     def frame_token(self, source_df: pd.DataFrame) -> str:
-        frame_id = id(source_df)
-        token = self.frame_tokens.get(frame_id)
-        if token is None:
-            token = uuid4().hex
-            self.frame_tokens[frame_id] = token
-            self.frame_tokens.move_to_end(frame_id)
-            _trim_ordered_cache(self.frame_tokens)
-        return token
+        return repr(
+            generate_responsavel_sector_filter_cache_signature(
+                source_df,
+                data_load_token=None,
+            )
+        )
 
     def option_values(
         self,
@@ -497,11 +496,17 @@ def _responsavel_refresh_specs():
 
 
 def _summary_callback(window, button, checks_attr: str, exclude_checks_attr: str):
-    return lambda *_: window._update_multiselect_button(
-        button,
-        getattr(window, checks_attr, []),
-        exclude_checks=getattr(window, exclude_checks_attr, []),
-    )
+    def callback(*_):
+        window._update_multiselect_button(
+            button,
+            getattr(window, checks_attr, []),
+            exclude_checks=getattr(window, exclude_checks_attr, []),
+        )
+        apply_filters = getattr(window, "_apply_advanced_filters_from_ui", None)
+        if callable(apply_filters):
+            apply_filters()
+
+    return callback
 
 
 def _set_enabled(widget, enabled: bool) -> None:
@@ -537,8 +542,10 @@ def _set_updates_enabled(widget, enabled: bool) -> bool | None:
 
 
 def _trim_ordered_cache(cache: OrderedDict[Any, Any]) -> None:
-    while len(cache) > RESPONSAVEL_CACHE_MAX_ENTRIES:
-        cache.popitem(last=False)
+    _trim_cache_dict(
+        cache, RESPONSAVEL_CACHE_MAX_ENTRIES,
+        max_bytes=RESPONSAVEL_CACHE_MAX_BYTES // 3,
+    )
 
 
 def responsavel_options_refresher(window) -> ResponsavelOptionsRefresher:

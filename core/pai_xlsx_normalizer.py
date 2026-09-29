@@ -15,6 +15,7 @@ from zipfile import BadZipFile
 import pandas as pd
 from core.pai_xlsx_summary import PaiXlsxSummary
 from core.pai_xlsx_summary import summarize_normalized_pai_frame
+from extracao.extractor import ExtractionError, open_validated_excel_source
 
 PAI_TO_SSA_COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
     "numero_ssa": ("ssa_number", "numero_ssa"),
@@ -81,8 +82,9 @@ def normalize_pai_xlsx_for_ssa_import(
     target_xlsx = Path(target_xlsx)
     _validate_source_excel_path(source_xlsx)
     try:
-        frame = pd.read_excel(source_xlsx)
-    except (OSError, ValueError, BadZipFile) as exc:
+        with open_validated_excel_source(source_xlsx) as source_stream:
+            frame = pd.read_excel(source_stream)
+    except (ExtractionError, OSError, ValueError, BadZipFile) as exc:
         raise ValueError(f"Falha ao ler XLSX SAM API '{source_xlsx}': {exc}") from exc
     normalized = build_normalized_pai_dataframe(frame)
     _add_pai_origin_metadata(normalized, source_xlsx)

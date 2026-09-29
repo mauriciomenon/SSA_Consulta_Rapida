@@ -5,11 +5,16 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  workflow_dispatch:
 
 permissions:
   contents: read
   actions: read
   pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality-gates:
@@ -39,6 +44,50 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Validar autoria Git
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+            HEAD_SHA="$PR_HEAD_SHA"
+          else
+            BASE_SHA="${BEFORE_SHA:-0000000000000000000000000000000000000000}"
+          fi
+          for REVISION in "$BASE_SHA" "$HEAD_SHA"; do
+            if [[ ! "$REVISION" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+              echo "[autoria-git] SHA invalido no evento." >&2
+              exit 1
+            fi
+          done
+          if [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ] && ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$BASE_SHA"
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            VALIDATOR_PATH="scripts/validate_git_authorship.py"
+            VALIDATOR_SOURCE_SHA="$BASE_SHA"
+            VALIDATOR_ENTRY="$(git ls-tree "$BASE_SHA" -- "$VALIDATOR_PATH")"
+            if [ -z "$VALIDATOR_ENTRY" ]; then
+              BOOTSTRAP_SHA="cd0b092e5acdf15b85d3c816ad04dbc1b3c4e3c8"
+              VALIDATOR_SOURCE_SHA="$BOOTSTRAP_SHA"
+              echo "[autoria-git] Bootstrap explicito: base $BASE_SHA sem $VALIDATOR_PATH; fonte $BOOTSTRAP_SHA."
+              if ! git cat-file -e "${BOOTSTRAP_SHA}^{commit}" 2>/dev/null; then
+                git fetch --no-tags origin "$BOOTSTRAP_SHA"
+              fi
+            fi
+            VALIDATOR_FILE="$(mktemp)"
+            trap 'rm -f "$VALIDATOR_FILE"' EXIT
+            git show "${VALIDATOR_SOURCE_SHA}:${VALIDATOR_PATH}" > "$VALIDATOR_FILE"
+            python3 "$VALIDATOR_FILE" range "$BASE_SHA" "$HEAD_SHA"
+          else
+            python3 scripts/validate_git_authorship.py range "$BASE_SHA" "$HEAD_SHA"
+          fi
 
       - name: Detect quality gate scope
         id: changed-scope
@@ -109,7 +158,7 @@ jobs:
         if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
-          uv sync --extra dev
+          uv sync --frozen --extra dev
 
       - name: Py compile changed Python paths
         if: steps.changed-scope.outputs.run_python == 'true'
@@ -168,17 +217,24 @@ jobs:
               for file_path in Path("tests").iterdir()
               if file_path.is_file()
               and (file_path.name.startswith("test_") or file_path.name.endswith("_test.py"))
+              and file_path.name not in {"gui_poc_smoke_test.py", "main_test.py"}
           )
 
-          def bucket(file_name: str) -> str:
+          def bucket(file_path: Path) -> str:
+              file_name = file_path.name
               if file_name == "test_gui_filter_logic.py":
                   return "gui-filter"
-              if file_name.startswith("test_gui_") or file_name in {
-                  "test_filter_gui_signal_connect.py",
-                  "test_main_gui_fallback.py",
-                  "test_mixin_integration.py",
-                  "test_rescan_progress_dialog.py",
-              }:
+              if (
+                  file_name.startswith("test_gui_")
+                  or file_name.endswith("_qt.py")
+                  or "PyQt6" in file_path.read_text(encoding="utf-8", errors="ignore")
+                  or file_name in {
+                      "test_filter_gui_signal_connect.py",
+                      "test_main_gui_fallback.py",
+                      "test_mixin_integration.py",
+                      "test_rescan_progress_dialog.py",
+                  }
+              ):
                   return "gui-other"
               if file_name.startswith(
                   (
@@ -214,7 +270,7 @@ jobs:
                   return "cli-release"
               return "core"
 
-          targets = [str(file_path) for file_path in test_files if bucket(file_path.name) == group]
+          targets = [str(file_path) for file_path in test_files if bucket(file_path) == group]
           if not targets:
               raise SystemExit(f"No pytest targets selected for {group}")
           Path(".pytest_targets").write_text("\n".join(targets) + "\n", encoding="utf-8")

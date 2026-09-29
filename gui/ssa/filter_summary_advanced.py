@@ -22,6 +22,7 @@ ADVANCED_VALUE_LABELS = {
     "situacao": "Situacao",
     "prio_emissao": "Prio Emissao",
     "prio_planejamento": "Prio Planejamento",
+    "reprogramacoes": "Reprogramacoes",
     "solicitante": "Solicitante",
     "resp_programacao": "Resp Programacao",
     "resp_execucao": "Resp Execucao",
@@ -48,6 +49,12 @@ ADVANCED_VALUE_SPECS: tuple[AdvancedValueSpec, ...] = (
         "prioridade_planejamento_values",
         None,
         ["prioridade_planejamento_values"],
+    ),
+    (
+        "reprogramacoes",
+        "num_reprogramacoes_values",
+        None,
+        ["num_reprogramacoes_values"],
     ),
     (
         "prio_planejamento",

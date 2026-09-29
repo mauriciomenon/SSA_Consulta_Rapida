@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import logging
 import os
 import subprocess
 import sys
@@ -8,6 +9,18 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _restore_root_logging():
+    root = logging.getLogger()
+    level, handlers = root.level, root.handlers[:]
+    yield
+    for handler in root.handlers[:]:
+        if handler not in handlers:
+            root.removeHandler(handler)
+            handler.close()
+    root.setLevel(level)
 
 
 def test_gui_ssa_window_instantiates_when_pyqt_is_available() -> None:
@@ -84,6 +97,8 @@ def _launcher_test_deps(show_calls: dict[str, int], exec_calls: dict[str, int]) 
 def test_main_gui_importerror_falls_back_to_cli(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import sys
+
     import interface.cli as cli
     import main
 
@@ -92,12 +107,45 @@ def test_main_gui_importerror_falls_back_to_cli(
     def fake_start_cli_loop(db_path: str, table_name: str) -> None:  # noqa: ARG001
         calls["cli"] += 1
 
+    class _TtyStdin:
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(sys, "stdin", _TtyStdin())
     monkeypatch.setattr(cli, "start_cli_loop", fake_start_cli_loop)
     _patch_gui_import_failure(monkeypatch, ImportError("simulated missing gui module"))
 
     main.main(cli_args=["--skip-import", "--gui", "--log-level", "CRITICAL"])
 
     assert calls["cli"] == 1
+
+
+def test_main_gui_importerror_exits_when_stdin_is_not_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+
+    import interface.cli as cli
+    import main
+
+    calls = {"cli": 0}
+
+    def fake_start_cli_loop(db_path: str, table_name: str) -> None:  # noqa: ARG001
+        calls["cli"] += 1
+
+    class _NonTtyStdin:
+        def isatty(self) -> bool:
+            return False
+
+    monkeypatch.setattr(sys, "stdin", _NonTtyStdin())
+    monkeypatch.setattr(cli, "start_cli_loop", fake_start_cli_loop)
+    _patch_gui_import_failure(monkeypatch, ImportError("simulated missing gui module"))
+
+    with pytest.raises(SystemExit) as excinfo:
+        main.main(cli_args=["--skip-import", "--gui", "--log-level", "CRITICAL"])
+
+    assert excinfo.value.code == 1
+    assert calls["cli"] == 0
 
 
 def test_main_gui_unexpected_import_error_exits_with_failure(
@@ -211,6 +259,93 @@ def test_launch_gui_shows_window_when_startup_load_is_not_pending(
 
     assert show_calls["count"] == 1
     assert exec_calls["count"] == 1
+
+
+def test_gui_slot_exception_is_logged_without_aborting_process() -> None:
+    pytest.importorskip("PyQt6")
+    code = """
+import logging
+import sys
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication, QMessageBox
+from gui.launcher import _gui_exception_hook
+
+app = QApplication([])
+logger = logging.getLogger('gui-slot-probe')
+logger.addHandler(logging.StreamHandler(sys.stderr))
+logger.setLevel(logging.ERROR)
+QMessageBox.critical = staticmethod(lambda *_args: print('dialog-shown'))
+sys.excepthook = lambda kind, error, trace: _gui_exception_hook(logger, kind, error, trace)
+
+def fail_slot():
+    raise RuntimeError('probe failure')
+
+QTimer.singleShot(0, fail_slot)
+QTimer.singleShot(50, app.quit)
+app.exec()
+print('event-loop-returned')
+"""
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    env["PYTHONPATH"] = repo_root
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Excecao nao tratada em callback da GUI" in result.stderr
+    assert "RuntimeError: probe failure" in result.stderr
+    assert "dialog-shown" in result.stdout
+    assert "event-loop-returned" in result.stdout
+
+
+def test_gui_exception_hook_does_not_open_dialog_from_worker_thread() -> None:
+    pytest.importorskip("PyQt6")
+    code = """
+import logging
+import sys
+from threading import Thread
+from PyQt6.QtWidgets import QApplication, QMessageBox
+from gui.launcher import _gui_exception_hook
+
+app = QApplication([])
+logger = logging.getLogger('gui-worker-probe')
+logger.addHandler(logging.StreamHandler(sys.stderr))
+logger.setLevel(logging.ERROR)
+QMessageBox.critical = staticmethod(lambda *_args: print('dialog-shown'))
+
+def fail_worker():
+    try:
+        raise RuntimeError('worker failure')
+    except RuntimeError as error:
+        _gui_exception_hook(logger, type(error), error, error.__traceback__)
+
+worker = Thread(target=fail_worker)
+worker.start()
+worker.join()
+print('worker-returned')
+"""
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    env["PYTHONPATH"] = repo_root
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "RuntimeError: worker failure" in result.stderr
+    assert "dialog-shown" not in result.stdout
+    assert "worker-returned" in result.stdout
 
 
 def test_should_filter_macos_stderr_line_matches_known_noise() -> None:

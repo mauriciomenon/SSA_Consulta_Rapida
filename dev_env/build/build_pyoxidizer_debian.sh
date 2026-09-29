@@ -16,6 +16,10 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
+ssa_native_guard_repo "$REPO_ROOT" || exit 1
+ssa_native_guard_tools uv rm mkdir || exit 1
 LOG_DIR="${REPO_ROOT}/launchers/logs"
 LOG_FILE="${LOG_DIR}/build_pyoxidizer_debian_amd64.log"
 TARGET_BUILD_DIR="${REPO_ROOT}/builds/pyoxidizer/debian_amd64"

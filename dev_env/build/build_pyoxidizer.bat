@@ -166,6 +166,12 @@ for %%D in (core gui armazenamento extracao utils interface exportacao shared co
         )
     )
 )
+if not exist "%STAGE_DIR%\launchers" mkdir "%STAGE_DIR%\launchers"
+copy /Y "%REPO_ROOT%\launchers\main_runtime.py" "%STAGE_DIR%\launchers\main_runtime.py" >nul
+if errorlevel 1 (
+    echo Erro ao copiar launchers\main_runtime.py para staging.
+    exit /b 1
+)
 if not exist "%STAGE_DIR%\docs" mkdir "%STAGE_DIR%\docs"
 copy /Y "%REPO_ROOT%\docs\GUIA_MIGRACAO_NOVA_INSTALACAO.md" "%STAGE_DIR%\docs\GUIA_MIGRACAO_NOVA_INSTALACAO.md" >nul
 if errorlevel 1 (

@@ -1,5 +1,7 @@
 import os
+import logging
 from datetime import datetime
+from typing import cast
 
 from utils.file_metadata import (
     choose_latest,
@@ -25,6 +27,14 @@ def test_parse_datetime_from_filename_alt_format():
     assert (dt.year, dt.month, dt.day, dt.hour, dt.minute) == (2025, 7, 14, 15, 43)
 
 
+def test_parse_datetime_from_filename_logs_invalid_date(caplog):
+    with caplog.at_level(logging.DEBUG):
+        dt = parse_datetime_from_filename("Relatorio_2025-99-99 99.99.xlsx")
+
+    assert dt is None
+    assert "Falha ao interpretar data no nome" in caplog.text
+
+
 def test_choose_latest_prefers_name_over_mtime(tmp_path):
     f1 = tmp_path / "Consulta SSA - 14-07-2025_0343PM.xlsx"
     f1.write_text("a")
@@ -35,6 +45,14 @@ def test_choose_latest_prefers_name_over_mtime(tmp_path):
     chosen = choose_latest([str(f1), str(f2)])
     assert chosen is not None
     assert os.path.basename(chosen).startswith("Consulta SSA - 14-07-2025")
+
+
+def test_choose_latest_logs_and_ignores_invalid_candidate(caplog):
+    with caplog.at_level(logging.DEBUG):
+        chosen = choose_latest([cast(str, None)])
+
+    assert chosen is None
+    assert "Ignorando candidato de arquivo invalido" in caplog.text
 
 
 def test_extract_datetime_from_filename_variants():

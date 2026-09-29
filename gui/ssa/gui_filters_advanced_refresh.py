@@ -8,8 +8,13 @@ from typing import Any, Callable
 
 import pandas as pd
 from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
+from core.cache_manager import CacheManager
+from utils.robust_logging import get_robust_logger
 
-from .filter_domain_rules import collect_nonempty_column_values
+from .filter_domain_rules import normalize_nonempty_string_series
+from .gui_filters_advanced_state import ADV_FILTER_CACHE_ATTRS, ADV_FILTER_CACHE_MAX_BYTES
+
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 @dataclass(frozen=True)
@@ -32,15 +37,19 @@ class AdvancedFilterUIState:
 
 def build_advanced_values_cache_key(
     df: pd.DataFrame, data_load_token: Any
-) -> tuple[int, tuple[str, ...], Any]:
-    return (len(df), tuple(str(column) for column in df.columns), data_load_token)
+) -> tuple[int, int, tuple[str, ...], Any]:
+    return (id(df), len(df), tuple(str(column) for column in df.columns), data_load_token)
 
 
 def _unique_sorted(df: pd.DataFrame, column: str) -> list[str]:
-    if column not in df.columns:
+    if not isinstance(df, pd.DataFrame) or df.empty or column not in df.columns:
         return []
-    vals = collect_nonempty_column_values(df, column)
-    return sorted(set(vals), key=lambda value: value.casefold())
+    series = normalize_nonempty_string_series(df[column])
+    normalized = series[series != ""]
+    if normalized.empty:
+        return []
+    unique_vals = pd.unique(normalized)
+    return sorted((str(value) for value in unique_vals), key=lambda value: value.casefold())
 
 
 def _sort_sector_values(
@@ -84,17 +93,21 @@ def collect_advanced_filter_option_values(
     df: pd.DataFrame,
     *,
     sort_sectors: Callable[[list[str]], list[str]],
+    cancelled: Callable[[], bool] | None = None,
 ) -> AdvancedFilterOptionValues:
+    _raise_if_cancelled(cancelled)
     emissao_years: list[int] = []
     if "data_cadastro" in df.columns:
         emissao_years = collect_years_from_dates(df["data_cadastro"])
     elif "semana_cadastro" in df.columns:
         emissao_years = collect_years_from_weeks(df["semana_cadastro"])
 
+    _raise_if_cancelled(cancelled)
     execucao_years: list[int] = []
     if "semana_executada" in df.columns:
         execucao_years = collect_years_from_weeks(df["semana_executada"])
 
+    _raise_if_cancelled(cancelled)
     reprog_vals: list[int] = []
     if "num_reprogramacoes" in df.columns:
         try:
@@ -105,16 +118,32 @@ def collect_advanced_filter_option_values(
         except Exception:
             reprog_vals = []
 
+    _raise_if_cancelled(cancelled)
+    exec_vals = _sort_sector_values(_unique_sorted(df, "setor_executor"), sort_sectors)
+    _raise_if_cancelled(cancelled)
+    emis_vals = _sort_sector_values(_unique_sorted(df, "setor_emissor"), sort_sectors)
+    _raise_if_cancelled(cancelled)
+    status_vals = _unique_sorted(df, "situacao")
+    _raise_if_cancelled(cancelled)
+    prio_emissao_vals = _unique_sorted(df, "grau_prioridade_emissao")
+    _raise_if_cancelled(cancelled)
+    prio_planejamento_vals = _unique_sorted(df, "grau_prioridade_planejamento")
+    _raise_if_cancelled(cancelled)
     return AdvancedFilterOptionValues(
-        exec_vals=_sort_sector_values(_unique_sorted(df, "setor_executor"), sort_sectors),
-        emis_vals=_sort_sector_values(_unique_sorted(df, "setor_emissor"), sort_sectors),
-        status_vals=_unique_sorted(df, "situacao"),
+        exec_vals=exec_vals,
+        emis_vals=emis_vals,
+        status_vals=status_vals,
         emissao_years=emissao_years,
         execucao_years=execucao_years,
-        prio_emissao_vals=_unique_sorted(df, "grau_prioridade_emissao"),
-        prio_planejamento_vals=_unique_sorted(df, "grau_prioridade_planejamento"),
+        prio_emissao_vals=prio_emissao_vals,
+        prio_planejamento_vals=prio_planejamento_vals,
         reprog_vals=reprog_vals,
     )
+
+
+def _raise_if_cancelled(cancelled: Callable[[], bool] | None) -> None:
+    if cancelled is not None and cancelled():
+        raise InterruptedError("Calculo das opcoes avancadas cancelado")
 
 
 def get_cached_advanced_filter_option_values(
@@ -123,14 +152,20 @@ def get_cached_advanced_filter_option_values(
     *,
     data_load_token: Any,
     sort_sectors: Callable[[list[str]], list[str]],
+    force_refresh: bool = False,
+    cancelled: Callable[[], bool] | None = None,
 ) -> AdvancedFilterOptionValues:
+    _raise_if_cancelled(cancelled)
     df_key = build_advanced_values_cache_key(df, data_load_token)
     cached_values = cache.get("values")
-    if cache.get("df_key") == df_key and isinstance(
+    if not force_refresh and cache.get("df_key") == df_key and isinstance(
         cached_values, AdvancedFilterOptionValues
     ):
         return cached_values
-    values = collect_advanced_filter_option_values(df, sort_sectors=sort_sectors)
+    values = collect_advanced_filter_option_values(
+        df, sort_sectors=sort_sectors, cancelled=cancelled
+    )
+    _raise_if_cancelled(cancelled)
     cache.clear()
     cache["df_id"] = id(df)
     cache["df_key"] = df_key
@@ -143,4 +178,12 @@ def get_cached_advanced_filter_option_values(
     cache["prio_emissao_vals"] = values.prio_emissao_vals
     cache["prio_planejamento_vals"] = values.prio_planejamento_vals
     cache["reprog_vals"] = values.reprog_vals
+    try:
+        payload_bytes = CacheManager._estimate_cache_items_memory([("options", cache)])
+        if payload_bytes > ADV_FILTER_CACHE_MAX_BYTES // len(ADV_FILTER_CACHE_ATTRS):
+            cache.clear()
+    except Exception as exc:
+        cache.clear()
+        logger.warning("Advanced options cache size unavailable; payload not retained: %s", exc)
+    _raise_if_cancelled(cancelled)
     return values

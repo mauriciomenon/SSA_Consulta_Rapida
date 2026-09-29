@@ -39,6 +39,11 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         "--version", action="store_true", help="Exibe versao curta e encerra"
     )
     parser.add_argument(
+        "--runtime-home",
+        action="store_true",
+        help="Usa a pasta de dados do usuario no executavel empacotado",
+    )
+    parser.add_argument(
         "--force-rescan",
         "--rescan",
         dest="force_rescan",
@@ -159,13 +164,13 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     parser.add_argument(
         "--clean-data",
         action="store_true",
-        help="""Limpa e sanitiza a pasta data (remove backups antigos).
+        help="""Limpa backups e temporarios na pasta do banco de dados.
 
         LIMPEZA REALIZADA:
-         Remove backups mais antigos que 30 dias
-         Organiza arquivos de log antigos
-         Verifica integridade dos arquivos restantes
-         Exibe relatorio de espaco liberado
+         Remove backups elegiveis com mais de 7 dias
+         Remove temporarios elegiveis e organiza backups soltos
+         Com SSA_DB_PATH, limita a limpeza a artefatos do banco escolhido
+         Informa o espaco liberado pelos backups removidos
 
         Exemplo: python main.py --clean-data""",
     )
@@ -184,4 +189,3 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         "  python main.py --acao backfill -- --dir docs_entrada --dry-run --smart-upsert\n",
     )
     return parser
-

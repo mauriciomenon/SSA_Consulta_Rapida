@@ -33,7 +33,9 @@ _ORIGIN_DETAIL_FIELD_FINAL_BLOCK_ORDER = {
 class DetailsHtmlDependencies:
     collect_highlight_terms: Callable[[Any], list[str]]
     get_window_ssa_series_index: Callable[[Any], Mapping[str, Any]]
-    get_derivadas_for_ssa: Callable[[Any, Any], list[str]]
+    get_direct_relations_for_ssa: Callable[
+        [Any, Any], tuple[list[str], list[dict[str, str]]]
+    ]
     get_related_ssas_for_series: Callable[..., list[dict[str, Any]]]
     hydrate_ssa_index_candidates: Callable[..., None]
     get_series_for_ssa: Callable[[Any, str], Any]
@@ -193,55 +195,65 @@ def _render_derivadas_row(
     label_font_size_pt: float,
 ) -> None:
     try:
-        derived_list = deps.get_derivadas_for_ssa(window, series.get("numero_ssa"))
+        derived_list, other_relations = deps.get_direct_relations_for_ssa(
+            window, series.get("numero_ssa")
+        )
     except Exception as exc:
-        logger.debug("Falha ao coletar lista de derivadas para detalhes HTML: %s", exc)
+        logger.warning("Falha ao coletar relacoes diretas para detalhes HTML: %s", exc)
         derived_list = []
-    if not derived_list:
+        other_relations = []
+    if not derived_list and not other_relations:
         return
 
-    if linkify:
-        items = []
-        derived_exists_cache: dict[str, bool] = {}
-        if isinstance(ssa_index, dict) and ssa_index:
-            deps.hydrate_ssa_index_candidates(
-                window, cast(dict[str, Any], ssa_index), derived_list
-            )
-        for item in derived_list:
-            href = deps.normalize_ssa_value(window, item)
-            exists = False
-            if href:
-                cached_exists = derived_exists_cache.get(href)
-                if cached_exists is None:
-                    resolved_series = ssa_index.get(href)
-                    if resolved_series is None and allow_global_index:
-                        resolved_series = deps.get_series_for_ssa(window, href)
-                    cached_exists = resolved_series is not None
-                    derived_exists_cache[href] = cached_exists
-                exists = cached_exists
-            items.append(
-                deps.render_ssa_navigation_link(
+    groups = (
+        ("SSAs derivadas diretas", [(ssa, "") for ssa in derived_list]),
+        (
+            "Outras relacoes diretas",
+            [(item["ssa"], item.get("relacao", "")) for item in other_relations],
+        ),
+    )
+    if linkify and isinstance(ssa_index, dict) and ssa_index:
+        deps.hydrate_ssa_index_candidates(
+            window,
+            cast(dict[str, Any], ssa_index),
+            [ssa for _, items in groups for ssa, _ in items],
+        )
+    exists_cache: dict[str, bool] = {}
+    for label, relations in groups:
+        if not relations:
+            continue
+        rendered: list[str] = []
+        for item, relation_label in relations:
+            if linkify:
+                href = deps.normalize_ssa_value(window, item)
+                exists = False
+                if href:
+                    if href not in exists_cache:
+                        resolved_series = ssa_index.get(href)
+                        if resolved_series is None and allow_global_index:
+                            resolved_series = deps.get_series_for_ssa(window, href)
+                        exists_cache[href] = resolved_series is not None
+                    exists = exists_cache[href]
+                rendered_item = deps.render_ssa_navigation_link(
                     href or item,
                     link_color=link_color,
                     panel_mode=False,
                     exists=exists,
                 )
-            )
-        derived_text = ", ".join(items)
-    else:
-        derived_text = ", ".join(derived_list)
-        if highlight_search_terms and search_terms:
-            derived_text = deps.highlight_text(window, derived_text, search_terms)
-        else:
-            derived_text = html_module.escape(derived_text)
-
-    _append_detail_row(
-        html_lines,
-        label=html_module.escape(f"SSAs derivadas ({len(derived_list)})"),
-        value_html=derived_text,
-        config=config,
-        label_font_size_pt=label_font_size_pt,
-    )
+            elif highlight_search_terms and search_terms:
+                rendered_item = deps.highlight_text(window, item, search_terms)
+            else:
+                rendered_item = html_module.escape(item)
+            if relation_label:
+                rendered_item += f" ({html_module.escape(relation_label)})"
+            rendered.append(rendered_item)
+        _append_detail_row(
+            html_lines,
+            label=html_module.escape(f"{label} ({len(relations)})"),
+            value_html=", ".join(rendered),
+            config=config,
+            label_font_size_pt=label_font_size_pt,
+        )
 
 
 def _render_related_row(

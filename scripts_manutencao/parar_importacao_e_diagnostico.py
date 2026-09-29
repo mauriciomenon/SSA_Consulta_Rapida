@@ -8,6 +8,7 @@ import importlib
 import os
 import sqlite3
 import time
+from contextlib import closing
 from typing import Any
 
 psutil: Any | None
@@ -107,7 +108,7 @@ def check_database_status():
 
     try:
         # Verificar se o banco está acessível
-        with sqlite3.connect(db_path, timeout=1) as conn:
+        with closing(sqlite3.connect(db_path, timeout=1)) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM ssas")
             total_records = cursor.fetchone()[0]
             print(f"OK Banco acessível: {total_records} registros")
