@@ -50,7 +50,7 @@ dev = [
     "pillow>=12.3.0,<13",
 ]
 build = [
-    "pyinstaller>=6.22.2,<7",
+    "pyinstaller>=6.22.3,<7",
     "nuitka>=4.2.1,<5",
     "pillow>=12.3.0,<13",
     "cairosvg>=2.9.1,<3",
