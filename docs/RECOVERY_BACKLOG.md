@@ -33,24 +33,6 @@
   atual; maioria respondida em consolidados pelo mantenedor. P2+ sem
   evidencia de erro real na amostra validada.
 
-## 2026-09-26 - Correcoes locais da PR 135 e retorno ao re original
-
-Detalhes em [PR135_CORRECOES_20260926.md](PR135_CORRECOES_20260926.md).
-
-- [x] Restaurar mecanismo re original por ordem do usuario; guardas intactas, dependencia regex removida. Opus/Grok/CodeRabbit consultados pela CLI antes de editar. Grok revisou o resultado; segunda consulta Opus bloqueada por limite de uso.
-- [x] Preservar 41 outros arquivos byte a byte e as 13 linhas de runtime no PyOxidizer. 46 testes focados e 43 em Python 3.10 passaram.
-- [x] Suite completa no estado congelado: 3478 testes passaram, 9 ignorados, 34 avisos e 11 subtestes passaram em 790,43s; retorno 0. Os 804 hashes permaneceram identicos; preservacao das outras correcoes reconferida.
-- [ ] Limite preexistente: algumas expressoes aceitas pelo guard de re podem ter backtracking demorado. Mudanca de mecanismo/guarda nao autorizada nesta restauracao.
-- [ ] Reprocessamento extra reproduzido: marcador pendente do primario sobrevive ao full rescan e provoca uma importacao incremental adicional. Sem perda/corrupcao observada; tratar em slice separado.
-- [ ] Validar prazo de backup com bases reais grandes antes de alterar politica. Sugestao CodeRabbit, sem falha operacional demonstrada.
-- [ ] Validar binarios/GUI nativa e equivalencia logica fonte/snapshot na rodada de build autorizada. Nao foi demonstrado pacote com banco incorreto.
-- [ ] Conferir titulos dos grupos de filtro em tela nativa e comparar com baseline; captura anterior offscreen mostra texto cruzando bordas.
-- [ ] Tratar condicao redundante preexistente de tests/test_helpers.py:30 em slice de higiene de testes.
-
-Nao houve commit, push, merge, nova branch ou publicacao. Fontes historicas ausentes
-ou excluidas nao podem ser recuperadas apenas pela invalidacao do cache de importacao.
-A suite anterior de 3468 testes precedeu esta restauracao; nao e seu resultado final.
-
 ## 2026-09-27 - Estabilizacao pos-revisao multimodelo (fix C restaurado)
 
 - [x] Marcador de revalidacao criado no caminho `needs_creation` (ab4da4a0)
@@ -76,12 +58,31 @@ A suite anterior de 3468 testes precedeu esta restauracao; nao e seu resultado f
   faturamento ("account locked due to a billing issue"), confirmado nas
   anotacoes dos check-runs. Nao e defeito de codigo.
 
+## 2026-09-26 - Correcoes locais da PR 135 e retorno ao re original
+
+Detalhes em `PR135_CORRECOES_20260926.md` (documento local, nao versionado).
+
+- [x] Restaurar mecanismo re original por ordem do usuario; guardas intactas, dependencia regex removida. Opus/Grok/CodeRabbit consultados pela CLI antes de editar. Grok revisou o resultado; segunda consulta Opus bloqueada por limite de uso.
+- [x] Preservar 41 outros arquivos byte a byte e as 13 linhas de runtime no PyOxidizer. 46 testes focados e 43 em Python 3.10 passaram.
+- [x] Suite completa no estado congelado: 3478 testes passaram, 9 ignorados, 34 avisos e 11 subtestes passaram em 790,43s; retorno 0. Os 804 hashes permaneceram identicos; preservacao das outras correcoes reconferida.
+- [ ] Limite preexistente: algumas expressoes aceitas pelo guard de re podem ter backtracking demorado. Mudanca de mecanismo/guarda nao autorizada nesta restauracao.
+- [ ] Reprocessamento extra reproduzido: marcador pendente do primario sobrevive ao full rescan e provoca uma importacao incremental adicional. Sem perda/corrupcao observada; tratar em slice separado.
+- [ ] Validar prazo de backup com bases reais grandes antes de alterar politica. Sugestao CodeRabbit, sem falha operacional demonstrada.
+- [ ] Validar binarios/GUI nativa e equivalencia logica fonte/snapshot na rodada de build autorizada. Nao foi demonstrado pacote com banco incorreto.
+- [ ] Conferir titulos dos grupos de filtro em tela nativa e comparar com baseline; captura anterior offscreen mostra texto cruzando bordas.
+- [ ] Tratar condicao redundante preexistente de tests/test_helpers.py:30 em slice de higiene de testes.
+
+Nao houve commit, push, merge, nova branch ou publicacao. Fontes historicas ausentes
+ou excluidas nao podem ser recuperadas apenas pela invalidacao do cache de importacao.
+A suite anterior de 3468 testes precedeu esta restauracao; nao e seu resultado final.
+
 ## Uso do backlog
 
 As entradas datadas registram pendencias e resultados de cada rodada. Confirmar
 se o item ainda se aplica antes de retoma-lo; uma proxima atividade historica
 nao autoriza nova execucao nem impede automaticamente outra entrega.
-Para pacotes, aplicar [os criterios de entrega](BUILD_WINDOWS_ARM64_AMD64.md#encerramento).
+Para pacotes, aplicar os criterios de encerramento de
+`BUILD_WINDOWS_ARM64_AMD64.md` (documento local, nao versionado).
 Correcao apenas documental nao exige rebuild, suite completa ou novos scanners.
 
 Atualizado em 2026-09-28. Documento versionado; cada rodada abaixo identifica
@@ -257,9 +258,10 @@ Inclui flush de preferencias sem parar fila, prazo novo apos preferencias, WAL
 canonico com symlink e revalidacao depois do segundo dialogo de exportacao.
 Hooks de autoria instalados; CI publicada em c49dbac7, sem execucao remota comprovada.
 
-A passagem completa esta em [VALIDATION_PLAN.md](VALIDATION_PLAN.md): hashes,
-comandos, casos de regressao e criterios de aceite. Evidencia local detalhada
-em [AUDIT_FIXES_REPORT.md](AUDIT_FIXES_REPORT.md), secao I1. py_compile/Ruff/ty
+A passagem completa esta em `VALIDATION_PLAN.md` (documento local, nao
+versionado): hashes, comandos, casos de regressao e criterios de aceite.
+Evidencia local detalhada em `AUDIT_FIXES_REPORT.md` (documento local, nao
+versionado), secao I1. py_compile/Ruff/ty
 passaram nos 22 Python; selecoes existentes passaram. Nao somar selecoes
 sobrepostas. Nenhum caso novo de teste foi escrito nesta implementacao.
 
@@ -332,8 +334,8 @@ existentes para as omissoes confirmadas; nao houve exclusao ou skip novo.
 Permanecem para a passagem: scanners amplos, validacao nativa Qt/Windows/Linux,
 CPU/RSS, caminhos sem hard link e demais limites funcionais/online/historicos
 da lista anterior. Uma suite verde nao conclui esses itens. O fechamento A-E
-esta centralizado na
-[secao L4 do relatorio](AUDIT_FIXES_REPORT.md#l4-fechamento-da-rodada-a-e).
+esta centralizado na secao L4 de `AUDIT_FIXES_REPORT.md` (documento local,
+nao versionado).
 Commits de codigo da rodada K: 3e367782, 79a0d25e e 0f239dac.
 
 
@@ -373,8 +375,8 @@ frequencia real. D foi exercitado com QTimer real em subprocesso: retorno -6
 antes e 0 depois, com busy=False; isso nao substitui uso visual multiplataforma.
 Ensaios nativos e scanners adicionais permanecem como pendencias historicas;
 executar somente quando incluidos no pedido ou justificados por risco concreto.
-O resultado local e os limites dos artefatos estao na
-[secao L4 do relatorio](AUDIT_FIXES_REPORT.md#l4-fechamento-da-rodada-a-e).
+O resultado local e os limites dos artefatos estao na secao L4 de
+`AUDIT_FIXES_REPORT.md` (documento local, nao versionado).
 
 ## 2026-09-13 - CI/CD e PR apos b9672334
 
