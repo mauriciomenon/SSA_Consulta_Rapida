@@ -312,9 +312,9 @@ def _restore_latest_valid_snapshot_locked(
         forensic = backup_dir / f"{db.name}.corrupt_{timestamp}.db"
         moved_sidecars: list[tuple[Path, Path]] = []
         marker_created = False
+        recovery_marker = Path(f"{db}{IMPORT_CACHE_RECOVERY_SUFFIX}")
         try:
             shutil.copy2(snapshot, temporary)
-            recovery_marker = Path(f"{db}{IMPORT_CACHE_RECOVERY_SUFFIX}")
             marker_created = _mark_import_cache_pending(db)
             if had_existing_db:
                 shutil.copy2(db, forensic)
