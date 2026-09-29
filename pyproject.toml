@@ -33,7 +33,7 @@ dependencies = [
     "numpy>=2.4.6,<2.5; python_version == '3.11'",
     "numpy>=2.5.3,<3; python_version >= '3.12'",
     "tabulate>=0.10.0,<1",
-    "filelock>=3.32.6,<4",
+    "filelock>=4.0.1,<5",
 ]
 
 [project.optional-dependencies]
