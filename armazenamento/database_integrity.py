@@ -770,9 +770,22 @@ def _repair_database_if_needed_locked(
                 logger.error("Integridade SQLite nao confirmada; restauracao bloqueada")
                 return False, report
             restored_report: Dict[str, Any] = {}
-            if _restore_latest_valid_snapshot(db_path, table_name, report_out=restored_report):
+            restore_status = _restore_latest_valid_snapshot_locked(
+                db_path, table_name, report_out=restored_report
+            )
+            if restore_status == "restored":
                 restored_report["restored_from_snapshot"] = True
                 return True, restored_report
+            if restore_status == "critical":
+                # Paridade com a branch needs_creation: rollback de
+                # restauracao falhou; estado em disco indeterminado.
+                return False, {
+                    "is_valid": False,
+                    "issues": [
+                        "Falha critica ao tentar restaurar snapshot "
+                        "do banco corrompido; estado em disco indeterminado"
+                    ],
+                }
             logger.error("Banco corrompido sem snapshot valido para restauracao")
             return False, report
 
