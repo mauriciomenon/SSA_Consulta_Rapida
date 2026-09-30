@@ -1,0 +1,15 @@
+{
+  "name": "ssa-consulta-rapida",
+  "private": true,
+  "overrides": {
+    "@sentry/dotagents": "npm:@sentry/dotagents@0.0.0"
+  },
+  "resolutions": {
+    "@sentry/dotagents": "npm:@sentry/dotagents@0.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@sentry/dotagents": "npm:@sentry/dotagents@0.0.0"
+    }
+  }
+}

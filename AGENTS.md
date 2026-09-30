@@ -26,6 +26,7 @@
 - Uma regra de email verifica metadados; ela nao prova identidade criptograficamente.
 - Nao ativar exigencia DCO: ela exige `Signed-off-by` e contradiz estas regras.
 - Nao afirmar que AGENTS.md bloqueia pushes; a aplicacao online depende das regras e do plano de cada servico.
+- Proibido instalar ou executar `@sentry/dotagents` (npm/npx/pnpm/bun) neste repo; `agents.toml`, `agents.lock` e `.agents/skills` gerenciados por ele foram removidos deliberadamente. Gerenciador de skills autorizado: `npx skills` (Vercel).
 
 ## Verificacao executavel de autoria
 - `scripts/validate_git_authorship.py` valida autor, committer e mensagens; no push tambem valida tagger, mensagens de tags anotadas e conteudo de notas enviadas.
