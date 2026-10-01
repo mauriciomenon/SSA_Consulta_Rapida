@@ -905,3 +905,84 @@ def test_main_clean_data_refuses_symlink_db_in_data_dir(
 
     assert exit_info.value.code == 1
     assert "Limpeza recusada" in capsys.readouterr().out
+
+
+def test_main_reset_reports_busy_on_backup_timeout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import main as main_module
+    from scripts_manutencao import gerenciar_banco
+
+    def timeout_reset(_db_path: str) -> None:
+        raise TimeoutError("Prazo total do backup SQLite esgotado")
+
+    monkeypatch.setattr(gerenciar_banco, "reset_database", timeout_reset)
+    with pytest.raises(SystemExit) as exit_info:
+        main_module._run_maintenance_action(
+            Namespace(reset_db=True, clean_data=False), "unused.db"
+        )
+
+    assert exit_info.value.code == 1
+    assert "banco em uso" in capsys.readouterr().out
+
+
+def test_main_clean_data_default_route_without_db_path_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import main as main_module
+
+    monkeypatch.setattr(main_module, "runtime_root", str(tmp_path))
+    monkeypatch.delenv("SSA_DB_PATH", raising=False)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    old_backup = data_dir / "backup_legacy.db"
+    old_backup.write_bytes(b"old")
+    os.utime(old_backup, (1_600_000_000, 1_600_000_000))
+
+    resolved_db_path, _ = main_module._resolve_database_target(
+        main_module.runtime_root
+    )
+    assert main_module._run_maintenance_action(
+        Namespace(reset_db=False, clean_data=True), resolved_db_path
+    )
+
+    assert not old_backup.exists()
+    assert db_path.is_file()
+
+
+def test_clean_scoped_removes_timestamped_stem_artifacts(tmp_path: Path) -> None:
+    """Artefatos legados por stem com timestamp sao limpos no escopo
+    explicito; banco real de nome parecido (sem timestamp) fica intacto."""
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "pasta_compartilhada"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    real_backup_db = data_dir / "ssas_backup_prod.db"
+    real_backup_db.write_bytes(b"banco real do usuario")
+    timestamped_backup = data_dir / "ssas_backup_20260101_120000_ab12.db"
+    timestamped_backup.write_bytes(b"artefato antigo")
+    emergency = data_dir / "ssas_emergency_backup_20260101_120000.db"
+    emergency.write_bytes(b"artefato antigo")
+    foreign_temp = data_dir / "ssas_relatorio.tmp123"
+    foreign_temp.write_bytes(b"keep")
+    for path in (real_backup_db, timestamped_backup, emergency):
+        os.utime(path, (1_600_000_000, 1_600_000_000))
+
+    gerenciar_banco.clean_old_backups(
+        str(data_dir), db_basename="ssas.db", scope_name="ssas.db"
+    )
+    gerenciar_banco.sanitize_data_folder(
+        str(data_dir), db_basename="ssas.db", scope_name="ssas.db"
+    )
+
+    assert not timestamped_backup.exists()
+    assert not emergency.exists()
+    assert real_backup_db.read_bytes() == b"banco real do usuario"
+    assert foreign_temp.read_bytes() == b"keep"
+    assert db_path.is_file()

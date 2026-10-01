@@ -32,7 +32,8 @@ def _is_symlink_directory(path: str) -> bool:
 def _is_db_backup_name(name: str, db_name: str) -> bool:
     # Backups com apenas o stem nao identificam um banco unico em pasta
     # compartilhada; bancos com extensoes diferentes podem ter o mesmo stem.
-    return name.removeprefix(".").startswith(
+    candidate = name.removeprefix(".")
+    if candidate.startswith(
         (
             f"{db_name}.bak-",
             f"{db_name}.backup_",
@@ -41,6 +42,16 @@ def _is_db_backup_name(name: str, db_name: str) -> bool:
             f"{db_name}.bkp",
             f"{db_name}_bkp",
         )
+    ):
+        return True
+    # Artefatos legados usam o stem sem extensao e carregam timestamp
+    # (DatabaseAnalyzer.create_backup, limpar_banco, cleanup_emergency):
+    # <stem>_backup_<ts>.db e <stem>_emergency_backup_<ts>.db. Exigir digito
+    # impede que um banco real como "ssas_backup_prod.db" (sem timestamp)
+    # seja classificado como artefato descartavel.
+    stem = Path(db_name).stem
+    return any(char.isdigit() for char in candidate) and candidate.startswith(
+        (f"{stem}_backup_", f"{stem}_emergency_backup_")
     )
 
 

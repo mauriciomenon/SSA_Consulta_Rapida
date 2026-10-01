@@ -283,7 +283,7 @@ def _run_maintenance_action(args: argparse.Namespace, db_path: str) -> bool:
             sys.exit(1)
         try:
             reset_database(db_path)
-        except Timeout:
+        except (Timeout, TimeoutError):
             print(_MAINTENANCE_DB_BUSY_MESSAGE)
             sys.exit(1)
         except RuntimeError as exc:
