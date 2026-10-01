@@ -446,3 +446,61 @@ def test_prepare_working_database_runs_heavy_check_once(tmp_path, monkeypatch):
     assert report["is_valid"] is True
     assert counter["ensure"] == 1
     assert counter["verify"] == 0
+
+
+def test_restore_keeps_recovery_marker_when_sidecar_rollback_fails(
+    tmp_path, monkeypatch
+):
+    """Rollback falho deixa o disco indeterminado: o marcador de
+    recuperacao nao pode ser removido — ele forca a revalidacao do
+    cache na proxima rodada."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    db = Path(db_path).resolve()
+    db.write_bytes(b"banco corrompido com sidecar")
+    sidecar = Path(f"{db}-wal")
+    sidecar.write_bytes(b"wal quente")
+    real_replace = database_integrity._replace_file_with_retry
+
+    def flaky_replace(source, target):
+        # Aborta a promocao do snapshot e a recomposicao do sidecar:
+        # ambas as falhas levam ao retorno "critical".
+        if Path(target) in {db, sidecar}:
+            raise OSError("falha simulada na promocao/rollback")
+        return real_replace(source, target)
+
+    monkeypatch.setattr(
+        database_integrity, "_replace_file_with_retry", flaky_replace
+    )
+
+    status = database_integrity._restore_latest_valid_snapshot_locked(
+        str(db), "ssa_table"
+    )
+
+    assert status == "critical"
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+    assert marker.is_file()
+
+
+def test_ensure_preserves_integrity_report_on_critical_restore(
+    tmp_path, monkeypatch
+):
+    """O retorno 'critical' anexa a falha ao report original em vez de
+    descartar os campos de diagnostico da verificacao inicial."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    Path(db_path).resolve().write_bytes(b"arquivo nao sqlite")
+    monkeypatch.setattr(
+        database_integrity,
+        "_restore_latest_valid_snapshot_locked",
+        lambda *args, **kwargs: "critical",
+    )
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is False
+    assert report["is_valid"] is False
+    assert any(
+        "estado em disco indeterminado" in issue for issue in report["issues"]
+    )
+    # Campos de diagnostico da verificacao original seguem presentes.
+    assert "database_accessible" in report
+    assert "sqlite_corruption_confirmed" in report

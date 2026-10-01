@@ -329,10 +329,6 @@ def _restore_latest_valid_snapshot_locked(
             _replace_file_with_retry(temporary, db)
         except (OSError, sqlite3.Error) as exc:
             logger.error("Falha ao preparar restauracao do snapshot '%s': %s", snapshot, exc)
-            if marker_created:
-                # Restauracao nao aconteceu: marcador criado nesta rodada
-                # viraria orfao e dispararia revalidacao indevida.
-                recovery_marker.unlink(missing_ok=True)
             temporary.unlink(missing_ok=True)
             try:
                 for original, archived in moved_sidecars:
@@ -343,7 +339,14 @@ def _restore_latest_valid_snapshot_locked(
                     "Falha ao recompor sidecars apos restauracao abortada: %s",
                     rollback_error,
                 )
+                # Marcador preservado: estado em disco indeterminado exige
+                # revalidacao do cache na proxima rodada.
                 return "critical"
+            if marker_created:
+                # Restauracao nao aconteceu e o rollback recompoe os
+                # sidecars: marcador criado nesta rodada viraria orfao e
+                # dispararia revalidacao indevida.
+                recovery_marker.unlink(missing_ok=True)
             _prune_forensic_backups(db_path)
             continue
 
@@ -733,14 +736,14 @@ def _repair_database_if_needed_locked(
             if restore_status == "critical":
                 # Rollback de restauracao falhou: o estado em disco e
                 # indeterminado. Nao criar schema por cima; preserva
-                # evidencias e evita esconder a falha.
-                return False, {
-                    "is_valid": False,
-                    "issues": [
-                        "Falha critica ao tentar restaurar snapshot "
-                        "do banco ausente; estado em disco indeterminado"
-                    ],
-                }
+                # evidencias e evita esconder a falha. O report original
+                # segue no resultado para manter o diagnostico visivel.
+                report["is_valid"] = False
+                report.setdefault("issues", []).append(
+                    "Falha critica ao tentar restaurar snapshot "
+                    "do banco ausente; estado em disco indeterminado"
+                )
+                return False, report
             logger.info(
                 "Banco ausente sem snapshot utilizavel; criacao inicial sera executada"
             )
@@ -779,13 +782,12 @@ def _repair_database_if_needed_locked(
             if restore_status == "critical":
                 # Paridade com a branch needs_creation: rollback de
                 # restauracao falhou; estado em disco indeterminado.
-                return False, {
-                    "is_valid": False,
-                    "issues": [
-                        "Falha critica ao tentar restaurar snapshot "
-                        "do banco corrompido; estado em disco indeterminado"
-                    ],
-                }
+                report["is_valid"] = False
+                report.setdefault("issues", []).append(
+                    "Falha critica ao tentar restaurar snapshot "
+                    "do banco corrompido; estado em disco indeterminado"
+                )
+                return False, report
             logger.error("Banco corrompido sem snapshot valido para restauracao")
             return False, report
 
