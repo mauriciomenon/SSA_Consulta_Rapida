@@ -226,3 +226,18 @@ def test_backup_reports_timeout_when_completion_passes_deadline() -> None:
         source.commit()
         with pytest.raises(TimeoutError, match="Prazo total"):
             bounded_sqlite_backup(source, target, timeout=1e-9)
+
+
+def test_progress_checker_done_bypasses_stall_deadline() -> None:
+    from utils.sqlite_backup import _progress_checker, _SQLITE_DONE, _SQLITE_OK
+
+    ticks = iter([0.0, 0.0, 200.0, 200.0])
+    checker = _progress_checker(
+        timeout=1000.0, stall_timeout=1.0, cancel_check=None,
+        now=lambda: next(ticks),
+    )
+    # DONE dispensa o prazo de stall mesmo depois do deadline.
+    checker(_SQLITE_DONE, 0, 0)
+    # Outro status na mesma janela continua sujeito ao stall.
+    with pytest.raises(TimeoutError, match="sem progresso"):
+        checker(_SQLITE_OK, 10, 100)
