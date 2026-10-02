@@ -5,6 +5,7 @@ Inclui funes para reset do DB, limpeza de backups antigos e sanitizao.
 """
 
 import os
+import re
 import shutil
 import sqlite3
 import sys
@@ -29,18 +30,80 @@ def _is_symlink_directory(path: str) -> bool:
     return Path(path).is_symlink()
 
 
+# Todo artefato de backup gerado carrega um par data_hora
+# (%Y%m%d_%H%M%S...). Nomes parecidos sem esse bloco sao arquivos do
+# usuario (ex.: ssas_backup_prod.db, loja.db_backup_final.db) e nao
+# podem entrar na limpeza.
+_BACKUP_TIMESTAMP_RE = re.compile(r"\d{8}_\d{6}", re.ASCII)
+
+
 def _is_db_backup_name(name: str, db_name: str) -> bool:
     # Backups com apenas o stem nao identificam um banco unico em pasta
     # compartilhada; bancos com extensoes diferentes podem ter o mesmo stem.
-    return name.removeprefix(".").startswith(
-        (
-            f"{db_name}.bak-",
-            f"{db_name}.backup_",
-            f"{db_name}.full_rescan_backup_",
-            f"{db_name}_backup_",
-            f"{db_name}.bkp",
-            f"{db_name}_bkp",
+    # normcase preserva a distincao de caixa em POSIX (foo.db != Foo.db) e
+    # dobra apenas onde o FS nao diferencia (Windows).
+    candidate = os.path.normcase(name.lstrip("."))
+    bound = os.path.normcase(db_name)
+    stem = Path(bound).stem
+    for prefix in (
+        f"{bound}.bak-",
+        f"{bound}.backup_",
+        f"{bound}.full_rescan_backup_",
+        f"{bound}_backup_",
+        f"{bound}.bkp",
+        f"{bound}_bkp",
+    ):
+        if candidate.startswith(prefix):
+            # O par data_hora precisa estar no sufixo do artefato: uma
+            # data no proprio nome do banco (loja_<ts>.db) nao autoriza
+            # tratar "<banco>.backup_prod.db" como descartavel.
+            return bool(_BACKUP_TIMESTAMP_RE.search(candidate[len(prefix):]))
+    # Familia por stem exige o par data_hora logo apos o marcador: um
+    # banco real datado por outra convencao (ssas_backup_prod_<ts>.db)
+    # nao e confundido com artefato gerado. O meio "antes_limpeza_final"
+    # so existe para o banco canonico ssas (scripts_manutencao/limpar_banco).
+    middle = "(?:antes_limpeza_final_)?" if stem == "ssas" else ""
+    return bool(
+        re.match(
+            rf"{re.escape(stem)}_emergency_backup_\d{{8}}_\d{{6}}",
+            candidate,
+            re.ASCII,
         )
+        or re.match(
+            rf"{re.escape(stem)}_backup_{middle}\d{{8}}_\d{{6}}",
+            candidate,
+            re.ASCII,
+        )
+    )
+
+
+# Prefixos genericos so contam no inicio do nome; marcadores ligados ao
+# nome completo do banco (".backup_", ".bak-", "_bkp", ".bkp") podem
+# aparecer depois do basename.
+_BACKUP_GENERIC_PREFIXES = ("backup_", "ssas_backup_", "ssas_emergency_backup_")
+_BACKUP_GENERIC_INFIXES = (".backup_", ".bak-", "_bkp", ".bkp")
+
+
+def _is_backup_artifact(name: str, bound: str, scope: str | None) -> bool:
+    """Artefato gerado de backup: nome ligado ao banco com par data_hora,
+    ou (apenas no escopo default) nome generico legado fora da familia
+    do stem do banco."""
+    if scope:
+        return _is_db_backup_name(name, scope)
+    if _is_db_backup_name(name, bound):
+        return True
+    lowered = name.lstrip(".").lower()
+    bound_stem = Path(bound).stem.lower()
+    if lowered.startswith(
+        (f"{bound_stem}_backup_", f"{bound_stem}_emergency_backup_")
+    ):
+        return False
+    # Padroes genericos tambem exigem par data_hora: "backup_relatorio.db"
+    # ou "loja.db_backup_prod.db" sem timestamp sao arquivos do usuario.
+    if not _BACKUP_TIMESTAMP_RE.search(lowered):
+        return False
+    return lowered.startswith(_BACKUP_GENERIC_PREFIXES) or any(
+        pattern in lowered for pattern in _BACKUP_GENERIC_INFIXES
     )
 
 
@@ -128,19 +191,6 @@ def clean_old_backups(
     removed_count = 0
     total_size_removed = 0
 
-    # Padres de arquivos de backup
-    backup_patterns = [
-        "backup_",
-        "ssas_backup_",
-        "ssas_emergency_backup_",
-        ".backup_",
-        "_bkp",
-        ".bkp",
-        # Arquivo anterior preservado na promocao de copia e no import de
-        # emergencia (<db>.bak-<timestamp> e sidecars).
-        ".bak-",
-    ]
-
     if _is_symlink_directory(data_dir):
         raise RuntimeError(f"Limpeza recusada: diretorio contem symlink: {data_dir}")
     data_path = Path(data_dir)
@@ -156,6 +206,7 @@ def clean_old_backups(
         f"{db_basename}{suffix}"
         for suffix in ("", "-wal", "-shm", "-journal")
     } if db_basename else {"ssas.db"}
+    bound = db_basename or "ssas.db"
 
     def _in_scope(name: str) -> bool:
         return not scope or _is_db_backup_name(name, scope)
@@ -164,9 +215,7 @@ def clean_old_backups(
     for file_path in data_path.glob("*"):
         if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
             # Verifica se  um arquivo de backup
-            is_backup = any(
-                pattern in file_path.name.lower() for pattern in backup_patterns
-            )
+            is_backup = _is_backup_artifact(file_path.name, bound, scope)
 
             if is_backup:
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
@@ -182,10 +231,7 @@ def clean_old_backups(
     if backups_path.exists():
         for file_path in backups_path.glob("*"):
             if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
-                is_backup = any(
-                    pattern in file_path.name.lower() for pattern in backup_patterns
-                )
-                if not is_backup:
+                if not _is_backup_artifact(file_path.name, bound, scope):
                     continue
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
                 if file_time < cutoff_date:
@@ -207,12 +253,10 @@ def _remove_temporary_files(data_path: Path, scope: str | None, protected: set[s
     removed_temp = 0
     if scope:
         def _is_scoped_temp(name: str) -> bool:
-            candidate = name.removeprefix(".")
-            if candidate in {
-                f"{scope}.tmp", f"{scope}.temp", f"{scope}.swp",
-                f"{scope}.bak", f"{scope}~",
-            }:
-                return True
+            # Nomes genericos como <banco>.bak ou <banco>.tmp sao copias
+            # manuais comuns do usuario; no escopo restrito so saem os
+            # temporarios sufixados/instrumentados que a ferramenta cria.
+            candidate = name.lstrip(".")
             if candidate.startswith(
                 (f"{scope}.tmp-", f"{scope}.tmp.", f"{scope}.temp-", f"{scope}.temp.")
             ):
@@ -229,9 +273,12 @@ def _remove_temporary_files(data_path: Path, scope: str | None, protected: set[s
             if _is_scoped_temp(path.name)
         )
     else:
+        # "*.bak" fica de fora: e nome comum de copia manual de banco.
+        # Artefatos gerados com timestamp seguem a regra de backup, nao
+        # a de temporario.
         temp_files = (
             path
-            for pattern in ("*.tmp", "*.temp", "*~", "*.swp", "*.bak")
+            for pattern in ("*.tmp", "*.temp", "*~", "*.swp")
             for path in data_path.glob(pattern)
         )
     for file_path in temp_files:
@@ -283,21 +330,25 @@ def sanitize_data_folder(data_dir="data", db_basename=None, scope_name=None):
 
     # Move backups soltos para a pasta backups
     moved_backups = 0
-    backup_patterns = ["backup_", "ssas_backup_", "ssas_emergency_backup_", ".backup_"]
+    bound = db_basename or "ssas.db"
 
     for file_path in data_path.glob("*"):
         if file_path.is_file() and file_path.name not in protected_sanitize:
-            if scope and not _is_db_backup_name(file_path.name, scope):
+            if not _is_backup_artifact(file_path.name, bound, scope):
                 continue
-            is_backup = any(
-                pattern in file_path.name.lower() for pattern in backup_patterns
-            )
-            if is_backup:
-                new_path = backups_path / file_path.name
-                if not new_path.exists():
-                    print(f"   Movendo backup: {file_path.name} -> backups/")
-                    shutil.move(str(file_path), str(new_path))
-                    moved_backups += 1
+            new_path = backups_path / file_path.name
+            # Revalida no ponto de uso: a pasta pode ter sido trocada por
+            # um symlink depois da checagem inicial.
+            if _is_symlink_directory(str(backups_path)):
+                print(
+                    "  Sanitizacao interrompida: backups virou symlink: "
+                    f"{backups_path}"
+                )
+                break
+            if not new_path.exists():
+                print(f"   Movendo backup: {file_path.name} -> backups/")
+                shutil.move(str(file_path), str(new_path))
+                moved_backups += 1
 
     print(" Sanitizao concluda:")
     print(f"  - {removed_temp} arquivos temporrios removidos")
@@ -328,16 +379,12 @@ def show_data_status(data_dir="data"):
     else:
         print("  ERRO: Banco principal (ssas.db) no encontrado!")
 
-    # Backups na pasta principal
-    backup_patterns = ["backup_", "ssas_backup_", "ssas_emergency_backup_", ".backup_"]
+    # Backups na pasta principal (mesmo filtro da limpeza, so listagem)
     main_backups = []
 
     for file_path in data_path.glob("*"):
         if file_path.is_file() and file_path.name != "ssas.db":
-            is_backup = any(
-                pattern in file_path.name.lower() for pattern in backup_patterns
-            )
-            if is_backup:
+            if _is_backup_artifact(file_path.name, "ssas.db", None):
                 main_backups.append(file_path)
 
     print(f"  Backups na pasta principal: {len(main_backups)}")

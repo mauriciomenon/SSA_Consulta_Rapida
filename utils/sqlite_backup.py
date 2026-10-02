@@ -87,5 +87,9 @@ def bounded_sqlite_backup(
             sleep=0.01,
         )
     finally:
-        source.execute(f"PRAGMA busy_timeout={busy_timeout}")  # nosec B608  # nosemgrep
-        target.execute(f"PRAGMA busy_timeout={target_timeout}")  # nosec B608  # nosemgrep
+        # Restaura independente: falha ao restaurar a origem nao pode deixar
+        # o destino com busy_timeout zerado.
+        try:
+            source.execute(f"PRAGMA busy_timeout={busy_timeout}")  # nosec B608  # nosemgrep
+        finally:
+            target.execute(f"PRAGMA busy_timeout={target_timeout}")  # nosec B608  # nosemgrep

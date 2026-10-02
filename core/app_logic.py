@@ -1385,6 +1385,8 @@ def _validate_and_promote_candidate_if_needed(
     working_db_path: str,
     primary_db_path: str,
     table_name: str,
+    cache_file: Optional[str] = None,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
 ) -> Dict[str, Any]:
     """Valida e promove DB candidato quando full rescan usa caminho isolado."""
     result: Dict[str, Any] = {
@@ -1449,10 +1451,30 @@ def _validate_and_promote_candidate_if_needed(
     # Se a remocao falhar, o marcador sobrevive e gera apenas uma
     # revalidacao extra — direcao segura da falha.
     try:
-        Path(
+        recovery_marker = Path(
             f"{Path(primary_db_path).resolve()}{IMPORT_CACHE_RECOVERY_SUFFIX}"
-        ).unlink(missing_ok=True)
-    except OSError as exc:
+        )
+        if cache_file and os.path.lexists(recovery_marker):
+            # O cache foi medido contra o banco pre-restauracao: hashes de
+            # fontes fora do escopo do rescan (nosurvivor/processadas) ficam
+            # obsoletos e fariam o proximo incremental pular linhas que o
+            # restore descartou. Zera o cache para revalidar todas as fontes.
+            caching.save_cache(
+                {},
+                cache_file,
+                raise_on_error=True,
+                extra_allowed_roots=extra_allowed_roots,
+            )
+        if cache_file or not os.path.lexists(recovery_marker):
+            # Sem cache configurado o wipe nao tem alvo: consumir o marcador
+            # aqui deixaria um file_cache.json obsoleto ativo para rodadas
+            # futuras com cache. Nesse caso o marcador permanece.
+            recovery_marker.unlink(missing_ok=True)
+    except Exception as exc:
+        # save_cache pode falhar com erro nao-OSError (PathSafetyError,
+        # RuntimeError de lock): a falha nao pode escalar depois da
+        # promocao - o marcador sobrevive e forca revalidacao no proximo
+        # ciclo, que e a direcao segura.
         logger.warning(
             "Marcador de recuperacao nao removido apos promocao: %s", exc
         )
@@ -1468,12 +1490,16 @@ def _promote_candidate_for_outcome(
     primary_db_path: str,
     table_name: str,
     critical_errors: List[tuple[str, str, str]],
+    cache_file: Optional[str] = None,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
 ) -> Dict[str, Any]:
     promotion_result = _validate_and_promote_candidate_if_needed(
         candidate_db_path=candidate_db_path,
         working_db_path=working_db_path,
         primary_db_path=primary_db_path,
         table_name=table_name,
+        cache_file=cache_file,
+        extra_allowed_roots=extra_allowed_roots,
     )
     if bool(promotion_result.get("ok", False)):
         return promotion_result
@@ -1801,6 +1827,8 @@ def _finalize_import_run_outcome(
             primary_db_path=primary_db_path,
             table_name=table_name,
             critical_errors=critical_errors,
+            cache_file=cache_file,
+            extra_allowed_roots=extra_allowed_roots,
         )
         if not bool(promotion_result.get("ok", False)):
             return {
@@ -1868,6 +1896,8 @@ def _finalize_import_run_outcome(
             primary_db_path=primary_db_path,
             table_name=table_name,
             critical_errors=critical_errors,
+            cache_file=cache_file,
+            extra_allowed_roots=extra_allowed_roots,
         )
         if not bool(promotion_result.get("ok", False)):
             return {

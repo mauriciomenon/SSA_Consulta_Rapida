@@ -40,11 +40,9 @@
   `extra_allowed_roots` repassado ate o sidecar `.lock` do cache
   (0f3e265a) e doubles de teste ajustados (b94fde1d). Suite completa:
   3496 passed, 9 skipped em ~850s.
-- [ ] Prefixos legados `ssas_backup_*`/`ssas_emergency_backup_*` ficam
-  orfaos quando `SSA_DB_PATH` explicito usa basename `ssas.db` fora do
-  runtime default. Extensao revertida por risco de classificar banco real
-  do usuario como backup (ex.: `ssas_backup_prod.db`); acumulo cosmetico
-  aceito em vez de risco de perda de dados.
+- [x] Prefixos legados `ssas_backup_*`/`ssas_emergency_backup_*` voltam ao
+  escopo quando o par data_hora (`\d{8}_\d{6}`) segue o marcador, mantendo
+  banco real como `ssas_backup_prod.db` fora da limpeza.
 - [ ] Threads de bots no PR 135 permanecem "unresolved" em SHAs antigos;
   respondidas em consolidados. Achado de double-acquire em
   `database_lock.py` verificado como falso positivo (filelock 3.32.6:

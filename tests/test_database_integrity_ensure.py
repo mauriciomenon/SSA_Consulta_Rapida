@@ -446,3 +446,188 @@ def test_prepare_working_database_runs_heavy_check_once(tmp_path, monkeypatch):
     assert report["is_valid"] is True
     assert counter["ensure"] == 1
     assert counter["verify"] == 0
+
+
+def test_restore_keeps_recovery_marker_when_sidecar_rollback_fails(
+    tmp_path, monkeypatch
+):
+    """Rollback falho deixa o disco indeterminado: o marcador de
+    recuperacao nao pode ser removido - ele forca a revalidacao do
+    cache na proxima rodada."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    db = Path(db_path).resolve()
+    db.write_bytes(b"banco corrompido com sidecar")
+    sidecar = Path(f"{db}-wal")
+    sidecar.write_bytes(b"wal quente")
+    real_replace = database_integrity._replace_file_with_retry
+
+    def flaky_replace(source, target):
+        # Aborta a promocao do snapshot e a recomposicao do sidecar:
+        # ambas as falhas levam ao retorno "critical".
+        if Path(target) in {db, sidecar}:
+            raise OSError("falha simulada na promocao/rollback")
+        return real_replace(source, target)
+
+    monkeypatch.setattr(
+        database_integrity, "_replace_file_with_retry", flaky_replace
+    )
+
+    status = database_integrity._restore_latest_valid_snapshot_locked(
+        str(db), "ssa_table"
+    )
+
+    assert status == "critical"
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+    assert marker.is_file()
+
+
+def test_ensure_preserves_integrity_report_on_critical_restore(
+    tmp_path, monkeypatch
+):
+    """O retorno 'critical' anexa a falha ao report original em vez de
+    descartar os campos de diagnostico da verificacao inicial."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    Path(db_path).resolve().write_bytes(b"arquivo nao sqlite")
+    monkeypatch.setattr(
+        database_integrity,
+        "_restore_latest_valid_snapshot_locked",
+        lambda *args, **kwargs: "critical",
+    )
+
+    ok, report = ensure_database_integrity(db_path, SCHEMA_FILE)
+
+    assert ok is False
+    assert report["is_valid"] is False
+    assert any(
+        "estado em disco indeterminado" in issue for issue in report["issues"]
+    )
+    # Campos de diagnostico da verificacao original seguem presentes.
+    assert "database_accessible" in report
+    assert "sqlite_corruption_confirmed" in report
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_restore_replaces_invalid_recovery_marker(tmp_path):
+    """Marcador plantado como symlink e descartado e recriado: o restore
+    segue e o alvo do link nao e tocado."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    db = Path(db_path).resolve()
+    db.write_bytes(b"corrompido")
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+    decoy = tmp_path / "decoy.txt"
+    decoy.write_text("conteudo do alvo")
+    marker.symlink_to(decoy)
+
+    status = database_integrity._restore_latest_valid_snapshot_locked(
+        str(db), "ssa_table"
+    )
+
+    assert status == "restored"
+    assert marker.is_file()
+    assert not marker.is_symlink()
+    assert decoy.read_text() == "conteudo do alvo"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_restore_refuses_symlinked_historico_backups(tmp_path):
+    """historico_backups como symlink desviaria as copias forenses para
+    fora da pasta de dados: ambiente adulterado bloqueia fail-closed."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    db = Path(db_path).resolve()
+    backup_dir = db.parent / "historico_backups"
+    backup_dir.rename(tmp_path / "historico_real")
+    outside = tmp_path / "fora"
+    outside.mkdir()
+    backup_dir.symlink_to(outside, target_is_directory=True)
+    db.write_bytes(b"corrompido")
+
+    status = database_integrity._restore_latest_valid_snapshot_locked(
+        str(db), "ssa_table"
+    )
+
+    assert status == "critical"
+    assert not list(outside.iterdir())
+
+
+def test_restore_continues_to_next_snapshot_when_marker_unlink_fails(
+    tmp_path, monkeypatch
+):
+    """Falha ao remover o marcador criado na rodada nao pode abortar o
+    loop de candidatos: o proximo snapshot valido ainda deve restaurar,
+    e o marcador restante apenas forca uma revalidacao extra."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute(
+            "INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro) "
+            "VALUES ('202600002', 'ADM', '2026-01-02 00:00:00')"
+        )
+    assert database_integrity._create_integrity_snapshot(db_path, force=True)
+    db = Path(db_path).resolve()
+    db.write_bytes(b"corrompido")
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+
+    real_replace = database_integrity._replace_file_with_retry
+    state = {"failed": False}
+
+    def flaky_replace(source, target):
+        if not state["failed"] and Path(target) == db:
+            state["failed"] = True
+            raise OSError("falha simulada na promocao")
+        return real_replace(source, target)
+
+    real_unlink = Path.unlink
+
+    def flaky_unlink(self, *args, **kwargs):
+        if self == marker:
+            raise OSError("falha simulada no unlink do marcador")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(
+        database_integrity, "_replace_file_with_retry", flaky_replace
+    )
+    monkeypatch.setattr(Path, "unlink", flaky_unlink)
+
+    status = database_integrity._restore_latest_valid_snapshot_locked(
+        str(db), "ssa_table"
+    )
+
+    monkeypatch.setattr(Path, "unlink", real_unlink)
+    assert status == "restored"
+    assert marker.is_file()
+    with closing(sqlite3.connect(str(db))) as conn:
+        assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
+            ("202600001",)
+        ]
+
+
+def test_restore_replaces_empty_directory_at_marker_path(tmp_path):
+    """Pasta vazia plantada no caminho do marcador nao pode rejeitar o
+    snapshot valido: rmdir remove e a recriacao do marcador segue."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    db = Path(db_path).resolve()
+    db.write_bytes(b"corrompido")
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+    marker.mkdir()
+
+    status = database_integrity._restore_latest_valid_snapshot_locked(
+        str(db), "ssa_table"
+    )
+
+    assert status == "restored"
+    assert marker.is_file()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_snapshot_creation_refuses_symlinked_historico_backups(tmp_path):
+    """Criacao de snapshot tambem nao pode seguir historico_backups
+    symlinkado: copiaria o banco inteiro para fora da pasta de dados."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    db = Path(db_path).resolve()
+    backup_dir = db.parent / "historico_backups"
+    backup_dir.rename(tmp_path / "historico_real")
+    outside = tmp_path / "fora"
+    outside.mkdir()
+    backup_dir.symlink_to(outside, target_is_directory=True)
+
+    assert database_integrity._create_integrity_snapshot(str(db), force=True) is None
+    assert not list(outside.iterdir())

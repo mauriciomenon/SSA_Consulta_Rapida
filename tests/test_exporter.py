@@ -162,6 +162,22 @@ def test_export_preserves_duplicate_labels_and_formula_safety(tmp_path, labels):
     pd.testing.assert_frame_equal(dataframe, original)
 
 
+def test_export_csv_uses_consistent_line_endings(temp_output_dir, display_map):
+    """Header via csv.writer e linhas via to_csv precisam do mesmo EOL;
+    sem lineterminator explicito o CSV sai com \r\n e \n misturados."""
+    dataframe = pd.DataFrame({"numero_ssa": [1, 2], "situacao": ["ADM", "OP"]})
+
+    export_dataframe(dataframe, "eol", temp_output_dir, display_map)
+
+    raw = open(
+        os.path.join(temp_output_dir, "eol.csv"), "rb"
+    ).read()
+    body = raw.replace(b"\xef\xbb\xbf", b"", 1)
+    chunks = body.split(b"\r\n")
+    assert len(chunks) == 3 + 1
+    assert all(b"\n" not in chunk and b"\r" not in chunk for chunk in chunks)
+
+
 def test_export_dataframe_neutralizes_formulas_in_mixed_categories(temp_output_dir):
     dataframe = pd.DataFrame({"value": pd.Series(["=A1", 1], dtype="category")})
 

@@ -309,3 +309,63 @@ def test_recovery_recaches_deterministic_rejections_without_repeating_forever(
     assert outcome is not None
     assert outcome.status is ImportStatus.NO_CHANGES
     assert outcome.total_candidates == 0
+
+
+def test_full_rescan_after_restore_revalidates_out_of_scope_sources(
+    recovery_workspace,
+):
+    """Fonte removida antes do rescan e devolvida depois nao pode ser
+    pulada pelo hash medido contra o banco pre-restauracao: a promocao
+    zera o cache para revalidar todas as fontes."""
+    docs, _data, db, args = recovery_workspace
+    source = docs / "b.xlsx"
+    saved = source.read_bytes()
+    source.unlink()
+    db.write_bytes(b"Banco corrompido para teste")
+    assert database_integrity.ensure_database_integrity(str(db))[0]
+
+    assert run_importer_logic(**args, force_import=True)
+    # O rescan reconstruiu o banco so das fontes presentes; linha manual
+    # e b.xlsx ausente ficam fora do candidato promovido.
+    assert _rows(db) == ["202640001"]
+
+    # Fonte devolvida identica: sem o wipe o hash antigo a esconderia.
+    source.write_bytes(saved)
+    assert run_importer_logic(**args)
+    assert _rows(db) == ["202640001", "202640002"]
+
+
+def test_promotion_cache_wipe_failure_keeps_marker(
+    recovery_workspace, monkeypatch: pytest.MonkeyPatch
+):
+    """save_cache pode falhar com erro nao-OSError (PathSafetyError,
+    RuntimeError de lock). A falha nao pode escalar depois da promocao:
+    a rodada conclui e o marcador sobrevive para revalidar o cache."""
+    _docs, _data, db, args = recovery_workspace
+    db.write_bytes(b"Banco corrompido para teste")
+    assert database_integrity.ensure_database_integrity(str(db))[0]
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+    assert marker.is_file()
+
+    from utils import caching
+
+    real_save_cache = caching.save_cache
+
+    def flaky_save_cache(cache, cache_file, **kwargs):
+        if kwargs.get("raise_on_error"):
+            raise RuntimeError("falha nao-OSError simulada no wipe")
+        return real_save_cache(cache, cache_file, **kwargs)
+
+    monkeypatch.setattr(caching, "save_cache", flaky_save_cache)
+
+    assert run_importer_logic(**args, force_import=True)
+    outcome = get_last_import_outcome()
+    assert outcome is not None
+    assert outcome.status is ImportStatus.UPDATED
+    # Wipe falhou: o marcador precisa sobreviver para revalidar o cache
+    # na proxima rodada em vez de deixar hashes obsoletos ativos.
+    assert marker.is_file()
+
+    monkeypatch.setattr(caching, "save_cache", real_save_cache)
+    assert run_importer_logic(**args)
+    assert not marker.exists()

@@ -159,6 +159,12 @@ def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | N
             )
 
     backup_dir = db.parent / "historico_backups"
+    if backup_dir.is_symlink():
+        # Snapshot copiaria o banco inteiro para fora da pasta de dados.
+        logger.error(
+            "historico_backups e symlink; snapshot recusado: %s", backup_dir
+        )
+        return None
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     snapshot = backup_dir / f"{db.name}.integrity_{timestamp}.db"
@@ -188,6 +194,14 @@ def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | N
 def _prune_forensic_backups(db_path: str) -> None:
     db = Path(db_path).resolve()
     backup_dir = db.parent / "historico_backups"
+    if backup_dir.is_symlink():
+        # Podar dentro de um destino linkado apagaria arquivos fora da
+        # pasta de dados; recusa silenciosa mantem a evidencia intacta.
+        logger.warning(
+            "historico_backups e symlink; poda forense recusada: %s",
+            backup_dir,
+        )
+        return
     prefix = f"{db.name}.corrupt_"
     try:
         families = {path: [path] for path in _backup_paths(db_path, "corrupt")}
@@ -232,27 +246,36 @@ def _mark_import_cache_pending(db: Path) -> bool:
     # Marcador consumido pelo importador para revalidar o cache apos
     # restauracao ou recriacao do banco. Retorna True quando o marcador
     # foi criado nesta chamada; False quando um marcador valido ja
-    # existia. Caminho existente como symlink ou nao-arquivo falha
-    # fechado.
+    # existia. Um caminho preexistente como symlink ou nao-arquivo e um
+    # marcador invalido: e descartado e recriado uma vez; se persistir
+    # invalido, falha fechado.
     marker = Path(f"{db}{IMPORT_CACHE_RECOVERY_SUFFIX}")
-    created = False
-    try:
-        with marker.open("x", encoding="ascii") as pending:
-            created = True
-            pending.write("Revalidar cache apos restauracao ou recriacao do banco.\n")
-            pending.flush()
-            os.fsync(pending.fileno())
-    except FileExistsError:
-        if marker.is_symlink() or not marker.is_file():
-            raise OSError("Marcador de recuperacao invalido") from None
-        return False
-    except OSError:
-        # open("x") criou o arquivo mas a gravacao falhou: um marcador
-        # parcial nao pode sobreviver como se fosse valido.
-        if created:
-            marker.unlink(missing_ok=True)
-        raise
-    return True
+    for _attempt in range(2):
+        created = False
+        try:
+            with marker.open("x", encoding="ascii") as pending:
+                created = True
+                pending.write("Revalidar cache apos restauracao ou recriacao do banco.\n")
+                pending.flush()
+                os.fsync(pending.fileno())
+            return True
+        except FileExistsError:
+            if marker.is_symlink() or not marker.is_file():
+                # Pasta vazia plantada sai com rmdir; nao-vazia propaga
+                # OSError (fail-closed).
+                if marker.is_dir() and not marker.is_symlink():
+                    marker.rmdir()
+                else:
+                    marker.unlink(missing_ok=True)
+                continue
+            return False
+        except OSError:
+            # open("x") criou o arquivo mas a gravacao falhou: um marcador
+            # parcial nao pode sobreviver como se fosse valido.
+            if created:
+                marker.unlink(missing_ok=True)
+            raise
+    raise OSError("Marcador de recuperacao invalido")
 
 
 def _restore_latest_valid_snapshot(
@@ -289,6 +312,14 @@ def _restore_latest_valid_snapshot_locked(
     db = Path(db_path).resolve()
     had_existing_db = db.exists()
     backup_dir = db.parent / "historico_backups"
+    if backup_dir.is_symlink():
+        # Copias forenses iriam para fora da pasta de dados; ambiente
+        # adulterado bloqueia restauracao e recriacao (fail-closed).
+        issue = f"historico_backups e symlink; restauracao recusada: {backup_dir}"
+        logger.error(issue)
+        if report_out is not None:
+            report_out.setdefault("issues", []).append(issue)
+        return "critical"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     candidates: list[Path] = []
@@ -329,10 +360,6 @@ def _restore_latest_valid_snapshot_locked(
             _replace_file_with_retry(temporary, db)
         except (OSError, sqlite3.Error) as exc:
             logger.error("Falha ao preparar restauracao do snapshot '%s': %s", snapshot, exc)
-            if marker_created:
-                # Restauracao nao aconteceu: marcador criado nesta rodada
-                # viraria orfao e dispararia revalidacao indevida.
-                recovery_marker.unlink(missing_ok=True)
             temporary.unlink(missing_ok=True)
             try:
                 for original, archived in moved_sidecars:
@@ -343,7 +370,21 @@ def _restore_latest_valid_snapshot_locked(
                     "Falha ao recompor sidecars apos restauracao abortada: %s",
                     rollback_error,
                 )
+                # Marcador preservado: estado em disco indeterminado exige
+                # revalidacao do cache na proxima rodada.
                 return "critical"
+            if marker_created:
+                # Restauracao nao aconteceu e o rollback recompoe os
+                # sidecars: marcador criado nesta rodada viraria orfao e
+                # dispararia revalidacao indevida. Falha ao remover nao
+                # aborta os demais candidatos: o marcador sobrevive e gera
+                # apenas uma revalidacao extra.
+                try:
+                    recovery_marker.unlink(missing_ok=True)
+                except OSError as unlink_error:
+                    logger.warning(
+                        "Marcador de recuperacao nao removido: %s", unlink_error
+                    )
             _prune_forensic_backups(db_path)
             continue
 
@@ -408,7 +449,12 @@ def _restore_latest_valid_snapshot_locked(
         if marker_created:
             # Rollback devolveu o banco original: a restauracao nao pegou,
             # entao o marcador criado nesta rodada nao deve sobreviver.
-            recovery_marker.unlink(missing_ok=True)
+            try:
+                recovery_marker.unlink(missing_ok=True)
+            except OSError as unlink_error:
+                logger.warning(
+                    "Marcador de recuperacao nao removido: %s", unlink_error
+                )
         _prune_forensic_backups(db_path)
     return "unavailable"
 
@@ -733,14 +779,14 @@ def _repair_database_if_needed_locked(
             if restore_status == "critical":
                 # Rollback de restauracao falhou: o estado em disco e
                 # indeterminado. Nao criar schema por cima; preserva
-                # evidencias e evita esconder a falha.
-                return False, {
-                    "is_valid": False,
-                    "issues": [
-                        "Falha critica ao tentar restaurar snapshot "
-                        "do banco ausente; estado em disco indeterminado"
-                    ],
-                }
+                # evidencias e evita esconder a falha. O report original
+                # segue no resultado para manter o diagnostico visivel.
+                report["is_valid"] = False
+                report.setdefault("issues", []).append(
+                    "Falha critica ao tentar restaurar snapshot "
+                    "do banco ausente; estado em disco indeterminado"
+                )
+                return False, report
             logger.info(
                 "Banco ausente sem snapshot utilizavel; criacao inicial sera executada"
             )
@@ -779,13 +825,12 @@ def _repair_database_if_needed_locked(
             if restore_status == "critical":
                 # Paridade com a branch needs_creation: rollback de
                 # restauracao falhou; estado em disco indeterminado.
-                return False, {
-                    "is_valid": False,
-                    "issues": [
-                        "Falha critica ao tentar restaurar snapshot "
-                        "do banco corrompido; estado em disco indeterminado"
-                    ],
-                }
+                report["is_valid"] = False
+                report.setdefault("issues", []).append(
+                    "Falha critica ao tentar restaurar snapshot "
+                    "do banco corrompido; estado em disco indeterminado"
+                )
+                return False, report
             logger.error("Banco corrompido sem snapshot valido para restauracao")
             return False, report
 

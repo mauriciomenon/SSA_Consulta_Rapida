@@ -39,7 +39,10 @@ def test_windows_guard_selects_only_the_declared_github_checkout(
     )
     assert result.returncode == 0, result.stdout + result.stderr
     expected = workspace if github_actions == "true" and workspace_set else profile / "gitlab" / "ssa_consulta_rapida_pyqt6"
-    assert Path(result.stdout.strip()) == expected
+    # pwsh em POSIX imprime o fallback do guard com a barra invertida
+    # literal do script; normaliza antes de comparar com Path local.
+    actual = Path(result.stdout.strip().replace("\\", "/"))
+    assert actual == expected
 
 
 def test_root_release_powershell_exposes_simple_defaults() -> None:

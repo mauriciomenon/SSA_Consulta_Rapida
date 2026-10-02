@@ -26,6 +26,7 @@
 - Uma regra de email verifica metadados; ela nao prova identidade criptograficamente.
 - Nao ativar exigencia DCO: ela exige `Signed-off-by` e contradiz estas regras.
 - Nao afirmar que AGENTS.md bloqueia pushes; a aplicacao online depende das regras e do plano de cada servico.
+- Proibido instalar ou executar `@sentry/dotagents` (npm/npx/pnpm/bun) neste repo; `agents.toml`, `agents.lock` e `.agents/skills` gerenciados por ele foram removidos deliberadamente. Gerenciador de skills autorizado: `npx skills` (Vercel).
 
 ## Verificacao executavel de autoria
 - `scripts/validate_git_authorship.py` valida autor, committer e mensagens; no push tambem valida tagger, mensagens de tags anotadas e conteudo de notas enviadas.
@@ -75,3 +76,10 @@
 - Declarar omissoes tecnicas confirmadas; nao encerrar uma rodada apenas porque houve alteracoes ou testes selecionados passaram.
 - Distinguir codigo local, hooks instalados, CI publicada e regra aplicada no servidor. Nao tratar esses estados como equivalentes.
 - Informar explicitamente se houve commit, push, reescrita, testes novos ou validacao pesada.
+
+## Licoes operacionais (registrar e reler; erros repetidos nesta sessao sao falha processual)
+- Antes de `gh api`/`gh` em repo de outro usuario, rodar `gh auth status` e usar `export GH_TOKEN=$(gh auth token -u <usuario>)` ou `gh auth switch`. Nunca concluir "sem acesso" por um 404/403 sem verificar a conta ativa. Contas autenticadas neste projeto: `mauriciomenon` e `schottge-menon`.
+- Os repos tem nomes diferentes por remote: origin=`SSA_Consulta_Rapida`, schottge=`ssa_consulta_rapida_pyqt6`, gitlab=`ssa_consulta_rapida_pyqt6`. Conferir `git remote -v` antes de montar URLs/args.
+- Nao tratar saida de comando como fato antes de ler o erro inteiro e validar a premissa (conta, nome, flag). Erro de parametro nao e "recurso ausente".
+- Validar flags contra `--help` antes de usar (`uv tree --invert --package`, `ecosystem=actions` na API de advisories). Em loops shell, padrao de grep que nao casa nada gera var vazia e saida lixo; testar o caso sem match antes de reportar.
+- Ir direto a fonte primaria quando existir (API do Dependabot para alertas, `ls-remote` para heads) em vez de ferramentas locais indiretas. Alertas de scanners contra snapshots/branches antigas nao equivalem a findings do `main` atual; verificar `created_at` e a branch varrida antes de reportar.

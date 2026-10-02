@@ -4,6 +4,7 @@ Modulo para exportar DataFrames para diferentes formatos de arquivo.
 """
 
 import pandas as pd
+import csv
 import os
 import logging
 import re
@@ -82,9 +83,20 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
     df_to_export = df.rename(columns=display_map)
     spreadsheet_df = sanitize_spreadsheet_dataframe(df_to_export)
 
+    def _export_csv(path: str) -> None:
+        # Header escrito direto: pandas <3 mutila labels duplicadas
+        # ("Nome" -> "Nome.1") no to_csv; csv.writer as preserva verbatim.
+        with open(path, "w", encoding="utf-8-sig", newline="") as handle:
+            csv.writer(handle).writerow(list(spreadsheet_df.columns))
+            # lineterminator explicito: csv.writer usa \r\n e to_csv em
+            # handle aberto usaria \n - sem isso o arquivo sai com EOL misto.
+            spreadsheet_df.to_csv(
+                handle, index=False, header=False, lineterminator="\r\n"
+            )
+
     # --- Exportacao ---
     formats_and_paths = {
-        'CSV': (f"{safe_base_filename}.csv", lambda path: spreadsheet_df.to_csv(path, index=False, encoding='utf-8-sig')),
+        'CSV': (f"{safe_base_filename}.csv", _export_csv),
         'XLSX': (f"{safe_base_filename}.xlsx", lambda path: spreadsheet_df.to_excel(path, index=False, engine='openpyxl')),
         'JSON': (f"{safe_base_filename}.json", lambda path: df_to_export.to_json(path, orient='records', indent=4, force_ascii=False, date_format='iso'))
     }
