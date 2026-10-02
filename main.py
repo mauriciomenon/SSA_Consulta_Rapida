@@ -246,7 +246,8 @@ def _load_runtime_dependencies():
 
 
 _MAINTENANCE_DB_BUSY_MESSAGE = (
-    "ERRO: banco em uso por outro processo. Feche a aplicacao e tente novamente."
+    "ERRO: backup de seguranca nao concluiu no prazo - banco em uso por "
+    "outro processo ou copia lenta. Feche outras instancias e tente novamente."
 )
 
 _SQLITE_MAGIC = b"SQLite format 3\x00"

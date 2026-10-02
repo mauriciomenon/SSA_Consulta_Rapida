@@ -296,9 +296,10 @@ def _restore_latest_valid_snapshot_locked(
     if backup_dir.is_symlink():
         # Copias forenses iriam para fora da pasta de dados; ambiente
         # adulterado bloqueia restauracao e recriacao (fail-closed).
-        logger.error(
-            "historico_backups e symlink; restauracao recusada: %s", backup_dir
-        )
+        issue = f"historico_backups e symlink; restauracao recusada: {backup_dir}"
+        logger.error(issue)
+        if report_out is not None:
+            report_out.setdefault("issues", []).append(issue)
         return "critical"
     backup_dir.mkdir(parents=True, exist_ok=True)
 

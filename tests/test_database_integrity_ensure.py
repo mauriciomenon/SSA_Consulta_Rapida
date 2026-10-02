@@ -452,7 +452,7 @@ def test_restore_keeps_recovery_marker_when_sidecar_rollback_fails(
     tmp_path, monkeypatch
 ):
     """Rollback falho deixa o disco indeterminado: o marcador de
-    recuperacao nao pode ser removido — ele forca a revalidacao do
+    recuperacao nao pode ser removido - ele forca a revalidacao do
     cache na proxima rodada."""
     db_path = _seeded_db_with_snapshot(tmp_path)
     db = Path(db_path).resolve()

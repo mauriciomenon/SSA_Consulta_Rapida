@@ -43,7 +43,7 @@ def _is_db_backup_name(name: str, db_name: str) -> bool:
     candidate = name.lstrip(".").lower()
     lowered_db = db_name.lower()
     stem = Path(lowered_db).stem
-    if not candidate.startswith(
+    if candidate.startswith(
         (
             f"{lowered_db}.bak-",
             f"{lowered_db}.backup_",
@@ -51,12 +51,25 @@ def _is_db_backup_name(name: str, db_name: str) -> bool:
             f"{lowered_db}_backup_",
             f"{lowered_db}.bkp",
             f"{lowered_db}_bkp",
-            f"{stem}_backup_",
-            f"{stem}_emergency_backup_",
         )
     ):
-        return False
-    return bool(_BACKUP_TIMESTAMP_RE.search(candidate))
+        return bool(_BACKUP_TIMESTAMP_RE.search(candidate))
+    # Familia por stem exige o par data_hora logo apos o marcador: um
+    # banco real datado por outra convencao (ssas_backup_prod_<ts>.db)
+    # nao e confundido com artefato gerado.
+    return bool(
+        re.match(
+            rf"{re.escape(stem)}_emergency_backup_\d{{8}}_\d{{6}}",
+            candidate,
+            re.ASCII,
+        )
+        or re.match(
+            rf"{re.escape(stem)}_backup_(?:antes_limpeza_final_)?"
+            rf"\d{{8}}_\d{{6}}",
+            candidate,
+            re.ASCII,
+        )
+    )
 
 
 def _is_backup_artifact(
@@ -75,7 +88,11 @@ def _is_backup_artifact(
         (f"{bound_stem}_backup_", f"{bound_stem}_emergency_backup_")
     ):
         return False
-    return any(pattern in lowered for pattern in backup_patterns)
+    # Padroes genericos tambem exigem par data_hora: "backup_relatorio.db"
+    # sem timestamp e arquivo do usuario, nao artefato de limpeza.
+    return bool(_BACKUP_TIMESTAMP_RE.search(lowered)) and any(
+        pattern in lowered for pattern in backup_patterns
+    )
 
 
 def reset_database(db_path="data/ssas.db"):

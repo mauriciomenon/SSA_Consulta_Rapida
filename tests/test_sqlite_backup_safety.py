@@ -725,7 +725,7 @@ def test_main_clean_data_keeps_legacy_scope_for_runtime_default(
     monkeypatch.setenv("SSA_DB_PATH", str(db_path))
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE placeholder(x)")
-    old_backup = data_dir / "backup_legacy.db"
+    old_backup = data_dir / "backup_20200101_120000.db"
     old_backup.write_bytes(b"old")
     os.utime(old_backup, (1_600_000_000, 1_600_000_000))
 
@@ -752,7 +752,7 @@ def test_clean_accepts_symlinked_ancestor_with_regular_data_directory(
     data_dir.mkdir(parents=True)
     alias = tmp_path / "alias"
     alias.symlink_to(real_parent, target_is_directory=True)
-    old_backup = data_dir / "backup_legacy.db"
+    old_backup = data_dir / "backup_20200101_120000.db"
     old_backup.write_bytes(b"old")
     os.utime(old_backup, (1_600_000_000, 1_600_000_000))
 
@@ -938,9 +938,12 @@ def test_main_clean_data_default_route_without_db_path_env(
     db_path = data_dir / "ssas.db"
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE placeholder(x)")
-    old_backup = data_dir / "backup_legacy.db"
+    old_backup = data_dir / "backup_20200101_120000.db"
     old_backup.write_bytes(b"old")
-    os.utime(old_backup, (1_600_000_000, 1_600_000_000))
+    user_file = data_dir / "backup_legacy.db"
+    user_file.write_bytes(b"keep")
+    for path in (old_backup, user_file):
+        os.utime(path, (1_600_000_000, 1_600_000_000))
 
     resolved_db_path, _ = main_module._resolve_database_target(
         main_module.runtime_root
@@ -950,6 +953,8 @@ def test_main_clean_data_default_route_without_db_path_env(
     )
 
     assert not old_backup.exists()
+    # Padrao generico sem par data_hora e arquivo do usuario: preservado.
+    assert user_file.read_bytes() == b"keep"
     assert db_path.is_file()
 
 
@@ -967,13 +972,18 @@ def test_clean_scoped_removes_timestamped_stem_artifacts(tmp_path: Path) -> None
     real_backup_db.write_bytes(b"banco real do usuario")
     versioned_db = data_dir / "ssas_backup_v2.db"
     versioned_db.write_bytes(b"banco real com digito no nome")
+    dated_other_db = data_dir / "ssas_backup_prod_20260101_120000.db"
+    dated_other_db.write_bytes(b"banco datado por convencao propria")
     timestamped_backup = data_dir / "ssas_backup_20260101_120000_ab12.db"
     timestamped_backup.write_bytes(b"artefato antigo")
     emergency = data_dir / "ssas_emergency_backup_20260101_120000.db"
     emergency.write_bytes(b"artefato antigo")
     foreign_temp = data_dir / "ssas_relatorio.tmp123"
     foreign_temp.write_bytes(b"keep")
-    for path in (real_backup_db, versioned_db, timestamped_backup, emergency):
+    for path in (
+        real_backup_db, versioned_db, dated_other_db,
+        timestamped_backup, emergency,
+    ):
         os.utime(path, (1_600_000_000, 1_600_000_000))
 
     gerenciar_banco.clean_old_backups(
@@ -988,6 +998,8 @@ def test_clean_scoped_removes_timestamped_stem_artifacts(tmp_path: Path) -> None
     assert real_backup_db.read_bytes() == b"banco real do usuario"
     # Um digito isolado no nome nao autoriza a limpeza: exige bloco de data.
     assert versioned_db.read_bytes() == b"banco real com digito no nome"
+    # Timestamp por convencao propria alem do marcador backup_ tambem nao.
+    assert dated_other_db.read_bytes() == b"banco datado por convencao propria"
     assert foreign_temp.read_bytes() == b"keep"
     assert db_path.is_file()
 
@@ -1006,21 +1018,27 @@ def test_clean_default_scope_preserves_stem_named_real_dbs(tmp_path: Path) -> No
     real_backup_db.write_bytes(b"banco real do usuario")
     versioned_db = data_dir / "ssas_backup_v2.db"
     versioned_db.write_bytes(b"banco real com digito no nome")
+    dated_other_db = data_dir / "ssas_backup_prod_20260101_120000.db"
+    dated_other_db.write_bytes(b"banco datado por convencao propria")
     timestamped_backup = data_dir / "ssas_backup_20260101_120000_ab12.db"
     timestamped_backup.write_bytes(b"artefato antigo")
     limpeza_backup = (
         data_dir / "ssas_backup_antes_limpeza_final_20260101_120000_123456.db"
     )
     limpeza_backup.write_bytes(b"artefato antigo")
-    generic_backup = data_dir / "backup_legacy.db"
+    generic_backup = data_dir / "backup_20200101_120000.db"
     generic_backup.write_bytes(b"legado generico")
+    generic_no_ts = data_dir / "backup_manual.db"
+    generic_no_ts.write_bytes(b"arquivo do usuario")
     stale = 1_600_000_000
     for path in (
         real_backup_db,
         versioned_db,
+        dated_other_db,
         timestamped_backup,
         limpeza_backup,
         generic_backup,
+        generic_no_ts,
     ):
         os.utime(path, (stale, stale))
 
@@ -1029,10 +1047,13 @@ def test_clean_default_scope_preserves_stem_named_real_dbs(tmp_path: Path) -> No
 
     assert not timestamped_backup.exists()
     assert not limpeza_backup.exists()
-    # Padrao generico legado do escopo default segue sendo limpo.
+    # Padrao generico com par data_hora segue sendo limpo.
     assert not generic_backup.exists()
+    # Sem o par data_hora, mesmo no escopo default o arquivo e preservado.
+    assert generic_no_ts.read_bytes() == b"arquivo do usuario"
     assert real_backup_db.read_bytes() == b"banco real do usuario"
     assert versioned_db.read_bytes() == b"banco real com digito no nome"
+    assert dated_other_db.read_bytes() == b"banco datado por convencao propria"
     assert db_path.is_file()
 
 

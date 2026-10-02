@@ -89,7 +89,7 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
         with open(path, "w", encoding="utf-8-sig", newline="") as handle:
             csv.writer(handle).writerow(list(spreadsheet_df.columns))
             # lineterminator explicito: csv.writer usa \r\n e to_csv em
-            # handle aberto usaria \n — sem isso o arquivo sai com EOL misto.
+            # handle aberto usaria \n - sem isso o arquivo sai com EOL misto.
             spreadsheet_df.to_csv(
                 handle, index=False, header=False, lineterminator="\r\n"
             )
