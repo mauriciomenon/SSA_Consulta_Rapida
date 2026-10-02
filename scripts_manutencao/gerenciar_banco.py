@@ -40,23 +40,29 @@ _BACKUP_TIMESTAMP_RE = re.compile(r"\d{8}_\d{6}", re.ASCII)
 def _is_db_backup_name(name: str, db_name: str) -> bool:
     # Backups com apenas o stem nao identificam um banco unico em pasta
     # compartilhada; bancos com extensoes diferentes podem ter o mesmo stem.
-    candidate = name.lstrip(".").lower()
-    lowered_db = db_name.lower()
-    stem = Path(lowered_db).stem
-    if candidate.startswith(
-        (
-            f"{lowered_db}.bak-",
-            f"{lowered_db}.backup_",
-            f"{lowered_db}.full_rescan_backup_",
-            f"{lowered_db}_backup_",
-            f"{lowered_db}.bkp",
-            f"{lowered_db}_bkp",
-        )
+    # normcase preserva a distincao de caixa em POSIX (foo.db != Foo.db) e
+    # dobra apenas onde o FS nao diferencia (Windows).
+    candidate = os.path.normcase(name.lstrip("."))
+    bound = os.path.normcase(db_name)
+    stem = Path(bound).stem
+    for prefix in (
+        f"{bound}.bak-",
+        f"{bound}.backup_",
+        f"{bound}.full_rescan_backup_",
+        f"{bound}_backup_",
+        f"{bound}.bkp",
+        f"{bound}_bkp",
     ):
-        return bool(_BACKUP_TIMESTAMP_RE.search(candidate))
+        if candidate.startswith(prefix):
+            # O par data_hora precisa estar no sufixo do artefato: uma
+            # data no proprio nome do banco (loja_<ts>.db) nao autoriza
+            # tratar "<banco>.backup_prod.db" como descartavel.
+            return bool(_BACKUP_TIMESTAMP_RE.search(candidate[len(prefix):]))
     # Familia por stem exige o par data_hora logo apos o marcador: um
     # banco real datado por outra convencao (ssas_backup_prod_<ts>.db)
-    # nao e confundido com artefato gerado.
+    # nao e confundido com artefato gerado. O meio "antes_limpeza_final"
+    # so existe para o banco canonico ssas (scripts_manutencao/limpar_banco).
+    middle = "(?:antes_limpeza_final_)?" if stem == "ssas" else ""
     return bool(
         re.match(
             rf"{re.escape(stem)}_emergency_backup_\d{{8}}_\d{{6}}",
@@ -64,8 +70,7 @@ def _is_db_backup_name(name: str, db_name: str) -> bool:
             re.ASCII,
         )
         or re.match(
-            rf"{re.escape(stem)}_backup_(?:antes_limpeza_final_)?"
-            rf"\d{{8}}_\d{{6}}",
+            rf"{re.escape(stem)}_backup_{middle}\d{{8}}_\d{{6}}",
             candidate,
             re.ASCII,
         )
