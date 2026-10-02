@@ -247,7 +247,7 @@ def _mark_import_cache_pending(db: Path) -> bool:
             return True
         except FileExistsError:
             if marker.is_symlink() or not marker.is_file():
-                marker.unlink()
+                marker.unlink(missing_ok=True)
                 continue
             return False
         except OSError:
