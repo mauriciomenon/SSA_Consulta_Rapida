@@ -5,6 +5,7 @@ Inclui funes para reset do DB, limpeza de backups antigos e sanitizao.
 """
 
 import os
+import re
 import shutil
 import sqlite3
 import sys
@@ -46,11 +47,12 @@ def _is_db_backup_name(name: str, db_name: str) -> bool:
         return True
     # Artefatos legados usam o stem sem extensao e carregam timestamp
     # (DatabaseAnalyzer.create_backup, limpar_banco, cleanup_emergency):
-    # <stem>_backup_<ts>.db e <stem>_emergency_backup_<ts>.db. Exigir digito
-    # impede que um banco real como "ssas_backup_prod.db" (sem timestamp)
-    # seja classificado como artefato descartavel.
+    # <stem>_backup_<ts>.db e <stem>_emergency_backup_<ts>.db. Exigir um
+    # bloco de data (8+ digitos) impede que bancos reais como
+    # "ssas_backup_prod.db" ou "ssas_backup_v2.db" sejam classificados
+    # como artefato descartavel.
     stem = Path(db_name).stem
-    return any(char.isdigit() for char in candidate) and candidate.startswith(
+    return bool(re.search(r"\d{8}", candidate)) and candidate.startswith(
         (f"{stem}_backup_", f"{stem}_emergency_backup_")
     )
 

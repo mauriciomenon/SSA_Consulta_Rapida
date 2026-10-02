@@ -965,13 +965,15 @@ def test_clean_scoped_removes_timestamped_stem_artifacts(tmp_path: Path) -> None
         conn.execute("CREATE TABLE placeholder(x)")
     real_backup_db = data_dir / "ssas_backup_prod.db"
     real_backup_db.write_bytes(b"banco real do usuario")
+    versioned_db = data_dir / "ssas_backup_v2.db"
+    versioned_db.write_bytes(b"banco real com digito no nome")
     timestamped_backup = data_dir / "ssas_backup_20260101_120000_ab12.db"
     timestamped_backup.write_bytes(b"artefato antigo")
     emergency = data_dir / "ssas_emergency_backup_20260101_120000.db"
     emergency.write_bytes(b"artefato antigo")
     foreign_temp = data_dir / "ssas_relatorio.tmp123"
     foreign_temp.write_bytes(b"keep")
-    for path in (real_backup_db, timestamped_backup, emergency):
+    for path in (real_backup_db, versioned_db, timestamped_backup, emergency):
         os.utime(path, (1_600_000_000, 1_600_000_000))
 
     gerenciar_banco.clean_old_backups(
@@ -984,5 +986,7 @@ def test_clean_scoped_removes_timestamped_stem_artifacts(tmp_path: Path) -> None
     assert not timestamped_backup.exists()
     assert not emergency.exists()
     assert real_backup_db.read_bytes() == b"banco real do usuario"
+    # Um digito isolado no nome nao autoriza a limpeza: exige bloco de data.
+    assert versioned_db.read_bytes() == b"banco real com digito no nome"
     assert foreign_temp.read_bytes() == b"keep"
     assert db_path.is_file()
