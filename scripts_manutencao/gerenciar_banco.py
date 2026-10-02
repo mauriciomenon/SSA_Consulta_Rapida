@@ -40,19 +40,15 @@ _BACKUP_TIMESTAMP_RE = re.compile(r"\d{8}_\d{6}", re.ASCII)
 def _is_db_backup_name(name: str, db_name: str) -> bool:
     # Backups com apenas o stem nao identificam um banco unico em pasta
     # compartilhada; bancos com extensoes diferentes podem ter o mesmo stem.
-    candidate = name.lstrip(".").lower()
-    lowered_db = db_name.lower()
-    stem = Path(lowered_db).stem
+    candidate = name.lstrip(".")
     if not candidate.startswith(
         (
-            f"{lowered_db}.bak-",
-            f"{lowered_db}.backup_",
-            f"{lowered_db}.full_rescan_backup_",
-            f"{lowered_db}_backup_",
-            f"{lowered_db}.bkp",
-            f"{lowered_db}_bkp",
-            f"{stem}_backup_",
-            f"{stem}_emergency_backup_",
+            f"{db_name}.bak-",
+            f"{db_name}.backup_",
+            f"{db_name}.full_rescan_backup_",
+            f"{db_name}_backup_",
+            f"{db_name}.bkp",
+            f"{db_name}_bkp",
         )
     ):
         return False
