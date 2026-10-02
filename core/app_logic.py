@@ -1473,7 +1473,7 @@ def _validate_and_promote_candidate_if_needed(
     except Exception as exc:
         # save_cache pode falhar com erro nao-OSError (PathSafetyError,
         # RuntimeError de lock): a falha nao pode escalar depois da
-        # promocao — o marcador sobrevive e forca revalidacao no proximo
+        # promocao; o marcador sobrevive e forca revalidacao no proximo
         # ciclo, que e a direcao segura.
         logger.warning(
             "Marcador de recuperacao nao removido apos promocao: %s", exc
