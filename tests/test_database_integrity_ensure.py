@@ -598,3 +598,36 @@ def test_restore_continues_to_next_snapshot_when_marker_unlink_fails(
         assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [
             ("202600001",)
         ]
+
+
+def test_restore_replaces_empty_directory_at_marker_path(tmp_path):
+    """Pasta vazia plantada no caminho do marcador nao pode rejeitar o
+    snapshot valido: rmdir remove e a recriacao do marcador segue."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    db = Path(db_path).resolve()
+    db.write_bytes(b"corrompido")
+    marker = Path(f"{db}{database_integrity.IMPORT_CACHE_RECOVERY_SUFFIX}")
+    marker.mkdir()
+
+    status = database_integrity._restore_latest_valid_snapshot_locked(
+        str(db), "ssa_table"
+    )
+
+    assert status == "restored"
+    assert marker.is_file()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlink sem privilegio no Windows")
+def test_snapshot_creation_refuses_symlinked_historico_backups(tmp_path):
+    """Criacao de snapshot tambem nao pode seguir historico_backups
+    symlinkado: copiaria o banco inteiro para fora da pasta de dados."""
+    db_path = _seeded_db_with_snapshot(tmp_path)
+    db = Path(db_path).resolve()
+    backup_dir = db.parent / "historico_backups"
+    backup_dir.rename(tmp_path / "historico_real")
+    outside = tmp_path / "fora"
+    outside.mkdir()
+    backup_dir.symlink_to(outside, target_is_directory=True)
+
+    assert database_integrity._create_integrity_snapshot(str(db), force=True) is None
+    assert not list(outside.iterdir())

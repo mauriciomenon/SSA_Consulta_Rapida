@@ -159,6 +159,12 @@ def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | N
             )
 
     backup_dir = db.parent / "historico_backups"
+    if backup_dir.is_symlink():
+        # Snapshot copiaria o banco inteiro para fora da pasta de dados.
+        logger.error(
+            "historico_backups e symlink; snapshot recusado: %s", backup_dir
+        )
+        return None
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     snapshot = backup_dir / f"{db.name}.integrity_{timestamp}.db"
@@ -188,6 +194,14 @@ def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | N
 def _prune_forensic_backups(db_path: str) -> None:
     db = Path(db_path).resolve()
     backup_dir = db.parent / "historico_backups"
+    if backup_dir.is_symlink():
+        # Podar dentro de um destino linkado apagaria arquivos fora da
+        # pasta de dados; recusa silenciosa mantem a evidencia intacta.
+        logger.warning(
+            "historico_backups e symlink; poda forense recusada: %s",
+            backup_dir,
+        )
+        return
     prefix = f"{db.name}.corrupt_"
     try:
         families = {path: [path] for path in _backup_paths(db_path, "corrupt")}
@@ -247,7 +261,12 @@ def _mark_import_cache_pending(db: Path) -> bool:
             return True
         except FileExistsError:
             if marker.is_symlink() or not marker.is_file():
-                marker.unlink(missing_ok=True)
+                # Pasta vazia plantada sai com rmdir; nao-vazia propaga
+                # OSError (fail-closed).
+                if marker.is_dir() and not marker.is_symlink():
+                    marker.rmdir()
+                else:
+                    marker.unlink(missing_ok=True)
                 continue
             return False
         except OSError:

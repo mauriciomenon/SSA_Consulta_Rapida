@@ -986,15 +986,23 @@ def test_clean_scoped_removes_timestamped_stem_artifacts(tmp_path: Path) -> None
     ):
         os.utime(path, (1_600_000_000, 1_600_000_000))
 
-    gerenciar_banco.clean_old_backups(
+    # Sanitize antes do clean: exercita o move para backups/ e a limpeza
+    # dos artefatos ja movidos (mtime antigo preservado pelo move).
+    gerenciar_banco.sanitize_data_folder(
         str(data_dir), db_basename="ssas.db", scope_name="ssas.db"
     )
-    gerenciar_banco.sanitize_data_folder(
+    moved_backup = data_dir / "backups" / timestamped_backup.name
+    moved_emergency = data_dir / "backups" / emergency.name
+    assert moved_backup.exists()
+    assert moved_emergency.exists()
+
+    gerenciar_banco.clean_old_backups(
         str(data_dir), db_basename="ssas.db", scope_name="ssas.db"
     )
 
     assert not timestamped_backup.exists()
-    assert not emergency.exists()
+    assert not moved_backup.exists()
+    assert not moved_emergency.exists()
     assert real_backup_db.read_bytes() == b"banco real do usuario"
     # Um digito isolado no nome nao autoriza a limpeza: exige bloco de data.
     assert versioned_db.read_bytes() == b"banco real com digito no nome"
@@ -1042,13 +1050,23 @@ def test_clean_default_scope_preserves_stem_named_real_dbs(tmp_path: Path) -> No
     ):
         os.utime(path, (stale, stale))
 
-    gerenciar_banco.clean_old_backups(str(data_dir), days_to_keep=7)
+    # Sanitize primeiro para exercitar o move; o clean remove da pasta
+    # backups/ os artefatos com mtime antigo.
     gerenciar_banco.sanitize_data_folder(str(data_dir))
+    moved_names = (
+        data_dir / "backups" / timestamped_backup.name,
+        data_dir / "backups" / limpeza_backup.name,
+        data_dir / "backups" / generic_backup.name,
+    )
+    for moved in moved_names:
+        assert moved.exists()
+
+    gerenciar_banco.clean_old_backups(str(data_dir), days_to_keep=7)
 
     assert not timestamped_backup.exists()
     assert not limpeza_backup.exists()
-    # Padrao generico com par data_hora segue sendo limpo.
-    assert not generic_backup.exists()
+    for moved in moved_names:
+        assert not moved.exists()
     # Sem o par data_hora, mesmo no escopo default o arquivo e preservado.
     assert generic_no_ts.read_bytes() == b"arquivo do usuario"
     assert real_backup_db.read_bytes() == b"banco real do usuario"

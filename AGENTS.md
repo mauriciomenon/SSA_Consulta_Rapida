@@ -78,7 +78,7 @@
 - Informar explicitamente se houve commit, push, reescrita, testes novos ou validacao pesada.
 
 ## Licoes operacionais (registrar e reler; erros repetidos nesta sessao sao falha processual)
-- Antes de `gh api`/`gh` em repo de outro usuario, rodar `gh auth status` e usar `GH_TOKEN=$(gh auth token -u <usuario>)` ou `gh auth switch`. Nunca concluir "sem acesso" por um 404/403 sem verificar a conta ativa. Contas autenticadas neste projeto: `mauriciomenon` e `schottge-menon`.
+- Antes de `gh api`/`gh` em repo de outro usuario, rodar `gh auth status` e usar `export GH_TOKEN=$(gh auth token -u <usuario>)` ou `gh auth switch`. Nunca concluir "sem acesso" por um 404/403 sem verificar a conta ativa. Contas autenticadas neste projeto: `mauriciomenon` e `schottge-menon`.
 - Os repos tem nomes diferentes por remote: origin=`SSA_Consulta_Rapida`, schottge=`ssa_consulta_rapida_pyqt6`, gitlab=`ssa_consulta_rapida_pyqt6`. Conferir `git remote -v` antes de montar URLs/args.
 - Nao tratar saida de comando como fato antes de ler o erro inteiro e validar a premissa (conta, nome, flag). Erro de parametro nao e "recurso ausente".
 - Validar flags contra `--help` antes de usar (`uv tree --invert --package`, `ecosystem=actions` na API de advisories). Em loops shell, padrao de grep que nao casa nada gera var vazia e saida lixo; testar o caso sem match antes de reportar.
