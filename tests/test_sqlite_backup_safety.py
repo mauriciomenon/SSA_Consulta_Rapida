@@ -990,3 +990,76 @@ def test_clean_scoped_removes_timestamped_stem_artifacts(tmp_path: Path) -> None
     assert versioned_db.read_bytes() == b"banco real com digito no nome"
     assert foreign_temp.read_bytes() == b"keep"
     assert db_path.is_file()
+
+
+def test_clean_default_scope_preserves_stem_named_real_dbs(tmp_path: Path) -> None:
+    """No escopo default (banco canonico) nomes da familia do stem sem
+    bloco data_hora tambem sao arquivos do usuario e nao sao tocados."""
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    real_backup_db = data_dir / "ssas_backup_prod.db"
+    real_backup_db.write_bytes(b"banco real do usuario")
+    versioned_db = data_dir / "ssas_backup_v2.db"
+    versioned_db.write_bytes(b"banco real com digito no nome")
+    timestamped_backup = data_dir / "ssas_backup_20260101_120000_ab12.db"
+    timestamped_backup.write_bytes(b"artefato antigo")
+    limpeza_backup = (
+        data_dir / "ssas_backup_antes_limpeza_final_20260101_120000_123456.db"
+    )
+    limpeza_backup.write_bytes(b"artefato antigo")
+    generic_backup = data_dir / "backup_legacy.db"
+    generic_backup.write_bytes(b"legado generico")
+    stale = 1_600_000_000
+    for path in (
+        real_backup_db,
+        versioned_db,
+        timestamped_backup,
+        limpeza_backup,
+        generic_backup,
+    ):
+        os.utime(path, (stale, stale))
+
+    gerenciar_banco.clean_old_backups(str(data_dir), days_to_keep=7)
+    gerenciar_banco.sanitize_data_folder(str(data_dir))
+
+    assert not timestamped_backup.exists()
+    assert not limpeza_backup.exists()
+    # Padrao generico legado do escopo default segue sendo limpo.
+    assert not generic_backup.exists()
+    assert real_backup_db.read_bytes() == b"banco real do usuario"
+    assert versioned_db.read_bytes() == b"banco real com digito no nome"
+    assert db_path.is_file()
+
+
+def test_sanitize_scoped_preserves_generic_temp_named_user_files(
+    tmp_path: Path,
+) -> None:
+    """No escopo restrito, copias manuais com nomes genericos de temp
+    (<banco>.bak, <banco>.tmp, <banco>~) nao sao removidas."""
+    from scripts_manutencao import gerenciar_banco
+
+    data_dir = tmp_path / "pasta_compartilhada"
+    data_dir.mkdir()
+    db_path = data_dir / "meu.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE placeholder(x)")
+    user_copy = data_dir / "meu.db.bak"
+    tilde_copy = data_dir / "meu.db~"
+    manual_tmp = data_dir / "meu.db.tmp"
+    tool_temp = data_dir / "meu.db.tmp-999"
+    for path in (user_copy, tilde_copy, manual_tmp, tool_temp):
+        path.write_bytes(b"keep")
+
+    gerenciar_banco.sanitize_data_folder(
+        str(data_dir), db_basename="meu.db", scope_name="meu.db"
+    )
+
+    assert user_copy.read_bytes() == b"keep"
+    assert tilde_copy.read_bytes() == b"keep"
+    assert manual_tmp.read_bytes() == b"keep"
+    assert not tool_temp.exists()
