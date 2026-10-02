@@ -113,6 +113,9 @@ def _replace_file_with_retry(source: str | Path, target: str | Path) -> None:
 def _backup_paths(db_path: str, marker: str) -> list[Path]:
     db = Path(db_path).resolve()
     backup_dir = db.parent / "historico_backups"
+    if backup_dir.is_symlink():
+        logger.error("historico_backups e symlink; backups recusados: %s", backup_dir)
+        return []
     prefix = f"{db.name}.{marker}_"
     try:
         paths = [
@@ -146,6 +149,10 @@ def _prune_integrity_snapshots(db_path: str) -> None:
 def _create_integrity_snapshot(db_path: str, *, force: bool = False) -> Path | None:
     db = Path(db_path).resolve()
     if ".full_rescan_candidate_" in db.name:
+        return None
+    backup_dir = db.parent / "historico_backups"
+    if backup_dir.is_symlink():
+        logger.error("historico_backups e symlink; snapshot recusado: %s", backup_dir)
         return None
     snapshots = _snapshot_paths(db_path)
     if snapshots and not force:
@@ -299,7 +306,7 @@ def _restore_latest_valid_snapshot_locked(
         logger.error(
             "historico_backups e symlink; restauracao recusada: %s", backup_dir
         )
-        return "critical"
+        return "unavailable"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     candidates: list[Path] = []
