@@ -1465,8 +1465,16 @@ def _validate_and_promote_candidate_if_needed(
                 raise_on_error=True,
                 extra_allowed_roots=extra_allowed_roots,
             )
-        recovery_marker.unlink(missing_ok=True)
-    except OSError as exc:
+        if cache_file or not os.path.lexists(recovery_marker):
+            # Sem cache configurado o wipe nao tem alvo: consumir o marcador
+            # aqui deixaria um file_cache.json obsoleto ativo para rodadas
+            # futuras com cache. Nesse caso o marcador permanece.
+            recovery_marker.unlink(missing_ok=True)
+    except Exception as exc:
+        # save_cache pode falhar com erro nao-OSError (PathSafetyError,
+        # RuntimeError de lock): a falha nao pode escalar depois da
+        # promocao — o marcador sobrevive e forca revalidacao no proximo
+        # ciclo, que e a direcao segura.
         logger.warning(
             "Marcador de recuperacao nao removido apos promocao: %s", exc
         )
