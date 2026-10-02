@@ -88,7 +88,11 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
         # ("Nome" -> "Nome.1") no to_csv; csv.writer as preserva verbatim.
         with open(path, "w", encoding="utf-8-sig", newline="") as handle:
             csv.writer(handle).writerow(list(spreadsheet_df.columns))
-            spreadsheet_df.to_csv(handle, index=False, header=False)
+            # lineterminator explicito: csv.writer usa \r\n e to_csv em
+            # handle aberto usaria \n — sem isso o arquivo sai com EOL misto.
+            spreadsheet_df.to_csv(
+                handle, index=False, header=False, lineterminator="\r\n"
+            )
 
     # --- Exportacao ---
     formats_and_paths = {
