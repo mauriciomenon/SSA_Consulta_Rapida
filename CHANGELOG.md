@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Estabilizacao (branch rev)
+
+- `import_pai_api_xlsx.py --source-xlsx ... --cleanup-manifest` nao apaga mais o XLSX de origem informado pelo usuario.
+
 ### Candidata local v4.51 - 2026-09-24
 
 - Consolida correcoes locais de importacao, cancelamento, armazenamento e GUI ainda em validacao.

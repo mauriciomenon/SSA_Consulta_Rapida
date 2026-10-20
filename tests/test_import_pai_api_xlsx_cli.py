@@ -63,6 +63,37 @@ def test_cli_source_xlsx_fetch_only_writes_summary(tmp_path: Path) -> None:
     assert payload["warnings"] == []
 
 
+def test_cli_cleanup_manifest_preserves_local_source_xlsx(tmp_path: Path) -> None:
+    source = tmp_path / "pai_local.xlsx"
+    pd.DataFrame(
+        {
+            "ssa_number": [202600004],
+            "description": ["Origem local"],
+            "issue_datetime": ["2026-01-09T13:56:00Z"],
+            "executor_sector": ["IEE3"],
+            "emitter_sector": ["MEL4"],
+        }
+    ).to_excel(source, index=False)
+
+    exit_code = import_pai_api_xlsx.main(
+        [
+            "--project-root",
+            str(tmp_path),
+            "--source-xlsx",
+            str(source),
+            "--docs-dir",
+            str(tmp_path / "docs"),
+            "--db-path",
+            str(tmp_path / "ssas.db"),
+            "--fetch-only",
+            "--cleanup-manifest",
+        ]
+    )
+
+    assert exit_code == 0
+    assert source.is_file(), "--cleanup-manifest nao pode apagar o XLSX de origem informado"
+
+
 def test_pai_import_summary_collects_manifest_warning_shapes(tmp_path: Path) -> None:
     source = tmp_path / "pai.xlsx"
     manifest = tmp_path / "manifest.json"

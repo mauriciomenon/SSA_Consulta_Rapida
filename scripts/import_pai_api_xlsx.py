@@ -137,8 +137,12 @@ def run(args: argparse.Namespace) -> int:
         )
     exit_code = exit_status.code
     if exit_code == 0 and args.cleanup_manifest:
-        result.export.manifest_path.unlink(missing_ok=True)
-        print("Manifest PAI removido.")
+        if source_xlsx is not None:
+            # Origem local: o "manifest" do export e o proprio XLSX do usuario.
+            print("Origem --source-xlsx nao gera manifest; arquivo de origem preservado.")
+        else:
+            result.export.manifest_path.unlink(missing_ok=True)
+            print("Manifest PAI removido.")
     if args.summary_json:
         _write_summary_json(
             _resolve_under_project(project_root, args.summary_json),
