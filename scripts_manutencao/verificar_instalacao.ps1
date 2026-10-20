@@ -118,10 +118,13 @@ $dataOk = Test-Component -Name "Pasta de Dados" -Test {
 
 # 10. Verificar criação do banco
 $dbOk = Test-Component -Name "Criação do Banco" -Test {
-    if (-not (Test-Path "data\ssas.db")) {
-        Write-Host "`n    Criando banco de dados..." -ForegroundColor Cyan
-        python main.py --reset-db 2>$null
-        return $LASTEXITCODE -eq 0 -and (Test-Path "data\ssas.db")
+    # Mesmo alvo efetivo do main.py: SSA_DB_PATH tem prioridade sobre data\ssas.db.
+    # --reset-db so roda quando esse alvo NAO existe; banco existente nunca e resetado.
+    $dbTarget = if ($env:SSA_DB_PATH) { $env:SSA_DB_PATH } else { "data\ssas.db" }
+    if (-not (Test-Path $dbTarget)) {
+        Write-Host "`n    Criando banco de dados em $dbTarget..." -ForegroundColor Cyan
+        python main.py --reset-db
+        return $LASTEXITCODE -eq 0 -and (Test-Path $dbTarget)
     }
     return $true
 } -SuccessMessage "Banco de dados disponível" -FailureMessage "Erro ao criar banco"

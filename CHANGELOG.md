@@ -7,6 +7,7 @@ All notable changes to this project are documented in this file.
 ### Estabilizacao (branch rev)
 
 - `import_pai_api_xlsx.py --source-xlsx ... --cleanup-manifest` nao apaga mais o XLSX de origem informado pelo usuario.
+- `verificar_instalacao.ps1` usa o mesmo banco efetivo do app (`SSA_DB_PATH` ou `data\ssas.db`) e nunca reseta um banco existente; erros do reset ficam visiveis.
 
 ### Candidata local v4.51 - 2026-09-24
 
