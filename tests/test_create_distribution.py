@@ -773,6 +773,29 @@ def test_inno_excludes_match_backup_fragments() -> None:
     assert "*.backup_*" in excludes
 
 
+def test_package_zip_failure_leaves_no_truncated_zip(tmp_path: Path, monkeypatch) -> None:
+    package_dir = tmp_path / "pkg"
+    package_dir.mkdir()
+    (package_dir / "a.txt").write_text("a", encoding="utf-8")
+    (package_dir / "b.txt").write_text("b", encoding="utf-8")
+    zip_path = tmp_path / "SSA_v1.zip"
+    calls = {"n": 0}
+    original_write = zipfile.ZipFile.write
+
+    def _fail_second_write(self, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise OSError("disco cheio")
+        return original_write(self, *args, **kwargs)
+
+    monkeypatch.setattr(zipfile.ZipFile, "write", _fail_second_write)
+
+    with pytest.raises(OSError, match="disco cheio"):
+        create_distribution._create_package_zip(package_dir, "SSA_v1", zip_path)
+
+    assert list(tmp_path.glob("*.zip*")) == []
+
+
 @pytest.mark.parametrize("include_runtime_db", [False, True])
 def test_inno_excludes_local_spreadsheets_databases_and_exports(
     include_runtime_db: bool,

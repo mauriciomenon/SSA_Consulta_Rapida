@@ -961,13 +961,23 @@ def _write_package_version_file(
 
 
 def _create_package_zip(package_dir: Path, package_name: str, zip_path: Path) -> None:
-    """Gera arquivo ZIP final a partir do pacote staged."""
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(package_dir):
-            for file in files:
-                file_path = Path(root) / file
-                arcname = Path(package_name) / file_path.relative_to(package_dir)
-                zipf.write(file_path, arcname)
+    """Gera arquivo ZIP final a partir do pacote staged.
+
+    Grava em <zip>.tmp e troca com os.replace: interrupcao no meio nunca deixa
+    um .zip truncado com nome de versao valido para um glob de publicacao.
+    """
+    tmp_path = zip_path.with_name(zip_path.name + ".tmp")
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for root, _dirs, files in os.walk(package_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    arcname = Path(package_name) / file_path.relative_to(package_dir)
+                    zipf.write(file_path, arcname)
+        os.replace(tmp_path, zip_path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
 
 
 def _prepare_package_staging(
