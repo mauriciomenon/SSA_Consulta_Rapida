@@ -25,7 +25,7 @@ import os
 import re
 import sqlite3 as _sqlite3_typehint
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Callable, Mapping, cast
 
 import numpy as np
@@ -48,6 +48,12 @@ _VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
 _RUNTIME_STATE: dict[str, str | None] = {"short_circuit_policy": None}
 _SQLITE_IN_MAX_VARS = 900
 _TEXTUAL_NULL_SENTINELS = {"", "<na>", "none", "nan", "null", "n/a", "-"}
+# Metadata de origem: reescrita que so muda estas colunas conta como SSA
+# verificada, nao atualizada (decisao X-01).
+_SOURCE_METADATA_COLUMNS = frozenset(
+    {"arquivo_origem", "data_arquivo_origem", "data_criacao_arquivo", "data_planilha"}
+)
+_ISO_DATE_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
 _SSA_EVENT_RECORDS_DDL = """
 CREATE TABLE IF NOT EXISTS ssa_event_records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -607,6 +613,62 @@ def _is_empty_upsert_value(val: Any) -> bool:
     return False
 
 
+def _comparable_upsert_value(value: Any) -> Any:
+    """Forma comparavel: vazio -> None, data -> 'YYYY-MM-DD HH:MM:SS', texto aparado."""
+    if _is_empty_upsert_value(value):
+        return None
+    if isinstance(value, (date, np.datetime64)):
+        return pd.Timestamp(value).strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(value, np.generic):
+        return value.item()
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if _ISO_DATE_PREFIX_RE.match(text):
+        try:
+            return datetime.fromisoformat(text).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return text  # parece data mas nao e ISO valido: compara como texto
+    return text
+
+
+def _business_values_equal(left: Any, right: Any) -> bool:
+    if left is right or (type(left) is str and left == right):
+        return True  # caso comum, sem normalizar
+    left = _comparable_upsert_value(left)
+    right = _comparable_upsert_value(right)
+    if left == right:
+        return True
+    try:
+        return float(left) == float(right)  # "1" == 1 == 1.0
+    except (TypeError, ValueError, OverflowError):
+        return False  # diferentes e nao numericos
+
+
+def _classify_existing_row_change(
+    existing: pd.Series | Mapping[str, Any],
+    merged: pd.Series | Mapping[str, Any],
+) -> str | None:
+    """Classifica a reescrita de uma SSA existente (decisao X-01, igual ao app C++).
+
+    Retorna "updated" se algum valor de negocio mudou, "verified" se so a
+    metadata de origem mudou e None se nada mudou. Serve as metricas
+    ssa_updated/ssa_verified dos dois caminhos de upsert; nao altera a gravacao.
+    """
+    existing, merged = dict(existing.items()), dict(merged.items())  # .get rapido
+    metadata_changed = False
+    for column in existing.keys() | merged.keys():
+        # id da linha nao e dado de negocio nem de origem.
+        if column == "id" or _business_values_equal(
+            existing.get(column), merged.get(column)
+        ):
+            continue
+        if column not in _SOURCE_METADATA_COLUMNS:
+            return "updated"
+        metadata_changed = True
+    return "verified" if metadata_changed else None
+
+
 def _parse_upsert_dt(value: Any):
     try:
         if _is_empty_upsert_value(value):
@@ -1113,16 +1175,19 @@ def _collect_chunk_upsert_delta(
     description_columns: list[str],
     date_columns: list[str],
     metrics_out: dict[str, int] | None = None,
-) -> tuple[dict[str, pd.Series], set[Any], int]:
+) -> tuple[dict[str, pd.Series], set[Any], int, dict[str, str | None]]:
     """Calcula delta de persistencia para um chunk sem executar IO no banco.
 
     Contrato:
     - decide somente comparacao/merge por linha;
     - atualiza caches em memoria do chunk atual;
     - nao faz DELETE/INSERT, nao abre transacao e nao valida schema.
+    - change_kinds: SSA existente reescrita -> classificacao X-01 da linha
+      final contra a linha original do banco.
     """
     rows_to_persist: dict[str, pd.Series] = {}
     delete_keys: set[Any] = set()
+    change_kinds: dict[str, str | None] = {}
     changed_rows = 0
     for row_tuple in chunk.itertuples(index=False, name=None):
         numero_ssa = row_tuple[numero_ssa_idx]
@@ -1156,6 +1221,15 @@ def _collect_chunk_upsert_delta(
         if should_persist:
             if has_existing and existing_row is not None:
                 delete_keys.add(existing_row.get("numero_ssa"))
+                original_raw = existing_raw_by_ssa.get(cache_key)
+                change_kinds[cache_key] = (
+                    _classify_existing_row_change(
+                        pd.Series(original_raw, index=existing_columns), target_row
+                    )
+                    if original_raw is not None
+                    # Duplicata de SSA nova no mesmo lote: mantem a contagem anterior.
+                    else "updated"
+                )
             merged_cache_row = target_row.copy()
             rows_to_persist[cache_key] = merged_cache_row
             existing_by_ssa[cache_key] = merged_cache_row
@@ -1164,7 +1238,7 @@ def _collect_chunk_upsert_delta(
                     merged_cache_row.reindex(chunk_columns, fill_value=None).tolist()
                 )
             changed_rows += 1
-    return rows_to_persist, delete_keys, changed_rows
+    return rows_to_persist, delete_keys, changed_rows, change_kinds
 
 
 def _perform_upsert(
@@ -1191,6 +1265,7 @@ def _perform_upsert(
     total_upserted = 0
     inserted_keys: set[str] = set()
     updated_keys: set[str] = set()
+    verified_keys: set[str] = set()
     quoted_table_name = _quote_identifier(table_name)
     _begin_transaction_if_needed(conn, context="_perform_upsert")
     logger.debug(
@@ -1239,20 +1314,22 @@ def _perform_upsert(
             )
             continue
 
-        rows_to_persist, delete_keys, changed_rows = _collect_chunk_upsert_delta(
-            chunk,
-            numero_ssa_idx=numero_ssa_idx,
-            chunk_columns=chunk_columns,
-            existing_columns=existing_chunk.columns,
-            existing_by_ssa=existing_by_ssa,
-            existing_raw_by_ssa=existing_raw_by_ssa,
-            existing_chunk_tuple_by_ssa=existing_chunk_tuple_by_ssa,
-            enable_exact_overlap_short_circuit=enable_exact_overlap_short_circuit,
-            complementary_mode=complementary_mode,
-            status_rank=status_rank,
-            description_columns=description_columns,
-            date_columns=date_columns,
-            metrics_out=metrics_out,
+        rows_to_persist, delete_keys, changed_rows, change_kinds = (
+            _collect_chunk_upsert_delta(
+                chunk,
+                numero_ssa_idx=numero_ssa_idx,
+                chunk_columns=chunk_columns,
+                existing_columns=existing_chunk.columns,
+                existing_by_ssa=existing_by_ssa,
+                existing_raw_by_ssa=existing_raw_by_ssa,
+                existing_chunk_tuple_by_ssa=existing_chunk_tuple_by_ssa,
+                enable_exact_overlap_short_circuit=enable_exact_overlap_short_circuit,
+                complementary_mode=complementary_mode,
+                status_rank=status_rank,
+                description_columns=description_columns,
+                date_columns=date_columns,
+                metrics_out=metrics_out,
+            )
         )
         total_upserted += changed_rows
         persisted_keys = set(rows_to_persist)
@@ -1261,13 +1338,20 @@ def _perform_upsert(
             for numero_ssa in delete_keys
             if (cache_key := _upsert_cache_key(numero_ssa)) is not None
         }
-        updated_keys.update(chunk_updated_keys - inserted_keys)
+        for cache_key, change_kind in change_kinds.items():
+            if cache_key in inserted_keys:
+                continue  # inserida em lote anterior desta importacao
+            if change_kind == "updated":
+                updated_keys.add(cache_key)
+            elif change_kind == "verified":
+                verified_keys.add(cache_key)
         inserted_keys.update(persisted_keys - chunk_updated_keys)
         if rows_to_persist or delete_keys:
             _persist_upsert_chunk(conn, table_name, rows_to_persist, delete_keys)
     if metrics_out is not None:
         metrics_out["ssa_inserted"] = len(inserted_keys)
         metrics_out["ssa_updated"] = len(updated_keys)
+        metrics_out["ssa_verified"] = len(verified_keys - updated_keys)
     return total_upserted
 
 
@@ -1346,6 +1430,7 @@ def insert_dataframe_with_smart_upsert_impl(
     if metrics_out is not None:
         metrics_out["ssa_inserted"] = 0
         metrics_out["ssa_updated"] = 0
+        metrics_out["ssa_verified"] = 0
         metrics_out["ssa_event_records_processed"] = 0
         metrics_out.pop("ssa_blocked_parse", None)
     from . import database as _db_mod  # lazy import evita circularidade
@@ -1498,6 +1583,7 @@ def insert_dataframe_with_smart_upsert_impl(
             metrics_out.update(
                 ssa_inserted=0,
                 ssa_updated=0,
+                ssa_verified=0,
                 ssa_event_records_processed=0,
             )
             metrics_out.pop("ssa_blocked_parse", None)

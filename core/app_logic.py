@@ -953,6 +953,7 @@ def _process_file_with_resilience(
                     "records": normalized_record_count,
                     "ssa_inserted": int(counts["ssa_inserted"]),
                     "ssa_updated": int(counts["ssa_updated"]),
+                    "ssa_verified": int(counts.get("ssa_verified", 0) or 0),
                 },
             )
         elif file_metrics:

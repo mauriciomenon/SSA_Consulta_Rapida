@@ -285,6 +285,7 @@ def insert_dataframe_optimized(
     if metrics_out is not None:
         metrics_out["ssa_inserted"] = 0
         metrics_out["ssa_updated"] = 0
+        metrics_out["ssa_verified"] = 0
         metrics_out.pop("ssa_blocked_parse", None)
 
     if df is None or df.empty:
@@ -515,10 +516,12 @@ def insert_dataframe_optimized(
                                     f"{missing_existing_ssas[:5]}"
                                 )
                             from .database_upsert_logic import (
+                                _classify_existing_row_change,
                                 _merge_overwrite_with_incoming_non_empty,
                             )
 
                             merged_rows: list[dict[str, object | None]] = []
+                            change_kinds: list[str | None] = []
                             update_columns_all = list(normalized_update_df.columns)
                             for row_values in normalized_update_df.itertuples(
                                 index=False, name=None
@@ -535,6 +538,11 @@ def insert_dataframe_optimized(
                                     pd.Series(update_row),
                                 )
                                 merged_rows.append(merged_row.to_dict())
+                                change_kinds.append(
+                                    _classify_existing_row_change(
+                                        existing_row, merged_row
+                                    )
+                                )
 
                             if not merged_rows:
                                 logger.info(
@@ -561,7 +569,12 @@ def insert_dataframe_optimized(
                                 )
                                 total_inserted += len(update_df)
                                 if metrics_out is not None:
-                                    metrics_out["ssa_updated"] += len(merged_df)
+                                    metrics_out["ssa_updated"] += change_kinds.count(
+                                        "updated"
+                                    )
+                                    metrics_out["ssa_verified"] += change_kinds.count(
+                                        "verified"
+                                    )
                                 logger.info(
                                     "[OK] Atualizados %s registros existentes via delete+insert",
                                     len(update_df),
@@ -599,6 +612,7 @@ def insert_dataframe_optimized(
         if metrics_out is not None:
             metrics_out["ssa_inserted"] = 0
             metrics_out["ssa_updated"] = 0
+            metrics_out["ssa_verified"] = 0
             metrics_out.pop("ssa_blocked_parse", None)
         conn_ref = conn
         if conn_ref is not None:

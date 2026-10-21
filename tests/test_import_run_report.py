@@ -1049,6 +1049,7 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
                         "rows_inserted": 7,
                         "ssa_inserted": 2,
                         "ssa_updated": 5,
+                        "ssa_verified": 4,
                         "ssa_blocked_parse": 3,
                     },
                     "invalid_identity_tracked": True,
@@ -1100,6 +1101,7 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
     assert payload["counts"]["rows_inserted_total"] == 7
     assert payload["counts"]["ssa_inserted_total"] == 2
     assert payload["counts"]["ssa_updated_total"] == 5
+    assert payload["counts"]["ssa_verified_total"] == 4
     assert payload["counts"]["ssa_blocked_parse_total"] == 3
     file_success = next(
         data for event, data in progress_events if event == "file_success"
@@ -1109,6 +1111,7 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
         "records": 7,
         "ssa_inserted": 2,
         "ssa_updated": 5,
+        "ssa_verified": 4,
     }
     assert payload["durations"]["sum_file_extraction_seconds"] == 0.123
     assert payload["durations"]["sum_file_validation_seconds"] == 0.045
@@ -1135,6 +1138,7 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
                 "rows_inserted": 7,
                 "ssa_inserted": 2,
                 "ssa_updated": 5,
+                "ssa_verified": 4,
                 "ssa_blocked_parse": 3,
             },
             "invalid_identity_tracked": True,

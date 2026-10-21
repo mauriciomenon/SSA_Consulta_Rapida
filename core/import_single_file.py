@@ -204,6 +204,7 @@ def import_single_file(
             "rows_inserted": 0,
             "ssa_inserted": 0,
             "ssa_updated": 0,
+            "ssa_verified": 0,
             "ssa_blocked_parse": 0,
         }
         metrics["invalid_identity"] = invalid_row_summary
@@ -363,6 +364,9 @@ def import_single_file(
             )
             metrics["counts"]["ssa_updated"] = int(
                 upsert_metrics.get("ssa_updated", 0) if success else 0
+            )
+            metrics["counts"]["ssa_verified"] = int(
+                upsert_metrics.get("ssa_verified", 0) if success else 0
             )
             metrics["counts"]["ssa_blocked_parse"] = int(
                 upsert_metrics.get("ssa_blocked_parse", 0) if success else 0

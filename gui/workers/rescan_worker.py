@@ -210,8 +210,10 @@ class RescanWorker(QThread):
         self._overall_total_files = 0
         self._last_ssa_inserted = 0
         self._last_ssa_updated = 0
+        self._last_ssa_verified = 0
         self._batch_ssa_inserted = 0
         self._batch_ssa_updated = 0
+        self._batch_ssa_verified = 0
         self._database_rows_before: int | None = 0
         self._database_rows_after: int | None = 0
         self.last_outcome = RescanOutcome.NO_CHANGES
@@ -293,12 +295,17 @@ class RescanWorker(QThread):
             records = data.get("records", 0)
             ssa_inserted = int(data.get("ssa_inserted", 0) or 0)
             ssa_updated = int(data.get("ssa_updated", 0) or 0)
+            ssa_verified = int(data.get("ssa_verified", 0) or 0)
             self._last_ssa_inserted += ssa_inserted
             self._last_ssa_updated += ssa_updated
+            self._last_ssa_verified += ssa_verified
             self._batch_ssa_inserted += ssa_inserted
             self._batch_ssa_updated += ssa_updated
+            self._batch_ssa_verified += ssa_verified
             suffix = (
                 f" | {ssa_updated} SSAs atualizadas" if ssa_updated > 0 else ""
+            ) + (
+                f" | {ssa_verified} SSAs verificadas" if ssa_verified > 0 else ""
             )
             self.output_line.emit(
                 f"[OK] {filename}: {records} registros{suffix}"
@@ -338,6 +345,7 @@ class RescanWorker(QThread):
                     f"Bloco {self._batch_index}/{self._batch_total} concluido: "
                     f"{processed}/{total} arquivos | "
                     f"{self._batch_ssa_updated} SSAs atualizadas | "
+                    f"{self._batch_ssa_verified} SSAs verificadas | "
                     f"{self._batch_ssa_inserted} SSAs novas"
                 )
             else:
@@ -376,8 +384,10 @@ class RescanWorker(QThread):
         self._overall_total_files = 0
         self._last_ssa_inserted = 0
         self._last_ssa_updated = 0
+        self._last_ssa_verified = 0
         self._batch_ssa_inserted = 0
         self._batch_ssa_updated = 0
+        self._batch_ssa_verified = 0
         self._database_rows_before = 0
         self._database_rows_after = 0
 
@@ -568,6 +578,7 @@ class RescanWorker(QThread):
                 self._batch_file_offset = start
                 self._batch_ssa_inserted = 0
                 self._batch_ssa_updated = 0
+                self._batch_ssa_verified = 0
                 # Importacao explicita/batched nunca usa o modo full-rescan:
                 # um candidato construido so com os arquivos do batch seria
                 # promovido sobre o primario e perderia as linhas restantes.
@@ -715,6 +726,7 @@ class RescanWorker(QThread):
                 self.output_line.emit(
                     f"Banco de dados: {database_summary}; "
                     f"{self._last_ssa_updated} SSAs atualizadas; "
+                    f"{self._last_ssa_verified} SSAs verificadas; "
                     f"{new_ssas} SSAs novas."
                 )
             else:

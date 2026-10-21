@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Resumo da importacao separa "atualizadas" (algum valor da SSA mudou) de "verificadas" (mesmos dados; so o arquivo de origem foi atualizado), como no app C++; o relatorio `logs/import_run_*.json` ganha `ssa_verified`/`ssa_verified_total`. O banco grava o mesmo de antes.
 - `main.py --force-rescan` (modo otimizado) nao troca mais o banco para o modo WAL do SQLite; o banco fica no modo padrao ("delete"), o mesmo da GUI, sem os arquivos `-wal`/`-shm` (WAL e inseguro em pasta de rede/OneDrive e a copia so do `ssas.db` podia perder dados). Um banco ja convertido continua em WAL ate ser recriado.
 - `numero_desvios` nao recebe mais o rotulo "Desvio #N" das planilhas "SSAs com Desvio" (texto numa coluna de contagem; 3.545 linhas no banco atual): o rotulo fica vazio e a contagem vem de "Numero de Desvios", como no app C++. Valores ja gravados so mudam ao reimportar.
 - Removidos de `scripts_manutencao/` 9 scripts de debug sem uso que consultavam o schema legado (`debug_*.py`, `diagnostico_rapido.py`, `diagnosticar_problemas.py`, `teste_debug_excel.py`) e `reorganizar_projeto.py`, que movia `.py` da pasta corrente.

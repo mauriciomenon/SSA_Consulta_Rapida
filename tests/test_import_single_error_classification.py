@@ -159,6 +159,7 @@ def test_import_single_file_keeps_safe_hierarchical_records(
             {
                 "ssa_inserted": 1,
                 "ssa_updated": 0,
+                "ssa_verified": 2,
                 "ssa_event_records_processed": 1,
             }
         )
@@ -170,14 +171,18 @@ def test_import_single_file_keeps_safe_hierarchical_records(
         _upsert,
     )
 
+    metrics: dict[str, object] = {}
     ok, count = app_logic._import_single_file(
         str(tmp_path / "input.xlsx"),
         str(tmp_path / "db.sqlite"),
         "ssa_table",
+        _metrics_out=metrics,
     )
 
     assert ok is True
     assert count == 1
+    counts = cast(dict[str, int], metrics["counts"])
+    assert counts["ssa_verified"] == 2
 
 
 def test_import_single_file_preserves_database_error(

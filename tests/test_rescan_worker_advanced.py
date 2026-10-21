@@ -331,6 +331,7 @@ class TestRescanWorkerUnit:
                 "records": 100,
                 "ssa_inserted": 4,
                 "ssa_updated": 7,
+                "ssa_verified": 2,
             },
         )
         rescan_worker._progress_callback(
@@ -344,9 +345,10 @@ class TestRescanWorkerUnit:
         )
 
         assert signal_collector.output_lines[0].endswith(
-            "100 registros | 7 SSAs atualizadas"
+            "100 registros | 7 SSAs atualizadas | 2 SSAs verificadas"
         )
         assert "SSAs atualizadas" not in signal_collector.output_lines[1]
+        assert "SSAs verificadas" not in signal_collector.output_lines[1]
 
     def test_progress_callback_file_error(self, rescan_worker, signal_collector):
         """Testa callback de progresso - evento file_error."""
@@ -372,7 +374,8 @@ class TestRescanWorkerUnit:
         )
 
         assert any(
-            "Bloco 1/1 concluido: 1/1 arquivos | 0 SSAs atualizadas | 0 SSAs novas"
+            "Bloco 1/1 concluido: 1/1 arquivos | 0 SSAs atualizadas | "
+            "0 SSAs verificadas | 0 SSAs novas"
             in line
             for line in signal_collector.output_lines
         )
@@ -910,6 +913,7 @@ class TestRescanWorkerIntegration:
         batch_sizes: list[int] = []
         inserted_by_batch = (20, 10, 5)
         updated_by_batch = (3, 0, 2)
+        verified_by_batch = (1, 0, 3)
 
         def _mock_importer(**kwargs):
             batch_index = len(batch_sizes)
@@ -924,6 +928,7 @@ class TestRescanWorkerIntegration:
                     "records": 1,
                     "ssa_inserted": inserted_by_batch[batch_index],
                     "ssa_updated": updated_by_batch[batch_index],
+                    "ssa_verified": verified_by_batch[batch_index],
                 },
             )
             callback(
@@ -966,12 +971,14 @@ class TestRescanWorkerIntegration:
         assert any("Etapa: preparando ciclo 2/3 (65-128/143)" in line for line in outputs)
         assert any("[STAGE 65/143]" in line for line in outputs)
         assert any(
-            "Bloco 1/3 concluido: 64/64 arquivos | 3 SSAs atualizadas | 20 SSAs novas"
+            "Bloco 1/3 concluido: 64/64 arquivos | 3 SSAs atualizadas | "
+            "1 SSAs verificadas | 20 SSAs novas"
             in line
             for line in outputs
         )
         assert any(
-            "Bloco 2/3 concluido: 64/64 arquivos | 0 SSAs atualizadas | 10 SSAs novas"
+            "Bloco 2/3 concluido: 64/64 arquivos | 0 SSAs atualizadas | "
+            "0 SSAs verificadas | 10 SSAs novas"
             in line
             for line in outputs
         )
@@ -981,7 +988,7 @@ class TestRescanWorkerIntegration:
         ) == 3
         assert (
             "Banco de dados: 100 -> 134 SSAs no total; "
-            "5 SSAs atualizadas; 35 SSAs novas."
+            "5 SSAs atualizadas; 4 SSAs verificadas; 35 SSAs novas."
         ) in outputs
 
     def test_force_import_only_recreates_database_for_first_explicit_batch(

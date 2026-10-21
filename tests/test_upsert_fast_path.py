@@ -233,7 +233,7 @@ def test_perform_upsert_reports_unique_inserted_and_updated_ssas() -> None:
     )
 
     assert processed == 2
-    assert metrics == {"ssa_inserted": 1, "ssa_updated": 1}
+    assert metrics == {"ssa_inserted": 1, "ssa_updated": 1, "ssa_verified": 0}
 
 
 def test_optimized_upsert_reports_zero_metrics_for_empty_dataframe(tmp_path) -> None:
@@ -246,7 +246,7 @@ def test_optimized_upsert_reports_zero_metrics_for_empty_dataframe(tmp_path) -> 
         str(tmp_path / "empty.db"),
         metrics_out=metrics,
     )
-    assert metrics == {"ssa_inserted": 0, "ssa_updated": 0}
+    assert metrics == {"ssa_inserted": 0, "ssa_updated": 0, "ssa_verified": 0}
 
 
 def test_public_upsert_reports_zero_metrics_for_empty_dataframe(tmp_path) -> None:
@@ -259,7 +259,7 @@ def test_public_upsert_reports_zero_metrics_for_empty_dataframe(tmp_path) -> Non
         str(tmp_path / "empty_public.db"),
         metrics_out=metrics,
     )
-    assert metrics == {"ssa_inserted": 0, "ssa_updated": 0}
+    assert metrics == {"ssa_inserted": 0, "ssa_updated": 0, "ssa_verified": 0}
 
 
 def test_optimized_upsert_preserves_existing_values_when_newer_row_is_blank(
