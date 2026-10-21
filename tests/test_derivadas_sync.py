@@ -476,6 +476,40 @@ def test_sync_deactivates_sheet_source_when_sheet_later_has_no_edges(
     assert active_matrix_rows == 0
 
 
+def test_sync_rejects_unrecognized_sheet_before_deactivating_edges(
+    temp_db,
+    tmp_path: Path,
+):
+    _insert_ssa_rows(temp_db, [("202500001", None), ("202500002", None)])
+    sheet_file = tmp_path / "derivadas.csv"
+    sheet_file.write_text(
+        "parent_ssa,child_ssa\n202500001,202500002\n", encoding="utf-8"
+    )
+    assert (
+        sync_derivadas(temp_db, include_db_source=False, sheet_file=str(sheet_file))[
+            "active_edges"
+        ]
+        == 1
+    )
+
+    wrong_header = tmp_path / "derivadas_errada.csv"
+    wrong_header.write_text("coluna_a,coluna_b\n202500001,202500002\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="derivadas_errada.csv"):
+        sync_derivadas(temp_db, include_db_source=False, sheet_file=str(wrong_header))
+
+    with sqlite3.connect(temp_db) as conn:
+        active_source_rows = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_source WHERE source_name = ? AND is_active = 1",
+            (derivadas_sync.SOURCE_SHEET_DERIVADAS,),
+        ).fetchone()[0]
+        active_matrix_rows = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1"
+        ).fetchone()[0]
+    assert active_source_rows == 1
+    assert active_matrix_rows == 1
+
+
 def test_sync_deduplicates_sheet_files_across_relative_and_absolute_paths(
     temp_db, tmp_path: Path
 ):

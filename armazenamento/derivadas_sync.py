@@ -1734,6 +1734,22 @@ def sync_derivadas(
         if verify_only:
             return report
 
+        # Arquivo sem colunas pai/filho reconhecidas nao pode desativar as
+        # arestas ja gravadas da fonte planilha: recusa antes de escrever.
+        # Cabecalho valido sem linhas continua valendo como "sem derivadas".
+        unrecognized_files = [
+            os.path.basename(entry["sheet_file"])
+            for entry in sheet_file_reports
+            if not entry["has_parse_evidence"]
+            and int(entry["stats"].get("missing_columns", 0) or 0) > 0
+        ]
+        if unrecognized_files:
+            raise ValueError(
+                "Planilha(s) de derivadas sem colunas pai/filho reconhecidas: "
+                + ", ".join(unrecognized_files)
+                + ". Nenhuma aresta foi alterada."
+            )
+
         if cancel_event is not None and cancel_event.is_set():
             raise DerivadasSyncCancelled("Sync de derivadas cancelado")
         ensure_derivadas_schema_on_connection(conn)

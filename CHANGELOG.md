@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 - Removido `scripts_manutencao/parar_importacao_e_diagnostico.py`: consultava a tabela legada `ssas` e, por isso, sempre encerrava qualquer processo Python com "import", "main.py", "ssa" ou "excel" na linha de comando, inclusive de outros projetos.
 - Importacao de datas: planilhas com formatos misturados (`01/02/2026` e `03/02/2026 15:30:00`) nao trocam mais dia e mes; datas gravadas como numero serial do Excel (ex.: `45205`) viram a data correta em vez de 1970.
 - Importacao de arquivos com varias abas: abas que usam nomes diferentes para a mesma coluna (ex.: `Data Cadastro` numa aba e `Emitida Em` em outra) nao perdem mais a data das linhas da segunda aba.
+- Sync de derivadas: uma planilha cujas colunas de SSA pai/filho nao sao reconhecidas agora e recusada antes de gravar, com o nome do arquivo na mensagem; antes ela desativava as derivadas ja existentes e o erro so aparecia depois. Planilha com cabecalho correto e sem linhas continua significando "sem derivadas".
 
 ### Candidata local v4.51 - 2026-09-24
 
