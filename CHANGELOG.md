@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 - `import_pai_api_xlsx.py --source-xlsx ... --cleanup-manifest` nao apaga mais o XLSX de origem informado pelo usuario.
 - `verificar_instalacao.ps1` usa o mesmo banco efetivo do app (`SSA_DB_PATH` ou `data\ssas.db`) e nunca reseta um banco existente; erros do reset ficam visiveis.
 - Removido `scripts_manutencao/parar_importacao_e_diagnostico.py`: consultava a tabela legada `ssas` e, por isso, sempre encerrava qualquer processo Python com "import", "main.py", "ssa" ou "excel" na linha de comando, inclusive de outros projetos.
+- Importacao de datas: planilhas com formatos misturados (`01/02/2026` e `03/02/2026 15:30:00`) nao trocam mais dia e mes; datas gravadas como numero serial do Excel (ex.: `45205`) viram a data correta em vez de 1970.
 
 ### Candidata local v4.51 - 2026-09-24
 

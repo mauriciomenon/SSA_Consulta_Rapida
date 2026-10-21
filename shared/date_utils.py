@@ -11,6 +11,7 @@ Goals:
 from __future__ import annotations
 
 import math
+import numbers
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
@@ -81,43 +82,28 @@ def parse_any_date(value) -> str | None:
 
 
 def bulk_parse_dates(values: Iterable) -> list[str | None]:
-    series = pd.Series(values, dtype="object")
-    if series.empty:
-        return []
+    """Parse values (text or Excel serial) to storage strings or None."""
+    return format_datetime_series_for_storage(pd.Series(values, dtype="object")).tolist()
 
-    numeric_mask = series.map(
-        lambda item: isinstance(item, (int, float)) and not isinstance(item, bool)
-    )
-    parsed_input = series.mask(numeric_mask)
-    parsed = pd.to_datetime(parse_datetime_series_mixed(parsed_input), errors="coerce")
-    if bool(numeric_mask.any()):
-        numeric_values = pd.to_numeric(series.loc[numeric_mask], errors="coerce")
-        positive_values = numeric_values[numeric_values > 0]
-        if not positive_values.empty:
-            numeric_parsed = pd.to_datetime(
-                positive_values,
-                errors="coerce",
-                unit="D",
-                origin=EXCEL_EPOCH,
-            )
-            valid_years = numeric_parsed.dt.year.between(
-                MIN_OPERATIONAL_YEAR, MAX_OPERATIONAL_YEAR
-            )
-            parsed.loc[numeric_parsed.index[valid_years]] = numeric_parsed[valid_years]
-    if not isinstance(parsed, pd.Series):
-        parsed = pd.Series(parsed, index=series.index)
-    formatted = parsed.dt.strftime("%Y-%m-%d %H:%M:%S").astype("object")
-    formatted = formatted.where(parsed.notna(), None)
-    return formatted.tolist()
+
+def _is_excel_serial(value) -> bool:
+    return isinstance(value, numbers.Real) and not isinstance(value, bool)
 
 
 def parse_datetime_series_mixed(series: pd.Series) -> pd.Series:
-    """Parse series with mixed ISO and day-first strings without warning noise."""
+    """Parse ISO strings, day-first strings and Excel serials into naive datetimes.
+
+    Text rows are parsed one by one (format="mixed"), so the format of one row
+    never decides the day/month order of another. Month-first is used only when
+    the second slash field is > 12. Numeric values are Excel serials, kept only
+    inside MIN_OPERATIONAL_YEAR..MAX_OPERATIONAL_YEAR.
+    """
     if not isinstance(series, pd.Series):
         parsed = pd.to_datetime(series, errors="coerce", dayfirst=True, utc=True)
         if hasattr(parsed, "tz_localize"):
             return parsed.tz_localize(None)
         return parsed
+    numeric_mask = series.map(_is_excel_serial).astype(bool)
     text_series = series.astype(str).str.strip()
     iso_mask = text_series.str.match(
         r"^\d{4}-\d{2}-\d{2}"
@@ -129,19 +115,23 @@ def parse_datetime_series_mixed(series: pd.Series) -> pd.Series:
     slash_second = pd.to_numeric(slash_parts[1], errors="coerce")
     forced_month_first_mask = slash_second > 12
     parsed = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
-    local_mask = ~iso_mask & ~forced_month_first_mask
+    local_mask = ~iso_mask & ~forced_month_first_mask & ~numeric_mask
     if bool(local_mask.any()):
         parsed.loc[local_mask] = pd.to_datetime(
-            series.loc[local_mask], errors="coerce", dayfirst=True, utc=True
+            series.loc[local_mask],
+            errors="coerce",
+            dayfirst=True,
+            utc=True,
+            format="mixed",
         ).dt.tz_localize(None)
-        month_first_mask = local_mask & parsed.isna()
-        if bool(month_first_mask.any()):
-            parsed.loc[month_first_mask] = pd.to_datetime(
-                series.loc[month_first_mask],
-                errors="coerce",
-                dayfirst=False,
-                utc=True,
-            ).dt.tz_localize(None)
+    if bool(numeric_mask.any()):
+        numeric_values = pd.to_numeric(series.loc[numeric_mask], errors="coerce")
+        numeric_values = numeric_values[numeric_values > 0]
+        serial = pd.to_datetime(
+            numeric_values, errors="coerce", unit="D", origin=EXCEL_EPOCH
+        )
+        in_window = serial.dt.year.between(MIN_OPERATIONAL_YEAR, MAX_OPERATIONAL_YEAR)
+        parsed.loc[serial.index[in_window]] = serial[in_window]
     if bool(forced_month_first_mask.any()):
         parsed.loc[forced_month_first_mask] = pd.to_datetime(
             series.loc[forced_month_first_mask],

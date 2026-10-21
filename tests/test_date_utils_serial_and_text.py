@@ -79,3 +79,29 @@ def test_parse_datetime_series_mixed_normalizes_tz_aware_and_naive_values():
     assert parsed.isna().sum() == 0
     assert parsed.dt.tz is None
     assert parsed.iloc[0].strftime("%Y-%m-%d %H:%M:%S") == "2026-07-01 13:56:00"
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ["01/02/2026", "03/02/2026 15:30:00"],
+        ["03/02/2026 15:30:00", "01/02/2026"],
+    ],
+)
+def test_parse_datetime_series_mixed_keeps_dayfirst_across_formats(values):
+    parsed = parse_datetime_series_mixed(pd.Series(values, dtype="object"))
+
+    by_text = dict(zip(values, parsed.dt.strftime("%Y-%m-%d %H:%M:%S")))
+    assert by_text["01/02/2026"] == "2026-02-01 00:00:00"
+    assert by_text["03/02/2026 15:30:00"] == "2026-02-03 15:30:00"
+
+
+def test_parse_datetime_series_mixed_converts_excel_serial_in_window():
+    series = pd.Series([45205, 45205.5, "01/02/2026", 1, True, None], dtype="object")
+
+    parsed = parse_datetime_series_mixed(series)
+
+    assert parsed.iloc[0] == pd.Timestamp("2023-10-06 00:00:00")
+    assert parsed.iloc[1] == pd.Timestamp("2023-10-06 12:00:00")
+    assert parsed.iloc[2] == pd.Timestamp("2026-02-01 00:00:00")
+    assert parsed.iloc[3:].isna().all()
