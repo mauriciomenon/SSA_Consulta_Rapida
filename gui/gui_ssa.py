@@ -2493,6 +2493,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return None
         return resolved
 
+    def _sort_frame_for_display(self, frame: pd.DataFrame) -> pd.DataFrame:
+        """Ordena `frame` pela coluna escolhida no cabecalho (sort_column/sort_ascending).
+
+        Mesmas regras do clique no cabecalho; o refresh de filtros reaplica por
+        aqui para nao trocar a ordem escolhida por numero_ssa decrescente.
+        """
+        if self.sort_column == "num_reprogramacoes":
+            sorted_df, self._num_reprog_sort_cache = (
+                ssa_table_sorting.sort_num_reprogramacoes_robust(
+                    frame,
+                    self.sort_ascending,
+                    self._num_reprog_sort_cache,
+                    builder=self._build_num_reprogramacoes_sort_keys,
+                )
+            )
+        elif ssa_table_sorting.should_use_mixed_text_sort(frame, self.sort_column):
+            sorted_df, self._mixed_text_sort_cache = (
+                ssa_table_sorting.sort_mixed_text_column_robust(
+                    frame,
+                    self.sort_column,
+                    self.sort_ascending,
+                    self._mixed_text_sort_cache,
+                    builder=self._build_mixed_text_sort_keys,
+                )
+            )
+        else:
+            sorted_df = frame.sort_values(
+                by=self.sort_column, ascending=self.sort_ascending, na_position="last"
+            )
+        if sorted_df is None:
+            raise RuntimeError(f"ordenacao por {self.sort_column!r} nao retornou dados")
+        return sorted_df
+
     def on_header_clicked(self, logical_index: int):
         if not bool(getattr(self, "_column_sorting_enabled", True)):
             return
@@ -2512,21 +2545,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # Ordena resultado filtrado atual e reinicia paginaçção
             try:
-                if self.sort_column == "num_reprogramacoes":
-                    self.df_exibido = self._sort_num_reprogramacoes_robust(
-                        self.sort_ascending
-                    )
-                else:
-                    if self._should_use_mixed_text_sort(self.sort_column):
-                        self.df_exibido = self._sort_mixed_text_column_robust(
-                            self.sort_column, self.sort_ascending
-                        )
-                    else:
-                        self.df_exibido = self.df_exibido.sort_values(
-                            by=self.sort_column,
-                            ascending=self.sort_ascending,
-                            na_position="last",
-                        )
+                self.df_exibido = self._sort_frame_for_display(self.df_exibido)
                 self._bump_data_revision("sort_column")
             except Exception as exc:
                 logger.warning(
@@ -2622,6 +2641,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return value
         return self._resolve_column_display_name(col_name)
 
+    def _apply_column_filter_from_header(self, col_name: str, normalized_term: str) -> None:
+        """Aplica o termo do menu do cabecalho como o painel de filtros de coluna.
+
+        Coluna em grupo OR e avaliada pelos valores do grupo; sem sincronizar o
+        grupo, o termo digitado no menu seria ignorado pelo motor de filtro.
+        """
+        if str(self._active_column_filters.get(col_name, "")).strip() != normalized_term:
+            self._safe_store_last_filter_state("header_context_apply_column_filter")
+        self._active_column_filters[col_name] = normalized_term
+        self._sync_or_group_values(col_name, normalized_term)
+        if col_name == "setor_executor":
+            self._sync_advanced_executor_filter_from_active_filters(clear_exclude=True)
+        self._mark_profile_as_custom()
+        self._build_column_filters_panel()
+        self._refresh_after_filter_change()
+
     def show_header_context_menu(self, pos):
         try:
             header = self.table_widget.horizontalHeader()
@@ -2645,22 +2680,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     str(self._active_column_filters.get(col_name, "")).strip(),
                 )
                 if term is not None:
-                    normalized_term = str(term).strip()
-                    if (
-                        str(self._active_column_filters.get(col_name, "")).strip()
-                        != normalized_term
-                    ):
-                        self._safe_store_last_filter_state(
-                            "header_context_apply_column_filter"
-                        )
-                    self._active_column_filters[col_name] = normalized_term
-                    if col_name == "setor_executor":
-                        self._sync_advanced_executor_filter_from_active_filters(
-                            clear_exclude=True
-                        )
-                    self._mark_profile_as_custom()
-                    self._build_column_filters_panel()
-                    self._refresh_after_filter_change()
+                    self._apply_column_filter_from_header(col_name, str(term).strip())
 
             def _clear():
                 self._clear_single_column_filter(col_name)
@@ -3172,14 +3192,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         selected_raw = str(active_filters.get("setor_executor", "") or "").strip()
         selected_values = self._split_filter_csv_values(selected_raw)
         advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
-        if selected_values:
-            advanced_filters["setor_executor"] = selected_values
-            if clear_exclude:
-                advanced_filters.pop("setor_executor_exclude_values", None)
-        else:
-            advanced_filters.pop("setor_executor", None)
-            if clear_exclude:
-                advanced_filters.pop("setor_executor_exclude_values", None)
+        if clear_exclude:
+            advanced_filters.pop("setor_executor_exclude_values", None)
+        advanced_filters.pop("setor_executor", None)
+        # O filtro avancado compara por igualdade (isin): recebe so valores
+        # literais; "!X" vira exclusao; termo parcial ("MEL" para MEL3/MEL4) ou
+        # mistura fica so no filtro de coluna, que entende a sintaxe completa.
+        known_sectors: set[str] = set()
+        source = getattr(self, "df_completo", None)
+        if isinstance(source, pd.DataFrame) and "setor_executor" in source.columns:
+            known_sectors = set(source["setor_executor"].dropna().astype(str))
+
+        def _is_partial(token: str) -> bool:
+            return token not in known_sectors and any(token in s for s in known_sectors)
+
+        excluded = [v[1:].strip() for v in selected_values if v.startswith("!")]
+        included = [v for v in selected_values if not v.startswith("!")]
+        if included and not excluded and not any(map(_is_partial, included)):
+            advanced_filters["setor_executor"] = included
+        elif excluded and not included and not any(map(_is_partial, excluded)):
+            advanced_filters["setor_executor_exclude_values"] = excluded
         self._advanced_filters = advanced_filters
         self._advanced_filters_active = self._has_active_advanced_filters(
             advanced_filters

@@ -2196,6 +2196,60 @@ class TestGUIFilterLogic:
             "XYZ",
         ]
 
+    def test_header_menu_negated_executor_becomes_advanced_exclude(self):
+        total = len(self.window.df_completo)
+        mel4 = int((self.window.df_completo["setor_executor"] == "MEL4").sum())
+        assert 0 < mel4 < total
+
+        self.window._apply_column_filter_from_header("setor_executor", "!MEL4")
+        QApplication.processEvents()
+
+        shown = self.window.df_exibido["setor_executor"]
+        assert len(shown) == total - mel4
+        assert not (shown == "MEL4").any()
+        assert "setor_executor" not in self.window._advanced_filters
+        assert self.window._advanced_filters.get("setor_executor_exclude_values") == [
+            "MEL4"
+        ]
+
+    def test_header_menu_partial_executor_is_not_copied_as_literal(self):
+        self.window._apply_column_filter_from_header("setor_executor", "MEL")
+        QApplication.processEvents()
+
+        shown = self.window.df_exibido["setor_executor"]
+        assert len(shown) > 0
+        assert shown.str.contains("MEL").all()
+        assert "setor_executor" not in self.window._advanced_filters
+
+    def test_filter_refresh_keeps_user_chosen_sort(self):
+        self.window.sort_column = "descricao_ssa"
+        self.window.sort_ascending = True
+
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        shown = list(self.window.df_exibido["descricao_ssa"])
+        assert len(shown) > 1
+        assert shown == sorted(shown)
+
+    def test_header_menu_filter_updates_or_group_values(self):
+        self.window._register_or_group(
+            ["setor_executor", "setor_emissor"], ["IEE3", "MEL3"]
+        )
+        self.window._active_column_filters["setor_executor"] = "IEE3, MEL3"
+        self.window._active_column_filters["setor_emissor"] = "IEE3, MEL3"
+
+        self.window._apply_column_filter_from_header("setor_emissor", "MEL4")
+        QApplication.processEvents()
+
+        group = self.window._column_to_or_group["setor_emissor"]
+        assert group["values"] == ["MEL4"]
+        rows = self.window.df_exibido
+        assert len(rows) > 0
+        assert (
+            (rows["setor_executor"] == "MEL4") | (rows["setor_emissor"] == "MEL4")
+        ).all()
+
     def test_quick_setor_executor_combo_applies_executor_filter_only(self, monkeypatch):
         self.window._register_or_group(
             ["setor_executor", "setor_emissor"], ["IEE3", "MEL3"]

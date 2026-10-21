@@ -304,7 +304,25 @@ class FilterGUISSAMixin:
         log_context: str = "sync_search_inputs",
     ) -> bool:
         normalized_text = str(text or "")
+        widgets = self._get_live_search_inputs_snapshot()
+
+        def _typing_other_text(widget) -> bool:
+            text_getter = getattr(widget, "text", None)
+            if not callable(text_getter):
+                return False
+            try:
+                return bool(widget.hasFocus()) and text_getter() != normalized_text
+            except RuntimeError:
+                return False
+
+        # Usuario digitando outro termo: o debounce armado e dele; a sincronizacao
+        # do resultado anterior nao pode cancelar a busca nova.
+        user_typing = skip_if_any_focused and any(
+            _typing_other_text(widget) for widget in widgets
+        )
         for timer_name in ("_debounce_timer", "_sector_debounce_timer"):
+            if user_typing:
+                break
             try:
                 debounce_timer = getattr(self, timer_name, None)
                 if debounce_timer is not None:
@@ -316,7 +334,6 @@ class FilterGUISSAMixin:
                     log_context,
                     exc,
                 )
-        widgets = self._get_live_search_inputs_snapshot()
         all_synchronized = True
         for widget in widgets:
             if widget is exclude_widget:
@@ -1008,6 +1025,12 @@ class FilterGUISSAMixin:
             self._apply_filter_result_width_safety("filter_finished", deferred=True)
             self._consume_pending_jump_to_ssa(effective_request_id)
             return
+        if effective_request_id == getattr(self, "_active_filter_search_request_id", None):
+            # Rotulo que corresponde a _df_last_search_filtered; on_filter_error
+            # volta para ele quando a busca seguinte falha.
+            self._completed_search_display = str(
+                getattr(self, "_active_filter_search_display", "") or ""
+            )
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
         search_text = ""
         current_search_request_id = getattr(
@@ -1083,6 +1106,14 @@ class FilterGUISSAMixin:
             ):
                 return
             self._pending_jump_to_ssa = None
+        # A busca que falhou nao produziu dados: o rotulo volta ao do resultado
+        # exibido (vazio quando a base e o dataset completo).
+        self._active_filter_search_display = (
+            ""
+            if getattr(self, "_df_last_search_filtered", None) is getattr(self, "df_completo", None)
+            else str(getattr(self, "_completed_search_display", "") or "")
+        )
+        self._active_filter_search_request_id = None
         # Avoid modal dialogs during automated tests (can deadlock the pytest runner).
         if os.environ.get("PYTEST_CURRENT_TEST"):
             logger.debug("PYTEST_CURRENT_TEST set; skipping modal filter error dialog.")
@@ -1691,6 +1722,9 @@ class FilterGUISSAMixin:
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
         self._safe_store_last_filter_state("toggle_exclude_ste")
+        search_in_flight = self._is_filter_worker_running(
+            getattr(self, "filter_thread", None)
+        )
         self._abort_active_filtering("toggle_exclude_ste")
         checked_bool = bool(checked)
         self._exclude_ste_sca = checked_bool
@@ -1717,6 +1751,11 @@ class FilterGUISSAMixin:
                 "Falha ao sincronizar toggle de excluir STE/SCA: %s", exc
             )
         self._mark_profile_as_custom()
+        if search_in_flight:
+            # A busca abortada nao chegou a gerar base: refazer com o toggle novo
+            # em vez de exibir o resultado anterior sob o rotulo da busca nova.
+            self.initiate_filtering()
+            return
         self._refresh_after_filter_change()
 
     def _clear_all_filters_global(self):
@@ -2574,6 +2613,19 @@ class FilterGUISSAMixin:
             and filtered is self._df_last_search_filtered
             and bool(getattr(filtered, "attrs", {}).get("ssa_sorted_for_display"))
         )
+        user_sort_column = getattr(self, "sort_column", None)
+        if user_sort_column and user_sort_column in filtered.columns and not filtered.empty:
+            # Ordem escolhida no cabecalho vale sobre o padrao numero_ssa desc.
+            try:
+                return measure_timing(
+                    "sort", lambda: self._sort_frame_for_display(filtered)
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao reaplicar ordenacao por '%s' no refresh: %s",
+                    user_sort_column,
+                    exc,
+                )
         if (
             not can_reuse_preprocessed_load_result
             and not can_reuse_general_search_sorted_result

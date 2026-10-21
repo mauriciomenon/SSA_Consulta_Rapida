@@ -55,6 +55,70 @@ class TestScenarioFilterRaceConditions(GUIFilterScenarioHarness):
         assert all("Beta" in row for row in beta_rows)
         assert not any("Alpha" in row for row in beta_rows)
 
+    def test_filter_error_restores_label_of_displayed_result(self):
+        self._install_search_race_df()
+        self.window.search_input.setText("Alpha")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        alpha_rows = list(self.window.df_exibido["descricao_ssa"])
+
+        # Busca "Beta" comeca (rotulo otimista) e falha antes de produzir dados.
+        self.window._active_filter_search_display = "Beta"
+        self.window.on_filter_error(
+            "falha simulada", request_id=self.window._active_filter_request_id
+        )
+        QApplication.processEvents()
+
+        assert list(self.window.df_exibido["descricao_ssa"]) == alpha_rows
+        assert self.window._active_filter_search_display == "Alpha"
+
+    def test_toggle_exclude_ste_during_search_reruns_pending_search(self, monkeypatch):
+        self._install_search_race_df()
+        self.enable_async_filtering()
+        entered = Event()
+        release = Event()
+        import gui.workers.filter_worker as filter_worker_module
+
+        original_apply = filter_worker_module.apply_general_search_terms
+        calls: list[int] = []
+
+        def blocked_search(_df, _chunks, *args, should_cancel=None, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                entered.set()
+                release.wait(timeout=5)
+            return original_apply(
+                _df, _chunks, *args, should_cancel=should_cancel, **kwargs
+            )
+
+        monkeypatch.setattr(
+            filter_worker_module, "apply_general_search_terms", blocked_search
+        )
+
+        self.window.search_input.setText("Beta")
+        self.window.initiate_filtering()
+        self.wait_until_event(entered)
+        self.window._on_exclude_ste_sca_toggled(False)
+        release.set()
+        self.wait_until_filter_idle()
+
+        rows = list(self.window.df_exibido["descricao_ssa"])
+        assert rows and all("Beta" in row for row in rows)
+
+    def test_finished_search_sync_keeps_debounce_of_text_being_typed(self, monkeypatch):
+        self._install_search_race_df()
+        self.window.search_input.setText("Beta")  # usuario digitando: debounce armado
+        self.window._debounce_timer.start()
+        monkeypatch.setattr(self.window.search_input, "hasFocus", lambda: True)
+
+        # Busca anterior ("Alpha") termina e sincroniza os campos.
+        self.window._sync_search_inputs(
+            "Alpha", skip_if_any_focused=True, log_context="teste_g02"
+        )
+
+        assert self.window._debounce_timer.isActive()
+        assert self.window.search_input.text() == "Beta"
+
     def test_stale_filter_finished_skips_refresh_pipeline(self, monkeypatch):
         self.window._active_filter_request_id = 10
         refresh_spy = MagicMock()
