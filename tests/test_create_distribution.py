@@ -570,6 +570,10 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
     (canonical_dir / "docs_entrada" / "input.xlsx").write_text(
         "excel", encoding="utf-8"
     )
+    (canonical_dir / "docs_saida").mkdir()
+    (canonical_dir / "docs_saida" / "export.csv").write_text(
+        "numero_ssa\n202600001\n", encoding="utf-8"
+    )
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
@@ -594,6 +598,7 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
         names = zf.namelist()
         assert any(name.endswith("SSA_GUI_v1_windows_amd64.exe") for name in names)
         assert any(name.endswith("keep.txt") for name in names)
+        assert not any(name.endswith("export.csv") for name in names)
         assert not any(name.endswith(".db") for name in names)
         assert not any(name.endswith(".xlsx") for name in names)
         assert not any(name.endswith(".xls") for name in names)
@@ -766,6 +771,16 @@ def test_inno_excludes_match_backup_fragments() -> None:
     assert "*.backup" in excludes
     assert "*.backup*" in excludes
     assert "*.backup_*" in excludes
+
+
+@pytest.mark.parametrize("include_runtime_db", [False, True])
+def test_inno_excludes_local_spreadsheets_databases_and_exports(
+    include_runtime_db: bool,
+) -> None:
+    excludes = create_distribution._build_inno_excludes_str(include_runtime_db).split(",")
+
+    for pattern in ("*.db", "*.xls", "*.xlsx", "*.xlsm", "*.ods", "docs_saida\\*"):
+        assert pattern in excludes
 
 
 def test_inno_excludes_preserve_nested_runtime_database_only_when_requested() -> None:

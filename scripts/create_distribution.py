@@ -49,6 +49,7 @@ PACKAGE_PLATFORMS = (
 EXCLUDED_BUNDLE_ITEMS = {
     "data",
     "docs_entrada",
+    "docs_saida",
     "logs",
     "reports",
     "exportacao",
@@ -1146,6 +1147,9 @@ def _build_inno_excludes_str(include_runtime_db: bool = False) -> str:
             "*\\config\\__init__.py",
         ]
     )
+    # Mesma politica do ZIP: planilhas e bancos locais da pasta de build nunca
+    # entram pela linha recursiva; bancos opt-in usam secoes [Files] proprias.
+    inno_excludes.extend(f"*{ext}" for ext in sorted(SENSITIVE_LOCAL_EXTENSIONS))
     for item in sorted(EXCLUDED_BUNDLE_ITEMS):
         inno_excludes.append(f"{item}\\*")
     return ",".join(inno_excludes)
