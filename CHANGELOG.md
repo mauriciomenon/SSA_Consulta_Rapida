@@ -21,6 +21,7 @@ All notable changes to this project are documented in this file.
 - CLI: o comando de exportar nao imprime mais "Exportação concluída." quando nenhum formato foi gravado, e grava em `docs_saida` da pasta de dados (`SSA_RUNTIME_ROOT`), a mesma usada pelo rescan, em vez da pasta do programa.
 - Cabecalhos de planilha com outra caixa, sem acento ou com espacos extras (`NÚMERO DA SSA`, `descricao da ssa`, `Emitida   Em`) sao reconhecidos; antes a importacao falhava com colunas obrigatorias ausentes.
 - `main.py --force-rescan` (modo otimizado): planilha com coluna extra de nome invalido para SQL (ex.: `Categoría`) nao aborta mais o arquivo; a coluna e saneada como no modo padrao da GUI.
+- Executavel empacotado: ao abrir com um marcador de seed sem manifesto (deixado por outro backend no mesmo perfil), os arquivos ja existentes em `data`/`config` (inclusive `ssas.db`) nao sao mais sobrescritos pelos do pacote; arquivos ausentes continuam sendo copiados.
 
 ### Candidata local v4.51 - 2026-09-24
 

@@ -129,7 +129,6 @@ def _copy_seed_file(
     folder_name: str,
     previous_manifest: dict[str, str],
     next_manifest: dict[str, str],
-    force_existing_without_manifest: bool,
 ) -> None:
     source_fingerprint = _file_fingerprint(source)
     if target.exists():
@@ -137,16 +136,13 @@ def _copy_seed_file(
             raise RuntimeError(
                 f"Conflito no runtime {folder_name}: {target} deveria ser arquivo"
             )
+        # So substitui o que o manifesto prova ser copia intacta do pacote
+        # anterior; sem manifesto o arquivo existente e do usuario (ex.: ssas.db).
         previous_fingerprint = previous_manifest.get(relative_name)
-        target_fingerprint = _file_fingerprint(target)
-        should_replace = (
-            force_existing_without_manifest
-            or (
-                previous_fingerprint is not None
-                and target_fingerprint == previous_fingerprint
-            )
-        )
-        if should_replace:
+        if (
+            previous_fingerprint is not None
+            and _file_fingerprint(target) == previous_fingerprint
+        ):
             shutil.copy2(source, target)
     else:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -159,7 +155,6 @@ def _copy_seed_tree(
     target_dir: Path,
     folder_name: str,
     previous_manifest: dict[str, str],
-    force_existing_without_manifest: bool,
 ) -> dict[str, str]:
     next_manifest: dict[str, str] = {}
     for source in source_dir.rglob("*"):
@@ -180,7 +175,6 @@ def _copy_seed_tree(
                 folder_name,
                 previous_manifest,
                 next_manifest,
-                force_existing_without_manifest,
             )
     return next_manifest
 
@@ -201,13 +195,11 @@ def _seed_runtime_folder(
     try:
         manifest_path = _seed_manifest_path(target_dir, folder_name)
         previous_manifest = _load_seed_manifest(manifest_path)
-        force_existing = marker_path.exists() and not previous_manifest
         next_manifest = _copy_seed_tree(
             src_dir,
             target_dir,
             folder_name,
             previous_manifest,
-            force_existing,
         )
         _write_seed_manifest(manifest_path, next_manifest)
         marker_path.write_text(marker_value, encoding="utf-8")

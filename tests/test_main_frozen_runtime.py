@@ -61,6 +61,24 @@ def test_seed_runtime_folder_preserves_nested_user_file(tmp_path: Path) -> None:
     assert target_file.read_text(encoding="utf-8") == "user"
 
 
+def test_seed_runtime_folder_keeps_user_db_when_marker_has_no_manifest(
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "bundle" / "data"
+    source_dir.mkdir(parents=True)
+    (source_dir / "ssas.db").write_bytes(b"banco do pacote")
+    runtime_data = tmp_path / "runtime" / "data"
+    runtime_data.mkdir(parents=True)
+    user_db = runtime_data / "ssas.db"
+    user_db.write_bytes(b"banco do usuario")
+    # Marcador gravado por runtime_entry_helpers (outro backend), sem manifesto.
+    (runtime_data / ".ssa_seed_data").write_text("outro-backend", encoding="utf-8")
+
+    main_runtime._seed_runtime_folder(tmp_path / "runtime", source_dir, "data")
+
+    assert user_db.read_bytes() == b"banco do usuario"
+
+
 def test_seed_runtime_folder_updates_previous_bundle_file(tmp_path: Path) -> None:
     source_dir = tmp_path / "bundle" / "config"
     source_dir.mkdir(parents=True)
