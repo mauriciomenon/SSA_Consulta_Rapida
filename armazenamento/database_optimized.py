@@ -37,7 +37,6 @@ from .database import (
 )  # Top-level import (safe - defined early in database.py)
 from .identifier_utils import is_valid_identifier, quote_identifier as _quote_identifier
 from .numero_ssa_utils import normalize_numero_ssa_storage
-from .schema_manager import ensure_columns_exist
 
 logger = get_robust_logger().get_logger(__name__, "core")
 
@@ -337,7 +336,11 @@ def insert_dataframe_optimized(
     conn: sqlite3.Connection | None = None
 
     try:
-        from .database_upsert_logic import UPSERT_DATE_COLUMNS, prepare_dataframe_for_storage
+        from .database_upsert_logic import (
+            UPSERT_DATE_COLUMNS,
+            _sync_dynamic_columns_and_schema,
+            prepare_dataframe_for_storage,
+        )
 
         work = prepare_dataframe_for_storage(df, normalize_derivada=True)
 
@@ -363,7 +366,21 @@ def insert_dataframe_optimized(
             conn.execute("PRAGMA temp_store=MEMORY")  # Operações temporárias em RAM
             conn.execute("PRAGMA mmap_size=268435456")  # Memory-mapped I/O (256MB)
             conn.execute("BEGIN IMMEDIATE")
-            ensure_columns_exist(conn, target_table, work)
+            # Mesmo saneamento/whitelist do caminho padrao: cabecalho dinamico
+            # invalido para SQL ("Categoría") e renomeado em vez de abortar.
+            existing_columns = {
+                row[1]
+                for row in conn.execute(
+                    f"PRAGMA table_info({_quote_identifier(target_table)})"
+                )
+            }
+            work = _sync_dynamic_columns_and_schema(
+                work=work,
+                table_name=target_table,
+                existing_columns=existing_columns,
+                db_path=db_path,
+                conn=conn,
+            )
 
             # LOG: Verificar configurações aplicadas
             cur = conn.cursor()

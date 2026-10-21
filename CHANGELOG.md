@@ -20,6 +20,7 @@ All notable changes to this project are documented in this file.
 - Consolidacao de `docs_entrada`: recusa o relatorio de uma importacao nao concluida (candidato nao promovido, cancelado) em vez de arquivar planilhas cujos dados nao foram gravados, e deixa pendente a planilha substituida depois da importacao (mesmo nome, outro conteudo).
 - CLI: o comando de exportar nao imprime mais "Exportação concluída." quando nenhum formato foi gravado, e grava em `docs_saida` da pasta de dados (`SSA_RUNTIME_ROOT`), a mesma usada pelo rescan, em vez da pasta do programa.
 - Cabecalhos de planilha com outra caixa, sem acento ou com espacos extras (`NÚMERO DA SSA`, `descricao da ssa`, `Emitida   Em`) sao reconhecidos; antes a importacao falhava com colunas obrigatorias ausentes.
+- `main.py --force-rescan` (modo otimizado): planilha com coluna extra de nome invalido para SQL (ex.: `Categoría`) nao aborta mais o arquivo; a coluna e saneada como no modo padrao da GUI.
 
 ### Candidata local v4.51 - 2026-09-24
 

@@ -43,15 +43,17 @@ def test_insert_dataframe_optimized_ignores_rollback_on_closed_connection(
             except sqlite3.ProgrammingError:
                 pass
 
-    def _close_and_raise(conn_arg, *_args, **_kwargs):
-        conn_arg.close()
+    def _close_and_raise(*, conn, **_kwargs):
+        conn.close()
         raise RuntimeError("forced closed connection failure")
 
     monkeypatch.setattr(
         database_optimized_module, "get_db_connection", _closing_connection
     )
     monkeypatch.setattr(
-        database_optimized_module, "ensure_columns_exist", _close_and_raise
+        database_upsert_logic_module,
+        "_sync_dynamic_columns_and_schema",
+        _close_and_raise,
     )
 
     df = pd.DataFrame(

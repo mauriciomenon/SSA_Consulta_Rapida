@@ -138,6 +138,29 @@ def test_optimized_normalizes_all_canonical_date_columns(tmp_path, column):
     assert results[1] == results[0]
 
 
+def test_optimized_sanitizes_dynamic_column_like_canonical(tmp_path):
+    frame = pd.DataFrame({
+        "numero_ssa": ["202600001"],
+        "situacao": ["ADM"],
+        "data_cadastro": ["2026-01-01"],
+        "Categoría": ["valor"],
+    })
+    results = []
+    for name, insert in (
+        ("canonical", insert_dataframe_with_smart_upsert_impl),
+        ("optimized", insert_dataframe_optimized),
+    ):
+        path = str(tmp_path / f"{name}.db")
+        with sqlite3.connect(path) as conn:
+            conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT PRIMARY KEY, "
+                         "situacao TEXT, data_cadastro TEXT)")
+        assert insert(frame.copy(), path, "ssa_table")
+        with sqlite3.connect(path) as conn:
+            columns = [row[1] for row in conn.execute("PRAGMA table_info(ssa_table)")]
+            results.append((columns, conn.execute("SELECT * FROM ssa_table").fetchall()))
+    assert results[1] == results[0]
+
+
 def test_optimized_rolls_back_new_column_when_insert_constraint_fails(tmp_path):
     path = str(tmp_path / "rollback_schema.db")
     with sqlite3.connect(path) as conn:
