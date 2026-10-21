@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Removidos de `scripts_manutencao/` 9 scripts de debug sem uso que consultavam o schema legado (`debug_*.py`, `diagnostico_rapido.py`, `diagnosticar_problemas.py`, `teste_debug_excel.py`) e `reorganizar_projeto.py`, que movia `.py` da pasta corrente.
 - `import_pai_api_xlsx.py --source-xlsx ... --cleanup-manifest` nao apaga mais o XLSX de origem informado pelo usuario.
 - `verificar_instalacao.ps1` usa o mesmo banco efetivo do app (`SSA_DB_PATH` ou `data\ssas.db`) e nunca reseta um banco existente; erros do reset ficam visiveis.
 - Removido `scripts_manutencao/parar_importacao_e_diagnostico.py`: consultava a tabela legada `ssas` e, por isso, sempre encerrava qualquer processo Python com "import", "main.py", "ssa" ou "excel" na linha de comando, inclusive de outros projetos.
@@ -25,6 +26,7 @@ All notable changes to this project are documented in this file.
 - Planilha com titulo na coluna A acima do cabecalho (ex.: "Relatorio de SSAs - exportado em ...") e importada: o cabecalho e a linha com mais nomes de coluna conhecidos, em vez da primeira celula preenchida da coluna A.
 - Filtro avancado de reprogramacoes "menor ou igual": SSAs sem informacao de reprogramacao nao entram mais no resultado (antes contavam como -1), como no app C++.
 - GUI: as colunas voltam a ser redimensionaveis depois de reexibir a mesma pagina; e uma importacao em que parte das planilhas nao pode ser copiada para `docs_entrada` termina "com Ressalvas", com o aviso de quantas ficaram de fora, em vez de "Concluido com sucesso".
+- GUI, busca e filtros: alternar "excluir STE/SCA" durante uma busca refaz a busca em andamento (antes mostrava o resultado anterior sob o rotulo da busca nova); erro na busca volta o rotulo para o resultado exibido; o fim de uma busca nao cancela mais a busca que o usuario esta digitando; a ordenacao escolhida no cabecalho e mantida ao refazer filtros; o filtro pelo menu do cabecalho funciona em colunas agrupadas (OR) e `!MEL4`/termo parcial no setor executor nao zeram mais o resultado.
 
 ### Candidata local v4.51 - 2026-09-24
 
