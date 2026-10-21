@@ -665,8 +665,8 @@ def _handle_export(
         ensure_path_is_allowed(
             output_dir, purpose="diretorio de exportacao", expect_directory=True
         )
+        # O exportador imprime o resultado real (formatos gravados ou falha).
         exporter.export_dataframe(current_df, base_filename, output_dir, display_map)
-        print("Exportação concluída.")
     except PathSafetyError as e:
         print(f"Erro durante a exportação: {e}")
     except Exception as e:
@@ -1239,7 +1239,11 @@ def start_cli_loop(db_path: str, table_name: str):
     # OTIMIZAÇÃO: Cache inicial de configurações
     settings = load_settings()
     display_map = load_display_mappings_integrity()
-    output_dir = os.path.join(project_root, "docs_saida")
+    # Mesmo runtime root do rescan: no executavel empacotado o project_root e
+    # somente leitura e a saida pertence a pasta de dados do usuario.
+    output_dir = os.path.join(
+        os.environ.get("SSA_RUNTIME_ROOT") or project_root, "docs_saida"
+    )
 
     # Flags para controle de cache
     _config_changed = False

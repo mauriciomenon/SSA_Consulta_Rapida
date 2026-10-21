@@ -593,6 +593,66 @@ def test_handle_export_rejects_unsafe_filename(
     assert exporter_calls == []
 
 
+def test_handle_export_does_not_claim_success_after_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    monkeypatch.setattr(cli, "ensure_path_is_allowed", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        "exportacao.exporter.export_dataframe",
+        lambda *_args: print("Erro: Nenhum arquivo foi exportado com sucesso."),
+    )
+
+    cli._handle_export(
+        ["e", "relatorio"], pd.DataFrame({"numero_ssa": ["1"]}), str(tmp_path), {}
+    )
+
+    out = capsys.readouterr().out
+    assert "Nenhum arquivo foi exportado" in out
+    assert "Exportação concluída." not in out
+
+
+def test_start_cli_loop_exports_under_runtime_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SSA_RUNTIME_ROOT", str(tmp_path))
+    base_df = pd.DataFrame({"numero_ssa": ["202605373"]})
+    monkeypatch.setattr(
+        cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, [])
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
+    )
+    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
+    monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
+    monkeypatch.setattr(cli, "_render_single_page", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
+    export_dirs: list[str] = []
+    monkeypatch.setattr(
+        cli,
+        "_handle_export",
+        lambda _parts, _df, output_dir, _display: export_dirs.append(output_dir),
+    )
+    inputs = iter(["e relatorio", "q"])
+
+    def _fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(builtins, "input", _fake_input)
+
+    with pytest.raises(SystemExit):
+        cli.start_cli_loop("dummy.db", "ssa_table")
+
+    assert export_dirs == [os.path.join(str(tmp_path), "docs_saida")]
+
+
 def test_handle_sort_rejects_zero_index(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
