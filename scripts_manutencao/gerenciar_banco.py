@@ -37,7 +37,23 @@ def _is_symlink_directory(path: str) -> bool:
 _BACKUP_TIMESTAMP_RE = re.compile(r"\d{8}_\d{6}", re.ASCII)
 
 
-def _is_db_backup_name(name: str, db_name: str) -> bool:
+_DB_SUFFIXES = (".db", ".sqlite", ".sqlite3")
+
+
+def _stem_is_ambiguous(data_path: Path, scope: str | None) -> bool:
+    """Outro banco na pasta com o mesmo stem (ssas.db x ssas.sqlite): backups
+    "<stem>_backup_<ts>" nao identificam o dono e nao podem ser limpos."""
+    if not scope:
+        return False
+    stem = Path(scope).stem
+    return any(
+        path.name != scope and path.stem == stem and path.suffix.lower() in _DB_SUFFIXES
+        for path in data_path.glob("*")
+        if path.is_file()
+    )
+
+
+def _is_db_backup_name(name: str, db_name: str, *, stem_family: bool = True) -> bool:
     # Backups com apenas o stem nao identificam um banco unico em pasta
     # compartilhada; bancos com extensoes diferentes podem ter o mesmo stem.
     # normcase preserva a distincao de caixa em POSIX (foo.db != Foo.db) e
@@ -58,6 +74,8 @@ def _is_db_backup_name(name: str, db_name: str) -> bool:
             # data no proprio nome do banco (loja_<ts>.db) nao autoriza
             # tratar "<banco>.backup_prod.db" como descartavel.
             return bool(_BACKUP_TIMESTAMP_RE.search(candidate[len(prefix):]))
+    if not stem_family:
+        return False
     # Familia por stem exige o par data_hora logo apos o marcador: um
     # banco real datado por outra convencao (ssas_backup_prod_<ts>.db)
     # nao e confundido com artefato gerado. O meio "antes_limpeza_final"
@@ -84,12 +102,14 @@ _BACKUP_GENERIC_PREFIXES = ("backup_", "ssas_backup_", "ssas_emergency_backup_")
 _BACKUP_GENERIC_INFIXES = (".backup_", ".bak-", "_bkp", ".bkp")
 
 
-def _is_backup_artifact(name: str, bound: str, scope: str | None) -> bool:
+def _is_backup_artifact(
+    name: str, bound: str, scope: str | None, *, stem_family: bool = True
+) -> bool:
     """Artefato gerado de backup: nome ligado ao banco com par data_hora,
     ou (apenas no escopo default) nome generico legado fora da familia
     do stem do banco."""
     if scope:
-        return _is_db_backup_name(name, scope)
+        return _is_db_backup_name(name, scope, stem_family=stem_family)
     if _is_db_backup_name(name, bound):
         return True
     lowered = name.lstrip(".").lower()
@@ -207,15 +227,18 @@ def clean_old_backups(
         for suffix in ("", "-wal", "-shm", "-journal")
     } if db_basename else {"ssas.db"}
     bound = db_basename or "ssas.db"
+    stem_family = not _stem_is_ambiguous(data_path, scope)
 
     def _in_scope(name: str) -> bool:
-        return not scope or _is_db_backup_name(name, scope)
+        return not scope or _is_db_backup_name(name, scope, stem_family=stem_family)
 
     # Limpa pasta data principal
     for file_path in data_path.glob("*"):
         if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
             # Verifica se  um arquivo de backup
-            is_backup = _is_backup_artifact(file_path.name, bound, scope)
+            is_backup = _is_backup_artifact(
+                file_path.name, bound, scope, stem_family=stem_family
+            )
 
             if is_backup:
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
@@ -231,7 +254,9 @@ def clean_old_backups(
     if backups_path.exists():
         for file_path in backups_path.glob("*"):
             if file_path.is_file() and file_path.name not in protected and _in_scope(file_path.name):
-                if not _is_backup_artifact(file_path.name, bound, scope):
+                if not _is_backup_artifact(
+                    file_path.name, bound, scope, stem_family=stem_family
+                ):
                     continue
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
                 if file_time < cutoff_date:

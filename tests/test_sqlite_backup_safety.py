@@ -383,6 +383,47 @@ def test_clean_old_backups_expires_promotion_archives(tmp_path: Path) -> None:
     assert unrelated.exists()
 
 
+def test_clean_old_backups_keeps_stem_backups_when_another_db_shares_stem(
+    tmp_path: Path,
+) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    other_db = tmp_path / "ssas.db"
+    scoped_db = tmp_path / "ssas.sqlite"
+    ambiguous = tmp_path / "ssas_backup_20200101_000000_000000_abcd1234.db"
+    own_full_name = tmp_path / "ssas.sqlite.bak-20200101_000000_000000"
+    for path in (other_db, scoped_db, ambiguous, own_full_name):
+        path.write_bytes(b"x")
+    stale = 1_600_000_000
+    for path in (ambiguous, own_full_name):
+        os.utime(path, (stale, stale))
+
+    gerenciar_banco.clean_old_backups(
+        str(tmp_path), days_to_keep=7, db_basename="ssas.sqlite"
+    )
+
+    assert ambiguous.exists()
+    assert not own_full_name.exists()
+    assert other_db.exists()
+
+
+def test_clean_old_backups_still_expires_stem_backups_when_stem_is_unique(
+    tmp_path: Path,
+) -> None:
+    from scripts_manutencao import gerenciar_banco
+
+    (tmp_path / "ssas.sqlite").write_bytes(b"x")
+    stem_backup = tmp_path / "ssas_backup_20200101_000000_000000_abcd1234.db"
+    stem_backup.write_bytes(b"x")
+    os.utime(stem_backup, (1_600_000_000, 1_600_000_000))
+
+    gerenciar_banco.clean_old_backups(
+        str(tmp_path), days_to_keep=7, db_basename="ssas.sqlite"
+    )
+
+    assert not stem_backup.exists()
+
+
 def test_main_clean_data_refuses_non_sqlite_target_dir(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
