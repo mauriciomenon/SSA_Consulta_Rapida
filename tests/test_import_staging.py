@@ -660,3 +660,41 @@ def test_remove_destination_ignores_missing_when_optional(tmp_path: Path) -> Non
     )
 
     assert errors == []
+
+
+def test_copy_source_removes_partial_destination_on_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from utils import file_copy
+
+    source = tmp_path / "fonte.xlsx"
+    source.write_bytes(b"conteudo completo")
+    destination = tmp_path / "destino.xlsx"
+
+    def _copy_then_fail(_src, dst):
+        dst.write(b"parc")
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr(file_copy.shutil, "copyfileobj", _copy_then_fail)
+
+    with pytest.raises(OSError, match="disco cheio"):
+        file_copy.copy_source_without_execute_bit(str(source), destination)
+
+    assert not destination.exists()
+
+
+def test_copy_source_keeps_existing_destination_when_name_is_taken(
+    tmp_path: Path,
+) -> None:
+    from utils import file_copy
+
+    source = tmp_path / "fonte.xlsx"
+    source.write_bytes(b"novo")
+    destination = tmp_path / "destino.xlsx"
+    destination.write_bytes(b"de outro processo")
+
+    with pytest.raises(FileExistsError):
+        file_copy.copy_source_without_execute_bit(str(source), destination)
+
+    assert destination.read_bytes() == b"de outro processo"
