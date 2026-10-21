@@ -1311,10 +1311,6 @@ def _compute_widths_for_df(
     )
 
 
-def _compute_column_widths_from_context(df: pd.DataFrame, context):
-    return table_widths.compute_column_widths_from_context(df, context)
-
-
 def _sample_width_dataframe(df: pd.DataFrame, max_rows: int = 1000) -> pd.DataFrame:
     return table_widths.sample_width_dataframe(df, max_rows=max_rows)
 
@@ -1340,16 +1336,6 @@ def _on_header_section_resized(
     except Exception as exc:  # noqa: BLE001
         # Evita quebrar a GUI por falhas de IO, mas preserva evidencia no log.
         logger.debug("Falha ao persistir largura de coluna redimensionada: %s", exc)
-
-
-def _resolve_column_name_for_width_persist(window, logical_index: int) -> str | None:
-    return table_widths.resolve_column_name_for_width_persist(window, logical_index)
-
-
-def _persist_column_width_change(window, col_name: str, new_size: int) -> None:
-    table_widths.persist_column_width_change(window, col_name, new_size)
-    _schedule_adaptive_header_label_refresh(window)
-    _schedule_column_width_preferences_persist(window)
 
 
 def _flush_column_width_preferences(window) -> None:
