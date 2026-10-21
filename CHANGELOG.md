@@ -19,6 +19,7 @@ All notable changes to this project are documented in this file.
 - Planilha substituida enquanto a importacao roda nao e mais marcada como importada: fica fora do cache e entra na proxima rodada. O relatorio `logs/import_run_*.json` passa a registrar `source_signature` (caminho, tamanho, mtime) de cada arquivo importado.
 - Consolidacao de `docs_entrada`: recusa o relatorio de uma importacao nao concluida (candidato nao promovido, cancelado) em vez de arquivar planilhas cujos dados nao foram gravados, e deixa pendente a planilha substituida depois da importacao (mesmo nome, outro conteudo).
 - CLI: o comando de exportar nao imprime mais "Exportação concluída." quando nenhum formato foi gravado, e grava em `docs_saida` da pasta de dados (`SSA_RUNTIME_ROOT`), a mesma usada pelo rescan, em vez da pasta do programa.
+- Cabecalhos de planilha com outra caixa, sem acento ou com espacos extras (`NÚMERO DA SSA`, `descricao da ssa`, `Emitida   Em`) sao reconhecidos; antes a importacao falhava com colunas obrigatorias ausentes.
 
 ### Candidata local v4.51 - 2026-09-24
 

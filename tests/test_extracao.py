@@ -901,6 +901,23 @@ def test_extract_data_from_excel_aligns_distinct_aliases_across_sheets(
     assert not any(str(col).startswith("data_cadastro_") for col in extracted.columns)
 
 
+def test_extract_data_from_excel_production_mapping_ignores_case_accents_spaces(
+    tmp_path,
+):
+    frame = pd.DataFrame(
+        [[202600501, "SSA", "01/02/2026 10:00:00"]],
+        columns=["NÚMERO DA SSA", "descricao da ssa", "  Emitida   Em "],
+    )
+    file_path = tmp_path / "cabecalho_variante.xlsx"
+    frame.to_excel(file_path, index=False)
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert int(extracted["numero_ssa"].iloc[0]) == 202600501
+    assert extracted["descricao_ssa"].iloc[0] == "SSA"
+    assert extracted["data_cadastro"].iloc[0] == pd.Timestamp("2026-02-01 10:00:00")
+
+
 def test_extract_data_from_excel_keeps_position_of_empty_repeated_column(
     tmp_path, monkeypatch
 ):

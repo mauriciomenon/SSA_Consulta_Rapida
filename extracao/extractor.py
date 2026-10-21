@@ -868,9 +868,9 @@ def extract_data_from_excel(
         _check_cancel()
         all_sheets_data = []
         column_mappings = _load_column_mappings(mappings_path)
-        normalize_header = (
-            canonicalize_header if mappings_path is not None else str.strip
-        )
+        # Caixa, acentos e espacos extras nao mudam o significado do cabecalho
+        # ("NÚMERO DA SSA" = "Número da SSA"), inclusive no mapeamento de producao.
+        normalize_header = canonicalize_header
         normalized_column_mappings = {
             normalize_header(str(key)): value for key, value in column_mappings.items()
         }
