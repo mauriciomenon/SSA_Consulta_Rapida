@@ -63,6 +63,16 @@ def _set_fixed_height(window: Any, widget: QWidget, height: int, label: str) -> 
     widget.setFixedHeight(height)
 
 
+def _aligned_offset(free: float, alignment: Any, start: Any, end: Any) -> float:
+    """Offset of content inside its widget for one axis, per QLabel alignment."""
+    free = max(0.0, free)
+    if alignment is not None and bool(alignment & start):
+        return 0.0
+    if alignment is not None and bool(alignment & end):
+        return free
+    return free / 2.0
+
+
 def _event_position_in_graph_space(widget: Any, event: Any) -> tuple[float, float]:
     position_getter = getattr(event, "position", None)
     point = position_getter() if callable(position_getter) else event.pos()
@@ -73,8 +83,17 @@ def _event_position_in_graph_space(widget: Any, event: Any) -> tuple[float, floa
         is_null = getattr(pixmap, "isNull", None)
         if not (callable(is_null) and is_null()):
             pixmap_w, pixmap_h = _pixmap_display_size(pixmap)
-            x -= max(0.0, (float(widget.width()) - pixmap_w) / 2.0)
-            y -= max(0.0, (float(widget.height()) - pixmap_h) / 2.0)
+            # O label do grafo usa AlignHCenter | AlignTop: centralizar nos dois
+            # eixos deslocava o clique em meio espaco livre vertical.
+            alignment_getter = getattr(widget, "alignment", None)
+            alignment = alignment_getter() if callable(alignment_getter) else None
+            flags = Qt.AlignmentFlag
+            x -= _aligned_offset(
+                float(widget.width()) - pixmap_w, alignment, flags.AlignLeft, flags.AlignRight
+            )
+            y -= _aligned_offset(
+                float(widget.height()) - pixmap_h, alignment, flags.AlignTop, flags.AlignBottom
+            )
     return x, y
 
 

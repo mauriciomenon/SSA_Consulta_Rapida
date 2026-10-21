@@ -96,7 +96,8 @@ def load_derivadas_snapshot(
             max_nodes=max_nodes,
         )
     except Exception as exc:
-        logger.debug(
+        # Visivel: a tela cai no grafo local e pode divergir do banco.
+        logger.warning(
             "Falha ao coletar arvore de derivadas no DB para %s: %s", target, exc
         )
         return None
