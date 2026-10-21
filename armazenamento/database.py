@@ -467,7 +467,13 @@ def _validate_read_only_query(query: str) -> None:
     if first_token not in _READ_ONLY_SQL_START_TOKENS:
         raise ValueError("Custom SQL query must be read-only")
     sql_tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", guarded_statement.lower()))
-    if sql_tokens & _WRITE_SQL_TOKENS:
+    write_tokens = sql_tokens & _WRITE_SQL_TOKENS
+    # replace(x, a, b) e funcao de texto; so REPLACE fora de chamada escreve.
+    if write_tokens == {"replace"} and not re.search(
+        r"\breplace\b(?!\s*\()", guarded_statement, re.IGNORECASE
+    ):
+        write_tokens = set()
+    if write_tokens:
         raise ValueError("Custom SQL query must be read-only")
 
 

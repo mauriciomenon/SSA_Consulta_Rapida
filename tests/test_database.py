@@ -445,6 +445,29 @@ def test_query_db_rejects_cte_write_custom_query(temp_db_path, custom_query):
         )
 
 
+def test_query_db_accepts_replace_function_but_not_replace_statement(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE teste_query_guard (nome TEXT);")
+        conn.execute("INSERT INTO teste_query_guard VALUES ('a-b');")
+        conn.commit()
+
+    result = query_db(
+        temp_db_path,
+        "teste_query_guard",
+        "SELECT replace(nome, '-', '/') AS nome FROM teste_query_guard",
+        raise_on_error=True,
+    )
+    assert result["nome"].tolist() == ["a/b"]
+
+    with pytest.raises(ValueError, match="read-only"):
+        query_db(
+            temp_db_path,
+            "teste_query_guard",
+            "WITH v AS (SELECT 'x' AS n) REPLACE INTO teste_query_guard SELECT n FROM v",
+            raise_on_error=True,
+        )
+
+
 def test_query_db_accepts_read_only_cte_custom_query(temp_db_path):
     """query_db must continue to accept read-only CTEs."""
     with get_db_connection(temp_db_path) as conn:
