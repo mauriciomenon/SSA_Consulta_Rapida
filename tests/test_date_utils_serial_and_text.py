@@ -105,3 +105,23 @@ def test_parse_datetime_series_mixed_converts_excel_serial_in_window():
     assert parsed.iloc[1] == pd.Timestamp("2023-10-06 12:00:00")
     assert parsed.iloc[2] == pd.Timestamp("2026-02-01 00:00:00")
     assert parsed.iloc[3:].isna().all()
+
+
+def test_parse_datetime_series_mixed_serials_with_duplicate_index_and_overflow():
+    series = pd.Series(
+        [45205, 1, float("inf"), 1e30, 45206], index=[0, 0, 1, 1, 2], dtype="object"
+    )
+
+    parsed = parse_datetime_series_mixed(series)
+
+    assert parsed.iloc[0] == pd.Timestamp("2023-10-06")
+    assert parsed.iloc[1:4].isna().all()
+    assert parsed.iloc[4] == pd.Timestamp("2023-10-07")
+
+
+def test_parse_datetime_series_mixed_keeps_compact_iso_date():
+    parsed = parse_datetime_series_mixed(
+        pd.Series(["01/02/2026", "20260102"], dtype="object")
+    )
+
+    assert parsed.tolist() == [pd.Timestamp("2026-02-01"), pd.Timestamp("2026-01-02")]

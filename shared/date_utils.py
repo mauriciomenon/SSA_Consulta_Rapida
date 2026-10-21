@@ -90,13 +90,22 @@ def _is_excel_serial(value) -> bool:
     return isinstance(value, numbers.Real) and not isinstance(value, bool)
 
 
+# Seriais Excel aceitos: dias desde EXCEL_EPOCH em [1980-01-01, 2101-01-01).
+_SERIAL_MIN = (pd.Timestamp(f"{MIN_OPERATIONAL_YEAR}-01-01") - pd.Timestamp(EXCEL_EPOCH)).days
+_SERIAL_END = (pd.Timestamp(f"{MAX_OPERATIONAL_YEAR + 1}-01-01") - pd.Timestamp(EXCEL_EPOCH)).days
+# Formato de todas as datas em texto das planilhas SAM medidas em 2026-10.
+_DAYFIRST_FORMAT = "%d/%m/%Y %H:%M:%S"
+
+
 def parse_datetime_series_mixed(series: pd.Series) -> pd.Series:
     """Parse ISO strings, day-first strings and Excel serials into naive datetimes.
 
-    Text rows are parsed one by one (format="mixed"), so the format of one row
-    never decides the day/month order of another. Month-first is used only when
-    the second slash field is > 12. Numeric values are Excel serials, kept only
-    inside MIN_OPERATIONAL_YEAR..MAX_OPERATIONAL_YEAR.
+    Day-first text tries the dominant "dd/mm/yyyy hh:mm:ss" format at vector
+    speed; the rest is parsed one row at a time (format="mixed"), so the format
+    of one row never decides the day/month order of another. Month-first is used
+    only when the second slash field is > 12. Numeric values are Excel serials,
+    kept only inside MIN_OPERATIONAL_YEAR..MAX_OPERATIONAL_YEAR. Assignments are
+    positional, so duplicate index labels are safe.
     """
     if not isinstance(series, pd.Series):
         parsed = pd.to_datetime(series, errors="coerce", dayfirst=True, utc=True)
@@ -106,32 +115,40 @@ def parse_datetime_series_mixed(series: pd.Series) -> pd.Series:
     numeric_mask = series.map(_is_excel_serial).astype(bool)
     text_series = series.astype(str).str.strip()
     iso_mask = text_series.str.match(
-        r"^\d{4}-\d{2}-\d{2}"
+        r"^(?:\d{8}|\d{4}-\d{2}-\d{2}"
         r"(?:[ T]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)?"
-        r"(?:Z|[+-]\d{2}:\d{2})?$",
+        r"(?:Z|[+-]\d{2}:\d{2})?)$",
         na=False,
-    )
+    ) & ~numeric_mask
     slash_parts = text_series.str.extract(r"^(\d{1,2})/(\d{1,2})/\d{4}")
     slash_second = pd.to_numeric(slash_parts[1], errors="coerce")
     forced_month_first_mask = slash_second > 12
     parsed = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
     local_mask = ~iso_mask & ~forced_month_first_mask & ~numeric_mask
     if bool(local_mask.any()):
-        parsed.loc[local_mask] = pd.to_datetime(
-            series.loc[local_mask],
-            errors="coerce",
-            dayfirst=True,
-            utc=True,
-            format="mixed",
-        ).dt.tz_localize(None)
+        local = series.loc[local_mask]
+        local_parsed = pd.to_datetime(local, errors="coerce", format=_DAYFIRST_FORMAT)
+        pending = local_parsed.isna().to_numpy() & local.notna().to_numpy()
+        if pending.any():
+            local_parsed.iloc[pending] = (
+                pd.to_datetime(
+                    local.iloc[pending],
+                    errors="coerce",
+                    dayfirst=True,
+                    utc=True,
+                    format="mixed",
+                )
+                .dt.tz_localize(None)
+                .to_numpy()
+            )
+        parsed.loc[local_mask] = local_parsed.to_numpy()
     if bool(numeric_mask.any()):
-        numeric_values = pd.to_numeric(series.loc[numeric_mask], errors="coerce")
-        numeric_values = numeric_values[numeric_values > 0]
-        serial = pd.to_datetime(
-            numeric_values, errors="coerce", unit="D", origin=EXCEL_EPOCH
-        )
-        in_window = serial.dt.year.between(MIN_OPERATIONAL_YEAR, MAX_OPERATIONAL_YEAR)
-        parsed.loc[serial.index[in_window]] = serial[in_window]
+        values = pd.to_numeric(series.where(numeric_mask.to_numpy()), errors="coerce")
+        in_window = values.ge(_SERIAL_MIN).to_numpy() & values.lt(_SERIAL_END).to_numpy()
+        if in_window.any():
+            parsed.iloc[in_window] = pd.to_datetime(
+                values.iloc[in_window], unit="D", origin=EXCEL_EPOCH
+            ).to_numpy()
     if bool(forced_month_first_mask.any()):
         parsed.loc[forced_month_first_mask] = pd.to_datetime(
             series.loc[forced_month_first_mask],
