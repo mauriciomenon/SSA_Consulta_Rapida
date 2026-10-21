@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file.
 - Importacao de datas: planilhas com formatos misturados (`01/02/2026` e `03/02/2026 15:30:00`) nao trocam mais dia e mes; datas gravadas como numero serial do Excel (ex.: `45205`) viram a data correta em vez de 1970.
 - Importacao de arquivos com varias abas: abas que usam nomes diferentes para a mesma coluna (ex.: `Data Cadastro` numa aba e `Emitida Em` em outra) nao perdem mais a data das linhas da segunda aba.
 - Sync de derivadas: uma planilha cujas colunas de SSA pai/filho nao sao reconhecidas agora e recusada antes de gravar, com o nome do arquivo na mensagem; antes ela desativava as derivadas ja existentes e o erro so aparecia depois. Planilha com cabecalho correto e sem linhas continua significando "sem derivadas".
+- `Tempo Excedido`: anos e meses nao sao mais descartados (`1a, 9m, 22d 5h : 47mi` era gravado como `P22DT5H47M`; agora `P1Y9M22DT5H47M`). Valores com trecho nao reconhecido ficam como o texto original. Os valores ja gravados so sao corrigidos ao reimportar (`--force-rescan`).
 
 ### Candidata local v4.51 - 2026-09-24
 

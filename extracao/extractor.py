@@ -23,7 +23,11 @@ from utils.file_metadata import best_datetime_for_file
 from utils.robust_importer import canonicalize_header, import_excel_robust
 
 logger = logging.getLogger(__name__)
-TEMPO_EXCEDIDO_RE = re.compile(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", re.IGNORECASE)
+# Formato SAM: "1a, 9m, 22d 5h : 47mi" (a=anos, "Nm," com virgula=meses, mi=minutos).
+# Grupo 3 captura a virgula que distingue meses de minutos ("1h 30m").
+TEMPO_EXCEDIDO_RE = re.compile(
+    r"(\d+)\s*(mi|mo|a|m|d|h)(?=[\s,:]|$|\d)(\s*,)?", re.IGNORECASE
+)
 
 MAX_XLSX_FILE_BYTES = 128 * 1024 * 1024
 MAX_IMPORT_BATCH_FILES = 64
@@ -357,25 +361,26 @@ def _normalize_tempo_excedido_value(value) -> str | None:
     if not text:
         return None
     matches = TEMPO_EXCEDIDO_RE.findall(text)
-    if not matches:
+    # Nunca converte pela metade: qualquer trecho nao reconhecido mantem o texto.
+    if not matches or not re.fullmatch(r"[\s,:]*", TEMPO_EXCEDIDO_RE.sub("", text)):
         return text
-    units = {"months": 0, "days": 0, "hours": 0, "minutes": 0}
-    for number, unit in matches:
-        try:
-            qty = int(number)
-        except ValueError:
-            return text
-        if unit == "mi":
-            units["minutes"] += qty
-        elif unit == "m":
-            units["minutes"] += qty
-        elif unit == "mo":
+    units = {"years": 0, "months": 0, "days": 0, "hours": 0, "minutes": 0}
+    for number, unit, comma in matches:
+        qty = int(number)
+        unit = unit.lower()
+        if unit == "a":
+            units["years"] += qty
+        elif unit == "mo" or (unit == "m" and comma):
             units["months"] += qty
+        elif unit in ("mi", "m"):
+            units["minutes"] += qty
         elif unit == "d":
             units["days"] += qty
         elif unit == "h":
             units["hours"] += qty
     parts = ["P"]
+    if units["years"]:
+        parts.append(f"{units['years']}Y")
     if units["months"]:
         parts.append(f"{units['months']}M")
     if units["days"]:

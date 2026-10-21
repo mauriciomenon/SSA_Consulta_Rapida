@@ -129,6 +129,28 @@ def test_normalize_tempo_excedido_does_not_match_partial_words():
     assert _normalize_tempo_excedido_value("1h30m") == "PT1H30M"
 
 
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("1a, 9m, 22d 5h : 47mi", "P1Y9M22DT5H47M"),
+        ("3m, 2d 14h : 42mi", "P3M2DT14H42M"),
+        ("1a, 2m, 3d", "P1Y2M3D"),
+        ("2a, 5h : 10mi", "P2YT5H10M"),
+        ("1m, 2mi", "P1MT2M"),
+        ("12d 3h : 4mi", "P12DT3H4M"),
+        ("45mi", "PT45M"),
+        ("1H 30M", "PT1H30M"),
+    ],
+)
+def test_normalize_tempo_excedido_keeps_years_and_months(raw, expected):
+    assert _normalize_tempo_excedido_value(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["1h 15minutes", "-1h", "1.5h", "cerca de 2h", "2 anos"])
+def test_normalize_tempo_excedido_keeps_text_when_not_fully_recognized(raw):
+    assert _normalize_tempo_excedido_value(raw) == raw
+
+
 def test_extract_data_from_excel_fails_when_required_columns_missing(tmp_path):
     # Header exists, but required canonical columns are not present.
     df = pd.DataFrame(
