@@ -417,7 +417,11 @@ def _get_initial_state(
     """
     logger.debug("Carregando estado inicial...")
     try:
-        initial_df = query_db(db_path, "", get_ssa_query(table_name))
+        # raise_on_error: falha de banco vai para o log abaixo em vez de virar
+        # uma tabela vazia silenciosa.
+        initial_df = query_db(
+            db_path, "", get_ssa_query(table_name), raise_on_error=True
+        )
         initial_df = _apply_default_filters(initial_df, settings)
         default_filter_terms = settings.get("default_filters", [])
         logger.debug("Estado inicial carregado.")
@@ -1184,7 +1188,12 @@ def _handle_clear_all_filters(
     # Clona settings sem default_filters
     fresh_settings = dict(settings or {})
     fresh_settings["default_filters"] = []
-    df = query_db(db_path, "", get_ssa_query(table_name))
+    try:
+        df = query_db(db_path, "", get_ssa_query(table_name), raise_on_error=True)
+    except Exception as exc:
+        # Mantem o estado atual em vez de trocar por uma base vazia.
+        print(f"Erro ao recarregar a base: {exc}")
+        return
     results_stack.clear()
     results_stack.append((df, []))
     CLI_PAGINATION_TRACKER.clear()

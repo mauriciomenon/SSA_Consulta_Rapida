@@ -10,7 +10,7 @@ def test_handle_clear_all_filters_uses_provided_table_name(monkeypatch):
     base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
     stack = [(pd.DataFrame({"numero_ssa": ["202500002"]}), ["term"])]
 
-    def _fake_query_db(_db_path, _where, query):
+    def _fake_query_db(_db_path, _where, query, **_kwargs):
         captured["query"] = query
         return base_df
 

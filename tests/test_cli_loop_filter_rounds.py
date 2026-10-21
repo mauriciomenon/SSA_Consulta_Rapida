@@ -593,6 +593,23 @@ def test_handle_export_rejects_unsafe_filename(
     assert exporter_calls == []
 
 
+def test_get_initial_state_reports_database_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def _fake_query_db(*_args, raise_on_error: bool = False, **_kwargs):
+        if raise_on_error:
+            raise sqlite3.OperationalError("no such table: ssa_table")
+        return pd.DataFrame()
+
+    monkeypatch.setattr(cli, "query_db", _fake_query_db)
+
+    with caplog.at_level("ERROR"):
+        df, terms = cli._get_initial_state("dummy.db", "ssa_table", {})
+
+    assert df.empty and terms == []
+    assert "no such table" in caplog.text
+
+
 def test_handle_export_does_not_claim_success_after_failure(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
