@@ -1145,10 +1145,16 @@ VSVersionInfo(
         def remove_path(target_path: Path) -> bool:
             if not target_path.exists():
                 return False
-            if target_path.is_dir():
-                shutil.rmtree(target_path)
-            else:
-                target_path.unlink()
+            try:
+                if target_path.is_dir():
+                    shutil.rmtree(target_path)
+                else:
+                    target_path.unlink()
+            except OSError as exc:
+                # Build ja concluido: item travado (antivirus, leitor, build
+                # anterior) fica registrado e nao derruba o resultado.
+                logger.warning("Limpeza nao removeu %s: %s", target_path, exc)
+                return False
             return True
 
         # 1. Limpeza de diretorios temporarios de build

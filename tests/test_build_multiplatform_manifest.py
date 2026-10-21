@@ -1264,6 +1264,30 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
     assert "file_cache.archive.json" not in removed
 
 
+def test_auto_cleanup_continues_when_an_item_is_locked(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.launchers_dir = tmp_path / "launchers"
+    builder.dist_dir = builder.launchers_dir / "dist"
+    build_dir = tmp_path / "build"
+    dist_simple_dir = builder.launchers_dir / "dist_simple"
+    build_dir.mkdir(parents=True)
+    dist_simple_dir.mkdir(parents=True)
+    original_rmtree = shutil.rmtree
+
+    def _locked_build_dir(path, *args, **kwargs):
+        if Path(path) == build_dir:
+            raise PermissionError("arquivo em uso")
+        return original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "rmtree", _locked_build_dir)
+
+    builder.cleanup_build_artifacts()
+
+    assert build_dir.exists()
+    assert not dist_simple_dir.exists()
+
+
 def test_auto_cleanup_preserves_final_distribution_outputs(tmp_path):
     builder = MultiPlatformBuilder()
     builder.base_dir = tmp_path
