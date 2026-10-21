@@ -105,6 +105,71 @@ def test_consolidate_input_files_reports_directory_prepare_failure(
     assert any("blocked mkdir" in error for error in errors)
 
 
+def _write_report(tmp_path: Path, payload: dict) -> Path:
+    docs_dir = tmp_path / "docs_entrada"
+    logs_dir = tmp_path / "logs"
+    docs_dir.mkdir(exist_ok=True)
+    logs_dir.mkdir(exist_ok=True)
+    payload = {"paths": {"docs_dir": str(docs_dir)}, **payload}
+    (logs_dir / "import_run_20260327_000001_000001.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+    return docs_dir
+
+
+def test_consolidate_refuses_report_of_unpromoted_run(tmp_path: Path) -> None:
+    (tmp_path / "docs_entrada").mkdir()
+    (tmp_path / "docs_entrada" / "ok.xlsx").write_text("ok", encoding="utf-8")
+    docs_dir = _write_report(
+        tmp_path,
+        {
+            "result": False,
+            "status": "candidate_incomplete",
+            "file_reports": [
+                {"file": "ok.xlsx", "status": "success", "counts": {"rows_inserted": 1}}
+            ],
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="candidate_incomplete"):
+        consolidate_input_files(project_root=str(tmp_path))
+
+    assert (docs_dir / "ok.xlsx").exists()
+
+
+def test_consolidate_skips_file_replaced_after_import(tmp_path: Path) -> None:
+    (tmp_path / "docs_entrada").mkdir()
+    source = tmp_path / "docs_entrada" / "ok.xlsx"
+    source.write_text("versao importada", encoding="utf-8")
+    stat = source.stat()
+    docs_dir = _write_report(
+        tmp_path,
+        {
+            "result": True,
+            "status": "updated",
+            "file_reports": [
+                {
+                    "file": "ok.xlsx",
+                    "status": "success",
+                    "counts": {"rows_inserted": 1},
+                    "source_signature": {
+                        "path": str(source),
+                        "size": stat.st_size,
+                        "mtime_ns": stat.st_mtime_ns,
+                    },
+                }
+            ],
+        },
+    )
+    source.write_text("versao nova baixada depois, maior", encoding="utf-8")
+
+    result = consolidate_input_files(project_root=str(tmp_path))
+
+    assert result["moved"] == 0
+    assert result["pending"] == 1
+    assert (docs_dir / "ok.xlsx").exists()
+
+
 def test_consolidate_input_files_preserves_existing_destination(
     tmp_path: Path,
 ) -> None:

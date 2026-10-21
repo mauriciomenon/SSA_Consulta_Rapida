@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable
 
+from utils.caching import _safe_file_stat
 from utils.path_safety import ensure_path_is_allowed, reserve_unique_path
 
 ProgressCallback = Callable[[int, str], None]
@@ -110,6 +111,13 @@ def consolidate_input_files(
         raise RuntimeError(
             "Nenhum import_run com file_reports para docs_entrada foi encontrado."
         )
+    # result=False: candidato nao promovido, cancelado ou rejeitado; os dados das
+    # linhas "success" nao estao no banco e as planilhas nao podem ser arquivadas.
+    if not report.get("result", True):
+        raise RuntimeError(
+            "Ultimo import_run nao foi concluido "
+            f"(status={report.get('status')!r}); consolidacao recusada."
+        )
 
     processadas_dir = docs_path / "processadas"
     nosurvivor_dir = processadas_dir / "nosurvivor"
@@ -122,7 +130,7 @@ def consolidate_input_files(
             error_callback(message)
         raise RuntimeError(message) from exc
 
-    file_rows: dict[str, dict[str, int | str]] = {}
+    file_rows: dict[str, dict[str, Any]] = {}
     for entry in report.get("file_reports", []):
         if not isinstance(entry, dict):
             continue
@@ -139,6 +147,7 @@ def consolidate_input_files(
             "rows_ready_for_insert": int(
                 counts.get("rows_ready_for_insert", counts.get("rows_inserted", 0)) or 0
             ),
+            "signature": entry.get("source_signature"),
         }
 
     candidate_files = [
@@ -173,6 +182,16 @@ def consolidate_input_files(
         is_zero_survivor = is_success_status and not has_mutation
         if not is_success_status:
             pending += 1
+            continue
+        signature = file_meta.get("signature")
+        if isinstance(signature, dict) and _safe_file_stat(str(source_path)) != (
+            signature.get("size"),
+            signature.get("mtime_ns"),
+        ):
+            # Mesmo nome, outro conteudo: a versao no disco nao foi importada.
+            pending += 1
+            if callable(output_callback):
+                output_callback(f"[PENDENTE] Alterado apos a importacao: {base_name}")
             continue
         target_dir = nosurvivor_dir if is_zero_survivor else processadas_dir
         destination = ""

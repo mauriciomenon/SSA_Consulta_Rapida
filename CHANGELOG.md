@@ -17,6 +17,7 @@ All notable changes to this project are documented in this file.
 - Copia de planilhas para `docs_entrada` que falha no meio (disco cheio, permissao) nao deixa mais um arquivo parcial para ser importado depois.
 - Exportacao CSV/XLSX/JSON grava num temporario e troca no final: uma falha no meio mantem a exportacao anterior intacta em vez de deixar um arquivo truncado.
 - Planilha substituida enquanto a importacao roda nao e mais marcada como importada: fica fora do cache e entra na proxima rodada. O relatorio `logs/import_run_*.json` passa a registrar `source_signature` (caminho, tamanho, mtime) de cada arquivo importado.
+- Consolidacao de `docs_entrada`: recusa o relatorio de uma importacao nao concluida (candidato nao promovido, cancelado) em vez de arquivar planilhas cujos dados nao foram gravados, e deixa pendente a planilha substituida depois da importacao (mesmo nome, outro conteudo).
 
 ### Candidata local v4.51 - 2026-09-24
 
