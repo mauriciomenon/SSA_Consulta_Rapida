@@ -26,6 +26,18 @@ from extracao.extractor import (
 # --- Testes ---
 
 
+def test_numero_desvios_label_is_not_stored_as_count():
+    df = pd.DataFrame(
+        {"numero_desvios": ["Desvio #1", "2", None, 3]},
+    )
+
+    out = _normalize_datatypes(df)
+
+    assert str(out["numero_desvios"].dtype) == "Int64"
+    assert out["numero_desvios"].isna().tolist() == [True, False, True, False]
+    assert out["numero_desvios"].dropna().tolist() == [2, 3]
+
+
 def test_validate_excel_import_limits_keeps_original_error_of_untellable_stream():
     class _NoTellStream:
         name = "stream.xlsx"

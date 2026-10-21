@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- `numero_desvios` nao recebe mais o rotulo "Desvio #N" das planilhas "SSAs com Desvio" (texto numa coluna de contagem; 3.545 linhas no banco atual): o rotulo fica vazio e a contagem vem de "Numero de Desvios", como no app C++. Valores ja gravados so mudam ao reimportar.
 - Removidos de `scripts_manutencao/` 9 scripts de debug sem uso que consultavam o schema legado (`debug_*.py`, `diagnostico_rapido.py`, `diagnosticar_problemas.py`, `teste_debug_excel.py`) e `reorganizar_projeto.py`, que movia `.py` da pasta corrente.
 - `import_pai_api_xlsx.py --source-xlsx ... --cleanup-manifest` nao apaga mais o XLSX de origem informado pelo usuario.
 - `verificar_instalacao.ps1` usa o mesmo banco efetivo do app (`SSA_DB_PATH` ou `data\ssas.db`) e nunca reseta um banco existente; erros do reset ficam visiveis.

@@ -801,8 +801,11 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     # --- Conversao de outras colunas numericas conhecidas ---
+    # numero_desvios: o cabecalho "Desvio" traz o rotulo da linha ("Desvio #N"),
+    # nao uma contagem; vira vazio (eventos ja capturados antes desta etapa).
     numeric_columns = [
         "total_de_reprogramacoes",
+        "numero_desvios",
     ]
     for col in numeric_columns:
         if col in df_normalized.columns:
