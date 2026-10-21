@@ -104,6 +104,62 @@ def test_force_import_orders_snapshot_files_by_embedded_datetime(
     assert row == ("202600654", "STE", newer.name)
 
 
+def test_cache_skips_file_changed_during_import(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    import os
+
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    stable = docs_dir / "Consulta SSA - 01-01-2026_1000AM.xlsx"
+    mutante = docs_dir / "Consulta SSA - 02-01-2026_1000AM.xlsx"
+    stable.write_bytes(b"estavel")
+    mutante.write_bytes(b"versao lida")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety,
+        "ALLOWED_ROOTS",
+        list(path_safety.ALLOWED_ROOTS) + [tmp_path],
+    )
+
+    def fake_extract(file_path: str, should_cancel=None):  # noqa: ARG001
+        name = Path(file_path).name
+        if name == mutante.name:
+            # Usuario substitui o arquivo enquanto a versao antiga e importada.
+            Path(file_path).write_bytes(b"versao nova, maior")
+            stat = os.stat(file_path)
+            os.utime(file_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+        return pd.DataFrame(
+            [
+                {
+                    "numero_ssa": "20260070" + ("1" if name == stable.name else "2"),
+                    "situacao": "ABERTA",
+                    "data_cadastro": "01/01/2026",
+                    "descricao_ssa": "ssa teste",
+                    "setor_executor": "STE",
+                }
+            ]
+        )
+
+    monkeypatch.setattr(extractor, "extract_data_from_excel", fake_extract)
+
+    assert run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=True,
+    )
+
+    cache = json.loads((data_dir / "file_cache.test.db.json").read_text(encoding="utf-8"))
+    assert any(stable.name in key for key in cache)
+    assert not any(mutante.name in key for key in cache)
+
+
 def test_file_cache_name_is_unique_per_database_filename(tmp_path: Path) -> None:
     """Cada banco alternativo recebe cache proprio, sem colisao de stem.
 

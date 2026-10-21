@@ -689,6 +689,8 @@ def _update_cache_after_import(
     cache_file: str,
     docs_dir: str,
     extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
+    *,
+    expected_signatures: Optional[Dict[str, tuple[int, int]]] = None,
 ) -> None:
     """
     Atualiza o arquivo de cache apos uma importacao bem-sucedida.
@@ -697,6 +699,7 @@ def _update_cache_after_import(
         processed_files (List[str]): Lista de arquivos processados com sucesso.
         cache_file (str): Caminho para o arquivo de cache.
         docs_dir (str): Diretorio de entrada dos arquivos Excel.
+        expected_signatures: (size, mtime_ns) lidos antes da importacao, por caminho.
 
     Raises:
         CacheError: Se houver falha ao atualizar o cache.
@@ -709,6 +712,7 @@ def _update_cache_after_import(
             cache_file,
             docs_dir=docs_dir,
             extra_allowed_roots=extra_allowed_roots,
+            expected_signatures=expected_signatures,
         )
         logger.info("Cache atualizado com sucesso.")
     except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
@@ -909,6 +913,9 @@ def _process_file_with_resilience(
     """
     try:
         file_metrics: Dict[str, Any] = {}
+        # Assinatura lida antes de importar: o cache confere depois que o arquivo
+        # no disco ainda e a versao importada (troca durante a rodada nao e marcada).
+        source_signature = caching._safe_file_stat(file_path)
         success, record_count = _import_single_file(
             file_path,
             working_db_path,
@@ -928,6 +935,12 @@ def _process_file_with_resilience(
                     f"Metricas SSA ausentes no resultado de {base_name}"
                 )
             file_metrics["status"] = "success"
+            if source_signature is not None:
+                file_metrics["source_signature"] = {
+                    "path": file_path,
+                    "size": source_signature[0],
+                    "mtime_ns": source_signature[1],
+                }
             file_reports.append(file_metrics)
             successfully_processed_files.append(file_path)
             successful_regular_files_with_records.append(
@@ -1821,6 +1834,14 @@ def _finalize_import_run_outcome(
 
     if successfully_processed_files:
         cache_success_paths = list(successfully_processed_files)
+        expected_signatures: Dict[str, tuple[int, int]] = {}
+        for report in file_reports:
+            signature = report.get("source_signature") if isinstance(report, dict) else None
+            if isinstance(signature, dict):
+                expected_signatures[str(signature["path"])] = (
+                    int(signature["size"]),
+                    int(signature["mtime_ns"]),
+                )
         promotion_result = _promote_candidate_for_outcome(
             candidate_db_path=candidate_db_path,
             working_db_path=working_db_path,
@@ -1863,10 +1884,18 @@ def _finalize_import_run_outcome(
                 time.perf_counter() - move_started
             )
             cache_success_paths = [moved_paths.get(path, path) for path in cache_success_paths]
+            expected_signatures = {
+                moved_paths.get(path, path): signature
+                for path, signature in expected_signatures.items()
+            }
 
         cache_update_started = time.perf_counter()
         _update_cache_after_import(
-            cache_success_paths, cache_file, docs_dir, extra_allowed_roots
+            cache_success_paths,
+            cache_file,
+            docs_dir,
+            extra_allowed_roots,
+            expected_signatures=expected_signatures,
         )
         phase_durations["run_success_cache_update_seconds"] = (
             time.perf_counter() - cache_update_started

@@ -1144,6 +1144,11 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
                 "payload_removed": 1,
                 "payload_columns_sample": ["data_cadastro", "responsavel_execucao"],
             },
+            "source_signature": {
+                "path": str(file_ok),
+                "size": file_ok.stat().st_size,
+                "mtime_ns": file_ok.stat().st_mtime_ns,
+            },
         }
     ]
 

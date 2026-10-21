@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
 - Colunas repetidas `Desde`/`Ate`: quando uma ocorrencia vinha toda vazia (ex.: o `Ate` do Tempo Excedido), a seguinte era gravada no lugar dela (o `Ate` do Tempo Total aparecia como `ate_1`). Cada ocorrencia agora fica na sua posicao; os valores ja gravados so sao corrigidos ao reimportar.
 - Copia de planilhas para `docs_entrada` que falha no meio (disco cheio, permissao) nao deixa mais um arquivo parcial para ser importado depois.
 - Exportacao CSV/XLSX/JSON grava num temporario e troca no final: uma falha no meio mantem a exportacao anterior intacta em vez de deixar um arquivo truncado.
+- Planilha substituida enquanto a importacao roda nao e mais marcada como importada: fica fora do cache e entra na proxima rodada. O relatorio `logs/import_run_*.json` passa a registrar `source_signature` (caminho, tamanho, mtime) de cada arquivo importado.
 
 ### Candidata local v4.51 - 2026-09-24
 

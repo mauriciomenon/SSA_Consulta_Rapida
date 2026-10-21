@@ -619,6 +619,7 @@ def update_cache_for_files(
     docs_dir: Optional[str] = None,
     *,
     extra_allowed_roots: Optional[Iterable[str | os.PathLike]] = None,
+    expected_signatures: Optional[Dict[str, Tuple[int, int]]] = None,
 ):
     """
     Atualiza o cache com os hashes dos arquivos processados com sucesso.
@@ -626,6 +627,9 @@ def update_cache_for_files(
     Args:
         file_paths (List[str]): Lista de caminhos completos dos arquivos processados.
         cache_file (str): Caminho para o arquivo de cache.
+        expected_signatures: (size, mtime_ns) de cada arquivo no momento da leitura.
+            Arquivo que mudou desde entao nao entra no cache: a versao nova ainda
+            nao foi importada e precisa ser processada na proxima rodada.
     """
     logger.debug("Atualizando cache para arquivos processados...")
     cache_updates: Dict[str, Any] = {}
@@ -636,6 +640,16 @@ def update_cache_for_files(
         )
         stat_sig = _safe_file_stat(file_path)
         if stat_sig is None:
+            continue
+        expected = (expected_signatures or {}).get(file_path)
+        if expected is not None and tuple(expected) != stat_sig:
+            logger.warning(
+                "'%s' mudou durante a importacao (%s -> %s); fica fora do cache "
+                "para ser reimportado.",
+                file_path,
+                expected,
+                stat_sig,
+            )
             continue
         size, mtime_ns = stat_sig
         file_hash = _calculate_hash(file_path)
