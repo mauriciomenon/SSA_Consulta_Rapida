@@ -268,6 +268,25 @@ def _load_column_mappings(
         return {}
 
 
+def _occurrence_keys(columns: Iterable[Any], original_labels: dict[str, Any]) -> list[str]:
+    """Return unique concat keys (label + occurrence) and record each original label.
+
+    The k-th "desde" of one sheet aligns with the k-th "desde" of another, the
+    same positional meaning _deduplicate_columns gives later, so sheets with
+    repeated names and different layouts concatenate without InvalidIndexError.
+    """
+    seen: dict[str, int] = {}
+    keys: list[str] = []
+    for label in columns:
+        base = str(label)
+        occurrence = seen.get(base, 0)
+        seen[base] = occurrence + 1
+        key = f"{base}\x1f{occurrence}"
+        original_labels.setdefault(key, label)
+        keys.append(key)
+    return keys
+
+
 def _deduplicate_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Ensure column names are unique while keeping semantic aliases when possible."""
 
@@ -929,6 +948,19 @@ def extract_data_from_excel(
                         sheet_df.columns,
                         context_name=sheet_name,
                     )
+                    # Nomes canonicos por aba antes do concat: abas com aliases
+                    # distintos ("Data Cadastro" / "Emitida Em") alinham na mesma
+                    # coluna em vez de virar data_cadastro e data_cadastro_1.
+                    if column_mappings:
+                        sheet_df = sheet_df.rename(
+                            columns={
+                                col: normalized_column_mappings.get(
+                                    normalize_header(str(col)),
+                                    column_mappings.get(col, str(col).strip()),
+                                )
+                                for col in sheet_df.columns
+                            }
+                        )
 
                     if not sheet_df.empty:
                         reserved_names = {_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN}
@@ -969,7 +1001,16 @@ def extract_data_from_excel(
             raise ExtractionError(f"No header found in any sheet for file: {base_name}")
 
         # Combina dados de todas as planilhas
-        combined_df = pd.concat(all_sheets_data, ignore_index=True, sort=False)
+        original_labels: dict[str, Any] = {}
+        combined_df = pd.concat(
+            [
+                sheet.set_axis(_occurrence_keys(sheet.columns, original_labels), axis=1)
+                for sheet in all_sheets_data
+            ],
+            ignore_index=True,
+            sort=False,
+        )
+        combined_df.columns = [original_labels[key] for key in combined_df.columns]
 
         # Remove linhas completamente vazias
         initial_len = len(combined_df)
@@ -1004,16 +1045,6 @@ def extract_data_from_excel(
                 file_path,
             )
 
-        # Normaliza os nomes das colunas.
-        if column_mappings:
-            rename_columns = {
-                col: normalized_column_mappings.get(
-                    normalize_header(str(col)),
-                    column_mappings.get(col, str(col).strip()),
-                )
-                for col in combined_df.columns
-            }
-            combined_df.rename(columns=rename_columns, inplace=True)
         _record_debug_phase_columns(
             _debug_phases,
             "after_rename",

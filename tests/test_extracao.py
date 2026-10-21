@@ -841,6 +841,77 @@ def test_extract_data_from_excel_drops_nan_header_columns_safely(tmp_path, monke
     assert not any(str(col).startswith("nan") for col in extracted.columns)
 
 
+def test_extract_data_from_excel_aligns_distinct_aliases_across_sheets(
+    tmp_path, monkeypatch
+):
+    sheet_a = pd.DataFrame(
+        {
+            "Numero da SSA": [202600201],
+            "Descricao da SSA": ["Aba A"],
+            "Data Cadastro": ["01/02/2026"],
+        }
+    )
+    sheet_b = pd.DataFrame(
+        {
+            "Numero da SSA": [202600202],
+            "Descricao da SSA": ["Aba B"],
+            "Emitida Em": ["03/02/2026"],
+        }
+    )
+    file_path = tmp_path / "aliases_por_aba.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        sheet_a.to_excel(writer, sheet_name="A", index=False)
+        sheet_b.to_excel(writer, sheet_name="B", index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Data Cadastro": "data_cadastro",
+            "Emitida Em": "data_cadastro",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert sorted(extracted["numero_ssa"].astype(int)) == [202600201, 202600202]
+    assert extracted["data_cadastro"].notna().all()
+    assert not any(str(col).startswith("data_cadastro_") for col in extracted.columns)
+
+
+def test_extract_data_from_excel_concats_repeated_names_with_distinct_layouts(
+    tmp_path, monkeypatch
+):
+    sheet_a = pd.DataFrame(
+        [[202600301, "Aba A", "01/02/2026", "02/02/2026"]],
+        columns=["Numero da SSA", "Descricao da SSA", "Data Cadastro", "Emitida Em"],
+    )
+    sheet_b = pd.DataFrame(
+        [["03/02/2026", 202600302, "Aba B"]],
+        columns=["Data Cadastro", "Numero da SSA", "Descricao da SSA"],
+    )
+    file_path = tmp_path / "nomes_repetidos.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        sheet_a.to_excel(writer, sheet_name="A", index=False)
+        sheet_b.to_excel(writer, sheet_name="B", index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Data Cadastro": "data_cadastro",
+            "Emitida Em": "data_cadastro",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    by_ssa = extracted.set_index(extracted["numero_ssa"].astype(int))
+    assert by_ssa.loc[202600301, "data_cadastro"] == pd.Timestamp("2026-02-01")
+    assert by_ssa.loc[202600302, "data_cadastro"] == pd.Timestamp("2026-02-03")
+    assert by_ssa.loc[202600301, "data_cadastro_1"] == "02/02/2026"
+
+
 def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo_totals(
     tmp_path, monkeypatch
 ):
