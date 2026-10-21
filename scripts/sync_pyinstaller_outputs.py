@@ -100,7 +100,11 @@ def _sync_symlink(source_path: Path, target_path: Path, allowed_root: Path) -> N
 
 def _sync_regular_file(source_path: Path, target_path: Path) -> None:
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    if _exists_or_symlink(target_path) and not target_path.is_file():
+    # Symlink no destino sai antes: is_file()/copy2 seguiriam o link e
+    # sobrescreveriam o arquivo apontado, fora da pasta de build.
+    if target_path.is_symlink() or (
+        _exists_or_symlink(target_path) and not target_path.is_file()
+    ):
         _remove_path(target_path)
     if not _file_is_current(source_path, target_path):
         shutil.copy2(source_path, target_path)

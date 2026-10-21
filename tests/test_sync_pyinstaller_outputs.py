@@ -260,3 +260,28 @@ def test_sync_platform_replaces_target_directory_with_source_file(tmp_path: Path
 
     assert target_artifact.is_file()
     assert target_artifact.read_text(encoding="utf-8") == "file"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink POSIX")
+def test_sync_platform_replaces_target_symlink_without_writing_through(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "sync_pyinstaller_outputs_target_symlink",
+        root / "scripts" / "sync_pyinstaller_outputs.py",
+    )
+    source_dir = tmp_path / "launchers" / "dist" / "windows_amd64"
+    target_dir = tmp_path / "builds" / "pyinstaller" / "windows_amd64"
+    source_dir.mkdir(parents=True)
+    target_dir.mkdir(parents=True)
+    (source_dir / "artifact").write_text("novo", encoding="utf-8")
+    external = tmp_path / "externo.txt"
+    external.write_text("nao tocar", encoding="utf-8")
+    (target_dir / "artifact").symlink_to(external)
+
+    assert module._sync_platform(tmp_path, "windows_amd64", verbose=False) is True
+
+    assert external.read_text(encoding="utf-8") == "nao tocar"
+    assert not (target_dir / "artifact").is_symlink()
+    assert (target_dir / "artifact").read_text(encoding="utf-8") == "novo"
