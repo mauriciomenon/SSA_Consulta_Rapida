@@ -215,6 +215,19 @@ def test_export_dataframe_output_dir_error(
     assert "Erro: Não foi possível criar o diretório de saída" in captured.out
 
 
+@pytest.mark.skipif(os.name == "nt", reason="modo POSIX")
+def test_export_keeps_permissions_of_existing_file(
+    temp_output_dir, sample_dataframe, display_map
+):
+    export_dataframe(sample_dataframe, "privado", temp_output_dir, display_map)
+    xlsx_path = os.path.join(temp_output_dir, "privado.xlsx")
+    os.chmod(xlsx_path, 0o600)
+
+    export_dataframe(sample_dataframe, "privado", temp_output_dir, display_map)
+
+    assert os.stat(xlsx_path).st_mode & 0o777 == 0o600
+
+
 def test_export_failure_keeps_previous_file_and_leaves_no_temp(
     temp_output_dir, sample_dataframe, display_map, monkeypatch
 ):

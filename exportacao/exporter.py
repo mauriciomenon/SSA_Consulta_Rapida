@@ -8,6 +8,7 @@ import csv
 import os
 import logging
 import re
+import shutil
 from pathlib import Path
 from typing import Dict
 
@@ -121,6 +122,9 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
         )
         try:
             export_func(tmp_path)
+            if os.path.exists(path):
+                # Mantem a permissao de um export existente (ex.: 0600 do usuario).
+                shutil.copymode(path, tmp_path)
             os.replace(tmp_path, path)
             tmp_path = None
             logger.info(f"Exportação para {format_name} concluída: {path}")
