@@ -456,6 +456,13 @@ class RescanWorker(QThread):
                 self.last_outcome = RescanOutcome.NO_CHANGES
                 self.finished_success.emit()
             return False, summary
+        if summary["failed"] > 0:
+            # Importacao segue com os copiados, mas o fim nao pode ser
+            # "Concluido com sucesso": vira "com Ressalvas" via integrity_warnings.
+            self.integrity_warnings.append(
+                f"{summary['failed']} arquivo(s) nao puderam ser copiados para "
+                "docs_entrada e ficaram fora desta importacao."
+            )
         return True, summary
 
     def _run_import_operation(self) -> bool:

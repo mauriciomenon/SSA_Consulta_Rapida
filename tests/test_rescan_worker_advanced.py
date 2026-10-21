@@ -1197,6 +1197,25 @@ class TestRescanWorkerIntegration:
         assert summary["failed"] == 0
         assert not (docs_dir / "cancel.xlsx").exists()
 
+    def test_partial_staging_failure_becomes_warning(self, tmp_path):
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            force_import=False,
+            source_files=(str(tmp_path / "a.xlsx"), str(tmp_path / "b.xlsx")),
+        )
+        staged = str(tmp_path / "docs_entrada" / "a.xlsx")
+        summary = {"copied": 1, "skipped": 0, "failed": 1, "unsupported": 0, "staged": 1}
+
+        with patch(
+            "gui.workers.rescan_worker.stage_external_import_files",
+            return_value=([staged], summary),
+        ):
+            should_continue, _summary = worker._prepare_import_inputs()
+
+        assert should_continue is True
+        assert any("1 arquivo" in warning for warning in worker.integrity_warnings)
+
     def test_unique_destination_path_uses_reserved_set_for_collisions(self, tmp_path):
         target = tmp_path / "entrada.xlsx"
         target.write_text("old", encoding="utf-8")
