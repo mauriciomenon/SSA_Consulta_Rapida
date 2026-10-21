@@ -72,4 +72,5 @@ def limpar_banco():
 
 
 if __name__ == "__main__":
-    limpar_banco()
+    # Status != 0 em falha: shell/pipeline nao pode tomar limpeza falha por sucesso.
+    raise SystemExit(0 if limpar_banco() else 1)

@@ -35,6 +35,26 @@ def test_limpar_banco_creates_unique_backup_and_clears_rows(tmp_path, monkeypatc
         assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
 
 
+def test_limpar_banco_script_exits_nonzero_on_failure(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "PYTHONPATH": str(repo_root)}
+
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts_manutencao.limpar_banco"],
+        cwd=tmp_path,  # sem data/ssas.db: a limpeza falha
+        env=env,
+        capture_output=True,
+        timeout=120,
+    )
+
+    assert result.returncode == 1
+
+
 def test_limpar_banco_also_clears_event_records(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     data_dir = tmp_path / "data"
