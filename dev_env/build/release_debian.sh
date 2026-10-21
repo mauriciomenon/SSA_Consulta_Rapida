@@ -606,6 +606,9 @@ write_release_report() {
   local package_csv="$4"
   local app_version="$5"
   local git_commit="$6"
+  # --skip-package: o relatorio nao exige builds/packages/<plataforma>.
+  local SKIP_PACKAGE_REPORT_FLAG=""
+  [[ "${SKIP_PACKAGE}" == "1" ]] && SKIP_PACKAGE_REPORT_FLAG="--skip-package"
   uv run --python 3.13 python "${root}/dev_env/build/release_platform_report.py" \
     write-report \
     --repo-root "${root}" \
@@ -614,7 +617,8 @@ write_release_report() {
     --backends "${backend_csv}" \
     --packages "${package_csv}" \
     --app-version "${app_version}" \
-    --git-commit "${git_commit}"
+    --git-commit "${git_commit}" \
+    ${SKIP_PACKAGE_REPORT_FLAG:+"${SKIP_PACKAGE_REPORT_FLAG}"}
 }
 
 parse_args() {

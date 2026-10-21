@@ -433,6 +433,30 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
     assert [asset["name"] for asset in payload["assets"]] == [current.name]
 
 
+def test_release_debian_report_skip_package_does_not_require_package_dir(
+    tmp_path,
+) -> None:
+    report_file = tmp_path / "report.json"
+
+    result = REPORT_MODULE.write_report(
+        argparse.Namespace(
+            repo_root=tmp_path,
+            report_file=report_file,
+            platform="debian_amd64",
+            backends="nuitka",
+            packages="tar",
+            app_version="4.44",
+            git_commit="abc",
+            skip_package=True,
+        )
+    )
+
+    payload = json.loads(report_file.read_text(encoding="utf-8"))
+    assert result == 0
+    assert payload["packages"] == []
+    assert payload["assets"] == []
+
+
 def test_release_debian_report_fails_when_package_dir_is_missing(tmp_path) -> None:
     report_file = tmp_path / "report.json"
 

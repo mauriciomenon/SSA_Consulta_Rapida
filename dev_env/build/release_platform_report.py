@@ -484,7 +484,12 @@ def write_report(args: argparse.Namespace) -> int:
     packages = _split_csv(args.packages)
     package_dir = args.repo_root / "builds" / "packages" / args.platform
     assets = []
-    if not package_dir.is_dir():
+    # --skip-package: nada foi empacotado nesta execucao; o relatorio nao
+    # exige a pasta nem inventaria pacotes de execucoes anteriores.
+    skip_package = bool(getattr(args, "skip_package", False))
+    if skip_package:
+        packages = []
+    elif not package_dir.is_dir():
         raise ReleaseReportError(f"diretorio de pacotes ausente: {package_dir}")
 
     asset_suffixes = _asset_suffixes_for_packages(packages)
@@ -494,12 +499,16 @@ def write_report(args: argparse.Namespace) -> int:
         packages,
         args.app_version,
     )
-    asset_paths = [
-        path
-        for path in sorted(package_dir.iterdir())
-        if path.is_file() and path.name.lower().endswith(asset_suffixes)
-        and path.name in expected_asset_names
-    ]
+    asset_paths = (
+        []
+        if skip_package
+        else [
+            path
+            for path in sorted(package_dir.iterdir())
+            if path.is_file() and path.name.lower().endswith(asset_suffixes)
+            and path.name in expected_asset_names
+        ]
+    )
     if asset_paths:
         workers = min(4, len(asset_paths))
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
@@ -583,6 +592,7 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--packages", required=True)
     report.add_argument("--app-version", required=True)
     report.add_argument("--git-commit", required=True)
+    report.add_argument("--skip-package", action="store_true")
     report.set_defaults(func=write_report)
 
     return parser
