@@ -342,11 +342,11 @@ def _apply_reprogramacoes_filter(
                     "is missing from the dataframe"
                 )
             if vals and "num_reprogramacoes" in df.columns:
-                nums = (
-                    pd.to_numeric(df["num_reprogramacoes"], errors="coerce")
-                    .fillna(-1)
-                    .astype(float)
-                )
+                # NaN (sem informacao) fica fora de toda comparacao, como o
+                # SQL do C++ (coluna <= ?) faz com NULL.
+                nums = pd.to_numeric(
+                    df["num_reprogramacoes"], errors="coerce"
+                ).astype(float)
                 vals_sorted = sorted(vals)
                 if mode == "eq":
                     mask &= nums.isin(vals)

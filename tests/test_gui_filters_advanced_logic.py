@@ -693,3 +693,25 @@ def test_week_exclude_contract_keys_are_explicit_noop_allowlist_only():
     assert not (explicit_noop_allowlist & produced_keys)
     not_in_detector = logic_week_exclude_keys - detector_keys
     assert not_in_detector <= explicit_noop_allowlist
+
+
+@pytest.mark.parametrize(
+    "mode,values,expected",
+    [
+        ("lte", ["2"], [False, True, True, False]),
+        ("gte", ["2"], [False, False, True, True]),
+        ("eq", ["0"], [False, True, False, False]),
+    ],
+)
+def test_reprogramacoes_filter_excludes_missing_values_like_cpp(mode, values, expected):
+    # SQL do C++ (coluna <= ?) deixa NULL fora; sem informacao nao conta como 0.
+    df = pd.DataFrame({"num_reprogramacoes": [None, 0, 2, 5]})
+    mask = pd.Series(True, index=df.index)
+
+    result = adv_logic._apply_reprogramacoes_filter(
+        df,
+        {"num_reprogramacoes_mode": mode, "num_reprogramacoes_values": values},
+        mask,
+    )
+
+    assert result.tolist() == expected
