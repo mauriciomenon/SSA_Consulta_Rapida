@@ -20,99 +20,10 @@ from extracao.extractor import (
     _normalize_tempo_excedido_value,
     extract_data_from_excel,
     open_validated_excel_source,
-    read_report,
     validate_excel_import_limits,
 )
 
-# --- Fixtures: Preparando o Ambiente de Teste ---
-
-
-@pytest.fixture
-def temp_excel_file(tmp_path):
-    """
-    Fixture que cria um arquivo Excel temporário para os testes.
-    'tmp_path' é uma fixture mágica do pytest que nos dá uma pasta temporária.
-    """
-    # Dados de exemplo que vamos colocar no Excel
-    data = {
-        "Nº SSA": [202500101, 202500102],
-        "Local": ["Sala A", "Sala B"],
-        "Descrição da SSA": ["Problema no servidor", "Falha na rede"],
-        "Emitida Em": ["01/07/2025", "15/07/2025"],
-        "Coluna Inutil": [None, None],  # Coluna que deve ser ignorada
-    }
-    df = pd.DataFrame(data)
-
-    # Escreve cabecalho na primeira linha para o fluxo robust-only de read_report.
-    file_path = tmp_path / "relatorio_teste.xlsx"
-    writer = pd.ExcelWriter(file_path, engine="openpyxl")
-    df.to_excel(writer, index=False)
-    writer.close()
-
-    return str(file_path)
-
-
-@pytest.fixture
-def setup_test_config(monkeypatch):
-    """
-    Fixture que simula o nosso arquivo de configuração, garantindo que o teste
-    não dependa do arquivo real.
-    'monkeypatch' é uma fixture do pytest que nos permite modificar o comportamento
-    de funções, variáveis ou módulos durante os testes.
-    """
-    # Mapeamento de colunas de exemplo
-    test_mappings = {
-        "numero_ssa": ["Nº SSA"],
-        "localizacao": ["Local"],
-        "descricao_ssa": ["Descrição da SSA"],
-        "data_cadastro": ["Emitida Em"],
-    }
-
-    # Função interna que irá substituir a _load_column_mappings original
-    def mock_load_mappings(_mappings_path=None):
-        return {
-            alias: canonical
-            for canonical, aliases in test_mappings.items()
-            for alias in aliases
-        }
-
-    # Diz ao pytest para usar a nossa função 'mock_load_mappings' sempre que
-    # a função '_load_column_mappings' for chamada no módulo 'extractor'.
-    monkeypatch.setattr("extracao.extractor._load_column_mappings", mock_load_mappings)
-
-
 # --- Testes ---
-
-
-@pytest.mark.usefixtures("setup_test_config")
-def test_read_report_success(temp_excel_file):
-    """
-    Testa o caminho feliz: ler um relatório, renomear colunas e normalizar tipos.
-    Note que passamos as fixtures como argumentos para o teste.
-    """
-    # 1. Ação: Executa a função a ser testada com os arquivos temporários criados pelas fixtures.
-    df, _ = read_report(temp_excel_file)
-
-    # 2. Verificação
-    assert df is not None
-    assert not df.empty
-
-    # Verifica colunas esperadas no fluxo robust-only.
-    expected_columns = ["numero_ssa", "local", "descricao_ssa", "data_cadastro"]
-    assert all(col in df.columns for col in expected_columns)
-
-    # Verifica se os dados foram lidos corretamente
-    assert str(df["numero_ssa"].iloc[0]) == "202500101"
-    assert df["local"].iloc[1] == "Sala B"
-
-
-def test_read_report_returns_error_metadata_on_missing_file(tmp_path):
-    missing_file = tmp_path / "arquivo_inexistente_12345.xlsx"
-    df, metadata = read_report(str(missing_file))
-    assert isinstance(df, pd.DataFrame)
-    assert df.empty
-    assert metadata["stats_dict"]["status"] == "error"
-    assert "error" in metadata["stats_dict"]
 
 
 def test_normalize_tempo_excedido_minutes_with_m_suffix():
@@ -1430,39 +1341,3 @@ def test_normalize_datatypes_num_reprogramacoes_text_without_total_becomes_null(
 
     assert str(out["num_reprogramacoes"].dtype) == "Int64"
     assert pd.isna(out["num_reprogramacoes"].iloc[0])
-
-
-def test_extract_data_from_excel_uses_standard_path_and_not_read_report(
-    temp_excel_file, monkeypatch
-):
-    called = False
-
-    def _fail_fast(*_args, **_kwargs):
-        nonlocal called
-        called = True
-        raise AssertionError("import_excel_robust called from extract_data_from_excel")
-
-    monkeypatch.setattr("extracao.extractor.import_excel_robust", _fail_fast)
-
-    extracted = extract_data_from_excel(temp_excel_file, _debug_phases=None)
-
-    assert called is False
-    assert not extracted.empty
-
-
-def test_read_report_uses_robust_path(temp_excel_file, monkeypatch):
-    called = False
-    expected = pd.DataFrame({"numero_ssa": ["1"], "descricao_ssa": ["x"]})
-
-    def _robust_fake(file_path):
-        nonlocal called
-        called = True
-        return expected, {"status": "ok"}
-
-    monkeypatch.setattr("extracao.extractor.import_excel_robust", _robust_fake)
-
-    out_df, metadata = read_report(temp_excel_file)
-
-    assert called is True
-    assert out_df.equals(expected)
-    assert metadata["stats_dict"]["status"] == "ok"

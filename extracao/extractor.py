@@ -11,7 +11,7 @@ import logging
 import os
 import re
 from contextlib import contextmanager
-from typing import Any, BinaryIO, Callable, Dict, Iterable, Iterator, Optional
+from typing import Any, BinaryIO, Callable, Iterable, Iterator, Optional
 from zipfile import BadZipFile, ZipFile
 
 import pandas as pd
@@ -20,7 +20,7 @@ from shared.column_mappings import load_column_mappings_integrity
 from shared.date_utils import parse_datetime_series_mixed
 from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.file_metadata import best_datetime_for_file
-from utils.robust_importer import canonicalize_header, import_excel_robust
+from utils.robust_importer import canonicalize_header
 
 logger = logging.getLogger(__name__)
 # Formato SAM: "1a, 9m, 22d 5h : 47mi" (a=anos, "Nm," com virgula=meses, mi=minutos).
@@ -1389,50 +1389,3 @@ def extract_data_from_excel(
             f"Unexpected error processing Excel file: {base_name}"
         ) from e
 
-
-def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Le um relatorio Excel e retorna um DataFrame normalizado e metadados simples.
-
-    A leitura usa `import_excel_robust` como caminho unico de ingestao.
-
-    Args:
-        file_path: Caminho do arquivo .xlsx a ser lido.
-
-    Returns:
-        Tuple[pd.DataFrame, Dict[str, Any]]: DataFrame resultante
-        (vazio em caso de erro) e metadados com source_path e stats_dict.
-    """
-    if not os.path.exists(file_path):
-        metadata: Dict[str, Any] = {
-            "source_path": file_path,
-            "stats_dict": {
-                "status": "error",
-                "error": f"File not found: {os.path.basename(file_path)}",
-            },
-        }
-        logger.warning(
-            "Falha em read_report para '%s': arquivo nao encontrado", file_path
-        )
-        return pd.DataFrame(), metadata
-
-    try:
-        df, stats_dict = import_excel_robust(file_path)
-    except Exception as exc:
-        logger.error(
-            "Falha em read_report para '%s': %s", file_path, exc, exc_info=True
-        )
-        metadata = {
-            "source_path": file_path,
-            "stats_dict": {
-                "status": "error",
-                "error": f"{type(exc).__name__}: {exc}",
-            },
-        }
-        return pd.DataFrame(), metadata
-
-    metadata = {
-        "source_path": file_path,
-        "stats_dict": stats_dict,
-    }
-    return df, metadata

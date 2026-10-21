@@ -96,45 +96,6 @@ def _insert_dataframe_rows(
             conn.executemany(insert_sql, params)
 
 
-def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
-    """Check if any table defines foreign keys referencing target_table."""
-    if not is_valid_identifier(target_table):
-        logger.warning(
-            "Identificador de tabela invalido para scan de FKs: %r", target_table
-        )
-        return False
-    try:
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        tables = [row[0] for row in cursor.fetchall()]
-        for table in tables:
-            if table == target_table:
-                continue
-            if not is_valid_identifier(table):
-                continue
-            try:
-                quoted_table = _quote_identifier(table)
-                fk_rows = conn.execute(
-                    f"PRAGMA foreign_key_list({quoted_table})"
-                ).fetchall()
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao inspecionar foreign keys da tabela %s: %s",
-                    table,
-                    exc,
-                )
-                continue
-            for fk in fk_rows:
-                if len(fk) > 2 and fk[2] == target_table:
-                    return True
-    except Exception as exc:  # pragma: no cover
-        logger.debug(
-            "Falha ao inspecionar foreign keys para %s: %s",
-            target_table,
-            exc,
-        )
-    return False
-
-
 def _normalize_unique_ssa_values(ssa_values: pd.Series | list[object]) -> list[str]:
     """Normalize and deduplicate SSA identifiers preserving input order."""
     if isinstance(ssa_values, pd.Series):
