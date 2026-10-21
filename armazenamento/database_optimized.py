@@ -318,11 +318,10 @@ def insert_dataframe_optimized(
                 raise ValueError(f"Invalid SQL identifier for table: {target_table!r}")
 
             # ===== CONFIGURAÇÕES DE PERFORMANCE SQLITE =====
+            # Sem journal_mode=WAL/synchronous=NORMAL (decisao A-16): WAL ficava
+            # gravado no arquivo, inclusive para a GUI, e e inseguro em pasta de
+            # rede; o ganho medido no rescan real era ~4%.
             logger.info("FIX APLICANDO OTIMIZAÇÕES SQLITE")
-            conn.execute("PRAGMA journal_mode=WAL")  # Permite leituras concorrentes
-            conn.execute(
-                "PRAGMA synchronous=NORMAL"
-            )  # Balanço entre segurança e velocidade
             conn.execute("PRAGMA cache_size=10000")  # Cache maior = menos I/O
             conn.execute("PRAGMA temp_store=MEMORY")  # Operações temporárias em RAM
             conn.execute("PRAGMA mmap_size=268435456")  # Memory-mapped I/O (256MB)

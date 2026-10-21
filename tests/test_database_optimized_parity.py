@@ -138,6 +138,20 @@ def test_optimized_normalizes_all_canonical_date_columns(tmp_path, column):
     assert results[1] == results[0]
 
 
+def test_optimized_import_keeps_default_journal_mode(tmp_path):
+    path = str(tmp_path / "journal.db")
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT PRIMARY KEY, "
+                     "situacao TEXT, data_cadastro TEXT)")
+    frame = pd.DataFrame({"numero_ssa": ["202600001"], "situacao": ["ADM"],
+                          "data_cadastro": ["2026-01-01"]})
+
+    assert insert_dataframe_optimized(frame, path, "ssa_table")
+
+    with sqlite3.connect(path) as conn:
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+
+
 def test_optimized_sanitizes_dynamic_column_like_canonical(tmp_path):
     frame = pd.DataFrame({
         "numero_ssa": ["202600001"],
