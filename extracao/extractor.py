@@ -90,6 +90,7 @@ def validate_excel_import_limits(
                 error_code="FILE_SIZE_CHECK_FAILED",
             ) from exc
 
+        original_position: int | None = None
         try:
             original_position = stream.tell()
             try:
@@ -148,7 +149,8 @@ def validate_excel_import_limits(
         finally:
             if owns_stream:
                 stream.close()
-            else:
+            elif original_position is not None:
+                # Sem posicao original (tell falhou), o erro de tell propaga intacto.
                 stream.seek(original_position)
 
     return total_batch_bytes

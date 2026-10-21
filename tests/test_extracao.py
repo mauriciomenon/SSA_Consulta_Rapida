@@ -26,6 +26,20 @@ from extracao.extractor import (
 # --- Testes ---
 
 
+def test_validate_excel_import_limits_keeps_original_error_of_untellable_stream():
+    class _NoTellStream:
+        name = "stream.xlsx"
+
+        def tell(self):
+            raise OSError("stream sem tell")
+
+        def seek(self, *_args):
+            raise AssertionError("seek nao deveria ser chamado sem posicao original")
+
+    with pytest.raises(OSError, match="stream sem tell"):
+        validate_excel_import_limits((_NoTellStream(),))
+
+
 def test_normalize_tempo_excedido_minutes_with_m_suffix():
     assert _normalize_tempo_excedido_value("1h 30m") == "PT1H30M"
     assert _normalize_tempo_excedido_value("15mi") == "PT15M"
