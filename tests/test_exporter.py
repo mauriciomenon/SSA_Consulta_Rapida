@@ -215,6 +215,24 @@ def test_export_dataframe_output_dir_error(
     assert "Erro: Não foi possível criar o diretório de saída" in captured.out
 
 
-# Testes para falhas individuais de exportação seriam mais complexos
-# e requereriam mocking mais específico de pd.DataFrame.to_csv, to_excel, to_json
-# O teste acima cobre o fluxo principal e um erro crítico de setup.
+def test_export_failure_keeps_previous_file_and_leaves_no_temp(
+    temp_output_dir, sample_dataframe, display_map, monkeypatch
+):
+    export_dataframe(sample_dataframe, "relatorio", temp_output_dir, display_map)
+    xlsx_path = os.path.join(temp_output_dir, "relatorio.xlsx")
+    previous = open(xlsx_path, "rb").read()
+
+    def _partial_then_fail(self, path, *args, **kwargs):
+        with open(path, "wb") as handle:
+            handle.write(b"parcial")
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr(pd.DataFrame, "to_excel", _partial_then_fail)
+    export_dataframe(sample_dataframe, "relatorio", temp_output_dir, display_map)
+
+    assert open(xlsx_path, "rb").read() == previous
+    assert sorted(os.listdir(temp_output_dir)) == [
+        "relatorio.csv",
+        "relatorio.json",
+        "relatorio.xlsx",
+    ]

@@ -15,6 +15,7 @@ All notable changes to this project are documented in this file.
 - `Tempo Excedido`: anos e meses nao sao mais descartados (`1a, 9m, 22d 5h : 47mi` era gravado como `P22DT5H47M`; agora `P1Y9M22DT5H47M`). Valores com trecho nao reconhecido ficam como o texto original. Os valores ja gravados so sao corrigidos ao reimportar (`--force-rescan`).
 - Colunas repetidas `Desde`/`Ate`: quando uma ocorrencia vinha toda vazia (ex.: o `Ate` do Tempo Excedido), a seguinte era gravada no lugar dela (o `Ate` do Tempo Total aparecia como `ate_1`). Cada ocorrencia agora fica na sua posicao; os valores ja gravados so sao corrigidos ao reimportar.
 - Copia de planilhas para `docs_entrada` que falha no meio (disco cheio, permissao) nao deixa mais um arquivo parcial para ser importado depois.
+- Exportacao CSV/XLSX/JSON grava num temporario e troca no final: uma falha no meio mantem a exportacao anterior intacta em vez de deixar um arquivo truncado.
 
 ### Candidata local v4.51 - 2026-09-24
 

@@ -114,8 +114,15 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
             print(f"Erro: destino invalido para {format_name}.")
             continue
         path = str(path_obj)
+        # Grava num temporario do mesmo diretorio e troca com os.replace:
+        # falha no meio preserva a exportacao anterior intacta.
+        tmp_path: str | None = str(
+            path_obj.with_name(f".{filename}.{os.getpid()}.tmp{path_obj.suffix}")
+        )
         try:
-            export_func(path)
+            export_func(tmp_path)
+            os.replace(tmp_path, path)
+            tmp_path = None
             logger.info(f"Exportação para {format_name} concluída: {path}")
             success_count += 1
         except pd.errors.EmptyDataError:
@@ -127,6 +134,9 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
         except Exception as e:
             logger.error(f"Erro inesperado ao exportar para {format_name} ({path}): {e}")
             print(f"Erro: Falha ao exportar para {format_name}. Consulte os logs para mais detalhes.")
+        finally:
+            if tmp_path is not None and os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     if success_count > 0:
         print(f"Exportação concluída com sucesso para {success_count} formato(s).")
