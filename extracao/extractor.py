@@ -924,7 +924,18 @@ def extract_data_from_excel(
                     sheet_df = sheet_df.reset_index(drop=True)
 
                     # Remove colunas completamente vazias, mas preserva aliases
-                    # das colunas obrigatorias ate a normalizacao canonica.
+                    # das colunas obrigatorias ate a normalizacao canonica e as
+                    # ocorrencias de nomes repetidos (desde/ate): o significado e
+                    # posicional, e podar uma vazia desloca as seguintes.
+                    header_canonicals = [
+                        normalized_column_mappings.get(normalize_header(str(label)))
+                        for label in sheet_df.columns
+                    ]
+                    repeated_canonicals = {
+                        name
+                        for name in header_canonicals
+                        if name and header_canonicals.count(name) > 1
+                    }
                     columns_to_keep: list[int] = []
                     for col_idx, col_name in enumerate(sheet_df.columns):
                         column_data = sheet_df.iloc[:, col_idx]
@@ -943,7 +954,10 @@ def extract_data_from_excel(
                             normalized_col_name,
                             column_mappings.get(col_name, normalized_col_name),
                         )
-                        if canonical_name in MANDATORY_SCHEMA_COLUMNS:
+                        if (
+                            canonical_name in MANDATORY_SCHEMA_COLUMNS
+                            or canonical_name in repeated_canonicals
+                        ):
                             columns_to_keep.append(col_idx)
                     if len(columns_to_keep) != len(sheet_df.columns):
                         sheet_df = sheet_df.iloc[:, columns_to_keep]

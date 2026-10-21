@@ -901,6 +901,45 @@ def test_extract_data_from_excel_aligns_distinct_aliases_across_sheets(
     assert not any(str(col).startswith("data_cadastro_") for col in extracted.columns)
 
 
+def test_extract_data_from_excel_keeps_position_of_empty_repeated_column(
+    tmp_path, monkeypatch
+):
+    frame = pd.DataFrame(
+        [
+            [
+                202600401,
+                "SSA",
+                "01/02/2026",
+                "01/02/2026 10:00:00",
+                None,
+                "03/02/2026 09:00:00",
+                "05/02/2026 08:00:00",
+            ]
+        ],
+        columns=["Numero da SSA", "Descricao da SSA", "Emitida Em", "Desde", "Ate", "Desde", "Ate"],
+    )
+    file_path = tmp_path / "desde_vazio.xlsx"
+    frame.to_excel(file_path, index=False)
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda _mappings_path=None: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Desde": "desde",
+            "Ate": "ate",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    row = extracted.iloc[0]
+    assert str(row["desde"]).startswith("01/02/2026")
+    assert pd.isna(row["ate"])
+    assert str(row["desde_1"]).startswith("03/02/2026")
+    assert str(row["ate_1"]).startswith("05/02/2026")
+
+
 def test_extract_data_from_excel_concats_repeated_names_with_distinct_layouts(
     tmp_path, monkeypatch
 ):
