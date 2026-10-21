@@ -35,6 +35,25 @@ def test_limpar_banco_creates_unique_backup_and_clears_rows(tmp_path, monkeypatc
         assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
 
 
+def test_limpar_banco_also_clears_event_records(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.execute("CREATE TABLE ssa_event_records (numero_ssa TEXT)")
+        conn.execute("INSERT INTO ssa_table VALUES ('202600001')")
+        conn.execute("INSERT INTO ssa_event_records VALUES ('202600001')")
+        conn.commit()
+
+    assert limpar_banco() is True
+
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM ssa_event_records").fetchone()[0] == 0
+
+
 def test_migration_backup_includes_committed_wal_rows(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     data_dir = tmp_path / "data"

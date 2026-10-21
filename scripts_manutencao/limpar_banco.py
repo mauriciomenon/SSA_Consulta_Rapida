@@ -41,6 +41,14 @@ def limpar_banco():
                 logger.info("INFO Registros antes da limpeza: %s", f"{count_before:,}")
 
                 cursor.execute(DELETE_SSA_ROWS_SQL)
+                # Eventos hierarquicos pertencem as SSAs: limpar na mesma
+                # transacao para nao deixar registros orfaos.
+                has_events = cursor.execute(
+                    "SELECT 1 FROM sqlite_master "
+                    "WHERE type = 'table' AND name = 'ssa_event_records'"
+                ).fetchone()
+                if has_events:
+                    cursor.execute("DELETE FROM ssa_event_records")
                 conn.commit()
                 logger.info("INFO Remocao confirmada: %s registros", f"{count_before:,}")
 
