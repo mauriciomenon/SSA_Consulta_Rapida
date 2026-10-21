@@ -22,6 +22,7 @@ All notable changes to this project are documented in this file.
 - Cabecalhos de planilha com outra caixa, sem acento ou com espacos extras (`NÚMERO DA SSA`, `descricao da ssa`, `Emitida   Em`) sao reconhecidos; antes a importacao falhava com colunas obrigatorias ausentes.
 - `main.py --force-rescan` (modo otimizado): planilha com coluna extra de nome invalido para SQL (ex.: `Categoría`) nao aborta mais o arquivo; a coluna e saneada como no modo padrao da GUI.
 - Executavel empacotado: ao abrir com um marcador de seed sem manifesto (deixado por outro backend no mesmo perfil), os arquivos ja existentes em `data`/`config` (inclusive `ssas.db`) nao sao mais sobrescritos pelos do pacote; arquivos ausentes continuam sendo copiados.
+- Planilha com titulo na coluna A acima do cabecalho (ex.: "Relatorio de SSAs - exportado em ...") e importada: o cabecalho e a linha com mais nomes de coluna conhecidos, em vez da primeira celula preenchida da coluna A.
 
 ### Candidata local v4.51 - 2026-09-24
 

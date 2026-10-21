@@ -907,6 +907,29 @@ def extract_data_from_excel(
                 header_row_idx = (
                     int(header_candidates[0]) if len(header_candidates) else None
                 )
+                # Titulo na coluna A acima do cabecalho real: vale a linha (entre
+                # as 30 primeiras) com mais cabecalhos conhecidos, se tiver >= 2 e
+                # superar a da regra da coluna A. Nas 1780 planilhas reais medidas
+                # em 2026-10 as duas regras coincidem para toda planilha de SSA.
+                def _known_headers(row_pos: int) -> int:
+                    return sum(
+                        1
+                        for value in sheet_df.iloc[row_pos]
+                        if pd.notna(value)
+                        and normalize_header(str(value)) in normalized_column_mappings
+                    )
+
+                scan_rows = min(30, len(sheet_df))
+                best_row = max(
+                    range(scan_rows),
+                    key=lambda pos: (_known_headers(pos), -pos),
+                    default=None,
+                )
+                if best_row is not None and _known_headers(best_row) >= 2 and (
+                    header_row_idx is None
+                    or _known_headers(best_row) > _known_headers(header_row_idx)
+                ):
+                    header_row_idx = best_row
 
                 if header_row_idx is not None:
                     saw_header = True

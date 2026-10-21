@@ -901,6 +901,22 @@ def test_extract_data_from_excel_aligns_distinct_aliases_across_sheets(
     assert not any(str(col).startswith("data_cadastro_") for col in extracted.columns)
 
 
+def test_extract_data_from_excel_skips_title_row_in_column_a(tmp_path):
+    rows = [
+        ["Relatorio de SSAs - exportado em 01/02/2026", None, None],
+        [None, None, None],
+        ["Número da SSA", "Descrição da SSA", "Emitida Em"],
+        [202600601, "SSA com titulo", "01/02/2026 10:00:00"],
+    ]
+    file_path = tmp_path / "com_titulo.xlsx"
+    pd.DataFrame(rows).to_excel(file_path, index=False, header=False)
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert int(extracted["numero_ssa"].iloc[0]) == 202600601
+    assert extracted["descricao_ssa"].iloc[0] == "SSA com titulo"
+
+
 def test_extract_data_from_excel_production_mapping_ignores_case_accents_spaces(
     tmp_path,
 ):
