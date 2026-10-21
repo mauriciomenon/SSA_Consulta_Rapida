@@ -166,6 +166,20 @@ class TestGUITableRenderResilience:
         assert update_details.call_count == first_call_count
         assert self.window._details_current_ssa == initial_ssa
 
+    def test_reused_render_restores_interactive_header_resize(self):
+        from PyQt6.QtWidgets import QHeaderView
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        with patch.object(
+            gui_table, "_can_skip_reused_render_finalize", return_value=True
+        ):
+            self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        assert header.sectionResizeMode(0) == QHeaderView.ResizeMode.Interactive
+
     def test_display_current_page_refreshes_details_when_search_terms_change(self):
         with patch.object(
             ssa_gui_details,

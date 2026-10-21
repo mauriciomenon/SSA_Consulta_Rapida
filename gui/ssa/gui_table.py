@@ -1151,6 +1151,9 @@ def _finalize_page_render(
             window._ensure_nonzero_column_widths()
         except Exception as exc:
             logger.debug("Falha ao garantir larguras nao zeradas da tabela: %s", exc)
+        # display_current_page congelou o header em Fixed; sem restaurar, as
+        # colunas deixam de ser redimensionaveis apos um render reaproveitado.
+        _restore_interactive_header_mode(window.table_widget.horizontalHeader())
         _apply_adaptive_header_labels(window)
         _refresh_initial_details(window, update_details=update_details)
         window._last_table_render_signature = render_signature
