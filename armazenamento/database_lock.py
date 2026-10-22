@@ -18,7 +18,12 @@ _LOCK_TIMEOUT_SECONDS = 15
 def _lock_path(db_path: str) -> Path:
     normalized = os.path.normcase(os.path.realpath(os.fspath(db_path)))
     digest = hashlib.sha256(normalized.encode("utf-8", errors="surrogatepass")).hexdigest()
-    app_dir = Path(tempfile.gettempdir()) / "ssa_consulta_rapida"
+    # No Linux /tmp e compartilhado: com um nome unico, o primeiro usuario seria
+    # dono do diretorio e os demais receberiam PermissionError em toda escrita.
+    app_name = (
+        f"ssa_consulta_rapida-{os.getuid()}" if os.name == "posix" else "ssa_consulta_rapida"
+    )
+    app_dir = Path(tempfile.gettempdir()) / app_name
     lock_dir = app_dir / "db_locks"
     for directory in (app_dir, lock_dir):
         directory.mkdir(mode=0o700, exist_ok=True)

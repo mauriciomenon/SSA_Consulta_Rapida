@@ -12,7 +12,20 @@ from armazenamento import database_lock
 @pytest.fixture
 def lock_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(database_lock.tempfile, "gettempdir", lambda: str(tmp_path))
+    if os.name == "posix":
+        return tmp_path / f"ssa_consulta_rapida-{os.getuid()}"
     return tmp_path / "ssa_consulta_rapida"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Diretorio por usuario so no POSIX")
+def test_lock_ignores_shared_directory_left_by_another_user(lock_root: Path) -> None:
+    # Diretorio antigo de nome unico, de outro usuario (aqui: inseguro, 0o777).
+    shared = lock_root.parent / "ssa_consulta_rapida"
+    shared.mkdir()
+    shared.chmod(0o777)
+    with database_lock.database_writer_lock("example.db", timeout=0):
+        assert (lock_root / "db_locks").is_dir()
+    assert not list(shared.iterdir())
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Permissoes POSIX")
