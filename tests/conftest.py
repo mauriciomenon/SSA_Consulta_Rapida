@@ -1,6 +1,7 @@
 # ruff: noqa: E402
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import tempfile
@@ -100,6 +101,24 @@ def _resync_path_safety_roots() -> Iterator[None]:
     from utils import path_safety
 
     path_safety.refresh_allowed_roots()
+
+
+@pytest.fixture(autouse=True)
+def _restore_gui_main_preferences() -> Iterator[None]:
+    """Restaura GUI_MAIN_PREFERENCES apos cada teste.
+
+    Sob pytest a GUI nao grava preferencias em disco, mas altera o dict
+    global em memoria (ordem de colunas, larguras, gui_settings). Sem
+    restaurar, um teste que reordena colunas muda as colunas exibidas pelos
+    testes seguintes. A restauracao e in-place porque gui_ssa importa o
+    mesmo objeto pelo nome.
+    """
+    from gui.gui_config import GUI_MAIN_PREFERENCES
+
+    snapshot = copy.deepcopy(GUI_MAIN_PREFERENCES)
+    yield
+    GUI_MAIN_PREFERENCES.clear()
+    GUI_MAIN_PREFERENCES.update(snapshot)
 
 
 @pytest.fixture(autouse=True)
