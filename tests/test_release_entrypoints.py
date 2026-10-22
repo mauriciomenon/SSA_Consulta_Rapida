@@ -172,6 +172,7 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $env:SSA_TEST_REPO
 $BackendCsv = $env:SSA_TEST_BACKEND
+$TargetPlatform = 'windows_amd64'
 $DryRun = $env:SSA_TEST_STAGE -eq 'dry-run'
 $Yes = $true
 $SkipInstaller = $true

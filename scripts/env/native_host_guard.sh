@@ -25,6 +25,7 @@ ssa_native_guard_repo() {
   local windows_link_root="${HOME}/gitlab"
   local resolved_root=""
   local os_release=""
+  local os_release_lower=""
   local fs_type=""
 
   [[ -d "$repo_root" ]] || ssa_native_guard_fail "repo inexistente: $repo_root" || return 1

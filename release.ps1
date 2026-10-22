@@ -85,11 +85,6 @@ function Invoke-WindowsRelease {
         [Parameter(Mandatory = $true)] [string] $TargetPlatform
     )
 
-    $TargetPlatform = if (Get-Variable -Name TargetPlatform -Scope Local -ErrorAction SilentlyContinue) {
-        (Get-Variable -Name TargetPlatform -Scope Local).Value
-    } else {
-        "windows_amd64"
-    }
     Assert-WindowsReleaseHost
     $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
     $previousArmPython = $env:SSA_WINDOWS_ARM64_PYTHON

@@ -155,3 +155,25 @@ def test_install_hooks_available_uv_preserves_installation_modes(
     for name in expected:
         assert (destination / name).read_bytes() == (repo / "scripts" / "git_hooks" / name).read_bytes()
         assert os.access(destination / name, os.X_OK)
+
+
+def test_native_guard_repo_keeps_its_variables_local(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None
+    probe = tmp_path / "probe.sh"
+    # O retorno do guard e ignorado: no WSL ele recusa o clone fora da raiz
+    # esperada, mas as variaveis ja foram atribuidas antes disso.
+    probe.write_text(
+        f'source "{PROJECT_ROOT / "scripts" / "env" / "native_host_guard.sh"}"\n'
+        'ssa_native_guard_repo "$1" || true\n'
+        "for name in resolved_root os_release os_release_lower fs_type; do\n"
+        '  [[ -z "${!name+set}" ]] || echo "vazou: $name"\n'
+        "done\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [bash, str(probe), str(tmp_path)],
+        capture_output=True, text=True, check=False, timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "vazou" not in result.stdout, result.stdout
