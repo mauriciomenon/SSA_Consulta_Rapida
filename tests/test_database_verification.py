@@ -802,6 +802,80 @@ class TestDatabaseMaintenance:
             ("202500047", "202500048", ""),
         ]
 
+    def test_migrate_duplicate_columns_waits_for_database_writer_lock(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        db_path = str(tmp_path / "maintenance_locked.db")
+        with closing(sqlite3.connect(db_path)) as conn:
+            conn.execute("CREATE TABLE ssas (numero_ssa TEXT, legacy_numero_a TEXT)")
+            conn.execute("INSERT INTO ssas VALUES ('', '202500046')")
+            conn.commit()
+        migrator = DatabaseMigrator(db_path)
+        monkeypatch.setattr(
+            migrator.analyzer, "create_backup", lambda: str(tmp_path / "backup.db")
+        )
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "analyze_table_structure",
+            lambda: {
+                "duplicated_groups": {
+                    "numero_ssa": [
+                        {"name": "numero_ssa", "count": 0, "is_legacy": False},
+                        {"name": "legacy_numero_a", "count": 1, "is_legacy": True},
+                    ]
+                }
+            },
+        )
+        holder_ready, release_holder, migration_done = (
+            threading.Event(),
+            threading.Event(),
+            threading.Event(),
+        )
+
+        def _hold_lock() -> None:
+            with database_writer_lock(db_path):
+                holder_ready.set()
+                release_holder.wait(timeout=5)
+
+        def _migrate() -> None:
+            migrator.migrate_duplicate_columns(dry_run=False)
+            migration_done.set()
+
+        holder = threading.Thread(target=_hold_lock)
+        holder.start()
+        assert holder_ready.wait(timeout=5)
+        migration = threading.Thread(target=_migrate)
+        migration.start()
+        assert migration_done.wait(timeout=0.3) is False, "migracao ignorou o lock"
+        release_holder.set()
+        holder.join(timeout=5)
+        migration.join(timeout=20)
+        assert migration_done.is_set()
+        with closing(sqlite3.connect(db_path)) as conn:
+            assert conn.execute("SELECT numero_ssa FROM ssas").fetchone() == ("202500046",)
+
+    def test_create_backup_relative_dir_ignores_current_directory(
+        self, tmp_path, monkeypatch
+    ):
+        import utils.db_maintenance as db_maintenance
+
+        project = tmp_path / "projeto"
+        elsewhere = tmp_path / "outra_pasta"
+        project.mkdir()
+        elsewhere.mkdir()
+        db_path = tmp_path / "relative_backup.db"
+        with closing(sqlite3.connect(db_path)) as conn:
+            conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+        monkeypatch.setattr(db_maintenance, "PROJECT_ROOT", project)
+        monkeypatch.chdir(elsewhere)
+
+        backup = Path(DatabaseAnalyzer(str(db_path)).create_backup("data/backups"))
+
+        assert backup.parent == (project / "data" / "backups").resolve()
+        assert not (elsewhere / "data").exists()
+
     def test_migrate_duplicate_columns_treats_whitespace_target_as_empty(
         self,
         tmp_path,

@@ -25,9 +25,10 @@ from shared.date_utils import parse_any_date
 from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from shared.numero_ssa import normalize_strict
 from utils.db_maintenance_report import render_database_analysis_report
-from utils.path_safety import ensure_path_is_allowed
+from utils.path_safety import PROJECT_ROOT, ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger
 from armazenamento.database_integrity import create_sqlite_backup
+from armazenamento.database_lock import database_writer_lock
 
 logger = get_robust_logger().get_logger(__name__, "maintenance")
 
@@ -118,6 +119,7 @@ class DatabaseAnalyzer:
 
         backup_dir_path = ensure_path_is_allowed(
             backup_dir,
+            base=PROJECT_ROOT,
             must_exist=False,
             expect_directory=True,
         )
@@ -598,7 +600,11 @@ class DatabaseMigrator:
     def _execute_migration(self, migration_plan: List[Dict]) -> Dict[str, Any]:
         """Executa o plano de migracao no banco de dados."""
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            # Mesmo lock de escrita da importacao: sem ele a migracao podia
+            # intercalar com uma importacao em andamento no mesmo banco.
+            with database_writer_lock(self.db_path), closing(
+                sqlite3.connect(self.db_path)
+            ) as conn:
                 cursor = conn.cursor()
                 table_name = _resolve_maintenance_table(conn, require_table=True)
                 quoted_table = _quote_sqlite_identifier(table_name)
@@ -710,12 +716,15 @@ class DatabaseMaintenanceReportService:
                 sanity=sanity_check,
             )
 
-            Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-            with open(output_file, "w", encoding="utf-8") as f:
+            output_path = Path(output_file)
+            if not output_path.is_absolute():
+                output_path = PROJECT_ROOT / output_path
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(report_content)
 
-            logger.info(f"Relatorio de analise salvo em: {output_file}")
-            return output_file
+            logger.info(f"Relatorio de analise salvo em: {output_path}")
+            return str(output_path)
         except Exception as e:
             logger.exception("Falha ao gerar relatorio de manutencao")
             raise DatabaseMaintenanceError(f"Erro ao gerar relatorio: {e}") from e
@@ -728,6 +737,7 @@ def main():
             ensure_path_is_allowed(
                 os.environ.get("SSA_DB_PATH") or "data/ssas.db",
                 purpose="maintenance_db_path",
+                base=PROJECT_ROOT,
                 expect_directory=False,
             )
         )
