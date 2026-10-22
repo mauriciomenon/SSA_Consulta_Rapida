@@ -1016,8 +1016,10 @@ VSVersionInfo(
                     )
                     if result.returncode != 0:
                         logger.warning("UPX falhou em %s: %s", exe_file, result.stderr)
-        except Exception as e:
-            logger.warning(f"Erro na compressao: {e}")
+        except OSError as e:
+            # Compressao e opcional; timeout e erro de execucao do UPX ja viram
+            # returncode em _run_command. Erro de programa deve interromper o build.
+            logger.warning("Erro na compressao em %s: %s", dist_dir, e)
 
     def _create_manifest(self, platform_name, dist_dir):
         """Cria manifesto de build"""

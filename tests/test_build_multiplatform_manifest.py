@@ -1358,3 +1358,28 @@ def test_detect_current_platform_maps_linux_arm64(monkeypatch):
     )
 
     assert builder.detect_current_platform() == "debian_arm64"
+
+
+def test_compress_executables_warns_on_os_error_but_raises_program_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which", lambda _name: "/usr/bin/upx"
+    )
+
+    class UnreadableDist:
+        def glob(self, _pattern):
+            raise PermissionError("sem acesso")
+
+    builder._compress_executables(UnreadableDist())
+    assert "Erro na compressao" in caplog.text
+
+    (tmp_path / "SSA_GUI").write_bytes(b"bin")
+
+    def broken_run_command(*_args, **_kwargs):
+        raise TypeError("bug no build")
+
+    monkeypatch.setattr(builder, "_run_command", broken_run_command)
+    with pytest.raises(TypeError, match="bug no build"):
+        builder._compress_executables(tmp_path)
