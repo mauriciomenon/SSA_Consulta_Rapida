@@ -44,7 +44,8 @@
 
 ## Implementacao
 - Manter os comportamentos estabilizados e os contratos publicos de CLI, GUI e API.
-- Manter JSON no stdout da CLI; arquivos de exportacao sao opcoes adicionais.
+- A CLI de consulta (`main.py`, `launchers/cli_entry.py`, `interface/cli.py`) e interativa e imprime tabelas e texto; ela nao tem contrato JSON.
+- Scripts com saida JSON no stdout tem contrato: manter o JSON parseavel e o formato. Sao eles: `scripts/run_quality_gates.py` (sempre, uma linha), `scripts/derivadas_cli.py` (com `--output json` ou com `--report-json/--report-csv/--report-tsv`), `scripts/validate_configs.py --json`, `scripts/check_docs.py --json` e `scripts/smoke_cli.py --json`. Arquivos de exportacao sao opcoes adicionais.
 - Manter os builds Windows separados por arquitetura: `windows_amd64` usa o ambiente `.venv-win` e seus caminhos canonicos; `windows_arm64` usa `.venv-win-arm64`, `launchers/platforms/windows_arm64` e `builds/packages/windows_arm64`. Nunca compartilhar venv, dist, temp, ZIP ou metadata entre essas arquiteturas.
 - Manter o nome do backend (`_pyinstaller`, `_nuitka`, `_pyoxidizer`) nos artefatos gerados, pois builds de backends distintos podem coexistir; ao publicar release, renomear os arquivos removendo o sufixo do backend.
 - Separar acesso ao banco, controle, filtragem e apresentacao. Evitar helpers e camadas sem necessidade.
