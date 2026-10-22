@@ -606,6 +606,29 @@ class TestGUITableRenderResilience:
         assert "Novo A" in details_html
         assert "Teste A" not in details_html
 
+    def test_tempo_excedido_exibe_layout_sam_e_mantem_iso_no_dataframe(self):
+        # D-09: tabela e detalhes exibem o layout SAM; o DataFrame segue ISO.
+        df = self.base_df.copy()
+        df["tempo_excedido"] = ["P1Y9M22DT5H47M", "PT45M", "texto livre"]
+        self._set_window_dataframe(df, page_size=10)
+        if "tempo_excedido" not in self.window.visible_columns:
+            self.window.visible_columns.append("tempo_excedido")
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        col = self.window._current_display_columns.index("tempo_excedido")
+        shown = [self.window.table_widget.item(r, col).text() for r in range(3)]
+        assert shown == ["1a, 9m, 22d 5h : 47mi", "45mi", "texto livre"]
+        assert list(self.window.df_completo["tempo_excedido"]) == [
+            "P1Y9M22DT5H47M",
+            "PT45M",
+            "texto livre",
+        ]
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert "1a, 9m, 22d 5h : 47mi" in details_html
+        assert "P1Y9M22DT5H47M" not in details_html
+
     def test_display_current_page_happy_path_emits_no_warnings(self, caplog):
         caplog.set_level(logging.WARNING)
 

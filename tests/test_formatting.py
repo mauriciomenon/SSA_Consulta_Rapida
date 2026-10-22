@@ -1,6 +1,10 @@
 import pandas as pd
 
-from utils.formatting import format_cell, format_dataframe_for_display
+from utils.formatting import (
+    format_cell,
+    format_dataframe_for_display,
+    format_iso_duration,
+)
 
 
 def test_format_cell_number_and_nulls():
@@ -107,3 +111,37 @@ def test_format_cell_sanitizes_fallback_paths_and_preserves_unicode():
     assert format_cell("a\x85b") == "a b"
     assert format_cell("a\xa0b") == "a\xa0b"
     assert format_cell("a\xadb") == "a\xadb"
+
+
+def test_format_iso_duration_layout_sam():
+    assert format_iso_duration("P1Y9M22DT5H47M") == "1a, 9m, 22d 5h : 47mi"
+    assert format_iso_duration("PT45M") == "45mi"
+    assert format_iso_duration("P12DT3H4M") == "12d 3h : 4mi"
+    assert format_iso_duration("P1M2D") == "1m, 2d"
+    # Formas vistas no SAM: minutos sem horas e horas sem minutos.
+    assert format_iso_duration("P1Y6M5DT49M") == "1a, 6m, 5d 49mi"
+    assert format_iso_duration("P1Y4MT38M") == "1a, 4m, 38mi"
+    assert format_iso_duration("P21DT19H") == "21d 19h"
+    assert format_iso_duration("P1Y") == "1a"
+
+
+def test_format_iso_duration_passthrough_e_nulos():
+    # Texto que o importador nao converteu volta sem alteracao.
+    assert format_iso_duration("0mi") == "0mi"
+    assert format_iso_duration("Fora de Prazo") == "Fora de Prazo"
+    assert format_iso_duration("P") == "P"
+    assert format_iso_duration("PT") == "PT"
+    assert format_iso_duration("P1W") == "P1W"
+    assert format_iso_duration(None) == ""
+    assert format_iso_duration("") == ""
+
+
+def test_format_cell_formata_somente_tempo_excedido():
+    assert format_cell("P12DT3H4M", "tempo_excedido") == "12d 3h : 4mi"
+    assert format_cell(None, "tempo_excedido") == ""
+    # Outras colunas de tempo guardam texto SAM bruto: sem conversao.
+    assert format_cell("P12DT3H4M", "tempo_total") == "P12DT3H4M"
+    df = pd.DataFrame({"tempo_excedido": ["P1Y9M22DT5H47M", "x"]})
+    out = format_dataframe_for_display(df)
+    assert list(out["tempo_excedido"]) == ["1a, 9m, 22d 5h : 47mi", "x"]
+    assert list(df["tempo_excedido"]) == ["P1Y9M22DT5H47M", "x"]

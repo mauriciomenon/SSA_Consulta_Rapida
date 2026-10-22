@@ -7,6 +7,7 @@ Regras de formatação compartilhadas entre CLI/GUI:
 - Datas como dia/mês/ano (dd/mm/YYYY)
 - Colunas de semana como inteiros
 - numero_ssa como string canonica de 9 digitos somente quando valido
+- tempo_excedido (ISO 8601) no layout do SAM: "1a, 9m, 22d 5h : 47mi"
 """
 
 from __future__ import annotations
@@ -116,6 +117,40 @@ def _format_date_like(v) -> str:
         return _safe_str(v)
 
 
+# Formato gravado pelo importador (extracao/extractor.py
+# _normalize_tempo_excedido_value): so Y/M/D e T com H/M, inteiros.
+_ISO_DURATION_RE = re.compile(
+    r"P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?=\d)(?:(\d+)H)?(?:(\d+)M)?)?"
+)
+
+
+def format_iso_duration(value) -> str:
+    """Duracao ISO 8601 -> layout do SAM, somente para exibicao.
+
+    "P1Y9M22DT5H47M" -> "1a, 9m, 22d 5h : 47mi"; "PT45M" -> "45mi".
+    Texto fora desse formato (nao convertido na importacao) volta igual.
+    """
+    if _is_nullish(value):
+        return ""
+    text = _safe_str(value).strip()
+    match = _ISO_DURATION_RE.fullmatch(text)
+    if not match or not any(match.groups()):
+        return text
+    years, months, days, hours, minutes = match.groups()
+    out = ""
+    if years:
+        out += f"{years}a, "
+    if months:
+        out += f"{months}m, "
+    if days:
+        out += f"{days}d "
+    if hours:
+        out += f"{hours}h"
+    if minutes:
+        out += f" : {minutes}mi" if hours else f"{minutes}mi"
+    return out.rstrip(", ")
+
+
 def format_cell(value, column: Optional[str] = None) -> str:
     """Formata um único valor seguindo as regras acima."""
     if _is_nullish(value):
@@ -130,6 +165,11 @@ def format_cell(value, column: Optional[str] = None) -> str:
             except Exception:
                 return _safe_str(value)
         return _safe_str(value)
+
+    # tempo_excedido fica ISO 8601 no banco; so a exibicao usa o layout SAM.
+    # tempo_disponivel/tempo_total ja guardam o texto SAM bruto.
+    if column == "tempo_excedido" and isinstance(value, str):
+        return format_iso_duration(value)
 
     # Colunas que parecem data
     if column and ("data" in column.lower() or column.lower().startswith("dt_")):

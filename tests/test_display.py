@@ -123,3 +123,15 @@ def test_pretty_print_details_empty_series(display_map):
         output = mock_stdout.getvalue()
 
     assert "DETALHES DA SSA: N/A" in output
+
+
+def test_pretty_print_details_tempo_excedido_layout_sam(display_map):
+    """D-09: a CLI exibe o layout SAM; a Series continua com o valor ISO."""
+    series = pd.Series({"numero_ssa": 2025003, "tempo_excedido": "P12DT3H4M"})
+    with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
+        pretty_print_details(series, display_map)
+        output = mock_stdout.getvalue()
+
+    assert "12d 3h : 4mi" in output
+    assert "P12DT3H4M" not in output
+    assert series["tempo_excedido"] == "P12DT3H4M"
