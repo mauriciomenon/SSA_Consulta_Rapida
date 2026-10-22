@@ -198,11 +198,6 @@ def consolidate_input_files(
         try:
             destination = reserve_unique_path(target_dir / base_name, touch=True)
             os.replace(source_path, destination)
-            moved += 1
-            if target_dir == nosurvivor_dir:
-                moved_nosurvivor += 1
-            if callable(output_callback):
-                output_callback(f"[OK] Consolidado: {base_name}")
         except OSError as exc:
             move_error: BaseException = exc
             if destination and os.path.exists(destination):
@@ -219,6 +214,13 @@ def consolidate_input_files(
                     "[ERRO] Falha ao mover arquivo na consolidacao "
                     f"'{source_path}': {move_error}"
                 )
+            continue
+        # Fora do try: um OSError do callback nao pode apagar a planilha ja movida.
+        moved += 1
+        if target_dir == nosurvivor_dir:
+            moved_nosurvivor += 1
+        if callable(output_callback):
+            output_callback(f"[OK] Consolidado: {base_name}")
 
     if callable(output_callback):
         output_callback(

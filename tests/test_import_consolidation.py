@@ -243,6 +243,25 @@ def test_consolidate_input_files_reports_replace_failure_and_removes_reservation
     assert any("blocked:" in error for error in errors)
 
 
+def test_consolidate_output_callback_os_error_keeps_moved_file(tmp_path: Path) -> None:
+    docs_dir = _write_report(
+        tmp_path,
+        {"file_reports": [{"file": "ok.xlsx", "counts": {"rows_inserted": 1}}]},
+    )
+    (docs_dir / "ok.xlsx").write_text("dados", encoding="utf-8")
+
+    def broken_output(message: str) -> None:
+        if message.startswith("[OK] Consolidado"):
+            raise BrokenPipeError("saida fechada")
+
+    with pytest.raises(BrokenPipeError, match="saida fechada"):
+        consolidate_input_files(project_root=str(tmp_path), output_callback=broken_output)
+
+    moved = docs_dir / "processadas" / "ok.xlsx"
+    assert moved.read_text(encoding="utf-8") == "dados"
+    assert not (docs_dir / "ok.xlsx").exists()
+
+
 def test_reserve_unique_path_on_disk_reports_exhausted_attempts(
     tmp_path: Path,
 ) -> None:
