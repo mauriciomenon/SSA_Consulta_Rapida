@@ -23,6 +23,7 @@ info(){
 }
 
 refs=()
+new_refs=()
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   _=("$local_ref" "$remote_ref")
@@ -33,13 +34,15 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     continue
   fi
   if [[ "${remote_sha:-}" =~ ^0+$ || -z "${remote_sha:-}" ]]; then
-    refs+=("$local_sha")
+    # Ref nova: o ja publicado (alcancavel por refs remotas) nao e reavaliado;
+    # sem refs remotas, --not --remotes nao exclui nada.
+    new_refs+=("$local_sha")
   else
     refs+=("${remote_sha}..${local_sha}")
   fi
 done < "$push_input"
 
-if [[ ${#refs[@]} -eq 0 ]]; then
+if [[ ${#refs[@]} -eq 0 && ${#new_refs[@]} -eq 0 ]]; then
   info "Nenhum range de push para validar."
   exit 0
 fi
@@ -49,9 +52,15 @@ tmp_revlist="$(mktemp)"
 trap 'rm -f "$push_input" "$tmp_objects" "$tmp_revlist"' EXIT
 
 : > "$tmp_revlist"
-for rev_range in "${refs[@]}"; do
+for rev_range in ${refs[@]+"${refs[@]}"}; do
   if ! git rev-list --objects "$rev_range" >> "$tmp_revlist" 2>/dev/null; then
     echo "[pre-push-size][BLOCK] Range invalido: $rev_range" >&2
+    exit 1
+  fi
+done
+for new_ref in ${new_refs[@]+"${new_refs[@]}"}; do
+  if ! git rev-list --objects "$new_ref" --not --remotes >> "$tmp_revlist" 2>/dev/null; then
+    echo "[pre-push-size][BLOCK] Ref invalida: $new_ref" >&2
     exit 1
   fi
 done
