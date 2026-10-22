@@ -135,7 +135,6 @@ if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
 fi
 GUI_DIST="${FINAL_BUILD_DIR}/gui_entry.dist"
 CLI_DIST="${FINAL_BUILD_DIR}/cli_entry.dist"
-rm -rf "${GUI_DIST}" "${CLI_DIST}"
 
 if [[ ! -x "${PYTHON_EXE}" ]]; then
   LAST_STEP="create_venv"
@@ -160,6 +159,12 @@ if [[ "${REPO_ROOT}" == /mnt/* ]]; then
   NUITKA_OUTPUT_DIR="${BUILD_WORK_DIR}"
 else
   NUITKA_OUTPUT_DIR="${FINAL_BUILD_DIR}"
+fi
+
+# Sem diretorio de trabalho o Nuitka grava direto no destino final. Com ele,
+# o build anterior so e removido depois que o novo foi gerado (passo de copia).
+if [[ "${NUITKA_OUTPUT_DIR}" == "${FINAL_BUILD_DIR}" ]]; then
+  rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
 fi
 
 GUI_CMD=(
@@ -193,6 +198,7 @@ if [[ "${SILENT}" == "1" ]]; then
   "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py >>"${LOG_FILE}" 2>&1
   if [[ "${NUITKA_OUTPUT_DIR}" != "${FINAL_BUILD_DIR}" ]]; then
     LAST_STEP="copy_nuitka_dist"
+    rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
     cp -a "${NUITKA_OUTPUT_DIR}/gui_entry.dist" "${GUI_DIST}"
     cp -a "${NUITKA_OUTPUT_DIR}/cli_entry.dist" "${CLI_DIST}"
   fi
@@ -210,6 +216,7 @@ else
   "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py
   if [[ "${NUITKA_OUTPUT_DIR}" != "${FINAL_BUILD_DIR}" ]]; then
     LAST_STEP="copy_nuitka_dist"
+    rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
     cp -a "${NUITKA_OUTPUT_DIR}/gui_entry.dist" "${GUI_DIST}"
     cp -a "${NUITKA_OUTPUT_DIR}/cli_entry.dist" "${CLI_DIST}"
   fi

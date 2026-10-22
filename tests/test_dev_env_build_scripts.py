@@ -231,6 +231,30 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert "ssa_nuitka_build" not in script
 
 
+def test_nuitka_debian_keeps_previous_dist_until_new_build_is_copied() -> None:
+    remove_dist = 'rm -rf -- "${GUI_DIST}" "${CLI_DIST}"'
+    for script_name in ("build_nuitka_debian.sh", "build_nuitka_debian_arm64.sh"):
+        lines = [
+            line.strip()
+            for line in (PROJECT_ROOT / "dev_env" / "build" / script_name)
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        first_build = lines.index('LAST_STEP="nuitka_gui"')
+        # Antes do build, so remove quando o Nuitka grava direto no destino final.
+        early = [i for i, line in enumerate(lines[:first_build]) if remove_dist in line]
+        assert len(early) == 1, script_name
+        assert lines[early[0] - 1] == 'if [[ "${NUITKA_OUTPUT_DIR}" == "${FINAL_BUILD_DIR}" ]]; then'
+        copies = [
+            i
+            for i, line in enumerate(lines)
+            if line.startswith('cp -a "${NUITKA_OUTPUT_DIR}/gui_entry.dist"')
+        ]
+        assert len(copies) == 2, script_name
+        for index in copies:
+            assert lines[index - 1] == remove_dist, script_name
+
+
 def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> None:
     nuitka_script = (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_clean.bat").read_text(
         encoding="utf-8"
