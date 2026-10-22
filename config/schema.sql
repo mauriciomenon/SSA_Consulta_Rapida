@@ -156,6 +156,8 @@ CREATE INDEX IF NOT EXISTS idx_localizacao_codigo ON ssa_table (localizacao_codi
 CREATE INDEX IF NOT EXISTS idx_numero_ssa_situacao ON ssa_table (numero_ssa, situacao);
 CREATE INDEX IF NOT EXISTS idx_setor_executor_semana ON ssa_table (setor_executor, semana_cadastro);
 CREATE INDEX IF NOT EXISTS idx_situacao_semana ON ssa_table (situacao, semana_cadastro);
+-- Parcial e cobrindo: leituras do sync de derivadas (WHERE derivada_de IS NOT NULL).
+CREATE INDEX IF NOT EXISTS idx_derivada_de_not_null ON ssa_table (derivada_de, numero_ssa) WHERE derivada_de IS NOT NULL;
 
 -- Compatibilidade retroativa: alias legada 'ssas' para leitura
 -- Algumas rotinas de teste/legado ainda consultam a tabela 'ssas'.

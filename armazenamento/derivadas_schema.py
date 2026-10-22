@@ -14,6 +14,7 @@ from typing import Any, Iterable
 
 from armazenamento.database import get_db_connection, read_only_sqlite_uri
 from armazenamento.identifier_utils import is_valid_identifier
+from shared.db_names import CANONICAL_SSA_TABLE
 from utils.path_safety import ensure_path_is_allowed
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,14 @@ CREATE INDEX IF NOT EXISTS idx_derivada_sync_run_status ON ssa_derivada_sync_run
 CREATE INDEX IF NOT EXISTS idx_derivada_sync_run_started ON ssa_derivada_sync_run (started_at);
 """
 
+# Indice parcial e cobrindo para as leituras "WHERE derivada_de IS NOT NULL" do sync
+# (arestas e contagem): so ~19% das SSAs tem derivada_de, entao custa pouco na escrita.
+# Mesmo texto de config/schema.sql (bancos novos); aqui cobre bancos ja existentes.
+SSA_DERIVADA_DE_INDEX_SQL = (
+    f"CREATE INDEX IF NOT EXISTS idx_derivada_de_not_null ON {CANONICAL_SSA_TABLE} "
+    "(derivada_de, numero_ssa) WHERE derivada_de IS NOT NULL"
+)
+
 
 def _execute_sql_script_without_committing(
     conn: sqlite3.Connection, sql_script: str
@@ -290,6 +299,8 @@ def ensure_derivadas_schema_on_connection(
     _execute_sql_script_without_committing(conn, DERIVADAS_TABLES_SQL)
     _ensure_derivadas_columns(conn, include_legacy_backfill=include_legacy_backfill)
     _execute_sql_script_without_committing(conn, DERIVADAS_INDEXES_SQL)
+    if {"numero_ssa", "derivada_de"} <= _existing_columns(conn, CANONICAL_SSA_TABLE):
+        conn.execute(SSA_DERIVADA_DE_INDEX_SQL)
 
 
 def _existing_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:

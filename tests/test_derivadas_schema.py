@@ -255,3 +255,27 @@ def test_schema_functions_external_db_respect_extra_roots(
     )
     assert report["is_ready"] is True
     assert read_report["is_ready"] is True
+
+
+def test_schema_bootstrap_adds_partial_derivada_de_index_used_by_sync_reads(tmp_path):
+    db_path = tmp_path / "parcial.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT, derivada_de TEXT)")
+        ensure_derivadas_schema_on_connection(conn)
+        index_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE name = 'idx_derivada_de_not_null'"
+        ).fetchone()
+        plan = conn.execute(
+            "EXPLAIN QUERY PLAN SELECT numero_ssa, derivada_de FROM ssa_table "
+            "WHERE derivada_de IS NOT NULL"
+        ).fetchall()
+    assert index_sql is not None and "WHERE derivada_de IS NOT NULL" in index_sql[0]
+    assert "idx_derivada_de_not_null" in plan[-1][-1]
+
+
+def test_schema_bootstrap_skips_partial_index_without_ssa_table(tmp_path):
+    with sqlite3.connect(tmp_path / "sem_ssa.db") as conn:
+        ensure_derivadas_schema_on_connection(conn)
+        names = {row[0] for row in conn.execute("SELECT name FROM sqlite_master")}
+    assert "idx_derivada_de_not_null" not in names
+    assert "ssa_derivada_matrix" in names
