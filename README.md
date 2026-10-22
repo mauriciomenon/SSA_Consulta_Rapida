@@ -53,6 +53,10 @@ No Windows, use PowerShell e o ambiente nativo descrito no [guia de ambiente](de
 - Arquivos processados sao movidos para `processadas/` com nomes
   reservados atomicamente; conflitos e falhas por arquivo sao reportados
   sem abortar o lote.
+- Datas e duracoes ficam em ISO no banco (`YYYY-MM-DD HH:MM:SS`, `P1Y9M22DT5H47M`);
+  so a exibicao formata (datas dd/mm/aaaa, Tempo Excedido no formato do SAM).
+- O resumo da importacao separa SSAs novas, atualizadas (algum valor mudou) e
+  verificadas (mesmos dados, so o arquivo de origem foi atualizado).
 - Bancos, planilhas e configuracoes pessoais ficam fora do controle de versao.
 
 Detalhes da importacao nos docs locais `ARQUITETURA_IMPORTACAO.md`,
