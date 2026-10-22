@@ -157,7 +157,9 @@ def validate_batch(objects: set[str], kind: str) -> None:
             validate_metadata(content, kind, oid)
 
 
-def validate_updates(updates: list[tuple[str, str, str]]) -> None:
+def validate_updates(
+    updates: list[tuple[str, str, str]], *, skip_published: bool = False
+) -> None:
     commits: set[str] = set()
     notes: set[str] = set()
     if any(set(head) != {"0"} for head, _, _ in updates):
@@ -184,6 +186,11 @@ def validate_updates(updates: list[tuple[str, str, str]]) -> None:
             args = ["rev-list", target]
             if base:
                 args.extend(["--not", f"{base}^{{commit}}"])
+            elif skip_published:
+                # Ref nova: o que ja e alcancavel por refs remotas ja foi
+                # publicado; valida so o que o push leva. Sem refs remotas,
+                # --remotes nao exclui nada e o historico inteiro e validado.
+                args.extend(["--not", "--remotes"])
             if ref.startswith("refs/notes/"):
                 objects = git("rev-list", "--objects", "--no-object-names", *args[1:])
                 entries = git("cat-file", "--batch-check=%(objectname) %(objecttype)", data=objects)
@@ -232,7 +239,7 @@ def main() -> int:
                 if any(not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid) for oid in (head, base)):
                     raise ValueError("entrada pre-push invalida: identificador de objeto")
                 updates.append((head, base, ref))
-            validate_updates(updates)
+            validate_updates(updates, skip_published=True)
     except (OSError, ValueError, UnicodeError, subprocess.TimeoutExpired) as error:
         print(f"[autoria-git][BLOQUEADO] {error}", file=sys.stderr)
         return 1

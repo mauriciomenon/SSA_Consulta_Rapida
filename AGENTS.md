@@ -36,7 +36,7 @@
 - Os hooks exigem Git, uv e Python disponiveis no ambiente local. O instalador Bash suporta macOS/Linux; no Windows, instalar os dois arquivos em `git rev-parse --git-path hooks` com ferramenta nativa e sem sobrescrever hooks existentes.
 - Os nomes humanos com e sem acento sao aceitos por equivalencia de normalizacao; o verificador nao altera a identidade configurada.
 - O hook `commit-msg` protege criacoes normais por commit/merge. Hooks podem ser ignorados com `--no-verify`, desativados ou contornados por comandos de baixo nivel; nao equivalem a uma regra do servidor.
-- O hook `pre-push` verifica cada ref informado pelo Git, para qualquer remote. Base ausente ou invalida bloqueia o envio; ref nova exige validar todo o historico alcancavel. Nao liberar historico antigo nem reescrever commits automaticamente.
+- O hook `pre-push` verifica cada ref informado pelo Git, para qualquer remote. Base ausente ou invalida bloqueia o envio; ref nova valida o historico ainda nao alcancavel por refs remotas (o ja publicado nao e revalidado; sem refs remotas, valida todo o historico). Nao reescrever commits automaticamente.
 - O CI executa o mesmo verificador dentro do escopo de eventos ja configurado. No GitHub, valida o head real do PR, sem atribuir autoria ao merge sintetico de teste.
 - O CI ocorre apos o servidor receber commits. Bloquear merge exige tornar a verificacao obrigatoria na protecao da branch; rejeitar o proprio push exige regra nativa aplicavel do servidor.
 - Tags nao possuem hook Git padrao de criacao: sua autoria e mensagem sao verificadas antes do push. Descricoes de PR e publicacoes online nao sao cobertas pelos hooks nem pelo verificador de commits.
