@@ -71,5 +71,17 @@
   "situacao_relacionada_2": "Situação Relacionada 2",
   "relacao": "Relação",
   "arquivo_origem": "Arquivo Origem",
-  "data_planilha": "Data Planilha (ISO)"
+  "data_planilha": "Data Planilha (ISO)",
+  "id": "id",
+  "total_tempo_tpe_executada": "Tempo TPE Exec.",
+  "total_tempo_tex_executada": "Tempo TEX Exec.",
+  "situacao_da_parcial": "Situacao da Parcial",
+  "data_arquivo_origem": "Data do Arquivo de Origem",
+  "registros_espera": "Registros de Espera",
+  "num_reprobaciones": "Nº de Reprobaciones",
+  "situacao_espera": "Situação de Espera",
+  "numero_desvios": "Nº de Desvios",
+  "ate": "Até",
+  "justificativa": "Justificativa",
+  "parciais": "Parciais"
 }

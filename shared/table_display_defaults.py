@@ -84,6 +84,15 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "situacao_relacionada_1": "Situação Rel. 1",
     "situacao_relacionada_2": "Situação Rel. 2",
     "relacao": "Relação",
+    "arquivo_origem": "Arquivo Origem",
+    "data_arquivo_origem": "Data do Arquivo de Origem",
+    "registros_espera": "Registros de Espera",
+    "num_reprobaciones": "Nº de Reprobaciones",
+    "situacao_espera": "Situação de Espera",
+    "numero_desvios": "Nº de Desvios",
+    "ate": "Até",
+    "justificativa": "Justificativa",
+    "parciais": "Parciais",
 }
 
 COLUMN_AFFINITY_SCORES: Dict[str, int] = {

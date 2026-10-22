@@ -82,3 +82,22 @@ def test_load_mappings_integrity_returns_defaults_when_restore_write_fails(
     result = loader()
     assert result == expected
     assert not (cfg_dir / filename).exists()
+
+
+def test_every_schema_column_has_label_for_gui_and_cli() -> None:
+    import sqlite3
+    from pathlib import Path
+
+    from shared.table_display_defaults import DEFAULT_DISPLAY_MAPPINGS
+
+    root = Path(__file__).resolve().parents[1]
+    conn = sqlite3.connect(":memory:")
+    conn.executescript((root / "config" / "schema.sql").read_text(encoding="utf-8"))
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(ssa_table)")}
+    columns.add("data_arquivo_origem")  # criada em runtime pela importacao
+    cli_labels = json.loads(
+        (root / "config" / "display_mappings.json").read_text(encoding="utf-8")
+    )
+
+    assert sorted(columns - set(DEFAULT_DISPLAY_MAPPINGS)) == [], "GUI sem rotulo"
+    assert sorted(columns - set(cli_labels)) == [], "CLI sem rotulo"
