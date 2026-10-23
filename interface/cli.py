@@ -420,7 +420,7 @@ def _get_initial_state(
         # raise_on_error: falha de banco vai para o log abaixo em vez de virar
         # uma tabela vazia silenciosa.
         initial_df = query_db(
-            db_path, "", get_ssa_query(table_name), raise_on_error=True
+            db_path, "", get_ssa_query(table_name), raise_on_error=True, read_only=True
         )
         initial_df = _apply_default_filters(initial_df, settings)
         default_filter_terms = settings.get("default_filters", [])
@@ -1200,7 +1200,9 @@ def _handle_clear_all_filters(
     fresh_settings = dict(settings or {})
     fresh_settings["default_filters"] = []
     try:
-        df = query_db(db_path, "", get_ssa_query(table_name), raise_on_error=True)
+        df = query_db(
+            db_path, "", get_ssa_query(table_name), raise_on_error=True, read_only=True
+        )
     except Exception as exc:
         # Mantem o estado atual em vez de trocar por uma base vazia.
         print(f"Erro ao recarregar a base: {exc}")
