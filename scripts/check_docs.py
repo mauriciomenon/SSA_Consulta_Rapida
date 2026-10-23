@@ -6,7 +6,8 @@ Objetivo:
   placeholder inadequado, aplicando regras simples e rápidas para gate em CI.
 
 Características:
-  * Busca recursiva a partir da raiz (exclui diretórios ignorados).
+  * Arquivos vindos do git (versionados + novos nao ignorados): o .gitignore
+    decide o que e local (.remember/, tmp/, builds/) e fica fora (BL-02).
   * Regras: linhas mínimas, densidade de conteúdo, detecção de placeholders.
   * Saída humana padrão + opção --json.
   * Código de saída:
@@ -29,8 +30,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
+import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
@@ -50,22 +51,6 @@ PLACEHOLDER_PATTERNS = [
 COMPILED_PLACEHOLDER_PATTERNS = [
     re.compile(pattern, re.IGNORECASE) for pattern in PLACEHOLDER_PATTERNS
 ]
-IGNORE_DIRS = {
-    ".git",
-    ".opencode",
-    "__pycache__",
-    "build",
-    "dist",
-    "data",
-    "node_modules",
-    "venv",
-    ".venv",
-    ".tox",
-    ".mypy_cache",
-    ".trunk",
-    ".specstory",
-    "local_ai_private",
-}
 MARKDOWN_EXT = ".md"
 
 # Arquivos conhecidos (placeholders / templates) permitidos vazios para não quebrar smoke.
@@ -109,15 +94,23 @@ class ScanStats:
 
 
 def list_markdown_files(base: Path) -> Iterable[Path]:
-    if base.name in IGNORE_DIRS:
-        return
-    for root, dirs, files in os.walk(base):
-        root_path = Path(root)
-        # Filtra dirs ignorados in-place (evita caminhada profunda neles)
-        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
-        for f in files:
-            if f.lower().endswith(MARKDOWN_EXT):
-                yield root_path / f
+    """Markdown sob `base` segundo o git: versionados e novos nao ignorados."""
+    # ls-files roda na propria pasta e devolve caminhos relativos a ela; fora
+    # de um repositorio git o comando falha (erro explicito, exit 2).
+    result = subprocess.run(
+        [
+            "git", "-C", str(base), "ls-files", "-z",
+            "--cached", "--others", "--exclude-standard", "--", "*.md",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+    )
+    for name in sorted(set(filter(None, result.stdout.split("\0")))):
+        path = base / name
+        if path.is_file():
+            yield path
 
 
 def read_file_lines(path: Path) -> List[str]:

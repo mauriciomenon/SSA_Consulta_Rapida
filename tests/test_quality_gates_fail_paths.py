@@ -68,22 +68,36 @@ def test_quality_gates_failures(tmp_path):
 
 
 @pytest.mark.integration
-def test_check_docs_ignores_opencode_node_modules(tmp_path):
+def test_check_docs_ignores_gitignored_markdown(tmp_path):
+    """BL-02: o .gitignore decide o que e local (.remember/, node_modules ...)."""
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".gitignore").write_text(".opencode/\n.remember/\n", encoding="utf-8")
     docs_root = tmp_path / "docs_ok"
     docs_root.mkdir()
     (docs_root / "GOOD.md").write_text(
         "# Guia\n\nConteudo valido.\n\nLinha extra.\n\nOutra linha.\n",
         encoding="utf-8",
     )
+    for ignored in (".opencode/node_modules/pkg/BAD.md", ".remember/now.md"):
+        bad = tmp_path / ignored
+        bad.parent.mkdir(parents=True)
+        bad.write_text("\n", encoding="utf-8")
 
-    ignored_bad_doc = tmp_path / ".opencode" / "node_modules" / "pkg" / "BAD.md"
-    ignored_bad_doc.parent.mkdir(parents=True)
-    ignored_bad_doc.write_text("\n", encoding="utf-8")
-
-    cmd = [sys.executable, str(SCRIPTS_DIR / "check_docs.py"), "--paths", str(tmp_path)]
+    cmd = [
+        sys.executable, str(SCRIPTS_DIR / "check_docs.py"),
+        "--paths", str(tmp_path), "--fail-on-issues", "--json",
+    ]
     proc = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
 
     assert proc.returncode == 0, (
-        "check_docs nao deveria falhar por markdown dentro de .opencode/node_modules.\n"
+        "check_docs nao deveria checar markdown ignorado pelo git.\n"
         f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
     )
+    assert json.loads(proc.stdout)["stats"]["checked_files"] == 1
+
+
+def test_check_docs_outside_git_repo_is_an_error(tmp_path):
+    (tmp_path / "GOOD.md").write_text("# a\n\nb\n\nc\n\nd\n", encoding="utf-8")
+    cmd = [sys.executable, str(SCRIPTS_DIR / "check_docs.py"), "--paths", str(tmp_path)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
+    assert proc.returncode == 2, proc.stdout + proc.stderr
