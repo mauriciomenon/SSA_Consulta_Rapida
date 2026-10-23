@@ -444,8 +444,12 @@ uv run --python $PY_RUNTIME main.py --help
 
 ### **Reimportacao Completa**
 ```powershell
-# Quando houver mudancas significativas nos dados (--force-rescan reimporta
-# sem zerar o banco; --reset-db so para recomecar do zero)
+# Quando houver mudancas significativas nos dados. Atencao: --force-rescan
+# recria o banco somente com as planilhas presentes em docs_entrada; SSAs de
+# planilhas que sairam da pasta deixam de existir no banco. O banco anterior
+# fica em data\ssas.db.full_rescan_backup_<data_hora>. Para so acrescentar
+# planilhas novas, use "Atualizar dados (arquivos novos ou alterados)" na GUI.
+# --reset-db so para recomecar do zero.
 uv run --python $PY_RUNTIME main.py --optimized --force-rescan
 ```
 
