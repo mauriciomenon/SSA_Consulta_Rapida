@@ -19,10 +19,8 @@ Responsibilities
 
 from __future__ import annotations
 
-import importlib.util
 import logging
 import os
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -64,70 +62,6 @@ class SetupResult:
         return not self.errors
 
 
-def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opcional
-    """Carrega diretórios legados se módulo externo definir legacy_required_dirs().
-
-    Segurança: não lança exceções fatais; falhas geram log DEBUG e retorna [].
-    """
-    module_path_raw = os.environ.get("SSA_LEGACY_SETUP_MODULE")
-    if not module_path_raw:
-        return []
-    module_path = os.path.realpath(os.path.abspath(module_path_raw))
-    project_root = os.path.realpath(
-        os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-    )
-    allow_external = os.environ.get("SSA_ALLOW_EXTERNAL_LEGACY_SETUP_MODULE") == "1"
-    if not allow_external and not _is_within_base(module_path, project_root):
-        logger.warning(
-            "SSA_LEGACY_SETUP_MODULE fora da raiz do projeto foi bloqueado: %s",
-            module_path,
-        )
-        return []
-    try:
-        if not os.path.isfile(module_path):
-            logger.warning(
-                "SSA_LEGACY_SETUP_MODULE aponta para arquivo inexistente: %s",
-                module_path,
-            )
-            return []
-        spec = importlib.util.spec_from_file_location("_ssa_legacy_setup", module_path)
-        if spec and spec.loader:
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            func = getattr(mod, "legacy_required_dirs", None)
-            if callable(func):
-                legacy_raw = func()
-                # Accept any iterable of strings defensively
-                # Tratar iteráveis simples evitando tuple de tipos especificada pelo linter.
-                if isinstance(legacy_raw, str):
-                    legacy_iter: Iterable = [legacy_raw]
-                elif isinstance(legacy_raw, bytes):  # noqa: SIM101 (separado para evitar regra tuple)
-                    legacy_iter = [legacy_raw]
-                elif isinstance(legacy_raw, Iterable):
-                    try:
-                        legacy_iter = list(
-                            legacy_raw
-                        )  # materializa para iteração única
-                    except Exception:  # pragma: no cover
-                        legacy_iter = [legacy_raw]
-                else:
-                    legacy_iter = [legacy_raw]
-                legacy_list = list(
-                    {
-                        str(d).strip()
-                        for d in legacy_iter
-                        if isinstance(d, str) and str(d).strip()
-                    }
-                )
-                if legacy_list:
-                    logger.info("Diretórios legados detectados (%d)", len(legacy_list))
-                return legacy_list
-            logger.warning("Módulo legado não expõe legacy_required_dirs() utilizável")
-    except Exception as e:  # pragma: no cover - defensivo
-        logger.debug("Falha ao carregar módulo legado: %s", e)
-    return []
-
-
 def setup_dirs(
     base_path: str | None = None, ensure_permissions: bool = False
 ) -> SetupResult:
@@ -146,13 +80,7 @@ def setup_dirs(
     # Construir lista de trabalho (não mutar base global)
     working_required = list(_BASE_REQUIRED_DIRS)
 
-    # Diretórios vindos de configuração legada (se existir)
-    legacy_dirs = _load_legacy_required_dirs()
-    for d in legacy_dirs:
-        if d not in working_required:
-            working_required.append(d)
-
-    # Allow extra dirs via env (prioridade após legado)
+    # Allow extra dirs via env
     extra_raw = os.environ.get("SSA_EXTRA_DIRS", "").strip()
     if extra_raw:
         for part in [p.strip() for p in extra_raw.split(",") if p.strip()]:
@@ -202,11 +130,8 @@ class SetupProjectStructure:  # Renamed to follow CapWords; keep legacy alias be
             base_path = os.path.abspath(
                 os.path.join(os.path.dirname(__file__), os.pardir)
             )
-        # Montar lista coerente (base + possíveis legados + extras env)
+        # Montar lista coerente (base + extras env)
         working_required = list(_BASE_REQUIRED_DIRS)
-        for add in _load_legacy_required_dirs():
-            if add not in working_required:
-                working_required.append(add)
         extra_raw = os.environ.get("SSA_EXTRA_DIRS", "").strip()
         if extra_raw:
             for part in [p.strip() for p in extra_raw.split(",") if p.strip()]:
