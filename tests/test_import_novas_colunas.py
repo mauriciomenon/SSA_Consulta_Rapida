@@ -1,10 +1,12 @@
-import pandas as pd
 import sqlite3
-import os
+from pathlib import Path
+
+import pandas as pd
+
 from utils import robust_importer as ri
 
-DB_PATH = 'data/ssas_test.db'
-SCHEMA_PATH = 'config/schema_unified.sql'
+# SC-14: banco e planilha em tmp_path, nunca em data/ do repositorio.
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / 'config' / 'schema_unified.sql'
 
 SAMPLE_ROWS = [
     {
@@ -30,23 +32,21 @@ SAMPLE_ROWS = [
 ]
 
 
-def setup_db():
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
-    with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
-        schema_sql = f.read()
-    con = sqlite3.connect(DB_PATH)
+def setup_db(db_path):
+    schema_sql = SCHEMA_PATH.read_text(encoding='utf-8')
+    con = sqlite3.connect(db_path)
     cur = con.cursor()
     cur.executescript(schema_sql)
     con.commit()
     con.close()
 
 
-def test_import_novas_colunas():
-    setup_db()
+def test_import_novas_colunas(tmp_path):
+    db_path = tmp_path / 'ssas_test.db'
+    setup_db(db_path)
     df = pd.DataFrame(SAMPLE_ROWS)
     # Salva Excel temporário para reusar pipeline completo
-    temp_xlsx = 'data/temp_novas_colunas.xlsx'
+    temp_xlsx = tmp_path / 'temp_novas_colunas.xlsx'
     df.to_excel(temp_xlsx, index=False)
     norm_df, stats = ri.import_excel_robust(temp_xlsx)
 
@@ -55,7 +55,7 @@ def test_import_novas_colunas():
         assert expected in norm_df.columns, f"Coluna canônica ausente: {expected} -> colunas={norm_df.columns.tolist()}"
 
     # Inserir só colunas existentes no schema unificado
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(db_path)
     cur = con.cursor()
     schema_cols = [c[1] for c in cur.execute("PRAGMA table_info(ssa_table)").fetchall()]
     insert_df = norm_df[[c for c in norm_df.columns if c in schema_cols]].copy()
@@ -70,7 +70,3 @@ def test_import_novas_colunas():
     assert row[3] == 3, f"num_reprogramacoes esperado 3 obtido {row[3]}"
     assert row[4] == '1d 02:00', f"total_tempo_tpe_executada divergente {row[4]}"
     con.close()
-
-    # Limpeza
-    if os.path.exists(temp_xlsx):
-        os.remove(temp_xlsx)
