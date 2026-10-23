@@ -395,3 +395,22 @@ def test_cli_entrypoint_returns_error_code_and_json_on_exception(
 
     assert rc == 1
     assert parsed["error"] == "boom"
+
+
+@pytest.mark.parametrize("env", ["nenhuma", "runtime", "db_path"])
+def test_cli_db_default_ignores_cwd(tmp_path, monkeypatch, env):
+    """CD-23: --db padrao vem de SSA_DB_PATH/SSA_RUNTIME_ROOT/raiz, nunca da pasta corrente."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("SSA_DB_PATH", raising=False)
+    monkeypatch.delenv("SSA_RUNTIME_ROOT", raising=False)
+    expected = str(Path(derivadas_cli.PROJECT_ROOT) / "data" / "ssas.db")
+    if env == "runtime":
+        monkeypatch.setenv("SSA_RUNTIME_ROOT", "rt")
+        expected = str(tmp_path / "rt" / "data" / "ssas.db")
+    elif env == "db_path":
+        monkeypatch.setenv("SSA_DB_PATH", "/x/banco.db")
+        expected = "/x/banco.db"
+
+    args = derivadas_cli._build_parser().parse_args(["info", "1"])
+
+    assert args.db == expected

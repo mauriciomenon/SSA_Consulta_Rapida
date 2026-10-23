@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- `scripts/derivadas_cli.py` sem `--db` usa `SSA_DB_PATH` ou `<SSA_RUNTIME_ROOT ou pasta do programa>/data/ssas.db`; antes usava o `data/ssas.db` da pasta corrente e podia sincronizar derivadas no banco errado.
 - `main.py --force-rescan` rodando pelo codigo-fonte respeita `SSA_RUNTIME_ROOT`: `docs_entrada`, `data` (banco padrao quando `SSA_DB_PATH` nao esta definido) e as pastas criadas no inicio vem dessa raiz, como na GUI, no `cli_entry` e no `rescan` interativo; antes importava as planilhas do `docs_entrada` do repositorio. O executavel empacotado nao muda.
 - Rodando pelo codigo-fonte (`python /caminho/main.py`, `uv run --project ...`, GUI de desenvolvimento, scripts) a partir de outra pasta: as configuracoes (`settings.json`, mapeamentos de colunas, preferencias e filtros salvos da GUI) vem sempre da pasta `config/` do programa; antes valiam as da pasta corrente, e arquivos de config eram criados nela. `SSA_CONFIG_DIR` e o executavel empacotado nao mudam.
 - Ajuda de busca da CLI e do Streamlit: o exemplo para tirar as SSAs terminadas passa a ser `!=ste` (situacao diferente de STE). O exemplo antigo `!ste` exclui qualquer linha que contenha "ste" em qualquer coluna ("ajuste", "este", "poste") e escondia cerca de 1/3 das SSAs abertas. A ajuda do Streamlit tambem deixa de dizer que `OU`/`OR` e espacos separam termos: sao texto literal; use virgula.

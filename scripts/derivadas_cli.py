@@ -225,7 +225,17 @@ def _build_parser() -> argparse.ArgumentParser:
         description="CLI de sincronizacao e consulta de derivadas.",
         epilog="sync, heal e maintenance preservam JSON em stdout, inclusive ao salvar relatorios.",
     )
-    parser.add_argument("--db", default="data/ssas.db", help="SQLite database path")
+    # CD-23: mesma regra de main.py/cli_entry, nunca relativo a pasta corrente.
+    default_db = os.environ.get("SSA_DB_PATH") or os.path.join(
+        os.path.abspath(os.environ.get("SSA_RUNTIME_ROOT") or PROJECT_ROOT),
+        "data",
+        "ssas.db",
+    )
+    parser.add_argument(
+        "--db",
+        default=default_db,
+        help="SQLite database path (padrao: SSA_DB_PATH ou <SSA_RUNTIME_ROOT ou raiz>/data/ssas.db)",
+    )
     parser.add_argument("--table-name", default="ssa_table", help="Base SSA table name")
     parser.add_argument(
         "--actor", default=None, help="Optional actor label for audit trail"
