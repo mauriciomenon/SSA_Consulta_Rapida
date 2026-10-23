@@ -363,14 +363,18 @@ uv run --python $PY_RUNTIME main.py
 
 ### **Problema: Banco Corrompido**
 ```powershell
-# 1. Rode a importacao: ela verifica a integridade e tenta restaurar o
-#    ultimo snapshot valido antes de qualquer reset.
-uv run --python $PY_RUNTIME main.py --force-rescan
+# 1. Abra a GUI (ela abre mesmo sem conseguir ler o banco) e use
+#    "Atualizar dados (arquivos novos ou alterados)". Essa importacao verifica
+#    a integridade e restaura o ultimo snapshot valido
+#    (data\historico_backups\ssas.db.integrity_*.db); o banco corrompido fica
+#    em data\historico_backups\ssas.db.corrupt_*.db e a GUI avisa a
+#    restauracao. Pela linha de comando nao ha esse caminho: com o banco
+#    corrompido, --force-rescan e --reset-db falham ("file is not a database").
 
-# 2. Somente se nao houver snapshot utilizavel: reset (zera o banco e cria
-#    backup .backup_before_reset_*), limpar cache e reimportar.
-uv run --python $PY_RUNTIME main.py --reset-db
-del data\file_cache.json
+# 2. Somente se nao houver snapshot utilizavel: feche o programa, tire o banco
+#    corrompido do lugar e reimporte tudo das planilhas. SSAs que so existiam
+#    no banco (fora das planilhas de docs_entrada) nao voltam.
+move data\ssas.db data\ssas.db.corrompido
 uv run --python $PY_RUNTIME main.py --force-rescan
 ```
 
