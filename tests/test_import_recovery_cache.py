@@ -81,6 +81,12 @@ def test_restore_reimports_cached_sources_and_preserves_manual_rows(
     assert outcome is not None
     assert outcome.status is ImportStatus.UPDATED
     assert outcome.integrity_report["restored_from_snapshot"]
+    # W18: o import_run_*.json registra a restauracao e o snapshot usado.
+    assert outcome.report_path is not None
+    run_report = json.loads(Path(outcome.report_path).read_text(encoding="utf-8"))
+    assert run_report["integrity"]["restored_from_snapshot"] is True
+    assert ".integrity_" in Path(run_report["integrity"]["restored_snapshot"]).name
+    assert run_report["integrity"]["warning_count"] >= 1
     assert outcome.processed_file_count == 2
     assert _rows(db) == ["202640001", "202640002", "202649999"]
     assert not list(data.glob("*.full_rescan_candidate_*"))

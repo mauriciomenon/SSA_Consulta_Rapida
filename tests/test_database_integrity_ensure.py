@@ -138,6 +138,14 @@ def test_restore_returns_actual_schema_and_row_report(tmp_path, monkeypatch):
     assert report["schema_valid"] is True
     assert report["missing_required_columns"] == []
     assert report["issues"] == []
+    # W18: restauracao nao e silenciosa.
+    snapshot_name = Path(report["restored_snapshot"]).name
+    assert snapshot_name.startswith("ssas.db.integrity_")
+    assert Path(report["forensic_backup"]).is_file()
+    assert any(
+        "restaurado automaticamente" in w and snapshot_name in w
+        for w in report["warnings"]
+    )
     assert counter["calls"] == 2
     with closing(sqlite3.connect(db_path)) as conn, conn:
         assert conn.execute("SELECT numero_ssa FROM ssa_table").fetchall() == [("202600001",)]

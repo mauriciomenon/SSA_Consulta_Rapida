@@ -273,6 +273,10 @@ def _build_import_run_payload(
             "is_valid": integrity_report.get("is_valid"),
             "issue_count": len(integrity_report.get("issues", [])),
             "warning_count": len(integrity_report.get("warnings", [])),
+            "restored_from_snapshot": bool(
+                integrity_report.get("restored_from_snapshot", False)
+            ),
+            "restored_snapshot": integrity_report.get("restored_snapshot"),
         },
         "file_reports": file_reports,
     }

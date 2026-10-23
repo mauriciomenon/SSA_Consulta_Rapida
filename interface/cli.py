@@ -845,6 +845,15 @@ def _handle_rescan(
         else:
             print(summary_line)
 
+        if outcome is not None and outcome.integrity_report.get("restored_from_snapshot"):
+            snapshot_name = os.path.basename(
+                str(outcome.integrity_report.get("restored_snapshot") or "")
+            )
+            print(
+                f"AVISO: banco restaurado automaticamente do snapshot {snapshot_name}; "
+                "alteracoes gravadas depois dele nao estao no banco."
+            )
+
         if outcome is not None and outcome.status is import_outcome.ImportStatus.BUSY:
             print("Importador ocupado: outra rodada em andamento. Nada foi alterado.")
         elif (

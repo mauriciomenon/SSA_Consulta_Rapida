@@ -64,3 +64,34 @@ def test_packaged_cli_rescan_uses_selected_target(tmp_path: Path) -> None:
     assert arguments["table_name"] == "custom_table"
     assert arguments["docs_dir"] == paths.docs_dir
     assert arguments["extra_allowed_roots"] == [runtime_root]
+
+
+def test_rescan_warns_when_database_was_restored_from_snapshot(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W18: a CLI avisa a restauracao automatica, nao so conta 'Outros avisos'."""
+    outcome = cli.import_outcome.build_import_outcome(
+        raw_status="updated",
+        legacy_result=True,
+        run_id="w18",
+        reason="",
+        primary_db_path=str(tmp_path / "ssas.db"),
+        working_db_path=str(tmp_path / "ssas.db"),
+        integrity_report={
+            "restored_from_snapshot": True,
+            "restored_snapshot": str(tmp_path / "ssas.db.integrity_20261023_000000_0.db"),
+        },
+    )
+    with (
+        patch.object(cli, "_is_cli_non_interactive", return_value=False),
+        patch.object(cli, "run_importer_logic", return_value=True),
+        patch.object(
+            cli.import_outcome, "get_last_import_outcome", side_effect=[None, outcome]
+        ),
+    ):
+        cli._handle_rescan(str(tmp_path / "ssas.db"), "ssa_table", [], {}, {}, {})
+
+    assert (
+        "AVISO: banco restaurado automaticamente do snapshot "
+        "ssas.db.integrity_20261023_000000_0.db" in capsys.readouterr().out
+    )

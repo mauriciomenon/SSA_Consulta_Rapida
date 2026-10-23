@@ -407,6 +407,17 @@ def _restore_latest_valid_snapshot_locked(
         if structure_valid and (final_report["is_valid"] or data_only_issues):
             if report_out is not None:
                 report_out.update(final_report)
+                # W18: a restauracao descarta o que foi gravado depois do
+                # snapshot; o aviso chega ao relatorio, a GUI e a CLI.
+                report_out["restored_snapshot"] = str(snapshot)
+                warning = (
+                    f"Banco restaurado automaticamente do snapshot {snapshot.name}; "
+                    "alteracoes gravadas depois dele nao estao no banco"
+                )
+                if had_existing_db:
+                    report_out["forensic_backup"] = str(forensic)
+                    warning += f"; banco anterior preservado em {forensic}"
+                report_out["warnings"] = [*report_out.get("warnings", []), warning]
             _prune_forensic_backups(db_path)
             if had_existing_db:
                 logger.warning(
