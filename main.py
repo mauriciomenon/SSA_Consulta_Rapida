@@ -514,6 +514,7 @@ def _run_data_import(
     db_path: str | None = None,
     table_name: str | None = None,
 ) -> bool:
+    """Executa o --force-rescan; retorna True quando a rodada falhou (CD-05)."""
     from core import import_outcome
     if not getattr(args, "force_rescan", False):
         logger.info(
@@ -628,7 +629,8 @@ def _run_data_import(
         logger.info("Banco de dados atualizado com sucesso.")
     else:
         logger.info("Nenhum novo ou modificado relatorio encontrado.")
-    return db_updated
+    # Mesma regra de exit code do cli_entry (core.import_outcome.outcome_failed).
+    return outcome is not None and import_outcome.outcome_failed(outcome)
 
 
 def _resolve_database_target(active_runtime_root: str) -> tuple[str, str]:
@@ -816,7 +818,7 @@ def main(cli_args=None):
         _ensure_default_configuration(ensure_default_settings)
         _run_backfill_action(args, backfill_args)
         db_path, table_name = _resolve_database_target(active_runtime_root)
-        _run_data_import(
+        import_failed = _run_data_import(
             args,
             run_importer_logic,
             docs_dir=os.path.join(active_runtime_root, "docs_entrada"),
@@ -826,6 +828,9 @@ def main(cli_args=None):
         _launch_interface(
             args, db_path, table_name, start_cli_loop, active_runtime_root
         )
+        if import_failed:
+            logger.error("Importacao falhou; saindo com codigo 1.")
+            sys.exit(1)
 
     except KeyboardInterrupt:
         logger.info("\nOperacao interrompida pelo usuario. Saindo...")

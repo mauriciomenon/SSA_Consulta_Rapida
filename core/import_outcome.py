@@ -65,6 +65,28 @@ def is_blocking_status(status: ImportStatus | None) -> bool:
     return status not in _NON_BLOCKING_STATUSES
 
 
+_PARTIAL_FAILURE_STATUSES = frozenset(
+    {ImportStatus.UPDATED, ImportStatus.DERIVADAS_MATERIALIZED}
+)
+
+
+def outcome_failed(outcome: "ImportOutcome", extra_error_count: int = 0) -> bool:
+    """Regra unica de falha da rodada para o exit code (cli_entry e main.py).
+
+    Falha = status bloqueante, ou rodada que alterou o banco mas teve arquivos
+    candidatos com erro (parcial). `extra_error_count` soma erros vistos pelo
+    progresso que o outcome nao conta.
+    """
+    if is_blocking_status(outcome.status):
+        return True
+    error_count = max(
+        int(extra_error_count),
+        outcome.deterministic_failure_count,
+        outcome.blocking_error_count,
+    )
+    return error_count > 0 and outcome.status in _PARTIAL_FAILURE_STATUSES
+
+
 @dataclass(frozen=True, slots=True)
 class ImportOutcome:
     run_id: str

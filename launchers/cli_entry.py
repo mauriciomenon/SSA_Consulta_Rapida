@@ -157,10 +157,9 @@ def _execute_import_and_report(
         sys.stderr.write(message)
         stats["status"] = "blocked"
         return stats
-    if outcome is not None and has_errors and status in {
-        import_outcome.ImportStatus.UPDATED,
-        import_outcome.ImportStatus.DERIVADAS_MATERIALIZED,
-    }:
+    if outcome is not None and import_outcome.outcome_failed(
+        outcome, len(summary.errors)
+    ):
         logger.error(
             "Importacao parcial com erros. status=%s resultado=%r total=%s processados=%s erros=%s",
             status.value,

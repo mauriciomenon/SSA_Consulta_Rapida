@@ -192,3 +192,45 @@ def test_main_dependency_failure_exits_nonzero(
         main.main(cli_args=["--log-level", "CRITICAL"])
 
     assert excinfo.value.code == 1
+
+
+@pytest.mark.parametrize(
+    ("raw_status", "deterministic", "failed"),
+    [
+        ("updated", 0, False),
+        ("no_changes", 0, False),
+        ("updated", 2, True),
+        ("candidate_promotion_failed", 0, True),
+        ("import_busy", 0, True),
+    ],
+)
+def test_force_rescan_reports_failure_for_exit_code(
+    tmp_path, raw_status: str, deterministic: int, failed: bool
+) -> None:
+    """CD-05: main.py usa a mesma regra de falha do cli_entry (outcome_failed)."""
+    import argparse
+
+    import main
+    from core import import_outcome
+
+    def importer(**_kwargs):
+        import_outcome.record_import_outcome(
+            import_outcome.build_import_outcome(
+                raw_status=raw_status,
+                legacy_result=raw_status == "updated",
+                run_id="cd05",
+                reason="teste",
+                primary_db_path=str(tmp_path / "ssas.db"),
+                working_db_path=str(tmp_path / "ssas.db"),
+                deterministic_failure_count=deterministic,
+            )
+        )
+        return raw_status == "updated"
+
+    result = main._run_data_import(
+        argparse.Namespace(force_rescan=True, standard=True, optimized=False),
+        importer, docs_dir=str(tmp_path / "docs"),
+        db_path=str(tmp_path / "data" / "ssas.db"), table_name="ssa_table",
+    )
+
+    assert result is failed
