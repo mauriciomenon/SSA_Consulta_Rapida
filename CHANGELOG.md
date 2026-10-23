@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- `release.ps1` (build Windows) exige PowerShell 7 (`pwsh`) e para logo no inicio com a instrucao de uso. No Windows PowerShell 5.1 ele abortava com "Dependencias de build ausentes" sempre que o uv escrevia no stderr ("Using CPython ...").
 - `main.py --force-rescan` sai com codigo 1 quando a importacao falha (status bloqueante, importador ocupado ou rodada parcial com arquivos com erro), pela mesma regra do executavel da CLI; antes saia 0 e scripts nao percebiam a falha.
 - A CLI abre o banco somente para leitura ao carregar e recarregar a base (nunca escreve no `ssas.db`).
 - `launchers/build_multiplatform.py` e `launchers/build_complete.py` nao tem mais `--auto-git`, `--git-message`, `--cleanup-online` e `--cleanup-only`: o build nao faz `git add`/commit/push nem `git rm` por conta propria.

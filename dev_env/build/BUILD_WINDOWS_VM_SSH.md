@@ -54,14 +54,22 @@ tar -czf "$WORK/ssa_src.tgz" -C "$WORK" ssa_src
 ssh "$VM" 'if exist "%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6" (echo EXISTE & exit 1) else (mkdir "%USERPROFILE%\ssa_build_aux" & mkdir "%USERPROFILE%\gitlab")'
 scp "$WORK/ssa_src.tgz" "$VM:ssa_build_aux/ssa_src.tgz"
 ssh "$VM" 'cd /d "%USERPROFILE%\gitlab" && tar -xzf "%USERPROFILE%\ssa_build_aux\ssa_src.tgz" && ren ssa_src ssa_consulta_rapida_pyqt6 && del "%USERPROFILE%\ssa_build_aux\ssa_src.tgz"'
+ssh "$VM" 'cd /d "%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6" && git config core.filemode false && git rev-parse HEAD && git status --short'
 ```
+
+O `.git/config` vem do clone feito no Mac (`core.filemode=true`); no Windows
+isso marca todo `.sh` como modificado e a guarda de workspace limpo recusa o
+build. O `git status --short` precisa sair vazio e o HEAD igual a `$SRC`.
 
 ## 3. Build (VM)
 
 ```bash
-ssh "$VM" 'set "UV_CACHE_DIR=%USERPROFILE%\ssa_build_aux\uv-cache" && set "UV_PYTHON_INSTALL_DIR=%USERPROFILE%\ssa_build_aux\uv-python" && cd /d "%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6" && powershell -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 -Target windows -Platform windows_amd64 -Backend pyinstaller -SkipInstaller -Yes'
+ssh "$VM" 'set "UV_CACHE_DIR=%USERPROFILE%\ssa_build_aux\uv-cache" && set "UV_PYTHON_INSTALL_DIR=%USERPROFILE%\ssa_build_aux\uv-python" && cd /d "%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6" && pwsh -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 -Target windows -Platform windows_amd64 -Backend pyinstaller -SkipInstaller -Yes'
 ```
 
+- Use `pwsh` (PowerShell 7). No Windows PowerShell 5.1 o `release.ps1` aborta
+  quando o uv escreve no stderr ("Using CPython ...") porque `2>&1` com
+  `$ErrorActionPreference = "Stop"` vira erro fatal nessa versao (BL-12b).
 - Sem Inno Setup na VM use `-SkipInstaller`.
 - Sem `-IncludeRuntimeDb`: o pacote nao leva banco operacional.
 - Para `windows_arm64`, rode so em Windows ARM64 nativo e informe o Python

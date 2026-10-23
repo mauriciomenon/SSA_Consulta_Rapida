@@ -348,3 +348,11 @@ def test_windows_release_workflow_runs_real_wrapper_and_uploads_artifacts() -> N
     assert "& powershell @args" not in workflow
     assert "$releaseArgs = @(" not in workflow
     assert "& .\\release.ps1 @releaseParams" in workflow
+
+
+@pytest.mark.parametrize("script", ["release.ps1", "dev_env/build/release_windows.ps1"])
+def test_windows_release_requires_powershell_7(script: str) -> None:
+    """BL-12b: no 5.1 o stderr do uv vira erro fatal; os scripts exigem pwsh 7."""
+    text = (Path(__file__).resolve().parent.parent / script).read_text(encoding="utf-8")
+    assert "$PSVersionTable.PSVersion.Major -lt 7" in text
+    assert "-lt 5" not in text

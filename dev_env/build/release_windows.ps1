@@ -27,8 +27,9 @@ function Assert-WindowsHost {
 }
 
 function Assert-PowerShellHost {
-    if ($PSVersionTable.PSVersion.Major -lt 5) {
-        throw "PowerShell 5 ou superior e requerido."
+    # BL-12b: 5.1 transforma stderr nativo (uv) em erro fatal com 2>&1.
+    if ($PSVersionTable.PSVersion.Major -lt 7) {
+        throw "PowerShell 7 (pwsh) e requerido."
     }
 }
 

@@ -13,6 +13,12 @@ param(
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
 
+# BL-12b: no Windows PowerShell 5.1, stderr de comando nativo (ex.: "Using
+# CPython ..." do uv) com 2>&1 e ErrorActionPreference=Stop vira erro fatal.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "release.ps1 requer PowerShell 7 (pwsh). Rode: pwsh -NoProfile -ExecutionPolicy Bypass -File .\release.ps1 ..."
+}
+
 $DefaultBackend = "nuitka"
 
 function Show-Usage {
