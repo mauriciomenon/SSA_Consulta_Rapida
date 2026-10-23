@@ -763,7 +763,7 @@ def test_build_cli_plain_help_text_reflects_current_search_contract() -> None:
     help_text = cli._build_cli_plain_help_text()
 
     assert "Separe termos por virgula" in help_text
-    assert "Exemplos: svp, !ste, mel4" in help_text
+    assert "Exemplos: svp, !=ste, mel4" in help_text
     assert "h ou ?    Ajuda completa" in help_text
 
 
@@ -894,7 +894,7 @@ def test_build_cli_plain_help_text_detailed_reuses_initial_search_contract() -> 
     help_text = cli._build_cli_plain_help_text(detailed=True)
 
     assert "Mantem o mesmo contrato da busca inicial" in help_text
-    assert "Exemplos: svp, !ste, mel4" in help_text
+    assert "Exemplos: svp, !=ste, mel4" in help_text
     assert "OU/OR/AND/E/v continuam literais na busca" in help_text
 
 

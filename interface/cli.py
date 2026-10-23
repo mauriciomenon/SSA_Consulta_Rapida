@@ -476,7 +476,9 @@ PESQUISA
   {bullet} Separe termos por virgula (ex.: ADM, MEL3, 2025)
   {bullet} Termos simples procuram em qualquer parte; use =valor para coincidencia exata
   {bullet} Prefixos: ^inicio, fim$, =exato, ~regex, !negativo (podem ser combinados)
-  {bullet} Exemplos: svp, !ste, mel4 -> contem "svp", exclui "STE", contem "mel4"
+  {bullet} Exemplos: svp, !=ste, mel4 -> contem "svp", situacao diferente de STE, contem "mel4"
+  {bullet} !termo exclui linhas que CONTEM o termo em qualquer coluna (!ste tira tambem "ajuste");
+    para excluir um valor exato use !=valor
   {bullet} Tambem aceita comparacoes/regex (ex.: mmu2, prazo<=30, ^2025)
 
 COMANDOS PRINCIPAIS
@@ -499,7 +501,7 @@ ORGANIZACAO
   l                    Listar filtros ativos
 
 DICAS
-  {bullet} Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
+  {bullet} Filtros ativos aparecem acima do prompt; digite termos como: svp, !=ste, mel4
   {bullet} Busca: termos por virgula; !termo exclui
   {bullet} Comandos: d # detalhe, v voltar, x <termo> remover, m mais, l listar, h ajuda
   {bullet} Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
@@ -528,7 +530,7 @@ PESQUISA AVANCADA
   {bullet} Mantem o mesmo contrato da busca inicial: termos separados por virgula e cumulativos
   {bullet} OU/OR/AND/E/v continuam literais na busca
   {bullet} Modos por termo: foo, ^foo, foo$, =foo, ~regex, !foo
-  {bullet} Exemplos: svp, !ste, mel4 | ^MEL | =STE | ~MEL[0-9]+
+  {bullet} Exemplos: svp, !=ste, mel4 | ^MEL | =STE | ~MEL[0-9]+
 {line}
 
 Pressione Enter para continuar...

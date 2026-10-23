@@ -2537,8 +2537,8 @@ if REAL_RUNTIME and not raw_df.empty:
             search_input = search_row[0].text_input(
                 "Busca (mesma sintaxe da CLI)",
                 value=filter_state.get("search_terms", ""),
-                placeholder="ex.: svp, !ste, mel4",
-                help="Use virgula para multiplos valores e ! para diferente de.",
+                placeholder="ex.: svp, !=ste, mel4",
+                help="Virgula separa termos (todos precisam casar). !=valor exclui o valor exato; !termo exclui o que contem o termo.",
             )
             apply_search_now = search_row[1].form_submit_button("Filtrar agora")
             consult_api_input = st.checkbox(
@@ -2761,11 +2761,11 @@ if REAL_RUNTIME and not raw_df.empty:
             preset_min = preset_cols[2].form_submit_button("Minimo")
             with st.expander("Ajuda rapida", expanded=False):
                 st.markdown(
-                    "* Sintaxe basica: `svp, !ste, mel4`\n"
-                    "* Use `OU` ou `OR` para alternativas (`svp OU mel4`)\n"
+                    "* Sintaxe basica: `svp, !=ste, mel4`\n"
+                    "* `OU`/`OR`/`E`/`AND` sao texto literal, nao operadores\n"
                     "* Prefixos uteis: `^` inicio, `$` final, `=` igual, `~` regex\n"
-                    "* `!` inverte termo (`!^adm`, `!mel4`)\n"
-                    "* Virgulas equivalem a E/AND; espacos tambem separam termos"
+                    "* `!` inverte termo: `!=ste` exclui o valor exato, `!mel4` exclui o que contem mel4\n"
+                    "* Virgulas equivalem a E/AND; espacos fazem parte do termo"
                 )
             form_cols = st.columns(2)
             apply_filters = form_cols[0].form_submit_button("Aplicar filtros")
