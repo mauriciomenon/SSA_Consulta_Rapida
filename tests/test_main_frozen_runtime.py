@@ -169,6 +169,26 @@ def test_seed_runtime_folder_skips_recursive_scan_when_marker_matches(
     ).read_text(encoding="utf-8") == "bundle"
 
 
+@pytest.mark.parametrize("override", [None, "runtime"])
+def test_prepare_runtime_source_mode_honors_runtime_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    override: str | None,
+) -> None:
+    """CD-02: fora do pacote, SSA_RUNTIME_ROOT define docs_entrada/data do main.py."""
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    monkeypatch.delattr(sys, "oxidized", raising=False)
+    monkeypatch.chdir(tmp_path)
+    if override is None:
+        monkeypatch.delenv("SSA_RUNTIME_ROOT", raising=False)
+        expected = "/code/root"
+    else:
+        monkeypatch.setenv("SSA_RUNTIME_ROOT", override)
+        expected = str(tmp_path / override)
+
+    assert main_runtime._prepare_frozen_runtime("/code/root") == expected
+
+
 def test_ensure_runtime_environment_keeps_project_root_trusted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

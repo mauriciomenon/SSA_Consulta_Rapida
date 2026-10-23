@@ -292,7 +292,9 @@ def _prepare_frozen_runtime(project_root_path: str) -> str:
         or "__compiled__" in globals()
     )
     if not is_frozen_mode:
-        return project_root_path
+        # CD-02: mesma regra de interface/cli.py, gui/gui_ssa.py e cli_entry.py.
+        runtime_override = os.environ.get("SSA_RUNTIME_ROOT")
+        return os.path.abspath(runtime_override) if runtime_override else project_root_path
 
     runtime_dir = _resolve_runtime_home()
     source_root = Path(project_root_path)
