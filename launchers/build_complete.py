@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Build Completo - SSA Consulta Rapida
-Script de conveniencia para build completo com limpeza e git operations.
+Script de conveniencia para build completo com limpeza (sem operacoes git).
 """
 
 import argparse
@@ -45,7 +45,7 @@ def _coerce_builder_exit_code(result_code):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build completo com limpeza automatica e git operations"
+        description="Build completo com limpeza automatica"
     )
 
     parser.add_argument(
@@ -60,39 +60,9 @@ def main():
         "--no-cleanup", action="store_true", help="Pular limpeza automatica"
     )
 
-    parser.add_argument(
-        "--auto-git",
-        action="store_true",
-        help="Executar commit e push automaticos apos build bem-sucedido",
-    )
-
-    parser.add_argument(
-        "--git-message", type=str, help="Mensagem personalizada para commit"
-    )
-
-    parser.add_argument(
-        "--cleanup-only", action="store_true", help="Apenas executar limpeza sem build"
-    )
-
     args = parser.parse_args()
-    git_message = args.git_message.strip() if args.git_message is not None else None
-    if args.git_message is not None and not args.auto_git:
-        parser.error("--git-message requer --auto-git")
-    if args.git_message is not None and not git_message:
-        parser.error("--git-message nao pode ser vazio")
-    if args.cleanup_only and args.auto_git:
-        parser.error("--auto-git nao pode ser usado com --cleanup-only")
-    args.git_message = git_message
 
     try:
-        script_args = []
-        if args.cleanup_only:
-            # Apenas limpeza
-            logger.info("CLEAN Executando limpeza completa...")
-            script_args.append("--cleanup-online")
-            result_code = _execute_builder_script(script_args)
-            return _coerce_builder_exit_code(result_code)
-
         # Build completo
         logger.info("START Iniciando build completo...")
         script_args = ["--apps", *args.apps]
@@ -100,11 +70,6 @@ def main():
         # Adicionar flags automaticas
         if not args.no_cleanup:
             script_args.append("--auto-cleanup")
-
-        if args.auto_git:
-            script_args.append("--auto-git")
-            if args.git_message:
-                script_args.extend(["--git-message", args.git_message])
 
         result_code = _execute_builder_script(script_args)
         exit_code = _coerce_builder_exit_code(result_code)

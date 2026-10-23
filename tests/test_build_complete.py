@@ -31,54 +31,6 @@ def test_build_complete_executes_default_build_flow(monkeypatch):
     assert "--cleanup-online" not in run_cmd
 
 
-def test_build_complete_cleanup_only_uses_cleanup_online(monkeypatch):
-    calls = []
-
-    def fake_execute_builder_script(args):
-        calls.append(list(args))
-        return 0
-
-    monkeypatch.setattr(
-        build_complete,
-        "_execute_builder_script",
-        fake_execute_builder_script,
-    )
-    fake_argv = ["build_complete.py", "--cleanup-only"]
-    monkeypatch.setattr(sys, "argv", fake_argv)
-
-    assert build_complete.main() == 0
-
-    assert len(calls) == 1
-    run_cmd = calls[0]
-    assert "--cleanup-online" in run_cmd
-    assert "--auto-cleanup" not in run_cmd
-
-
-def test_build_complete_rejects_auto_git_with_cleanup_only(monkeypatch):
-    calls = []
-
-    def fake_execute_builder_script(args):
-        calls.append(list(args))
-        return 0
-
-    monkeypatch.setattr(
-        build_complete,
-        "_execute_builder_script",
-        fake_execute_builder_script,
-    )
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["build_complete.py", "--cleanup-only", "--auto-git"],
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        build_complete.main()
-
-    assert exc.value.code == 2
-    assert calls == []
-
-
 def test_build_complete_fails_when_builder_return_is_none(monkeypatch, caplog):
     calls = []
 
@@ -101,100 +53,6 @@ def test_build_complete_fails_when_builder_return_is_none(monkeypatch, caplog):
     )
 
 
-def test_build_complete_auto_git_requires_explicit_flag(monkeypatch):
-    calls = []
-
-    def fake_execute_builder_script(args):
-        calls.append(list(args))
-        return 0
-
-    monkeypatch.setattr(
-        build_complete,
-        "_execute_builder_script",
-        fake_execute_builder_script,
-    )
-    monkeypatch.setattr(sys, "argv", ["build_complete.py", "--auto-git"])
-
-    assert build_complete.main() == 0
-    assert calls == [["--apps", "cli", "gui", "--auto-cleanup", "--auto-git"]]
-
-
-def test_build_complete_trims_auto_git_message(monkeypatch):
-    calls = []
-
-    def fake_execute_builder_script(args):
-        calls.append(list(args))
-        return 0
-
-    monkeypatch.setattr(
-        build_complete,
-        "_execute_builder_script",
-        fake_execute_builder_script,
-    )
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["build_complete.py", "--auto-git", "--git-message", "  build release  "],
-    )
-
-    assert build_complete.main() == 0
-    assert calls == [
-        [
-            "--apps",
-            "cli",
-            "gui",
-            "--auto-cleanup",
-            "--auto-git",
-            "--git-message",
-            "build release",
-        ]
-    ]
-
-
-def test_build_complete_rejects_git_message_without_auto_git(monkeypatch):
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["build_complete.py", "--git-message", "build release"],
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        build_complete.main()
-
-    assert exc.value.code == 2
-
-
-def test_build_complete_rejects_empty_git_message(monkeypatch):
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["build_complete.py", "--auto-git", "--git-message", "   "],
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        build_complete.main()
-
-    assert exc.value.code == 2
-
-
-def test_build_complete_cleanup_only_fails_when_builder_return_is_none(monkeypatch):
-    calls = []
-
-    def fake_execute_builder_script(args):
-        calls.append(list(args))
-        return None
-
-    monkeypatch.setattr(
-        build_complete,
-        "_execute_builder_script",
-        fake_execute_builder_script,
-    )
-    monkeypatch.setattr(sys, "argv", ["build_complete.py", "--cleanup-only"])
-
-    assert build_complete.main() == 1
-    assert calls == [["--cleanup-online"]]
-
-
 def test_execute_builder_script_invokes_main_and_restores_argv(monkeypatch):
     previous_argv = ["outer.py", "--flag"]
     observed_args = []
@@ -211,9 +69,9 @@ def test_execute_builder_script_invokes_main_and_restores_argv(monkeypatch):
     monkeypatch.setattr(sys, "argv", previous_argv.copy())
     monkeypatch.setattr(build_complete.importlib, "import_module", fake_import_module)
 
-    assert build_complete._execute_builder_script(["--cleanup-online"]) == 0
+    assert build_complete._execute_builder_script(["--clean"]) == 0
 
-    assert observed_args == [["--cleanup-online"]]
+    assert observed_args == [["--clean"]]
     assert sys.argv == previous_argv
 
 
@@ -227,10 +85,29 @@ def test_execute_builder_script_restores_argv_when_import_fails(monkeypatch):
     monkeypatch.setattr(build_complete.importlib, "import_module", fake_import_module)
 
     try:
-        build_complete._execute_builder_script(["--cleanup-online"])
+        build_complete._execute_builder_script(["--clean"])
     except RuntimeError as exc:
         assert str(exc) == "import failed"
     else:
         pytest.fail("expected import failure")
 
     assert sys.argv == previous_argv
+
+
+@pytest.mark.parametrize("flag", ["--auto-git", "--cleanup-only", "--git-message=x"])
+def test_build_complete_has_no_git_operations(monkeypatch, flag):
+    """CD-39: build nao faz git add/commit/push nem git rm por conta propria."""
+    monkeypatch.setattr(sys, "argv", ["build_complete.py", flag])
+    with pytest.raises(SystemExit) as exc:
+        build_complete.main()
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("flag", ["--auto-git", "--cleanup-online"])
+def test_build_multiplatform_has_no_git_operations(flag):
+    from launchers import build_multiplatform
+
+    with pytest.raises(SystemExit) as exc:
+        build_multiplatform.main([flag])
+    assert exc.value.code == 2
+    assert not hasattr(build_multiplatform.MultiPlatformBuilder, "git_add_commit_push")
