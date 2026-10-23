@@ -24,14 +24,12 @@ def build_argument_parser(app_version: str, prog_name: str) -> argparse.Argument
         epilog="""
 EXEMPLOS DE USO
   Modo padrao:        python main.py
-  Modo otimizado:     python main.py --optimized
   Interface grafica:  python main.py --gui
   Reset de banco:     python main.py --reset-db
   Limpeza de dados:   python main.py --clean-data
   Reimportar tudo:    python main.py --force-rescan
-  Otimizado + rescan: python main.py --optimized --force-rescan
 
-Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
+Mais detalhes: README.md e docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
 """,
     )
 
@@ -48,18 +46,16 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         "--rescan",
         dest="force_rescan",
         action="store_true",
-        help="""Reimporta todos os arquivos Excel ignorando o cache.
+        help="""Reanalise completa: recria o banco com as planilhas de docs_entrada.
 
-         DIFERENCAS
-         --force-rescan: Nome atual, recomendado
-         --rescan:       Alias para compatibilidade (mesmo efeito)
-
+         --force-rescan e --rescan tem o mesmo efeito.
 
         COMPORTAMENTO:
-         Ignora arquivo de controle de importacao (.last_import)
-         Processa todos os arquivos Excel novamente
-         Detecta e importa mudancas, adicoes e remocoes
-         Util quando arquivos foram modificados manualmente
+         Ignora o cache de importacao (data/file_cache*.json)
+         Monta um banco novo so com as planilhas presentes na pasta
+         SSAs de planilhas retiradas da pasta deixam de existir no banco
+         O banco anterior fica em data/ssas.db.full_rescan_backup_<data_hora>
+         Para so acrescentar planilhas novas use "Atualizar dados" na GUI
 
         EXEMPLO: python main.py --force-rescan""",
     )
@@ -77,42 +73,16 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     parser.add_argument(
         "--optimized",
         action="store_true",
-        help="""DEPRECATED: Modo otimizado agora e PADRAO. Use --standard para modo legado.
-
-         AVISO: MODO OTIMIZADO JA E PADRAO
-         Esta flag nao e mais necessaria - modo otimizado
-         e ativado automaticamente para melhor performance.
-
-         Use --standard se precisar do modo legado por
-         compatibilidade ou debugging especifico.
-        """,
+        help="""Sem efeito: o upsert em lote ja e o padrao do --force-rescan no main.py.""",
     )
     parser.add_argument(
         "--standard",
         action="store_true",
-        help="""Ativa modo LEGADO/DEBUG (mais lento, melhor para debugging).
+        help="""No --force-rescan do main.py, usa o upsert padrao (o mesmo da GUI e do
+        executavel) no lugar do upsert em lote. O banco final e o mesmo; a
+        diferenca de tempo medida e pequena.
 
-         MODO LEGADO/DEBUG
-         CARACTERISTICAS
-            Operacoes linha por linha (mais lento)
-            Logs mais detalhados para debugging
-            Verificacoes adicionais de integridade
-            Melhor para analise de problemas
-
-         QUANDO USAR
-            Debugging de problemas de importacao
-            Analise detalhada de erros
-            Compatibilidade com sistemas antigos
-            Desenvolvimento e testes
-
-
-        AVISO: Ate 90% mais lento que o modo padrao otimizado.
-
-        EXEMPLOS:
-        python main.py --standard
-        python main.py --standard --force-rescan
-
-        Mais detalhes: GUIA_MODO_OPTIMIZED.md""",
+        EXEMPLO: python main.py --standard --force-rescan""",
     )
     parser.add_argument(
         "--gui",

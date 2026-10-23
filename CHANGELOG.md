@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Ajuda da linha de comando (`main.py --help`) fiel ao que o programa faz: `--force-rescan` explica que recria o banco so com as planilhas presentes e onde fica o banco anterior (citava o `.last_import`, que nao existe); `--optimized` aparece como sem efeito; `--standard` deixa de prometer "ate 90% mais lento" e logs extras. Sai a referencia ao inexistente `GUIA_MODO_OPTIMIZED.md`.
+- Guia de instalacao so com uv: saem os fluxos alternativos com `python -m venv`, `pip` e `python main.py` sem uv, e a recomendacao de `--optimized`.
 - `scripts/check_docs.py` checa os Markdown que o git conhece (versionados e novos nao ignorados): arquivos locais ignorados pelo `.gitignore` (`.remember/`, `tmp/`, docs locais) nao derrubam mais os quality gates, e `dev_env/build/*.md`, antes pulado pela pasta `build`, passa a ser checado. Fora de um repositorio git o script sai com erro (codigo 2).
 - `release.ps1` (build Windows) exige PowerShell 7 (`pwsh`) e para logo no inicio com a instrucao de uso. No Windows PowerShell 5.1 ele abortava com "Dependencias de build ausentes" sempre que o uv escrevia no stderr ("Using CPython ...").
 - `main.py --force-rescan` sai com codigo 1 quando a importacao falha (status bloqueante, importador ocupado ou rodada parcial com arquivos com erro), pela mesma regra do executavel da CLI; antes saia 0 e scripts nao percebiam a falha.

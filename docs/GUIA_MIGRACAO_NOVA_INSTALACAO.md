@@ -80,19 +80,6 @@ uv sync
 # Ordem recomendada: 3.13 -> 3.12 -> 3.11 -> 3.10
 $PY_RUNTIME = "3.13"
 uv run --python $PY_RUNTIME python --version
-
-# Opcional: fluxo manual sem uv (apenas fallback)
-python -m venv .venv
-
-# Ativar ambiente (apenas para fluxo manual fallback)
-# Metodo 1 - PowerShell
-.\.venv\Scripts\Activate.ps1
-
-# Metodo 2 - CMD/Batch
-.\.venv\Scripts\activate.bat
-
-# Metodo 3 - Usar script incluido
-.\dev_env\activate_env.ps1
 ```
 
 ### **Passo 4: Instalar Dependencias**
@@ -100,12 +87,6 @@ python -m venv .venv
 # Fluxo recomendado (uv-first)
 uv sync
 
-# Compatibilidade sem uv
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-
-# Verificar instalacao
-python -m pip list
 ```
 
 ---
@@ -162,11 +143,8 @@ Get-ExecutionPolicy -List
 
 ### **Passo 3: Verificar Configuracao**
 ```powershell
-# Verificar se o ambiente esta ativo
-python -c "import sys; in_venv = sys.prefix != sys.base_prefix; print('Ambiente ativo:' if in_venv else 'Ambiente NAO ativo')"
-
-# Listar pacotes instalados
-python -m pip list | findstr -i "pandas pyqt6 openpyxl"
+# Conferir as dependencias principais no ambiente do projeto (uv)
+uv tree --depth 1 | findstr -i "pandas pyqt6 openpyxl"
 ```
 
 ---
@@ -178,8 +156,6 @@ python -m pip list | findstr -i "pandas pyqt6 openpyxl"
 # Verificar help completo (uv-first)
 uv run --python $PY_RUNTIME main.py --help
 
-# Fallback manual sem uv
-python main.py --help
 
 # Deve exibir help detalhado com todas as opcoes
 ```
@@ -199,18 +175,6 @@ except ImportError as e:
     print(f'Erro ao importar: {e}')
 "
 
-# Fallback manual sem uv
-python -c "
-import sys, os
-sys.path.insert(0, '.')
-try:
-    from core import app_logic
-    from armazenamento import database
-    from interface import cli
-    print('Todos os modulos carregados com sucesso')
-except ImportError as e:
-    print(f'Erro ao importar: {e}')
-"
 ```
 
 ### **Teste 3: Criacao do Banco**
@@ -220,8 +184,6 @@ except ImportError as e:
 # (um backup .backup_before_reset_* e criado antes).
 uv run --python $PY_RUNTIME main.py --reset-db
 
-# Fallback manual sem uv
-python main.py --reset-db
 
 # Verificar se o banco foi criado
 ls data\ssas.db
@@ -262,17 +224,11 @@ ls docs_entrada
 # Importacao inicial (uv-first)
 uv run --python $PY_RUNTIME main.py --force-rescan
 
-# Ou importacao otimizada (recomendado para arquivos grandes, uv-first)
-uv run --python $PY_RUNTIME main.py --optimized --force-rescan
 
-# Fallback manual sem uv
-python main.py --optimized --force-rescan
 
 # Reimportacao completa posterior (uv-first)
 uv run --python $PY_RUNTIME main.py --force-rescan
 
-# Fallback manual sem uv
-python main.py --force-rescan
 ```
 
 ### **Passo 3: Verificar Importacao**
@@ -293,8 +249,6 @@ type data\file_cache.json
 # Testar CLI interativo (uv-first)
 uv run --python $PY_RUNTIME main.py
 
-# Fallback manual sem uv
-python main.py
 
 # Comandos de teste na CLI:
 # - Digite: help
@@ -307,8 +261,6 @@ python main.py
 # Testar GUI (uv-first)
 uv run --python $PY_RUNTIME main.py --gui
 
-# Fallback manual sem uv
-python main.py --gui
 
 # Verificar funcionalidades:
 # - Carregamento da tabela
@@ -321,14 +273,10 @@ python main.py --gui
 # Executar testes basicos (uv-first)
 uv run --python $PY_RUNTIME python -m pytest tests\test_imports.py -v
 
-# Fallback manual sem uv
-python -m pytest tests\test_imports.py -v
 
 # Executar teste de banco (uv-first)
 uv run --python $PY_RUNTIME python -m pytest tests\test_database.py -q
 
-# Fallback manual sem uv
-python -m pytest tests\test_database.py -q
 
 # Executar teste de sistema completo
 uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py
@@ -395,8 +343,7 @@ uv run --python $PY_RUNTIME python -c "from PyQt6.QtWidgets import QApplication;
 ```powershell
 # Ler em ordem de prioridade:
 type README.md                           # ← Visao geral do projeto
-type GUIA_MODO_OPTIMIZED.md             # ← Otimizacoes de performance
-type CHANGELOG_IMPLEMENTACOES.md        # ← Historico de mudancas
+type CHANGELOG.md                       # ← Historico de mudancas
 ```
 
 ### **2. Configuracoes e Schema**
@@ -454,7 +401,7 @@ uv run --python $PY_RUNTIME main.py --help
 # fica em data\ssas.db.full_rescan_backup_<data_hora>. Para so acrescentar
 # planilhas novas, use "Atualizar dados (arquivos novos ou alterados)" na GUI.
 # --reset-db so para recomecar do zero.
-uv run --python $PY_RUNTIME main.py --optimized --force-rescan
+uv run --python $PY_RUNTIME main.py --force-rescan
 ```
 
 ---
@@ -495,7 +442,7 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 ## **NOTAS IMPORTANTES**
 
 1. **Backup**: Sempre faca backup antes de usar em producao
-2. **Performance**: Use `--optimized` para arquivos grandes (>5MB)
+2. **Performance**: `--optimized` nao tem efeito (o `--force-rescan` ja usa o upsert em lote)
 3. **GUI**: A interface grafica requer PyQt6 funcionando
 
 ---
