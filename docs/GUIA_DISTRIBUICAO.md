@@ -6,7 +6,7 @@
 - Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
 - Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
-- Comando canonico para build Windows com banco runtime opcional: `.\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes`. Os ZIPs locais v4.51 desta rodada foram gerados sem banco operacional.
+- Comando canonico para build Windows: `.\release.ps1 -Target windows -Backend pyinstaller -Yes` (sem banco). `-IncludeRuntimeDb` embute o `data\ssas.db` operacional desta maquina no pacote: use so quando o pacote for para quem pode ver esses dados. Os ZIPs locais v4.51 desta rodada foram gerados sem banco operacional.
 - Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
 - Nao compartilhar checkout ou venv entre Windows e WSL/Linux. Validacao Linux exige clone Linux proprio; build Windows usa ferramentas Windows nativas.
 - Artefatos `v4.50` e anteriores seguem historicos e nao validam a candidata `v4.51`.
@@ -48,7 +48,13 @@
 Use estes comandos como entrada primaria. Os scripts em `dev_env/build/` sao
 implementacao interna e devem ser usados diretamente apenas para diagnostico.
 
-Windows AMD64, comando para a candidata local v4.51, PyInstaller com banco runtime e instalador:
+Windows AMD64, PyInstaller com instalador, sem banco operacional:
+
+```powershell
+.\release.ps1 -Target windows -Backend pyinstaller -Yes
+```
+
+Opcional, embute o `data\ssas.db` desta maquina (dados operacionais) no pacote:
 
 ```powershell
 .\release.ps1 -Target windows -Backend pyinstaller -IncludeRuntimeDb -Yes
