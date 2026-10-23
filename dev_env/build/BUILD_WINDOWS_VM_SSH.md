@@ -77,28 +77,41 @@ ssh "$VM" 'set "UV_CACHE_DIR=%USERPROFILE%\ssa_build_aux\uv-cache" && set "UV_PY
 - Build longo: se a sessao ssh cair, o Windows encerra o processo. Rode em
   primeiro plano e confira o relatorio no fim.
 
-## 4. Recuperar os pacotes (VM -> Mac)
+## 4. Conferir e recuperar os pacotes (VM -> Mac)
+
+O relatorio (`builds/reports/release_report_windows_<alvo>.json`) traz o commit,
+a versao dos .exe e o smoke da CLI (importacao real em runtime temporario). A
+abertura da GUI e o SHA-256 usam os scripts do proprio snapshot (comandos
+PowerShell com aspas passados direto pelo cmd do ssh quebram):
 
 ```bash
+REPO_VM='%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6'
+ssh "$VM" "cd /d \"$REPO_VM\" && pwsh -NoProfile -ExecutionPolicy Bypass -File dev_env\\build\\vm_gui_alive.ps1"
+
 DEST=builds/packages/windows_amd64
 mkdir -p "$DEST"
 scp "$VM:gitlab/ssa_consulta_rapida_pyqt6/builds/packages/windows_amd64/*.zip" "$DEST/"
 scp "$VM:gitlab/ssa_consulta_rapida_pyqt6/builds/reports/release_report_windows_amd64.json" "$DEST/"
-ssh "$VM" 'powershell -NoProfile -Command "Get-FileHash $env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6\builds\packages\windows_amd64\*.zip -Algorithm SHA256 | Format-Table Hash,Path -AutoSize"'
-shasum -a 256 "$DEST"/*.zip
+ssh "$VM" "cd /d \"$REPO_VM\" && pwsh -NoProfile -ExecutionPolicy Bypass -File dev_env\\build\\vm_zip_sha256.ps1" | tr -d '\r' > "$WORK/sha_vm.txt"
+(cd "$DEST" && shasum -a 256 *.zip | sort -k2) > "$WORK/sha_mac.txt"
+diff "$WORK/sha_vm.txt" "$WORK/sha_mac.txt" && echo "SHA256 IGUAL"
 ```
 
-Confira: o SHA-256 da copia igual ao da VM e o `commit` do relatorio igual a
-`$SRC`.
+Confira: `PE machine: 0x8664` (amd64; `0xAA64` no arm64) e `GUI_VIVA`, SHA-256
+igual, `git_commit` do relatorio igual a `$SRC`, `smoke.exit_code` 0 e, no ZIP,
+so a config versionada em `_internal/config` (sem `gui_main_preferences.json`
+nem `ssas.db`). O teste da GUI usa o runtime normal do app
+(`%APPDATA%\SSA_Consulta_Rapida`); nao apague essa pasta se ela ja existia.
 
 ## 5. Limpar (VM e Mac)
 
 ```bash
-ssh "$VM" 'rmdir /s /q "%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6" & rmdir /s /q "%USERPROFILE%\ssa_build_aux"'
+ssh "$VM" 'rmdir /s /q "%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6" & rmdir /s /q "%USERPROFILE%\ssa_build_aux" & rmdir /s /q "%TEMP%\ssa_consulta_rapida"'
 ssh "$VM" 'if exist "%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6" (echo SOBROU) else (echo LIMPO) & if exist "%USERPROFILE%\ssa_build_aux" (echo SOBROU) else (echo LIMPO)'
 rm -rf "$WORK"
 ```
 
+`%TEMP%\ssa_consulta_rapida` (so `db_locks`) e criado pelo smoke do release.
 `%USERPROFILE%\gitlab` so e removido se tiver sido criado neste procedimento e
 estiver vazio (`rmdir "%USERPROFILE%\gitlab"` falha sozinho se houver outro
 repositorio la).
