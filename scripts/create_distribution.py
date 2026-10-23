@@ -17,15 +17,21 @@ import os
 import shutil
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import zipfile
 from contextlib import closing
 from pathlib import Path
 from typing import Optional
 
-from shared.date_utils import format_current_timestamp
-from utils.robust_logging import get_robust_logger
-from utils.sqlite_backup import bounded_sqlite_backup
+# CD-21: `uv run scripts/create_distribution.py` (caminho) precisa da raiz no path.
+_CODE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _CODE_ROOT not in sys.path:
+    sys.path.insert(0, _CODE_ROOT)
+
+from shared.date_utils import format_current_timestamp  # noqa: E402
+from utils.robust_logging import get_robust_logger  # noqa: E402
+from utils.sqlite_backup import bounded_sqlite_backup  # noqa: E402
 
 logger = get_robust_logger().get_logger(__name__, "distribution")
 

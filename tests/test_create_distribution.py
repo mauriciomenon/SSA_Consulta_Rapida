@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -1588,3 +1589,18 @@ def test_resolve_inno_source_pyoxidizer_uses_exe_path_from_build_info(
     resolved_dir, resolved_exe = resolved
     assert resolved_dir == source_dir
     assert resolved_exe == "SSA_Consulta_Rapida.exe"
+
+
+def test_script_runs_by_path_from_other_cwd(tmp_path: Path) -> None:
+    """CD-21: `uv run scripts/create_distribution.py` (por caminho) importa o projeto."""
+    script = Path(create_distribution.__file__).resolve()
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--build-system" in result.stdout
