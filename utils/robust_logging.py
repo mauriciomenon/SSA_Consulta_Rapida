@@ -232,6 +232,8 @@ class RobustLogger:
         self.config = self._load_config(config_path)
         self.metrics = PerformanceMetrics()
         self.loggers = {}
+        # Arquivo de log texto efetivamente aberto (None se desativado).
+        self.log_file: Optional[Path] = None
         self._setup_root_logger()
 
     def _load_config(self, config_path: Optional[str]) -> Dict:
@@ -369,8 +371,9 @@ class RobustLogger:
         # Handler para arquivo texto
         if self.config["enable_file"]:
             try:
+                self.log_file = log_dir / self.config["filename"]
                 file_handler = logging.handlers.RotatingFileHandler(
-                    filename=log_dir / self.config["filename"],
+                    filename=self.log_file,
                     maxBytes=self.config["max_file_size"],
                     backupCount=self.config["backup_count"],
                     encoding="utf-8",

@@ -7,14 +7,13 @@ Permite pesquisar, filtrar, ordenar, exportar e visualizar detalhes das SSAs.
 """
 
 import hashlib
-import logging
 import math
 import os
 import re
 import sys
 import textwrap
 import unicodedata
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import pandas as pd
@@ -747,30 +746,15 @@ def _handle_rescan(
         return
 
     print("Forçando reanálise dos relatórios...")
-    summary_counts: Counter = Counter()
-    other_warnings: List[str] = []
+    # CD-17: mesmos contadores do cli_entry (core.import_progress).
+    from core.import_progress import ImportProgressSummary
 
-    def _extract_first_number(text: str) -> int:
-        match = re.search(r"(\d+)", text)
-        return int(match.group(1)) if match else 0
-
-    class _SummaryHandler(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            if record.levelno < logging.WARNING:
-                return
-            message = record.getMessage()
-            if "registros inválidos" in message and "Removidos" in message:
-                summary_counts["invalid_removed"] += _extract_first_number(message)
-            elif "registros sem número de SSA" in message:
-                summary_counts["missing_ssa"] += _extract_first_number(message)
-            elif "registros sem semana de cadastro" in message:
-                summary_counts["missing_week"] += _extract_first_number(message)
-            else:
-                other_warnings.append(message)
+    summary = ImportProgressSummary()
 
     progress_state: Dict[str, Any] = {"displayed": False, "total": 0, "last_length": 0}
 
     def progress_callback(event: str, payload: Dict[str, Any]) -> None:
+        summary.capture(event, payload)
         if event == "start":
             progress_state["total"] = payload.get("total", 0) or 0
             progress_state["displayed"] = False
@@ -793,11 +777,6 @@ def _handle_rescan(
         elif event == "finish":
             progress_state["finished"] = True
 
-    handler = _SummaryHandler()
-    handler.setLevel(logging.WARNING)
-    root_logger = logging.getLogger()
-    root_logger.addHandler(handler)
-
     try:
         _outcome_before = import_outcome.get_last_import_outcome()
         db_parent = os.path.dirname(os.path.abspath(db_path))
@@ -817,26 +796,18 @@ def _handle_rescan(
             if _outcome_after is not _outcome_before
             else None
         )
-        summary_parts = []
-        if summary_counts["invalid_removed"]:
-            summary_parts.append(
-                f"Inválidos removidos: {summary_counts['invalid_removed']}"
-            )
-        if summary_counts["missing_ssa"]:
-            summary_parts.append(f"Sem nº SSA: {summary_counts['missing_ssa']}")
-        if summary_counts["missing_week"]:
-            summary_parts.append(
-                f"Sem semana cadastro: {summary_counts['missing_week']}"
-            )
-        if other_warnings:
-            summary_parts.append(f"Outros avisos: {len(other_warnings)}")
-
-        if summary_parts:
-            summary_text = " • ".join(summary_parts)
-        else:
-            summary_text = "Sem avisos adicionais"
-
-        summary_line = f"Importação concluída. {summary_text}. Logs: logs/app.log"
+        error_count = max(
+            len(summary.errors),
+            outcome.deterministic_failure_count if outcome is not None else 0,
+            outcome.blocking_error_count if outcome is not None else 0,
+        )
+        log_file = get_robust_logger().log_file
+        summary_line = (
+            f"Importacao concluida. Arquivos processados: "
+            f"{summary.processed_files}/{summary.total_candidates}; "
+            f"arquivos com erro: {error_count}. "
+            f"Log: {log_file if log_file is not None else 'desativado'}"
+        )
         if progress_state.get("displayed"):
             padding = " " * max(
                 0, progress_state.get("last_length", 0) - len(summary_line)
@@ -898,8 +869,6 @@ def _handle_rescan(
             print("Nenhuma alteração detectada durante o rescan.")
     except Exception as e:
         print(f"Erro durante o rescan: {e}")
-    finally:
-        root_logger.removeHandler(handler)
 
 
 def _handle_sort(

@@ -66,6 +66,33 @@ def test_packaged_cli_rescan_uses_selected_target(tmp_path: Path) -> None:
     assert arguments["extra_allowed_roots"] == [runtime_root]
 
 
+def test_rescan_summary_uses_progress_counts_and_real_log(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CD-17: resumo pelos mesmos contadores do cli_entry e o arquivo de log real."""
+
+    def importer(**kwargs):
+        progress = kwargs["progress_callback"]
+        progress("start", {"total": 3})
+        progress("file", {"index": 0, "total": 3, "filename": "a.xlsx"})
+        progress("file_error", {"filename": "b.xlsx", "error": "planilha invalida"})
+        progress("finish", {"total": 3, "processed": 2})
+        return False
+
+    with (
+        patch.object(cli, "_is_cli_non_interactive", return_value=False),
+        patch.object(cli, "run_importer_logic", side_effect=importer),
+        patch.object(cli.import_outcome, "get_last_import_outcome", return_value=None),
+    ):
+        cli._handle_rescan(str(tmp_path / "ssas.db"), "ssa_table", [], {}, {}, {})
+
+    out = capsys.readouterr().out
+    assert "Arquivos processados: 2/3; arquivos com erro: 1." in out
+    log_file = cli.get_robust_logger().log_file
+    assert f"Log: {log_file if log_file is not None else 'desativado'}" in out
+    assert "logs/app.log" not in out
+
+
 def test_rescan_warns_when_database_was_restored_from_snapshot(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
