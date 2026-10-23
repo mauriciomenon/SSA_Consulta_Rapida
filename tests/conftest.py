@@ -27,6 +27,7 @@ Inclui:
     * DataFrames sintéticos para importação e upsert
     * Casos de normalização de numero_ssa
 """
+import fnmatch
 import shutil
 from contextlib import suppress
 from pathlib import Path
@@ -50,9 +51,32 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     )
 
 
+def _explicit_args_outside_python_files(config: pytest.Config) -> list[str]:
+    """Argumentos .py fora de `python_files` (o pytest os coleta quando passados pelo nome)."""
+    patterns = config.getini("python_files")
+    base = config.invocation_params.dir
+    rejected = []
+    for arg in config.args:
+        path = base / arg.split("::", 1)[0]
+        if path.suffix == ".py" and path.is_file() and not any(
+            fnmatch.fnmatch(path.name, pattern) for pattern in patterns
+        ):
+            rejected.append(arg)
+    return rejected
+
+
 def pytest_sessionstart(session):  # noqa: D401
     """Executa no início da sessão de testes."""
     global _TEST_SSA_CONFIG_DIR, _TRACKED_GUI_PREFS_BYTES
+    # SS-08: scripts de tests/ fora do padrao (ex.: run_import_verification.py) tem
+    # funcoes test_* que gravam em data/ssas.db; passados pelo nome, rodavam no pytest.
+    rejected = _explicit_args_outside_python_files(session.config)
+    if rejected:
+        raise pytest.UsageError(
+            "arquivo(s) fora de python_files nao rodam no pytest (podem gravar no banco real): "
+            + ", ".join(rejected)
+            + ". Para usar o script, execute-o com python."
+        )
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     # Forçar modo não interativo para o table_printer (evita inputs que podem causar bloqueios/tempos ociosos)
     os.environ.setdefault("SSA_NON_INTERACTIVE", "1")
