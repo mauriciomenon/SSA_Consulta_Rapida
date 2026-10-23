@@ -10,6 +10,7 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_OPEN_MERGE_REQUESTS'
       when: never
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^fix\//'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(dev|rev)$/'
 
 variables:
   QT_QPA_PLATFORM: "offscreen"
@@ -25,6 +26,17 @@ default:
     paths:
       - .uv-cache/
 
+# CD-22: fora da branch padrao (dev, rev, fix/*, MR para elas) o job aponta a
+# falha sem reprovar o pipeline; na branch padrao e em MR para ela continua
+# bloqueando.
+.branch_policy:
+  rules:
+    - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+      allow_failure: true
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME != $CI_DEFAULT_BRANCH'
+      allow_failure: true
+    - when: on_success
+
 .python_setup:
   before_script:
     - apt-get update
@@ -37,6 +49,7 @@ default:
 
 autoria-git:
   stage: verify
+  extends: .branch_policy
   variables:
     GIT_DEPTH: "0"
   before_script:
@@ -73,7 +86,7 @@ autoria-git:
 
 quality-gates:
   stage: verify
-  extends: .python_setup
+  extends: [.python_setup, .branch_policy]
   script:
     - PYTHON="$CI_PROJECT_DIR/.venv/bin/python" bash scripts/ci_quality_gates.sh
   artifacts:
@@ -84,7 +97,7 @@ quality-gates:
 
 pytest-full:
   stage: verify
-  extends: .python_setup
+  extends: [.python_setup, .branch_policy]
   timeout: 40 minutes
   variables:
     PYTEST_ADDOPTS: "--timeout=45 --timeout-method=thread --durations=20 --junitxml=pytest-results.xml"
@@ -98,6 +111,7 @@ pytest-full:
 
 dependency-audit:
   stage: security
+  extends: .branch_policy
   timeout: 10 minutes
   before_script: []
   cache: []

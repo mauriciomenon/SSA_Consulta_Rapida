@@ -10,7 +10,7 @@
 name: 'Dependency review'
 on:
   pull_request:
-    branches: [ "main", "dev", "protection_pattern_menon" ]
+    branches: [ "main", "dev", "rev", "protection_pattern_menon" ]
 
 # If using a dependency submission action in this workflow this permission will need to be set to:
 #
@@ -69,6 +69,8 @@ jobs:
   dependency-review:
     needs: precheck-dependency-review
     if: ${{ needs.precheck-dependency-review.outputs.run_dependency_review == 'true' }}
+    # CD-22: PR para fora do main (dev, rev) aponta a falha sem reprovar a execucao.
+    continue-on-error: ${{ github.base_ref != 'main' }}
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout repository'

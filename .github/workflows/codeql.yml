@@ -2,9 +2,9 @@ name: codeql-security-scan
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, rev]
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, rev]
   schedule:
     - cron: "0 3 * * 0"
   workflow_dispatch:
@@ -76,6 +76,8 @@ jobs:
   analyze:
     needs: precheck-default-setup
     if: ${{ needs.precheck-default-setup.outputs.run_advanced == 'true' }}
+    # CD-22: fora do main (dev, rev) o job aponta a falha sem reprovar a execucao.
+    continue-on-error: ${{ github.ref != 'refs/heads/main' && github.base_ref != 'main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

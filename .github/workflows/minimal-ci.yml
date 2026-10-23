@@ -2,9 +2,9 @@ name: minimal-ci
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, rev]
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, rev]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   quality-gates:
+    # CD-22: fora do main (dev, rev) o job aponta a falha sem reprovar a execucao.
+    continue-on-error: ${{ github.ref != 'refs/heads/main' && github.base_ref != 'main' }}
     permissions:
       contents: read
       actions: read

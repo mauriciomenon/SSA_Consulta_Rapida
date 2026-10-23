@@ -16,7 +16,8 @@ nao sao cumpridos, independentemente da protecao de merge do GitHub.
 ## Fluxos mantidos no repositorio
 
 - minimal-ci: autoria e grupos de importacao, lint, tipos e testes conforme o
-  diff; push/PR main/dev e disparo manual.
+  diff; push/PR main/dev/rev e disparo manual. Fora do main o job aponta a
+  falha sem reprovar a execucao (vale tambem para CodeQL e Dependency review).
 - CodeQL: precheck do modo de analise e verificacao de seguranca.
 - Secret Scan: workspace e diff da PR bloqueantes; historico consultivo apenas
   em execucoes manuais/agendadas.

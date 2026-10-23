@@ -132,9 +132,11 @@ usuario) e promocao atomica com arquivamento do anterior.
 
 ## CI e validacao
 
-O GitHub verifica PRs para `main`/`dev` e pushes nessas branches. O GitLab
-verifica MRs, a branch padrao, execucoes manuais e pushes em branches `fix/`;
-nessas execucoes, a suite completa e automatica e bloqueante. Os gates publicam
+O GitHub verifica PRs para `main`/`dev`/`rev` e pushes nessas branches. O GitLab
+verifica MRs, a branch padrao, execucoes manuais e pushes em `dev`, `rev` e
+branches `fix/`; a suite completa e automatica. So `main` (e PR/MR para ela)
+reprova a execucao; nas demais branches a falha aparece sem reprovar. O secret
+scan bloqueia em qualquer branch. Os gates publicam
 diagnosticos e o GitLab preserva JSONL e relatorio JUnit por 14 dias. O log da
 suite identifica cada teste e resume as 20 maiores duracoes.
 

@@ -888,7 +888,8 @@ def test_setup_env_scripts_require_explicit_verified_remote_pyenv_install() -> N
 def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
-    assert "branches: [main, dev]" in workflow
+    assert "branches: [main, dev, rev]" in workflow
+    assert "github.ref != 'refs/heads/main'" not in workflow
     assert "timeout-minutes: 30" in workflow
     assert workflow.count("continue-on-error: true") == 1
     assert 'bash "${{ steps.secret_scanner.outputs.script }}" workspace' in workflow
@@ -1163,3 +1164,22 @@ def test_shell_doctor_validates_zcompdump_stat_before_age_math() -> None:
     assert "stat_mtime=" in script
     assert "case \"$stat_mtime\" in" in script
     assert "date +%s) - $(stat" not in script
+
+
+def test_ci_runs_on_dev_and_rev_and_only_main_blocks() -> None:
+    """CD-22: dev/rev disparam o CI; fora do main o job avisa sem reprovar."""
+    advisory = "continue-on-error: ${{ github.ref != 'refs/heads/main' && github.base_ref != 'main' }}"
+    for name in ("minimal-ci.yml", "codeql.yml"):
+        workflow = _read_repo_text(".github", "workflows", name)
+        assert "branches: [main, dev, rev]" in workflow, name
+        assert workflow.count(advisory) == 1, name
+    review = _read_repo_text(".github", "workflows", "dependency-review.yml")
+    assert '"rev"' in review
+    assert "continue-on-error: ${{ github.base_ref != 'main' }}" in review
+
+    gitlab = _read_repo_text(".gitlab-ci.yml")
+    assert "$CI_COMMIT_BRANCH =~ /^(dev|rev)$/" in gitlab
+    assert gitlab.count("allow_failure: true") == 2
+    assert gitlab.count(".branch_policy") == 5  # definicao + 4 jobs
+    secret_job = gitlab.split("\nsecret-scan:\n", 1)[1].split("\n\n", 1)[0]
+    assert ".branch_policy" not in secret_job
