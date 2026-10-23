@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Rodando pelo codigo-fonte (`python /caminho/main.py`, `uv run --project ...`, GUI de desenvolvimento, scripts) a partir de outra pasta: as configuracoes (`settings.json`, mapeamentos de colunas, preferencias e filtros salvos da GUI) vem sempre da pasta `config/` do programa; antes valiam as da pasta corrente, e arquivos de config eram criados nela. `SSA_CONFIG_DIR` e o executavel empacotado nao mudam.
 - Ajuda de busca da CLI e do Streamlit: o exemplo para tirar as SSAs terminadas passa a ser `!=ste` (situacao diferente de STE). O exemplo antigo `!ste` exclui qualquer linha que contenha "ste" em qualquer coluna ("ajuste", "este", "poste") e escondia cerca de 1/3 das SSAs abertas. A ajuda do Streamlit tambem deixa de dizer que `OU`/`OR` e espacos separam termos: sao texto literal; use virgula.
 - Linux com mais de um usuario na mesma maquina: o segundo usuario nao recebe mais "Diretorio de locks inseguro" ao importar ou gravar; cada usuario usa o proprio diretorio de lock em `/tmp` (`ssa_consulta_rapida-<uid>`).
 - `Tempo Excedido` aparece na GUI (tabela, detalhes, copiar lista) e nos detalhes/listagens da CLI no formato do SAM ("1a, 9m, 22d 5h : 47mi"); o banco continua guardando ISO 8601 ("P1Y9M22DT5H47M"), que segue sendo o valor usado por ordenacao, filtros e exportacao CSV/XLSX/JSON.

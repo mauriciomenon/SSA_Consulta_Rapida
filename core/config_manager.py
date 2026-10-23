@@ -186,15 +186,17 @@ def _atomic_copy_file(src: str, dst: str) -> None:
                 )
 
 
-# Caminhos padrao
-CONFIG_DIR = "config"
+# Caminhos padrao: config/ da raiz do codigo, nunca da pasta corrente (CF-02).
+CONFIG_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config"
+)
 DEFAULT_SETTINGS_FILE = os.path.join(CONFIG_DIR, "default_settings.json")
 USER_SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
 DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, "display_mappings.json")
 COLUMN_MAPPINGS_FILE = os.path.join(CONFIG_DIR, "column_mappings.json")
 
 def _get_config_dir() -> str:
-    """Allow tests/overrides via SSA_CONFIG_DIR; default to 'config'."""
+    """Pasta de config: SSA_CONFIG_DIR valido ou <raiz do codigo>/config."""
     raw_cfg_dir = os.environ.get("SSA_CONFIG_DIR")
     if not raw_cfg_dir:
         return CONFIG_DIR
@@ -212,11 +214,12 @@ def _get_config_dir() -> str:
 
 
 def _resolve_config_path(default_path: str) -> str:
-    """Resolve a config path honoring SSA_CONFIG_DIR while keeping default constants."""
-    cfg_dir = _get_config_dir()
-    if cfg_dir == CONFIG_DIR:
-        return default_path
-    return os.path.join(cfg_dir, os.path.basename(default_path))
+    """Caminho do arquivo `basename(default_path)` na pasta de config ativa.
+
+    Aceita caminho relativo ("config/x.json") ou absoluto; so o nome do arquivo
+    e usado, para que nenhum chamador resolva contra a pasta corrente.
+    """
+    return os.path.join(_get_config_dir(), os.path.basename(default_path))
 
 
 def resolve_user_settings_path() -> str:
