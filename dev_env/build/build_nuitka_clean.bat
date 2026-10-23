@@ -53,7 +53,15 @@ if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\cli_entry.build" rmdir /s /q "
 if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist"
 if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist"
 
-set "BASE_CMD=uv run --python 3.13 --extra build python -m nuitka --standalone --assume-yes-for-downloads --follow-imports --enable-plugin=pyqt6 --company-name=SSA --product-name=Consulta_Rapida_de_SSAs --file-version=%FILE_VERSION% --product-version=%FILE_VERSION% --include-data-dir=config=config --include-data-dir=resources=resources --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md --include-data-file=%BUILD_INFO_FILE%=config/build_info.json --output-dir=builds/nuitka/windows_amd64"
+rem BL-11: so a config versionada entra no pacote (arquivos locais ficam fora).
+set "CONFIG_DATA_ARGS="
+for /f "usebackq delims=" %%a in (`uv run --python 3.13 "%REPO_ROOT%\scripts\nuitka_config_args.py"`) do set "CONFIG_DATA_ARGS=%%a"
+if not defined CONFIG_DATA_ARGS (
+    echo Erro ao listar a config versionada para o pacote.
+    exit /b 1
+)
+
+set "BASE_CMD=uv run --python 3.13 --extra build python -m nuitka --standalone --assume-yes-for-downloads --follow-imports --enable-plugin=pyqt6 --company-name=SSA --product-name=Consulta_Rapida_de_SSAs --file-version=%FILE_VERSION% --product-version=%FILE_VERSION% %CONFIG_DATA_ARGS% --include-data-dir=resources=resources --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md --include-data-file=%BUILD_INFO_FILE%=config/build_info.json --output-dir=builds/nuitka/windows_amd64"
 
 if "%SILENT%"=="1" (
     echo [build_nuitka] modo silencioso ativo. log: "%LOG_FILE%"

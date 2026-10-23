@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Pacotes Nuitka (Windows amd64 e Debian amd64/arm64) levam so os arquivos versionados de `config/`; antes levavam a pasta inteira da maquina do build, inclusive preferencias da GUI (`gui_main_preferences.json`, com a configuracao do PAI), filtros salvos, estado do Streamlit, `hypercorn.toml` e backups `.bak`. Sem esses arquivos o programa usa os padroes e cria as preferencias no primeiro uso, como no pacote PyInstaller.
 - `scripts/derivadas_cli.py` sem `--db` usa `SSA_DB_PATH` ou `<SSA_RUNTIME_ROOT ou pasta do programa>/data/ssas.db`; antes usava o `data/ssas.db` da pasta corrente e podia sincronizar derivadas no banco errado.
 - `main.py --force-rescan` rodando pelo codigo-fonte respeita `SSA_RUNTIME_ROOT`: `docs_entrada`, `data` (banco padrao quando `SSA_DB_PATH` nao esta definido) e as pastas criadas no inicio vem dessa raiz, como na GUI, no `cli_entry` e no `rescan` interativo; antes importava as planilhas do `docs_entrada` do repositorio. O executavel empacotado nao muda.
 - Rodando pelo codigo-fonte (`python /caminho/main.py`, `uv run --project ...`, GUI de desenvolvimento, scripts) a partir de outra pasta: as configuracoes (`settings.json`, mapeamentos de colunas, preferencias e filtros salvos da GUI) vem sempre da pasta `config/` do programa; antes valiam as da pasta corrente, e arquivos de config eram criados nela. `SSA_CONFIG_DIR` e o executavel empacotado nao mudam.

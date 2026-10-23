@@ -167,13 +167,18 @@ if [[ "${NUITKA_OUTPUT_DIR}" == "${FINAL_BUILD_DIR}" ]]; then
   rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
 fi
 
+# BL-11: so a config versionada entra no pacote (arquivos locais ficam fora).
+LAST_STEP="config_args"
+CONFIG_ARGS_LINE="$("${PYTHON_EXE}" scripts/nuitka_config_args.py)"
+read -ra CONFIG_DATA_ARGS <<< "${CONFIG_ARGS_LINE}"
+
 GUI_CMD=(
   "${PYTHON_EXE}" -m nuitka
   --standalone
   --assume-yes-for-downloads
   --follow-imports
   --enable-plugin=pyqt6
-  --include-data-dir=config=config
+  "${CONFIG_DATA_ARGS[@]}"
   --include-data-dir=resources=resources
   --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
   --include-data-file="${BUILD_INFO_FILE}=config/build_info.json"
@@ -185,7 +190,7 @@ CLI_CMD=(
   --standalone
   --assume-yes-for-downloads
   --follow-imports
-  --include-data-dir=config=config
+  "${CONFIG_DATA_ARGS[@]}"
   --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
   --include-data-file="${BUILD_INFO_FILE}=config/build_info.json"
   --output-dir="${NUITKA_OUTPUT_DIR}"
