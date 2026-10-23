@@ -76,6 +76,7 @@ except ModuleNotFoundError:  # pragma: no cover - depende do ambiente
 
 
 from interface.cli_width_manager import CLIWidthManager
+from shared.ssa_status import SSA_ENCERRADAS, status_code_series
 from utils.formatting import format_dataframe_for_display
 from utils.robust_logging import get_robust_logger
 
@@ -753,11 +754,11 @@ class EnhancedTablePrinter:
 
     # -- Helpers de ordenação/ajuste --
     def _apply_default_order(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Aplica ordenação padrão pedida: não-STE primeiro; depois numero_ssa desc."""
+        """Ordem padrao: abertas primeiro, encerradas (RD-01a) por ultimo; depois numero_ssa desc."""
         work = df.copy()
-        # Marca STE (situação) — valores ausentes tratados como não-STE
+        # Valores ausentes contam como abertos.
         if "situacao" in work.columns:
-            is_ste = work["situacao"].astype(str).str.upper().eq("STE")
+            is_ste = status_code_series(work["situacao"]).isin(SSA_ENCERRADAS)
         else:
             # Se não há coluna, mantém ordem original
             return work

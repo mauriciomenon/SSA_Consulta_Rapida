@@ -8,15 +8,18 @@ from uuid import uuid4
 
 import pandas as pd
 
+from shared.ssa_status import SSA_ENCERRADAS, SSA_ENCERRADAS_LABEL, status_code_series
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
-EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
-EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
+# RD-01a: "Ocultar" esconde as encerradas (DEC-01).
+EXCLUDED_TERMINAL_STATUSES = SSA_ENCERRADAS
+EXCLUDED_TERMINAL_SUMMARY = f"situacao!={SSA_ENCERRADAS_LABEL}"
 MACRO_BAIXAR_FILTER_KEY = "ssas_para_baixar"
-# SAD is macro-specific here; global terminal filtering stays SCA/SES/STE.
-MACRO_BAIXAR_STATUS_EXCLUSIONS = ("SAD", "SCA", "SES", "STE")
+# DEC-02: baixavel = mae ainda aberta com todas as filhas encerradas; SAD
+# nao e encerrada (excluir SAD aqui era erro).
+MACRO_BAIXAR_STATUS_EXCLUSIONS = tuple(sorted(SSA_ENCERRADAS))
 MACRO_BAIXAR_DERIVADA_SELECTION = ("all_ste",)
 SECTOR_EXECUTOR_PRIORITY = (
     "IEE3",
@@ -49,7 +52,7 @@ def exclude_terminal_status_rows(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty or "situacao" not in df.columns:
         return df
     return df[
-        ~df["situacao"].astype(str).str.upper().isin(EXCLUDED_TERMINAL_STATUSES)
+        ~status_code_series(df["situacao"]).isin(EXCLUDED_TERMINAL_STATUSES)
     ]
 
 

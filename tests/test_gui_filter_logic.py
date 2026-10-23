@@ -2868,46 +2868,37 @@ class TestGUIFilterLogic:
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
 
         self.window._on_exclude_ste_sca_toggled(True)
-        # Filtra linhas SCA/SES/STE mantendo o grupo OU ativo.
+        # Filtra linhas encerradas mantendo o grupo OU ativo.
         remaining = self._extract_visible_ssa()
         assert 2 not in remaining
         assert 3 not in remaining
         assert 6 not in remaining
         assert Counter(remaining) == Counter([1, 4])
 
-    def test_macro_baixar_excludes_sad_sca_ses_ste_and_keeps_parent_ssa(
+    def test_macro_baixar_lists_open_parents_with_all_children_closed(
         self,
     ):
+        # DEC-02: baixavel = mae nao encerrada com todas as filhas encerradas
+        # (STE/SES/SCA/SCC); SAD nao e encerrada: bloqueia como filha e nao
+        # exclui a mae.
+        numeros = ["100", "101", "102", "200", "201", "202", "300", "301", "400", "401"]
+        size = len(numeros)
         macro_df = pd.DataFrame(
             {
-                "numero_ssa": ["100", "101", "102", "200", "201", "202"],
-                "situacao": ["APV", "STE", "SES", "APV", "SCA", "SAD"],
-                "derivada_de": ["", "100", "100", "", "200", "200"],
-                "localizacao_codigo": ["LOC1"] * 6,
-                "descricao_localizacao": ["Desc"] * 6,
-                "equipamento": ["EQ1"] * 6,
-                "semana_cadastro": [202501] * 6,
-                "semana_programada": [202503] * 6,
-                "data_cadastro": ["2025-01-01"] * 6,
-                "descricao_ssa": [
-                    "Origem A",
-                    "Filha STE",
-                    "Filha SES",
-                    "Origem B",
-                    "Filha SCA",
-                    "Filha SAD",
-                ],
-                "setor_executor": ["IEE3", "IEE3", "IEE3", "MEL4", "MEL4", "MEL4"],
-                "setor_emissor": ["IEE3", "IEE3", "IEE3", "MEL4", "MEL4", "MEL4"],
-                "descricao_execucao": [
-                    "Exec A",
-                    "Exec B",
-                    "Exec C",
-                    "Exec D",
-                    "Exec E",
-                    "Exec F",
-                ],
-                "solicitante": ["User1", "User2", "User3", "User4", "User5", "User6"],
+                "numero_ssa": numeros,
+                "situacao": ["APV", "STE", "SES", "APV", "SCA", "SAD", "APV", "SCC", "SAD", "STE"],
+                "derivada_de": ["", "100", "100", "", "200", "200", "", "300", "", "400"],
+                "localizacao_codigo": ["LOC1"] * size,
+                "descricao_localizacao": ["Desc"] * size,
+                "equipamento": ["EQ1"] * size,
+                "semana_cadastro": [202501] * size,
+                "semana_programada": [202503] * size,
+                "data_cadastro": ["2025-01-01"] * size,
+                "descricao_ssa": [f"SSA {n}" for n in numeros],
+                "setor_executor": ["IEE3"] * size,
+                "setor_emissor": ["IEE3"] * size,
+                "descricao_execucao": [f"Exec {n}" for n in numeros],
+                "solicitante": [f"User{n}" for n in numeros],
             }
         )
         self.window.df_completo = macro_df.copy()
@@ -2925,7 +2916,7 @@ class TestGUIFilterLogic:
         self.window._on_macro_filter_changed()
         QApplication.processEvents()
 
-        assert "Diferente: SAD, SCA, SES, STE" in self.window.adv_status_button.toolTip()
+        assert "Diferente: SCA, SCC, SES, STE" in self.window.adv_status_button.toolTip()
 
         self.window._apply_advanced_filters_from_ui()
         QApplication.processEvents()
@@ -2933,8 +2924,12 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters.get("derivada_all_ste") is True
         assert set(
             self.window._advanced_filters.get("situacao_exclude_values") or []
-        ) == {"SAD", "SCA", "SES", "STE"}
-        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == ["100"]
+        ) == {"SCA", "SCC", "SES", "STE"}
+        assert sorted(self.window.df_exibido["numero_ssa"].astype(str)) == [
+            "100",
+            "300",
+            "400",
+        ]
 
     def test_macro_baixar_filters_immediately_when_selected(self):
         macro_df = pd.DataFrame(
@@ -3045,7 +3040,7 @@ class TestGUIFilterLogic:
         assert summary_widget is not None
         buttons = summary_widget.findChildren(QPushButton)
         situacao_exclude_button = next(
-            btn for btn in buttons if "situacao!=SCA/SES/STE" in str(btn.text() or "")
+            btn for btn in buttons if "situacao!=STE/SES/SCA/SCC" in str(btn.text() or "")
         )
 
         with patch(
@@ -5545,7 +5540,7 @@ class TestGUIFilterLogic:
                 QPushButton
             )
         ]
-        assert "situacao!=SCA/SES/STE" in summary_buttons
+        assert "situacao!=STE/SES/SCA/SCC" in summary_buttons
 
     def test_column_filter_row_clear_button_clears_value_without_hiding_row(self):
         self.window._active_column_filters = {
@@ -11448,7 +11443,7 @@ class TestGUIFilterLogic:
             menu,
             [
                 ("has", "Possui Derivadas"),
-                ("all_ste", "Derivadas em STE/SES"),
+                ("all_ste", "Derivadas encerradas (STE/SES/SCA/SCC)"),
                 ("is", "Sou Derivada"),
             ],
             set(),
@@ -16726,7 +16721,7 @@ class TestGUIFilterLogic:
             else self.window._resolve_column_display_name("descricao_ssa")
         )
         assert label in self._get_column_filter_controls()
-        assert "situacao!=SCA/SES/STE" in [
+        assert "situacao!=STE/SES/SCA/SCC" in [
             str(button.text() or "")
             for button in self.window.filters_summary_items_widget.findChildren(
                 QPushButton

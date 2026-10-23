@@ -16,7 +16,7 @@ from tests._helpers.gui_scenario_harness import GUIFilterScenarioHarness
 
 DERIVADA_EMPTY_NOTICE = "Aviso: nenhuma derivada encontrada para o filtro."
 DERIVADA_STE_EMPTY_NOTICE = (
-    "Aviso: nenhuma derivada STE/SES encontrada para o filtro."
+    "Aviso: nenhuma derivada encerrada encontrada para o filtro."
 )
 
 

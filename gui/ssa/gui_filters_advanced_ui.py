@@ -95,7 +95,7 @@ except ImportError:
 QObject = cast(Any, _QObject)
 
 logger = get_robust_logger().get_logger(__name__, "gui")
-_DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
+_DERIVADA_ALL_STE_LABEL = "Derivadas encerradas (STE/SES/SCA/SCC)"
 _MACRO_EXECUTADAS_SETOR_KEY = "ssa_executadas_setor"
 _MACRO_EXECUTADAS_DIVISAO_KEY = "ssa_executadas_divisao"
 _is_widget_valid = _is_not_deleted
@@ -1598,7 +1598,7 @@ def _show_advanced_filter_notice(self, notice: str | None) -> None:
             return
         notice_suffix = ""
         if notice == "derivada_all_ste_empty":
-            notice_suffix = "Aviso: nenhuma derivada STE/SES encontrada para o filtro."
+            notice_suffix = "Aviso: nenhuma derivada encerrada encontrada para o filtro."
         elif notice == "derivada_empty":
             notice_suffix = "Aviso: nenhuma derivada encontrada para o filtro."
         displayed_df = getattr(self, "df_exibido", None)

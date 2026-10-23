@@ -549,12 +549,13 @@ def test_apply_advanced_filters_reprogramacoes_eq_lte_gte():
 
 
 def test_apply_advanced_filters_derivada_all_ste_accepts_terminal_states():
+    # RD-01a/DEC-02: filha concluida = encerrada (STE/SES/SCA/SCC); SAD nao.
     window = _DummyWindow({"derivada_all_ste": True})
     df = pd.DataFrame(
         {
-            "numero_ssa": ["100", "101", "102", "200", "201"],
-            "derivada_de": ["", "100", "100", "", "200"],
-            "situacao": ["APV", "STE", "SES", "APV", "SCA"],
+            "numero_ssa": ["100", "101", "102", "200", "201", "300", "301", "400", "401"],
+            "derivada_de": ["", "100", "100", "", "200", "", "300", "", "400"],
+            "situacao": ["APV", "STE", "SES", "APV", "SCA", "APV", "SCC - X", "APV", "SAD"],
         }
     )
 
@@ -565,7 +566,7 @@ def test_apply_advanced_filters_derivada_all_ste_accepts_terminal_states():
         normalize_ssa_series=_normalize_ssa_series,
         notice_callback=None,
     )
-    assert filtered["numero_ssa"].tolist() == ["100"]
+    assert filtered["numero_ssa"].tolist() == ["100", "200", "300"]
 
 
 def test_apply_advanced_filters_derivada_all_ste_ignores_nullable_derivada_values():

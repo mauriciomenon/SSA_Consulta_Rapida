@@ -42,5 +42,5 @@ class TestScenarioDerivadaNotice(GUIFilterScenarioHarness):
         QApplication.processEvents()
 
         notice_text = self.window.status_label.text()
-        assert "Aviso: nenhuma derivada STE/SES encontrada para o filtro." in notice_text
+        assert "Aviso: nenhuma derivada encerrada encontrada para o filtro." in notice_text
         assert len(self.window.df_exibido) == len(df)

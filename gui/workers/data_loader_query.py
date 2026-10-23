@@ -53,10 +53,19 @@ def build_default_ui_order_clause(sort_spec: tuple[dict, ...]) -> str:
         column = raw_column.replace('"', '""')
         direction = "ASC" if bool(rule["ascending"]) else "DESC"
         if rule["kind"] == "status_last":
-            last_value = str(rule["last_value"]).replace("'", "''")
+            values = ", ".join(
+                "'" + str(value).replace("'", "''") + "'"
+                for value in rule["last_values"]
+            )
+            # Mesmo criterio de shared.ssa_status.get_status_code: codigo antes
+            # de " - ", sem espacos, em maiusculas.
+            text = f'CAST("{column}" AS TEXT)'
+            code = (
+                f"UPPER(TRIM(CASE WHEN INSTR({text}, ' - ') > 0 "
+                f"THEN SUBSTR({text}, 1, INSTR({text}, ' - ') - 1) ELSE {text} END))"
+            )
             clause_parts.append(
-                f'CASE WHEN UPPER(CAST("{column}" AS TEXT)) = '
-                f"'{last_value}' THEN 1 ELSE 0 END {direction}"
+                f"CASE WHEN {code} IN ({values}) THEN 1 ELSE 0 END {direction}"
             )
         elif rule["kind"] == "sqlite_integer_prefix":
             clause_parts.append(f'CAST("{column}" AS INTEGER) {direction}')

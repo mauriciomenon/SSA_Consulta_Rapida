@@ -10,6 +10,7 @@ from pandas.api import types as pd_types
 
 from shared.date_utils import parse_datetime_series_mixed
 from shared.numero_ssa import normalize_relation_id as normalize_numero_ssa_relation
+from shared.ssa_status import SSA_ENCERRADAS, status_code_series
 from utils.robust_logging import get_robust_logger
 
 from .gui_filters_advanced_state import (
@@ -20,7 +21,8 @@ from .gui_filters_advanced_state import (
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 MAX_ADV_CACHE_ENTRIES = 16
-_DERIVADA_TERMINAL_STATUSES = frozenset({"STE", "SES"})
+# RD-01a/DEC-02: filha concluida = encerrada, inclusive anormal (SCA/SCC).
+_DERIVADA_TERMINAL_STATUSES = SSA_ENCERRADAS
 RESPONSAVEL_FILTER_COLUMN_CANDIDATES = {
     "solicitante": ("solicitante", "responsavel_solicitante"),
     "responsavel_programacao": ("responsavel_programacao",),
@@ -559,9 +561,8 @@ def _apply_week_range_filters(
 def _compute_derivada_all_ste_origins(
     df: pd.DataFrame, series_derivada: pd.Series, has_derivada: pd.Series
 ) -> set:
-    # Compatibilidade: mantemos o nome legado "all_ste", mas SES agora entra
-    # na mesma classe funcional de derivada terminal para este filtro.
-    situacao_series = df.loc[has_derivada, "situacao"].astype("string").fillna("")
+    # Nome legado "all_ste": vale para qualquer encerrada (STE/SES/SCA/SCC).
+    situacao_series = status_code_series(df.loc[has_derivada, "situacao"])
     derivada_series = (
         series_derivada[has_derivada].astype("string").fillna("").str.strip()
     )
@@ -569,7 +570,7 @@ def _compute_derivada_all_ste_origins(
     if not bool(valid_derivada.any()):
         return set()
     situacao = (
-        situacao_series[valid_derivada].str.upper().isin(_DERIVADA_TERMINAL_STATUSES)
+        situacao_series[valid_derivada].isin(_DERIVADA_TERMINAL_STATUSES)
     )
     grouped = situacao.groupby(derivada_series[valid_derivada]).all()
     return set(grouped[grouped].index.tolist())

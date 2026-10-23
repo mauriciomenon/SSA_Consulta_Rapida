@@ -780,8 +780,8 @@ def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
 
 
 def _build_exclude_ste_checkbox(window: Any) -> QCheckBox:
-    checkbox = QCheckBox("Ocultar SCA/SES/STE")
-    checkbox.setToolTip("Oculta SSAs com situacao SCA, SES ou STE")
+    checkbox = QCheckBox("Ocultar encerradas (STE/SES/SCA/SCC)")
+    checkbox.setToolTip("Oculta SSAs encerradas: STE, SES (normal), SCA, SCC (anormal)")
     try:
         checkbox.setChecked(False)
         checkbox.setVisible(False)

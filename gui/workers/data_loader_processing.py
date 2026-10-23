@@ -9,9 +9,12 @@ from typing import Any
 
 import pandas as pd
 
+from shared.ssa_status import SSA_ENCERRADAS, status_code_series
+
 logger = logging.getLogger(__name__)
 
-DEFAULT_UI_STATUS_LAST = "STE"
+# RD-01a: encerradas (STE/SES/SCA/SCC) vao para o fim da ordem padrao.
+DEFAULT_UI_STATUS_LAST = tuple(sorted(SSA_ENCERRADAS))
 SQLITE_OFFSET_WITHOUT_LIMIT = 9223372036854775807
 SQLITE_INTEGER_PREFIX_RE = re.compile(r"^\s*([+-]?\d+)")
 SSA_IDENTIFIER_TEXT_RE = re.compile(r"^(?:SSA[\s:_-]*)?\d[\d\s._-]*$", re.IGNORECASE)
@@ -19,7 +22,7 @@ DEFAULT_UI_SORT_SPEC = (
     {
         "column": "situacao",
         "kind": "status_last",
-        "last_value": "STE",
+        "last_values": DEFAULT_UI_STATUS_LAST,
         "ascending": True,
         "temp_column": "__sort_situacao",
     },
@@ -80,8 +83,8 @@ def build_initial_sorted_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 continue
             source_series = df[source_column]
             if rule["kind"] == "status_last":
-                sort_keys[temp_column] = (
-                    source_series.astype(str).str.upper().eq(str(rule["last_value"]))
+                sort_keys[temp_column] = status_code_series(source_series).isin(
+                    rule["last_values"]
                 )
             elif rule["kind"] == "sqlite_integer_prefix":
                 sort_keys[temp_column] = coerce_sqlite_integer_prefix_series(
