@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -29,10 +28,9 @@ from core.pai_scrap_report_provider import (
     PAI_DEFAULT_LIMIT,
     PAI_DEFAULT_NUMBER_OF_YEARS,
     PAI_DEFAULT_PROFILE,
-    PAI_RUNNER_UV,
-    PAI_SCRAP_REPORT_RUNNER_ENV,
     PaiScrapReportRequest,
     scrap_report_location_from_env,
+    scrap_report_runner_from_env,
 )
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,7 +79,7 @@ def run(args: argparse.Namespace) -> int:
         output_dir=_optional_path(args.output_dir),
         scrap_report_root=_optional_path(args.scrap_report_root) or env_root,
         allow_sibling_scrap_report=allow_sibling,
-        runner=str(os.environ.get(PAI_SCRAP_REPORT_RUNNER_ENV, PAI_RUNNER_UV)),
+        runner=scrap_report_runner_from_env(),
         profile=str(args.profile),
         executor_sectors=tuple(args.executor_sector),
         emitter_sectors=tuple(args.emitter_sector),

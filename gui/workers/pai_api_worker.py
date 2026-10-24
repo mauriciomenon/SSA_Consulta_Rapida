@@ -24,10 +24,10 @@ from core.pai_import_service import (
     import_prepared_pai_xlsx,
 )
 from core.pai_scrap_report_provider import (
-    PAI_RUNNER_UV,
     PaiScrapReportRequest,
     run_pai_scrap_report_ca_export,
     scrap_report_location_from_env,
+    scrap_report_runner_from_env,
 )
 from extracao.extractor import ExtractionError, validate_excel_import_limits
 from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
@@ -214,7 +214,7 @@ class PaiApiRefreshWorker(QThread):
             output_dir=self.config.output_dir,
             scrap_report_root=scrap_root,
             allow_sibling_scrap_report=allow_sibling,
-            runner=PAI_RUNNER_UV,
+            runner=scrap_report_runner_from_env(),
             executor_sectors=sectors,
             limit=options.limit,
             number_of_years=options.number_of_years,

@@ -219,6 +219,14 @@ def scrap_report_location_from_env() -> tuple[Path | None, bool]:
     )
 
 
+def scrap_report_runner_from_env() -> str:
+    """BL-22: runner do scrap_report (SSA_SCRAP_REPORT_RUNNER; padrao uv) na GUI e no script.
+
+    Valor invalido nao e corrigido aqui: a execucao recusa com ValueError.
+    """
+    return str(os.environ.get(PAI_SCRAP_REPORT_RUNNER_ENV, "")).strip() or PAI_RUNNER_UV
+
+
 def resolve_scrap_report_root(
     project_root: Path,
     *,

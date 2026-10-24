@@ -24,3 +24,19 @@ def test_gui_and_script_use_the_shared_rule():
         text = (ROOT / rel).read_text(encoding="utf-8")
         assert "scrap_report_location_from_env()" in text, rel
         assert "allow_sibling_scrap_report=True" not in text, rel
+
+
+def test_runner_defaults_to_uv_and_honors_env(monkeypatch):
+    """BL-22: SSA_SCRAP_REPORT_RUNNER pela mesma regra na GUI e no script."""
+    from core.pai_scrap_report_provider import scrap_report_runner_from_env
+
+    monkeypatch.delenv("SSA_SCRAP_REPORT_RUNNER", raising=False)
+    assert scrap_report_runner_from_env() == "uv"
+    monkeypatch.setenv("SSA_SCRAP_REPORT_RUNNER", " pythonpath ")
+    assert scrap_report_runner_from_env() == "pythonpath"
+
+
+def test_gui_and_script_use_the_shared_runner_rule():
+    for rel in ("gui/workers/pai_api_worker.py", "scripts/import_pai_api_xlsx.py"):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        assert "runner=scrap_report_runner_from_env()" in text, rel

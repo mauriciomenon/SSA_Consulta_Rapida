@@ -53,7 +53,7 @@ Nenhuma e obrigatoria. Flags booleanas ligam com `1`, `true`, `yes` ou `on`.
 | `SSA_CACHE_MAX_MB` / `SSA_CACHE_MAX_TOTAL_MB` | Limite por item / total do cache de filtros (GUI e web); `0` = sem limite | 16 / 16 |
 | `SSA_SCRAP_REPORT_ROOT` | Pasta do `scrap_report` (SAM API, GUI e script) | - |
 | `SSA_ALLOW_SIBLING_SCRAP_REPORT` | Flag: procurar o `scrap_report` na pasta irma do projeto | ligada |
-| `SSA_SCRAP_REPORT_RUNNER` | Executor do `scrap_report` (`uv` ou `pythonpath`), so em `scripts/import_pai_api_xlsx.py`; a GUI usa sempre `uv` | `uv` |
+| `SSA_SCRAP_REPORT_RUNNER` | Executor do `scrap_report` (`uv` ou `pythonpath`), GUI e script | `uv` |
 | `PAI_API_DEFAULT_SECRET_SERVICE` | Nome do servico no keyring para a credencial do SAM API | `scrap_report.sam` |
 | `SSA_TSM_DEBUG` | Flag (macOS): nao filtra as mensagens TSM/Qt do stderr | desligada |
 | `NO_COLOR` | Saida da CLI sem cores | - |
