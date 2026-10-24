@@ -15,7 +15,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.pai_import_report import build_pai_import_summary_payload
-from shared.env_flags import env_truthy
 from core.pai_import_report import evaluate_pai_import_exit_status
 from core.pai_import_service import (
     PaiImportResult,
@@ -31,10 +30,9 @@ from core.pai_scrap_report_provider import (
     PAI_DEFAULT_NUMBER_OF_YEARS,
     PAI_DEFAULT_PROFILE,
     PAI_RUNNER_UV,
-    PAI_ALLOW_SIBLING_ROOT_ENV,
-    PAI_SCRAP_REPORT_ROOT_ENV,
     PAI_SCRAP_REPORT_RUNNER_ENV,
     PaiScrapReportRequest,
+    scrap_report_location_from_env,
 )
 
 def build_parser() -> argparse.ArgumentParser:
@@ -77,13 +75,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root).expanduser().resolve(strict=False)
+    env_root, allow_sibling = scrap_report_location_from_env()
     request = PaiScrapReportRequest(
         project_root=project_root,
         output_dir=_optional_path(args.output_dir),
-        scrap_report_root=_optional_path(
-            args.scrap_report_root or os.environ.get(PAI_SCRAP_REPORT_ROOT_ENV)
-        ),
-        allow_sibling_scrap_report=_env_truthy(PAI_ALLOW_SIBLING_ROOT_ENV),
+        scrap_report_root=_optional_path(args.scrap_report_root) or env_root,
+        allow_sibling_scrap_report=allow_sibling,
         runner=str(os.environ.get(PAI_SCRAP_REPORT_RUNNER_ENV, PAI_RUNNER_UV)),
         profile=str(args.profile),
         executor_sectors=tuple(args.executor_sector),
@@ -193,10 +190,6 @@ def _optional_path(raw_path: str | None) -> Path | None:
     if not raw_path:
         return None
     return Path(raw_path).expanduser()
-
-
-def _env_truthy(name: str) -> bool:
-    return env_truthy(name)
 
 
 def _resolve_under_project(project_root: Path, value: str | Path) -> Path:

@@ -204,6 +204,21 @@ def run_pai_scrap_report_secret_validate(
     )
 
 
+def scrap_report_location_from_env() -> tuple[Path | None, bool]:
+    """CF-15: (pasta do scrap_report, permite pasta irma) pela mesma regra na GUI e no script.
+
+    SSA_SCRAP_REPORT_ROOT aponta a pasta; SSA_ALLOW_SIBLING_SCRAP_REPORT liga ou
+    desliga a busca na pasta irma do projeto (padrao: ligada).
+    """
+    from shared.env_flags import env_flag
+
+    raw_root = str(os.environ.get(PAI_SCRAP_REPORT_ROOT_ENV, "")).strip()
+    return (
+        Path(raw_root) if raw_root else None,
+        env_flag(PAI_ALLOW_SIBLING_ROOT_ENV, default=True),
+    )
+
+
 def resolve_scrap_report_root(
     project_root: Path,
     *,

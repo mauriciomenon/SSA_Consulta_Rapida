@@ -27,6 +27,7 @@ from core.pai_scrap_report_provider import (
     PAI_RUNNER_UV,
     PaiScrapReportRequest,
     run_pai_scrap_report_ca_export,
+    scrap_report_location_from_env,
 )
 from extracao.extractor import ExtractionError, validate_excel_import_limits
 from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
@@ -207,10 +208,12 @@ class PaiApiRefreshWorker(QThread):
             "Iniciando SAM API: setores=" + ", ".join(sectors)
         )
 
+        scrap_root, allow_sibling = scrap_report_location_from_env()
         base_request = PaiScrapReportRequest(
             project_root=self.config.project_root,
             output_dir=self.config.output_dir,
-            allow_sibling_scrap_report=True,
+            scrap_report_root=scrap_root,
+            allow_sibling_scrap_report=allow_sibling,
             runner=PAI_RUNNER_UV,
             executor_sectors=sectors,
             limit=options.limit,

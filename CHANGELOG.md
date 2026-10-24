@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- SAM API (GUI e `scripts/import_pai_api_xlsx.py`): a pasta do `scrap_report` e achada pela mesma regra. A GUI passa a respeitar `SSA_SCRAP_REPORT_ROOT` (a mensagem de erro ja mandava defini-la), e o script passa a procurar a pasta irma do projeto por padrao, como a GUI; `SSA_ALLOW_SIBLING_SCRAP_REPORT=0` desliga essa busca nos dois.
 - Removido `config/logging.json`: o programa nunca o lia (niveis, arquivos e formato de log vem de `utils/robust_logging.py`). Editar esse arquivo nao tinha efeito.
 - Interface web (Streamlit): o cache de filtros usa o mesmo limite por item da GUI (16 MB sem `SSA_CACHE_MAX_MB`; `0` = sem limite); antes, sem a variavel, nao havia limite.
 - `SSA_NON_INTERACTIVE` tem uma leitura so: liga com `1`, `true`, `yes` ou `on`; `0`, `false`, `no`, `off` ou vazio desligam. Antes a paginacao da CLI e a confirmacao de limpeza da GUI tratavam qualquer valor (ate `0`) como ligado.
