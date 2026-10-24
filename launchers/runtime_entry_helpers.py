@@ -446,10 +446,17 @@ def _apply_runtime_environment(
     runtime_config: Path,
     runtime_data: Path,
 ) -> None:
-    os.environ["SSA_BUNDLED_ROOT"] = app_dir
-    os.environ["SSA_RUNTIME_ROOT"] = str(runtime_dir)
-    os.environ["SSA_CONFIG_DIR"] = str(runtime_config)
-    os.environ["SSA_DB_PATH"] = str(runtime_data / "ssas.db")
+    from shared.runtime_env import apply_runtime_env
+
+    apply_runtime_env(
+        {
+            "SSA_BUNDLED_ROOT": app_dir,
+            "SSA_RUNTIME_ROOT": str(runtime_dir),
+            "SSA_CONFIG_DIR": str(runtime_config),
+            "SSA_DB_PATH": str(runtime_data / "ssas.db"),
+        },
+        logger_name="runtime",
+    )
     allowed_roots = _runtime_allowed_roots(runtime_dir, runtime_config, runtime_data)
     os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(_dedup_paths(allowed_roots))
 

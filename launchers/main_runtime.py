@@ -252,10 +252,17 @@ def _apply_runtime_environment(
     runtime_dirs: dict[str, Path],
     bundled_root: str,
 ) -> None:
-    os.environ["SSA_BUNDLED_ROOT"] = bundled_root
-    os.environ["SSA_RUNTIME_ROOT"] = str(runtime_dir)
-    os.environ["SSA_CONFIG_DIR"] = str(runtime_config)
-    os.environ["SSA_DB_PATH"] = str(runtime_data / "ssas.db")
+    from shared.runtime_env import apply_runtime_env
+
+    apply_runtime_env(
+        {
+            "SSA_BUNDLED_ROOT": bundled_root,
+            "SSA_RUNTIME_ROOT": str(runtime_dir),
+            "SSA_CONFIG_DIR": str(runtime_config),
+            "SSA_DB_PATH": str(runtime_data / "ssas.db"),
+        },
+        logger_name="main",
+    )
     allowed_roots = [
         str(runtime_dir),
         str(runtime_config),
