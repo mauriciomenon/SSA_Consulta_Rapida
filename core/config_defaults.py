@@ -81,8 +81,6 @@ def default_settings_payload() -> dict[str, Any]:
                 "#": 4,
                 "Nº SSA": 9,
                 "Loc.": 10,
-                "Emissor": 6,
-                "Executor": 6,
             },
             "max_auto_scroll_pages": 3,
         },

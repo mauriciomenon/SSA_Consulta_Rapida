@@ -3,11 +3,7 @@
         "column_widths": {
             "#": 4,
             "Nº SSA": 9,
-            "Loc.": 10,
-            "Emissor": 8,
-            "Executor": 8,
-            "Sem.\nCadastro": 8,
-            "Data\nCadastro": 10
+            "Loc.": 10
         },
         "column_visibility": {
             "numero_ssa": true,

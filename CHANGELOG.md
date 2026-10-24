@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Configuracoes da CLI e da importacao: `config/settings.json` passa a sobrepor `config/default_settings.json` por secao e por chave, em vez de substitui-lo inteiro. Assim `import_settings` do arquivo padrao vale mesmo com `settings.json` presente (antes so valia sem ele). Ao salvar pela CLI, o `settings.json` grava as configuracoes efetivas completas. Sairam as larguras de coluna com rotulos que a CLI nao usa (`Emi.`, `Exe.`, `Emissor`, `Executor`, `Sem.\nCadastro`, `Data\nCadastro`), que nunca tinham efeito.
 - Removidas as variaveis `SSA_DERIVADAS_ACTOR` e `SSA_SYNC_ACTOR`: o autor gravado em cada sincronizacao de derivadas e o usuario do sistema (`USER`/`USERNAME`), como ja era quando nenhuma das duas estava definida.
 - Removida a variavel `SSA_EXTRA_DIRS`: a criacao das pastas no inicio usa so a lista fixa do programa e nao cria nem exige pastas extras indicadas pelo ambiente.
 - Filtro avancado de "Divisao" removido de vez: ja nao aparecia na tela, mas um filtro salvo antigo com essa chave ainda era aplicado sem aparecer (e herdando a divisao do setor emissor). Agora a chave salva e ignorada, com aviso no log. A macro "SSA Executadas Divisao" e a ordenacao dos setores nao mudam.

@@ -380,51 +380,62 @@ def load_column_mappings_integrity() -> Dict[str, list]:
     )
 
 
-def load_settings() -> Dict[str, Any]:
-    """
-    Carrega as configurações do usuário. Se não existir, carrega as padrões.
+def _read_settings_file(path: str) -> Dict[str, Any] | None:
+    """JSON de configuracao; None se o arquivo nao existe. JSON invalido propaga."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except json.JSONDecodeError as e:
+        logger.error("Erro ao decodificar JSON em '%s': %s", path, e)
+        raise
 
-    Returns:
-        Dict[str, Any]: Um dicionário com as configurações.
+
+def _merge_settings_sections(
+    default: Dict[str, Any], user: Dict[str, Any]
+) -> Dict[str, Any]:
+    """CF-05: usuario sobrepoe o default por secao e, dentro da secao, por chave.
+
+    So dois niveis: um dicionario mais fundo do usuario (ex.: column_widths)
+    substitui o do default inteiro, para que uma chave apagada nao volte.
+    """
+    merged = dict(default)
+    for key, value in user.items():
+        base = default.get(key)
+        if isinstance(base, dict) and isinstance(value, dict):
+            merged[key] = {**base, **value}
+        else:
+            merged[key] = value
+    return merged
+
+
+def load_settings() -> Dict[str, Any]:
+    """Configuracoes efetivas: default_settings.json com settings.json por cima (CF-05).
+
+    Raises:
+        FileNotFoundError: nenhum dos dois arquivos existe.
+        json.JSONDecodeError: um dos arquivos tem JSON invalido.
     """
     user_settings_file = _resolve_config_path(USER_SETTINGS_FILE)
     default_settings_file = _resolve_config_path(DEFAULT_SETTINGS_FILE)
-    settings_path = user_settings_file
-    if not os.path.exists(settings_path):
-        logger.info(
-            f"Arquivo de configuração do usuário '{settings_path}' não encontrado. Carregando padrões."
+    default_settings = _read_settings_file(default_settings_file)
+    user_settings = _read_settings_file(user_settings_file)
+    if default_settings is None and user_settings is None:
+        message = (
+            "Arquivos de configuracao ausentes: "
+            f"user='{user_settings_file}', default='{default_settings_file}'. "
+            "Execute ensure_default_settings antes de carregar configuracoes."
         )
-        if not os.path.exists(default_settings_file):
-            message = (
-                "Arquivos de configuracao ausentes: "
-                f"user='{user_settings_file}', default='{default_settings_file}'. "
-                "Execute ensure_default_settings antes de carregar configuracoes."
-            )
-            logger.critical(message)
-            raise FileNotFoundError(message)
-        settings_path = default_settings_file
-
-    try:
-        with open(settings_path, "r", encoding="utf-8") as f:
-            settings = json.load(f)
-        logger.debug("Configurações carregadas de '%s'.", settings_path)
-        return settings
-    except FileNotFoundError:
-        if settings_path != default_settings_file and os.path.exists(
-            default_settings_file
-        ):
-            logger.warning(
-                "Arquivo de configuracao do usuario sumiu durante leitura. "
-                "Carregando default '%s'.",
-                default_settings_file,
-            )
-            with open(default_settings_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        logger.critical("Arquivo de configuração '%s' não encontrado.", settings_path)
-        raise
-    except json.JSONDecodeError as e:
-        logger.error("Erro ao decodificar JSON em '%s': %s", settings_path, e)
-        raise
+        logger.critical(message)
+        raise FileNotFoundError(message)
+    if user_settings is None:
+        logger.info(
+            "Arquivo de configuracao do usuario '%s' nao encontrado. Usando padroes.",
+            user_settings_file,
+        )
+        return default_settings or {}
+    return _merge_settings_sections(default_settings or {}, user_settings)
 
 
 def save_settings(settings: Dict[str, Any]):
