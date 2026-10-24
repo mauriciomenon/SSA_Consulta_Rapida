@@ -10,6 +10,7 @@ from utils.robust_logging import get_robust_logger
 
 from shared.date_utils import parse_any_date
 from shared.db_names import CANONICAL_SSA_TABLE
+from shared.ssa_status import status_code_series
 from shared.import_contract import (
     ALLOWED_MISSING_DATA_CADASTRO_STATUSES,
     VALIDATION_REQUIRED_COLUMNS,
@@ -54,7 +55,8 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
     # - situacao: warning (ausencia nao impede insercao)
     situacao_upper = None
     if "situacao" in df.columns:
-        situacao_upper = df["situacao"].astype(str).str.strip().str.upper()
+        # RD-04: "SCC - CANCELADA" (SAM API) conta como SCC.
+        situacao_upper = status_code_series(df["situacao"])
     for column, severity in VALIDATION_REQUIRED_COLUMNS:
         if column not in df.columns:
             all_rows_mask = pd.Series([True] * len(df), index=df.index)

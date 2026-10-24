@@ -2233,7 +2233,7 @@ def _build_derivadas_link_state(
             parent = _normalize_ssa_relation_value(raw_map.get("parent"))
             if parent:
                 candidate_ssas.add(parent)
-            status_hint = str(raw_map.get("situacao", "") or "").strip().upper()
+            status_hint = get_status_code(raw_map.get("situacao"))
         else:
             ssa = _normalize_ssa_relation_value(raw)
             status_hint = ""
@@ -2350,7 +2350,7 @@ def _build_derivadas_tree_html(
             ssa = str(entry.get("ssa", "")).strip()
             if not ssa:
                 return ""
-            status_hint = str(entry.get("situacao", "")).strip().upper()
+            status_hint = get_status_code(entry.get("situacao"))
             return _ssa_link(ssa, status_hint=status_hint)
         return _ssa_link(entry)
 

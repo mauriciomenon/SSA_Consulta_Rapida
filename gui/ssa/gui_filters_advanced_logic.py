@@ -10,7 +10,7 @@ from pandas.api import types as pd_types
 
 from shared.date_utils import parse_datetime_series_mixed
 from shared.numero_ssa import normalize_relation_id as normalize_numero_ssa_relation
-from shared.ssa_status import SSA_ENCERRADAS, status_code_series
+from shared.ssa_status import SSA_ENCERRADAS, get_status_code, status_code_series
 from utils.robust_logging import get_robust_logger
 
 from .gui_filters_advanced_state import (
@@ -305,6 +305,11 @@ def _apply_include_exclude_filters(
                     f"{list(candidate_cols)} exist in the dataframe"
                 )
             series = cache.get_str(col)
+            if col == "situacao" and series is not None:
+                # RD-04: compara pelo codigo ("STE - ..." do SAM API = STE).
+                series = status_code_series(series)
+                include_values = {get_status_code(v) for v in include_values or []}
+                exclude_values = {get_status_code(v) for v in exclude_values or []}
         if series is None:
             raise AdvancedFilterMaskError(
                 f"failed to coerce column '{col}' for filter '{include_key}'"

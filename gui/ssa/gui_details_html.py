@@ -10,7 +10,7 @@ from typing import Any, Callable, Mapping, cast
 
 from gui.helpers.theme_helpers import pick_css_color
 from gui.ssa.details_display_config import DetailsDisplayConfig
-from shared.ssa_status import format_status_display
+from shared.ssa_status import format_status_display, get_status_code
 from utils.formatting import format_cell
 from utils.robust_logging import get_robust_logger
 from utils.themes import get_theme_roles
@@ -282,7 +282,7 @@ def _render_related_row(
             continue
         seen_related.add(related_ssa)
         related_exists = bool(item.get("exists", False))
-        status_hint = str(item.get("situacao", "") or "").strip().upper()
+        status_hint = get_status_code(item.get("situacao"))
         rendered_items.append(
             deps.render_ssa_navigation_link(
                 related_ssa,

@@ -50,6 +50,23 @@ def test_hide_closed_uses_status_code() -> None:
     assert kept["numero_ssa"].tolist() == [4, 5, 6, 7]
 
 
+def test_validation_missing_date_exception_uses_status_code() -> None:
+    """RD-04: 'SCC - CANCELADA' sem data_cadastro segue a excecao de SCC."""
+    from armazenamento.database_validation import validate_dataframe_before_insert
+
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "situacao": ["SCC - CANCELADA", "APV"],
+            "data_cadastro": ["", ""],
+        }
+    )
+    report = validate_dataframe_before_insert(df)
+
+    # So a APV (indice 1) fica sem data invalida; a SCC tem a excecao de negocio.
+    assert list(report["invalid_by_column"]["data_cadastro"]) == [1]
+
+
 def test_default_order_sql_matches_pandas(tmp_path) -> None:
     numeros = [str(202600000 + i) for i in range(len(SITUACOES))]
     df = pd.DataFrame({"numero_ssa": numeros, "situacao": SITUACOES})

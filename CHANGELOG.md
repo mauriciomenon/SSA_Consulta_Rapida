@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Situacao no formato "COD - DESCRICAO" (como o SAM API manda, ex.: "STE - SERVICO TERMINADO") vale como o codigo tambem no filtro avancado de situacao, na excecao de SSA sem data de cadastro da importacao (SCC/ADI/ASE) e na cor dos links de SSA relacionadas nos detalhes.
 - O resumo de cada importacao (`import_run_*.json`) fica sempre na mesma pasta do `ssa.log`. Antes, com `SSA_RUNTIME_ROOT` fora das pastas permitidas, ele caia em `logs/` do programa e a poda apagava os relatorios de la.
 - Reanalise pela CLI interativa: o resumo final mostra arquivos processados/candidatos e arquivos com erro (mesma contagem do executavel da CLI) e o caminho real do log. Antes dois dos tres contadores nunca subiam (procuravam texto com acento que o importador nao escreve) e a mensagem citava `logs/app.log`, que nao existe.
 - Ajuda da linha de comando (`main.py --help`) fiel ao que o programa faz: `--force-rescan` explica que recria o banco so com as planilhas presentes e onde fica o banco anterior (citava o `.last_import`, que nao existe); `--optimized` aparece como sem efeito; `--standard` deixa de prometer "ate 90% mais lento" e logs extras. Sai a referencia ao inexistente `GUIA_MODO_OPTIMIZED.md`.

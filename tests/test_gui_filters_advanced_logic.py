@@ -262,6 +262,26 @@ def test_apply_advanced_filters_applies_solicitante_filter_key():
     assert filtered["solicitante"].tolist() == ["Alice"]
 
 
+def test_apply_advanced_filters_situacao_compares_status_code():
+    """RD-04: 'STE - SERVICO TERMINADO' (SAM API) conta como STE no filtro."""
+    window = _DummyWindow({"situacao_exclude_values": ["STE", "SCC"]})
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003", "202500004"],
+            "situacao": ["STE - SERVICO TERMINADO", "APV", "scc", "SEE - Servico em Execucao"],
+        }
+    )
+
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered["numero_ssa"].tolist() == ["202500002", "202500004"]
+
+
 def test_mask_any_raises_context_instead_of_returning_false():
     class BrokenMask:
         def any(self):
