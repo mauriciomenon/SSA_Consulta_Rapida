@@ -27,11 +27,6 @@ SQLITE_CHECKPOINT_CHECKPOINTED_INDEX = 2
 SQLITE_FILE_REPLACE_RETRY_DELAYS_SECONDS = (0.0, 0.1, 0.35, 0.75)
 
 
-def rotate_preexisting_database_for_full_rescan(db_path: str) -> Optional[str]:
-    """Rotate the previous DB before a full rescan creates a clean candidate."""
-    return rotate_database_for_full_rescan(db_path)
-
-
 FULL_RESCAN_ARTIFACT_KEEP_COUNT = 2
 _FULL_RESCAN_ARTIFACT_MARKERS = ("full_rescan_candidate_", "full_rescan_backup_")
 _SQLITE_SIDECAR_SUFFIXES = ("-wal", "-shm", "-journal")
@@ -268,109 +263,6 @@ def _promote_full_rescan_candidate_locked(
         "DB candidato promovido com sucesso para o caminho principal: %s",
         os.path.basename(primary_db_path),
     )
-    return backup_path
-
-
-def rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
-    """Rotate the current DB file to a timestamped backup and return the backup path."""
-    with database_writer_lock(db_path):
-        return _rotate_database_for_full_rescan_locked(db_path)
-
-
-def _rotate_database_for_full_rescan_locked(db_path: str) -> Optional[str]:
-    if not os.path.exists(db_path):
-        return None
-    logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
-    # Inclui -journal: um rollback journal quente deixado por crash do banco
-    # antigo nao pode ficar no caminho principal — apos a promocao o SQLite
-    # o aplicaria sobre o banco NOVO, corrompendo-o.
-    preexisting_sidecars = {
-        suffix: os.path.exists(f"{db_path}{suffix}")
-        for suffix in ("-wal", "-shm", "-journal")
-    }
-    ensure_wal_checkpointed(
-        db_path,
-        log_label="Banco de full rescan",
-        busy_warning=(
-            "Checkpoint WAL do full rescan permaneceu ocupado; "
-            "rotacao sera bloqueada se o WAL ainda tiver dados: %s"
-        ),
-        failure_message=(
-            "WAL ainda ativo apos checkpoint antes do full rescan; "
-            "rotacao bloqueada para evitar backup inconsistente."
-        ),
-        validation_error_prefix="Falha ao validar estado do WAL antes do full rescan",
-    )
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    backup_path = f"{db_path}.full_rescan_backup_{timestamp}"
-    primary_moved = False
-    moved_sidecars: list[tuple[str, str]] = []
-    placeholder_sidecars: list[str] = []
-    try:
-        replace_sqlite_file_with_retry(db_path, backup_path)
-        primary_moved = True
-        logger.info(
-            "Banco anterior movido para backup de full rescan: %s",
-            os.path.basename(backup_path),
-        )
-        for suffix in ("-wal", "-shm", "-journal"):
-            sidecar = f"{db_path}{suffix}"
-            sidecar_backup = f"{backup_path}{suffix}"
-            # Move pelo estado atual: um sidecar criado apos o snapshot
-            # (ex.: journal de crash tardio) tambem precisa sair do caminho
-            # principal antes da promocao do candidato.
-            if os.path.exists(sidecar):
-                replace_sqlite_file_with_retry(sidecar, sidecar_backup)
-                moved_sidecars.append((sidecar, sidecar_backup))
-                logger.info(
-                    "Arquivo auxiliar do banco movido para backup: %s",
-                    os.path.basename(sidecar_backup),
-                )
-                continue
-            if preexisting_sidecars.get(suffix):
-                Path(sidecar_backup).touch(exist_ok=True)
-                placeholder_sidecars.append(sidecar_backup)
-                logger.info(
-                    "Arquivo auxiliar preexistente foi registrado vazio no backup "
-                    "apos checkpoint consumir o sidecar: %s",
-                    os.path.basename(sidecar_backup),
-                )
-    except OSError as exc:
-        rollback_errors: list[str] = []
-        if primary_moved and os.path.exists(backup_path):
-            try:
-                replace_sqlite_file_with_retry(backup_path, db_path)
-            except OSError as rollback_exc:
-                raise DatabaseError(
-                    "Falha ao preparar banco limpo e ao restaurar o principal; "
-                    f"arquivos de recuperacao preservados em {backup_path}: "
-                    f"rotacao={exc}; restauracao={rollback_exc}"
-                ) from exc
-        for sidecar, sidecar_backup in reversed(moved_sidecars):
-            if not os.path.exists(sidecar_backup):
-                continue
-            try:
-                replace_sqlite_file_with_retry(sidecar_backup, sidecar)
-            except OSError as rollback_exc:
-                rollback_errors.append(
-                    f"sidecar {os.path.basename(sidecar)}: {rollback_exc}"
-                )
-        for placeholder_sidecar in placeholder_sidecars:
-            try:
-                Path(placeholder_sidecar).unlink(missing_ok=True)
-            except OSError as rollback_exc:
-                rollback_errors.append(
-                    f"placeholder {os.path.basename(placeholder_sidecar)}: {rollback_exc}"
-                )
-        rollback_detail = (
-            f" Rollback incompleto: {'; '.join(rollback_errors)}"
-            if rollback_errors
-            else " Banco e sidecars restaurados."
-        )
-        raise DatabaseError(
-            f"Falha ao preparar banco limpo para full rescan: {exc}.{rollback_detail}"
-        ) from exc
-    register_full_rescan_artifact(db_path, backup_path)
     return backup_path
 
 

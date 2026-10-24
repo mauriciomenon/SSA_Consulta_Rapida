@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 import sqlite3
 import subprocess
@@ -15,23 +14,8 @@ from core.import_database_rotation import (
     promote_full_rescan_candidate,
     prune_full_rescan_artifacts,
     register_full_rescan_artifact,
-    rotate_preexisting_database_for_full_rescan,
 )
 from core.import_errors import DatabaseError
-
-
-def _build_wal_db(db_path: Path) -> None:
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("CREATE TABLE ssa_table(id INTEGER PRIMARY KEY, value TEXT)")
-        conn.executemany(
-            "INSERT INTO ssa_table(value) VALUES (?)",
-            [("a",), ("b",)],
-        )
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def _build_value_db(db_path: Path, value: str) -> None:
@@ -54,105 +38,12 @@ def _read_value(db_path: Path) -> str:
     return str(row[0])
 
 
-@pytest.mark.parametrize("marker_writable", [False, True])
-def test_rotate_preexisting_database_for_full_rescan_without_external_lock(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-    marker_writable: bool,
-) -> None:
-    db_path = tmp_path / "ssas.db"
-    _build_wal_db(db_path)
-    original_open = Path.open
+def test_full_rescan_only_promotes_candidate():
+    """CD-13: o full rescan troca o banco so por promote_full_rescan_candidate."""
+    import core.import_database_rotation as rotation
 
-    def _open_with_marker_failure(path, *args, **kwargs):
-        if path.name.startswith(".ssa-full-rescan-") and not marker_writable:
-            raise PermissionError("registro bloqueado")
-        return original_open(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", _open_with_marker_failure)
-    rotation_logger = rotate_preexisting_database_for_full_rescan.__globals__[
-        "logger"
-    ]
-    rotation_logger.addHandler(caplog.handler)
-    try:
-        with caplog.at_level(logging.WARNING, logger=rotation_logger.name):
-            rotate_preexisting_database_for_full_rescan(str(db_path))
-    finally:
-        rotation_logger.removeHandler(caplog.handler)
-
-    backups = sorted(
-        p
-        for p in tmp_path.glob("ssas.db.full_rescan_backup_*")
-        if not p.name.endswith(("-wal", "-shm"))
-    )
-    assert len(backups) == 1
-    assert not db_path.exists()
-    markers = list(tmp_path.glob(".ssa-full-rescan-*.json"))
-    assert bool(markers) is marker_writable
-    if not marker_writable:
-        assert "preservado sem novo registro de propriedade" in caplog.text
-
-    conn = sqlite3.connect(backups[0])
-    try:
-        row = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()
-    finally:
-        conn.close()
-    assert row is not None
-    assert int(row[0]) == 2
-
-
-def test_rotate_preexisting_database_for_full_rescan_moves_existing_sidecars(
-    tmp_path: Path,
-) -> None:
-    db_path = tmp_path / "ssas.db"
-    _build_wal_db(db_path)
-
-    wal_sidecar = Path(f"{db_path}-wal")
-    shm_sidecar = Path(f"{db_path}-shm")
-    wal_sidecar.write_bytes(b"")
-    shm_sidecar.write_bytes(b"")
-
-    rotate_preexisting_database_for_full_rescan(str(db_path))
-
-    backups = sorted(
-        p
-        for p in tmp_path.glob("ssas.db.full_rescan_backup_*")
-        if not p.name.endswith(("-wal", "-shm"))
-    )
-    assert len(backups) == 1
-    backup_path = backups[0]
-
-    assert not wal_sidecar.exists()
-    assert not shm_sidecar.exists()
-    assert Path(f"{backup_path}-wal").exists()
-    assert Path(f"{backup_path}-shm").exists()
-
-
-def test_rotate_moves_journal_sidecar_out_of_primary_path(
-    tmp_path: Path,
-) -> None:
-    """Um -journal quente do banco antigo nao pode ficar no caminho principal:
-    apos a promocao o SQLite o aplicaria sobre o banco novo."""
-    db_path = tmp_path / "ssas.db"
-    _build_value_db(db_path, "primary_old")
-    journal_sidecar = Path(f"{db_path}-journal")
-    journal_sidecar.write_bytes(b"journal quente de crash")
-
-    rotate_preexisting_database_for_full_rescan(str(db_path))
-
-    backups = sorted(
-        p
-        for p in tmp_path.glob("ssas.db.full_rescan_backup_*")
-        if not p.name.endswith(("-wal", "-shm", "-journal"))
-    )
-    assert len(backups) == 1
-    backup_path = backups[0]
-
-    # O caminho principal fica livre de -journal: o checkpoint/recovery do
-    # SQLite consome um journal invalido e o placeholder de backup e inerte.
-    assert not journal_sidecar.exists()
-    assert Path(f"{backup_path}-journal").exists()
+    assert not hasattr(rotation, "rotate_database_for_full_rescan")
+    assert not hasattr(rotation, "rotate_preexisting_database_for_full_rescan")
 
 
 def test_promote_full_rescan_candidate_restores_primary_when_replace_fails(
@@ -350,37 +241,6 @@ def test_reader_never_sees_missing_primary_during_publish(
             allow_publish.set()
         future.result(timeout=10)
     assert _read_value(primary_db) == "candidate_new"
-
-
-def test_rotate_restores_primary_and_sidecars_when_sidecar_move_fails(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    primary_db = tmp_path / "ssas.db"
-    _build_value_db(primary_db, "primary_old")
-    wal_sidecar = Path(f"{primary_db}-wal")
-    shm_sidecar = Path(f"{primary_db}-shm")
-    wal_sidecar.write_bytes(b"")
-    shm_sidecar.write_bytes(b"")
-
-    def _replace_with_shm_failure(source: str, target: str) -> None:
-        if source.endswith("-shm") and ".full_rescan_backup_" in target:
-            raise PermissionError("simulated sidecar failure")
-        os.replace(source, target)
-
-    monkeypatch.setattr(
-        "core.import_database_rotation.replace_sqlite_file_with_retry",
-        _replace_with_shm_failure,
-    )
-
-    with pytest.raises(DatabaseError, match="Banco e sidecars restaurados"):
-        rotate_preexisting_database_for_full_rescan(str(primary_db))
-
-    assert primary_db.exists()
-    assert _read_value(primary_db) == "primary_old"
-    assert wal_sidecar.exists()
-    assert shm_sidecar.exists()
-    assert not list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
 
 
 def _make_artifact(path: Path, age_seconds: float, *, owned: bool = True) -> Path:
@@ -602,43 +462,6 @@ def test_prune_full_rescan_artifacts_preserves_unowned_orphan_sidecar(
     assert orphan_wal.exists()
     assert kept.exists()
     assert Path(f"{kept}-wal").exists()
-
-
-@pytest.mark.parametrize("empty_wal", [False, True])
-def test_rotate_aborts_preserving_journal_when_checkpoint_fails(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    empty_wal: bool,
-) -> None:
-    """Checkpoint que falha com -journal presente aborta a rotacao em vez
-    de deletar os dados de recuperacao."""
-    import core.import_database_rotation as rotation
-
-    db_path = tmp_path / "ssas.db"
-    _build_value_db(db_path, "primary_old")
-    journal_sidecar = Path(f"{db_path}-journal")
-    journal_sidecar.write_bytes(b"journal quente")
-    wal_sidecar = Path(f"{db_path}-wal")
-    if empty_wal:
-        wal_sidecar.write_bytes(b"")
-
-    monkeypatch.setattr(
-        rotation,
-        "force_wal_checkpoint",
-        lambda *args, **kwargs: sqlite3.OperationalError("simulated busy"),
-    )
-
-    with pytest.raises(DatabaseError):
-        rotate_preexisting_database_for_full_rescan(str(db_path))
-
-    assert db_path.exists()
-    # Antes de qualquer abertura do banco: o SQLite apagaria o journal
-    # invalido na primeira conexao.
-    assert journal_sidecar.exists()
-    if empty_wal:
-        assert wal_sidecar.exists()
-    assert _read_value(db_path) == "primary_old"
-    assert not list(tmp_path.glob("ssas.db.full_rescan_backup_*"))
 
 
 @pytest.mark.parametrize("cleanup_fails", [False, True])
