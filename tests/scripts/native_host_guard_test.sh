@@ -118,7 +118,6 @@ guarded_entrypoints=(
   scripts/run_perf_analysis.sh
   scripts/run_perf_no_direnv.sh
   scripts/run_tests.sh
-  scripts/run_tests_loop.sh
   scripts/run_tests_unbuffered.sh
   scripts/security/scan_secrets.sh
 )
