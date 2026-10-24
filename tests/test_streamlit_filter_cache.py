@@ -758,3 +758,15 @@ def test_format_render_stats_line_outputs_expected_values() -> None:
     assert "Render tabela (Padrao (1600))" in line
     assert "ultimo 20.0 ms" in line
     assert "media 15.0 ms" in line
+
+
+def test_streamlit_cache_limit_matches_gui_rule(monkeypatch):
+    """CF-14: sem SSA_CACHE_MAX_MB, Streamlit e GUI usam o mesmo limite (16 MB)."""
+    from dev_env import streamlit_app
+    from gui.cache import filter_cache
+
+    monkeypatch.delenv("SSA_CACHE_MAX_MB", raising=False)
+    assert streamlit_app._resolve_cache_max_entry_bytes() == 16 * 1024 * 1024
+    assert streamlit_app._resolve_cache_max_entry_bytes() == filter_cache._resolve_cache_max_entry_bytes()
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "0")
+    assert streamlit_app._resolve_cache_max_entry_bytes() is None

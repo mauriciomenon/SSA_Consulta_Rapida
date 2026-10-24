@@ -145,17 +145,10 @@ def _resolve_api_timeout_seconds() -> float:
 
 
 def _resolve_cache_max_entry_bytes() -> Optional[int]:
-    raw = os.environ.get("SSA_CACHE_MAX_MB", "").strip()
-    if not raw:
-        return None
-    try:
-        max_mb = float(raw)
-    except ValueError:
-        logger.warning("Invalid SSA_CACHE_MAX_MB value: %r", raw)
-        return None
-    if max_mb <= 0:
-        return None
-    return int(max_mb * 1024 * 1024)
+    """CF-14: mesmo limite da GUI (16 MB por padrao; 0 ou negativo = sem limite)."""
+    from gui.cache.filter_cache import _resolve_cache_max_entry_bytes as gui_limit
+
+    return gui_limit()
 
 
 class StreamlitFilterCache:
