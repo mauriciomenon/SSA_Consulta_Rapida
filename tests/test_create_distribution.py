@@ -1611,3 +1611,19 @@ def test_script_runs_by_path_from_other_cwd(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "--build-system" in result.stdout
+
+
+def test_inno_script_refuses_windows_arm64_source(tmp_path: Path, monkeypatch, caplog) -> None:
+    """E-13: o ISS e x64 (ArchitecturesAllowed=x64); origem windows_arm64 e recusada tambem na chamada direta."""
+    source = tmp_path / "launchers" / "dist" / "windows_arm64"
+    source.mkdir(parents=True)
+    (source / "SSA_GUI.exe").write_bytes(b"exe")
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", tmp_path / "dist_packages")
+    monkeypatch.setattr(
+        create_distribution, "_resolve_inno_source", lambda _bs: (source, "SSA_GUI.exe")
+    )
+
+    assert create_distribution.create_inno_setup_script("pyinstaller", "1.0.0") is None
+    assert "arm64" in caplog.text
+    assert not list(tmp_path.rglob("*.iss"))

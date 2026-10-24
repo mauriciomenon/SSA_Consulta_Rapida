@@ -1342,6 +1342,13 @@ def create_inno_setup_script(
         return None
 
     source_dir, exe_name = resolved
+    # E-13: o ISS gerado e x64 (ArchitecturesAllowed=x64); recusar arm64 tambem
+    # na chamada direta (release_windows.ps1 ja bloqueia o instalador arm64).
+    if "windows_arm64" in source_dir.parts:
+        logger.error(
+            "Instalador Inno so para x64: origem windows_arm64 recusada (%s)", source_dir
+        )
+        return None
     runtime_databases: list[Path] = []
     if include_runtime_db:
         sensitive_files = [
