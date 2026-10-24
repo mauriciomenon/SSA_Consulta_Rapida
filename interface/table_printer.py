@@ -18,6 +18,7 @@ from typing import Any
 import pandas as pd
 from tabulate import tabulate
 
+from core.config_manager import resolve_config_path
 from shared.env_flags import non_interactive_env
 from shared.numero_ssa import display_numero_ssa
 from utils.formatting import format_dataframe_for_display
@@ -62,7 +63,7 @@ class HeaderBuildParams:
 
 
 def _load_priority_config() -> dict[str, Any]:
-    path = os.path.join("config", "column_priority.json")
+    path = resolve_config_path("column_priority.json")
     if os.path.exists(path):
         try:
             with open(path, encoding="utf-8") as f:

@@ -4,9 +4,9 @@ Baseado no SimpleWidthManager da GUI, adaptado para terminal ASCII.
 """
 
 import json
-import os
 from typing import Any, Dict, List, Optional
 
+from core.config_manager import resolve_config_path
 from shared.numero_ssa import display_numero_ssa
 
 
@@ -57,15 +57,10 @@ class CLIWidthManager:
         # Fallback somente-leitura: preferências da GUI principal (para compatibilidade)
         self.gui_config = self._load_gui_config()
 
-    def _project_root(self) -> str:
-        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
     def _load_gui_config(self) -> Dict[str, Any]:
         """Carrega configuração da GUI principal (fallback compatível)."""
         try:
-            config_path = os.path.join(
-                self._project_root(), "config", "gui_main_preferences.json"
-            )
+            config_path = resolve_config_path("gui_main_preferences.json")
             with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
@@ -74,9 +69,7 @@ class CLIWidthManager:
     def _load_cli_priority(self) -> Dict[str, Any]:
         """Carrega prioridades e ordem específicas da CLI (isolado)."""
         try:
-            config_path = os.path.join(
-                self._project_root(), "config", "column_priority.json"
-            )
+            config_path = resolve_config_path("column_priority.json")
             with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
@@ -85,9 +78,7 @@ class CLIWidthManager:
     def _load_display_mappings(self) -> Dict[str, str]:
         """Carrega mapeamento de nomes de exibição da CLI (isolado)."""
         try:
-            config_path = os.path.join(
-                self._project_root(), "config", "display_mappings.json"
-            )
+            config_path = resolve_config_path("display_mappings.json")
             with open(config_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return data if isinstance(data, dict) else {}

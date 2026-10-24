@@ -11,6 +11,7 @@ import tempfile
 import time
 from typing import Any
 
+from core.config_manager import resolve_config_path
 from utils.path_safety import ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger
 
@@ -21,15 +22,11 @@ LOCK_RETRY_DELAY_SECONDS = 0.05
 CLI_ENHANCEMENTS_PATH_ENV = "SSA_CLI_ENHANCEMENTS_PATH"
 
 
-def _get_project_root() -> str:
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-def _resolve_settings_file_path(project_root: str) -> str:
+def _resolve_settings_file_path() -> str:
     override = os.environ.get(CLI_ENHANCEMENTS_PATH_ENV, "").strip()
     if override:
         return str(ensure_path_is_allowed(os.path.abspath(override)))
-    return os.path.join(project_root, "config", "cli_enhancements.json")
+    return resolve_config_path("cli_enhancements.json")
 
 
 if sys.platform == "win32":
@@ -47,8 +44,7 @@ class CLIEnhancementManager:
 
     def __init__(self):
         """Inicializa o gerenciador de melhorias."""
-        self.project_root = _get_project_root()
-        self.settings_file = _resolve_settings_file_path(self.project_root)
+        self.settings_file = _resolve_settings_file_path()
         self.settings = self._load_settings()
 
     def _load_settings(self) -> dict:

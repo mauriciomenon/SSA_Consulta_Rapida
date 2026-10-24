@@ -5,7 +5,7 @@ import os
 # Importacoes relativas necessarias para as funcoes
 # Supondo que 'config' esta no root do projeto para os settings
 # Isso sera ajustado via sys.path em cli.py/main.py se necessario
-from core.config_manager import _resolve_config_path  # noqa: SLF001
+from core.config_manager import resolve_config_path
 from core.config_manager import (
     load_display_mappings_integrity,
     load_settings,
@@ -42,7 +42,7 @@ _MAPPINGS_CACHE_MANAGER = _MappingsCacheManager()
 
 
 def _resolve_settings_path_for_message() -> str:
-    return _resolve_config_path(os.path.join("config", "settings.json"))
+    return resolve_config_path(os.path.join("config", "settings.json"))
 
 
 def _resolve_mapping_path(file_name: str) -> str | None:
@@ -59,7 +59,7 @@ def _resolve_mapping_path(file_name: str) -> str | None:
     if not normalized.lower().endswith(".json"):
         logger.warning("Mapping com extensao invalida: '%s'.", normalized)
         return None
-    return _resolve_config_path(os.path.join("config", normalized))
+    return resolve_config_path(os.path.join("config", normalized))
 
 
 def _load_mappings_handler(file_name: str) -> dict:

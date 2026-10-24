@@ -7,22 +7,29 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from core.config_manager import resolve_config_path
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
-_FILTER_ALIASES_PATH = Path(__file__).resolve().parents[2] / "config" / "filter_aliases.json"
+
+def _filter_aliases_path() -> Path:
+    """filter_aliases.json na pasta de config ativa (CF-08)."""
+    return Path(resolve_config_path("filter_aliases.json"))
 
 
 def load_filter_alias_map_once() -> dict[str, Any]:
-    return dict(_load_filter_alias_map_cached(_filter_alias_signature()))
+    path = _filter_aliases_path()
+    return dict(_load_filter_alias_map_cached(path, _filter_alias_signature(path)))
 
 
 @lru_cache(maxsize=1)
-def _load_filter_alias_map_cached(_signature: tuple[int, int] | None) -> dict[str, Any]:
+def _load_filter_alias_map_cached(
+    path: Path, _signature: tuple[int, int] | None
+) -> dict[str, Any]:
     try:
-        if _FILTER_ALIASES_PATH.exists():
-            with _FILTER_ALIASES_PATH.open("r", encoding="utf-8") as file_obj:
+        if path.exists():
+            with path.open("r", encoding="utf-8") as file_obj:
                 data = json.load(file_obj)
             if isinstance(data, dict):
                 return data
@@ -31,9 +38,9 @@ def _load_filter_alias_map_cached(_signature: tuple[int, int] | None) -> dict[st
     return {}
 
 
-def _filter_alias_signature() -> tuple[int, int] | None:
+def _filter_alias_signature(path: Path) -> tuple[int, int] | None:
     try:
-        stat = _FILTER_ALIASES_PATH.stat()
+        stat = path.stat()
         return int(stat.st_mtime_ns), int(stat.st_size)
     except FileNotFoundError:
         return None

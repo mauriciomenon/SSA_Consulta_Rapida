@@ -16,7 +16,7 @@ def test_load_mappings_handler_uses_project_root(tmp_path, monkeypatch):
             return str(mapping_file)
         return str(tmp_path / path)
 
-    monkeypatch.setattr(ch, "_resolve_config_path", _fake_resolve_config_path)
+    monkeypatch.setattr(ch, "resolve_config_path", _fake_resolve_config_path)
 
     data = ch._load_mappings_handler("sample_mappings.json")
     assert data == {"k": "v"}

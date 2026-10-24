@@ -233,7 +233,7 @@ def _get_config_dir() -> str:
         return CONFIG_DIR
 
 
-def _resolve_config_path(default_path: str) -> str:
+def resolve_config_path(default_path: str) -> str:
     """Caminho do arquivo `basename(default_path)` na pasta de config ativa.
 
     Aceita caminho relativo ("config/x.json") ou absoluto; so o nome do arquivo
@@ -243,11 +243,11 @@ def _resolve_config_path(default_path: str) -> str:
 
 
 def resolve_user_settings_path() -> str:
-    return _resolve_config_path(USER_SETTINGS_FILE)
+    return resolve_config_path(USER_SETTINGS_FILE)
 
 
 def resolve_default_settings_path() -> str:
-    return _resolve_config_path(DEFAULT_SETTINGS_FILE)
+    return resolve_config_path(DEFAULT_SETTINGS_FILE)
 
 
 def load_default_settings_payload() -> Dict[str, Any]:
@@ -417,8 +417,8 @@ def load_settings() -> Dict[str, Any]:
         FileNotFoundError: nenhum dos dois arquivos existe.
         json.JSONDecodeError: um dos arquivos tem JSON invalido.
     """
-    user_settings_file = _resolve_config_path(USER_SETTINGS_FILE)
-    default_settings_file = _resolve_config_path(DEFAULT_SETTINGS_FILE)
+    user_settings_file = resolve_config_path(USER_SETTINGS_FILE)
+    default_settings_file = resolve_config_path(DEFAULT_SETTINGS_FILE)
     default_settings = _read_settings_file(default_settings_file)
     user_settings = _read_settings_file(user_settings_file)
     if default_settings is None and user_settings is None:
@@ -445,7 +445,7 @@ def save_settings(settings: Dict[str, Any]):
     Args:
         settings (Dict[str, Any]): O dicionário de configurações a ser salvo.
     """
-    user_settings_file = _resolve_config_path(USER_SETTINGS_FILE)
+    user_settings_file = resolve_config_path(USER_SETTINGS_FILE)
     try:
         os.makedirs(os.path.dirname(user_settings_file), exist_ok=True)
         _atomic_write_json_file(
@@ -473,9 +473,9 @@ def ensure_default_settings(*, fail_fast: bool = True) -> list[str]:
     """
     errors: list[str] = []
     required_files = {
-        _resolve_config_path(DEFAULT_SETTINGS_FILE): "default_settings.json.example",
-        _resolve_config_path(DISPLAY_MAPPINGS_FILE): "display_mappings.json.example",
-        _resolve_config_path(COLUMN_MAPPINGS_FILE): "column_mappings.json.example",
+        resolve_config_path(DEFAULT_SETTINGS_FILE): "default_settings.json.example",
+        resolve_config_path(DISPLAY_MAPPINGS_FILE): "display_mappings.json.example",
+        resolve_config_path(COLUMN_MAPPINGS_FILE): "column_mappings.json.example",
         # Adicione outros arquivos de configuração aqui se necessário
     }
 

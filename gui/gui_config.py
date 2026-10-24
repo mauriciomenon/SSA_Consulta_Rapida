@@ -22,7 +22,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 def _resolve_gui_main_preferences_path() -> str:
     """Resolve GUI preferences path strictly via centralized config hierarchy."""
-    return core_config_manager._resolve_config_path(  # noqa: SLF001
+    return core_config_manager.resolve_config_path(
         os.path.join(core_config_manager.CONFIG_DIR, "gui_main_preferences.json")
     )
 
