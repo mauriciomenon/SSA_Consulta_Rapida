@@ -95,6 +95,7 @@ from gui.simple_width_manager import SimpleCacheManager  # noqa: E402
 from gui.simple_width_manager import SimpleWidthManager
 from shared.db_names import ALL_SSA_TABLE_NAMES  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE
+from shared.env_flags import env_truthy
 
 # Inicializar logging robusto
 try:
@@ -436,12 +437,7 @@ def _is_widget_valid(widget) -> bool:
 
 # --- Constantes ---
 DB_PATH = os.environ.get("SSA_DB_PATH") or os.path.join(project_root, "data", "ssas.db")
-TSM_DEBUG_ENABLED = str(os.environ.get("SSA_TSM_DEBUG", "")).strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+TSM_DEBUG_ENABLED = env_truthy("SSA_TSM_DEBUG")
 
 # Constantes de UI
 DETAILS_DIALOG_FONT_SIZE = 10  # pt

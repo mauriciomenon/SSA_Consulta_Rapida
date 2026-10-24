@@ -5,6 +5,8 @@ import os
 import sys
 import threading
 
+from shared.env_flags import env_truthy
+
 
 class GuiOperationalError(RuntimeError):
     """Raised when GUI initialization or runtime execution fails."""
@@ -102,12 +104,7 @@ def _install_macos_stderr_filter(
 ) -> _MacOSStderrFilter | None:
     if sys.platform != "darwin":
         return None
-    if str(os.environ.get("SSA_TSM_DEBUG", "")).strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }:
+    if env_truthy("SSA_TSM_DEBUG"):
         return None
     stderr_filter = _MacOSStderrFilter(logger)
     if stderr_filter.install():
