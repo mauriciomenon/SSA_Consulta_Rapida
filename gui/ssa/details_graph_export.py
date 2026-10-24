@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, MutableMapping
 
 from core.cache_manager import CacheManager
+from core.config_manager import atomic_write_text
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,8 +223,8 @@ class DetailsGraphExportController:
             )
             return
         try:
-            with export_path.open("w", encoding="utf-8") as handle:
-                handle.write(content)
+            # G-13: temporario + os.replace; falha nao trunca o arquivo existente.
+            atomic_write_text(str(export_path), content)
         except OSError as exc:
             self.logger.warning("%s: %s", log_message, exc, exc_info=True)
             self.message_box_cls.warning(
@@ -246,7 +248,19 @@ class DetailsGraphExportController:
                 "Grafo indisponivel para exportacao em PNG.",
             )
             return
-        if not pixmap.save(path, "PNG"):
+        export_path = Path(path).expanduser()
+        partial = export_path.with_name(f".{export_path.name}.tmp")
+        # G-13: grava ao lado e troca; falha nao trunca o PNG existente.
+        saved = pixmap.save(str(partial), "PNG")
+        try:
+            if saved:
+                os.replace(partial, export_path)
+        except OSError as exc:
+            self.logger.warning("Falha ao exportar grafo PNG: %s", exc, exc_info=True)
+            saved = False
+        finally:
+            partial.unlink(missing_ok=True)
+        if not saved:
             self.message_box_cls.warning(
                 self.dialog,
                 "Exportacao",

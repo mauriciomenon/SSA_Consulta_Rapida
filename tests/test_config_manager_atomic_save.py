@@ -30,12 +30,12 @@ def test_save_settings_is_atomic_and_does_not_corrupt_existing_file(
 
     tmp_prefix = f".{settings_path.name}.tmp."
 
-    def bad_dump(obj, fh, indent=4, ensure_ascii=False):  # noqa: ARG001
-        fh.write("{")
-        fh.flush()
+    # Falha depois do temporario gravado (atomic_write_text): o destino nao
+    # pode mudar e o temporario nao pode sobrar.
+    def bad_replace(*_args, **_kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(config_manager.json, "dump", bad_dump)
+    monkeypatch.setattr(config_manager.os, "replace", bad_replace)
 
     with pytest.raises(RuntimeError):
         config_manager.save_settings({"b": 2})

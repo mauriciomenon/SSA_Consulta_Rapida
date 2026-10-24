@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Exportacao do grafo de derivadas (PNG, SVG, Mermaid) e filtros salvos da GUI: a gravacao vai para um temporario e so substitui o arquivo no fim, com os dados ja no disco; uma falha ou queda de energia no meio nao deixa mais o arquivo anterior truncado ou vazio.
+- Filtros de setor da GUI (executor/emissor, subset por setor e macro) comparam o setor sem diferenca de maiusculas e espacos: a opcao "MEL4" alcanca tambem linhas gravadas como "mel4" ou "MEL4 ".
 - Filtro avancado "Ano Emissao" (GUI): o ano passa a ser o ano ISO da semana de cadastro, o mesmo das faixas de semana; sem semana, vale o ano ISO da data de cadastro. As SCC/ADI/ASE sem data, que tem semana, passam a aparecer no filtro de ano, e SSAs de inicio de janeiro que caem na ultima semana do ano anterior (ex.: 01/01/2022 = semana 202152) contam no mesmo ano da semana.
 - CLI: o numero da SSA aparece como esta gravado. Antes, um valor vindo como "202512345.0" era mostrado como "025123450" ou "2025123450", e numeros longos eram truncados (ex.: "2025123456789" virava "512345678").
 - Situacao no formato "COD - DESCRICAO" (como o SAM API manda, ex.: "STE - SERVICO TERMINADO") vale como o codigo tambem no filtro avancado de situacao, na excecao de SSA sem data de cadastro da importacao (SCC/ADI/ASE) e na cor dos links de SSA relacionadas nos detalhes.

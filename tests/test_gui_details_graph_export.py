@@ -390,3 +390,28 @@ def test_graph_export_controller_warns_when_parent_dir_is_missing(
         )
     ]
     assert not missing_path.exists()
+
+
+def test_graph_export_failure_keeps_existing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G-13: falha ao gravar nao trunca o export anterior nem deixa temporario."""
+    from core import config_manager
+
+    target = tmp_path / "out.svg"
+    target.write_text("<svg>anterior</svg>", encoding="utf-8")
+    controller = _controller(tmp_path, state={"target": "202600001", "svg": "<svg>novo</svg>"})
+
+    def _fail_replace(*_args, **_kwargs):
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr(config_manager.os, "replace", _fail_replace)
+    controller.export_svg()
+
+    assert target.read_text(encoding="utf-8") == "<svg>anterior</svg>"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["out.svg"]
+    assert _FakeMessageBox.warnings[-1][2] == "Falha ao salvar o arquivo SVG."
+
+    monkeypatch.undo()
+    controller.export_svg()
+    assert target.read_text(encoding="utf-8") == "<svg>novo</svg>"

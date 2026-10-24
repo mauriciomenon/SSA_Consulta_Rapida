@@ -35,8 +35,18 @@ def _atomic_write_json_file(
     path: str, data: Any, *, indent: int, ensure_ascii: bool
 ) -> None:
     """Write JSON atomically to prevent truncated/corrupted config files on crash."""
+    atomic_write_text(path, json.dumps(data, indent=indent, ensure_ascii=ensure_ascii))
+
+
+def atomic_write_text(path: str, text: str) -> None:
+    """Grava texto de forma atomica: temporario na mesma pasta, fsync e os.replace.
+
+    Regra unica de escrita segura (config JSON, exportacoes): um crash no meio
+    nunca deixa o destino truncado. Mantem o modo de um arquivo existente
+    (novo: 0o600).
+    """
     target_dir = os.path.dirname(path) or "."
-    base_name = os.path.basename(path) or "config.json"
+    base_name = os.path.basename(path) or "arquivo"
     os.makedirs(target_dir, exist_ok=True)
     target_mode = 0o600
     try:
@@ -60,7 +70,7 @@ def _atomic_write_json_file(
         f = os.fdopen(fd, "w", encoding="utf-8")
         fd = None
         try:
-            json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
+            f.write(text)
             f.flush()
             if hasattr(os, "fchmod"):
                 try:

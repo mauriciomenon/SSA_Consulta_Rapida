@@ -215,6 +215,8 @@ def _dump_private_json_payload(handle: Any, payload: dict[str, Any]) -> None:
         cls=PersistentFilterJSONEncoder,
     )
     handle.flush()
+    # G-30: dado no disco antes do os.replace (queda de energia nao zera o arquivo).
+    os.fsync(handle.fileno())
 
 
 def sort_persistent_filters(filters: list[dict[str, Any]]) -> list[dict[str, Any]]:
