@@ -1486,6 +1486,7 @@ class FilterGUISSAMixin:
                         self._active_column_filters.pop(member, None)
                         removed = True
                 group["values"] = []
+                self._unregister_or_group(group)
         elif col_name in self._active_column_filters:
             self._active_column_filters.pop(col_name, None)
             removed = True
@@ -2348,6 +2349,13 @@ class FilterGUISSAMixin:
         for col in normalized_columns:
             self._column_to_or_group[col] = group
         return group
+
+    def _unregister_or_group(self, group: dict) -> None:
+        """G-07: grupo OU desativado sai do registro; reativar uma coluna nao o revive."""
+        self._column_or_groups = [g for g in self._column_or_groups if g is not group]
+        for col in group.get("columns", []):
+            if self._column_to_or_group.get(col) is group:
+                self._column_to_or_group.pop(col, None)
 
     def _sync_or_group_values(self, column: str, text: str):
         """Sync shared values for columns evaluated by the column-filter OR engine."""

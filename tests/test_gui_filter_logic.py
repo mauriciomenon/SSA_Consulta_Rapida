@@ -5687,6 +5687,24 @@ class TestGUIFilterLogic:
         )
         assert "descricao_ssa" not in self.window._active_column_filters
 
+    def test_deactivate_or_group_unregisters_group(self):
+        """G-07: desativar coluna de grupo OU remove o grupo do registro."""
+        self.window._reset_or_groups()
+        group = self.window._register_or_group(
+            ["descricao_ssa", "descricao_execucao"], ["bomba"]
+        )
+        self.window._active_column_filters["descricao_ssa"] = "bomba"
+        self.window._active_column_filters["descricao_execucao"] = "bomba"
+        QApplication.processEvents()
+
+        self.window._deactivate_column_filter("descricao_ssa")
+        QApplication.processEvents()
+
+        assert group not in self.window._column_or_groups
+        assert "descricao_ssa" not in self.window._column_to_or_group
+        assert "descricao_execucao" not in self.window._column_to_or_group
+        assert "descricao_execucao" not in self.window._active_column_filters
+
     @pytest.mark.skip(
         reason="exclude_ste_checkbox está oculto na UI atual; efeito funcional coberto por test_exclude_ste_sca_combined_with_or_group"
     )
