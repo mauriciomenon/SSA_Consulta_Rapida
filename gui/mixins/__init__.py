@@ -6,9 +6,4 @@
 
 from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin
 
-__all__ = [
-    "FilterGUISSAMixin",
-    # 'DisplayGUISSAMixin',
-    # 'EventGUISSAMixin',
-    # 'ThemeGUISSAMixin'
-]
+__all__ = ["FilterGUISSAMixin"]

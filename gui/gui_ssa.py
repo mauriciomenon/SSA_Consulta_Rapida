@@ -130,17 +130,6 @@ class _RescanRetentionKwargs(_DataLoaderRetentionKwargs):
     pass
 
 
-class _CloseRetentionKwargs(TypedDict):
-    data_loader_workers: list[Any]
-    data_loader_meta: dict[Any, Any]
-    max_data_loader_workers: int
-    rescan_workers: list[Any]
-    rescan_meta: dict[Any, Any]
-    max_rescan_workers: int
-    retired_ttl_sec: float
-    retired_force_wait_ms: int
-
-
 def _data_loader_retention_kwargs() -> _DataLoaderRetentionKwargs:
     return {
         "global_workers": GLOBAL_RETIRED_DATA_LOADER_WORKERS,
@@ -156,19 +145,6 @@ def _rescan_retention_kwargs() -> _RescanRetentionKwargs:
         "global_workers": GLOBAL_RETIRED_RESCAN_WORKERS,
         "global_meta": GLOBAL_RETIRED_RESCAN_META,
         "max_global_workers": MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
-        "retired_ttl_sec": RETIRED_WORKER_TTL_SEC,
-        "retired_force_wait_ms": RETIRED_WORKER_FORCE_WAIT_MS,
-    }
-
-
-def _close_retention_kwargs() -> _CloseRetentionKwargs:
-    return {
-        "data_loader_workers": GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-        "data_loader_meta": GLOBAL_RETIRED_DATA_LOADER_META,
-        "max_data_loader_workers": MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-        "rescan_workers": GLOBAL_RETIRED_RESCAN_WORKERS,
-        "rescan_meta": GLOBAL_RETIRED_RESCAN_META,
-        "max_rescan_workers": MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
         "retired_ttl_sec": RETIRED_WORKER_TTL_SEC,
         "retired_force_wait_ms": RETIRED_WORKER_FORCE_WAIT_MS,
     }
