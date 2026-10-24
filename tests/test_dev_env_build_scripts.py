@@ -410,25 +410,17 @@ def test_windows_launchers_use_repo_relative_paths_and_distinct_modes() -> None:
     gui_cmd = (PROJECT_ROOT / "launchers" / "SSA_Consulta_Rapida_3.10_GUI.cmd").read_text(
         encoding="utf-8"
     )
-    package_cli = (
-        PROJECT_ROOT / "launchers" / "launcher_ssa_consulta_rapida_cli.bat"
-    ).read_text(encoding="utf-8")
-    package_gui = (
-        PROJECT_ROOT / "launchers" / "launcher_ssa_consulta_rapida_gui.bat"
-    ).read_text(encoding="utf-8")
 
-    for script in (cli_cmd, gui_cmd, package_cli, package_gui):
+    for script in (cli_cmd, gui_cmd):
         assert "C:\\Users\\menon" not in script
         assert 'for %%I in ("%~dp0..") do set "ROOT=%%~fI"' in script
 
     assert '"%PYEXE%" main.py %*' in cli_cmd
     assert "--gui" not in cli_cmd
     assert '"%PYEXE%" main.py --gui %*' in gui_cmd
-    assert '"%EXE%" %*' in package_cli
-    assert "--gui" not in package_cli
-    assert 'start "PyInstaller GUI" "%EXE%" --gui %*' in package_gui
-    assert "builds\\pyinstaller\\windows_amd64\\SSA_Consulta_Rapida.exe" in package_cli
-    assert "builds\\pyinstaller\\windows_amd64\\SSA_Consulta_Rapida.exe" in package_gui
+    # CD-18: launchers .bat do PyInstaller apontavam para um .exe que nenhum build gera.
+    for legacy in ("launcher_ssa_consulta_rapida_cli.bat", "launcher_ssa_consulta_rapida_gui.bat"):
+        assert not (PROJECT_ROOT / "launchers" / legacy).exists()
 
 
 def test_pyoxidizer_debian_runtime_includes_version_json() -> None:
