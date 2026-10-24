@@ -1,9 +1,5 @@
-from contextlib import closing
 import json
 from pathlib import Path
-import sqlite3
-import subprocess
-import sys
 
 from utils.version import get_app_version
 
@@ -19,22 +15,10 @@ def test_version_file_and_config_match_runtime_version():
     assert get_app_version(str(project_root)) == version_file_value
 
 
-def test_standalone_cli_banner_uses_repository_version(tmp_path):
+
+
+def test_fallback_emergency_scripts_removed():
+    """CD-14: sem a falsa importacao de emergencia (banco de 2 SSAs de teste) nem o CLI simplificado."""
     project_root = Path(__file__).resolve().parents[1]
-    version = (project_root / "VERSION").read_text(encoding="utf-8").strip()
-    (tmp_path / "data").mkdir()
-    with closing(sqlite3.connect(tmp_path / "data" / "ssas.db")) as connection:
-        connection.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
-        connection.commit()
-    result = subprocess.run(
-        [sys.executable, str(project_root / "utils" / "fallback" / "main_simple.py")],
-        cwd=tmp_path,
-        input="sair\n",
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=True,
-    )
-    assert f"Pesquisa Rapida de SSAs {version}" in result.stdout
-    assert "Base de dados: 0 registros" in result.stdout
-    assert not result.stderr
+    assert not (project_root / "utils" / "fallback" / "emergency_import.py").exists()
+    assert not (project_root / "utils" / "fallback" / "main_simple.py").exists()
