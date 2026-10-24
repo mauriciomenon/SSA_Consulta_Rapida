@@ -300,3 +300,17 @@ def test_context_tabs_rebind_current_series_and_drop_removed_ssas(monkeypatch) -
     assert state["entries"] == [{"ssa": "202600100"}]
     assert state["current_ssa"] == "202600100"
     assert text.text == "valor novo"
+
+
+def test_dialog_details_link_direct_derivadas(tmp_path: Path) -> None:
+    """G-16: no dialogo (indice vazio compartilhado) as derivadas diretas viram link."""
+    root = "202304697"
+    child = "202304698"
+    window = _window(str(tmp_path / "missing.db"), [(root, ""), (child, root)])
+
+    html = gui_details._format_details_html(
+        window, window.df_completo.iloc[0], linkify=True, ssa_index={}
+    )
+
+    assert "SSAs derivadas diretas (1)" in html
+    assert f">{child}</a>" in html

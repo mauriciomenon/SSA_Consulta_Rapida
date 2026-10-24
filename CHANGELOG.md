@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Janela de detalhes da SSA: as "SSAs derivadas diretas" e as outras relacoes diretas voltam a ser links clicaveis; antes apareciam como texto simples nessa janela.
 - Filtros de coluna da GUI: desativar um filtro que fazia parte de um grupo OU (mesmo termo em varias colunas) desfaz o grupo; ao reativar uma dessas colunas sozinha ela nao volta a combinar com as outras.
 - Exportacao do grafo de derivadas (PNG, SVG, Mermaid) e filtros salvos da GUI: a gravacao vai para um temporario e so substitui o arquivo no fim, com os dados ja no disco; uma falha ou queda de energia no meio nao deixa mais o arquivo anterior truncado ou vazio.
 - Filtros de setor da GUI (executor/emissor, subset por setor e macro) comparam o setor sem diferenca de maiusculas e espacos: a opcao "MEL4" alcanca tambem linhas gravadas como "mel4" ou "MEL4 ".

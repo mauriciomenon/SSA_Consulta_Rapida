@@ -212,7 +212,9 @@ def _render_derivadas_row(
             [(item["ssa"], item.get("relacao", "")) for item in other_relations],
         ),
     )
-    if linkify and isinstance(ssa_index, dict) and ssa_index:
+    # G-16: o dialogo passa um indice vazio (cache compartilhado); hidratar
+    # mesmo vazio, senao as derivadas diretas saem sem link.
+    if linkify and isinstance(ssa_index, dict):
         deps.hydrate_ssa_index_candidates(
             window,
             cast(dict[str, Any], ssa_index),
