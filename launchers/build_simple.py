@@ -5,6 +5,7 @@ IMPORTANTE: Este script usa dist_simple que e temporario e NAO deve ir para o gi
 """
 
 import atexit
+import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
@@ -41,8 +42,20 @@ def cleanup_dist_simple():
             print(f"WARN  Erro na limpeza: {e}")
 
 
+def _pyinstaller_available() -> bool:
+    return importlib.util.find_spec("PyInstaller") is not None
+
+
 def main():
     print(f"=== SSA Consulta Rapida v{APP_VERSION} - Build Simples ===")
+    # BL-27: o PyInstaller precisa rodar no mesmo Python do projeto; o do PATH
+    # (ex.: uv tool) nao tem pandas/tabulate/filelock e gera executavel quebrado.
+    if not _pyinstaller_available():
+        print(
+            "ERR PyInstaller ausente neste Python. Rode: "
+            "uv run --extra build python launchers/build_simple.py"
+        )
+        return 1
     print("WARN  AVISO: dist_simple é temporário e será limpo automaticamente!")
 
     # Registrar limpeza automática
@@ -62,7 +75,9 @@ def main():
 
     # Comando PyInstaller simples e FUNCIONAL
     cmd_cli = [
-        "pyinstaller",
+        sys.executable,
+        "-m",
+        "PyInstaller",
         "--onedir",
         "--console",
         "--name",

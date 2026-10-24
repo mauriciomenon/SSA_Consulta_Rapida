@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- `launchers/build_simple.py` roda o PyInstaller pelo mesmo Python do projeto e para logo com a instrucao `uv run --extra build python launchers/build_simple.py` quando ele nao esta instalado. Antes chamava o `pyinstaller` do PATH, que pode ser outro Python sem pandas/tabulate/filelock: o executavel saia quebrado (a CLI nao iniciava).
 - `launchers/build_simple.py` deixa de embutir a pasta `data/` (banco e backups) no executavel e leva de `config/` so os arquivos versionados, como os demais builds. Antes levava a pasta inteira da maquina do build, inclusive preferencias locais.
 - Removido `utils/robust_importer.py`: o programa importa planilhas pelo extractor, e a sincronizacao de derivadas passa a ler a aba diretamente (mesmo resultado). Sairam junto as variaveis `SSA_IMPORT_DEBUG` e `SSA_MAX_HEADER_SCAN`, a gravacao de `reports/last_import_stats.json` na pasta corrente e os scripts de desempenho que mediam esse importador (`scripts/run_import_perf.sh`, `run_perf_analysis.sh`, `run_perf_no_direnv.sh`, `analyze_perf_history.py`).
 - Removidos `scripts/optimize_database_indexes.py` (criava 6 indices fora do schema, no banco relativo a pasta corrente) e `scripts_manutencao/cleanup_emergency.py` (tratava `ssas` como tabela; no schema atual e uma VIEW). Nenhum fluxo do programa os usava.

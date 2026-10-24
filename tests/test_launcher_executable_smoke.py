@@ -97,6 +97,7 @@ def test_build_simple_validates_functional_import_smoke(
     version = "9.99"
     monkeypatch.setattr(build_simple, "APP_VERSION", version)
     monkeypatch.setattr(build_simple, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(build_simple, "_pyinstaller_available", lambda: True)
     monkeypatch.setattr(build_simple, "tracked_config_files", lambda _root: ["config/a.json"])
     exe_path = smoke_validation.cli_executable_path(tmp_path, version, simple=True)
     subprocess_calls: list[list[str]] = []
@@ -154,6 +155,7 @@ def test_build_simple_packages_only_tracked_config_and_no_data(
     monkeypatch.setattr(
         build_simple, "tracked_config_files", lambda _root: ["config/a.json", "config/sub/b.sql"]
     )
+    monkeypatch.setattr(build_simple, "_pyinstaller_available", lambda: True)
     exe_path = smoke_validation.cli_executable_path(tmp_path, "9.99", simple=True)
     calls: list[list[str]] = []
 
@@ -177,3 +179,38 @@ def test_build_simple_packages_only_tracked_config_and_no_data(
         f"{tmp_path}/config/a.json:config",
         f"{tmp_path}/config/sub/b.sql:config/sub",
     ]
+
+
+def test_build_simple_runs_pyinstaller_from_current_python(tmp_path: Path, monkeypatch) -> None:
+    """BL-27: PyInstaller do mesmo Python do projeto (com as dependencias), nao o do PATH."""
+    import sys
+
+    monkeypatch.setattr(build_simple, "APP_VERSION", "9.99")
+    monkeypatch.setattr(build_simple, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(build_simple, "tracked_config_files", lambda _root: ["config/a.json"])
+    monkeypatch.setattr(build_simple, "_pyinstaller_available", lambda: True)
+    calls: list[list[str]] = []
+
+    def _fake_run(cmd, **_kwargs):
+        calls.append(list(cmd))
+        raise subprocess.CalledProcessError(1, cmd, output="", stderr="parar aqui")
+
+    monkeypatch.setattr(build_simple.subprocess, "run", _fake_run)
+
+    assert build_simple.main() == 1
+    assert calls[0][:3] == [sys.executable, "-m", "PyInstaller"]
+
+
+def test_build_simple_stops_before_cleaning_without_pyinstaller(tmp_path: Path, monkeypatch) -> None:
+    """BL-27: sem PyInstaller neste Python, para antes de apagar dist_simple ou rodar algo."""
+    monkeypatch.setattr(build_simple, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(build_simple, "_pyinstaller_available", lambda: False)
+    marker = tmp_path / "launchers" / "dist_simple" / "keep.txt"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(
+        build_simple.subprocess, "run", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("nao roda"))
+    )
+
+    assert build_simple.main() == 1
+    assert marker.exists()
