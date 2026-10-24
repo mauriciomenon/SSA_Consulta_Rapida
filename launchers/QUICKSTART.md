@@ -30,7 +30,7 @@ launchers/
 
 ```bash
 # Navegar para o diretorio do projeto
-cd /Users/menon/git/SSA_Consulta_Rapida
+cd caminho/para/SSA_Consulta_Rapida  # raiz do repositorio
 
 # Instalar dependencias de build
 uv pip install --python 3.13 pyinstaller "pillow>=12.1.1" cairosvg
