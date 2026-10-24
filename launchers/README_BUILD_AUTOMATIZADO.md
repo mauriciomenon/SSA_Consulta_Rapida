@@ -62,7 +62,6 @@
 | `scripts/check_docs.py` | Pendente | Garantir ausencia de docs vazios |
 | `tests/test_smoke_cli.py` | Pendente | Verificar CLI basica |
 | `launchers/build_all.py` | Presente | Compatibilidade legada para fluxo completo de build |
-| `launchers/cleanup_emergency.py` | Feito | Limpeza emergencial (manual) |
 
 ## 4. Criterios de Falha (Gate)
 - JSON invalido → falha imediata.

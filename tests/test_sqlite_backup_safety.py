@@ -15,7 +15,7 @@ from armazenamento.database_integrity import create_sqlite_backup
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Permissoes POSIX")
-@pytest.mark.parametrize("operation", ["reset", "clear", "cleanup", "snapshot"])
+@pytest.mark.parametrize("operation", ["reset", "clear", "snapshot"])
 @pytest.mark.parametrize("source_mode", [0o600, 0o640])
 def test_backup_is_private_before_sqlite_opens_it(
     tmp_path: Path, operation: str, source_mode: int
@@ -60,9 +60,6 @@ if operation == "reset":
 elif operation == "clear":
     from scripts_manutencao.limpar_banco import limpar_banco
     assert limpar_banco()
-elif operation == "cleanup":
-    from scripts_manutencao.cleanup_emergency import emergency_cleanup
-    assert emergency_cleanup() == (1, 1)
 else:
     from armazenamento.database_integrity import _create_integrity_snapshot
     assert _create_integrity_snapshot("data/ssas.db", force=True)

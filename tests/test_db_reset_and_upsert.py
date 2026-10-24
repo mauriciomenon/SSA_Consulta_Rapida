@@ -3,7 +3,6 @@ import os
 import pandas as pd
 
 from armazenamento.database import (
-    ensure_indexes,
     get_db_connection,
     initialize_database,
     insert_dataframe_to_db,
@@ -40,13 +39,6 @@ def test_reset_only_in_gerenciar_banco():
 
     assert not hasattr(database, "reset_database")
     assert callable(gerenciar_banco.reset_database)
-
-
-def test_ensure_indexes(tmp_path):
-    db_path = os.path.join(tmp_path, "x.sqlite")
-    schema = _make_schema(tmp_path)
-    initialize_database(db_path, schema)
-    assert ensure_indexes(db_path) is True
 
 
 def test_insert_dataframe_with_smart_upsert(tmp_path):
@@ -476,3 +468,15 @@ def test_simple_insert_does_not_persist_textual_null_sentinels(tmp_path):
     assert row is not None
     assert row[0] is None
     assert row[1] is None
+
+
+def test_unused_index_and_emergency_scripts_removed():
+    """SC-13: sem indices/limpeza fora do schema (ensure_indexes, optimize_database_indexes, cleanup_emergency)."""
+    from pathlib import Path
+
+    from armazenamento import database
+
+    root = Path(__file__).resolve().parents[1]
+    assert not hasattr(database, "ensure_indexes")
+    assert not (root / "scripts" / "optimize_database_indexes.py").exists()
+    assert not (root / "scripts_manutencao" / "cleanup_emergency.py").exists()

@@ -878,47 +878,6 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         return False
 
 
-def ensure_indexes(db_path: str, table_name: str = CANONICAL_SSA_TABLE) -> bool:
-    """Garante indices uteis para consultas comuns."""
-    try:
-        with get_db_connection(db_path, write=True) as conn:
-            cur = conn.cursor()
-            resolved_table = _resolve_target_table(conn, table_name)
-            quoted_table = _quote_identifier(resolved_table)
-            # Descobre colunas existentes para evitar erros ao criar indices
-            cur.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-                f"PRAGMA table_info({quoted_table})"
-            )
-            cols_info = cur.fetchall() or []
-            existing_cols = {row[1] for row in cols_info}  # nome da coluna na posicao 1
-
-            # Indices candidatos e suas colunas
-            candidate_indexes = [
-                (f"idx_{resolved_table}_numero_ssa", "numero_ssa"),
-                (f"idx_{resolved_table}_setor_executor", "setor_executor"),
-                (f"idx_{resolved_table}_semana_cadastro", "semana_cadastro"),
-                (f"idx_{resolved_table}_situacao", "situacao"),
-            ]
-
-            for idx_name, col in candidate_indexes:
-                if not is_valid_identifier(col):
-                    logger.warning("Ignorando coluna invalida para indice: %s", col)
-                    continue
-                if not is_valid_identifier(idx_name):
-                    logger.warning("Ignorando nome de indice invalido: %s", idx_name)
-                    continue
-                if col in existing_cols:
-                    cur.execute(
-                        f"CREATE INDEX IF NOT EXISTS {_quote_identifier(idx_name)} "
-                        f"ON {quoted_table} ({_quote_identifier(col)})"
-                    )
-            conn.commit()
-        return True
-    except Exception as e:
-        logger.error(f"Erro criando indices: {e}")
-        return False
-
-
 def ensure_column_exists(
     db_path: str,
     table_name: str,
