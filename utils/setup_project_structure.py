@@ -12,8 +12,6 @@ Responsibilities
 ----------------
 * Ensure core directories exist (idempotent)
 * Provide structured result (created / existing / errors)
-* Allow extension: additional required dirs via environment variable
-    ``SSA_EXTRA_DIRS=dir1,dir2``
 * Lightweight validation step used by a guard test
 """
 
@@ -26,19 +24,8 @@ from dataclasses import dataclass, field
 logger = logging.getLogger(__name__)
 
 
-def _is_within_base(path: str, base: str) -> bool:
-    """Return True when `path` is inside `base` after realpath normalization."""
-    try:
-        path_real = os.path.realpath(path)
-        base_real = os.path.realpath(base)
-        return os.path.commonpath([path_real, base_real]) == base_real
-    except Exception:
-        return False
-
-
-# Base imutável; cópia de trabalho é derivada em runtime
-# para evitar mutação global por chamadas repetidas
-_BASE_REQUIRED_DIRS = [
+# Pastas exigidas na raiz (lista fixa; sem extensao por ambiente)
+_BASE_REQUIRED_DIRS = (
     "config",
     "data",
     "data/historico_backups",
@@ -48,7 +35,7 @@ _BASE_REQUIRED_DIRS = [
     "reports",
     "extracao",
     "exportacao",
-]
+)
 
 
 @dataclass
@@ -77,17 +64,7 @@ def setup_dirs(
 
     result = SetupResult()
 
-    # Construir lista de trabalho (não mutar base global)
-    working_required = list(_BASE_REQUIRED_DIRS)
-
-    # Allow extra dirs via env
-    extra_raw = os.environ.get("SSA_EXTRA_DIRS", "").strip()
-    if extra_raw:
-        for part in [p.strip() for p in extra_raw.split(",") if p.strip()]:
-            if part and part not in working_required:
-                working_required.append(part)
-
-    for rel in working_required:
+    for rel in _BASE_REQUIRED_DIRS:
         full = os.path.join(base_path, rel)
         try:
             if os.path.isdir(full):
@@ -130,15 +107,10 @@ class SetupProjectStructure:  # Renamed to follow CapWords; keep legacy alias be
             base_path = os.path.abspath(
                 os.path.join(os.path.dirname(__file__), os.pardir)
             )
-        # Montar lista coerente (base + extras env)
-        working_required = list(_BASE_REQUIRED_DIRS)
-        extra_raw = os.environ.get("SSA_EXTRA_DIRS", "").strip()
-        if extra_raw:
-            for part in [p.strip() for p in extra_raw.split(",") if p.strip()]:
-                if part not in working_required:
-                    working_required.append(part)
         missing = [
-            d for d in working_required if not os.path.isdir(os.path.join(base_path, d))
+            d
+            for d in _BASE_REQUIRED_DIRS
+            if not os.path.isdir(os.path.join(base_path, d))
         ]
         if missing:
             logger.warning("Diretórios faltando: %s", missing)

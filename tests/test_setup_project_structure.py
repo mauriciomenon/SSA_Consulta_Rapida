@@ -34,3 +34,15 @@ def test_legacy_setup_module_env_is_ignored(tmp_path, monkeypatch):
     assert result.ok
     assert "legacy_dir" not in result.created
     assert not marker.exists()
+
+
+def test_extra_dirs_env_is_ignored(tmp_path, monkeypatch):
+    """BL-21: SSA_EXTRA_DIRS nao cria nem exige pastas extras."""
+    monkeypatch.setenv("SSA_EXTRA_DIRS", "extra_a,extra_b")
+    base = tmp_path / "base"
+
+    result = setup_project_structure.setup_dirs(base_path=str(base))
+
+    assert result.ok
+    assert not (base / "extra_a").exists()
+    assert setup_project_structure.validate(str(base))
