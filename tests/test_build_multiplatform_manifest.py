@@ -629,7 +629,7 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     real_run = subprocess.run
 
     def _fake_run(cmd, **_kwargs):
-        if cmd[:2] == ["git", "ls-files"]:
+        if cmd[0] == "git" and "ls-files" in cmd:
             return real_run(cmd, **_kwargs)
         captured_cmds.append(cmd)
         return _Result()
@@ -752,7 +752,7 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     assert not (builder.dist_dir / "macos_arm64" / "SSA_GUI_v4.app").exists()
 
     def _failed_git(cmd, **kwargs):
-        if cmd[:2] == ["git", "ls-files"]:
+        if cmd[0] == "git" and "ls-files" in cmd:
             return subprocess.CompletedProcess(cmd, 128, "", "not a git repository")
         return _fake_run(cmd, **kwargs)
 

@@ -15,7 +15,10 @@ if __package__ != "launchers":
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     __package__ = "launchers"
 
-from scripts.nuitka_config_args import tracked_config_files  # noqa: E402
+from scripts.nuitka_config_args import (  # noqa: E402
+    pyinstaller_add_data_args,
+    tracked_config_files,
+)
 
 from .smoke_validation import cli_executable_path, run_cli_import_smoke  # noqa: E402
 from .version_info import REPO_ROOT, get_current_version  # noqa: E402
@@ -25,10 +28,7 @@ APP_VERSION = get_current_version()
 
 def _tracked_config_add_data_args(base_dir: Path) -> list[str]:
     """--add-data por arquivo versionado de config/ (mesma regra do BL-11)."""
-    args: list[str] = []
-    for relative in tracked_config_files(base_dir):
-        args += ["--add-data", f"{base_dir}/{relative}:{Path(relative).parent.as_posix()}"]
-    return args
+    return pyinstaller_add_data_args(base_dir, tracked_config_files(base_dir))
 
 
 def cleanup_dist_simple():

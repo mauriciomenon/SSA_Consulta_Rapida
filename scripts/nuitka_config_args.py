@@ -1,7 +1,7 @@
 """Imprime os argumentos --include-data-file do Nuitka para a config versionada.
 
-BL-11: o pacote leva so o que esta no git em config/ (mesma regra do PyInstaller
-em launchers/build_multiplatform.py). Arquivos locais (gui_main_preferences.json,
+BL-11: o pacote leva so o que esta no git em config/; a mesma lista serve aos
+builds PyInstaller (pyinstaller_add_data_args, BL-26). Arquivos locais (gui_main_preferences.json,
 filtros salvos, estado do Streamlit, .bak) ficam fora; sem eles o app usa os
 padroes do codigo. Saida: uma linha, argumentos separados por espaco.
 """
@@ -37,6 +37,16 @@ def tracked_config_files(repo_root: Path = REPO_ROOT) -> list[str]:
     if not files:
         raise ValueError("nenhum arquivo versionado em config/")
     return files
+
+
+def pyinstaller_add_data_args(
+    repo_root: Path, files: list[str], *, sep: str = ":"
+) -> list[str]:
+    """--add-data do PyInstaller para `files` (de tracked_config_files), mantendo subpastas (BL-26)."""
+    args: list[str] = []
+    for relative in files:
+        args += ["--add-data", f"{repo_root / relative}{sep}{Path(relative).parent.as_posix()}"]
+    return args
 
 
 def main() -> int:

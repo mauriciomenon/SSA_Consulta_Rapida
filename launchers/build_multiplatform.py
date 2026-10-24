@@ -30,6 +30,10 @@ robust_logging = importlib.import_module("utils.robust_logging")
 logger = robust_logging.get_robust_logger().get_logger(__name__, "maintenance")
 write_build_info = importlib.import_module("dev_env.build.write_build_info")
 from armazenamento.sqlite_snapshot import snapshot_sqlite_file  # noqa: E402
+from scripts.nuitka_config_args import (  # noqa: E402
+    pyinstaller_add_data_args,
+    tracked_config_files,
+)
 
 
 class MultiPlatformBuilder:
@@ -645,37 +649,19 @@ VSVersionInfo(
         cmd.extend(["--paths", str(self.base_dir)])
 
         # Dados adicionais
-        config_path = self.base_dir / "config"
         guide_path = self.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
         build_info_path = self._write_build_info_file("pyinstaller", platform_name)
         add_data_sep = ";" if platform_name.startswith("windows") else ":"
 
-        tracked_config = self._run_command(
-            ["git", "ls-files", "-z", "--", "config"],
-            timeout=30,
-            cwd=self.base_dir,
-        )
-        if tracked_config.returncode != 0:
-            logger.error("Falha ao listar config versionada: %s", tracked_config.stderr)
+        # BL-26: mesma regra do Nuitka e do build_simple (so config versionada).
+        try:
+            config_files = tracked_config_files(self.base_dir)
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            logger.error("Falha ao listar config versionada: %s", exc)
             return False
-        if config_path.exists():
-            for relative_path in sorted(filter(None, tracked_config.stdout.split("\0"))):
-                config_file = self.base_dir / relative_path
-                if (
-                    not config_file.is_file()
-                    or "__pycache__" in config_file.parts
-                    or config_file.suffix.lower() in {".py", ".pyc"}
-                ):
-                    continue
-                config_destination = Path("config") / config_file.relative_to(
-                    config_path
-                ).parent
-                cmd.extend(
-                    [
-                        "--add-data",
-                        f"{config_file}{add_data_sep}{config_destination.as_posix()}",
-                    ]
-                )
+        cmd.extend(
+            pyinstaller_add_data_args(self.base_dir, config_files, sep=add_data_sep)
+        )
         if guide_path.exists():
             cmd.extend(["--add-data", f"{guide_path}{add_data_sep}docs"])
         cmd.extend(["--add-data", f"{build_info_path}{add_data_sep}config"])
