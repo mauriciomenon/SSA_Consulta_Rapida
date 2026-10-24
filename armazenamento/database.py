@@ -606,7 +606,8 @@ def _execute_simple_insert(
 
 def _build_explicit_select_all_query(conn: sqlite3.Connection, table_name: str) -> str:
     quoted_table = _quote_identifier(table_name)
-    rows = conn.execute(f"PRAGMA table_info({quoted_table})").fetchall()  # nosec B608
+    # BL-25: nome como parametro (sem SQL montado); _quote_identifier ja validou.
+    rows = conn.execute("SELECT * FROM pragma_table_info(?)", (table_name,)).fetchall()
     columns = [str(row[1]) for row in rows if len(row) > 1 and row[1]]
     if not columns:
         raise ValueError(f"No columns found for table: {table_name}")
@@ -699,10 +700,10 @@ def count_table_rows(db_path: str, table_name: str) -> int:
     """Count rows in a resolved runtime table."""
     with get_db_connection(db_path) as conn:
         resolved_table_name = resolve_target_table(conn, table_name)
-        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-        row = conn.execute(
-            query
-        ).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        # Nome de tabela nao pode ser parametro SQL; _quote_identifier aceita so
+        # [A-Za-z_][A-Za-z0-9_]* (BL-25).
+        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"  # nosec B608
+        row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     return int(row[0] if row else 0)
 
 
@@ -722,10 +723,9 @@ def count_distinct_derivada_edges(
             GROUP BY numero_ssa, derivada_de
         ) AS db_edges
     """
-    query = query_template.format(table_name=quoted_table_name)  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
-    row = conn.execute(
-        query
-    ).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    # Nome de tabela nao pode ser parametro SQL; _quote_identifier ja validou (BL-25).
+    query = query_template.format(table_name=quoted_table_name)  # nosec B608
+    row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     return int(row[0] or 0) if row is not None else 0
 
 
@@ -896,8 +896,9 @@ def ensure_column_exists(
                 )
                 return False
 
-            cursor = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-                f"PRAGMA table_info({quoted_table})"
+            # BL-25: nome como parametro (sem SQL montado).
+            cursor = conn.execute(
+                "SELECT * FROM pragma_table_info(?)", (physical_table,)
             )
             existing_columns = {row[1] for row in cursor.fetchall()}
             if column_name in existing_columns:
