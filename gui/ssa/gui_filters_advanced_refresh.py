@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 import pandas as pd
-from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
+from pandas.api.types import is_numeric_dtype
 from core.cache_manager import CacheManager
 from utils.robust_logging import get_robust_logger
 
@@ -61,17 +61,6 @@ def _sort_sector_values(
         return sorted(set(values), key=lambda value: str(value).casefold())
 
 
-def collect_years_from_dates(series: pd.Series) -> list[int]:
-    try:
-        ts = series if is_datetime64_any_dtype(series) else pd.to_datetime(
-            series, errors="coerce"
-        )
-        years = ts.dt.year.dropna().astype(int).unique()
-        return sorted(years, reverse=True)
-    except Exception:
-        return []
-
-
 def collect_years_from_weeks(series: pd.Series) -> list[int]:
     try:
         nums = series if is_numeric_dtype(series) else pd.to_numeric(
@@ -97,10 +86,12 @@ def collect_advanced_filter_option_values(
 ) -> AdvancedFilterOptionValues:
     _raise_if_cancelled(cancelled)
     emissao_years: list[int] = []
-    if "data_cadastro" in df.columns:
-        emissao_years = collect_years_from_dates(df["data_cadastro"])
-    elif "semana_cadastro" in df.columns:
-        emissao_years = collect_years_from_weeks(df["semana_cadastro"])
+    if "data_cadastro" in df.columns or "semana_cadastro" in df.columns:
+        # RD-06: mesma regra do filtro (gui_filters_advanced_logic).
+        from .gui_filters_advanced_logic import ano_emissao_series
+
+        years, _notice = ano_emissao_series(df)
+        emissao_years = sorted({int(y) for y in years.dropna()}, reverse=True)
 
     _raise_if_cancelled(cancelled)
     execucao_years: list[int] = []

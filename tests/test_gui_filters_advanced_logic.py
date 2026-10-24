@@ -504,6 +504,31 @@ def test_compute_years_from_data_cadastro_handles_mixed_iso_and_dayfirst_without
     assert not any("dayfirst=True" in str(item.message) for item in caught)
 
 
+def test_ano_emissao_is_iso_year_of_week_then_date():
+    """RD-06: ano ISO da semana_cadastro; sem semana, ano ISO da data_cadastro."""
+    from gui.ssa.gui_filters_advanced_logic import ano_emissao_series
+
+    df = pd.DataFrame(
+        {
+            # 2022-01-01 cai na semana ISO 2021-52; SCC sem data tem semana.
+            "data_cadastro": ["2022-01-01 08:00:00", "", "2022-01-01 08:00:00", "2026-03-10"],
+            "semana_cadastro": [202152, 202230, None, None],
+        }
+    )
+    years, _notice = ano_emissao_series(df)
+    assert years.tolist() == [2021, 2022, 2021, 2026]
+
+    window = _DummyWindow({"ano_emissao_values": [2022]})
+    filtered = _apply_advanced_filters(
+        window,
+        df.assign(numero_ssa=["1", "2", "3", "4"]),
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered["numero_ssa"].tolist() == ["2"]
+
+
 def test_apply_advanced_filters_supports_legacy_ano_execucao_exclude_flag():
     window = _DummyWindow({"ano_execucao": 2025, "ano_execucao_exclude": True})
     df = pd.DataFrame(

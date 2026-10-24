@@ -391,7 +391,8 @@ def _compute_years_from_data_cadastro(
             "Skipping non-vectorized ano emissao parsing for %s values",
             int(ts.isna().sum()),
         )
-    valid_years = ts.dt.year
+    # RD-06: ano ISO (o mesmo da semana_cadastro), nao o ano do calendario.
+    valid_years = ts.dt.isocalendar().year.astype("Int64")
     valid_years = valid_years.where(valid_years.between(1980, 2100))
     return valid_years, notice
 
@@ -399,6 +400,24 @@ def _compute_years_from_data_cadastro(
 def _compute_years_from_semana(series: pd.Series) -> pd.Series:
     nums = pd.to_numeric(series, errors="coerce").astype("Int64")
     return (nums // 100).astype("Int64")
+
+
+def ano_emissao_series(df: pd.DataFrame) -> tuple[pd.Series, str | None]:
+    """Regra unica do ano de emissao (filtro e lista de opcoes, RD-06).
+
+    Ano ISO da semana_cadastro (sempre preenchida pelo SAM, inclusive SCC/ADI/ASE
+    sem data); sem semana valida, ano ISO da data_cadastro.
+    """
+    notice = None
+    years = pd.Series(pd.NA, index=df.index, dtype="Int64")
+    if "semana_cadastro" in df.columns:
+        nums = pd.to_numeric(df["semana_cadastro"], errors="coerce")
+        valid = nums.between(198001, 210053) & (nums % 100).between(1, 53)
+        years = (nums // 100).where(valid).astype("Int64")
+    if "data_cadastro" in df.columns and bool(years.isna().any()):
+        from_dates, notice = _compute_years_from_data_cadastro(df["data_cadastro"])
+        years = years.fillna(from_dates)
+    return years, notice
 
 
 def _apply_year_emissao_filter(
@@ -428,46 +447,35 @@ def _apply_year_emissao_filter(
         emissao_inc = _to_int_set([filters.get("ano_emissao")])
 
     if emissao_inc or emissao_exc:
-        if "data_cadastro" in df.columns:
-            try:
-                cache_key = _cache_key(cache_token, df, "data_cadastro")
-                cache = state.get_cache("_adv_year_emissao_cache")
-                years = None
-                cached = cache.get(cache_key)
-                if isinstance(cached, pd.Series) and len(cached) == len(df):
-                    years = cached
-                elif cached is not None:
-                    cache.pop(cache_key, None)
-                if years is None:
-                    years, notice = _compute_years_from_data_cadastro(
-                        df["data_cadastro"]
-                    )
-                    cache[cache_key] = years
-                    prune_adv_cache(cache, MAX_ADV_CACHE_ENTRIES)
-                if emissao_inc:
-                    mask &= years.isin(emissao_inc)
-                if emissao_exc:
-                    mask &= ~years.isin(emissao_exc)
-            except Exception as exc:
-                raise AdvancedFilterMaskError(
-                    f"failed to apply ano emissao filter from data_cadastro: {exc}"
-                ) from exc
-        elif "semana_cadastro" in df.columns:
-            try:
-                years = _compute_years_from_semana(df["semana_cadastro"])
-                if emissao_inc:
-                    mask &= years.isin(emissao_inc)
-                if emissao_exc:
-                    mask &= ~years.isin(emissao_exc)
-            except Exception as exc:
-                raise AdvancedFilterMaskError(
-                    f"failed to apply ano emissao filter from semana_cadastro: {exc}"
-                ) from exc
-        else:
+        if "data_cadastro" not in df.columns and "semana_cadastro" not in df.columns:
             raise AdvancedFilterMaskError(
                 "ano emissao filter is active but neither 'data_cadastro' nor "
                 "'semana_cadastro' exists in the dataframe"
             )
+        try:
+            cache_key = (
+                _cache_key(cache_token, df, "semana_cadastro"),
+                _cache_key(cache_token, df, "data_cadastro"),
+            )
+            cache = state.get_cache("_adv_year_emissao_cache")
+            years = None
+            cached = cache.get(cache_key)
+            if isinstance(cached, pd.Series) and len(cached) == len(df):
+                years = cached
+            elif cached is not None:
+                cache.pop(cache_key, None)
+            if years is None:
+                years, notice = ano_emissao_series(df)
+                cache[cache_key] = years
+                prune_adv_cache(cache, MAX_ADV_CACHE_ENTRIES)
+            if emissao_inc:
+                mask &= years.isin(emissao_inc)
+            if emissao_exc:
+                mask &= ~years.isin(emissao_exc)
+        except Exception as exc:
+            raise AdvancedFilterMaskError(
+                f"failed to apply ano emissao filter: {exc}"
+            ) from exc
 
     return mask, notice
 
