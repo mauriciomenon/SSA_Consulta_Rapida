@@ -76,6 +76,7 @@ except ModuleNotFoundError:  # pragma: no cover - depende do ambiente
 
 
 from interface.cli_width_manager import CLIWidthManager
+from shared.env_flags import non_interactive_env
 from shared.ssa_status import SSA_ENCERRADAS, status_code_series
 from utils.formatting import format_dataframe_for_display
 from utils.robust_logging import get_robust_logger
@@ -514,11 +515,8 @@ class EnhancedTablePrinter:
             else:
                 filters_text = str(filter_terms)
 
-        env_flag = os.environ.get("SSA_NON_INTERACTIVE", "").strip().lower()
         input_is_patched = builtins.input is not _ORIGINAL_INPUT
-        non_interactive = (
-            env_flag in {"1", "true", "yes", "on"} and not input_is_patched
-        )
+        non_interactive = non_interactive_env() and not input_is_patched
         current_page = effective_start
         rendered_pages = 0
         last_counted_page: int | None = None

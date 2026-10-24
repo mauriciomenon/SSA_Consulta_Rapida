@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.pai_import_report import build_pai_import_summary_payload
+from shared.env_flags import env_truthy
 from core.pai_import_report import evaluate_pai_import_exit_status
 from core.pai_import_service import (
     PaiImportResult,
@@ -195,7 +196,7 @@ def _optional_path(raw_path: str | None) -> Path | None:
 
 
 def _env_truthy(name: str) -> bool:
-    return str(os.environ.get(name, "")).strip().casefold() in {"1", "true", "yes", "on"}
+    return env_truthy(name)
 
 
 def _resolve_under_project(project_root: Path, value: str | Path) -> Path:

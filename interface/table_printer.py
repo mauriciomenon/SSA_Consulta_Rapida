@@ -18,6 +18,7 @@ from typing import Any
 import pandas as pd
 from tabulate import tabulate
 
+from shared.env_flags import non_interactive_env
 from shared.numero_ssa import display_numero_ssa
 from utils.formatting import format_dataframe_for_display
 
@@ -425,9 +426,8 @@ def _paginate_and_print(
             logger.info("Interrompido (KeyboardInterrupt)")
             return "q"
 
-    # Modo não interativo para testes / execução batch: se variável de ambiente
-    # SSA_NON_INTERACTIVE estiver definida (qualquer valor), ignoramos prompts.
-    non_interactive = bool(os.environ.get("SSA_NON_INTERACTIVE"))
+    # Modo nao interativo (testes / batch): regra unica em shared.env_flags.
+    non_interactive = non_interactive_env()
     last_index = len(pages) - 1
     for idx, page in enumerate(pages):
         # Cabeçalho de página compatível com versão anterior

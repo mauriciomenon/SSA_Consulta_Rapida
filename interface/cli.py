@@ -32,6 +32,7 @@ from interface.cli_enhancement_manager import enhancement_manager
 from interface.display import pretty_print_details
 from interface.enhanced_table_printer import EnhancedTablePrinter
 from interface.table_printer import pretty_print_df  # Versão antiga como fallback
+from shared.env_flags import non_interactive_env
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger
@@ -561,8 +562,7 @@ def _show_initial_help():
 
 
 def _is_cli_non_interactive() -> bool:
-    env_flag = os.environ.get("SSA_NON_INTERACTIVE", "").strip().lower()
-    if env_flag not in ("", "0", "false", "no"):
+    if non_interactive_env():
         return True
     try:
         return not bool(sys.stdin is not None and sys.stdin.isatty())

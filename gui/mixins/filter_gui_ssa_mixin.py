@@ -131,6 +131,7 @@ from gui.ssa.filter_summary_removal import (
 from gui.ssa.gui_filters_advanced_logic import AdvancedFilterMaskError
 from gui.ssa import filter_search_undo_controller as search_undo_controller
 from gui.ssa.filter_state_utils import copy_filter_mapping as _copy_filter_mapping
+from shared.env_flags import non_interactive_env
 from utils.robust_logging import get_robust_logger
 
 # Imports de utils
@@ -704,9 +705,7 @@ class FilterGUISSAMixin:
     def _maybe_offer_hard_reset_after_repeated_clear_click(self) -> None:
         if not self._update_and_check_repeated_clear_click():
             return
-        if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get(
-            "SSA_NON_INTERACTIVE"
-        ):
+        if os.environ.get("PYTEST_CURRENT_TEST") or non_interactive_env():
             logger.debug(
                 "Confirmacao de hard reset suprimida em ambiente nao interativo."
             )
