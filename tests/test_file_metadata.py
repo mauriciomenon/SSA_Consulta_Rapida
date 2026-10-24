@@ -1,14 +1,7 @@
-import os
 import logging
-from datetime import datetime
-from typing import cast
 
 from utils.file_metadata import (
-    choose_latest,
-    extract_datetime_from_filename,
-    get_file_metadata,
     parse_datetime_from_filename,
-    should_update_ssa,
 )
 
 
@@ -35,70 +28,18 @@ def test_parse_datetime_from_filename_logs_invalid_date(caplog):
     assert "Falha ao interpretar data no nome" in caplog.text
 
 
-def test_choose_latest_prefers_name_over_mtime(tmp_path):
-    f1 = tmp_path / "Consulta SSA - 14-07-2025_0343PM.xlsx"
-    f1.write_text("a")
-    f2 = tmp_path / "Consulta SSA - 13-07-2025_0343PM.xlsx"
-    f2.write_text("b")
-    os.utime(f1, (1_700_000_000, 1_700_000_000))
-    os.utime(f2, (1_800_000_000, 1_800_000_000))
-    chosen = choose_latest([str(f1), str(f2)])
-    assert chosen is not None
-    assert os.path.basename(chosen).startswith("Consulta SSA - 14-07-2025")
 
 
-def test_choose_latest_logs_and_ignores_invalid_candidate(caplog):
-    with caplog.at_level(logging.DEBUG):
-        chosen = choose_latest([cast(str, None)])
+def test_dead_file_metadata_helpers_removed():
+    """A-30: helpers sem chamador de producao sairam do modulo."""
+    from utils import file_metadata
 
-    assert chosen is None
-    assert "Ignorando candidato de arquivo invalido" in caplog.text
-
-
-def test_extract_datetime_from_filename_variants():
-    cases = [
-        ("Todas as SSAs - 15-07-2025_0143PM (2).xlsx", datetime(2025, 7, 15, 13, 43)),
-        (
-            "IEE3_Emissor__202401_20250715_Todas as SSAs - 15-07-2025_1033AM.xlsx",
-            datetime(2025, 7, 15, 10, 33),
-        ),
-        ("SSAs Executadas_15-07-2025_0239PM.xlsx", datetime(2025, 7, 15, 14, 39)),
-        ("Consulta SSA - 14-07-2025_0343PM.xlsx", datetime(2025, 7, 14, 15, 43)),
-        ("Pendentes de Execucao_15-07-2025_0223PM.xlsx", datetime(2025, 7, 15, 14, 23)),
-    ]
-    for fname, expected_dt in cases:
-        dt = extract_datetime_from_filename(fname)
-        assert dt == expected_dt
-
-
-def test_extract_datetime_from_filename_invalid():
-    assert extract_datetime_from_filename("Sem data.xlsx") is None
-
-
-def test_should_update_ssa_logic():
-    assert should_update_ssa(None, datetime(2025, 7, 14, 10, 0).isoformat()) is True
-    assert should_update_ssa(datetime(2025, 7, 14, 10, 0).isoformat(), None) is False
-    assert (
-        should_update_ssa(
-            datetime(2025, 7, 14, 10, 0).isoformat(),
-            datetime(2025, 7, 15, 9, 0).isoformat(),
-        )
-        is True
-    )
-    assert (
-        should_update_ssa(
-            datetime(2025, 7, 15, 9, 0).isoformat(),
-            datetime(2025, 7, 14, 10, 0).isoformat(),
-        )
-        is False
-    )
-
-
-def test_get_file_metadata_shapes(tmp_path):
-    fname = "SSAs Executadas_15-07-2025_0239PM.xlsx"
-    p = tmp_path / fname
-    p.write_text("dummy")
-    name, dt_iso, import_iso = get_file_metadata(str(p))
-    assert name == fname
-    assert dt_iso == datetime(2025, 7, 15, 14, 39).isoformat()
-    assert isinstance(import_iso, str)
+    for name in (
+        "choose_latest",
+        "extract_datetime_from_filename",
+        "get_file_metadata",
+        "should_update_ssa",
+        "test_date_extraction",
+        "PROTECTED_FILENAMES",
+    ):
+        assert not hasattr(file_metadata, name), name
