@@ -60,7 +60,7 @@ Nenhuma e obrigatoria. Flags booleanas ligam com `1`, `true`, `yes` ou `on`.
 
 Uso interno: os launchers do pacote definem `SSA_RUNTIME_ROOT`, `SSA_CONFIG_DIR`, `SSA_DB_PATH` (sobrescrevem o valor herdado), `SSA_BUNDLED_ROOT` e `SSA_EXTRA_ALLOWED_PATHS`; `SSA_SMOKE_TEST` e do smoke de build e `SSA_SYNC_FILTER` dos testes da GUI. A interface web le tambem `SSA_DOCS_DIR`, `SSA_STREAMLIT_API_TIMEOUT_SECONDS`, `SSA_STREAMLIT_LARGE_PAGE_GUARD`, `SSA_STREAMLIT_UI_STATE_FILE`, `ITAIPU_BASE_PENDING` e `ITAIPU_BASE_DETAIL`.
 
-Sem suporte (ainda lidas, remocao prevista; nao defina): `SSA_ALLOWED_COLUMNS`, `SSA_UPSERT_SHORT_CIRCUIT_POLICY`, `SSA_ENABLE_COMPLEMENTARY`, `SSA_STATUS_ORDER`, `SSA_DESC_COLUMNS`, `SSA_TERMINAL_STATUSES`, `SSA_IMPORT_DEBUG`, `SSA_MAX_HEADER_SCAN`, `SSA_CLI_ENHANCEMENTS_PATH`.
+Sem suporte (ainda lidas, remocao prevista; nao defina): `SSA_ALLOWED_COLUMNS`, `SSA_UPSERT_SHORT_CIRCUIT_POLICY`, `SSA_ENABLE_COMPLEMENTARY`, `SSA_STATUS_ORDER`, `SSA_DESC_COLUMNS`, `SSA_TERMINAL_STATUSES`, `SSA_IMPORT_DEBUG`, `SSA_MAX_HEADER_SCAN`.
 
 ## Dados e importacao
 

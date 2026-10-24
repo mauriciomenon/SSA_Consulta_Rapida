@@ -521,7 +521,6 @@ COMANDOS DE DADOS
 
 COMANDOS DE MELHORIAS CLI
   status-cli      Mostra status das melhorias implementadas
-  toggle-debug    Liga/desliga debug do Enhanced Table Printer
   enhanced-on     Ativa Enhanced Table Printer
   enhanced-off    Desativa Enhanced Table Printer
 
@@ -580,11 +579,6 @@ def _to_ascii_cli_text(text: str) -> str:
 def _print_cli_status_report() -> None:
     report = enhancement_manager.get_status_report()
     print(_to_ascii_cli_text(report))
-
-
-def _toggle_cli_debug_command() -> None:
-    enabled = enhancement_manager.toggle_debug()
-    print(f"Debug CLI {'ativado' if enabled else 'desativado'}")
 
 
 def _set_enhanced_cli_enabled(enabled: bool) -> None:
@@ -1210,8 +1204,6 @@ COMMAND_HANDLERS = {
     # Comandos das melhorias CLI
     "status-cli": _print_cli_status_report,
     "cli-status": _print_cli_status_report,
-    "toggle-debug": _toggle_cli_debug_command,
-    "debug": _toggle_cli_debug_command,
     "enhanced-on": lambda: _set_enhanced_cli_enabled(True),
     "enable-enhanced": lambda: _set_enhanced_cli_enabled(True),
     "enhanced-off": lambda: _set_enhanced_cli_enabled(False),

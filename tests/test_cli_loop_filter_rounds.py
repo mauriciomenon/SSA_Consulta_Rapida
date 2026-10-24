@@ -36,7 +36,6 @@ def _build_cli_subprocess_env(repo_root: Path, tmp_path: Path) -> dict[str, str]
     env = os.environ.copy()
     env["SSA_NON_INTERACTIVE"] = "1"
     env["SSA_DB_PATH"] = str(db_path)
-    env["SSA_CLI_ENHANCEMENTS_PATH"] = str(tmp_path / "cli_enhancements.test.json")
     return env
 
 
@@ -1051,11 +1050,10 @@ def test_print_cli_status_report_normalizes_text_to_ascii(
     assert "•" not in out
 
 
-def test_toggle_and_enhanced_commands_use_compact_ascii_feedback(
+def test_enhanced_commands_use_compact_ascii_feedback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(cli.enhancement_manager, "toggle_debug", lambda: True)
     monkeypatch.setattr(
         cli.enhancement_manager, "enable_enhanced_printer", lambda: None
     )
@@ -1063,12 +1061,10 @@ def test_toggle_and_enhanced_commands_use_compact_ascii_feedback(
         cli.enhancement_manager, "disable_enhanced_printer", lambda: None
     )
 
-    cli._toggle_cli_debug_command()
     cli._set_enhanced_cli_enabled(False)
     cli._set_enhanced_cli_enabled(True)
 
     out = capsys.readouterr().out
-    assert "Debug CLI ativado" in out
     assert "Enhanced Table Printer desativado" in out
     assert "Enhanced Table Printer ativado" in out
     assert "[Debug]" not in out
@@ -1090,7 +1086,7 @@ def test_cli_subprocess_status_cli_uses_ascii_output(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert "STATUS DAS MELHORIAS CLI" in result.stdout
-    assert "Configuracao Unificada" in result.stdout
+    assert "Enhanced Table Printer" in result.stdout
     assert "•" not in result.stdout
 
 

@@ -12,21 +12,12 @@ import time
 from typing import Any
 
 from core.config_manager import resolve_config_path
-from utils.path_safety import ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "cli")
 
 LOCK_RETRY_ATTEMPTS = 3
 LOCK_RETRY_DELAY_SECONDS = 0.05
-CLI_ENHANCEMENTS_PATH_ENV = "SSA_CLI_ENHANCEMENTS_PATH"
-
-
-def _resolve_settings_file_path() -> str:
-    override = os.environ.get(CLI_ENHANCEMENTS_PATH_ENV, "").strip()
-    if override:
-        return str(ensure_path_is_allowed(os.path.abspath(override)))
-    return resolve_config_path("cli_enhancements.json")
 
 
 if sys.platform == "win32":
@@ -44,7 +35,7 @@ class CLIEnhancementManager:
 
     def __init__(self):
         """Inicializa o gerenciador de melhorias."""
-        self.settings_file = _resolve_settings_file_path()
+        self.settings_file = resolve_config_path("cli_enhancements.json")
         self.settings = self._load_settings()
 
     def _load_settings(self) -> dict:
@@ -57,14 +48,7 @@ class CLIEnhancementManager:
             logger.warning(f"Erro ao carregar configurações CLI: {e}")
 
         # Configurações padrão
-        return {
-            "enhanced_table_printer": True,
-            "unified_column_config": True,
-            "improved_ssa_normalization": True,
-            "word_wrap_in_cli": True,
-            "debug_output": False,
-            "version": "1.0",
-        }
+        return {"enhanced_table_printer": True, "version": "1.0"}
 
     def _save_settings(self):
         """Salva configurações das melhorias."""
@@ -276,14 +260,6 @@ class CLIEnhancementManager:
         """Verifica se enhanced table printer está habilitado."""
         return self.settings.get("enhanced_table_printer", True)
 
-    def is_unified_config_enabled(self) -> bool:
-        """Verifica se configuração unificada está habilitada."""
-        return self.settings.get("unified_column_config", True)
-
-    def is_debug_enabled(self) -> bool:
-        """Verifica se debug está habilitado."""
-        return self.settings.get("debug_output", False)
-
     def enable_enhanced_printer(self):
         """Habilita enhanced table printer."""
         self.settings["enhanced_table_printer"] = True
@@ -294,12 +270,6 @@ class CLIEnhancementManager:
         self.settings["enhanced_table_printer"] = False
         self._save_settings()
 
-    def toggle_debug(self):
-        """Alterna modo debug."""
-        self.settings["debug_output"] = not self.settings.get("debug_output", False)
-        self._save_settings()
-        return self.settings["debug_output"]
-
     def get_status_report(self) -> str:
         """Retorna relatório do status das melhorias."""
         status = []
@@ -308,12 +278,6 @@ class CLIEnhancementManager:
 
         enhanced = "OK ATIVO" if self.is_enhanced_printer_enabled() else "ERR INATIVO"
         status.append(f"Enhanced Table Printer: {enhanced}")
-
-        unified = "OK ATIVO" if self.is_unified_config_enabled() else "ERR INATIVO"
-        status.append(f"Configuração Unificada: {unified}")
-
-        debug = "[OK] ATIVO" if self.is_debug_enabled() else "[X] INATIVO"
-        status.append(f"Debug Output: {debug}")
 
         status.append("")
         status.append("[MELHORIAS] MELHORIAS IMPLEMENTADAS:")
@@ -338,11 +302,3 @@ enhancement_manager = CLIEnhancementManager()
 def print_cli_enhancements_status():
     """Função de conveniência para imprimir status."""
     print(enhancement_manager.get_status_report())
-
-
-def toggle_cli_debug():
-    """Função de conveniência para alternar debug."""
-    new_state = enhancement_manager.toggle_debug()
-    state_str = "ATIVADO" if new_state else "DESATIVADO"
-    print(f"Debug CLI {state_str}")
-    return new_state

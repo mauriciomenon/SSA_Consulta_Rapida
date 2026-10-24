@@ -28,7 +28,7 @@ def test_cli_enhancement_settings_save_is_atomic_on_failure(tmp_path, monkeypatc
 
     monkeypatch.setattr(cli_mgr_mod.json, "dump", bad_dump)
 
-    mgr.settings = {"debug_output": True}
+    mgr.settings = {"enhanced_table_printer": False}
     try:
         mgr._save_settings()
         raised = False
@@ -48,7 +48,7 @@ def test_cli_enhancement_settings_save_writes_valid_json(tmp_path):
     mgr = cli_mgr_mod.CLIEnhancementManager()
     mgr.settings_file = str(tmp_path / "cli_enhancements.json")
 
-    mgr.settings = {"debug_output": False, "version": "1.0"}
+    mgr.settings = {"enhanced_table_printer": False, "version": "1.0"}
     mgr._save_settings()
 
     with open(mgr.settings_file, "r", encoding="utf-8") as f:
