@@ -1429,7 +1429,8 @@ def start_cli_loop(db_path: str, table_name: str):
                 _run_registered_command(command)
                 continue
 
-            parts = user_input.lower().split()
+            raw_parts = user_input.split()
+            parts = [part.lower() for part in raw_parts]
             command = parts[0]
 
             # --- 1. Tratamento de Comandos Mapeados (palavras completas) ---
@@ -1441,7 +1442,8 @@ def start_cli_loop(db_path: str, table_name: str):
                 if command in ["d", "detalhe"]:
                     _handle_details(parts, current_df, display_map)
                 elif command in ["e", "exportar"]:
-                    _handle_export(parts, current_df, output_dir, display_map)
+                    # D-12: nome do arquivo como digitado (so o comando e minusculo).
+                    _handle_export(raw_parts, current_df, output_dir, display_map)
                 elif command in ["ord", "ordi"]:
                     ascending = command == "ord"
                     _handle_sort(

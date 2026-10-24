@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- CLI: `exportar <nome>` grava o arquivo com o nome como foi digitado (antes era forcado a minusculas, ex.: `Relatorio_MEL4` virava `relatorio_mel4`).
+- Sincronizacao de derivadas: quando uma familia e mais funda que o limite da closure (32 niveis), o log avisa quantas SSAs tiveram descendentes fora da contagem; antes o corte era silencioso.
 - Janela de detalhes da SSA: as "SSAs derivadas diretas" e as outras relacoes diretas voltam a ser links clicaveis; antes apareciam como texto simples nessa janela.
 - Filtros de coluna da GUI: desativar um filtro que fazia parte de um grupo OU (mesmo termo em varias colunas) desfaz o grupo; ao reativar uma dessas colunas sozinha ela nao volta a combinar com as outras.
 - Exportacao do grafo de derivadas (PNG, SVG, Mermaid) e filtros salvos da GUI: a gravacao vai para um temporario e so substitui o arquivo no fim, com os dados ja no disco; uma falha ou queda de energia no meio nao deixa mais o arquivo anterior truncado ou vazio.

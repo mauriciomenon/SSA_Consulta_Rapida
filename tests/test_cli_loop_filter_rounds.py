@@ -905,6 +905,50 @@ def test_prompt_hint_lines_stay_short_and_two_line_friendly() -> None:
     assert len(help_line) <= 79
 
 
+def test_start_cli_loop_export_keeps_filename_case(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """D-12: so o comando e minusculo; o nome do arquivo vai como digitado."""
+    base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
+    exported: list[list[str]] = []
+
+    monkeypatch.setattr(
+        cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, [])
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
+    )
+    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
+    monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
+    monkeypatch.setattr(cli, "_render_single_page", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        cli,
+        "_handle_export",
+        lambda parts, *_args, **_kwargs: exported.append(list(parts)),
+    )
+
+    inputs = iter(["EXPORTAR Relatorio_MEL4", "q"])
+
+    def _fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(builtins, "input", _fake_input)
+
+    with pytest.raises(SystemExit):
+        cli.start_cli_loop("dummy.db", "ssa_table")
+
+    assert exported == [["EXPORTAR", "Relatorio_MEL4"]]
+
+
 def test_start_cli_loop_accepts_force_rescan_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
