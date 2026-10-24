@@ -1348,7 +1348,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             gui_settings.get("enable_double_click_details", True)
         )
 
-        # Inicializa managers unificados (substitui codigo frankenstein)
+        # Managers de largura e cache da janela.
         self.width_manager = SimpleWidthManager()
         self.cache_manager = SimpleCacheManager()
 

@@ -25,7 +25,6 @@ from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
-SIMPLE_POPUP_TEXT_CLAMP = True
 SIMPLE_POPUP_LABEL_MAX_PX = 220
 SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 18
 SIMPLE_POPUP_SECTOR_MAX_WIDTH_PX = 300
@@ -432,10 +431,8 @@ def _compute_multiselect_popup_metrics(
         max_label_px = max_label_chars * avg_char_px
     except Exception:
         max_label_px = 64
-    # Simple clamp for very long names in responsavel menus.
-    # Easy rollback: set SIMPLE_POPUP_TEXT_CLAMP = False.
-    if SIMPLE_POPUP_TEXT_CLAMP:
-        max_label_px = min(max_label_px, SIMPLE_POPUP_LABEL_MAX_PX)
+    # Nomes muito longos (menus de responsavel) ficam limitados na largura.
+    max_label_px = min(max_label_px, SIMPLE_POPUP_LABEL_MAX_PX)
     content_width = max_label_px + (112 if has_exclude_column else 80)
     if filter_name:
         try:
@@ -525,8 +522,6 @@ def _build_multiselect_menu_model(
     )
 
 def _build_multiselect_label_display_map(button, values) -> dict[str, str]:
-    if not SIMPLE_POPUP_TEXT_CLAMP:
-        return {}
     try:
         fm_label = button.fontMetrics() if button is not None else None
         if fm_label is None:

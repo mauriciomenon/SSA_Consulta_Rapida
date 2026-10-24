@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 # RD-01a: encerradas (STE/SES/SCA/SCC) vao para o fim da ordem padrao.
 DEFAULT_UI_STATUS_LAST = tuple(sorted(SSA_ENCERRADAS))
-SQLITE_OFFSET_WITHOUT_LIMIT = 9223372036854775807
 SQLITE_INTEGER_PREFIX_RE = re.compile(r"^\s*([+-]?\d+)")
 SSA_IDENTIFIER_TEXT_RE = re.compile(r"^(?:SSA[\s:_-]*)?\d[\d\s._-]*$", re.IGNORECASE)
 DEFAULT_UI_SORT_SPEC = (

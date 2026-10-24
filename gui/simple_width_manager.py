@@ -1,7 +1,4 @@
-"""
- Simple Width Manager - Versao simplificada para integracao imediata
-Elimina codigo frankenstein com implementacao funcional minima.
-"""
+"""Gerenciador de larguras de coluna da GUI (versao simplificada)."""
 
 import logging
 import sys
