@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from contextlib import contextmanager
 from typing import Any, BinaryIO, Callable, Iterable, Iterator, Optional
 from zipfile import BadZipFile, ZipFile
@@ -20,9 +21,19 @@ from shared.column_mappings import load_column_mappings_integrity
 from shared.date_utils import parse_datetime_series_mixed
 from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.file_metadata import best_datetime_for_file
-from utils.robust_importer import canonicalize_header
 
 logger = logging.getLogger(__name__)
+
+
+def canonicalize_header(h: str) -> str:
+    """Cabecalho comparavel: quebras e espacos colapsados, sem acentos, minusculo."""
+    h2 = re.sub(r"\s+", " ", h.replace("\n", " ")).strip()
+    h2 = "".join(
+        ch for ch in unicodedata.normalize("NFKD", h2) if not unicodedata.combining(ch)
+    )
+    return h2.lower()
+
+
 # Formato SAM: "1a, 9m, 22d 5h : 47mi" (a=anos, "Nm," com virgula=meses, mi=minutos).
 # Grupo 3 captura a virgula que distingue meses de minutos ("1h 30m").
 TEMPO_EXCEDIDO_RE = re.compile(

@@ -404,8 +404,6 @@ def _load_excel_frames(
     sheet_name: str | None = None,
     header: int | None = 0,
 ) -> list[pd.DataFrame]:
-    from utils.robust_importer import import_excel_robust
-
     try:
         frames: list[pd.DataFrame] = []
         parse_errors: list[tuple[str, Exception]] = []
@@ -416,14 +414,15 @@ def _load_excel_frames(
             target_sheets = [sheet_name] if sheet_name else list(workbook.sheet_names)
             for target_sheet in target_sheets:
                 try:
-                    frame, _stats = import_excel_robust(
-                        workbook,
-                        sheet_name=target_sheet,
-                        header=header,
-                        raw_mode=True,
-                        raise_on_error=True,
+                    # Aba crua: colunas originais, sem normalizar cabecalho.
+                    frames.append(
+                        pd.read_excel(
+                            workbook,
+                            sheet_name=target_sheet,
+                            header=header,
+                            dtype_backend="numpy_nullable",
+                        )
                     )
-                    frames.append(frame)
                 except Exception as exc:
                     logger.warning(
                         "Failed to parse sheet '%s' from '%s': %s",

@@ -1514,3 +1514,28 @@ def test_sync_actor_vem_do_usuario_do_so(monkeypatch, legacy_env):
     monkeypatch.setenv("USER", "usuario_so")
     assert derivadas_sync._resolve_sync_actor(None) == "usuario_so"
     assert derivadas_sync._resolve_sync_actor(" explicito ") == "explicito"
+
+
+def test_load_excel_frames_keeps_raw_derivadas_columns(tmp_path):
+    """Aba crua: colunas originais e valores da aba pedida (antes coberto pelo raw_mode do robust_importer)."""
+    file_path = tmp_path / "derivadas_raw.xlsx"
+    derivadas_df = pd.DataFrame(
+        {
+            "parent_ssa": ["202500001", "202500001"],
+            "child_ssa": ["202500002", "202500003"],
+            "relation_label": ["Derivada da", "Derivada da"],
+        }
+    )
+    other_df = pd.DataFrame({"Numero SSA": ["202500999"], "Status": ["ABERTA"]})
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        other_df.to_excel(writer, sheet_name="Resumo", index=False)
+        derivadas_df.to_excel(writer, sheet_name="Derivadas", index=False)
+
+    frames = derivadas_sync._load_excel_frames(str(file_path), sheet_name="Derivadas")
+
+    assert len(frames) == 1
+    out_df = frames[0]
+    assert list(out_df.columns) == ["parent_ssa", "child_ssa", "relation_label"]
+    assert out_df["parent_ssa"].astype(str).tolist() == ["202500001", "202500001"]
+    assert out_df["child_ssa"].astype(str).tolist() == ["202500002", "202500003"]
+    assert out_df["relation_label"].tolist() == ["Derivada da", "Derivada da"]

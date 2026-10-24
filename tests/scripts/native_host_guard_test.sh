@@ -114,9 +114,6 @@ guarded_entrypoints=(
   release.sh
   scripts/ci_quality_gates.sh
   scripts/install_hooks.sh
-  scripts/run_import_perf.sh
-  scripts/run_perf_analysis.sh
-  scripts/run_perf_no_direnv.sh
   scripts/run_tests.sh
   scripts/run_tests_unbuffered.sh
   scripts/security/scan_secrets.sh

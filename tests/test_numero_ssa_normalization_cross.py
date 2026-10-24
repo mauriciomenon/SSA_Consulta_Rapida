@@ -3,7 +3,6 @@
 
 Covers equivalence between:
   * core.numero_ssa.normalize_strict
-  * utils.robust_importer path cleaning
   * armazenamento.database._normalize_numero_ssa_value (legacy) when value is already valid
   * armazenamento.database.normalize_numero_ssa_dataframe_storage (text storage path)
 
@@ -19,7 +18,6 @@ import pytest
 
 from armazenamento import database
 from core.numero_ssa import normalize_relation_id, normalize_strict
-from utils.robust_importer import _clean_numero_ssa_series
 
 CASES = [
     ("202512345", "202512345"),  # valid
@@ -39,10 +37,6 @@ CASES = [
 def test_cross_layer_normalization(raw, expected):
     # Core strict
     assert normalize_strict(raw) == expected
-    # Importer cleaning
-    series, mask = _clean_numero_ssa_series(pd.Series([raw]))
-    got = series.iloc[0] if mask.iloc[0] else None
-    assert got == expected
     # Internal numeric legacy helper should still mirror the canonical value.
     legacy = database._normalize_numero_ssa_value(raw)
     if expected is None:
@@ -68,13 +62,9 @@ def test_cross_layer_overlong_value_is_rejected_with_log(caplog) -> None:
 def test_cross_layer_too_short_value_is_rejected_with_log(caplog) -> None:
     caplog.set_level(logging.WARNING)
 
-    series, mask = _clean_numero_ssa_series(pd.Series(["123"]))
-
     assert normalize_strict("123") is None
     assert database._normalize_numero_ssa_value("123") is None
     assert database.normalize_numero_ssa("123") is None
-    assert bool(mask.iloc[0]) is False
-    assert pd.isna(series.iloc[0])
     assert "menos de 5 digitos" in caplog.text
 
 
