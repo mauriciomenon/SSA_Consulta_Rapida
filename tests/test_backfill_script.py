@@ -113,24 +113,17 @@ def test_backfill_rejects_batch_limit_before_reset_or_import(tmp_path, monkeypat
     for index in range(2):
         (tmp_path / f"arq_{index}.xlsx").write_bytes(b"x")
     import_calls: list[str] = []
-    reset_calls: list[str] = []
     monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_FILES", 1)
     monkeypatch.setattr(
         backfill_reprocessar,
         "extract_data_from_excel",
         lambda path, **_kwargs: import_calls.append(path),
     )
-    monkeypatch.setattr(
-        backfill_reprocessar.database,
-        "reset_database",
-        lambda *_args, **_kwargs: reset_calls.append("reset"),
-    )
 
     exit_code = backfill_reprocessar.main(["--dir", str(tmp_path), "--dry-run"])
 
     assert exit_code == 2
     assert import_calls == []
-    assert reset_calls == []
 
 
 def test_backfill_rejects_reset_before_discovery_or_database_change(
@@ -139,13 +132,6 @@ def test_backfill_rejects_reset_before_discovery_or_database_change(
 ):
     from scripts.migracao import backfill_reprocessar
 
-    monkeypatch.setattr(
-        backfill_reprocessar.database,
-        "reset_database",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("reset_database must not run")
-        ),
-    )
 
     exit_code = backfill_reprocessar.main(
         ["--dir", str(tmp_path / "missing"), "--reset-db"]

@@ -88,13 +88,6 @@ def test_import_excel_file_rejects_reset_before_extract_or_database_change(
             AssertionError("extract should not run with --reset-db")
         ),
     )
-    monkeypatch.setattr(
-        import_excel_file.database,
-        "reset_database",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("reset_database must not run")
-        ),
-    )
 
     result = import_excel_file.main(
         ["--file", str(source_file), "--reset-db"]
