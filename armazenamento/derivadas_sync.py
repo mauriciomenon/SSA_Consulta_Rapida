@@ -868,6 +868,7 @@ def _build_closure_rows(
     # - max_distance: longest discovered depth within depth_cap
     # - path_count: number of distinct shortest paths (saturated to cap)
     path_count_cap = 1_000_000
+    truncated_ancestors = 0
 
     for ancestor in adjacency.keys():
         if cancel_event is not None and cancel_event.is_set():
@@ -876,10 +877,12 @@ def _build_closure_rows(
         max_dist: dict[str, int] = {ancestor: 0}
         count: dict[str, int] = {ancestor: 1}
         queue = deque((ancestor,))
+        truncated = False
         while queue:
             node = queue.popleft()
             depth = dist[node]
             if depth >= depth_cap:
+                truncated = truncated or bool(adjacency.get(node))
                 continue
             for child in adjacency.get(node, ()):
                 next_depth = depth + 1
@@ -894,6 +897,9 @@ def _build_closure_rows(
                     count[child] = (
                         updated if updated < path_count_cap else path_count_cap
                     )
+
+        if truncated:
+            truncated_ancestors += 1
 
         max_queue = deque((ancestor,))
         while max_queue:
@@ -919,6 +925,14 @@ def _build_closure_rows(
                 shortest_paths,
             ]
 
+    if truncated_ancestors:
+        # A-28: familias mais fundas que o limite perdem descendentes na closure.
+        logger.warning(
+            "Closure de derivadas truncada na profundidade %d: %d SSA(s) tem "
+            "descendentes alem do limite que nao entram na contagem",
+            depth_cap,
+            truncated_ancestors,
+        )
     closure_rows = [
         (ancestor, descendant, values[0], values[1], values[2])
         for (ancestor, descendant), values in sorted(metrics.items())

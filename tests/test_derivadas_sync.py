@@ -1488,3 +1488,20 @@ def test_sync_derivadas_sheet_file_respects_extra_roots(
         extra_allowed_roots=[str(sheets_dir)],
     )
     assert report["sheet_stats"]["accepted_edges"] == 1
+
+
+def test_closure_warns_when_depth_cap_truncates(caplog):
+    """A-28: cadeia mais funda que o limite gera aviso (antes truncava calado)."""
+    from armazenamento.derivadas_sync import _build_closure_rows
+
+    chain = [(str(i), str(i + 1)) for i in range(5)]  # 0->1->...->5
+    with caplog.at_level("WARNING", logger="armazenamento.derivadas_sync"):
+        rows, _cycles = _build_closure_rows(chain, depth_cap=3)
+
+    assert ("0", "4") not in {(a, d) for a, d, *_ in rows}
+    assert "Closure de derivadas truncada na profundidade 3" in caplog.text
+
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="armazenamento.derivadas_sync"):
+        _build_closure_rows(chain, depth_cap=32)
+    assert "truncada" not in caplog.text
