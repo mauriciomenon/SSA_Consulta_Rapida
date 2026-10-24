@@ -16,7 +16,6 @@ from .filter_domain_rules import SECTOR_COLUMNS, normalize_setor, normalize_seto
 from utils.robust_logging import get_robust_logger
 
 from .gui_filters_advanced_state import (
-    SECTOR_TO_DIV,
     AdvancedFilterState,
     prune_adv_cache,
 )
@@ -38,15 +37,6 @@ def _to_int_set(values):
         text = str(raw).strip()
         if text.isdigit():
             result.add(int(text))
-    return result
-
-
-def _to_str_set(values):
-    result = set()
-    for raw in values or []:
-        text = str(raw).strip()
-        if text:
-            result.add(text)
     return result
 
 
@@ -214,7 +204,6 @@ def _apply_include_exclude_filters(
     column_groups = [
         (("setor_executor",), "setor_executor", "setor_executor_exclude_values"),
         (("setor_emissor",), "setor_emissor", "setor_emissor_exclude_values"),
-        (("divisao",), "divisao", "divisao_exclude_values"),
         (("situacao",), "situacao", "situacao_exclude_values"),
         (
             ("grau_prioridade_emissao", "prioridade_emissao"),
@@ -242,61 +231,20 @@ def _apply_include_exclude_filters(
             "responsavel_execucao_exclude_values",
         ),
     ]
+    # RD-09: filtro de divisao saiu da UI e da logica; chave salva antiga e
+    # ignorada com aviso (nao vira filtro invisivel).
+    legacy_divisao = [k for k in ("divisao", "divisao_exclude_values") if filters.get(k)]
+    if legacy_divisao:
+        logger.warning(
+            "Filtro de divisao salvo ignorado (removido): %s", ", ".join(legacy_divisao)
+        )
     for candidate_cols, include_key, exclude_key in column_groups:
         col = next((name for name in candidate_cols if name in df.columns), None)
         include_values = _get_filter_values(include_key)
         exclude_values = _get_filter_values(exclude_key)
         if not include_values and not exclude_values:
             continue
-        if include_key == "divisao":
-            include_values = _to_str_set(include_values)
-            exclude_values = _to_str_set(exclude_values)
-            series = None
-            if "divisao" in df.columns:
-                try:
-                    series = cache.get_str("divisao")
-                    if series is not None:
-                        invalid_tokens = {"", "nan", "none", "null"}
-                        series = series.where(
-                            ~series.str.strip().str.casefold().isin(invalid_tokens), ""
-                        )
-                except Exception as exc:
-                    raise AdvancedFilterMaskError(
-                        f"failed to read divisao column values: {exc}"
-                    ) from exc
-            try:
-                exec_series = (
-                    cache.get_str("setor_executor")
-                    if "setor_executor" in df.columns
-                    else None
-                )
-                emis_series = (
-                    cache.get_str("setor_emissor")
-                    if "setor_emissor" in df.columns
-                    else None
-                )
-                if exec_series is not None or emis_series is not None:
-                    if exec_series is None:
-                        exec_series = pd.Series("", index=df.index)
-                    if emis_series is None:
-                        emis_series = pd.Series("", index=df.index)
-                    div_exec = exec_series.map(SECTOR_TO_DIV).fillna("").astype(str)
-                    div_emis = emis_series.map(SECTOR_TO_DIV).fillna("").astype(str)
-                    derived_series = div_exec.where(div_exec != "", div_emis)
-                    if series is None:
-                        series = derived_series
-                    else:
-                        series = series.where(series != "", derived_series)
-            except Exception as exc:
-                raise AdvancedFilterMaskError(
-                    f"failed to derive divisao values from sector columns: {exc}"
-                ) from exc
-            if series is None:
-                raise AdvancedFilterMaskError(
-                    "divisao filter is set but neither divisao nor derivable "
-                    "sector columns exist in the dataframe"
-                )
-        elif col in numeric_columns:
+        if col in numeric_columns:
             series = cache.get_numeric(col)
             include_values = _to_int_set(include_values or [])
             exclude_values = _to_int_set(exclude_values or [])

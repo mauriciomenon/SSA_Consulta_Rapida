@@ -661,15 +661,8 @@ def test_apply_advanced_filters_derivada_all_ste_ignores_nullable_derivada_value
     assert filtered["numero_ssa"].tolist() == ["100"]
 
 
-def test_apply_advanced_filters_derives_divisao_from_setor_columns(monkeypatch):
-    monkeypatch.setattr(
-        adv_logic,
-        "SECTOR_TO_DIV",
-        {
-            "IEE3": "SMIN",
-            "MEL3": "SMME",
-        },
-    )
+def test_saved_divisao_filter_is_ignored_with_warning(caplog):
+    """RD-09: filtro de divisao foi removido; chave salva antiga nao filtra e gera aviso."""
     df = pd.DataFrame(
         {
             "numero_ssa": ["202500001", "202500002", "202500003"],
@@ -677,24 +670,16 @@ def test_apply_advanced_filters_derives_divisao_from_setor_columns(monkeypatch):
             "setor_emissor": ["", "", "IEE3"],
         }
     )
-
-    filtered_include = _apply_advanced_filters(
-        _DummyWindow({"divisao": ["SMIN"]}),
-        df,
-        cache_token=1,
-        normalize_ssa_series=_normalize_ssa_series,
-        notice_callback=None,
-    )
-    assert filtered_include["numero_ssa"].tolist() == ["202500001", "202500003"]
-
-    filtered_exclude = _apply_advanced_filters(
-        _DummyWindow({"divisao_exclude_values": ["SMIN"]}),
-        df,
-        cache_token=1,
-        normalize_ssa_series=_normalize_ssa_series,
-        notice_callback=None,
-    )
-    assert filtered_exclude["numero_ssa"].tolist() == ["202500002"]
+    with caplog.at_level("WARNING"):
+        filtered = _apply_advanced_filters(
+            _DummyWindow({"divisao": ["SMIN"]}),
+            df,
+            cache_token=1,
+            normalize_ssa_series=_normalize_ssa_series,
+            notice_callback=None,
+        )
+    assert filtered["numero_ssa"].tolist() == ["202500001", "202500002", "202500003"]
+    assert "Filtro de divisao salvo ignorado" in caplog.text
 
 
 def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():

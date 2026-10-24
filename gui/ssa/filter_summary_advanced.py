@@ -18,7 +18,6 @@ AdvancedValueSpec = tuple[str, str, str | None, list[str]]
 ADVANCED_VALUE_LABELS = {
     "executor": "Executor",
     "emissor": "Emissor",
-    "divisao": "Divisao",
     "situacao": "Situacao",
     "prio_emissao": "Prio Emissao",
     "prio_planejamento": "Prio Planejamento",
@@ -33,8 +32,6 @@ ADVANCED_VALUE_SPECS: tuple[AdvancedValueSpec, ...] = (
     ("executor", "setor_executor_exclude_values", "!=", ["setor_executor_exclude_values"]),
     ("emissor", "setor_emissor", None, ["setor_emissor"]),
     ("emissor", "setor_emissor_exclude_values", "!=", ["setor_emissor_exclude_values"]),
-    ("divisao", "divisao", None, ["divisao"]),
-    ("divisao", "divisao_exclude_values", "!=", ["divisao_exclude_values"]),
     ("situacao", "situacao", None, ["situacao"]),
     ("situacao", "situacao_exclude_values", "!=", ["situacao_exclude_values"]),
     ("prio_emissao", "prioridade_emissao_values", None, ["prioridade_emissao_values"]),

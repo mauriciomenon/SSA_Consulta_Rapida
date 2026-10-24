@@ -424,8 +424,6 @@ ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "setor_executor_exclude_values": ("setor_executor",),
     "setor_emissor": ("setor_emissor",),
     "setor_emissor_exclude_values": ("setor_emissor",),
-    "divisao": ("divisao",),
-    "divisao_exclude_values": ("divisao",),
     "situacao": ("situacao",),
     "situacao_exclude_values": ("situacao",),
     "solicitante": ("solicitante", "responsavel_solicitante"),
