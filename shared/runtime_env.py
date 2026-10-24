@@ -13,8 +13,9 @@ from collections.abc import Mapping
 
 
 def _same_path(left: str, right: str) -> bool:
-    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(
-        os.path.abspath(right)
+    """Mesmo destino apos resolver symlinks (BL-28: /var x /private/var no macOS)."""
+    return os.path.normcase(os.path.realpath(left)) == os.path.normcase(
+        os.path.realpath(right)
     )
 
 

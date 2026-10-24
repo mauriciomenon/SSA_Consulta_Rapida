@@ -83,3 +83,16 @@ def test_no_warning_when_preset_matches(tmp_path, monkeypatch, warnings_sink):
     runtime_entry_helpers._apply_runtime_environment(str(tmp_path), runtime_dir, config, data)
 
     assert warnings_sink == []
+
+
+def test_no_warning_when_preset_is_symlink_to_same_path(tmp_path, monkeypatch, warnings_sink):
+    """BL-28: /var x /private/var (symlink) e o mesmo caminho; nao avisa."""
+    runtime_dir, config, data = _runtime(tmp_path)
+    link = tmp_path / "link_rt"
+    link.symlink_to(runtime_dir, target_is_directory=True)
+    monkeypatch.setenv("SSA_RUNTIME_ROOT", str(link))
+    monkeypatch.setenv("SSA_DB_PATH", str(link / "data" / "ssas.db"))
+
+    runtime_entry_helpers._apply_runtime_environment(str(tmp_path), runtime_dir, config, data)
+
+    assert warnings_sink == []
