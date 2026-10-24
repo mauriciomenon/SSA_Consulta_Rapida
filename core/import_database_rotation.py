@@ -251,9 +251,17 @@ def _promote_full_rescan_candidate_locked(
                 f"limpeza incompleta; backup em {backup_path}: "
                 f"promocao={exc}; {'; '.join(cleanup_errors)}"
             ) from exc
+        # A-26: no Windows o os.replace falha se outro programa (GUI, CLI,
+        # DB Browser) estiver com o ssas.db aberto; o principal fica intacto.
+        hint = (
+            " O banco principal esta aberto em outro programa (feche a GUI/CLI"
+            " ou o visualizador do banco e rode de novo); ele nao foi alterado."
+            if isinstance(exc, PermissionError)
+            else ""
+        )
         raise DatabaseError(
             "Falha ao promover DB candidato para o caminho principal: "
-            f"{exc}"
+            f"{exc}.{hint}"
         ) from exc
     discard_full_rescan_artifact_marker(primary_db_path, candidate_db_path)
     logger.info(

@@ -212,6 +212,28 @@ def test_promote_keeps_backup_when_journal_restore_fails(
     assert _read_value(backups[0]) == "primary_old"
 
 
+def test_promote_locked_primary_explains_open_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A-26: PermissionError (banco aberto no Windows) vira mensagem clara."""
+    import core.import_database_rotation as rotation
+
+    primary_db = tmp_path / "ssas.db"
+    candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
+    _build_value_db(primary_db, "primary_old")
+    _build_value_db(candidate_db, "candidate_new")
+
+    def _locked(*_args):
+        raise PermissionError("[WinError 32] arquivo em uso")
+
+    monkeypatch.setattr(rotation, "replace_sqlite_file_with_retry", _locked)
+
+    with pytest.raises(DatabaseError, match="aberto em outro programa"):
+        promote_full_rescan_candidate(str(candidate_db), str(primary_db))
+
+    assert _read_value(primary_db) == "primary_old"
+
+
 def test_promote_refuses_corrupt_primary_without_removing_it(tmp_path: Path) -> None:
     primary_db = tmp_path / "ssas.db"
     candidate_db = tmp_path / "ssas.db.full_rescan_candidate_test"
