@@ -165,11 +165,11 @@ def _graph_fingerprint(
 
 
 def _resolve_sync_actor(actor: str | None) -> str:
-    """Resolve an audit-friendly actor label for sync runs."""
+    """Rotulo de auditoria do run: o `actor` explicito ou o usuario do SO (USER/USERNAME)."""
 
     if actor is not None:
         return str(actor).strip()[:128]
-    for env_var in ("SSA_DERIVADAS_ACTOR", "SSA_SYNC_ACTOR", "USER", "USERNAME"):
+    for env_var in ("USER", "USERNAME"):
         value = os.environ.get(env_var)
         if value and value.strip():
             return value.strip()[:128]

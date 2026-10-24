@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Removidas as variaveis `SSA_DERIVADAS_ACTOR` e `SSA_SYNC_ACTOR`: o autor gravado em cada sincronizacao de derivadas e o usuario do sistema (`USER`/`USERNAME`), como ja era quando nenhuma das duas estava definida.
 - Removida a variavel `SSA_EXTRA_DIRS`: a criacao das pastas no inicio usa so a lista fixa do programa e nao cria nem exige pastas extras indicadas pelo ambiente.
 - Filtro avancado de "Divisao" removido de vez: ja nao aparecia na tela, mas um filtro salvo antigo com essa chave ainda era aplicado sem aparecer (e herdando a divisao do setor emissor). Agora a chave salva e ignorada, com aviso no log. A macro "SSA Executadas Divisao" e a ordenacao dos setores nao mudam.
 - SAM API (GUI e `scripts/import_pai_api_xlsx.py`): a pasta do `scrap_report` e achada pela mesma regra. A GUI passa a respeitar `SSA_SCRAP_REPORT_ROOT` (a mensagem de erro ja mandava defini-la), e o script passa a procurar a pasta irma do projeto por padrao, como a GUI; `SSA_ALLOW_SIBLING_SCRAP_REPORT=0` desliga essa busca nos dois.

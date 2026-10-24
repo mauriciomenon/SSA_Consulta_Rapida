@@ -1505,3 +1505,12 @@ def test_closure_warns_when_depth_cap_truncates(caplog):
     with caplog.at_level("WARNING", logger="armazenamento.derivadas_sync"):
         _build_closure_rows(chain, depth_cap=32)
     assert "truncada" not in caplog.text
+
+
+@pytest.mark.parametrize("legacy_env", ["SSA_DERIVADAS_ACTOR", "SSA_SYNC_ACTOR"])
+def test_sync_actor_vem_do_usuario_do_so(monkeypatch, legacy_env):
+    """BL-21: o rotulo de auditoria vem de USER/USERNAME; envs proprias foram removidas."""
+    monkeypatch.setenv(legacy_env, "rotulo_env")
+    monkeypatch.setenv("USER", "usuario_so")
+    assert derivadas_sync._resolve_sync_actor(None) == "usuario_so"
+    assert derivadas_sync._resolve_sync_actor(" explicito ") == "explicito"
