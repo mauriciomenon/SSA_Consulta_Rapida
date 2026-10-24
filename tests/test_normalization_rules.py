@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Valida regras de normalização de numero_ssa isoladamente.
 
-Usa a função pública normalize_numero_ssa (se existir) ou fallback para lógica interna.
+Usa normalize_numero_ssa_storage, o caminho de gravacao do armazenamento.
 """
 
 from __future__ import annotations
@@ -12,15 +12,11 @@ import pandas as pd
 import pytest
 
 from armazenamento import database
+from armazenamento.numero_ssa_utils import normalize_numero_ssa_storage
 
 
 def _normalize(value):
-    if hasattr(database, "normalize_numero_ssa"):
-        return database.normalize_numero_ssa(value)
-    # fallback: tentar usar função interna (não ideal, mas mantém teste útil)
-    if hasattr(database, "_normalize_numero_ssa_value"):
-        return database._normalize_numero_ssa_value(value)
-    raise RuntimeError("Nenhuma função de normalização encontrada")
+    return normalize_numero_ssa_storage(value)
 
 
 def test_normalization_cases(normalization_cases):
@@ -56,11 +52,8 @@ def test_normalization_rejects_short_two_digit_year_sequences():
     assert _normalize("2601234") is None
 
 
-def test_dataframe_storage_api_is_textual_and_explicit():
-    out = database.normalize_numero_ssa_dataframe_storage(
-        pd.DataFrame({"numero_ssa": ["202500777.0", "ABC123"]})
-    )
-    assert list(out["numero_ssa"]) == ["202500777", None]
+def test_storage_api_is_textual_and_explicit():
+    assert [_normalize(v) for v in ("202500777.0", "ABC123")] == ["202500777", None]
 
 
 def test_invalid_table_name_dispatch_returns_false(tmp_path):

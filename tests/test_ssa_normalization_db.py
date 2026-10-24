@@ -1,129 +1,50 @@
-# ruff: noqa: E402
+"""Regras de numero_ssa nos nomes usados pela camada de armazenamento (A-30).
+
+normalize_numero_ssa_storage e o caminho de gravacao (upsert, validacao, modo
+otimizado); normalize_numero_ssa e o de exibicao (utils.formatting). Os
+wrappers de DataFrame e o helper numerico legado sairam por nao ter chamador.
+"""
+
 import logging
 
-import pandas as pd
+import pytest
 
-from armazenamento.database import (
-    _normalize_numero_ssa_value,
-    normalize_numero_ssa_dataframe,
-    normalize_numero_ssa_dataframe_storage,
+from armazenamento.numero_ssa_utils import (
+    normalize_numero_ssa,
+    normalize_numero_ssa_storage,
 )
 
 
-def test_normalize_numero_ssa_value_various():
-    assert _normalize_numero_ssa_value(None) is None
-    assert _normalize_numero_ssa_value(" ") is None
-    # Apenas SSAs válidos (YYYY + 5) entre 1980-2050 retornam int
-    assert _normalize_numero_ssa_value("ABC123") is None
-    # 8 dígitos é inválido
-    assert _normalize_numero_ssa_value("12345678") is None
-    # 10+ digitos: helper numerico legado nao aceita mais sobrecomprimento
-    assert _normalize_numero_ssa_value("2025123456") is None
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, None),
+        (" ", None),
+        ("ABC123", None),
+        ("abc123", None),
+        ("12345678", None),
+        ("2025123456", None),
+        (float("nan"), None),
+        ("123", None),
+        ("202501234", "202501234"),
+        ("202600654", "202600654"),
+        ("202500777.0", "202500777"),
+    ],
+)
+def test_storage_normalization_cases(raw, expected):
+    assert normalize_numero_ssa_storage(raw) == expected
 
 
-def test_normalize_numero_ssa_value_logs_overlong_rejection(caplog) -> None:
+def test_storage_normalization_logs_overlong_rejection(caplog) -> None:
     caplog.set_level(logging.WARNING)
 
-    assert _normalize_numero_ssa_value("2025123456") is None
+    assert normalize_numero_ssa_storage("2025123456") is None
 
     assert "exceder 9 digitos" in caplog.text
 
 
-def test_normalize_numero_ssa_dataframe_apply():
-    df = pd.DataFrame(
-        {
-            "numero_ssa": [
-                None,
-                "abc123",
-                "12345678",
-                "202501234",
-                "202600654",
-            ]
-        }
-    )
-    out = normalize_numero_ssa_dataframe(df)
-    assert list(out["numero_ssa"]) == [
-        None,
-        None,
-        None,
-        "202501234",
-        "202600654",
-    ]
-
-
-def test_normalize_numero_ssa_dataframe_storage_matches_compat_alias() -> None:
-    df = pd.DataFrame({"numero_ssa": ["202500777.0", "abc123", None]})
-
-    canonical = normalize_numero_ssa_dataframe_storage(df)
-    compat = normalize_numero_ssa_dataframe(df)
-
-    assert canonical.to_dict("list") == compat.to_dict("list")
-
-
-def test_normalize_numero_ssa_dataframe_storage_preserves_null_cells() -> None:
-    df = pd.DataFrame(
-        {
-            "numero_ssa": [
-                None,
-                float("nan"),
-                "abc123",
-                "202501234",
-            ]
-        }
-    )
-
-    out = normalize_numero_ssa_dataframe_storage(df)
-
-    assert out.loc[0, "numero_ssa"] is None
-    assert out.loc[1, "numero_ssa"] is None
-    assert out.loc[2, "numero_ssa"] is None
-    assert out.loc[3, "numero_ssa"] == "202501234"
-    assert "nan" not in {
-        str(value).lower() for value in out["numero_ssa"] if value is not None
-    }
-
-
-def test_normalize_numero_ssa_dataframe_rejects_short_display_only_values() -> None:
-    df = pd.DataFrame(
-        {
-            "numero_ssa": [
-                "123",
-                "202500777.0",
-            ]
-        }
-    )
-
-    out = normalize_numero_ssa_dataframe(df)
-
-    assert list(out["numero_ssa"]) == [
-        None,
-        "202500777",
-    ]
-
-
-def test_normalize_numero_ssa_dataframe_preserves_index_alignment():
-    df = pd.DataFrame(
-        {"numero_ssa": ["202501234", "202512345"]},
-        index=[10, 20],
-    )
-    out = normalize_numero_ssa_dataframe(df)
-    assert list(out.index) == [10, 20]
-    assert out.loc[10, "numero_ssa"] == "202501234"
-    assert out.loc[20, "numero_ssa"] == "202512345"
-
-
-# tests/test_ssa_normalization_db.py
-import os
-import sys
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, project_root)
-
-from armazenamento.database import normalize_numero_ssa
-
-
 def test_normalize_numero_ssa_basic():
-    # entradas curtas nao viram mais numero_ssa valido por exibicao
+    # entradas curtas nao viram numero_ssa valido por exibicao
     assert normalize_numero_ssa("123") is None
     assert normalize_numero_ssa("0009876") is None
     assert normalize_numero_ssa("2601234") is None
@@ -133,7 +54,7 @@ def test_normalize_numero_ssa_basic():
     assert normalize_numero_ssa("202600654") == "202600654"
     # 10 digitos nao sao referencia do contrato operacional atual
     assert normalize_numero_ssa("2026000654") is None
-    # >9 nao trunca mais no helper legacy
+    # >9 nao trunca
     assert normalize_numero_ssa("202512345678") is None
     # vazios/nulos retornam None
     assert normalize_numero_ssa("") is None
@@ -146,3 +67,25 @@ def test_normalize_numero_ssa_display_logs_overlong_rejection(caplog) -> None:
     assert normalize_numero_ssa("202512345678") is None
 
     assert "exceder 9 digitos" in caplog.text
+
+
+def test_dead_numero_ssa_aliases_removed():
+    """A-30: sem wrappers de DataFrame nem helper numerico legado."""
+    from armazenamento import database, numero_ssa_utils
+
+    for name in (
+        "_normalize_numero_ssa_value",
+        "normalize_numero_ssa",
+        "normalize_numero_ssa_dataframe",
+        "normalize_numero_ssa_dataframe_storage",
+    ):
+        assert not hasattr(database, name), name
+    for name in (
+        "normalize_numero_ssa_int_legacy_bridge",
+        "batch_normalize_series",
+        "extract_candidate_digits",
+        "bulk_int_or_none",
+        "normalize_numero_ssa_dataframe",
+        "normalize_numero_ssa_dataframe_storage",
+    ):
+        assert not hasattr(numero_ssa_utils, name), name

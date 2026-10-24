@@ -25,16 +25,8 @@ from shared.db_names import (
     SSA_READ_REQUIRED_COLUMNS,
 )
 
-from . import numero_ssa_utils as _numero_ssa_utils
 from .database_lock import database_writer_lock
 from .identifier_utils import is_valid_identifier, quote_identifier as _quote_identifier
-from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display
-from .numero_ssa_utils import (
-    normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
-)
-from .numero_ssa_utils import (
-    normalize_numero_ssa_dataframe_storage as _normalize_numero_ssa_dataframe_storage,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -1062,23 +1054,6 @@ def insert_dataframe_with_smart_upsert(
     except Exception as e:  # pragma: no cover
         logger.error(f"Falha na insercao: {e}")
         return False
-
-
-_normalize_numero_ssa_value = _numero_ssa_utils.normalize_numero_ssa_int_legacy_bridge
-
-
-def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:  # retrocompat
-    return _normalize_numero_ssa_dataframe(df)
-
-
-def normalize_numero_ssa_dataframe_storage(
-    df: pd.DataFrame,
-) -> pd.DataFrame:  # retrocompat
-    return _normalize_numero_ssa_dataframe_storage(df)
-
-
-def normalize_numero_ssa(value) -> str | None:  # retrocompat
-    return _normalize_numero_ssa_display(value)
 
 
 # --- Funcoes de Verificacao e Integridade do Banco ---

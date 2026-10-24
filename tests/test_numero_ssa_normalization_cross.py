@@ -3,8 +3,8 @@
 
 Covers equivalence between:
   * core.numero_ssa.normalize_strict
-  * armazenamento.database._normalize_numero_ssa_value (legacy) when value is already valid
-  * armazenamento.database.normalize_numero_ssa_dataframe_storage (text storage path)
+  * armazenamento.numero_ssa_utils.normalize_numero_ssa_storage (caminho de gravacao)
+  * armazenamento.numero_ssa_utils.normalize_numero_ssa (exibicao)
 
 Edge cases: valid, invalid length, wrong year, extra chars, longer strings.
 """
@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import logging
 
-import pandas as pd
 import pytest
 
-from armazenamento import database
+from armazenamento.numero_ssa_utils import normalize_numero_ssa, normalize_numero_ssa_storage
 from core.numero_ssa import normalize_relation_id, normalize_strict
 
 CASES = [
@@ -35,26 +34,16 @@ CASES = [
 
 @pytest.mark.parametrize("raw,expected", CASES)
 def test_cross_layer_normalization(raw, expected):
-    # Core strict
     assert normalize_strict(raw) == expected
-    # Internal numeric legacy helper should still mirror the canonical value.
-    legacy = database._normalize_numero_ssa_value(raw)
-    if expected is None:
-        assert legacy is None
-    else:
-        assert str(legacy).zfill(9) == expected
-
-    frame = database.normalize_numero_ssa_dataframe_storage(
-        pd.DataFrame({"numero_ssa": [raw]})
-    )
-    assert frame.iloc[0]["numero_ssa"] == expected
+    assert normalize_numero_ssa_storage(raw) == expected
+    assert normalize_numero_ssa(raw) == expected
 
 
 def test_cross_layer_overlong_value_is_rejected_with_log(caplog) -> None:
     caplog.set_level(logging.WARNING)
 
     assert normalize_strict("2025123456") is None
-    assert database._normalize_numero_ssa_value("2025123456") is None
+    assert normalize_numero_ssa_storage("2025123456") is None
 
     assert "exceder 9 digitos" in caplog.text
 
@@ -63,8 +52,8 @@ def test_cross_layer_too_short_value_is_rejected_with_log(caplog) -> None:
     caplog.set_level(logging.WARNING)
 
     assert normalize_strict("123") is None
-    assert database._normalize_numero_ssa_value("123") is None
-    assert database.normalize_numero_ssa("123") is None
+    assert normalize_numero_ssa_storage("123") is None
+    assert normalize_numero_ssa("123") is None
     assert "menos de 5 digitos" in caplog.text
 
 
