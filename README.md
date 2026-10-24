@@ -44,9 +44,15 @@ No Windows, use PowerShell e o ambiente nativo descrito no [guia de ambiente](de
 - O startup nao importa planilhas automaticamente; a importacao e disparada
   por acao (botao Reescanear na GUI, `--force-rescan` na CLI).
 - As planilhas-fonte ficam na pasta de documentos configurada; o banco fica
-  em `data/`. A importacao e incremental: arquivos ja processados sao
-  reconhecidos por controle de estado, e cada SSA atualiza seu proprio
-  registro (upsert por `numero_ssa`).
+  em `data/`. "Atualizar dados" (GUI) e incremental: arquivos ja processados
+  sao reconhecidos por controle de estado, e cada SSA atualiza seu proprio
+  registro (upsert por `numero_ssa`). O `--force-rescan` e a reanalise
+  completa: recria o banco so com as planilhas presentes (o anterior fica em
+  `data/ssas.db.full_rescan_backup_*`).
+- Um banco por usuario: o lock que serializa as gravacoes fica na pasta
+  temporaria de cada usuario, entao o mesmo `ssas.db` aberto por usuarios
+  diferentes (pasta de rede, OneDrive compartilhado) nao e protegido contra
+  gravacoes simultaneas e nao e suportado.
 - Planilhas especiais cujo nome comeca com `SSAs Derivadas e Relacionadas`
   nao entram na fase comum: suas arestas alimentam a fase dedicada de
   derivadas.
