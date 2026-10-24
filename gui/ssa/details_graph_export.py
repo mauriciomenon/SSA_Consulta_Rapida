@@ -264,8 +264,9 @@ class DetailsGraphExportController:
             return
         # G-13: PNG em memoria e gravacao atomica (mkstemp + os.replace).
         data = _pixmap_png_bytes(pixmap)
-        saved = data is not None
-        if saved:
+        saved = False
+        if data is not None:
+            saved = True
             try:
                 atomic_write_bytes(str(Path(path).expanduser()), data)
             except OSError as exc:
