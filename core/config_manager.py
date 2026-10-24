@@ -39,7 +39,17 @@ def _atomic_write_json_file(
 
 
 def atomic_write_text(path: str, text: str) -> None:
-    """Grava texto de forma atomica: temporario na mesma pasta, fsync e os.replace.
+    """Grava texto (UTF-8) de forma atomica; ver _atomic_write."""
+    _atomic_write(path, text, "w")
+
+
+def atomic_write_bytes(path: str, data: bytes) -> None:
+    """Grava bytes de forma atomica; ver _atomic_write."""
+    _atomic_write(path, data, "wb")
+
+
+def _atomic_write(path: str, payload: "str | bytes", mode: str) -> None:
+    """Escrita atomica: temporario exclusivo (mkstemp) na mesma pasta, fsync e os.replace.
 
     Regra unica de escrita segura (config JSON, exportacoes): um crash no meio
     nunca deixa o destino truncado. Mantem o modo de um arquivo existente
@@ -67,10 +77,10 @@ def atomic_write_text(path: str, text: str) -> None:
                     tmp_path,
                     exc,
                 )
-        f = os.fdopen(fd, "w", encoding="utf-8")
+        f = os.fdopen(fd, mode, encoding=None if "b" in mode else "utf-8")
         fd = None
         try:
-            f.write(text)
+            f.write(payload)
             f.flush()
             if hasattr(os, "fchmod"):
                 try:

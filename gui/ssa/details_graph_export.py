@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import hashlib
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, MutableMapping
 
 from core.cache_manager import CacheManager
-from core.config_manager import atomic_write_text
+from core.config_manager import atomic_write_bytes, atomic_write_text
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +176,21 @@ def _svg_cache_key(owner_cls: type[Any], graph_cache_key: str, *parts: int) -> s
     return f"{owner}:{graph_cache_key}:{suffix}"
 
 
+def _pixmap_png_bytes(pixmap: Any) -> bytes | None:
+    """Codifica o pixmap em PNG na memoria (None se o Qt recusar)."""
+    from PyQt6.QtCore import QBuffer, QByteArray, QIODevice
+
+    buffer_data = QByteArray()
+    buffer = QBuffer(buffer_data)
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    try:
+        if not pixmap.save(buffer, "PNG"):
+            return None
+    finally:
+        buffer.close()
+    return bytes(buffer_data.data())
+
+
 @dataclass
 class DetailsGraphExportController:
     __slots__ = (
@@ -248,18 +262,15 @@ class DetailsGraphExportController:
                 "Grafo indisponivel para exportacao em PNG.",
             )
             return
-        export_path = Path(path).expanduser()
-        partial = export_path.with_name(f".{export_path.name}.tmp")
-        # G-13: grava ao lado e troca; falha nao trunca o PNG existente.
-        saved = pixmap.save(str(partial), "PNG")
-        try:
-            if saved:
-                os.replace(partial, export_path)
-        except OSError as exc:
-            self.logger.warning("Falha ao exportar grafo PNG: %s", exc, exc_info=True)
-            saved = False
-        finally:
-            partial.unlink(missing_ok=True)
+        # G-13: PNG em memoria e gravacao atomica (mkstemp + os.replace).
+        data = _pixmap_png_bytes(pixmap)
+        saved = data is not None
+        if saved:
+            try:
+                atomic_write_bytes(str(Path(path).expanduser()), data)
+            except OSError as exc:
+                self.logger.warning("Falha ao exportar grafo PNG: %s", exc, exc_info=True)
+                saved = False
         if not saved:
             self.message_box_cls.warning(
                 self.dialog,

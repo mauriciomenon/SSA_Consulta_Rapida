@@ -415,3 +415,24 @@ def test_graph_export_failure_keeps_existing_file(
     monkeypatch.undo()
     controller.export_svg()
     assert target.read_text(encoding="utf-8") == "<svg>novo</svg>"
+
+
+def test_graph_export_png_is_written_atomically(tmp_path: Path) -> None:
+    """G-13: PNG gerado em memoria e gravado por mkstemp + os.replace (sem .tmp fixo)."""
+    from PyQt6.QtGui import QColor, QPixmap
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+    assert app is not None
+    pixmap = QPixmap(8, 8)
+    pixmap.fill(QColor("red"))
+    controller = _controller(tmp_path, state={"target": "202600001", "svg": "<svg/>"})
+    controller.graph_widget.pixmap = pixmap
+    target = tmp_path / "grafo.png"
+    _FakeFileDialog.next_path = str(target)
+
+    controller.export_png()
+
+    assert target.read_bytes().startswith(b"\x89PNG")
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["grafo.png"]
+    assert _FakeMessageBox.warnings == []
