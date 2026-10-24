@@ -187,12 +187,12 @@ def test_explicit_import_propagates_cancel_callback(
     monkeypatch.setattr(
         app_logic,
         "_resolve_import_targets",
-        lambda _docs, _db: (docs_dir, db_path),
+        lambda _docs, _db, **_kw: (docs_dir, db_path),
     )
     monkeypatch.setattr(
         app_logic,
         "_resolve_explicit_import_files",
-        lambda _files, *, docs_dir_path: [str(source)],
+        lambda _files, *, docs_dir_path, **_kw: [str(source)],
     )
 
     def run_importer_logic(**kwargs: Any) -> bool:
@@ -222,11 +222,11 @@ def test_explicit_import_does_not_swallow_cancel_as_os_error(
     db_path = tmp_path / "data" / "temp.db"
     source = docs_dir / "pai.xlsx"
     source.touch()
-    monkeypatch.setattr(app_logic, "_resolve_import_targets", lambda _docs, _db: (docs_dir, db_path))
+    monkeypatch.setattr(app_logic, "_resolve_import_targets", lambda _docs, _db, **_kw: (docs_dir, db_path))
     monkeypatch.setattr(
         app_logic,
         "_resolve_explicit_import_files",
-        lambda _files, *, docs_dir_path: [str(source)],
+        lambda _files, *, docs_dir_path, **_kw: [str(source)],
     )
 
     def cancelled_import(**_kwargs: Any) -> bool:

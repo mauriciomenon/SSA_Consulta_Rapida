@@ -812,6 +812,7 @@ def test_fetch_and_import_pai_xlsx_stages_and_imports(
     assert staged_calls[0]["docs_dir"] == tmp_path / "docs_entrada"
     assert import_calls[0]["docs_dir"] == str(tmp_path / "docs_entrada")
     assert import_calls[0]["db_path"] == str(tmp_path / "data" / "ssas.db")
+    assert import_calls[0]["extra_allowed_roots"] == (str((tmp_path / "data").resolve()),)
 
 
 def test_preview_existing_pai_xlsx_normalizes_without_api_call(tmp_path: Path) -> None:

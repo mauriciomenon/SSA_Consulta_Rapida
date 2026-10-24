@@ -162,6 +162,7 @@ def _resolve_explicit_import_files(
     file_paths: Sequence[str | os.PathLike[str]],
     *,
     docs_dir_path: Path,
+    extra_allowed_roots: Optional[Iterable[str | os.PathLike[str]]] = None,
 ) -> List[str]:
     """Resolve explicit import files and ensure they stay under docs_dir."""
     docs_dir_resolved = docs_dir_path.resolve()
@@ -176,6 +177,7 @@ def _resolve_explicit_import_files(
             base=docs_dir_resolved,
             must_exist=True,
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
         if candidate.suffix.casefold() not in SUPPORTED_IMPORT_SUFFIXES:
             raise PathSafetyError(
@@ -1675,6 +1677,7 @@ def _resolve_import_work_items(
         files_to_process = _resolve_explicit_import_files(
             explicit_files,
             docs_dir_path=docs_dir_path,
+            extra_allowed_roots=extra_allowed_roots,
         )
         logger.info(
             "Modo de importacao explicita ativado com %s arquivo(s).",
@@ -2766,15 +2769,26 @@ def import_explicit_files_to_database(
     db_path: str = "data/ssas.db",
     raise_on_error: bool = False,
     should_cancel: Optional[Callable[[], bool]] = None,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> bool:
-    """Import explicit supported files already staged under docs_dir into the database."""
+    """Import explicit supported files already staged under docs_dir into the database.
+
+    `extra_allowed_roots` libera raizes alem das do path_safety (ex.: a pasta do
+    banco escolhida na GUI), como em `import_files_to_database` (CD-07).
+    """
     try:
         if should_cancel is not None and should_cancel():
             raise InterruptedError("Importacao explicita cancelada antes do preflight")
-        safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
+        extra_allowed_roots = (
+            tuple(extra_allowed_roots) if extra_allowed_roots is not None else None
+        )
+        safe_docs_dir, safe_db_path = _resolve_import_targets(
+            docs_dir, db_path, extra_allowed_roots=extra_allowed_roots
+        )
         explicit_resolved = _resolve_explicit_import_files(
             file_paths,
             docs_dir_path=safe_docs_dir,
+            extra_allowed_roots=extra_allowed_roots,
         )
         if not explicit_resolved:
             logger.info(
@@ -2794,6 +2808,7 @@ def import_explicit_files_to_database(
             force_import=False,
             should_cancel=should_cancel,
             explicit_files=explicit_resolved,
+            extra_allowed_roots=extra_allowed_roots,
         )
     except InterruptedError:
         raise

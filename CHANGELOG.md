@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- SAM API (GUI e `scripts/import_pai_api_xlsx.py`): importar para um banco fora das pastas padrao do programa (por exemplo, com `SSA_DB_PATH` apontando para outra pasta) passa a funcionar como em "Importar arquivos" e na reanalise. Antes a importacao do SAM API recusava esse banco por seguranca de caminho e nao gravava nada.
 - SAM API: a GUI passa a respeitar `SSA_SCRAP_REPORT_RUNNER` (`uv` ou `pythonpath`), pela mesma regra de `scripts/import_pai_api_xlsx.py`; antes usava sempre `uv`. Sem a variavel nada muda.
 - App empacotado: quando o programa substitui `SSA_DB_PATH`, `SSA_CONFIG_DIR` ou `SSA_RUNTIME_ROOT` definidos pelo usuario pelas pastas do runtime, o log registra um aviso com o valor ignorado e o usado. Antes a troca era silenciosa. O comportamento nao muda: no pacote, essas pastas continuam sendo as do runtime (o PyOxidizer tambem ignora `SSA_RUNTIME_ROOT`).
 - Removidos `utils/fallback/emergency_import.py` e `utils/fallback/main_simple.py`. Apesar do nome, a "importacao de emergencia" nao importava planilhas: criava um banco de schema antigo com 2 SSAs de teste e, com `--force`, arquivava o banco real e publicava esse no lugar. O CLI simplificado so contava registros desse banco. Para recuperar o banco, veja "Recuperacao do banco" no README (a importacao restaura o snapshot valido mais recente).

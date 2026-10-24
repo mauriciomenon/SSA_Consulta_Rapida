@@ -139,6 +139,8 @@ def import_prepared_pai_xlsx(
         db_path=str(db_path),
         raise_on_error=False,
         should_cancel=should_cancel,
+        # CD-07: mesma regra do rescan_worker (pasta do banco escolhido e permitida).
+        extra_allowed_roots=(str(Path(db_path).expanduser().resolve().parent),),
     )
     _outcome_after = _import_outcome.get_last_import_outcome()
     _outcome = (
