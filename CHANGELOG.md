@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- O resumo de cada importacao (`import_run_*.json`) fica sempre na mesma pasta do `ssa.log`. Antes, com `SSA_RUNTIME_ROOT` fora das pastas permitidas, ele caia em `logs/` do programa e a poda apagava os relatorios de la.
 - Reanalise pela CLI interativa: o resumo final mostra arquivos processados/candidatos e arquivos com erro (mesma contagem do executavel da CLI) e o caminho real do log. Antes dois dos tres contadores nunca subiam (procuravam texto com acento que o importador nao escreve) e a mensagem citava `logs/app.log`, que nao existe.
 - Ajuda da linha de comando (`main.py --help`) fiel ao que o programa faz: `--force-rescan` explica que recria o banco so com as planilhas presentes e onde fica o banco anterior (citava o `.last_import`, que nao existe); `--optimized` aparece como sem efeito; `--standard` deixa de prometer "ate 90% mais lento" e logs extras. Sai a referencia ao inexistente `GUIA_MODO_OPTIMIZED.md`.
 - Guia de instalacao so com uv: saem os fluxos alternativos com `python -m venv`, `pip` e `python main.py` sem uv, e a recomendacao de `--optimized`.

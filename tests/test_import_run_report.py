@@ -1514,6 +1514,23 @@ def test_write_import_run_report_uses_runtime_root_logs(
     assert Path(report_path).is_file()
 
 
+def test_write_import_run_report_follows_logger_log_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CD-04: relatorio vai para a pasta de log do app, nunca para <repo>/logs."""
+    from utils.robust_logging import get_robust_logger
+
+    configured = tmp_path / "logs_do_app"
+    monkeypatch.setenv("SSA_RUNTIME_ROOT", str(tmp_path / "runtime"))
+    monkeypatch.setitem(get_robust_logger().config, "log_dir", str(configured))
+
+    report_path = app_logic._write_import_run_report({"run_id": "cd04_run"})
+
+    assert report_path is not None
+    assert Path(report_path) == configured / "import_run_cd04_run.json"
+
+
 @pytest.mark.parametrize(
     "error_code", ["MISSING_REQUIRED_COLUMNS", "ALL_ROWS_REJECTED"]
 )

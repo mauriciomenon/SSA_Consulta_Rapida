@@ -336,15 +336,7 @@ class RobustLogger:
         # Cria diretório de logs. Caminho relativo ancora no runtime root
         # (gravavel em modo empacotado) ou na raiz do projeto como fallback —
         # nunca no CWD, para que import-time loggers nao criem logs/ perdidos.
-        log_dir = Path(self.config["log_dir"])
-        if not log_dir.is_absolute():
-            runtime_root = os.environ.get("SSA_RUNTIME_ROOT")
-            anchor = (
-                Path(runtime_root)
-                if runtime_root
-                else Path(__file__).resolve().parents[1]
-            )
-            log_dir = anchor / log_dir
+        log_dir = resolve_log_dir(self.config["log_dir"])
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -533,6 +525,20 @@ class RobustLogger:
 # Instância global do sistema de logging
 _robust_logger = None
 _robust_logger_lock = threading.Lock()
+
+
+def resolve_log_dir(log_dir: "str | os.PathLike[str]" = "logs") -> Path:
+    """Pasta de logs do app (ssa.log, ssa.json e import_run_*.json).
+
+    Absoluta como veio; relativa ancora em SSA_RUNTIME_ROOT (gravavel no
+    pacote) ou na raiz do codigo, nunca na pasta corrente.
+    """
+    path = Path(log_dir)
+    if path.is_absolute():
+        return path
+    runtime_root = os.environ.get("SSA_RUNTIME_ROOT")
+    anchor = Path(runtime_root) if runtime_root else Path(__file__).resolve().parents[1]
+    return anchor / path
 
 
 def get_robust_logger(config_path: Optional[str] = None) -> RobustLogger:

@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from utils.path_safety import PathSafetyError, ensure_path_is_allowed
+from utils.robust_logging import get_robust_logger, resolve_log_dir
 
 project_root_path = Path(__file__).resolve().parents[1]
 project_root = str(project_root_path)
@@ -64,32 +64,8 @@ def _prune_import_run_reports(logs_dir: str) -> None:
 def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
     """Grava resumo estruturado de uma execucao de importacao em JSON."""
     try:
-        logs_dir = str(
-            ensure_path_is_allowed(
-                os.path.join(project_root, "logs"),
-                purpose="import_report_logs_dir",
-                base=project_root_path,
-                must_exist=False,
-                expect_directory=True,
-            )
-        )
-        runtime_root = str(os.environ.get("SSA_RUNTIME_ROOT") or "").strip()
-        if runtime_root:
-            runtime_logs_dir = os.path.join(runtime_root, "logs")
-            try:
-                logs_dir = str(
-                    ensure_path_is_allowed(
-                        runtime_logs_dir,
-                        purpose="import_report_logs_dir",
-                        must_exist=False,
-                        expect_directory=True,
-                    )
-                )
-            except PathSafetyError as exc:
-                logger.warning(
-                    "Runtime logs dir rejeitado para relatorio de importacao: %s",
-                    exc,
-                )
+        # CD-04: mesma pasta do ssa.log (utils.robust_logging.resolve_log_dir).
+        logs_dir = str(resolve_log_dir(get_robust_logger().config["log_dir"]))
         os.makedirs(logs_dir, exist_ok=True)
         run_id = str(
             payload.get("run_id") or datetime.now().strftime("%Y%m%d_%H%M%S_%f")
