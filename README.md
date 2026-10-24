@@ -39,6 +39,29 @@ uv run --no-sync python main.py --help           # todas as opcoes
 
 No Windows, use PowerShell e o ambiente nativo descrito no [guia de ambiente](dev_env/ENVIRONMENT_GUIDE.md).
 
+### Variaveis de ambiente
+
+Nenhuma e obrigatoria. Flags booleanas ligam com `1`, `true`, `yes` ou `on`.
+
+| Variavel | Efeito | Padrao |
+|---|---|---|
+| `SSA_DB_PATH` | Banco SQLite usado pela CLI, GUI e manutencao | `data/ssas.db` da raiz (do runtime, no pacote) |
+| `SSA_RUNTIME_ROOT` | Raiz de dados, logs e `docs_saida` | raiz do codigo; no pacote, pasta do usuario |
+| `SSA_CONFIG_DIR` | Pasta de configuracao (valor invalido gera aviso e cai no padrao) | `config/` da raiz do codigo |
+| `SSA_TABLE_NAME` | Tabela consultada pela CLI (a GUI usa sempre `ssa_table`) | `ssa_table` |
+| `SSA_NON_INTERACTIVE` | Flag: sem prompts nem paginacao (CLI) e sem confirmacao de limpeza (GUI) | desligada |
+| `SSA_CACHE_MAX_MB` / `SSA_CACHE_MAX_TOTAL_MB` | Limite por item / total do cache de filtros (GUI e web); `0` = sem limite | 16 / 16 |
+| `SSA_SCRAP_REPORT_ROOT` | Pasta do `scrap_report` (SAM API, GUI e script) | - |
+| `SSA_ALLOW_SIBLING_SCRAP_REPORT` | Flag: procurar o `scrap_report` na pasta irma do projeto | ligada |
+| `SSA_SCRAP_REPORT_RUNNER` | Executor do `scrap_report` (`uv` ou `pythonpath`), so em `scripts/import_pai_api_xlsx.py`; a GUI usa sempre `uv` | `uv` |
+| `PAI_API_DEFAULT_SECRET_SERVICE` | Nome do servico no keyring para a credencial do SAM API | `scrap_report.sam` |
+| `SSA_TSM_DEBUG` | Flag (macOS): nao filtra as mensagens TSM/Qt do stderr | desligada |
+| `NO_COLOR` | Saida da CLI sem cores | - |
+
+Uso interno: os launchers do pacote definem `SSA_RUNTIME_ROOT`, `SSA_CONFIG_DIR`, `SSA_DB_PATH` (sobrescrevem o valor herdado), `SSA_BUNDLED_ROOT` e `SSA_EXTRA_ALLOWED_PATHS`; `SSA_SMOKE_TEST` e do smoke de build e `SSA_SYNC_FILTER` dos testes da GUI. A interface web le tambem `SSA_DOCS_DIR`, `SSA_STREAMLIT_API_TIMEOUT_SECONDS`, `SSA_STREAMLIT_LARGE_PAGE_GUARD`, `SSA_STREAMLIT_UI_STATE_FILE`, `ITAIPU_BASE_PENDING` e `ITAIPU_BASE_DETAIL`.
+
+Sem suporte (ainda lidas, remocao prevista; nao defina): `SSA_ALLOWED_COLUMNS`, `SSA_UPSERT_SHORT_CIRCUIT_POLICY`, `SSA_ENABLE_COMPLEMENTARY`, `SSA_STATUS_ORDER`, `SSA_DESC_COLUMNS`, `SSA_TERMINAL_STATUSES`, `SSA_IMPORT_DEBUG`, `SSA_MAX_HEADER_SCAN`, `SSA_CLI_ENHANCEMENTS_PATH`.
+
 ## Dados e importacao
 
 - O startup nao importa planilhas automaticamente; a importacao e disparada
