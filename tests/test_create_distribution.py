@@ -681,7 +681,11 @@ def test_pyoxidizer_zip_includes_only_requested_runtime_database(
     (data_dir / "file_cache.json").write_text("{}", encoding="utf-8")
     (data_dir / "other.db").write_bytes(b"private")
     if has_database:
-        (data_dir / "ssas.db").write_bytes(b"runtime db")
+        # E-12: o banco de runtime e copiado por snapshot SQLite (nao copy2).
+        with closing(sqlite3.connect(data_dir / "ssas.db")) as conn:
+            conn.execute("CREATE TABLE rows(value TEXT)")
+            conn.execute("INSERT INTO rows VALUES ('runtime db')")
+            conn.commit()
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", tmp_path)
 
     result = create_distribution.create_zip_package(
@@ -700,7 +704,10 @@ def test_pyoxidizer_zip_includes_only_requested_runtime_database(
         ]
         assert len(data_files) == 1
         assert data_files[0].endswith("/data/ssas.db")
-        assert archive.read(data_files[0]) == b"runtime db"
+        extracted = tmp_path / "extracted.db"
+        extracted.write_bytes(archive.read(data_files[0]))
+    with closing(sqlite3.connect(extracted)) as conn:
+        assert conn.execute("SELECT value FROM rows").fetchall() == [("runtime db",)]
 
 
 def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(

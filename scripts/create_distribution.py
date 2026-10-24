@@ -20,7 +20,6 @@ import subprocess
 import sys
 import tempfile
 import zipfile
-from contextlib import closing
 from pathlib import Path
 from typing import Optional
 
@@ -31,7 +30,7 @@ if _CODE_ROOT not in sys.path:
 
 from shared.date_utils import format_current_timestamp  # noqa: E402
 from utils.robust_logging import get_robust_logger  # noqa: E402
-from utils.sqlite_backup import bounded_sqlite_backup  # noqa: E402
+from armazenamento.sqlite_snapshot import snapshot_sqlite_file  # noqa: E402
 
 logger = get_robust_logger().get_logger(__name__, "distribution")
 
@@ -621,19 +620,11 @@ def _copy_local_db_asset(target_dir: Path, local_db_path: str) -> bool:
 
 
 def _snapshot_sqlite_database(source: Path, target: Path) -> bool:
-    temporary = target.with_name(f"{target.name}.tmp")
-    temporary.unlink(missing_ok=True)
+    """Copia consistente pela regra unica dos builds (CD-11); False com log em falha."""
     try:
-        source_uri = f"{source.resolve().as_uri()}?mode=ro"
-        with closing(sqlite3.connect(source_uri, uri=True, timeout=5)) as source_conn:
-            with closing(sqlite3.connect(temporary)) as target_conn:
-                bounded_sqlite_backup(source_conn, target_conn)
-                if target_conn.execute("PRAGMA quick_check").fetchone() != ("ok",):
-                    raise sqlite3.DatabaseError("snapshot falhou no quick_check")
-        os.replace(temporary, target)
+        snapshot_sqlite_file(source, target)
         return True
     except (OSError, sqlite3.Error) as exc:
-        temporary.unlink(missing_ok=True)
         logger.error("Falha ao criar snapshot SQLite de '%s': %s", source, exc)
         return False
 
@@ -913,7 +904,9 @@ def _copy_runtime_bundle(
                 logger.error("Banco de runtime ausente: %s", runtime_db)
                 return False
             (package_dir / "data").mkdir(exist_ok=True)
-            shutil.copy2(runtime_db, package_dir / "data" / "ssas.db")
+            # E-12: copia consistente (nao copy2) do banco de runtime.
+            if not _snapshot_sqlite_database(runtime_db, package_dir / "data" / "ssas.db"):
+                return False
 
         internal_dir_name = build_info.get("internal_dir")
         if isinstance(internal_dir_name, str) and internal_dir_name:

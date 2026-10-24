@@ -19,7 +19,6 @@ import sqlite3
 import subprocess  # nosec B404
 import sys
 import sysconfig
-from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -30,7 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
 robust_logging = importlib.import_module("utils.robust_logging")
 logger = robust_logging.get_robust_logger().get_logger(__name__, "maintenance")
 write_build_info = importlib.import_module("dev_env.build.write_build_info")
-from utils.sqlite_backup import bounded_sqlite_backup  # noqa: E402
+from armazenamento.sqlite_snapshot import snapshot_sqlite_file  # noqa: E402
 
 
 class MultiPlatformBuilder:
@@ -726,24 +725,9 @@ VSVersionInfo(
                 runtime_data = runtime_root / "data"
                 runtime_data.mkdir(parents=True, exist_ok=True)
                 runtime_db_target = runtime_data / "ssas.db"
-                runtime_db_temporary = runtime_data / "ssas.db.tmp"
-                runtime_db_temporary.unlink(missing_ok=True)
                 try:
-                    source_uri = f"{runtime_db_path.as_uri()}?mode=ro"
-                    with closing(
-                        sqlite3.connect(source_uri, uri=True, timeout=5)
-                    ) as source_conn:
-                        with closing(sqlite3.connect(runtime_db_temporary)) as target_conn:
-                            bounded_sqlite_backup(source_conn, target_conn)
-                            if target_conn.execute("PRAGMA quick_check").fetchone() != (
-                                "ok",
-                            ):
-                                raise sqlite3.DatabaseError(
-                                    "snapshot do banco de runtime falhou no quick_check"
-                                )
-                    os.replace(runtime_db_temporary, runtime_db_target)
+                    snapshot_sqlite_file(runtime_db_path, runtime_db_target)
                 except (OSError, sqlite3.Error) as exc:
-                    runtime_db_temporary.unlink(missing_ok=True)
                     logger.error("Falha ao criar snapshot do banco de runtime: %s", exc)
                     return False
                 logger.info(

@@ -194,7 +194,10 @@ def test_copy_data_to_build_keeps_target_when_writer_lock_busy(
         raise Timeout(str(target))
         yield
 
-    monkeypatch.setattr(module, "database_writer_lock", locked)
+    # CD-11: o lock do destino fica na copia comum dos builds.
+    from armazenamento import sqlite_snapshot
+
+    monkeypatch.setattr(sqlite_snapshot, "database_writer_lock", locked)
 
     assert module.copy_data_to_build(
         build_dir, verbose=False, db_path=source_db, docs_dir=tmp_path / "missing_docs"
