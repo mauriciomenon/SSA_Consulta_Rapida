@@ -18,6 +18,7 @@ from typing import Any
 import pandas as pd
 from tabulate import tabulate
 
+from shared.numero_ssa import display_numero_ssa
 from utils.formatting import format_dataframe_for_display
 
 logger = logging.getLogger(__name__)
@@ -32,9 +33,6 @@ MIN_LINES_FALLBACK = 24
 MIN_COLS_FALLBACK = 80
 LOW_HEIGHT_MARGIN = 8
 SMALL_COLUMN_THRESHOLD = 4
-SSA_FULL_LENGTH = 9
-SSA_SHORT_THRESHOLD = 5
-SSA_YEAR_PREFIX = "2025"
 ELLIPSIS_MIN_WIDTH = 3
 MAGIC_AVAILABLE_WIDTH_COMPACT = 100
 MAGIC_MANY_COLUMNS_THRESHOLD = 6
@@ -478,43 +476,6 @@ def _paginate_and_print(
         logger.warning("Comando inválido")
 
 
-def _normalize_ssa(value: Any) -> str:
-    """Normalização compatível com testes legados de CLI.
-
-    Regras observadas nos testes:
-      * None / vazio => '-'
-      * Até 5 dígitos => retorna como está
-      * 9 dígitos começando com ano padrão => retorna íntegro
-      * Strings muito longas: teste espera que para '2025123456789' o resultado seja '512345678'
-        (ou seja: remove o primeiro dígito e mantém os 9 seguintes) em vez de últimos 9.
-      * Caso geral anterior (não se encaixa na forma YYYY + extras) -> últimos 9.
-    """
-    if value is None:
-        return "-"
-    s = str(value).strip()
-    if not s:
-        return "-"
-    digits = "".join(ch for ch in s if ch.isdigit())
-    if not digits:
-        return "-"
-    if len(digits) < SSA_SHORT_THRESHOLD:
-        return digits
-    if len(digits) == SSA_FULL_LENGTH and digits.startswith(SSA_YEAR_PREFIX):
-        return digits
-    # Caso especial observado em teste: '2025123456789' -> '512345678'
-    # Ou seja: prefixo '2025' + 9+ extras: remover exatamente os 4 iniciais e pegar os próximos 9
-    if len(digits) > SSA_FULL_LENGTH and digits.startswith("2025"):
-        # Ajuste empírico baseado em teste: '2025123456789' -> '512345678'
-        # Isso corresponde a descartar os 3 primeiros dígitos '202' e o último excedente.
-        candidate = digits[3 : 3 + SSA_FULL_LENGTH]
-        if len(candidate) == SSA_FULL_LENGTH:
-            return candidate
-    # Demais casos longos: usar últimos 9
-    if len(digits) > SSA_FULL_LENGTH:
-        return digits[-SSA_FULL_LENGTH:]
-    return digits
-
-
 def pretty_print_df(
     df: pd.DataFrame,
     display_map: dict[str, str] | None = None,
@@ -535,7 +496,7 @@ def pretty_print_df(
         df_work, display_map, settings, term_cols
     )
     if "numero_ssa" in df_vis.columns:
-        df_vis["numero_ssa"] = df_vis["numero_ssa"].apply(_normalize_ssa)
+        df_vis["numero_ssa"] = df_vis["numero_ssa"].apply(display_numero_ssa)
     df_vis = _sanitize_and_truncate(df_vis, display_cols, term_cols)
     headers, _, renamed = _build_headers(
         HeaderBuildParams(
@@ -578,7 +539,7 @@ def format_dataframe_for_cli(
         df_work, display_map, settings, term_cols
     )
     if "numero_ssa" in df_vis.columns:
-        df_vis["numero_ssa"] = df_vis["numero_ssa"].apply(_normalize_ssa)
+        df_vis["numero_ssa"] = df_vis["numero_ssa"].apply(display_numero_ssa)
     df_vis = _sanitize_and_truncate(df_vis, display_cols, term_cols)
     headers, _, renamed = _build_headers(
         HeaderBuildParams(

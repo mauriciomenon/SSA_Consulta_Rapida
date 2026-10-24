@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Filtro avancado "Ano Emissao" (GUI): o ano passa a ser o ano ISO da semana de cadastro, o mesmo das faixas de semana; sem semana, vale o ano ISO da data de cadastro. As SCC/ADI/ASE sem data, que tem semana, passam a aparecer no filtro de ano, e SSAs de inicio de janeiro que caem na ultima semana do ano anterior (ex.: 01/01/2022 = semana 202152) contam no mesmo ano da semana.
+- CLI: o numero da SSA aparece como esta gravado. Antes, um valor vindo como "202512345.0" era mostrado como "025123450" ou "2025123450", e numeros longos eram truncados (ex.: "2025123456789" virava "512345678").
 - Situacao no formato "COD - DESCRICAO" (como o SAM API manda, ex.: "STE - SERVICO TERMINADO") vale como o codigo tambem no filtro avancado de situacao, na excecao de SSA sem data de cadastro da importacao (SCC/ADI/ASE) e na cor dos links de SSA relacionadas nos detalhes.
 - O resumo de cada importacao (`import_run_*.json`) fica sempre na mesma pasta do `ssa.log`. Antes, com `SSA_RUNTIME_ROOT` fora das pastas permitidas, ele caia em `logs/` do programa e a poda apagava os relatorios de la.
 - Reanalise pela CLI interativa: o resumo final mostra arquivos processados/candidatos e arquivos com erro (mesma contagem do executavel da CLI) e o caminho real do log. Antes dois dos tres contadores nunca subiam (procuravam texto com acento que o importador nao escreve) e a mensagem citava `logs/app.log`, que nao existe.

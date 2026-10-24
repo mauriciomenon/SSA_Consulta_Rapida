@@ -129,14 +129,12 @@ def normalize_strict(value) -> str | None:
 def normalize_relation_id(value) -> str | None:
     """Return relation-safe numero_ssa or ``None`` if invalid.
 
-    This helper is intentionally stricter than the shared canonical key rule:
-      * accepts only pure numeric text
-      * rejects canonical decimal artifacts like ``121911787.0``
-      * rejects letters, spaces, dashes and any other separator
-      * preserves short numeric relation ids used by current derivadas flows
-
-    A later hardening cycle may require canonical year + length validation here
-    too, after synthetic short ids are migrated out of derivadas tests/fixtures.
+    Regra diferente de ``normalize_strict`` (nao e mais estrita nem mais
+    frouxa em tudo):
+      * aceita so texto numerico puro, de qualquer comprimento (inclusive ids
+        curtos/longos que ``normalize_strict`` rejeita);
+      * rejeita artefato decimal (``121911787.0``), letras, espacos, hifen e
+        qualquer separador que ``normalize_strict`` aceitaria.
     """
     if value is None:
         return None
@@ -151,6 +149,23 @@ def normalize_relation_id(value) -> str | None:
     if not text.isdigit():
         return None
     return text
+
+
+_EMPTY_DISPLAY_VALUES = {"", "-", "nan", "none", "null", "nat", "<na>"}
+
+
+def display_numero_ssa(value) -> str:
+    """Texto de exibicao do numero_ssa (CLI e GUI, RD-07a).
+
+    Remove o artefato decimal (``202512345.0``) e mostra so os digitos, sem
+    truncar nem completar: o que se ve e o que esta gravado. Vazio vira ``-``.
+    """
+    if value is None:
+        return "-"
+    text = str(strip_canonical_decimal_artifact(value)).strip()
+    if text.casefold() in _EMPTY_DISPLAY_VALUES:
+        return "-"
+    return _digits(text) or "-"
 
 
 def is_valid_numero_ssa(value) -> bool:

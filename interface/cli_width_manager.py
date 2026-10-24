@@ -7,6 +7,8 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
+from shared.numero_ssa import display_numero_ssa
+
 
 class CLIWidthManager:
     """
@@ -310,32 +312,5 @@ class CLIWidthManager:
         return lines
 
     def normalize_ssa_number(self, ssa_value) -> str:
-        """
-        Normaliza número SSA usando mesmo algoritmo da GUI.
-
-        Args:
-            ssa_value: Valor do número SSA
-
-        Returns:
-            Número SSA normalizado
-        """
-        if not ssa_value or str(ssa_value).strip() in ["", "nan", "None", "-"]:
-            return "-"
-
-        s = str(ssa_value).strip()
-
-        # Remove caracteres não numéricos
-        s = "".join(filter(str.isdigit, s))
-
-        if not s:
-            return "-"
-
-        # 9 digitos: forma canonica
-        if len(s) == 9:
-            return s
-
-        # IDs fora do formato canonico (curtos ou longos) sao exibidos como
-        # estao — paridade com _normalize_ssa_value da GUI. Nao fabricar
-        # prefixo de ano nem padding: isso produziria um numero de SSA
-        # diferente do armazenado.
-        return s
+        """Numero SSA para exibicao (regra unica: display_numero_ssa)."""
+        return display_numero_ssa(ssa_value)
