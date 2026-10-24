@@ -249,3 +249,18 @@ def test_export_failure_keeps_previous_file_and_leaves_no_temp(
         "relatorio.json",
         "relatorio.xlsx",
     ]
+
+
+def test_export_json_disambiguates_duplicate_labels(temp_output_dir):
+    """D-06: dois campos com o mesmo rotulo nao derrubam o JSON."""
+    import json as json_module
+
+    df = pd.DataFrame({"setor_executor": ["MEL4"], "setor_emissor": ["IEE3"], "numero_ssa": ["202500001"]})
+    labels = {"setor_executor": "Setor", "setor_emissor": "Setor", "numero_ssa": "Numero SSA"}
+    export_dataframe(df, "dup", temp_output_dir, labels)
+
+    with open(os.path.join(temp_output_dir, "dup.json"), encoding="utf-8") as handle:
+        data = json_module.load(handle)
+    assert data == [
+        {"Setor (setor_executor)": "MEL4", "Setor (setor_emissor)": "IEE3", "Numero SSA": "202500001"}
+    ]

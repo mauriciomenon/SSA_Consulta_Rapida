@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Exportacao da CLI em JSON: se dois campos tiverem o mesmo nome de exibicao, as chaves saem como "Nome (coluna_interna)" em vez de o JSON falhar; CSV e XLSX continuam com os nomes de exibicao.
 - CLI: `exportar <nome>` grava o arquivo com o nome como foi digitado (antes era forcado a minusculas, ex.: `Relatorio_MEL4` virava `relatorio_mel4`).
 - Sincronizacao de derivadas: quando uma familia e mais funda que o limite da closure (32 niveis), o log avisa quantas SSAs tiveram descendentes fora da contagem; antes o corte era silencioso.
 - Janela de detalhes da SSA: as "SSAs derivadas diretas" e as outras relacoes diretas voltam a ser links clicaveis; antes apareciam como texto simples nessa janela.

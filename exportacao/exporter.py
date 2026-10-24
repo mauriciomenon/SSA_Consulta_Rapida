@@ -44,6 +44,17 @@ def sanitize_spreadsheet_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             sanitized.isetitem(position, column.map(sanitize_spreadsheet_cell))
     return sanitized
 
+def _unique_json_labels(labels: list, internal_names: list) -> list[str]:
+    """Rotulos de exibicao unicos para o JSON: repetido vira 'Rotulo (coluna_interna)'."""
+    counts: Dict[str, int] = {}
+    for label in labels:
+        counts[str(label)] = counts.get(str(label), 0) + 1
+    return [
+        f"{label} ({internal})" if counts[str(label)] > 1 else str(label)
+        for label, internal in zip(labels, internal_names)
+    ]
+
+
 def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, display_map: Dict[str, str]):
     """
     Exporta um DataFrame para CSV, XLSX e JSON.
@@ -83,6 +94,10 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
     # Renomeia colunas para nomes de exibição
     df_to_export = df.rename(columns=display_map)
     spreadsheet_df = sanitize_spreadsheet_dataframe(df_to_export)
+    # D-06: JSON exige chaves unicas; rotulo repetido ganha o nome interno.
+    json_df = df_to_export.set_axis(
+        _unique_json_labels(list(df_to_export.columns), list(df.columns)), axis=1
+    )
 
     def _export_csv(path: str) -> None:
         # Header escrito direto: pandas <3 mutila labels duplicadas
@@ -99,7 +114,7 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
     formats_and_paths = {
         'CSV': (f"{safe_base_filename}.csv", _export_csv),
         'XLSX': (f"{safe_base_filename}.xlsx", lambda path: spreadsheet_df.to_excel(path, index=False, engine='openpyxl')),
-        'JSON': (f"{safe_base_filename}.json", lambda path: df_to_export.to_json(path, orient='records', indent=4, force_ascii=False, date_format='iso'))
+        'JSON': (f"{safe_base_filename}.json", lambda path: json_df.to_json(path, orient='records', indent=4, force_ascii=False, date_format='iso'))
     }
 
     success_count = 0
