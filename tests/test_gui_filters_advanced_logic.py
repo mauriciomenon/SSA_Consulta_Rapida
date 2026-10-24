@@ -504,6 +504,33 @@ def test_compute_years_from_data_cadastro_handles_mixed_iso_and_dayfirst_without
     assert not any("dayfirst=True" in str(item.message) for item in caught)
 
 
+def test_sector_filters_compare_normalized_setor():
+    """RD-08: 'MEL4', 'mel4' e 'MEL4 ' sao o mesmo setor no subset e no filtro."""
+    from gui.ssa.filter_domain_rules import subset_by_sector_filters
+
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2", "3", "4"],
+            "setor_executor": ["MEL4", "mel4", "MEL4 ", "IEE3"],
+        }
+    )
+    assert subset_by_sector_filters(df, executor_include=["MEL4"])["numero_ssa"].tolist() == [
+        "1",
+        "2",
+        "3",
+    ]
+
+    window = _DummyWindow({"setor_executor_exclude_values": ["mel4"]})
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered["numero_ssa"].tolist() == ["4"]
+
+
 def test_ano_emissao_is_iso_year_of_week_then_date():
     """RD-06: ano ISO da semana_cadastro; sem semana, ano ISO da data_cadastro."""
     from gui.ssa.gui_filters_advanced_logic import ano_emissao_series

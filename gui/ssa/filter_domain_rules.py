@@ -48,6 +48,18 @@ def normalize_nonempty_string_series(series: pd.Series) -> pd.Series:
     return series.astype("string").fillna("").str.strip()
 
 
+SECTOR_COLUMNS = ("setor_executor", "setor_emissor")
+
+
+def normalize_setor(value: Any) -> str:
+    """RD-08: setor comparavel ("mel4 " == "MEL4"): strip + upper."""
+    return str(value if value is not None else "").strip().upper()
+
+
+def normalize_setor_series(series: pd.Series) -> pd.Series:
+    return normalize_nonempty_string_series(series).str.upper()
+
+
 def exclude_terminal_status_rows(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty or "situacao" not in df.columns:
         return df
@@ -312,9 +324,9 @@ def subset_by_sector_filters(
         return df
     mask = pd.Series(True, index=df.index)
     normalized: dict[str, pd.Series] = {}
-    for column in ("setor_executor", "setor_emissor"):
+    for column in SECTOR_COLUMNS:
         if column in df.columns:
-            normalized[column] = normalize_nonempty_string_series(df[column])
+            normalized[column] = normalize_setor_series(df[column])
     filters = (
         ("setor_executor", executor_include, True),
         ("setor_executor", executor_exclude, False),
@@ -323,7 +335,7 @@ def subset_by_sector_filters(
     )
     for column, raw_values, include in filters:
         values = {
-            str(value).strip() for value in (raw_values or []) if str(value).strip()
+            normalize_setor(value) for value in (raw_values or []) if normalize_setor(value)
         }
         series = normalized.get(column)
         if not values or series is None:

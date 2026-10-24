@@ -37,6 +37,7 @@ from utils.robust_logging import get_robust_logger
 
 from .filter_domain_rules import (
     advanced_macro_filter_preset,
+    normalize_setor_series,
     order_sector_values,
     sector_sort_key,
 )
@@ -711,7 +712,7 @@ def _macro_source_dataframe(self, mode: str) -> pd.DataFrame:
     if not required_cols.issubset(df.columns):
         return pd.DataFrame()
     working = df.copy()
-    setor_series = working["setor_executor"].astype("string").fillna("").str.strip().str.upper()
+    setor_series = normalize_setor_series(working["setor_executor"])
     week_series = working["semana_executada"].astype("string").fillna("").str.strip()
     exec_series = (
         working["responsavel_execucao"].astype("string").fillna("").str.strip()

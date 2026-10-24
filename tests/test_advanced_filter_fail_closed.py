@@ -22,7 +22,6 @@ if project_root not in sys.path:
 
 from gui.ssa.gui_filters_advanced_logic import (  # noqa: E402
     AdvancedFilterMaskError,
-    _IncludeExcludeSeriesCache,
     _apply_derivada_filter,
     _apply_include_exclude_filters,
     _apply_reprogramacoes_filter,
@@ -64,7 +63,9 @@ def test_filter_with_missing_column_raises_instead_of_passing_all():
         _apply_include_exclude_filters(df, filters, _mask(df), _state(), CACHE_TOKEN)
 
 
-def test_broken_mask_computation_raises_instead_of_ignoring_filter():
+def test_broken_mask_computation_raises_instead_of_ignoring_filter(monkeypatch):
+    from gui.ssa import gui_filters_advanced_logic as adv_logic
+
     df = _frame()
     filters = {"setor_executor": ["IEE3"]}
 
@@ -72,21 +73,15 @@ def test_broken_mask_computation_raises_instead_of_ignoring_filter():
         def isin(self, values):
             raise RuntimeError("boom")
 
-    original_get_str = _IncludeExcludeSeriesCache.get_str
-
-    def broken_get_str(self, col):
-        if col == "setor_executor":
-            return _BrokenSeries(df[col].values, index=df.index)
-        return original_get_str(self, col)
-
-    _IncludeExcludeSeriesCache.get_str = broken_get_str
-    try:
-        with pytest.raises(AdvancedFilterMaskError, match="include filter"):
-            _apply_include_exclude_filters(
-                df, filters, _mask(df), _state(), CACHE_TOKEN
-            )
-    finally:
-        _IncludeExcludeSeriesCache.get_str = original_get_str
+    # O setor e normalizado antes da comparacao (RD-08): a quebra vai na serie
+    # que o filtro efetivamente compara.
+    monkeypatch.setattr(
+        adv_logic,
+        "normalize_setor_series",
+        lambda series: _BrokenSeries(series.values, index=series.index),
+    )
+    with pytest.raises(AdvancedFilterMaskError, match="include filter"):
+        _apply_include_exclude_filters(df, filters, _mask(df), _state(), CACHE_TOKEN)
 
 
 def test_valid_filter_still_applies_unchanged():
