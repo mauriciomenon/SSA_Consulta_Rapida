@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Removido `config/logging.json`: o programa nunca o lia (niveis, arquivos e formato de log vem de `utils/robust_logging.py`). Editar esse arquivo nao tinha efeito.
 - Interface web (Streamlit): o cache de filtros usa o mesmo limite por item da GUI (16 MB sem `SSA_CACHE_MAX_MB`; `0` = sem limite); antes, sem a variavel, nao havia limite.
 - `SSA_NON_INTERACTIVE` tem uma leitura so: liga com `1`, `true`, `yes` ou `on`; `0`, `false`, `no`, `off` ou vazio desligam. Antes a paginacao da CLI e a confirmacao de limpeza da GUI tratavam qualquer valor (ate `0`) como ligado.
 - Exportacao da CLI em JSON: se dois campos tiverem o mesmo nome de exibicao, as chaves saem como "Nome (coluna_interna)" em vez de o JSON falhar; CSV e XLSX continuam com os nomes de exibicao.
