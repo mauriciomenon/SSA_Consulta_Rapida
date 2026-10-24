@@ -264,3 +264,15 @@ def test_export_json_disambiguates_duplicate_labels(temp_output_dir):
     assert data == [
         {"Setor (setor_executor)": "MEL4", "Setor (setor_emissor)": "IEE3", "Numero SSA": "202500001"}
     ]
+
+
+@pytest.mark.parametrize(
+    ("name", "ok"),
+    [("relatorio", True), ("Rel_MEL4-2026.v1", True), ("com espaco", True),
+     ("..", False), (".", False), ("", False), ("../x", False), ("a\\\\b", False), ("a;b", False)],
+)
+def test_is_safe_export_basename_single_rule(name, ok):
+    """D-18: uma regra de nome base para CLI e exportador."""
+    from exportacao.exporter import is_safe_export_basename
+
+    assert is_safe_export_basename(name) is ok

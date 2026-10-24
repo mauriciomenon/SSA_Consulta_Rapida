@@ -9,7 +9,6 @@ Permite pesquisar, filtrar, ordenar, exportar e visualizar detalhes das SSAs.
 import hashlib
 import math
 import os
-import re
 import sys
 import textwrap
 import unicodedata
@@ -657,12 +656,9 @@ def _handle_export(
         print("Erro: Forneca um nome para os arquivos. Ex: e meu_relatorio")
         return
     base_filename = parts[1].strip()
-    if not base_filename or base_filename != os.path.basename(base_filename):
-        print("Erro: nome de exportacao invalido.")
-        return
-    if not re.fullmatch(r"[A-Za-z0-9._-]+", base_filename):
+    if not exporter.is_safe_export_basename(base_filename):
         print(
-            "Erro: use apenas letras, numeros, ponto, underscore e hifen no nome do arquivo."
+            "Erro: nome de exportacao invalido (use letras, numeros, ponto, underscore, hifen)."
         )
         return
     print(f"Iniciando exportação para arquivos com base '{base_filename}'...")

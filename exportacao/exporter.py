@@ -55,6 +55,16 @@ def _unique_json_labels(labels: list, internal_names: list) -> list[str]:
     ]
 
 
+def is_safe_export_basename(name: str) -> bool:
+    """D-18: regra unica do nome base de exportacao (CLI e exportador)."""
+    text = str(name or "").strip()
+    return (
+        bool(text)
+        and text not in {".", ".."}
+        and SAFE_EXPORT_BASENAME_RE.fullmatch(text) is not None
+    )
+
+
 def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, display_map: Dict[str, str]):
     """
     Exporta um DataFrame para CSV, XLSX e JSON.
@@ -71,13 +81,7 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
         return
 
     safe_base_filename = str(base_filename or "").strip()
-    if (
-        not safe_base_filename
-        or "/" in safe_base_filename
-        or "\\" in safe_base_filename
-        or safe_base_filename in {".", ".."}
-        or not SAFE_EXPORT_BASENAME_RE.fullmatch(safe_base_filename)
-    ):
+    if not is_safe_export_basename(safe_base_filename):
         logger.error("Nome base de exportacao invalido: %r", base_filename)
         print("Erro: Nome de exportacao invalido.")
         return
@@ -144,10 +148,7 @@ def export_dataframe(df: pd.DataFrame, base_filename: str, output_dir: str, disp
             tmp_path = None
             logger.info(f"Exportação para {format_name} concluída: {path}")
             success_count += 1
-        except pd.errors.EmptyDataError:
-            logger.warning(f"Dados vazios ao exportar para {format_name}. Arquivo pode estar vazio ou corrompido.")
-            print(f"Aviso: Dados vazios ao exportar para {format_name}.")
-        except (IOError, PermissionError) as e:
+        except OSError as e:
             logger.error(f"Erro de E/S ao exportar para {format_name} ({path}): {e}")
             print(f"Erro: Permissão negada ou erro de E/S ao salvar {format_name} em '{path}'.")
         except Exception as e:
