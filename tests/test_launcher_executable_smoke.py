@@ -97,6 +97,7 @@ def test_build_simple_validates_functional_import_smoke(
     version = "9.99"
     monkeypatch.setattr(build_simple, "APP_VERSION", version)
     monkeypatch.setattr(build_simple, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(build_simple, "tracked_config_files", lambda _root: ["config/a.json"])
     exe_path = smoke_validation.cli_executable_path(tmp_path, version, simple=True)
     subprocess_calls: list[list[str]] = []
     smoke_calls: list[Path] = []
@@ -141,3 +142,38 @@ def test_manual_executable_runner_requires_all_expected_artifacts(monkeypatch) -
     )
 
     assert test_executables.main() == 1
+
+
+def test_build_simple_packages_only_tracked_config_and_no_data(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """E-10: sem data/ (banco e backups) e so a config versionada (regra do BL-11)."""
+    monkeypatch.setattr(build_simple, "APP_VERSION", "9.99")
+    monkeypatch.setattr(build_simple, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        build_simple, "tracked_config_files", lambda _root: ["config/a.json", "config/sub/b.sql"]
+    )
+    exe_path = smoke_validation.cli_executable_path(tmp_path, "9.99", simple=True)
+    calls: list[list[str]] = []
+
+    def _fake_run(cmd, **_kwargs):
+        calls.append(list(cmd))
+        exe_path.parent.mkdir(parents=True, exist_ok=True)
+        exe_path.write_text("", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(build_simple.subprocess, "run", _fake_run)
+    monkeypatch.setattr(
+        build_simple,
+        "run_cli_import_smoke",
+        lambda **_k: smoke_validation.SmokeValidationResult(ok=True, imported_rows=1, returncode=0),
+    )
+
+    assert build_simple.main() == 0
+    cmd = calls[0]
+    data_args = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--add-data"]
+    assert data_args == [
+        f"{tmp_path}/config/a.json:config",
+        f"{tmp_path}/config/sub/b.sql:config/sub",
+    ]

@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- `launchers/build_simple.py` deixa de embutir a pasta `data/` (banco e backups) no executavel e leva de `config/` so os arquivos versionados, como os demais builds. Antes levava a pasta inteira da maquina do build, inclusive preferencias locais.
 - Removido `utils/robust_importer.py`: o programa importa planilhas pelo extractor, e a sincronizacao de derivadas passa a ler a aba diretamente (mesmo resultado). Sairam junto as variaveis `SSA_IMPORT_DEBUG` e `SSA_MAX_HEADER_SCAN`, a gravacao de `reports/last_import_stats.json` na pasta corrente e os scripts de desempenho que mediam esse importador (`scripts/run_import_perf.sh`, `run_perf_analysis.sh`, `run_perf_no_direnv.sh`, `analyze_perf_history.py`).
 - Removidos `scripts/optimize_database_indexes.py` (criava 6 indices fora do schema, no banco relativo a pasta corrente) e `scripts_manutencao/cleanup_emergency.py` (tratava `ssas` como tabela; no schema atual e uma VIEW). Nenhum fluxo do programa os usava.
 - Builds e pacotes: a copia do banco para o pacote (`create_distribution.py`, inclusive o banco de runtime do PyOxidizer, antes copiado com `copy2`; `build_multiplatform.py`; `copy_data_to_builds.py`) segue uma regra so: origem aberta so leitura (inclusive em caminho de rede UNC), temporario de nome unico, `quick_check`, lock no destino e recusa se o destino tiver `-wal`/`-shm`/`-journal`. Antes so `copy_data_to_builds.py` fazia tudo isso; os outros podiam substituir um banco aberto.
