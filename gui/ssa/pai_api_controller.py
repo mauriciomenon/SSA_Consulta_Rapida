@@ -319,6 +319,9 @@ def _connect_worker(
             reload_after_success=reload_after_success,
         )
     )
+    # G-31: o QThread terminado e liberado pelo Qt (como rescan e exportacao).
+    if hasattr(worker, "deleteLater"):
+        worker.finished.connect(worker.deleteLater)
 
 
 def _run_auto_refresh_timeout(

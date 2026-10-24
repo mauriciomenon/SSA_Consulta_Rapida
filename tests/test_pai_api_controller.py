@@ -616,3 +616,33 @@ def _context(tmp_path: Path) -> pai_api_controller.PaiApiRefreshContext:
         output_dir=str(tmp_path / "pai_api"),
         qmessagebox=None,
     )
+
+
+class _DeletableWorker(_Worker):
+    def __init__(self, config: Any) -> None:
+        super().__init__(config)
+        self.deleted = False
+
+    def deleteLater(self) -> None:  # noqa: N802 - nome do Qt
+        self.deleted = True
+
+
+def test_finished_worker_is_released_with_delete_later(tmp_path: Path) -> None:
+    """G-31: o QThread do SAM API e liberado (deleteLater) depois do finished."""
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+
+    assert pai_api_controller.start_pai_api_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        worker_cls=_DeletableWorker,
+        ask_reload=True,
+    )
+    worker = window.worker
+    assert isinstance(worker, _DeletableWorker) and not worker.deleted
+    worker.finished.emit()
+    assert worker.deleted
+    assert window.worker is None
