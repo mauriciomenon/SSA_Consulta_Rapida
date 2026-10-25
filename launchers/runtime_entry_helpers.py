@@ -444,16 +444,17 @@ def _apply_runtime_environment(
     runtime_data: Path,
 ) -> None:
     from shared.runtime_env import apply_runtime_env
+    from utils.robust_logging import log_warnings
 
-    apply_runtime_env(
+    discarded = apply_runtime_env(
         {
             "SSA_BUNDLED_ROOT": app_dir,
             "SSA_RUNTIME_ROOT": str(runtime_dir),
             "SSA_CONFIG_DIR": str(runtime_config),
             "SSA_DB_PATH": str(runtime_data / "ssas.db"),
-        },
-        logger_name="runtime",
+        }
     )
+    log_warnings(discarded, logger_name="ssa.launcher", component="runtime")
     allowed_roots = _runtime_allowed_roots(runtime_dir, runtime_config, runtime_data)
     os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(_dedup_paths(allowed_roots))
 

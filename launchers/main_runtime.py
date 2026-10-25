@@ -252,16 +252,17 @@ def _apply_runtime_environment(
     bundled_root: str,
 ) -> None:
     from shared.runtime_env import apply_runtime_env
+    from utils.robust_logging import log_warnings
 
-    apply_runtime_env(
+    discarded = apply_runtime_env(
         {
             "SSA_BUNDLED_ROOT": bundled_root,
             "SSA_RUNTIME_ROOT": str(runtime_dir),
             "SSA_CONFIG_DIR": str(runtime_config),
             "SSA_DB_PATH": str(runtime_data / "ssas.db"),
-        },
-        logger_name="main",
+        }
     )
+    log_warnings(discarded, logger_name="ssa.launcher", component="main")
     allowed_roots = [
         str(runtime_dir),
         str(runtime_config),

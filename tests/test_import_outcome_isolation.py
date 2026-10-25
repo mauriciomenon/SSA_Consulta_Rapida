@@ -18,7 +18,7 @@ def test_worker_retains_partial_outcome_when_importer_raises(
     monkeypatch, explicit, failure_batch
 ):
     from PyQt6.QtWidgets import QApplication
-    from extracao import extractor
+    from shared import excel_source
     from gui.workers import rescan_worker
 
     app = QApplication.instance() or QApplication([])
@@ -27,7 +27,7 @@ def test_worker_retains_partial_outcome_when_importer_raises(
         main_py_path="main.py", project_root=".",
         explicit_files=("first.xlsx", "second.xlsx") if explicit else None,
     )
-    monkeypatch.setattr(extractor, "MAX_IMPORT_BATCH_FILES", 1)
+    monkeypatch.setattr(excel_source, "MAX_IMPORT_BATCH_FILES", 1)
     monkeypatch.setattr(worker, "_prepare_import_inputs", lambda: (True, None))
     monkeypatch.setattr(worker, "_count_database_rows", lambda: 1)
     monkeypatch.setattr(worker, "_attach_logger", lambda: None)
@@ -103,14 +103,14 @@ def test_each_thread_reads_its_own_completed_invocation():
 ])
 def test_batches_preserve_changes_and_blocking_status(monkeypatch, statuses):
     from PyQt6.QtWidgets import QApplication
-    from extracao import extractor
+    from shared import excel_source
     from gui.workers.rescan_worker import RescanOutcome, RescanWorker
 
     app = QApplication.instance() or QApplication([])
     assert app is not None
     worker = RescanWorker(main_py_path="main.py", project_root=".",
                           explicit_files=("first.xlsx", "second.xlsx"))
-    monkeypatch.setattr(extractor, "MAX_IMPORT_BATCH_FILES", 1)
+    monkeypatch.setattr(excel_source, "MAX_IMPORT_BATCH_FILES", 1)
     monkeypatch.setattr(worker, "_prepare_import_inputs", lambda: (True, None))
     monkeypatch.setattr(worker, "_count_database_rows", lambda: 1)
     monkeypatch.setattr(worker, "_attach_logger", lambda: None)

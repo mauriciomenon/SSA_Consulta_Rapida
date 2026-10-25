@@ -19,9 +19,8 @@ from extracao.extractor import (
     _normalize_datatypes,
     _normalize_tempo_excedido_value,
     extract_data_from_excel,
-    open_validated_excel_source,
-    validate_excel_import_limits,
 )
+from shared.excel_source import open_validated_excel_source, validate_excel_import_limits
 
 # --- Testes ---
 
@@ -1238,7 +1237,7 @@ def test_validate_excel_import_limits_accepts_legitimate_xlsx(tmp_path):
 def test_validate_excel_import_limits_rejects_file_size(tmp_path, monkeypatch):
     file_path = tmp_path / "large.xlsx"
     file_path.write_bytes(b"12345")
-    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+    monkeypatch.setattr("shared.excel_source.MAX_XLSX_FILE_BYTES", 4)
 
     with pytest.raises(ExtractionError) as exc_info:
         validate_excel_import_limits((file_path,))
@@ -1250,7 +1249,7 @@ def test_validate_excel_import_limits_rejects_batch_count(tmp_path, monkeypatch)
     file_paths = (tmp_path / "one.xlsx", tmp_path / "two.xlsx")
     for file_path in file_paths:
         file_path.write_bytes(b"x")
-    monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_FILES", 1)
+    monkeypatch.setattr("shared.excel_source.MAX_IMPORT_BATCH_FILES", 1)
 
     with pytest.raises(ExtractionError) as exc_info:
         validate_excel_import_limits(file_paths, inspect_archives=False)
@@ -1264,7 +1263,7 @@ def test_validate_excel_import_limits_allows_trusted_full_rescan_count(
     file_paths = (tmp_path / "one.xlsx", tmp_path / "two.xlsx")
     for file_path in file_paths:
         file_path.write_bytes(b"x")
-    monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_FILES", 1)
+    monkeypatch.setattr("shared.excel_source.MAX_IMPORT_BATCH_FILES", 1)
 
     total_bytes = validate_excel_import_limits(
         file_paths,
@@ -1279,7 +1278,7 @@ def test_validate_excel_import_limits_rejects_batch_size(tmp_path, monkeypatch):
     file_paths = (tmp_path / "one.xlsx", tmp_path / "two.xlsx")
     for file_path in file_paths:
         file_path.write_bytes(b"123")
-    monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_BYTES", 5)
+    monkeypatch.setattr("shared.excel_source.MAX_IMPORT_BATCH_BYTES", 5)
 
     with pytest.raises(ExtractionError) as exc_info:
         validate_excel_import_limits(file_paths, inspect_archives=False)
@@ -1292,7 +1291,7 @@ def test_validate_excel_import_limits_rejects_expanded_zip(tmp_path, monkeypatch
     with ZipFile(file_path, "w", compression=ZIP_STORED) as archive:
         archive.writestr("xl/worksheets/sheet1.xml", b"x" * 6)
         archive.writestr("xl/worksheets/sheet2.xml", b"x" * 6)
-    monkeypatch.setattr("extracao.extractor.MAX_XLSX_EXPANDED_BYTES", 10)
+    monkeypatch.setattr("shared.excel_source.MAX_XLSX_EXPANDED_BYTES", 10)
 
     with pytest.raises(ExtractionError) as exc_info:
         validate_excel_import_limits((file_path,))

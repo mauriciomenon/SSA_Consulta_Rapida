@@ -42,11 +42,8 @@ if PROJECT_ROOT not in sys.path:
 
 from armazenamento import database  # noqa: E402
 from core.import_single_file import add_source_metadata_columns  # noqa: E402
-from extracao.extractor import (  # noqa: E402
-    ExtractionError,
-    extract_data_from_excel,
-    validate_excel_import_limits,
-)
+from extracao.extractor import extract_data_from_excel  # noqa: E402
+from shared.excel_source import ExtractionError, validate_excel_import_limits  # noqa: E402
 
 logger = logging.getLogger("backfill_reprocessar")
 DEFAULT_MAPPINGS_PATH = Path(PROJECT_ROOT) / "config" / "column_mappings.json"

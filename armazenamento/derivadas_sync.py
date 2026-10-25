@@ -35,7 +35,7 @@ from armazenamento.derivadas_schema import (
     scan_derivadas_read_schema_readiness,
 )
 from armazenamento.identifier_utils import is_valid_identifier
-from extracao.extractor import open_validated_excel_source
+from shared.excel_source import open_validated_excel_source
 from shared.numero_ssa import normalize_strict
 from utils.path_safety import ensure_path_is_allowed
 

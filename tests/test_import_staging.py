@@ -322,7 +322,7 @@ def test_stage_external_import_files_rejects_large_file_already_in_docs_dir(
     docs_dir.mkdir()
     source = docs_dir / "large.xlsx"
     source.write_bytes(b"12345")
-    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+    monkeypatch.setattr("shared.excel_source.MAX_XLSX_FILE_BYTES", 4)
 
     with pytest.raises(ValueError, match="excede o limite"):
         stage_external_import_files(
@@ -341,7 +341,7 @@ def test_stage_external_import_files_removes_copied_file_rejected_after_copy(
     source_dir.mkdir()
     source = source_dir / "raced.xlsx"
     source.write_bytes(b"x")
-    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+    monkeypatch.setattr("shared.excel_source.MAX_XLSX_FILE_BYTES", 4)
 
     def _copy_larger_file(_source, destination):
         Path(destination).write_bytes(b"12345")
@@ -375,7 +375,7 @@ def test_stage_external_import_files_removes_copied_expanded_zip(
     with ZipFile(source, "w") as archive:
         archive.writestr("one.xml", b"x" * 6)
         archive.writestr("two.xml", b"x" * 6)
-    monkeypatch.setattr("extracao.extractor.MAX_XLSX_EXPANDED_BYTES", 10)
+    monkeypatch.setattr("shared.excel_source.MAX_XLSX_EXPANDED_BYTES", 10)
 
     with pytest.raises(ValueError, match="descompactado"):
         stage_external_import_files(
@@ -422,7 +422,7 @@ def test_staging_rejected_batch_removes_copies_and_preserves_existing_files(
     with ZipFile(expanded, "w") as archive:
         archive.writestr("one.xml", b"x" * 6)
         archive.writestr("two.xml", b"x" * 6)
-    monkeypatch.setattr("extracao.extractor.MAX_XLSX_EXPANDED_BYTES", 10)
+    monkeypatch.setattr("shared.excel_source.MAX_XLSX_EXPANDED_BYTES", 10)
 
     with pytest.raises(ValueError, match="descompactado"):
         stage_external_import_files(

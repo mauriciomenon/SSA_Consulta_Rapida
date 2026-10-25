@@ -14,7 +14,7 @@ project_root = Path(__file__).parent.parent
 os.chdir(project_root)
 sys.path.insert(0, str(project_root))
 
-from extracao.extractor import open_validated_excel_source  # noqa: E402
+from shared.excel_source import open_validated_excel_source  # noqa: E402
 
 
 def investigar_ssa_truncados():

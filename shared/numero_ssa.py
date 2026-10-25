@@ -26,16 +26,16 @@ Compatibility facades in other modules should delegate here to avoid drift.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Iterable
-
-from utils.robust_logging import get_robust_logger
 
 YEAR_MIN = 1980
 YEAR_MAX = 2050
 VALID_LENGTHS = {9}
 _CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d+)\.0+\s*$")
-logger = get_robust_logger().get_logger(__name__, "core")
+# BL-44: shared/ nao importa utils; os handlers da raiz (robust_logging) ja formatam este logger.
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "YEAR_MIN",

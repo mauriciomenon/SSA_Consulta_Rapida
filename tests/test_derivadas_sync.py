@@ -847,7 +847,7 @@ def test_derivadas_xlsx_limit_rejects_before_excel_open(tmp_path, monkeypatch):
     source = tmp_path / "large.xlsx"
     source.write_bytes(b"12345")
     excel_opened = False
-    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+    monkeypatch.setattr("shared.excel_source.MAX_XLSX_FILE_BYTES", 4)
 
     def _unexpected_excel_file(*_args, **_kwargs):
         nonlocal excel_opened

@@ -2,7 +2,7 @@
 """Inspect Excel file headers and data for SSA 202207421."""
 
 import pandas as pd
-from extracao.extractor import open_validated_excel_source
+from shared.excel_source import open_validated_excel_source
 
 print("=" * 80)
 print("INSPECTING: Consulta SSA - 03-11-2025_0851AM.xlsx")

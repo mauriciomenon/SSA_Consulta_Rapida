@@ -29,7 +29,7 @@ def test_normalize_pai_xlsx_rejects_size_before_read(
     source = tmp_path / "large.xlsx"
     source.write_bytes(b"12345")
     read_called = False
-    monkeypatch.setattr("extracao.extractor.MAX_XLSX_FILE_BYTES", 4)
+    monkeypatch.setattr("shared.excel_source.MAX_XLSX_FILE_BYTES", 4)
 
     def _unexpected_read(*_args, **_kwargs):
         nonlocal read_called

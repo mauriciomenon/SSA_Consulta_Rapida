@@ -15,7 +15,7 @@ from zipfile import BadZipFile
 import pandas as pd
 from core.pai_xlsx_summary import PaiXlsxSummary
 from core.pai_xlsx_summary import summarize_normalized_pai_frame
-from extracao.extractor import ExtractionError, open_validated_excel_source
+from shared.excel_source import ExtractionError, open_validated_excel_source
 
 PAI_TO_SSA_COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
     "numero_ssa": ("ssa_number", "numero_ssa"),

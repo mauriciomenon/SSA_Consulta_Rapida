@@ -540,7 +540,7 @@ class RescanWorker(QThread):
 
     def _run_explicit_import_batches(self) -> bool | None:
         from core import import_outcome
-        from extracao.extractor import MAX_IMPORT_BATCH_FILES
+        from shared.excel_source import MAX_IMPORT_BATCH_FILES
 
         source_mode = bool(self.source_files)
         work_items = tuple(self.source_files or self.explicit_files or ())

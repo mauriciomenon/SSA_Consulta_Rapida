@@ -108,7 +108,7 @@ def stage_external_import_files(
     )
     docs_path.mkdir(parents=True, exist_ok=True)
 
-    from extracao.extractor import ExtractionError, validate_excel_import_limits
+    from shared.excel_source import ExtractionError, validate_excel_import_limits
 
     try:
         validate_excel_import_limits(

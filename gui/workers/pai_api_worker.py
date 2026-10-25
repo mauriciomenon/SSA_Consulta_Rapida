@@ -29,7 +29,7 @@ from core.pai_scrap_report_provider import (
     scrap_report_location_from_env,
     scrap_report_runner_from_env,
 )
-from extracao.extractor import ExtractionError, validate_excel_import_limits
+from shared.excel_source import ExtractionError, validate_excel_import_limits
 from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
 from gui.workers.qt_thread_shim import QThread, pyqtSignal
 

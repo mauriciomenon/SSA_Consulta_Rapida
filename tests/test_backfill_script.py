@@ -113,7 +113,7 @@ def test_backfill_rejects_batch_limit_before_reset_or_import(tmp_path, monkeypat
     for index in range(2):
         (tmp_path / f"arq_{index}.xlsx").write_bytes(b"x")
     import_calls: list[str] = []
-    monkeypatch.setattr("extracao.extractor.MAX_IMPORT_BATCH_FILES", 1)
+    monkeypatch.setattr("shared.excel_source.MAX_IMPORT_BATCH_FILES", 1)
     monkeypatch.setattr(
         backfill_reprocessar,
         "extract_data_from_excel",

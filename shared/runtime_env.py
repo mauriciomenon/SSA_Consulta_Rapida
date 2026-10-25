@@ -8,7 +8,6 @@ launchers.main_runtime da pasta launchers/.
 from __future__ import annotations
 
 import os
-import sys
 from collections.abc import Mapping
 
 
@@ -19,8 +18,11 @@ def _same_path(left: str, right: str) -> bool:
     )
 
 
-def apply_runtime_env(values: Mapping[str, str], *, logger_name: str) -> list[str]:
-    """Define `values` no ambiente e avisa no log cada valor do usuario descartado.
+def apply_runtime_env(values: Mapping[str, str]) -> list[str]:
+    """Define `values` no ambiente e devolve um aviso por valor do usuario descartado.
+
+    O log fica com quem chama (utils.robust_logging.log_warnings): shared/ nao importa
+    utils (BL-44), e o logger robusto so pode iniciar depois de SSA_RUNTIME_ROOT definido.
 
     Retorna as mensagens de aviso (vazia quando nada foi sobrescrito).
     """
@@ -32,11 +34,4 @@ def apply_runtime_env(values: Mapping[str, str], *, logger_name: str) -> list[st
     ]
     for name, value in values.items():
         os.environ[name] = value
-    for message in discarded:
-        try:
-            from utils.robust_logging import get_robust_logger
-
-            get_robust_logger().get_logger("ssa.launcher", logger_name).warning(message)
-        except Exception as exc:
-            sys.stderr.write(f"AVISO: {message} (logger indisponivel: {exc})\n")
     return discarded

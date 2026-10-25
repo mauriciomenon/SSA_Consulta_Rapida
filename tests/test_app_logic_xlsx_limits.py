@@ -54,7 +54,7 @@ def test_run_importer_logic_applies_count_limit_only_outside_trusted_full_rescan
         raise app_logic.extractor.ExtractionError("stop after preflight")
 
     monkeypatch.setattr(
-        app_logic.extractor,
+        app_logic.excel_source,
         "validate_excel_import_limits",
         _capture_limits,
     )

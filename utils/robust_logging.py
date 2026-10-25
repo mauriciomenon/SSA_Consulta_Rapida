@@ -541,6 +541,15 @@ def resolve_log_dir(log_dir: "str | os.PathLike[str]" = "logs") -> Path:
     return anchor / path
 
 
+def log_warnings(messages: list[str], *, logger_name: str, component: str) -> None:
+    """Registra avisos no log robusto; sem logger disponivel, vai para o stderr (CF-06/BL-44)."""
+    for message in messages:
+        try:
+            get_robust_logger().get_logger(logger_name, component).warning(message)
+        except Exception as exc:
+            sys.stderr.write(f"AVISO: {message} (logger indisponivel: {exc})\n")
+
+
 def get_robust_logger(config_path: Optional[str] = None) -> RobustLogger:
     """Retorna instância global do sistema de logging robusto."""
     global _robust_logger

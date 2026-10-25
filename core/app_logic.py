@@ -88,6 +88,7 @@ from core.search_filter import (  # noqa: E402
     parse_search_terms,
 )
 from extracao import extractor  # noqa: E402
+from shared import excel_source  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
 from utils import caching  # noqa: E402
 from utils.file_metadata import best_datetime_for_file  # noqa: E402
@@ -2507,7 +2508,7 @@ def run_importer_logic(
             )
             trusted_full_rescan = bool(force_import and explicit_files is None)
             try:
-                extractor.validate_excel_import_limits(
+                excel_source.validate_excel_import_limits(
                     import_batch_files,
                     enforce_batch_file_limit=not trusted_full_rescan,
                     ignore_unavailable=True,
