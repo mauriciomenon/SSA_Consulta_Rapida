@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import pytest
 import pandas as pd
-from core.date_utils import bulk_parse_dates, parse_any_date
+from shared.date_utils import bulk_parse_dates, parse_any_date
 from shared.date_utils import format_datetime_series_for_storage
 from shared.date_utils import parse_datetime_series_mixed
 

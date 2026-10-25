@@ -95,49 +95,6 @@ def check_shared_purity():
     return violations
 
 
-def check_backward_compat():
-    """Verify core.numero_ssa and core.date_utils still export expected symbols"""
-    issues = []
-
-    # Check core.numero_ssa
-    numero_ssa_path = ROOT / "core" / "numero_ssa.py"
-    if numero_ssa_path.exists():
-        try:
-            tree = ast.parse(numero_ssa_path.read_text(encoding="utf-8"))
-            exports = set()
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom):
-                    for alias in node.names:
-                        exports.add(alias.name)
-
-            expected = {"normalize_strict", "is_valid_numero_ssa", "bulk_normalize"}
-            missing = expected - exports
-            if missing:
-                issues.append(f"core.numero_ssa missing re-exports: {missing}")
-        except Exception as e:
-            issues.append(f"core.numero_ssa parse error: {e}")
-
-    # Check core.date_utils
-    date_utils_path = ROOT / "core" / "date_utils.py"
-    if date_utils_path.exists():
-        try:
-            tree = ast.parse(date_utils_path.read_text(encoding="utf-8"))
-            exports = set()
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom):
-                    for alias in node.names:
-                        exports.add(alias.name)
-
-            expected = {"parse_any_date", "bulk_parse_dates"}
-            missing = expected - exports
-            if missing:
-                issues.append(f"core.date_utils missing re-exports: {missing}")
-        except Exception as e:
-            issues.append(f"core.date_utils parse error: {e}")
-
-    return issues
-
-
 def check_armazenamento_independence():
     """Verify armazenamento doesn't import from core/gui/interface"""
     violations = []
@@ -183,16 +140,7 @@ def main():
     else:
         print("  OK: shared/ doesn't import from app layers")
 
-    print("\n2. Backward Compatibility Check")
-    compat_issues = check_backward_compat()
-    if compat_issues:
-        print("  ISSUES:")
-        for issue in compat_issues:
-            print(f"    - {issue}")
-    else:
-        print("  OK: core re-exports are intact")
-
-    print("\n3. Armazenamento Independence Check")
+    print("\n2. Armazenamento Independence Check")
     armazenamento_issues = check_armazenamento_independence()
     if armazenamento_issues:
         print("  VIOLATIONS:")
@@ -201,7 +149,7 @@ def main():
     else:
         print("  OK: armazenamento is independent")
 
-    print("\n4. Potentially Unused Imports (top 20)")
+    print("\n3. Potentially Unused Imports (top 20)")
     unused = check_unused_imports()
     if unused:
         for issue in unused[:20]:
@@ -212,7 +160,7 @@ def main():
         print("  None detected")
 
     print("\n=== Summary ===")
-    total_issues = len(shared_issues) + len(compat_issues) + len(armazenamento_issues)
+    total_issues = len(shared_issues) + len(armazenamento_issues)
     if total_issues == 0:
         print("All critical checks passed!")
     else:

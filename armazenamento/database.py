@@ -36,7 +36,7 @@ MAX_TEXT_LEN = 1000
 
 # Normalizacao agora centralizada em armazenamento.numero_ssa_utils. Mantemos apenas
 # constantes realmente usadas localmente. As regras detalhadas vivem em
-# core.numero_ssa.normalize_strict e no util compartilhado.
+# shared.numero_ssa.normalize_strict (util compartilhado).
 
 # --- Optimized Mode Dispatch ---
 # Flag global para controlar modo otimizado (substituiu monkey-patching)

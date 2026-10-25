@@ -2,7 +2,7 @@
 """Regression test ensuring unified numero_ssa normalization across layers.
 
 Covers equivalence between:
-  * core.numero_ssa.normalize_strict
+  * shared.numero_ssa.normalize_strict
   * armazenamento.numero_ssa_utils.normalize_numero_ssa_storage (caminho de gravacao)
   * armazenamento.numero_ssa_utils.normalize_numero_ssa (exibicao)
 
@@ -16,7 +16,7 @@ import logging
 import pytest
 
 from armazenamento.numero_ssa_utils import normalize_numero_ssa, normalize_numero_ssa_storage
-from core.numero_ssa import normalize_relation_id, normalize_strict
+from shared.numero_ssa import normalize_relation_id, normalize_strict
 
 CASES = [
     ("202512345", "202512345"),  # valid
