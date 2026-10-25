@@ -3,7 +3,7 @@
 ## CURRENT TRUTH (2026-09-08, v4.50)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- Release ativa: `v4.50`; tag anterior: `v4.46`.
+- Release ativa: `v4.51`; tag anterior: `v4.50`.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Este documento registra aprendizados; nao deve duplicar a matriz completa de release.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.

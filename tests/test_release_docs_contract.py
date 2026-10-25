@@ -7,7 +7,9 @@ from tests.release_script_assertions import PROJECT_ROOT, read_repo_text
 
 GUIA_DISTRIBUICAO = PROJECT_ROOT / "docs" / "GUIA_DISTRIBUICAO.md"
 SOLUCOES_AMBIENTE = PROJECT_ROOT / "docs" / "SOLUCOES_AMBIENTE_BUILD.md"
-RELEASE_TAG = "v" + read_repo_text("VERSION").strip()
+# REPO-15: a ultima release publicada (fato: tag e assets no GitHub), nao a versao em VERSION.
+PUBLISHED_TAG = "v4.51"
+PUBLISHED_LINE = f"Ultima release publicada: `{PUBLISHED_TAG}` (tag -> `e2481cf4`"
 
 
 def test_distribuicao_doc_enforces_native_host_isolation() -> None:
@@ -27,7 +29,8 @@ def test_solucoes_ambiente_doc_marks_legacy_body_historical() -> None:
 
     assert text.count("## CURRENT TRUTH") == 1
     assert "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in text
-    assert f"candidata local em validacao: `{RELEASE_TAG}`" in text
+    assert PUBLISHED_LINE in text
+    assert "candidata local em validacao" not in text
     assert "Build e testes exigem ferramentas nativas e clone do proprio host" in text
     assert "PR atual: #57" not in text
     assert "- Branch alvo: `dev`." not in text
@@ -46,19 +49,22 @@ def test_release_docs_sync_contract() -> None:
     source_text = read_repo_text("docs", "GUIA_DISTRIBUICAO.md")
     source_truth = source_text.split("## HISTORICAL SNAPSHOT", 1)[0]
 
-    assert f"candidata local em validacao: `{RELEASE_TAG}`" in source_truth
+    assert PUBLISHED_LINE in source_truth
+    assert "candidata local em validacao" not in source_truth
     assert "Validacao Linux exige clone Linux proprio" in source_truth
     assert "PR #57: aberto em draft" not in source_truth
     assert "PR #56: merged" not in source_truth
     assert "df0345caea9ac3050c87d2172eb75817b8fc3689" not in source_truth
-    assert (
-        "4705c2e5722c4f3a5266ac02a5d15a1928d5a223" in source_truth
-    )  # pragma: allowlist secret
+    # BL-38 achado 5: 4705c2e5 nao e alcancavel pela historia atual; saiu do bloco vigente.
+    assert "4705c2e5" not in source_truth
+    notes = read_repo_text(f"RELEASE_NOTES_{PUBLISHED_TAG}.md")
+    assert notes.startswith(f"# Release {PUBLISHED_TAG}\n")
+    assert f"A tag `{PUBLISHED_TAG}` aponta para `e2481cf4`" in notes
 
     for doc_name, release_line in [
-        ("SOLUCOES_AMBIENTE_BUILD.md", f"candidata local em validacao: `{RELEASE_TAG}`"),
-        ("BUILD_3X3_RUNBOOK.md", f"candidata local em validacao: `{RELEASE_TAG}`"),
-        ("BUILD_TOOLING_LESSONS_LEARNED.md", "Release ativa: `v4.50`"),
+        ("SOLUCOES_AMBIENTE_BUILD.md", PUBLISHED_LINE),
+        ("BUILD_3X3_RUNBOOK.md", PUBLISHED_LINE),
+        ("BUILD_TOOLING_LESSONS_LEARNED.md", f"Release ativa: `{PUBLISHED_TAG}`"),
     ]:
         current_truth = read_repo_text("docs", doc_name).split(
             "## HISTORICAL SNAPSHOT", 1

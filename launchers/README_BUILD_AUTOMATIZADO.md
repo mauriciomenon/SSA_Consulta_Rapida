@@ -1,16 +1,17 @@
 # README – PIPELINE DE BUILD AUTOMATIZADO (RASCUNHO)
 
-## CURRENT TRUTH (2026-09-24, candidata local v4.51)
+## CURRENT TRUTH (2026-10-25, release v4.51 publicada; estabilizacao no branch rev)
 
 - Branch fonte local: `dev`.
-- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
+- Ultima release publicada: `v4.51` (tag -> `e2481cf4`, merge do PR #135 em 2026-09-29; release no GitHub em 2026-09-30; assets e SHA-256 em `RELEASE_NOTES_v4.51.md`).
+- Em andamento: estabilizacao no branch `rev`, sem tag. O build do REL-01 e de teste de processo: sai do `rev` e o `build_info.json` registra branch e commit. O build oficial sai do `main`, depois do PR.
 - Artefatos antigos versionados sao ruido historico/local e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-- Fluxo da candidata local `v4.51`: validar codigo, documentacao e artefatos antes de decidir a publicacao. Nenhum envio foi feito nesta rodada.
+- Fluxo de release: validar codigo, documentacao e artefatos antes de decidir a publicacao.
 - Windows usa `release.ps1` em clone nativo; Debian/macOS usam `release.sh` em clones nativos dos respectivos hosts.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `a2954a48`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
+- Os builds locais da candidata v4.51 (2026-09-24, a partir de `a2954a48`) nao sao os assets publicados: a release traz um pacote por alvo, inclusive Debian amd64 e arm64.
 
 ## HISTORICAL SNAPSHOT 2026-05-04 01h14
 

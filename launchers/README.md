@@ -1,9 +1,10 @@
 # Sistema de Build - Launchers
 
-## CURRENT TRUTH (2026-09-24, candidata local v4.51)
+## CURRENT TRUTH (2026-10-25, release v4.51 publicada; estabilizacao no branch rev)
 
 - Pipeline oficial de build: `launchers/build_multiplatform.py`.
-- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
+- Ultima release publicada: `v4.51` (tag -> `e2481cf4`, merge do PR #135 em 2026-09-29; release no GitHub em 2026-09-30; assets e SHA-256 em `RELEASE_NOTES_v4.51.md`).
+- Em andamento: estabilizacao no branch `rev`, sem tag. O build do REL-01 e de teste de processo: sai do `rev` e o `build_info.json` registra branch e commit. O build oficial sai do `main`, depois do PR.
 - Plataformas ativas (`build_multiplatform.py --list-platforms`; cada build roda no host do alvo):
   - `windows_amd64`
   - `windows_arm64`
@@ -13,8 +14,8 @@
 - Saida canonica: `launchers/dist/<plataforma>/`.
 - Integracao de distribuicao: `scripts/create_distribution.py`.
 - Referencias antigas (`windows_x64`, `windows_x86`, `macos_x64`, `linux_x64`) sao historicas.
-- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `a2954a48`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
+- Publicacao neste checkout: `origin` envia ao GitHub principal e ao GitLab; o push URL do espelho `schottge-menon` esta comentado em `.git/config` (conta suspensa). Conferir a configuracao antes de usar em outro clone.
+- Os builds locais da candidata v4.51 (2026-09-24, a partir de `a2954a48`) nao sao os assets publicados: a release traz um pacote por alvo, inclusive Debian amd64 e arm64.
 
 ## Inicio Rapido
 

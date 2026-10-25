@@ -1,10 +1,29 @@
-# Candidata local v4.51
+# Release v4.51
+
+Publicada em 2026-09-30 em https://github.com/mauriciomenon/SSA_Consulta_Rapida/releases/tag/v4.51.
+A tag `v4.51` aponta para `e2481cf4`, merge do PR #135 (`dev` -> `main`) em 2026-09-29.
+
+## Assets publicados
+
+| Asset | SHA-256 (digest do GitHub, conferido em 2026-10-25) |
+| --- | --- |
+| `SSA_Consulta_Rapida_v4.51_macos_arm64.zip` | `fda9c628db2caf2103e613271910d472d1f2e2ec723a597031d2971a10a95213` |
+| `SSA_Consulta_Rapida_v4.51_windows_amd64.zip` | `ba98bbac290ec93ba2ba16ae6a40d1458b1c4b4b223dd134189c66d913d6dbef` |
+| `SSA_Consulta_Rapida_v4.51_windows_arm64.zip` | `85a1a396a89a2febc433632192053ee43ddf74dc451d3c6abd4214d21635d807` |
+| `SSA_Consulta_Rapida_v4.51_debian_amd64.tar.gz` | `5da43375c882a974868a3aa60e20634724db21b154d9ae0ed2e2ec613c9e68f8` |
+| `SSA_Consulta_Rapida_v4.51_debian_arm64.tar.gz` | `52e2ef232369a68ae3dc8428d36ef4a3dbfd3ea5784b932b52b45046a1aa19d7` |
+| `SHA256SUMS.txt` | `163737342027f003fdbd64ce6ff02dc7fa80b0fb9b8dd6dd4db6988958e4f09a` |
+
+A release traz um pacote por alvo, inclusive Debian amd64 e arm64. Os nove ZIPs locais da candidata,
+registrados abaixo, nao foram enviados e nao sao estes assets.
+
+## Historico da candidata local (2026-09-24)
 
 Data do registro: 2026-09-24. Fonte: branch `dev` local.
 
 Esta candidata consolida correcoes locais de importacao, cancelamento, armazenamento, derivadas, caches, CLI e GUI. A ultima release publicada e `v4.50`. Os tres alvos nativos foram reconstruidos com saidas limpas a partir de `a2954a489801fed52bc8b29eef43d51d2fc6e0f7`; nao ha tag, push, release ou CI remota nesse SHA. O PR #135 foi marcado como pronto para revisao, mas o GitHub ainda ve o commit antigo `3be4c350` e indica `BLOCKED`.
 
-## Evidencia local ja obtida
+### Evidencia local ja obtida
 
 - No tip de codigo `ba9ab08c`, antes da troca de metadados de versao, a suite completa terminou com 3377 testes aprovados, 9 ignorados e 11 subtestes aprovados (`QT_QPA_PLATFORM=offscreen uv run --no-sync pytest -q`, 1072,10 s).
 - Apos a troca dos metadados para 4.51, os testes de versao e inicializacao terminaram com 34 aprovados. `uv lock --check` passou.
@@ -13,7 +32,7 @@ Esta candidata consolida correcoes locais de importacao, cancelamento, armazenam
 - Uma revisao local do delta de build pelo CodeRabbit CLI terminou com zero achados; o review remoto do PR ainda nao cobriu o SHA local.
 - A suite completa nao foi repetida depois das mudancas de versao, builder e CLI. Essas verificacoes focadas nao substituem a CI no commit exato da candidata.
 
-## Pacotes locais v4.51
+### Pacotes locais v4.51
 
 Somente os nove ZIPs sob `builds/packages/v4.51/` sao candidatos a upload futuro em uma release/tag. Nenhum arquivo foi enviado. Os ZIPs foram testados com `unzip -t` ou teste CRC equivalente, e os combinados Windows nao incluem banco, planilhas, `.env` ou codigo fonte. Os SHA-256 copiados da VM conferem com os do Mac. O DMG esta dentro do ZIP macOS e passou em `hdiutil verify` apos extracao.
 
@@ -52,7 +71,7 @@ O app macOS extraido do ZIP com `ditto` passou em `SMOKE_GUI_OK v4.51`. A extrac
 
 A assinatura interna do app macOS final passou em `codesign --verify`; a avaliacao anterior com `spctl` rejeitou distribuicao automatica por falta de Developer ID e nao foi repetida apos este rebuild. Os quatro EXEs Windows finais aparecem como `NotSigned` em Authenticode. A distribuicao sem assinatura paga foi aceita pelo usuario nesta rodada e nao e tratada como defeito ou bloqueio de codigo.
 
-## Ponto de desempenho pendente
+### Ponto de desempenho pendente
 
 Uma medicao anterior registrou **0,436 s** para um backup SQLite de **161 MiB**. O fluxo atual tem duas copias distintas: `stage_database_copy()` prepara o banco escolhido no worker; `snapshot_database_for_replace()` copia o banco que sera substituido durante `commit_staged_database_copy()`, chamado na thread GUI depois do check de `request_id`. Em chamadas diretas anteriores, um banco local de 161,1 MiB deu backup p50 **0,589 s** e p95 **0,662 s** (5 amostras), e staging p50 **0,305 s** e p95 **0,590 s** (10 amostras).
 
@@ -62,6 +81,6 @@ A pausa da GUI durante o backup esta confirmada, mas estas tres amostras offscre
 
 A promocao permanece na thread GUI para descartar resultados com `request_id` obsoleto antes de trocar o banco selecionado. Mover a promocao inteira para um worker sem novo protocolo permitiria que um resultado tardio substituisse uma selecao mais recente. Uma correcao futura precisa manter a verificacao de identidade da requisicao, cancelamento e descarte de resultado tardio, com teste de corrida.
 
-## Condicao de release
+### Condicao de release
 
 O PR remoto continua bloqueado e ainda nao revisou o codigo local v4.51, pois nao houve push. Antes de merge, faltam os gates remotos no commit a publicar e a revisao correspondente. A suite completa nao foi repetida no SHA dos pacotes, conforme o escopo focal desta rodada. A ausencia de assinatura paga esta aceita; a pausa medida da GUI e os limites visuais acima permanecem documentados, sem serem apresentados como falha de integridade.

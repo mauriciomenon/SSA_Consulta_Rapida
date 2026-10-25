@@ -106,11 +106,11 @@ All notable changes to this project are documented in this file.
 - GUI: as colunas voltam a ser redimensionaveis depois de reexibir a mesma pagina; e uma importacao em que parte das planilhas nao pode ser copiada para `docs_entrada` termina "com Ressalvas", com o aviso de quantas ficaram de fora, em vez de "Concluido com sucesso".
 - GUI, busca e filtros: alternar "excluir STE/SCA" durante uma busca refaz a busca em andamento (antes mostrava o resultado anterior sob o rotulo da busca nova); erro na busca volta o rotulo para o resultado exibido; o fim de uma busca nao cancela mais a busca que o usuario esta digitando; a ordenacao escolhida no cabecalho e mantida ao refazer filtros; o filtro pelo menu do cabecalho funciona em colunas agrupadas (OR) e `!MEL4`/termo parcial no setor executor nao zeram mais o resultado.
 
-### Candidata local v4.51 - 2026-09-24
+### v4.51 - 2026-09-30 (publicada; registro da candidata de 2026-09-24)
 
 - Consolida correcoes locais de importacao, cancelamento, armazenamento e GUI ainda em validacao.
 - Registra evidencia, riscos e condicoes de promocao em `RELEASE_NOTES_v4.51.md`.
-- Builds locais macOS arm64, Windows arm64 e Windows amd64 concluidos a partir de `a2954a48`; sem push, tag, release ou CI nesse SHA.
+- Builds locais macOS arm64, Windows arm64 e Windows amd64 da candidata concluidos a partir de `a2954a48`. A release publicada (tag `v4.51` -> `e2481cf4`, merge do PR #135) tem outros assets: ver `RELEASE_NOTES_v4.51.md`.
 
 ## [v4.50] - 2026-09-08
 

@@ -1,14 +1,15 @@
 # Solucoes para Problemas de Ambiente - Build Systems
 
-## CURRENT TRUTH (2026-09-24, candidata local v4.51)
+## CURRENT TRUTH (2026-10-25, release v4.51 publicada; estabilizacao no branch rev)
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
+- Ultima release publicada: `v4.51` (tag -> `e2481cf4`, merge do PR #135 em 2026-09-29; release no GitHub em 2026-09-30; assets e SHA-256 em `RELEASE_NOTES_v4.51.md`).
+- Em andamento: estabilizacao no branch `rev`, sem tag. O build do REL-01 e de teste de processo: sai do `rev` e o `build_info.json` registra branch e commit. O build oficial sai do `main`, depois do PR.
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
-- Para a candidata v4.51, gerar artefatos no clone nativo a partir do mesmo commit confirmado para cada alvo; registrar o resultado real de cada build.
-- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
+- Em cada build, gerar artefatos no clone nativo a partir do mesmo commit confirmado para cada alvo; registrar o resultado real de cada build.
+- Publicacao neste checkout: `origin` envia ao GitHub principal e ao GitLab; o push URL do espelho `schottge-menon` esta comentado em `.git/config` (conta suspensa). Conferir a configuracao antes de usar em outro clone.
+- Os builds locais da candidata v4.51 (2026-09-24, a partir de `a2954a48`) nao sao os assets publicados: a release traz um pacote por alvo, inclusive Debian amd64 e arm64.
 
 ## HISTORICAL SNAPSHOT 2025-11-14
 

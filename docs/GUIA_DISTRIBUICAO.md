@@ -1,17 +1,17 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH (2026-09-24, candidata local v4.51)
+## CURRENT TRUTH (2026-10-25, release v4.51 publicada; estabilizacao no branch rev)
 
-- Branch fonte local: `dev`.
-- Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
-- Base minima historica sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`.
+- Branch fonte local desta rodada: `rev`; `dev` segue como branch de fase (CD-22).
+- Ultima release publicada: `v4.51` (tag -> `e2481cf4`, merge do PR #135 em 2026-09-29; release no GitHub em 2026-09-30; assets e SHA-256 em `RELEASE_NOTES_v4.51.md`).
+- Em andamento: estabilizacao no branch `rev`, sem tag. O build do REL-01 e de teste de processo: sai do `rev` e o `build_info.json` registra branch e commit. O build oficial sai do `main`, depois do PR.
 - Entradas operacionais primarias: `release.ps1` no Windows e `release.sh` no Debian/macOS.
 - Comando canonico para build Windows: `.\release.ps1 -Target windows -Backend pyinstaller -Yes` (sem banco). `-IncludeRuntimeDb` embute o `data\ssas.db` operacional desta maquina no pacote: use so quando o pacote for para quem pode ver esses dados. Os ZIPs locais v4.51 desta rodada foram gerados sem banco operacional.
 - Debian/macOS: `./release.sh` no clone nativo do proprio host; `dev_env/build/release_windows.ps1` continua implementacao interna do fluxo Windows.
 - Nao compartilhar checkout ou venv entre Windows e WSL/Linux. Validacao Linux exige clone Linux proprio; build Windows usa ferramentas Windows nativas.
-- Artefatos `v4.50` e anteriores seguem historicos e nao validam a candidata `v4.51`.
-- Publicacao neste checkout: `origin` possui tres push URLs (GitHub principal, GitHub `schottge-menon` e GitLab); `git push` padrao publica `dev` nos tres. Conferir a configuracao antes de usar em outro clone.
-- A v4.50 publicou fontes sem novos binarios ou instaladores. Builds locais v4.51 para macOS arm64, Windows arm64 e Windows amd64 foram concluidos a partir de `b613fb16`; sem push, tag, release ou CI nesse SHA. A qualificacao para publicacao permanece pendente.
+- Artefatos `v4.51` e anteriores sao historicos para a rodada `rev`.
+- Publicacao neste checkout: `origin` envia ao GitHub principal e ao GitLab; o push URL do espelho `schottge-menon` esta comentado em `.git/config` (conta suspensa). Conferir a configuracao antes de usar em outro clone.
+- Os builds locais da candidata v4.51 (2026-09-24, a partir de `a2954a48`) nao sao os assets publicados: a release traz um pacote por alvo, inclusive Debian amd64 e arm64.
 
 ## HISTORICAL SNAPSHOT 2026-06-11 11h
 
