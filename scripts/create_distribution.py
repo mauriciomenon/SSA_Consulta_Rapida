@@ -131,7 +131,6 @@ USER_DIRS = [
     "docs_saida",
     "logs",
     "reports",
-    "exportacao",
 ]
 
 # Arquivos de documentacao para incluir

@@ -726,7 +726,6 @@ VSVersionInfo(
                 runtime_root / "docs_saida",
                 runtime_root / "logs",
                 runtime_root / "reports",
-                runtime_root / "exportacao",
             ):
                 folder.mkdir(parents=True, exist_ok=True)
             logger.info(f"{app_type.upper()} construido com sucesso")

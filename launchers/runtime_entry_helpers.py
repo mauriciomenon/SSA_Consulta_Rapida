@@ -390,7 +390,6 @@ def _runtime_common_paths(runtime_dir: Path) -> dict[str, Path]:
         "docs_in": runtime_dir / "docs_entrada",
         "docs_out": runtime_dir / "docs_saida",
         "reports": runtime_dir / "reports",
-        "exportacao": runtime_dir / "exportacao",
     }
 
 
@@ -402,7 +401,6 @@ def _create_common_runtime_dirs(runtime_dir: Path) -> None:
         paths["docs_in"],
         paths["docs_out"],
         paths["reports"],
-        paths["exportacao"],
         runtime_data_backups,
     ):
         folder.mkdir(parents=True, exist_ok=True)
@@ -421,7 +419,6 @@ def _runtime_allowed_roots(
         str(paths["docs_in"]),
         str(paths["docs_out"]),
         str(paths["reports"]),
-        str(paths["exportacao"]),
         str(paths["logs"]),
     ]
     existing_extra = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")

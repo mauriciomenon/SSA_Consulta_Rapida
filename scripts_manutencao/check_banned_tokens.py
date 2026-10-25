@@ -9,7 +9,7 @@ Exit codes:
 By default ignores:
  - Virtual environments / site-packages
  - Compiled artifacts (__pycache__)
- - Data export directories (docs_saida/, extracao/, exportacao/)
+ - Data export directory (docs_saida/)
  - .git directory
 
 Configuration via environment variables:
@@ -60,8 +60,6 @@ IGNORE_DIRS = {
     "build",
     "dist",
     "docs_saida",
-    "extracao",
-    "exportacao",
     "launchers/platforms",  # large vendor tree
     "launchers/platforms/macos_arm64/venv",  # nested venv
     "docs",  # documentation with historical references

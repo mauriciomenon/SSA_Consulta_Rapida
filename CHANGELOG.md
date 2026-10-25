@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Pasta `exportacao/` da pasta de runtime: nao e mais criada pelos builds, pelo pacote nem pelo setup, porque nenhum export grava nela (CSV/XLSX vao para `docs_saida`). O `.gitignore` deixa de ignorar `exportacao/`, que e o pacote de codigo do export: um arquivo novo ali ficava fora do Git sem aviso.
+
 - Busca com regex (`~`) e filtros: com o pyarrow instalado (extra `web`/Streamlit), `\w`, `\s` e `\b` so reconheciam ASCII, e `~^\w+$` nao achava "ação", "niño", "straße" nem "garçon". Agora o texto usa sempre o armazenamento Python do pandas, e a busca da o mesmo resultado com ou sem pyarrow.
 
 - Guia de instalacao, "Executar Testes Automatizados": os comandos apontavam para `tests\test_imports.py` e `tests\teste_sistema_completo.py`, que nao testavam nada (um so imprimia, o outro estava vazio). Agora: `scripts\smoke_cli.py --json`, `pytest tests\test_database.py` e a suite completa. Sairam de `tests/` 39 scripts que nunca rodavam no pytest (manuais, de diagnostico ou vazios).

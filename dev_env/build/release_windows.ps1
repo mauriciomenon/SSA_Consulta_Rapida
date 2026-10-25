@@ -311,8 +311,7 @@ function Get-UserWorkspaceRelativeDirectory {
         "docs_entrada",
         "docs_saida",
         "logs",
-        "reports",
-        "exportacao"
+        "reports"
     )
 }
 

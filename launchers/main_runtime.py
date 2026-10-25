@@ -228,7 +228,6 @@ def _ensure_runtime_directories(runtime_dir: Path) -> dict[str, Path]:
         "docs_in": runtime_dir / "docs_entrada",
         "docs_out": runtime_dir / "docs_saida",
         "reports": runtime_dir / "reports",
-        "exportacao": runtime_dir / "exportacao",
         "logs": runtime_dir / "logs",
         "data_backups": runtime_dir / "data" / "historico_backups",
     }
@@ -270,7 +269,6 @@ def _apply_runtime_environment(
         str(runtime_dirs["docs_in"]),
         str(runtime_dirs["docs_out"]),
         str(runtime_dirs["reports"]),
-        str(runtime_dirs["exportacao"]),
         str(runtime_dirs["logs"]),
     ]
     existing_extra = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")

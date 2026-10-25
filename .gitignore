@@ -319,7 +319,6 @@ Thumbs.db
 # Imports e exports temporarios
 docs_entrada/~$*
 docs_saida/temp_*
-exportacao/temp_*
 
 # === DADOS SENSIVEIS ===
 # Arquivos de entrada com dados reais da empresa
@@ -333,7 +332,6 @@ docs_entrada/*.zip
 
 # Exports com dados completos
 docs_saida/all.*
-exportacao/
 
 # Temporary work files and control files
 # Local AI / TODO removed artifacts (keep only locally, never commit)

@@ -67,7 +67,7 @@ def test_main_runtime_warns_discarded_runtime_root(tmp_path, monkeypatch, warnin
     user_root = tmp_path / "minha_raiz"
     monkeypatch.setenv("SSA_RUNTIME_ROOT", str(user_root))
     dirs = {key: runtime_dir / key for key in (
-        "docs_in", "docs_out", "reports", "exportacao", "logs"
+        "docs_in", "docs_out", "reports", "logs"
     )}
 
     main_runtime._apply_runtime_environment(runtime_dir, config, data, dirs, str(tmp_path))

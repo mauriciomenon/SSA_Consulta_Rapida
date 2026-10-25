@@ -456,7 +456,7 @@ def test_release_windows_script_ensures_user_workspace_dirs_before_zip() -> None
     assert "function Initialize-UserWorkspaceDirectory" in script
     assert "docs_entrada" in script
     assert "historico_backups" in script
-    assert "exportacao" in script
+    assert "exportacao" not in script  # CD-36: pasta de runtime sem uso
     assert ".gitkeep" in script
     assert "user_dirs_created" in release_loop
     assert_before(

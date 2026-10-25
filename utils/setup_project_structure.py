@@ -33,8 +33,6 @@ _BASE_REQUIRED_DIRS = (
     "docs_saida",
     "logs",
     "reports",
-    "extracao",
-    "exportacao",
 )
 
 

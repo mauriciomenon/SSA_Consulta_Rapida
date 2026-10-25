@@ -151,8 +151,6 @@
   - `data/`
   - `docs_entrada/`
   - `docs_saida/`
-- Pasta adicional existente:
-  - `exportacao/` (saida de export CSV/XLSX gerada pela app)
 - Regra:
   - nao esconder essas pastas em runtime.
   - seed inicial nao deve sobrescrever customizacao local do usuario.
