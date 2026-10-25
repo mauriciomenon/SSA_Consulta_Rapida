@@ -4,10 +4,12 @@
 
 - Pipeline oficial de build: `launchers/build_multiplatform.py`.
 - Ultima release publicada: `v4.50`; candidata local em validacao: `v4.51`.
-- Plataformas ativas:
+- Plataformas ativas (`build_multiplatform.py --list-platforms`; cada build roda no host do alvo):
   - `windows_amd64`
+  - `windows_arm64`
   - `macos_arm64`
   - `debian_amd64`
+  - `debian_arm64`
 - Saida canonica: `launchers/dist/<plataforma>/`.
 - Integracao de distribuicao: `scripts/create_distribution.py`.
 - Referencias antigas (`windows_x64`, `windows_x86`, `macos_x64`, `linux_x64`) sao historicas.
@@ -36,20 +38,13 @@ launchers/
 ├── build_simple.py
 ├── test_complete.py
 ├── test_executables.py
-├── platforms/
+├── platforms/                      # build_config.json + requirements.txt por alvo
 │   ├── windows_amd64/
-│   │   ├── build_config.json
-│   │   └── requirements.txt
+│   ├── windows_arm64/
 │   ├── macos_arm64/
-│   │   ├── build_config.json
-│   │   └── requirements.txt
-│   └── debian_amd64/
-│       ├── build_config.json
-│       └── requirements.txt
-└── dist/
-    ├── windows_amd64/
-    ├── macos_arm64/
-    └── debian_amd64/
+│   ├── debian_amd64/
+│   └── debian_arm64/
+└── dist/                           # mesmo nome de alvo: launchers/dist/<plataforma>/
 ```
 
 ## Fluxo Recomendado
