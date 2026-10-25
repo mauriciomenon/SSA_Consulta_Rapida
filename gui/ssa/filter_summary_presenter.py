@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QPushButton, QSizePolicy
@@ -284,7 +284,7 @@ class FilterSummaryPresenter:
         if not text or not isinstance(raw_actions, list) or not raw_actions:
             return 0
         actions: list[SummaryAction] = [
-            cast(SummaryAction, dict(action))
+            dict(action)
             for action in raw_actions
             if isinstance(action, dict)
         ]

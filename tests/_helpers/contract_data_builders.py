@@ -7,7 +7,7 @@ so contract and Qt scenario tests stay aligned when fixture rows change.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Callable, Iterator
+from typing import Callable, Generator
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -78,7 +78,7 @@ def make_series_tolist_spy() -> tuple[dict[str, int], Callable[..., list]]:
 
 
 @contextmanager
-def patch_adv_options_cache_spies() -> Iterator[tuple[MagicMock, MagicMock]]:
+def patch_adv_options_cache_spies() -> Generator[tuple[MagicMock, MagicMock]]:
     """Dual spy template for advanced-options cache budget tests.
 
     Yields (get_cached_spy, collect_spy). Cache hit: collect call_count == 0.

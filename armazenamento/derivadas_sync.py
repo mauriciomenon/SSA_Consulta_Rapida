@@ -20,7 +20,7 @@ import tempfile
 import threading
 import unicodedata
 from collections import defaultdict, deque
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -2425,7 +2425,7 @@ def validate_report_output_paths(
 @contextmanager
 def _report_output(
     output_file: str, *, overwrite: bool, protected_paths: Iterable[str]
-) -> Iterator[IO[str]]:
+) -> Generator[IO[str]]:
     protected = tuple(protected_paths)
     validate_report_output_paths(
         [output_file], protected_paths=protected, overwrite=overwrite

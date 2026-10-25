@@ -1194,13 +1194,13 @@ def test_extract_data_from_excel_cancels_during_sheet_parse(tmp_path, monkeypatc
     parse_active = False
     parse_completed = False
     checks_during_parse = 0
-    original_parse = pd.ExcelFile.parse
+    original_read_excel = pd.read_excel
 
-    def tracked_parse(self, *args, **kwargs):
+    def tracked_read_excel(*args, **kwargs):
         nonlocal parse_active, parse_completed
         parse_active = True
         try:
-            result = original_parse(self, *args, **kwargs)
+            result = original_read_excel(*args, **kwargs)
             parse_completed = True
             return result
         finally:
@@ -1213,7 +1213,9 @@ def test_extract_data_from_excel_cancels_during_sheet_parse(tmp_path, monkeypatc
             return True
         return False
 
-    monkeypatch.setattr(pd.ExcelFile, "parse", tracked_parse)
+    # A extracao le cada aba por pd.read_excel(ExcelFile) (ExcelFile.parse e
+    # depreciado no pandas 3.1).
+    monkeypatch.setattr(pd, "read_excel", tracked_read_excel)
 
     with pytest.raises(ExtractionError) as exc_info:
         extract_data_from_excel(str(file_path), should_cancel=should_cancel)

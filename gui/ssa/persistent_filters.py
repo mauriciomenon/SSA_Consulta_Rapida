@@ -7,7 +7,7 @@ import json
 import os
 import tempfile
 import time
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -198,7 +198,7 @@ def _replace_private_json_file(source_path: str, target_path: str) -> None:
 
 
 @contextmanager
-def _private_file_umask() -> Iterator[None]:
+def _private_file_umask() -> Generator[None]:
     old_umask = os.umask(0o177)
     try:
         yield

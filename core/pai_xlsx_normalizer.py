@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 import time
-from typing import Iterator
+from typing import Generator
 from zipfile import BadZipFile
 
 import pandas as pd
@@ -60,7 +60,7 @@ class ManagedPaiXlsxNormalization:
 def managed_pai_xlsx_for_ssa_import(
     source_xlsx: Path,
     target_xlsx: Path,
-) -> Iterator[ManagedPaiXlsxNormalization]:
+) -> Generator[ManagedPaiXlsxNormalization]:
     result = normalize_pai_xlsx_for_ssa_import(source_xlsx, target_xlsx)
     managed = ManagedPaiXlsxNormalization(
         path=result.path,

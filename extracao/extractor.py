@@ -12,7 +12,7 @@ import os
 import re
 import unicodedata
 from contextlib import contextmanager
-from typing import Any, BinaryIO, Callable, Iterable, Iterator, Optional
+from typing import Any, BinaryIO, Callable, Generator, Iterable, Optional
 from zipfile import BadZipFile, ZipFile
 
 import pandas as pd
@@ -170,7 +170,7 @@ def validate_excel_import_limits(
 @contextmanager
 def open_validated_excel_source(
     file_path: str | os.PathLike[str],
-) -> Iterator[BinaryIO]:
+) -> Generator[BinaryIO]:
     """Open, validate, and yield the same stream consumed by the parser."""
     try:
         with open(file_path, "rb") as source_stream:
@@ -903,7 +903,7 @@ def extract_data_from_excel(
                 _check_cancel()
                 logger.debug(f"Processando planilha '{sheet_name}'...")
                 # Le a planilha inteira
-                parsed_sheet = xl_file.parse(sheet_name, header=None)
+                parsed_sheet = pd.read_excel(xl_file, sheet_name=sheet_name, header=None)
                 if not isinstance(parsed_sheet, pd.DataFrame):
                     raise ExtractionError(
                         f"Unexpected parse output type for sheet '{sheet_name}': {type(parsed_sheet).__name__}"
@@ -1233,9 +1233,8 @@ def extract_data_from_excel(
         event_records, captured_indices, captured_by_type = (
             _capture_hierarchical_records(combined_df, source_path=file_path)
         )
-        combined_df.drop(
+        combined_df = combined_df.drop(
             columns=[_SOURCE_SHEET_COLUMN, _SOURCE_ROW_COLUMN],
-            inplace=True,
         )
 
         if "prazo_limite" in combined_df.columns:

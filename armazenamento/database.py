@@ -575,7 +575,7 @@ def _execute_simple_insert(
         batch_size,
         len(work_df.columns),
     )
-    work_df.reset_index(drop=True, inplace=True)
+    work_df = work_df.reset_index(drop=True)
 
     if "numero_ssa" in work_df.columns:
         ssa_count = work_df["numero_ssa"].notna().sum()

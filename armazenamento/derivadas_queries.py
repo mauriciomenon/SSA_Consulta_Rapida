@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Any, Iterator, cast
+from typing import Any, Generator, cast
 
 from armazenamento.database import get_db_connection
 from armazenamento.derivadas_schema import scan_derivadas_read_schema_readiness
@@ -44,7 +44,7 @@ def _normalize_max_distance(max_distance: int | None) -> int | None:
 @contextmanager
 def _open_derivadas_connection(
     db_path: str,
-) -> Iterator[tuple[sqlite3.Connection | None, bool]]:
+) -> Generator[tuple[sqlite3.Connection | None, bool]]:
     with get_db_connection(db_path) as conn:
         conn.execute(f"PRAGMA busy_timeout = {DERIVADAS_QUERY_BUSY_TIMEOUT_MS}")
         # Guardrail: query helpers are strictly read-only.

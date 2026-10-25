@@ -336,8 +336,9 @@ def _build_headers(
                 )
             label = safe
         renamed[c] = label
-    # Renomeia inplace para refletir labels de exibicao no dataframe de trabalho.
-    df.rename(columns=renamed, inplace=True)
+    # Renomeia no proprio dataframe de trabalho: os chamadores usam os labels
+    # novos em df.columns (sem inplace=, depreciado no pandas 3.1).
+    df.columns = [renamed.get(c, c) for c in df.columns]
     widths: dict[str, int] = {}
     for c in cols:
         disp = renamed.get(c, c)

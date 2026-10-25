@@ -8,7 +8,7 @@ import stat
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Generator
 
 from filelock import FileLock
 
@@ -46,7 +46,7 @@ def _lock_path(db_path: str) -> Path:
 @contextmanager
 def database_writer_lock(
     db_path: str, *, timeout: float | None = None
-) -> Iterator[None]:
+) -> Generator[None]:
     """Serialize project writers for one database across threads and processes."""
     if db_path == ":memory:":
         yield

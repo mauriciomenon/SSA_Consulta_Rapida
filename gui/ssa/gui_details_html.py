@@ -6,7 +6,7 @@ from __future__ import annotations
 import html as html_module
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, cast
+from typing import Any, Callable, Mapping
 
 from gui.helpers.theme_helpers import pick_css_color
 from gui.ssa.details_display_config import DetailsDisplayConfig
@@ -217,7 +217,7 @@ def _render_derivadas_row(
     if linkify and isinstance(ssa_index, dict):
         deps.hydrate_ssa_index_candidates(
             window,
-            cast(dict[str, Any], ssa_index),
+            ssa_index,
             [ssa for _, items in groups for ssa, _ in items],
         )
     exists_cache: dict[str, bool] = {}
