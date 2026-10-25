@@ -79,7 +79,7 @@ class MultiPlatformBuilder:
         """Identificadores uv do runtime Python, em ordem de preferencia.
 
         Politica do repositorio: 3.13 primeiro, com fallback para
-        3.12/3.11/3.10 quando o uv nao consegue prover o preferido.
+        3.12/3.11 quando o uv nao consegue prover o preferido.
         Um runtime_python explicito sobrepoe a cadeia (override unico).
         """
         if self.runtime_python:
@@ -92,9 +92,9 @@ class MultiPlatformBuilder:
         if suffix:
             return [
                 f"cpython-{version}-{suffix}"
-                for version in ("3.13", "3.12", "3.11", "3.10")
+                for version in ("3.13", "3.12", "3.11")
             ]
-        return ["3.13", "3.12", "3.11", "3.10"]
+        return ["3.13", "3.12", "3.11"]
 
     @staticmethod
     def _run_command(cmd, *, timeout, cwd=None, capture_output=True, text=True):

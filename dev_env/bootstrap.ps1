@@ -93,14 +93,14 @@ function Initialize-VirtualEnv() {
       if ($LASTEXITCODE -ne 0) { throw "Falha ao listar versoes do pyenv-win." }
       $list = $listRaw -split "`n" | ForEach-Object { $_.Trim() }
       $ver = $null
-      foreach ($major in @('3.13', '3.12', '3.11', '3.10')) {
+      foreach ($major in @('3.13', '3.12', '3.11')) {
         $candidate = $list | Where-Object { $_ -match ("^{0}\.[0-9]+$" -f [regex]::Escape($major)) } | Select-Object -Last 1
         if ($candidate) {
           $ver = $candidate
           break
         }
       }
-      if (-not $ver) { throw "Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv-win." }
+      if (-not $ver) { throw "Nao foi possivel descobrir versao Python suportada (3.13-3.11) no pyenv-win." }
       pyenv install -s $ver
       if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar Python $ver via pyenv-win." }
       $previousVersion = $env:PYENV_VERSION

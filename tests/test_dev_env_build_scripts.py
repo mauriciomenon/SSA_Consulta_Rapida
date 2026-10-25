@@ -74,6 +74,23 @@ def test_bootstrap_uses_apt_get_update_without_invalid_yes_flag() -> None:
     assert "sudo apt-get install -y" in script
 
 
+def test_bootstrap_and_build_never_fall_back_below_minimum_python() -> None:
+    """MEM-15: requires-python >=3.11; o fallback nao pode escolher 3.10."""
+    import tomllib
+
+    minimum = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert minimum["project"]["requires-python"] == ">=3.11"
+    sh = (PROJECT_ROOT / "dev_env" / "bootstrap.sh").read_text(encoding="utf-8")
+    ps1 = (PROJECT_ROOT / "dev_env" / "bootstrap.ps1").read_text(encoding="utf-8")
+    builder = (PROJECT_ROOT / "launchers" / "build_multiplatform.py").read_text(encoding="utf-8")
+    assert "for MAJOR in 3.13 3.12 3.11; do" in sh
+    assert "@('3.13', '3.12', '3.11')" in ps1
+    assert builder.count('"3.13", "3.12", "3.11")') == 1
+    assert builder.count('"3.13", "3.12", "3.11"]') == 1
+    for text in (sh, ps1, builder):
+        assert "3.10" not in text
+
+
 def test_repository_line_ending_policy_covers_build_scripts() -> None:
     attributes = (PROJECT_ROOT / ".gitattributes").read_text(encoding="utf-8")
 

@@ -164,10 +164,10 @@ create_virtualenv_if_missing() {
       echo "[ok] Virtualenv pyenv '$VENV_NAME' ja existe"
     else
       echo "[info] Criando virtualenv pyenv '$VENV_NAME'"
-      # Prefer 3.13.x; fallback to 3.12/3.11/3.10 if needed.
+      # Prefer 3.13.x; fallback to 3.12/3.11 (minimo 3.11, ver pyproject.toml).
       PYENV_LIST=$(pyenv install -l | sed 's/^[[:space:]]*//')
       PY_VER=""
-      for MAJOR in 3.13 3.12 3.11 3.10; do
+      for MAJOR in 3.13 3.12 3.11; do
         CANDIDATE=$(printf "%s\n" "$PYENV_LIST" | sed -n "s/^\\(${MAJOR}\\.[0-9]\\+\\)$/\\1/p" | tail -1)
         if [[ -n "${CANDIDATE:-}" ]]; then
           PY_VER="$CANDIDATE"
@@ -175,7 +175,7 @@ create_virtualenv_if_missing() {
         fi
       done
       if [[ -z "${PY_VER:-}" ]]; then
-        echo "[erro] Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv."
+        echo "[erro] Nao foi possivel descobrir versao Python suportada (3.13-3.11) no pyenv."
         exit 1
       fi
       if ! pyenv install -s "$PY_VER"; then
