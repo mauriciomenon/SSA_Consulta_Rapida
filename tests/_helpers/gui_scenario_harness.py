@@ -154,7 +154,7 @@ class GUIFilterScenarioHarness:
             if not bool(getattr(self.window, "_adv_options_worker_active", False)):
                 return
             cast(Any, QTest).qWait(10)
-        QApplication.processEvents()
+        raise AssertionError("advanced options worker still active after timeout")
 
     def wait_until_timer_inactive(self, timer: QTimer, timeout_ms: int = 1000) -> None:
         deadline = time.monotonic() + (timeout_ms / 1000)
@@ -162,15 +162,21 @@ class GUIFilterScenarioHarness:
             QApplication.processEvents()
             cast(Any, QTest).qWait(10)
         QApplication.processEvents()
+        if timer.isActive():
+            raise AssertionError("timer still active after timeout")
 
     def wait_until_filter_idle(self, timeout_ms: int = 5000) -> None:
         deadline = time.monotonic() + (timeout_ms / 1000)
         while time.monotonic() < deadline:
             QApplication.processEvents()
-            if getattr(self.window, "filter_thread", None) is None:
+            # A GUI nao zera filter_thread apos o fim normal (BL-41): esperar o worker parar
+            # e entregar os sinais ja enfileirados (resultado e cleanup).
+            if not self.window._is_filter_worker_running(getattr(self.window, "filter_thread", None)):
+                QApplication.processEvents()
                 return
             cast(Any, QTest).qWait(10)
-        QApplication.processEvents()
+        # BL-39: antes seguia calado apos 5 s e os asserts rodavam com o worker ainda ativo.
+        raise AssertionError("filter worker still referenced after timeout")
 
     def wait_until_event(self, event, timeout_ms: int = 5000) -> None:
         """Poll Qt events until threading.Event is set (no time.sleep)."""
