@@ -108,3 +108,26 @@ def test_check_docs_outside_git_repo_is_an_error(tmp_path):
     cmd = [sys.executable, str(SCRIPTS_DIR / "check_docs.py"), "--paths", str(tmp_path)]
     proc = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
     assert proc.returncode == 2, proc.stdout + proc.stderr
+
+
+def test_check_docs_missing_explicit_path_is_an_error():
+    """BL-38: caminho explicito inexistente saia com exit 0 e 0 arquivos checados."""
+    cmd = [sys.executable, str(SCRIPTS_DIR / "check_docs.py"), "--paths", "docs/NAO_EXISTE.md", "--json"]
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "NAO_EXISTE.md" in json.loads(proc.stdout)["error"]
+
+
+def test_quality_gates_extra_doc_adds_to_default_docs(tmp_path):
+    """BL-38: --extra-doc somava so o extra e deixava os docs do repo sem checagem."""
+    extra = tmp_path / "EXTRA.md"
+    extra.write_text("# Extra\n\nlinha 1\n\nlinha 2\n\nlinha 3\n", encoding="utf-8")
+    cmd = [
+        sys.executable, str(SCRIPTS_DIR / "run_quality_gates.py"),
+        "--only", "check_docs", "--extra-doc", str(extra),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
+    summary = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert summary["check_docs"]["status"] == "ok", summary
+    checked = summary["check_docs"]["details"]["stats"]["checked_files"]
+    assert checked > 1, checked

@@ -129,7 +129,8 @@ def compose_gates(args: argparse.Namespace) -> List[tuple[str, List[str]]]:
     if not args.no_fail_on_doc_issues:
         docs_cmd.append("--fail-on-issues")
     if args.extra_docs:
-        docs_cmd.extend(["--paths", *args.extra_docs])
+        # "." mantem os docs padrao do repo; --paths sozinho substituia o conjunto (BL-38).
+        docs_cmd.extend(["--paths", ".", *args.extra_docs])
     gates.append(("check_docs", docs_cmd))
     # Lint opcional: desligado por padrão (caminho feliz/smoke não depende).
     if args.include_lint or (args.only_gates and "lint" in args.only_gates):

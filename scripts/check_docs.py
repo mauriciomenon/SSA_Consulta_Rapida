@@ -227,7 +227,10 @@ def filter_targets(paths: Optional[Sequence[str]]) -> List[Path]:
             result.extend(list_markdown_files(target))
         elif target.is_file() and target.name.lower().endswith(MARKDOWN_EXT):
             result.append(target)
-    return result
+        else:
+            # BL-38: caminho explicito errado era ignorado e o gate passava com 0 arquivos.
+            raise ValueError(f"caminho inexistente ou nao markdown: {p}")
+    return list(dict.fromkeys(result))
 
 
 def main(argv: Optional[List[str]] = None) -> int:
