@@ -371,7 +371,7 @@ def test_release_targets_json_defines_validated_targets() -> None:
         "ssa-consulta-rapida-{backend}-arm64_{app_version}_arm64.deb"
     )
     assert payload["asset_name_templates"]["macos_arm64"]["dmg"] == (
-        "SSA_Consulta_Rapida_v{app_version}_macos_arm64.dmg"
+        "SSA_Consulta_Rapida_v{app_version}_macos_arm64_{backend}.dmg"
     )
 
 
@@ -548,7 +548,7 @@ def test_release_macos_expected_asset_names_cover_dmg_package() -> None:
         "4.44",
     )
 
-    assert names == {"SSA_Consulta_Rapida_v4.44_macos_arm64.dmg"}
+    assert names == {"SSA_Consulta_Rapida_v4.44_macos_arm64_pyinstaller.dmg"}
 
 
 def test_release_report_rejects_unknown_platform_for_expected_assets() -> None:
@@ -566,8 +566,8 @@ def test_release_report_rejects_unknown_platform_for_expected_assets() -> None:
 def test_release_macos_report_filters_stale_dmg_assets(tmp_path, monkeypatch) -> None:
     package_dir = tmp_path / "builds" / "packages" / "macos_arm64"
     package_dir.mkdir(parents=True)
-    current = package_dir / "SSA_Consulta_Rapida_v4.44_macos_arm64.dmg"
-    stale = package_dir / "SSA_Consulta_Rapida_v4.41_macos_arm64.dmg"
+    current = package_dir / "SSA_Consulta_Rapida_v4.44_macos_arm64_pyinstaller.dmg"
+    stale = package_dir / "SSA_Consulta_Rapida_v4.41_macos_arm64_pyinstaller.dmg"
     current.write_bytes(b"current")
     stale.write_bytes(b"stale")
 

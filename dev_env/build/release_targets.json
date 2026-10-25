@@ -84,7 +84,7 @@
       "tar_single": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.tar.gz"
     },
     "macos_arm64": {
-      "dmg": "SSA_Consulta_Rapida_v{app_version}_macos_arm64.dmg"
+      "dmg": "SSA_Consulta_Rapida_v{app_version}_macos_arm64_{backend}.dmg"
     },
     "windows_arm64": {
       "zip": "SSA_Consulta_Rapida_v{app_version}_windows_arm64_{backend}.zip"

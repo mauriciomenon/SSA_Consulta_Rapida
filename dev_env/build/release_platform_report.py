@@ -368,7 +368,7 @@ def _expected_macos_asset_names(
     templates = _load_release_targets().get("asset_name_templates", {}).get(platform_name, {})
     if not isinstance(templates, dict) or not templates:
         templates = {
-            "dmg": "SSA_Consulta_Rapida_v{app_version}_{platform_name}.dmg",
+            "dmg": "SSA_Consulta_Rapida_v{app_version}_{platform_name}_{backend}.dmg",
         }
     names: set[str] = set()
     if "pyinstaller" in backends and "dmg" in packages:

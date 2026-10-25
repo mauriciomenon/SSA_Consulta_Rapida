@@ -250,6 +250,8 @@ def test_root_release_bash_exposes_simple_defaults() -> None:
     assert 'DEFAULT_MACOS_PACKAGE="dmg"' in script
     assert "DMG esperado" in script
     assert "DMG macOS nao foi gerado" in script
+    # CD-38: o DMG leva o sufixo do backend, igual ao que o builder gera.
+    assert '_${platform_name}_${backend}.dmg"' in script
     assert "smoke importacao" in script
     assert "scripts/smoke_cli.py" in script
     assert "--executable" in script

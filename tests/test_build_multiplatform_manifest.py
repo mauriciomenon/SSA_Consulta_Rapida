@@ -830,6 +830,7 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
 
     dmg_path = platform_dir / builder._get_macos_dmg_name()
     assert dmg_path.exists()
+    assert dmg_path.name.endswith("_macos_arm64_pyinstaller.dmg")  # CD-38
 
     with open(info_plist, "rb") as plist_file:
         plist_data = plistlib.load(plist_file)

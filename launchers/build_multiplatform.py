@@ -964,7 +964,7 @@ VSVersionInfo(
         return True
 
     def _get_macos_dmg_name(self):
-        return f"SSA_Consulta_Rapida_v{self.version}_macos_arm64.dmg"
+        return f"SSA_Consulta_Rapida_v{self.version}_macos_arm64_pyinstaller.dmg"
 
     def _compress_executables(self, dist_dir):
         """Comprime executaveis com UPX"""

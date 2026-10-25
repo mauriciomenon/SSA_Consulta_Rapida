@@ -145,7 +145,7 @@ run_macos_release() {
     *) die "release macOS arm64 deve rodar em macOS arm64." ;;
   esac
   version="$(cd "${root}" && uv run --python 3.13 python -c 'import json; print(json.load(open("config/version.json", encoding="utf-8"))["version_short"])')"
-  dmg_path="${root}/launchers/dist/${platform_name}/SSA_Consulta_Rapida_v${version}_${platform_name}.dmg"
+  dmg_path="${root}/launchers/dist/${platform_name}/SSA_Consulta_Rapida_v${version}_${platform_name}_${backend}.dmg"
   cli_exe="${root}/launchers/dist/${platform_name}/SSA_CLI_v${version}_${platform_name}/SSA_CLI_v${version}_${platform_name}"
 
   if [[ "${DRY_RUN}" == "1" ]]; then
