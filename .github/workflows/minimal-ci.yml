@@ -125,45 +125,35 @@ jobs:
                 ;;
             esac
           done < .changed_quality_scope
-          if [ -s .changed_python_files ] || grep -Eq '^pyproject\.toml$|^requirements[^/]*\.txt$|^uv\.lock$|^\.github/workflows/[^/]+\.ya?ml$|^scripts/|^dev_env/build/' .changed_quality_scope; then
-            echo "run_python=true" >> "$GITHUB_OUTPUT"
-            echo "Python or CI config changes detected."
-            if [ -s .changed_python_files ]; then
-              echo "Changed Python files:"
-              cat .changed_python_files
-            else
-              echo "No changed Python files detected for scoped static checks."
-            fi
+          # BL-38: o pytest roda em todo push (testes leem docs, shell, YAML e config);
+          # so py_compile, ruff e ty ficam restritos aos .py alterados.
+          if [ -s .changed_python_files ]; then
+            echo "Changed Python files:"
+            cat .changed_python_files
           else
-            echo "run_python=false" >> "$GITHUB_OUTPUT"
-            echo "No Python or CI config changes detected; required status will pass without expensive gates."
+            echo "No changed Python files detected for scoped static checks."
           fi
 
       - name: Setup Python
-        if: steps.changed-scope.outputs.run_python == 'true'
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
 
       - name: Setup uv
-        if: steps.changed-scope.outputs.run_python == 'true'
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
       - name: Install EGL graphics dependency
-        if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y libegl1
 
       - name: Sync dev dependencies
-        if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
           uv sync --frozen
 
       - name: Py compile changed Python paths
-        if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
           uv run --python 3.13 python - <<'PY'
@@ -181,7 +171,6 @@ jobs:
           PY
 
       - name: Ruff (changed files)
-        if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
           mapfile -t files < .changed_python_files
@@ -192,7 +181,6 @@ jobs:
           fi
 
       - name: Ty (changed files)
-        if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
           mapfile -t files < .changed_python_files
@@ -202,8 +190,13 @@ jobs:
             uv run --python 3.13 ty check "${files[@]}"
           fi
 
+      - name: Install gitleaks (testes do secret scan)
+        run: |
+          set -euo pipefail
+          bash scripts/security/install_gitleaks.sh "${RUNNER_TEMP}/gitleaks-bin"
+          echo "${RUNNER_TEMP}/gitleaks-bin" >> "$GITHUB_PATH"
+
       - name: Pytest suite
-        if: steps.changed-scope.outputs.run_python == 'true'
         env:
           PYTEST_GROUP: ${{ matrix.pytest-group }}
           QT_QPA_PLATFORM: offscreen

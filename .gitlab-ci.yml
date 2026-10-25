@@ -102,6 +102,10 @@ pytest-full:
   variables:
     PYTEST_ADDOPTS: "--timeout=45 --timeout-method=thread --durations=20 --junitxml=pytest-results.xml"
   script:
+    # BL-38: gitleaks fixado para os testes do secret scan nao pularem no CI.
+    - apt-get install --yes --no-install-recommends curl ca-certificates
+    - bash scripts/security/install_gitleaks.sh "$CI_PROJECT_DIR/.gitleaks-bin"
+    - export PATH="$CI_PROJECT_DIR/.gitleaks-bin:$PATH"
     - bash scripts/run_tests.sh full
   artifacts:
     when: always

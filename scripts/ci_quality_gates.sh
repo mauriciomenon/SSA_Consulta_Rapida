@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Script auxiliar para executar quality gates + smoke tests.
+# Script auxiliar para executar os quality gates.
 # Uso:
-#   ./scripts/ci_quality_gates.sh              # gates + smoke (-m smoke)
+#   ./scripts/ci_quality_gates.sh
 #   GATES_ARGS="--skip check_docs" ./scripts/ci_quality_gates.sh
 # Retornos:
 #   0 -> tudo ok
-#   1 -> falha em gates ou smoke
+#   1 -> falha em algum gate
 #   2 -> erro estrutural (ex.: script ausente)
 
 GATES_ARGS=${GATES_ARGS:-}
@@ -67,16 +67,9 @@ fi
 
 echo "[ci_quality_gates] overall_status=${STATUS} (exit=${CODE})"
 
-SMOKE_STATUS="ok"
-set +e
-"$PY" -m pytest -m "smoke" -q
-SMOKE_CODE=$?
-set -e
-[ $SMOKE_CODE -eq 0 ] || SMOKE_STATUS="fail"
-
-echo "[ci_quality_gates] smoke=${SMOKE_STATUS}"
-
-if [ "${STATUS}" != "ok" ] || [ "${SMOKE_STATUS}" != "ok" ]; then
+# BL-38: sem a etapa 'pytest -m smoke': ela coletava a suite inteira para rodar
+# test_quality_gates_smoke, que repete os gates acima e ja roda no pytest-full.
+if [ "${STATUS}" != "ok" ]; then
   exit 1
 fi
 exit 0

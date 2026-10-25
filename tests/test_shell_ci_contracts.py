@@ -59,6 +59,7 @@ def test_key_shell_scripts_parse_with_available_bash() -> None:
         "scripts/run_tests.sh",
         "scripts/git_hooks/pre-commit.secret-scan.sh",
         "scripts/security/scan_secrets.sh",
+        "scripts/security/install_gitleaks.sh",
         "dev_env/build/release_debian_arm64.sh",
         "dev_env/build/release_debian_arm64_backend.sh",
         "dev_env/build/package_debian_arm64_tar.sh",
@@ -570,7 +571,7 @@ def test_ci_quality_gates_parses_gate_args_with_quotes(
     assert "Diagnostico do gate no stdout" in result.stdout
     assert "Diagnostico do gate no stderr" in result.stdout
     assert result.stderr == ""
-    assert smoke_capture.exists()
+    assert not smoke_capture.exists()  # BL-38: sem etapa smoke
     assert json.loads(result_file.read_text(encoding="utf-8")) == {
         "overall_status": "ok" if gate_code == 0 else "fail"
     }
@@ -660,14 +661,38 @@ def test_secret_scan_hook_loop_safety_and_log_hygiene() -> None:
     assert "Valor potencial de API_KEY (redacted)" in script
 
 
-def test_minimal_ci_runs_for_any_workflow_change() -> None:
+def test_minimal_ci_runs_pytest_on_every_push() -> None:
+    """BL-38 achado 1: docs, shell e YAML tambem sao lidos pelos testes."""
     workflow = _read_repo_text(".github", "workflows", "minimal-ci.yml")
 
     assert "paths:" not in workflow
     assert "Detect quality gate scope" in workflow
-    assert "run_python=false" in workflow
-    assert "required status will pass without expensive gates" in workflow
-    assert "|^scripts/|^dev_env/build/" in workflow
+    assert "run_python" not in workflow
+    pytest_step = workflow.split("- name: Pytest suite\n", 1)[1].split("\n      - name:", 1)[0]
+    assert "if:" not in pytest_step.split("run: |", 1)[0]
+
+
+def test_ci_pytest_jobs_install_pinned_gitleaks() -> None:
+    """BL-38 achado 6: os testes do secret scan nao podem pular no CI."""
+    installer = _read_repo_text("scripts", "security", "install_gitleaks.sh")
+    github = _read_repo_text(".github", "workflows", "minimal-ci.yml")
+    gitlab = _read_repo_text(".gitlab-ci.yml")
+    assert 'GITLEAKS_VERSION="8.30.1"' in installer
+    assert "sha256sum -c -" in installer
+    assert "ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:" in gitlab
+    install = "bash scripts/security/install_gitleaks.sh"
+    assert github.index(install) < github.index("- name: Pytest suite")
+    pytest_job = gitlab.split("\npytest-full:\n", 1)[1].split("\n\n", 1)[0]
+    assert pytest_job.index(install) < pytest_job.index("bash scripts/run_tests.sh full")
+    secret_tests = _read_repo_text("tests", "test_gitlab_secret_scan.py")
+    assert 'not os.environ.get("CI")' in secret_tests
+
+
+def test_ci_quality_gates_has_no_redundant_smoke_stage() -> None:
+    """BL-38 achado 8: o smoke repetia os gates e ja roda no pytest-full."""
+    script = _read_repo_text("scripts", "ci_quality_gates.sh")
+    assert "-m pytest" not in script
+    assert "-m \"smoke\"" not in script
 
 
 @NATIVE_POSIX_ONLY

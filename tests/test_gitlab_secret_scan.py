@@ -13,8 +13,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 ZERO_SHA = "0" * 40
 BOOTSTRAP_SHA = "cd0b092e5acdf15b85d3c816ad04dbc1b3c4e3c8"
+# BL-38: no CI (CI definido) o gitleaks e instalado antes do pytest; ausente la, o teste falha
+# em vez de pular. Fora do CI continua pulando sem gitleaks.
 pytestmark = pytest.mark.skipif(
-    os.name == "nt" or shutil.which("gitleaks") is None,
+    os.name == "nt" or (shutil.which("gitleaks") is None and not os.environ.get("CI")),
     reason="Teste exige shell POSIX e gitleaks real",
 )
 
