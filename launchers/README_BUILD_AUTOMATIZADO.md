@@ -81,11 +81,11 @@ ci/
 
 ## 6. Exemplo de Sequencia Local
 ```bash
-uv run --python 3.13 scripts/validate_configs.py
-uv run --python 3.13 scripts/check_docs.py
+uv run --no-sync scripts/validate_configs.py
+uv run --no-sync scripts/check_docs.py
 pytest -k smoke
 pytest -k core
-uv run --python 3.13 launchers/build_all.py  # se aplicavel
+uv run --no-sync launchers/build_all.py  # se aplicavel
 ```
 
 ## 7. Metricas a Registrar

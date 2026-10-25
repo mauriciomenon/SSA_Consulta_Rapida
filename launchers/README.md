@@ -18,13 +18,13 @@
 
 ```bash
 # Build para plataforma atual
-uv run --python 3.13 launchers/build_multiplatform.py --apps cli gui
+uv run --no-sync launchers/build_multiplatform.py --apps cli gui
 
 # Build para plataforma explicita
-uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
+uv run --no-sync launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
 
 # Teste basico dos artefatos
-uv run --python 3.13 launchers/test_complete.py
+uv run --no-sync launchers/test_complete.py
 ```
 
 ## Estrutura Relevante
@@ -74,14 +74,14 @@ Se `upx` nao estiver no `PATH`, o build continua sem compressao.
 ### Plataforma nao detectada
 
 ```bash
-uv run --python 3.13 launchers/build_multiplatform.py --detect-platform
+uv run --no-sync launchers/build_multiplatform.py --detect-platform
 ```
 
 ### Limpeza de artefatos
 
 ```bash
-uv run --python 3.13 launchers/build_multiplatform.py --clean
-uv run --python 3.13 launchers/build_multiplatform.py --clean-all
+uv run --no-sync launchers/build_multiplatform.py --clean
+uv run --no-sync launchers/build_multiplatform.py --clean-all
 ```
 
 ### Logs de build

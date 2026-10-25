@@ -174,22 +174,22 @@ Nota Debian:
 ### 1) Build da plataforma atual
 
 ```bash
-uv run --python 3.13 launchers/build_multiplatform.py --apps cli gui
+uv run --no-sync launchers/build_multiplatform.py --apps cli gui
 ```
 
 ### 2) Build de plataforma especifica
 
 ```bash
-uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
-uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui
-uv run --python 3.13 launchers/build_multiplatform.py --platform debian_amd64 --apps cli gui
-uv run --python 3.13 launchers/build_multiplatform.py --platform debian_arm64 --apps cli gui
+uv run --no-sync launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
+uv run --no-sync launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui
+uv run --no-sync launchers/build_multiplatform.py --platform debian_amd64 --apps cli gui
+uv run --no-sync launchers/build_multiplatform.py --platform debian_arm64 --apps cli gui
 ```
 
 ### 3) Verificar saida do build
 
 ```bash
-uv run --python 3.13 launchers/test_complete.py
+uv run --no-sync launchers/test_complete.py
 ```
 
 ## Empacotamento para Distribuicao
@@ -197,37 +197,37 @@ uv run --python 3.13 launchers/test_complete.py
 ### 1) Criar ZIP
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --skip-installer
 ```
 
 Para incluir tambem o banco de exemplo fixo do repositorio:
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer --include-sample-db
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --skip-installer --include-sample-db
 ```
 
 Para incluir um banco local escolhido explicitamente:
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer --include-local-db data/ssas.db
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --skip-installer --include-local-db data/ssas.db
 ```
 
 ### 2) Criar instalador Windows (Inno Setup)
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller
 ```
 
 Para incluir tambem o banco de exemplo fixo do repositorio:
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --include-sample-db
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --include-sample-db
 ```
 
 Para incluir um banco local escolhido explicitamente:
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --include-local-db data/ssas.db
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --include-local-db data/ssas.db
 ```
 
 Notas:
@@ -240,8 +240,8 @@ Notas:
 ### 3) Criar pacote de outros build systems (laboratorio)
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system nuitka --skip-installer
-uv run --python 3.13 scripts/create_distribution.py --build-system pyoxidizer --skip-installer
+uv run --no-sync scripts/create_distribution.py --build-system nuitka --skip-installer
+uv run --no-sync scripts/create_distribution.py --build-system pyoxidizer --skip-installer
 ```
 
 Importante:
@@ -353,7 +353,7 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 Politica operacional (v4.43+):
 - build canonico nao embeda `data/` por padrao.
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
-  - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
+  - `uv run --no-sync scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
   - nunca usar isso para pacote de distribuicao geral.
 - banco local da maquina que gerou o pacote continua bloqueado no empacotador, mesmo quando `--include-sample-db` estiver ligado.
 - `--include-sample-db` libera apenas o asset fixo e aprovado em `dist_assets/sample_db/`.
@@ -415,7 +415,7 @@ SUPORTE
 5. Executar novamente com log:
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --skip-installer
 ```
 
 ### Instalador nao gerado
@@ -426,7 +426,7 @@ uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller -
 
 ```bash
 set INNO_SETUP_COMPILER=C:\Program Files (x86)\Inno Setup 6\ISCC.exe
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller
 ```
 
 ### Copia de dados locais para build
@@ -434,7 +434,7 @@ uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
 O script `scripts/copy_data_to_builds.py` exige confirmacao explicita:
 
 ```bash
-uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+uv run --no-sync scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
 ```
 
 Use somente em ambiente controlado.
@@ -444,7 +444,7 @@ Use somente em ambiente controlado.
 Se voce quer um pacote com um banco de exemplo controlado, use:
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --include-sample-db
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --include-sample-db
 ```
 
 Contrato dessa flag:
@@ -458,7 +458,7 @@ Contrato dessa flag:
 Se voce quer um pacote com um banco local especifico, use:
 
 ```bash
-uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --include-local-db data/ssas.db
+uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --include-local-db data/ssas.db
 ```
 
 Contrato dessa flag:

@@ -15,7 +15,7 @@ Padrao reproduzivel para gerar e validar build nas 3 plataformas e 3 backends, c
 
 ## Regras fixas
 
-1. Usar sempre `uv run --python 3.13` para execucao Python.
+1. Usar sempre `uv run --no-sync` para execucao Python.
 2. Nao commitar artefatos de build (`builds/`, `launchers/dist/`, `dist_packages/`).
 3. Rodar smoke fora do repo (`C:\Windows\Temp` ou `/tmp`).
 4. Garantir runtime dirs visiveis: `config`, `data`, `docs_entrada`, `docs_saida`, `exportacao`.
@@ -35,7 +35,7 @@ Padrao reproduzivel para gerar e validar build nas 3 plataformas e 3 backends, c
 
 ```powershell
 uv python install 3.13
-uv run --python 3.13 python -V
+uv run --no-sync python -V
 ```
 
 3. Inno Setup para empacotador (`iscc`) quando for gerar instalador.
@@ -175,7 +175,7 @@ bash dev_env/build/build_pyoxidizer_debian.sh --silent
 ### macOS
 
 ```bash
-uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --apps gui
+uv run --no-sync launchers/build_multiplatform.py --platform macos_arm64 --apps gui
 ```
 
 ## Saida esperada
@@ -262,13 +262,13 @@ Abrir app empacotada e validar:
 ### Limpeza segura (temporarios)
 
 ```bash
-uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope temp
+uv run --no-sync scripts/cleanup_build_artifacts.py --scope temp
 ```
 
 ### Limpeza completa (com confirmacao)
 
 ```bash
-uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
+uv run --no-sync scripts/cleanup_build_artifacts.py --scope full
 ```
 
 ## Diagnostico rapido de falhas conhecidas

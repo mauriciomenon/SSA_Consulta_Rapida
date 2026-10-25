@@ -33,19 +33,19 @@ launchers/
 cd caminho/para/SSA_Consulta_Rapida  # raiz do repositorio
 
 # Instalar dependencias de build
-uv pip install --python 3.13 pyinstaller "pillow>=12.1.1" cairosvg
+uv sync --frozen --extra build
 
 # Executar build para plataforma atual
-uv run --python 3.13 launchers/build_multiplatform.py
+uv run --no-sync launchers/build_multiplatform.py
 
 # Ou especificar plataforma
-uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64
+uv run --no-sync launchers/build_multiplatform.py --platform macos_arm64
 
 # Listar plataformas disponiveis
-uv run --python 3.13 launchers/build_multiplatform.py --list-platforms
+uv run --no-sync launchers/build_multiplatform.py --list-platforms
 
 # Detectar plataforma atual
-uv run --python 3.13 launchers/build_multiplatform.py --detect-platform
+uv run --no-sync launchers/build_multiplatform.py --detect-platform
 ```
 
 ### dependencias Otimizadas (6 total)
@@ -78,7 +78,7 @@ launchers/dist/macos_arm64/
 
 ### Proximos Passos
 
-1. **Testar build**: Execute `uv run --python 3.13 launchers/build_multiplatform.py`
+1. **Testar build**: Execute `uv run --no-sync launchers/build_multiplatform.py`
 2. **Verificar output**: Confira `launchers/dist/macos_arm64/`
 3. **Testar executaveis**: Execute os binarios gerados
 4. **Build outras plataformas**: Execute em Windows/Linux conforme necessario
@@ -87,17 +87,17 @@ launchers/dist/macos_arm64/
 
 **Erro de dependencias**:
 ```bash
-uv pip install --python 3.13 -r launchers/platforms/macos_arm64/requirements.txt
+uv run --no-sync launchers/build_multiplatform.py --platform macos_arm64 --clean-all  # limpa builds e recria os ambientes
 ```
 
 **Erro de icone**:
 ```bash
-uv run --python 3.13 launchers/convert_icon.py
+uv run --no-sync launchers/convert_icon.py
 ```
 
 **Logs detalhados**:
 ```bash
-uv run --python 3.13 launchers/build_multiplatform.py --debug
+uv run --no-sync launchers/build_multiplatform.py --debug
 ```
 
 ### Status do Sistema
