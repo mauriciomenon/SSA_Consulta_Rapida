@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Busca com regex (`~`) e filtros: com o pyarrow instalado (extra `web`/Streamlit), `\w`, `\s` e `\b` so reconheciam ASCII, e `~^\w+$` nao achava "ação", "niño", "straße" nem "garçon". Agora o texto usa sempre o armazenamento Python do pandas, e a busca da o mesmo resultado com ou sem pyarrow.
+
 - Guia de instalacao, "Executar Testes Automatizados": os comandos apontavam para `tests\test_imports.py` e `tests\teste_sistema_completo.py`, que nao testavam nada (um so imprimia, o outro estava vazio). Agora: `scripts\smoke_cli.py --json`, `pytest tests\test_database.py` e a suite completa. Sairam de `tests/` 39 scripts que nunca rodavam no pytest (manuais, de diagnostico ou vazios).
 - `scripts/check_docs.py --paths X`: um caminho inexistente ou que nao e Markdown agora e erro (codigo 2, `{"error": ...}` no `--json`); antes era ignorado e o gate passava com 0 arquivos verificados. `run_quality_gates.py --extra-doc` passa a somar o arquivo aos docs do repositorio, como a ajuda dizia; antes checava so o extra.
 - Importacao com `docs_entrada` em pen drive ou disco FAT/exFAT no Windows: mover a planilha importada para `processadas` passa a copiar e apagar a origem quando o sistema de arquivos recusa hard link com `EINVAL` (como ja acontecia com `EXDEV`/`EPERM`/`EACCES`/`ENOTSUP`). Antes esse erro interrompia o pos-processamento.

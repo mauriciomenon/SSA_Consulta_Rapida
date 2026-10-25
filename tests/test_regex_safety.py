@@ -3,15 +3,32 @@
 import pandas as pd
 import pytest
 
+import shared  # noqa: F401  (BL-42: politica de armazenamento de str)
 from core.regex_safety import safe_regex_contains
 from core.search_filter import filter_dataframe, parse_search_terms
 
+# BL-42: idiomas exigidos pelo dono: pt, es, en e acentos de de, fr, it (escapes mantem o arquivo ASCII).
+PALAVRAS_ACENTUADAS = [
+    "ação", "niño", "straße", "garçon", "élève", "città", "über",
+]
+CASOS_UNICODE = [
+    (r"^\w+$", "á", False),
+    (r"\ba\b", "á", True),
+    (r"^AÇÃO$", "ação", True),
+    (r"\bman\w+o\b", "a manutenção foi", True),
+    *[(r"^\w+$", palavra, True) for palavra in PALAVRAS_ACENTUADAS],
+]
+
+
+def test_dtype_str_padrao_usa_armazenamento_python():
+    """Com ou sem pyarrow instalado, a busca roda no re do Python."""
+    assert pd.get_option("mode.string_storage") == "python"
+    dtype = pd.Series(["ação"]).dtype
+    assert isinstance(dtype, pd.StringDtype) and dtype.storage == "python"
+
 
 @pytest.mark.parametrize("dtype", ["object", pd.StringDtype(storage="python")])
-@pytest.mark.parametrize(
-    ("padrao", "texto", "esperado"),
-    [(r"^\w+$", "a\u0301", False), (r"^[a-z]+$", "\u0131", True), (r"\ba\b", "a\u0301", True)],
-)
+@pytest.mark.parametrize(("padrao", "texto", "esperado"), CASOS_UNICODE)
 def test_unicode_preserva_contrato_re_e_tipo_da_mascara(dtype, padrao, texto, esperado):
     serie = pd.Series([texto, None], index=[4, 4], name="texto", dtype=dtype)
     mascara = safe_regex_contains(serie, padrao)
@@ -23,10 +40,7 @@ def test_unicode_preserva_contrato_re_e_tipo_da_mascara(dtype, padrao, texto, es
 
 
 @pytest.mark.parametrize("negado", [False, True])
-@pytest.mark.parametrize(
-    ("padrao", "texto", "esperado"),
-    [(r"^\w+$", "a\u0301", False), (r"^[a-z]+$", "\u0131", True), (r"\ba\b", "a\u0301", True)],
-)
+@pytest.mark.parametrize(("padrao", "texto", "esperado"), CASOS_UNICODE)
 def test_busca_integrada_preserva_unicode_e_negacao(negado, padrao, texto, esperado):
     quadro = pd.DataFrame({"descricao_ssa": [texto, "---"]}, index=[4, 8])
     termos = parse_search_terms(("!" if negado else "") + "~" + padrao)
