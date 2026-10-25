@@ -2,6 +2,7 @@ import logging
 import os
 
 import pandas as pd
+import pytest
 
 from armazenamento import database, database_upsert_logic
 from armazenamento.database import (
@@ -807,3 +808,23 @@ def test_event_persistence_failure_rolls_back_parent_update(tmp_path, monkeypatc
     parent = _fetch_all(db_path).iloc[0]
     assert parent["descricao_ssa"] == "antes"
     assert parent["setor_executor"] == "OLD"
+
+
+@pytest.mark.parametrize(
+    "base_date, incoming_date, expected_situacao",
+    [
+        ("01/02/2025", "02/01/2025", "BASE"),  # 02/01 e 2 de jan: mais antiga
+        ("02/01/2025", "01/02/2025", "UPDATED"),  # 01/02 e 1 de fev: mais nova
+    ],
+)
+def test_upsert_compares_dates_day_first(tmp_path, base_date, incoming_date, expected_situacao):
+    """BL-37 achado 9: par cuja ordem inverte entre dd/mm e mm/dd (o SAM usa dd/mm)."""
+    db_path = _init_db(tmp_path)
+    row = {"numero_ssa": "202501444", "descricao_ssa": "d", "setor_executor": "S"}
+    base = pd.DataFrame([{**row, "situacao": "BASE", "data_cadastro": base_date}])
+    incoming = pd.DataFrame([{**row, "situacao": "UPDATED", "data_cadastro": incoming_date}])
+    assert insert_dataframe_with_smart_upsert(base, db_path, "ssas") is True
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    assert rows.iloc[0]["situacao"] == expected_situacao
