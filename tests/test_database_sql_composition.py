@@ -44,5 +44,6 @@ def test_ensure_column_exists_adds_once(tmp_path: Path) -> None:
 
 
 def test_no_formatted_table_info_pragma_left() -> None:
-    source = (ROOT / "armazenamento" / "database.py").read_text(encoding="utf-8")
-    assert 'f"PRAGMA table_info(' not in source
+    for module in ("database.py", "database_upsert_logic.py"):
+        source = (ROOT / "armazenamento" / module).read_text(encoding="utf-8")
+        assert 'f"PRAGMA table_info(' not in source, module

@@ -192,11 +192,11 @@ def _sanitize_dynamic_column_name(
     return candidate
 
 
-def _build_table_projection(conn: Any, quoted_table_name: str) -> str:
-    rows = conn.execute(f"PRAGMA table_info({quoted_table_name})").fetchall()  # nosec B608
+def _build_table_projection(conn: Any, table_name: str) -> str:
+    rows = conn.execute("SELECT * FROM pragma_table_info(?)", (table_name,)).fetchall()
     columns = [str(row[1]) for row in rows if len(row) > 1 and row[1]]
     if not columns:
-        raise ValueError(f"No columns found for table: {quoted_table_name}")
+        raise ValueError(f"No columns found for table: {table_name}")
     return ", ".join(_quote_identifier(column) for column in columns)
 
 
@@ -1028,14 +1028,6 @@ def _tuples_match_for_exact_overlap(
     )
 
 
-def _table_has_existing_ssa_rows(conn: Any, table_name: str) -> bool:
-    quoted_table_name = _quote_identifier(table_name)
-    cursor = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-        f"SELECT 1 FROM {quoted_table_name} WHERE numero_ssa IS NOT NULL LIMIT 1"  # nosec B608
-    )
-    return cursor.fetchone() is not None
-
-
 def _resolve_upsert_chunk_size(row_count: int) -> int:
     if row_count <= 1000:
         return 100
@@ -1075,6 +1067,7 @@ def _should_enable_exact_overlap_short_circuit(
 
 def _load_existing_chunk_caches(
     conn: Any,
+    table_name: str,
     quoted_table_name: str,
     chunk_num_ssa: list[Any],
     chunk_columns: list[str],
@@ -1085,7 +1078,7 @@ def _load_existing_chunk_caches(
     if not chunk_num_ssa:
         return pd.DataFrame(), {}, {}
     existing_parts: list[pd.DataFrame] = []
-    projection = _build_table_projection(conn, quoted_table_name)
+    projection = _build_table_projection(conn, table_name)
     for start in range(0, len(chunk_num_ssa), _SQLITE_IN_MAX_VARS):
         query_ids = chunk_num_ssa[start : start + _SQLITE_IN_MAX_VARS]
         placeholders = ", ".join(["?"] * len(query_ids))
@@ -1279,6 +1272,7 @@ def _perform_upsert(
         existing_chunk, existing_raw_by_ssa, existing_chunk_tuple_by_ssa = (
             _load_existing_chunk_caches(
                 conn,
+                table_name,
                 quoted_table_name,
                 chunk_num_ssa,
                 chunk_columns,
@@ -1484,9 +1478,7 @@ def insert_dataframe_with_smart_upsert_impl(
 
             if not is_valid_identifier(table_name):
                 raise ValueError(f"Invalid SQL identifier for table: {table_name}")
-            cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-                f"PRAGMA table_info({_quote_identifier(table_name)})"
-            )
+            cursor.execute("SELECT * FROM pragma_table_info(?)", (table_name,))
             existing_columns = {row[1] for row in cursor.fetchall()}
             work = _sync_dynamic_columns_and_schema(
                 work=work,
