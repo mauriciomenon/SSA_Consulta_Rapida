@@ -47,8 +47,8 @@ Checklist rapido:
 ## 6. Ferramentas / Scripts Planejados
 | Script | Objetivo | Status |
 |--------|----------|--------|
-| `scripts/check_docs.py` | Detectar docs vazios / apenas titulo / excesso de TODO | Pendente |
-| `scripts/validate_configs.py` | Validar JSON em `config/` | Pendente |
+| `scripts/check_docs.py` | Detectar docs vazios, curtos ou so com placeholder (`TODO`, `TBD`...); nao conta TODOs | Presente |
+| `scripts/validate_configs.py` | Validar JSON em `config/` | Presente |
 | Agregador indice | Atualizar indice consolidado automaticamente | Adiado |
 
 ## 7. Padroes de Links

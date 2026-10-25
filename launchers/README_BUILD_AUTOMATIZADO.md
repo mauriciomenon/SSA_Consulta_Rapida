@@ -58,9 +58,9 @@
 ## 3. Scripts Necessarios
 | Script | Status | Funcao |
 |--------|--------|--------|
-| `scripts/validate_configs.py` | Pendente | Validar estrutura basica JSON |
-| `scripts/check_docs.py` | Pendente | Garantir ausencia de docs vazios |
-| `tests/test_smoke_cli.py` | Pendente | Verificar CLI basica |
+| `scripts/validate_configs.py` | Presente | Validar estrutura basica JSON |
+| `scripts/check_docs.py` | Presente | Garantir ausencia de docs vazios |
+| `scripts/smoke_cli.py` | Presente | Importar um XLSX sintetico pela CLI (`--force-rescan`) e conferir a linha no SQLite |
 | `launchers/build_all.py` | Presente | Compatibilidade legada para fluxo completo de build |
 
 ## 4. Criterios de Falha (Gate)
