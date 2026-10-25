@@ -107,7 +107,7 @@ Quando ocorre:
   ultimo run falhou (preflight cacheado por estado do arquivo — sem custo
   quando nada mudou);
 - no full rescan, dentro do banco candidato antes da promocao;
-- por acao manual: menu `Banco de dados > Atualizar derivadas` na GUI ou
+- por acao manual: menu `Database > Atualizar derivadas` na GUI ou
   `scripts/derivadas_cli.py sync` na CLI.
 
 Um run com falha fica registrado como `error` em `ssa_derivada_sync_run` e
