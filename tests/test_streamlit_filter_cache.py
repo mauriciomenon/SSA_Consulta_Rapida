@@ -34,7 +34,6 @@ from dev_env.streamlit_app import (
     _paginate_dataframe,
     _persist_streamlit_state,
     _remember_width_profile_for_bucket,
-    _resolve_situacao_quick_mode,
     _resolve_streamlit_ui_state_path,
     _resolve_width_bucket,
     _resolve_width_profile_for_bucket,
@@ -385,15 +384,6 @@ def test_normalize_filter_selection_collapses_full_selection() -> None:
     options = ["A", "B", "C"]
     assert _normalize_filter_selection(["A", "B", "C"], options) == []
     assert _normalize_filter_selection(["A"], options) == ["A"]
-
-
-def test_resolve_situacao_quick_mode_options() -> None:
-    situacoes = ["EXECUTADA", "ABERTO", "AAT"]
-    assert _resolve_situacao_quick_mode(situacoes, [], "Todas") == situacoes
-    assert _resolve_situacao_quick_mode(situacoes, [], "Executadas") == ["EXECUTADA"]
-    assert _resolve_situacao_quick_mode(situacoes, [], "Abertas") == ["ABERTO", "AAT"]
-    assert _resolve_situacao_quick_mode(situacoes, ["AAT"], "Manual") == ["AAT"]
-    assert _resolve_situacao_quick_mode(situacoes, ["AAT"], "Nenhuma") == []
 
 
 def test_columns_with_data_filters_empty_columns() -> None:

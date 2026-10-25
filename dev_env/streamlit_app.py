@@ -561,27 +561,6 @@ else:
     setattr(load_dataframe, "clear", lambda: None)
 
 
-# Alias para compatibilidade: funcao utilitaria esperada pelos testes
-def apply_filters_with_cache(
-    df: pd.DataFrame,
-    search_terms: str,
-    situacoes: list,
-    executores: list,
-    emissores: list,
-    advanced_filters: Optional[dict[str, Any]] = None,
-    base_derivada_context_map: Optional[pd.DataFrame] = None,
-) -> pd.DataFrame:
-    return apply_all_filters_cached(
-        df,
-        search_terms,
-        situacoes,
-        executores,
-        emissores,
-        advanced_filters=advanced_filters,
-        base_derivada_context_map=base_derivada_context_map,
-    )
-
-
 def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
     """Compute lightweight token to reduce stale cache hits on equal shapes."""
     cached_token = df.attrs.get("_streamlit_cache_token")
@@ -2152,31 +2131,6 @@ def _compute_table_render_height(page_len: int, configured_height: int) -> int:
     dynamic_height = 56 + (max(1, page_len) * 36)
     bounded = min(max(dynamic_height, 220), max(260, configured_height))
     return int(bounded)
-
-
-def _resolve_situacao_quick_mode(
-    situacoes: list[Any],
-    manual_values: list[Any],
-    mode: str,
-) -> list[Any]:
-    mode_key = str(mode).strip().lower()
-    if mode_key == "todas":
-        return list(situacoes)
-    if mode_key == "executadas":
-        picked = [value for value in situacoes if "EXECUT" in str(value).upper()]
-        return picked if picked else list(situacoes)
-    if mode_key == "abertas":
-        picked = []
-        for value in situacoes:
-            text = str(value).upper()
-            if "EXECUT" in text or "CONCL" in text or "FINAL" in text:
-                continue
-            picked.append(value)
-        return picked if picked else list(situacoes)
-    if mode_key == "nenhuma":
-        return []
-    normalized_manual = [value for value in manual_values if value in situacoes]
-    return normalized_manual if normalized_manual else list(situacoes)
 
 
 def _list_spreadsheet_files_count(docs_dir: str) -> int:
