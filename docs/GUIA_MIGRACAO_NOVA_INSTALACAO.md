@@ -351,7 +351,6 @@ type CHANGELOG.md                       # ← Historico de mudancas
 type config\schema.sql                   # ← Estrutura do banco
 type requirements.txt                    # ← Dependencias Python
 type config\gui_main_preferences.json   # ← Configuracoes da GUI principal
-type config\gui_poc_preferences.json    # ← Configuracoes da GUI POC
 ```
 
 ### **3. Arquivos de Exemplo e Testes**

@@ -492,7 +492,6 @@ VALIDATORS = {
     "column_mappings.json": validate_column_mappings,
     "column_priority.json": validate_column_priority,
     "gui_main_preferences.json": validate_gui_preferences,
-    "gui_poc_preferences.json": validate_gui_preferences,
 }
 
 
