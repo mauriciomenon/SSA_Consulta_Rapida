@@ -167,10 +167,7 @@ def test_pyoxidizer_includes_only_the_required_launcher_module() -> None:
 
 
 def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
-    for platform, script_name in (
-        ("debian_amd64", "build_pyoxidizer_debian.sh"),
-        ("debian_arm64", "build_pyoxidizer_debian_arm64.sh"),
-    ):
+    for script_name in ("build_pyoxidizer_debian.sh",):
         script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
             encoding="utf-8"
         )
@@ -187,7 +184,7 @@ def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
         assert 'BUILD_INFO_BACKUP="${BUILD_INFO_BACKUP_CANDIDATE}"' in script
         assert "write_build_info.py" in script
         assert "--build-system pyoxidizer" in script
-        assert f"--platform {platform}" in script
+        assert '--platform "${PLATFORM}"' in script
         assert 'if [[ -z "${APP_VERSION}" ]]; then' in script
         assert 'if [[ ! -s "${BUILD_INFO_FILE}" ]]; then' in script
 
@@ -228,28 +225,33 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert "ssa_nuitka_build" not in script
 
 
-def test_nuitka_debian_single_script_for_both_architectures() -> None:
-    """E-23: um script Nuitka Debian; o arm64 chega por --platform debian_arm64."""
+DEBIAN_BACKENDS = ("pyinstaller", "nuitka", "pyoxidizer")
+
+
+@pytest.mark.parametrize("backend", DEBIAN_BACKENDS)
+def test_debian_build_single_script_for_both_architectures(backend: str) -> None:
+    """E-23/BL-31: um script Debian por backend; o arm64 chega por --platform debian_arm64."""
     build_dir = PROJECT_ROOT / "dev_env" / "build"
-    assert not (build_dir / "build_nuitka_debian_arm64.sh").exists()
+    assert not (build_dir / f"build_{backend}_debian_arm64.sh").exists()
     helper = (build_dir / "release_debian_arm64_backend.sh").read_text(encoding="utf-8")
-    assert 'build_nuitka_debian.sh" --platform debian_arm64 "${args[@]}"' in helper
-    script = (build_dir / "build_nuitka_debian.sh").read_text(encoding="utf-8")
+    assert f'build_{backend}_debian.sh" --platform debian_arm64 "${{args[@]}}"' in helper
+    script = (build_dir / f"build_{backend}_debian.sh").read_text(encoding="utf-8")
     # Nenhum nome de alvo fixo fora do default e da validacao do --platform.
     body = script.split("esac\n", 2)[2]
     assert "debian_amd64" not in body
     assert "debian_arm64" not in body
 
 
+@pytest.mark.parametrize("backend", DEBIAN_BACKENDS)
 @pytest.mark.parametrize("args", [["--platform", "windows_amd64"], ["--platform"]])
-def test_nuitka_debian_rejects_unknown_platform_before_building(args: list[str]) -> None:
+def test_debian_build_rejects_unknown_platform_before_building(backend: str, args: list[str]) -> None:
     import shutil
     import subprocess
 
     bash = shutil.which("bash")
     if bash is None:
         pytest.skip("bash ausente")
-    script = PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_debian.sh"
+    script = PROJECT_ROOT / "dev_env" / "build" / f"build_{backend}_debian.sh"
     result = subprocess.run(
         [bash, str(script), *args], capture_output=True, text=True, timeout=30, check=False
     )
@@ -450,10 +452,7 @@ def test_windows_launchers_use_repo_relative_paths_and_distinct_modes() -> None:
 
 
 def test_pyoxidizer_debian_runtime_includes_version_json() -> None:
-    for script_name in (
-        "build_pyoxidizer_debian.sh",
-        "build_pyoxidizer_debian_arm64.sh",
-    ):
+    for script_name in ("build_pyoxidizer_debian.sh",):
         script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
             encoding="utf-8"
         )

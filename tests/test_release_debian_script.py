@@ -133,7 +133,6 @@ def test_release_debian_script_writes_report_and_validates_payloads() -> None:
 def test_pyoxidizer_debian_scripts_retry_preflight_without_rtk() -> None:
     for script in (
         read_repo_text("dev_env", "build", "build_pyoxidizer_debian.sh"),
-        read_repo_text("dev_env", "build", "build_pyoxidizer_debian_arm64.sh"),
     ):
         assert "PYOXIDIZER_CHECK_RETRIES=3" in script
         assert "attempt <= PYOXIDIZER_CHECK_RETRIES" in script
@@ -221,9 +220,9 @@ def test_release_debian_arm64_script_routes_arm64_build_and_package_wrappers() -
     assert "assert_debian_arm64" in script
     assert "release_report_${PLATFORM}.json" in script
     assert "release_debian_arm64_backend.sh" in script
-    assert "build_pyinstaller_debian_arm64.sh" in backend_helper
+    assert 'build_pyinstaller_debian.sh" --platform debian_arm64' in backend_helper
     assert 'build_nuitka_debian.sh" --platform debian_arm64' in backend_helper
-    assert "build_pyoxidizer_debian_arm64.sh" in backend_helper
+    assert 'build_pyoxidizer_debian.sh" --platform debian_arm64' in backend_helper
     assert "package_debian_arm64_deb.sh" in backend_helper
     assert "package_debian_arm64_appimage.sh" in backend_helper
     assert "package_debian_arm64_tar.sh" in backend_helper

@@ -3,16 +3,30 @@ set -euo pipefail
 
 SILENT=0
 WITH_LOCAL_DATA=0
-for arg in "$@"; do
-  case "${arg}" in
+PLATFORM="debian_amd64"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --silent)
       SILENT=1
       ;;
     --with-local-data)
       WITH_LOCAL_DATA=1
       ;;
+    --platform)
+      [[ $# -ge 2 ]] || { echo "Erro: --platform exige debian_amd64 ou debian_arm64" >&2; exit 2; }
+      PLATFORM="$2"
+      shift
+      ;;
   esac
+  shift
 done
+case "${PLATFORM}" in
+  debian_amd64|debian_arm64) ;;
+  *)
+    echo "Erro: --platform deve ser debian_amd64 ou debian_arm64 (recebido: ${PLATFORM:-vazio})" >&2
+    exit 2
+    ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -21,7 +35,7 @@ source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
 ssa_native_guard_repo "$REPO_ROOT" || exit 1
 ssa_native_guard_tools uv mkdir || exit 1
 LOG_DIR="${REPO_ROOT}/launchers/logs"
-LOG_FILE="${LOG_DIR}/build_pyinstaller_debian_amd64.log"
+LOG_FILE="${LOG_DIR}/build_pyinstaller_${PLATFORM}.log"
 
 mkdir -p "${LOG_DIR}"
 
@@ -35,9 +49,9 @@ if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
 fi
 
 if [[ "${SILENT}" == "1" ]]; then
-  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform debian_amd64 --clean >/dev/null 2>&1
-  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform debian_amd64 --apps cli gui >"${LOG_FILE}" 2>&1
-  uv run --python 3.13 "${REPO_ROOT}/scripts/sync_pyinstaller_outputs.py" --platform debian_amd64 --quiet >>"${LOG_FILE}" 2>&1
+  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform "${PLATFORM}" --clean >/dev/null 2>&1
+  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform "${PLATFORM}" --apps cli gui >"${LOG_FILE}" 2>&1
+  uv run --python 3.13 "${REPO_ROOT}/scripts/sync_pyinstaller_outputs.py" --platform "${PLATFORM}" --quiet >>"${LOG_FILE}" 2>&1
   if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
     uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" "${COPY_DATA_ARGS[@]}" >>"${LOG_FILE}" 2>&1
   else
@@ -45,10 +59,10 @@ if [[ "${SILENT}" == "1" ]]; then
   fi
 else
   echo "Limpando artefatos PyInstaller Debian anteriores..."
-  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform debian_amd64 --clean
-  echo "Iniciando build PyInstaller debian_amd64..."
-  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform debian_amd64 --apps cli gui
-  uv run --python 3.13 "${REPO_ROOT}/scripts/sync_pyinstaller_outputs.py" --platform debian_amd64
+  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform "${PLATFORM}" --clean
+  echo "Iniciando build PyInstaller ${PLATFORM}..."
+  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform "${PLATFORM}" --apps cli gui
+  uv run --python 3.13 "${REPO_ROOT}/scripts/sync_pyinstaller_outputs.py" --platform "${PLATFORM}"
   if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
     uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" "${COPY_DATA_ARGS[@]}"
   else
@@ -57,7 +71,7 @@ else
 fi
 
 echo "Build PyInstaller Debian concluido com sucesso."
-echo "Artefatos em: ${REPO_ROOT}/launchers/dist/debian_amd64 e ${REPO_ROOT}/builds/pyinstaller/debian_amd64"
+echo "Artefatos em: ${REPO_ROOT}/launchers/dist/${PLATFORM} e ${REPO_ROOT}/builds/pyinstaller/${PLATFORM}"
 if [[ "${SILENT}" != "1" ]]; then
   read -r -p "Executar cleanup TEMP agora? [s/N]: " DO_CLEANUP
   if [[ "${DO_CLEANUP,,}" == "s" ]]; then

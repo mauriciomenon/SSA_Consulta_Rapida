@@ -3,16 +3,31 @@ set -euo pipefail
 
 SILENT=0
 WITH_LOCAL_DATA=0
-for arg in "$@"; do
-  case "${arg}" in
+PLATFORM="debian_amd64"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --silent)
       SILENT=1
       ;;
     --with-local-data)
       WITH_LOCAL_DATA=1
       ;;
+    --platform)
+      [[ $# -ge 2 ]] || { echo "Erro: --platform exige debian_amd64 ou debian_arm64" >&2; exit 2; }
+      PLATFORM="$2"
+      shift
+      ;;
   esac
+  shift
 done
+case "${PLATFORM}" in
+  debian_amd64) PYOX_TARGET_TRIPLE="x86_64-unknown-linux-gnu" ;;
+  debian_arm64) PYOX_TARGET_TRIPLE="aarch64-unknown-linux-gnu" ;;
+  *)
+    echo "Erro: --platform deve ser debian_amd64 ou debian_arm64 (recebido: ${PLATFORM:-vazio})" >&2
+    exit 2
+    ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -21,8 +36,8 @@ source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
 ssa_native_guard_repo "$REPO_ROOT" || exit 1
 ssa_native_guard_tools uv rm mkdir || exit 1
 LOG_DIR="${REPO_ROOT}/launchers/logs"
-LOG_FILE="${LOG_DIR}/build_pyoxidizer_debian_amd64.log"
-TARGET_BUILD_DIR="${REPO_ROOT}/builds/pyoxidizer/debian_amd64"
+LOG_FILE="${LOG_DIR}/build_pyoxidizer_${PLATFORM}.log"
+TARGET_BUILD_DIR="${REPO_ROOT}/builds/pyoxidizer/${PLATFORM}"
 PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"
 PYOXIDIZER_UV_PACKAGE="${SSA_PYOXIDIZER_UV_PACKAGE:-pyoxidizer==0.24.0}"
 
@@ -90,10 +105,10 @@ uv run --python 3.13 "${REPO_ROOT}/dev_env/build/write_build_info.py" \
   --repo-root "${REPO_ROOT}" \
   --output "${BUILD_INFO_FILE}" \
   --build-system pyoxidizer \
-  --platform debian_amd64 \
+  --platform "${PLATFORM}" \
   --app-version "${APP_VERSION}"
 if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
-  echo "Erro: falha ao gerar build_info.json para PyOxidizer debian_amd64" >&2
+  echo "Erro: falha ao gerar build_info.json para PyOxidizer ${PLATFORM}" >&2
   exit 1
 fi
 PYOXIDIZER_CHECK_RETRIES=3
@@ -125,12 +140,12 @@ if [[ "${SILENT}" == "1" ]]; then
   echo "[build_pyoxidizer_debian] usando pyoxidizer.bzl da raiz: ${PYOX_CONFIG}" >>"${LOG_FILE}"
   "${PYOX_CMD[@]}" >"${LOG_FILE}" 2>&1
 else
-  echo "Iniciando build PyOxidizer debian_amd64..."
+  echo "Iniciando build PyOxidizer ${PLATFORM}..."
   echo "Usando pyoxidizer.bzl da raiz: ${PYOX_CONFIG}"
   "${PYOX_CMD[@]}"
 fi
 
-SOURCE_INSTALL_ROOT="${REPO_ROOT}/build/x86_64-unknown-linux-gnu"
+SOURCE_INSTALL_ROOT="${REPO_ROOT}/build/${PYOX_TARGET_TRIPLE}"
 SOURCE_INSTALL="${SOURCE_INSTALL_ROOT}/release/install"
 if [[ ! -d "${SOURCE_INSTALL}" && -d "${SOURCE_INSTALL_ROOT}" ]]; then
   SOURCE_INSTALL="$(find "${SOURCE_INSTALL_ROOT}" -maxdepth 4 -type d -path "*/install" | head -n 1 || true)"
