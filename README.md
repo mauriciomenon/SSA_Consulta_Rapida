@@ -201,3 +201,20 @@ falha concreta. Uma correcao posterior apenas de documentacao nao exige rebuild.
 [Guia de distribuicao](docs/GUIA_DISTRIBUICAO.md). Comandos por alvo e
 detalhes do builder nos docs locais `BUILD_WINDOWS_ARM64_AMD64.md` e
 `BUILD_MULTIPLATFORM.md`.
+
+### Pasta do clone (guarda nativa)
+
+Os scripts de ambiente, testes, hooks e build (`release.ps1`, `release.sh`,
+`.envrc`, `dev_env/`, `scripts/env/`, `scripts/run_tests.sh`,
+`scripts/install_hooks.sh`) passam por `scripts/env/native_host_guard.ps1` ou
+`native_host_guard.sh`. A guarda exige um layout fixo de proposito: um checkout
+ou venv nunca e compartilhado entre Windows e WSL/Linux.
+
+| Host | Pasta aceita | Bloqueado |
+| --- | --- | --- |
+| Windows (PowerShell nativo) | `%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6`; no GitHub Actions, `GITHUB_WORKSPACE` | outra pasta, caminho UNC (`\\wsl$`), ponto de reparse, PowerShell aberto a partir do WSL |
+| WSL | `~/gitlab_repo/ssa_consulta_rapida_pyqt6`, em ext4 | `/mnt/*`, `~/gitlab` e qualquer outra pasta |
+| Linux e macOS | qualquer pasta nativa | `/mnt/*` e `~/gitlab` (nome reservado ao link do clone Windows) |
+
+Chamado direto, sem esses scripts, `uv run --no-sync python main.py` nao passa
+pela guarda.

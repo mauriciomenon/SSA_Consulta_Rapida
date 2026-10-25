@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- README, nova secao "Pasta do clone (guarda nativa)": a pasta exigida em cada sistema pelos scripts de ambiente, testes, hooks e build (Windows: `%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6`; WSL: `~/gitlab_repo/ssa_consulta_rapida_pyqt6` em ext4; Linux e macOS: qualquer pasta fora de `/mnt/*` e `~/gitlab`). Antes a regra so aparecia na mensagem de bloqueio.
 - **Python minimo passa a 3.11** (antes 3.10; CI e builds ja usavam 3.13): exigido pelas correcoes de seguranca abaixo.
 - Dependencias atualizadas e auditadas (OSV e data de publicacao de cada versao do lock): Pillow 13.0.0 (corrige 41 avisos, 5 criticos, da 12.3.0), filelock 4.2.1 (corrige 1 aviso alto), certifi 2026.10.19 (aviso critico), virtualenv 21.14.13 (aviso alto), urllib3 2.8.0, pandas 3.0.6, numpy 2.5.4, PyInstaller 6.22.3, Nuitka 4.3.1, Streamlit 1.66.1, ruff 0.17.1, ty 0.0.89, entre outras. Nenhum aviso de pacote malicioso; resta so setuptools 84.0.0 com aviso baixo (a correcao nao tem attestation e espera a carencia). Lock gerado com o mesmo uv 0.9.30 das imagens de CI, sem mudar o formato do `uv.lock`.
 - Carencia de dependencias: `[tool.uv] exclude-newer = "7 days"` impede resolver versoes publicadas ha menos de 7 dias (janela tipica de release comprometida). Excecoes so para correcao de seguranca verificada (OSV limpo e provenance do PyPI do repositorio oficial), registradas no `pyproject.toml`.
