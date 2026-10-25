@@ -41,23 +41,10 @@ REQUIREMENTS_FILE="${REPO_ROOT}/launchers/platforms/${PLATFORM}/requirements.txt
 mkdir -p "${LOG_DIR}"
 FINAL_BUILD_DIR="${REPO_ROOT}/builds/nuitka/${PLATFORM}"
 mkdir -p "${FINAL_BUILD_DIR}"
-BUILD_WORK_DIR=""
-if [[ "${REPO_ROOT}" == /mnt/* ]]; then
-  NATIVE_CACHE_ROOT="${SSA_NUITKA_NATIVE_ROOT:-${XDG_CACHE_HOME:-${HOME}/.cache}/ssa_consulta_rapida/nuitka}"
-  VENV_DIR="${SSA_NUITKA_VENV_DIR:-${NATIVE_CACHE_ROOT}/${PLATFORM}/venv}"
-else
-  VENV_DIR="${REPO_ROOT}/launchers/platforms/${PLATFORM}/venv"
-fi
+VENV_DIR="${REPO_ROOT}/launchers/platforms/${PLATFORM}/venv"
 ssa_native_guard_path "$VENV_DIR" "$REPO_ROOT" || exit 1
 PYTHON_EXE="${VENV_DIR}/bin/python"
 
-cleanup_build_work_dir() {
-  if [[ -n "${BUILD_WORK_DIR}" && "${KEEP_NUITKA_WORK_DIR:-0}" != "1" ]]; then
-    rm -rf -- "${BUILD_WORK_DIR}"
-  fi
-}
-
-trap cleanup_build_work_dir EXIT
 cd "${REPO_ROOT}"
 
 export UV_PYTHON=3.13
@@ -158,28 +145,9 @@ fi
 
 LAST_STEP="install_requirements"
 uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"
-if [[ "${REPO_ROOT}" == /mnt/* ]]; then
-  echo "[build_nuitka_debian] usando venv nativo WSL: ${VENV_DIR}" >>"${LOG_FILE}"
-fi
-
-if [[ "${REPO_ROOT}" == /mnt/* ]]; then
-  if [[ -n "${SSA_NUITKA_WORK_ROOT:-}" ]]; then
-    mkdir -p "${SSA_NUITKA_WORK_ROOT}"
-    chmod 700 "${SSA_NUITKA_WORK_ROOT}"
-    BUILD_WORK_DIR="$(mktemp -d "${SSA_NUITKA_WORK_ROOT}/${PLATFORM}.XXXXXX")"
-  else
-    BUILD_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ssa_nuitka_${PLATFORM}.XXXXXX")"
-  fi
-  NUITKA_OUTPUT_DIR="${BUILD_WORK_DIR}"
-else
-  NUITKA_OUTPUT_DIR="${FINAL_BUILD_DIR}"
-fi
-
-# Sem diretorio de trabalho o Nuitka grava direto no destino final. Com ele,
-# o build anterior so e removido depois que o novo foi gerado (passo de copia).
-if [[ "${NUITKA_OUTPUT_DIR}" == "${FINAL_BUILD_DIR}" ]]; then
-  rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
-fi
+# O Nuitka grava direto no destino final: o build anterior sai antes (BL-10).
+# ponytail: falha no meio deixa o alvo sem .dist; diretorio de trabalho + troca so se isso doer.
+rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
 
 # BL-11: so a config versionada entra no pacote (arquivos locais ficam fora).
 LAST_STEP="config_args"
@@ -196,7 +164,7 @@ GUI_CMD=(
   --include-data-dir=resources=resources
   --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
   --include-data-file="${BUILD_INFO_FILE}=config/build_info.json"
-  --output-dir="${NUITKA_OUTPUT_DIR}"
+  --output-dir="${FINAL_BUILD_DIR}"
 )
 
 CLI_CMD=(
@@ -207,7 +175,7 @@ CLI_CMD=(
   "${CONFIG_DATA_ARGS[@]}"
   --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
   --include-data-file="${BUILD_INFO_FILE}=config/build_info.json"
-  --output-dir="${NUITKA_OUTPUT_DIR}"
+  --output-dir="${FINAL_BUILD_DIR}"
 )
 
 if [[ "${SILENT}" == "1" ]]; then
@@ -215,12 +183,6 @@ if [[ "${SILENT}" == "1" ]]; then
   "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_${PLATFORM}" --linux-icon=resources/app_icon.png launchers/gui_entry.py >"${LOG_FILE}" 2>&1
   LAST_STEP="nuitka_cli"
   "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_${PLATFORM}" launchers/cli_entry.py >>"${LOG_FILE}" 2>&1
-  if [[ "${NUITKA_OUTPUT_DIR}" != "${FINAL_BUILD_DIR}" ]]; then
-    LAST_STEP="copy_nuitka_dist"
-    rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
-    cp -a "${NUITKA_OUTPUT_DIR}/gui_entry.dist" "${GUI_DIST}"
-    cp -a "${NUITKA_OUTPUT_DIR}/cli_entry.dist" "${CLI_DIST}"
-  fi
   if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
     LAST_STEP="copy_data_to_builds"
     uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data >>"${LOG_FILE}" 2>&1
@@ -233,12 +195,6 @@ else
   "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_${PLATFORM}" --linux-icon=resources/app_icon.png launchers/gui_entry.py
   LAST_STEP="nuitka_cli"
   "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_${PLATFORM}" launchers/cli_entry.py
-  if [[ "${NUITKA_OUTPUT_DIR}" != "${FINAL_BUILD_DIR}" ]]; then
-    LAST_STEP="copy_nuitka_dist"
-    rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
-    cp -a "${NUITKA_OUTPUT_DIR}/gui_entry.dist" "${GUI_DIST}"
-    cp -a "${NUITKA_OUTPUT_DIR}/cli_entry.dist" "${CLI_DIST}"
-  fi
   if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
     LAST_STEP="copy_data_to_builds"
     uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data

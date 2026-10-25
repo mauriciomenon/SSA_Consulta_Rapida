@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Build Nuitka Debian: sairam os ramos para clone em `/mnt/*` e as variaveis `SSA_NUITKA_NATIVE_ROOT`, `SSA_NUITKA_VENV_DIR`, `SSA_NUITKA_WORK_ROOT` e `KEEP_NUITKA_WORK_DIR`, que so valiam nesses ramos. A guarda nativa ja bloqueava `/mnt/*` antes, entao nunca tinham efeito. O Nuitka grava direto em `builds/nuitka/<alvo>`, como ja acontecia: uma falha no build deixa o alvo sem `.dist`.
 - Guia de antivirus (`docs/ANTIVIRUS_EXCLUSOES.md`, tambem no pacote): as exclusoes indicadas passam a ser as pastas onde os builds gravam (`launchers\dist`, `launchers\platforms`, `builds`, `dist_packages`). Antes o guia mandava excluir `build\` e `dist\` da raiz, que os builds nao usam, e o falso positivo continuava.
 - `scripts/append_profile_snippet.ps1`: o trecho gravado no `$PROFILE` procurava `activate_repo.ps1` na raiz do repositorio, onde ele nao existe, e a ativacao automatica nunca acontecia (sem aviso). Agora aponta para `dev_env\activate_repo.ps1`. Quem ja rodou o script deve trocar o caminho no proprio `$PROFILE` (ou apagar o trecho antigo e rodar de novo).
 - DMG do macOS com o nome do backend, como os demais pacotes: `SSA_Consulta_Rapida_v<versao>_macos_arm64_pyinstaller.dmg` (antes `..._macos_arm64.dmg`). Ao publicar a release, o arquivo e renomeado sem o sufixo, como os demais.

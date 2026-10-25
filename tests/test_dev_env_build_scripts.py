@@ -218,11 +218,11 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert '--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md' in script
         assert script.count('--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md') >= 2
         assert '--include-data-file="${BUILD_INFO_FILE}=config/build_info.json"' in script
-        assert 'NUITKA_OUTPUT_DIR=' in script
-        assert 'trap cleanup_build_work_dir EXIT' in script
-        assert 'SSA_NUITKA_WORK_ROOT' in script
-        assert 'mktemp -d "${TMPDIR:-/tmp}/ssa_nuitka_' in script
-        assert "ssa_nuitka_build" not in script
+        # BL-10: a guarda nativa bloqueia /mnt/* antes; os ramos e o diretorio de trabalho sairam.
+        assert "/mnt/" not in script
+        assert "SSA_NUITKA_" not in script
+        assert "NUITKA_OUTPUT_DIR" not in script
+        assert script.count('--output-dir="${FINAL_BUILD_DIR}"') == 2
 
 
 DEBIAN_BACKENDS = ("pyinstaller", "nuitka", "pyoxidizer")
@@ -259,28 +259,20 @@ def test_debian_build_rejects_unknown_platform_before_building(backend: str, arg
     assert "debian_amd64 ou debian_arm64" in result.stderr
 
 
-def test_nuitka_debian_keeps_previous_dist_until_new_build_is_copied() -> None:
+def test_nuitka_debian_clears_previous_dist_once_before_building() -> None:
+    """BL-10: o Nuitka grava direto no destino; o .dist anterior sai uma vez, antes do build."""
     remove_dist = 'rm -rf -- "${GUI_DIST}" "${CLI_DIST}"'
-    for script_name in ("build_nuitka_debian.sh",):
-        lines = [
-            line.strip()
-            for line in (PROJECT_ROOT / "dev_env" / "build" / script_name)
-            .read_text(encoding="utf-8")
-            .splitlines()
-        ]
-        first_build = lines.index('LAST_STEP="nuitka_gui"')
-        # Antes do build, so remove quando o Nuitka grava direto no destino final.
-        early = [i for i, line in enumerate(lines[:first_build]) if remove_dist in line]
-        assert len(early) == 1, script_name
-        assert lines[early[0] - 1] == 'if [[ "${NUITKA_OUTPUT_DIR}" == "${FINAL_BUILD_DIR}" ]]; then'
-        copies = [
-            i
-            for i, line in enumerate(lines)
-            if line.startswith('cp -a "${NUITKA_OUTPUT_DIR}/gui_entry.dist"')
-        ]
-        assert len(copies) == 2, script_name
-        for index in copies:
-            assert lines[index - 1] == remove_dist, script_name
+    lines = [
+        line.strip()
+        for line in (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_debian.sh")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    first_build = lines.index('LAST_STEP="nuitka_gui"')
+    removals = [i for i, line in enumerate(lines) if line == remove_dist]
+    assert len(removals) == 1
+    assert removals[0] < first_build
+    assert not any(line.startswith("cp -a ") for line in lines)
 
 
 def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> None:
