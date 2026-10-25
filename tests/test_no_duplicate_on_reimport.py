@@ -21,8 +21,8 @@ def test_no_duplicate_on_reimport(temp_db):
         }
     )
 
-    database.insert_dataframe_with_smart_upsert(base_df, temp_db, "ssas")
-    database.insert_dataframe_with_smart_upsert(base_df, temp_db, "ssas")  # reimporta igual
+    assert database.insert_dataframe_with_smart_upsert(base_df, temp_db, "ssas") is True
+    assert database.insert_dataframe_with_smart_upsert(base_df, temp_db, "ssas") is True  # reimporta igual
 
     conn = sqlite3.connect(temp_db)
     cur = conn.cursor()

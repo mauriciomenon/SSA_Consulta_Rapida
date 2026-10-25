@@ -22,8 +22,8 @@ def test_upsert_newer_replaces_older(temp_db, sample_upsert_batches, use_smart):
     batch1, batch2 = sample_upsert_batches
 
     if use_smart:
-        database.insert_dataframe_with_smart_upsert(conn, batch1)
-        database.insert_dataframe_with_smart_upsert(conn, batch2)
+        assert database.insert_dataframe_with_smart_upsert(conn, batch1) is True
+        assert database.insert_dataframe_with_smart_upsert(conn, batch2) is True
     else:  # pragma: no cover - reservado a estratégia alternativa
         database.insert_dataframe_to_db(conn, batch1)
         database.insert_dataframe_to_db(conn, batch2)
@@ -62,8 +62,8 @@ def test_upsert_older_does_not_override(temp_db):
         }
     )
 
-    database.insert_dataframe_with_smart_upsert(conn, newer)
-    database.insert_dataframe_with_smart_upsert(conn, older)  # deve ignorar ou não reverter
+    assert database.insert_dataframe_with_smart_upsert(conn, newer) is True
+    assert database.insert_dataframe_with_smart_upsert(conn, older) is True  # deve ignorar ou não reverter
 
     cur = conn.cursor()
     cur.execute("SELECT situacao, data_cadastro, descricao_ssa FROM ssa_chamados WHERE numero_ssa='202512390'")
