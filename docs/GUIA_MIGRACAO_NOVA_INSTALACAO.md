@@ -45,14 +45,16 @@ uv pip --version          # Gerenciado pelo uv
 
 ### **Passo 1: Clonar o Repositorio**
 ```powershell
-# Navegar para o diretorio desejado
-cd C:\Users\[SEU_USUARIO]\git
+# Os scripts de ambiente (dev_env\activate_env.ps1, release.ps1) so aceitam
+# esta pasta: ver "Pasta do clone (guarda nativa)" no README
+New-Item -ItemType Directory -Force "$env:USERPROFILE\gitlab" | Out-Null
+cd "$env:USERPROFILE\gitlab"
 
-# Clonar o repositorio
-git clone https://github.com/mauriciomenon/SSA_Consulta_Rapida.git
+# Clonar o repositorio na pasta exigida
+git clone https://github.com/mauriciomenon/SSA_Consulta_Rapida.git ssa_consulta_rapida_pyqt6
 
 # Entrar na pasta do projeto
-cd SSA_Consulta_Rapida
+cd ssa_consulta_rapida_pyqt6
 ```
 
 ### **Passo 2: Verificar Integridade**
@@ -95,7 +97,7 @@ uv sync
 
 ### **Arquivos de Configuracao Essenciais**
 ```
-SSA_Consulta_Rapida/
+ssa_consulta_rapida_pyqt6/
 ├── main.py                    # ← PONTO DE ENTRADA PRINCIPAL
 ├── requirements.txt          # ← Dependencias Python
 ├── README.md                 # ← Documentacao principal
@@ -305,7 +307,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 uv run --python $PY_RUNTIME python -c "import sys; print('\n'.join(sys.path))"
 
 # Executar do diretorio correto
-cd SSA_Consulta_Rapida
+cd "$env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6"
 uv run --python $PY_RUNTIME main.py
 ```
 
@@ -376,7 +378,7 @@ ls utils\                               # ← Utilitarios diversos
 ### **Inicializacao Diaria**
 ```powershell
 # Sequencia completa de inicializacao
-cd C:\Users\[SEU_USUARIO]\git\SSA_Consulta_Rapida
+cd "$env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6"
 .\dev_env\activate_env.ps1
 uv run --python $PY_RUNTIME main.py
 ```

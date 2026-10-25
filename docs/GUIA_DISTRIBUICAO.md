@@ -127,7 +127,7 @@ Somente Windows:
 Somente Debian AMD64 no clone Linux nativo:
 
 ```bash
-cd "$HOME/gitlab/ssa_consulta_rapida_pyqt6"
+cd "$HOME/gitlab_repo/ssa_consulta_rapida_pyqt6"  # no WSL esta pasta e obrigatoria; ~/gitlab e bloqueada
 bash dev_env/build/release_debian.sh --backend all --package all -y
 ```
 
