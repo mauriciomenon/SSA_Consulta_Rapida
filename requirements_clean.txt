@@ -1,2 +1,0 @@
-# Compatibilidade legada, sem dependencias.
-# Use uv sync; fontes mantidas em pyproject.toml e uv.lock.

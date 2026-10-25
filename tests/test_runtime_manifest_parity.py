@@ -85,3 +85,9 @@ def test_filelock_version_matches_pyproject_in_every_manifest():
     for manifest in RUNTIME_MANIFESTS:
         lines = manifest.read_text(encoding="utf-8").splitlines()
         assert expected in {line.strip() for line in lines}, f"{manifest} deve declarar {expected}"
+
+
+def test_root_has_no_unused_requirements_manifests():
+    """BL-33: requirements_ci.txt e requirements_clean.txt nao eram usados por CI, script ou doc."""
+    for name in ("requirements_ci.txt", "requirements_clean.txt"):
+        assert not (PROJECT_ROOT / name).exists(), name
