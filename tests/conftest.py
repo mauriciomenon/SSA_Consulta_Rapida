@@ -120,6 +120,31 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: D401
 
 
 @pytest.fixture(autouse=True)
+def _conftest_restore_root_logging() -> Iterator[None]:
+    """SS-09/BL-43: main._configure_logging muda nivel e filtros do logger raiz.
+
+    Sem restaurar, testes seguintes (caplog do create_distribution, avisos do CF-06)
+    perdiam logs conforme a ordem. Nao mexe na lista de handlers (o pytest gerencia a sua).
+    """
+    root = logging.getLogger()
+    root_level = root.level
+    handler_state = [(handler, handler.level, list(handler.filters)) for handler in root.handlers]
+    disable_level = logging.root.manager.disable
+    yield
+    root.setLevel(root_level)
+    known = {id(handler) for handler, _level, _filters in handler_state}
+    for handler, level, filters in handler_state:
+        handler.setLevel(level)
+        handler.filters[:] = filters
+    # Handlers criados durante o teste (ex.: logger robusto iniciado por main.main com
+    # --log-level CRITICAL) nao podem ficar presos no nivel do teste.
+    for handler in root.handlers:
+        if id(handler) not in known:
+            handler.setLevel(logging.NOTSET)
+    logging.disable(disable_level)
+
+
+@pytest.fixture(autouse=True)
 def _resync_path_safety_roots() -> Iterator[None]:
     """Re-sincroniza utils.path_safety apos cada teste.
 

@@ -6,18 +6,6 @@ import logging
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _restore_root_logger_level():
-    """BL-43: main.main(--log-level ...) muda o logger raiz; sem restaurar, testes seguintes perdiam logs."""
-    root = logging.getLogger()
-    level = root.level
-    handler_levels = [(handler, handler.level) for handler in root.handlers]
-    yield
-    root.setLevel(level)
-    for handler, handler_level in handler_levels:
-        handler.setLevel(handler_level)
-
-
 def test_main_no_automatic_legacy_retry_when_optimized_runtime_fails_on_force_rescan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
