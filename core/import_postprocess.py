@@ -238,6 +238,8 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
             errno.EACCES,
             errno.ENOTSUP,
             getattr(errno, "EOPNOTSUPP", errno.ENOTSUP),
+            # Windows: hard link em FAT/exFAT vira ERROR_INVALID_FUNCTION -> EINVAL (BL-20).
+            errno.EINVAL,
         }:
             raise
         destination_fd = None

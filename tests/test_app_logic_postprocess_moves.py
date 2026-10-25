@@ -185,6 +185,32 @@ def test_move_file_after_import_copy_fallback_syncs_open_destination_fd(
     assert (destination_root / "source.xlsx").read_text(encoding="utf-8") == "data"
 
 
+def test_move_file_after_import_copies_when_filesystem_rejects_hard_link_with_einval(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """BL-20: no Windows, os.link em FAT/exFAT falha com EINVAL (ERROR_INVALID_FUNCTION)."""
+    docs_dir = tmp_path / "docs_entrada"
+    destination_root = docs_dir / "processadas"
+    docs_dir.mkdir()
+    source = docs_dir / "source.xlsx"
+    source.write_text("data", encoding="utf-8")
+
+    def _raise_invalid_function(src, dst):
+        raise OSError(errno.EINVAL, "Incorrect function")
+
+    monkeypatch.setattr(import_postprocess.os, "link", _raise_invalid_function)
+
+    result = move_file_after_import(
+        file_path=str(source),
+        docs_dir=str(docs_dir),
+        destination_root=destination_root,
+    )
+
+    assert result == str((destination_root / "source.xlsx").resolve())
+    assert not source.exists()
+    assert (destination_root / "source.xlsx").read_text(encoding="utf-8") == "data"
+
+
 def test_move_file_after_import_copy_fallback_skips_symlink_destination_race(
     tmp_path: Path, monkeypatch
 ) -> None:
