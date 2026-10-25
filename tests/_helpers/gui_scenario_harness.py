@@ -169,8 +169,8 @@ class GUIFilterScenarioHarness:
         deadline = time.monotonic() + (timeout_ms / 1000)
         while time.monotonic() < deadline:
             QApplication.processEvents()
-            # A GUI nao zera filter_thread apos o fim normal (BL-41): esperar o worker parar
-            # e entregar os sinais ja enfileirados (resultado e cleanup).
+            # Esperar o worker parar e entregar os sinais ja enfileirados (resultado e cleanup;
+            # desde o BL-41 o cleanup tambem solta filter_thread).
             # O botao de busca volta a ficar habilitado no cleanup, que vem depois do resultado.
             search_button = getattr(self.window, "search_button", None)
             if not self.window._is_filter_worker_running(
