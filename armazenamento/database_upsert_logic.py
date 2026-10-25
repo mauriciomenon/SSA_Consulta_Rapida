@@ -1146,20 +1146,6 @@ def _load_existing_row_series(
     return existing_row
 
 
-def _build_existing_series_cache(existing_chunk: pd.DataFrame) -> dict[str, pd.Series]:
-    if existing_chunk.empty or "numero_ssa" not in existing_chunk.columns:
-        return {}
-    existing_by_ssa: dict[str, pd.Series] = {}
-    for existing_row_tuple in existing_chunk.itertuples(index=False, name=None):
-        existing_row = pd.Series(existing_row_tuple, index=existing_chunk.columns)
-        numero_val = existing_row.get("numero_ssa")
-        cache_key = _upsert_cache_key(numero_val)
-        if cache_key is None:
-            continue
-        existing_by_ssa[cache_key] = existing_row
-    return existing_by_ssa
-
-
 def _collect_chunk_upsert_delta(
     chunk: pd.DataFrame,
     *,

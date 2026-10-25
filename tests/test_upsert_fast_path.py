@@ -320,9 +320,9 @@ def test_optimized_upsert_preserves_existing_values_when_newer_row_is_blank(
     assert row == ("SEE", "descricao antiga", "SETOR ANTIGO")
 
 
-def test_perform_upsert_non_short_policy_uses_lazy_existing_cache(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_perform_upsert_non_short_policy_updates_existing_row() -> None:
+    """Sem short-circuit, a linha existente e atualizada pela mais nova (BL-37: a armadilha
+    antiga mirava _build_existing_series_cache, que nada chamava, e nunca disparava)."""
     conn = sqlite3.connect(":memory:")
     _create_test_table(conn)
     conn.execute("ALTER TABLE ssa_table ADD COLUMN arquivo_origem TEXT")
@@ -347,15 +347,6 @@ def test_perform_upsert_non_short_policy_uses_lazy_existing_cache(
                 "arquivo_origem": "Todas as SSAs - 18-08-2022_1144AM.xlsx",
             }
         ]
-    )
-
-    def _unexpected_eager_cache(*args, **kwargs) -> dict[str, pd.Series]:
-        raise AssertionError(
-            "_build_existing_series_cache nao deve ser chamado no ramo lazy"
-        )
-
-    monkeypatch.setattr(
-        upsert_logic, "_build_existing_series_cache", _unexpected_eager_cache
     )
 
     processed = upsert_logic._perform_upsert(
