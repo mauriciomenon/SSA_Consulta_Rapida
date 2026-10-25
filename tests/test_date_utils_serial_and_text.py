@@ -15,15 +15,12 @@ from shared.date_utils import parse_datetime_series_mixed
         (45205, "2023-10-"),   # excel serial example
         ("2025-09-10", "2025-09-10"),
         ("10/09/2025", "2025-09-10"),
-        ("09/10/2025", None),  # ambiguous (interpreted dayfirst -> 2025-10-09) prefix mismatch, we allow non-match by None logic below
+        ("09/10/2025", "2025-10-09"),  # ambigua: o SAM usa dd/mm (dia primeiro)
     ],
 )
 def test_parse_any_date(value, expect_prefix):
     out = parse_any_date(value)
-    if expect_prefix is None:
-        assert out is None or isinstance(out, str)
-    else:
-        assert out is not None and out.startswith(expect_prefix)
+    assert out is not None and out.startswith(expect_prefix), out
 
 @pytest.mark.parametrize("bad", [None, "", 0, -5, math.nan])
 def test_parse_any_date_bad(bad):
