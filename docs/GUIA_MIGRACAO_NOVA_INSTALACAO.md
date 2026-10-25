@@ -25,7 +25,7 @@
 
 ### **Sistema Operacional**
 - Windows 10/11 (testado)
-- Python 3.10+ (preferir 3.13+)
+- Python 3.11+ (preferir 3.13+)
 - Git for Windows
 - PowerShell 5.1+ ou PowerShell Core
 

@@ -160,7 +160,7 @@ jobs:
         if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
-          uv sync --frozen --extra dev
+          uv sync --frozen
 
       - name: Py compile changed Python paths
         if: steps.changed-scope.outputs.run_python == 'true'

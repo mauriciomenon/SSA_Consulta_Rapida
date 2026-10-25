@@ -53,7 +53,7 @@ uv run --no-sync launchers/build_multiplatform.py --detect-platform
 - PyQt6==6.8.0
 - pandas==2.2.3
 - openpyxl==3.1.5
-- Pillow>=12.1.1
+- Pillow>=13.0.0
 - packaging==24.2
 - pyinstaller==6.0.0
 

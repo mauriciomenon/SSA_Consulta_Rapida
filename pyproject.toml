@@ -21,7 +21,7 @@ markers = [
 [project]
 name = "ssa-consulta-rapida"
 version = "4.51.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.3.3,<3; python_version < '3.11'",
     "pandas>=3.0.5,<4; python_version >= '3.11'",
@@ -33,26 +33,14 @@ dependencies = [
     "numpy>=2.4.6,<2.5; python_version == '3.11'",
     "numpy>=2.5.3,<3; python_version >= '3.12'",
     "tabulate>=0.10.0,<1",
-    "filelock>=3.32.6,<4",
+    "filelock>=4.2.1,<5",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=9.1.1,<10",
-    "pytest-timeout>=2.4.0,<3",
-    "flake8>=7.3.0,<8",
-    "black>=26.5.1,<27",
-    "mypy>=2.3.1,<3",
-    "pytest-cov>=7.1.0,<8",
-    "pre-commit>=4.6.2,<5",
-    "ruff>=0.16.6,<1",
-    "ty>=0.0.79,<1",
-    "pillow>=12.3.0,<13",
-]
 build = [
     "pyinstaller>=6.22.2,<7",
     "nuitka>=4.2.1,<5",
-    "pillow>=12.3.0,<13",
+    "pillow>=13.0.0,<14",
     "cairosvg>=2.9.1,<3",
     "pywin32>=312,<313; platform_system == 'Windows'",
     "patchelf>=0.19.1.0,<1; platform_system == 'Linux'",
@@ -72,10 +60,17 @@ dev = [
     "pre-commit>=4.6.2,<5",
     "ruff>=0.16.6,<1",
     "ty>=0.0.79,<1",
-    "pillow>=12.3.0,<13",
+    "pillow>=13.0.0,<14",
 ]
 
 [tool.uv]
+# Carencia: nao resolver versoes publicadas ha menos de 7 dias (janela de release comprometida).
+exclude-newer = "7 days"
+# Excecoes verificadas em 24/10 (OSV limpo e provenance do PyPI do repositorio oficial),
+# so para correcao de seguranca: streamlit 1.66.1 (primeira que aceita pillow 13, que corrige
+# 41 avisos), certifi 2026.10.19 (aviso critico) e virtualenv 21.14.13 (aviso alto).
+# setuptools 84.1.0 (aviso baixo) nao tem attestation: espera a carencia.
+exclude-newer-package = { streamlit = "2026-10-22T00:00:00Z", certifi = "2026-10-21T00:00:00Z", virtualenv = "2026-10-23T00:00:00Z" }
 constraint-dependencies = [
     "idna>=3.19,<4",
     "virtualenv>=21.7.9,<22",
