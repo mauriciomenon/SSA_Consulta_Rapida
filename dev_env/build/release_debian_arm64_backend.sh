@@ -148,7 +148,7 @@ run_build_backend() {
   fi
   case "${backend}" in
     pyinstaller) bash "${root}/dev_env/build/build_pyinstaller_debian_arm64.sh" "${args[@]}" ;;
-    nuitka) bash "${root}/dev_env/build/build_nuitka_debian_arm64.sh" "${args[@]}" ;;
+    nuitka) bash "${root}/dev_env/build/build_nuitka_debian.sh" --platform debian_arm64 "${args[@]}" ;;
     pyoxidizer) bash "${root}/dev_env/build/build_pyoxidizer_debian_arm64.sh" "${args[@]}" ;;
     *) die "backend desconhecido: ${backend}" ;;
   esac

@@ -3,16 +3,30 @@ set -euo pipefail
 
 SILENT=0
 WITH_LOCAL_DATA=0
-for arg in "$@"; do
-  case "${arg}" in
+PLATFORM="debian_amd64"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --silent)
       SILENT=1
       ;;
     --with-local-data)
       WITH_LOCAL_DATA=1
       ;;
+    --platform)
+      [[ $# -ge 2 ]] || { echo "Erro: --platform exige debian_amd64 ou debian_arm64" >&2; exit 2; }
+      PLATFORM="$2"
+      shift
+      ;;
   esac
+  shift
 done
+case "${PLATFORM}" in
+  debian_amd64|debian_arm64) ;;
+  *)
+    echo "Erro: --platform deve ser debian_amd64 ou debian_arm64 (recebido: ${PLATFORM:-vazio})" >&2
+    exit 2
+    ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -21,18 +35,18 @@ source "${REPO_ROOT}/scripts/env/native_host_guard.sh"
 ssa_native_guard_repo "$REPO_ROOT" || exit 1
 ssa_native_guard_tools uv rm mkdir || exit 1
 LOG_DIR="${REPO_ROOT}/launchers/logs"
-LOG_FILE="${LOG_DIR}/build_nuitka_debian_amd64.log"
-REQUIREMENTS_FILE="${REPO_ROOT}/launchers/platforms/debian_amd64/requirements.txt"
+LOG_FILE="${LOG_DIR}/build_nuitka_${PLATFORM}.log"
+REQUIREMENTS_FILE="${REPO_ROOT}/launchers/platforms/${PLATFORM}/requirements.txt"
 
 mkdir -p "${LOG_DIR}"
-FINAL_BUILD_DIR="${REPO_ROOT}/builds/nuitka/debian_amd64"
+FINAL_BUILD_DIR="${REPO_ROOT}/builds/nuitka/${PLATFORM}"
 mkdir -p "${FINAL_BUILD_DIR}"
 BUILD_WORK_DIR=""
 if [[ "${REPO_ROOT}" == /mnt/* ]]; then
   NATIVE_CACHE_ROOT="${SSA_NUITKA_NATIVE_ROOT:-${XDG_CACHE_HOME:-${HOME}/.cache}/ssa_consulta_rapida/nuitka}"
-  VENV_DIR="${SSA_NUITKA_VENV_DIR:-${NATIVE_CACHE_ROOT}/debian_amd64/venv}"
+  VENV_DIR="${SSA_NUITKA_VENV_DIR:-${NATIVE_CACHE_ROOT}/${PLATFORM}/venv}"
 else
-  VENV_DIR="${REPO_ROOT}/launchers/platforms/debian_amd64/venv"
+  VENV_DIR="${REPO_ROOT}/launchers/platforms/${PLATFORM}/venv"
 fi
 ssa_native_guard_path "$VENV_DIR" "$REPO_ROOT" || exit 1
 PYTHON_EXE="${VENV_DIR}/bin/python"
@@ -54,7 +68,7 @@ LAST_STEP=""
 
 on_error() {
   local exit_code=$?
-  echo "Erro no build Nuitka Debian (step: ${LAST_STEP:-unknown}, exit: ${exit_code})."
+  echo "Erro no build Nuitka ${PLATFORM} (step: ${LAST_STEP:-unknown}, exit: ${exit_code})."
   echo "Log: ${LOG_FILE}"
   if [[ "${SILENT}" == "1" ]] && [[ -f "${LOG_FILE}" ]]; then
     echo "------ tail do log ------"
@@ -120,17 +134,17 @@ if [[ -z "${APP_VERSION}" ]]; then
   exit 1
 fi
 
-BUILD_INFO_FILE="${REPO_ROOT}/builds/metadata/build_info_debian_amd64_nuitka.json"
+BUILD_INFO_FILE="${REPO_ROOT}/builds/metadata/build_info_${PLATFORM}_nuitka.json"
 mkdir -p "$(dirname "${BUILD_INFO_FILE}")"
 LAST_STEP="write_build_info"
 uv run --python 3.13 "${REPO_ROOT}/dev_env/build/write_build_info.py" \
   --repo-root "${REPO_ROOT}" \
   --output "${BUILD_INFO_FILE}" \
   --build-system nuitka \
-  --platform debian_amd64 \
+  --platform "${PLATFORM}" \
   --app-version "${APP_VERSION}"
 if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
-  echo "Erro: falha ao gerar build_info_debian_amd64_nuitka.json" >&2
+  echo "Erro: falha ao gerar build_info_${PLATFORM}_nuitka.json" >&2
   exit 1
 fi
 GUI_DIST="${FINAL_BUILD_DIR}/gui_entry.dist"
@@ -152,9 +166,9 @@ if [[ "${REPO_ROOT}" == /mnt/* ]]; then
   if [[ -n "${SSA_NUITKA_WORK_ROOT:-}" ]]; then
     mkdir -p "${SSA_NUITKA_WORK_ROOT}"
     chmod 700 "${SSA_NUITKA_WORK_ROOT}"
-    BUILD_WORK_DIR="$(mktemp -d "${SSA_NUITKA_WORK_ROOT}/debian_amd64.XXXXXX")"
+    BUILD_WORK_DIR="$(mktemp -d "${SSA_NUITKA_WORK_ROOT}/${PLATFORM}.XXXXXX")"
   else
-    BUILD_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ssa_nuitka_debian_amd64.XXXXXX")"
+    BUILD_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ssa_nuitka_${PLATFORM}.XXXXXX")"
   fi
   NUITKA_OUTPUT_DIR="${BUILD_WORK_DIR}"
 else
@@ -198,9 +212,9 @@ CLI_CMD=(
 
 if [[ "${SILENT}" == "1" ]]; then
   LAST_STEP="nuitka_gui"
-  "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py >"${LOG_FILE}" 2>&1
+  "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_${PLATFORM}" --linux-icon=resources/app_icon.png launchers/gui_entry.py >"${LOG_FILE}" 2>&1
   LAST_STEP="nuitka_cli"
-  "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py >>"${LOG_FILE}" 2>&1
+  "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_${PLATFORM}" launchers/cli_entry.py >>"${LOG_FILE}" 2>&1
   if [[ "${NUITKA_OUTPUT_DIR}" != "${FINAL_BUILD_DIR}" ]]; then
     LAST_STEP="copy_nuitka_dist"
     rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
@@ -214,11 +228,11 @@ if [[ "${SILENT}" == "1" ]]; then
     echo "[build_nuitka_debian] pulando copia de dados locais. Use --with-local-data para habilitar." >>"${LOG_FILE}"
   fi
 else
-  echo "Iniciando build Nuitka debian_amd64..."
+  echo "Iniciando build Nuitka ${PLATFORM}..."
   LAST_STEP="nuitka_gui"
-  "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py
+  "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_${PLATFORM}" --linux-icon=resources/app_icon.png launchers/gui_entry.py
   LAST_STEP="nuitka_cli"
-  "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py
+  "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_${PLATFORM}" launchers/cli_entry.py
   if [[ "${NUITKA_OUTPUT_DIR}" != "${FINAL_BUILD_DIR}" ]]; then
     LAST_STEP="copy_nuitka_dist"
     rm -rf -- "${GUI_DIST}" "${CLI_DIST}"
@@ -233,8 +247,8 @@ else
   fi
 fi
 
-echo "Build Nuitka Debian amd64 concluido com sucesso."
-echo "Artefatos em: ${REPO_ROOT}/builds/nuitka/debian_amd64"
+echo "Build Nuitka ${PLATFORM} concluido com sucesso."
+echo "Artefatos em: ${REPO_ROOT}/builds/nuitka/${PLATFORM}"
 if [[ "${SILENT}" != "1" ]]; then
   read -r -p "Executar cleanup TEMP agora? [s/N]: " DO_CLEANUP
   if [[ "${DO_CLEANUP,,}" == "s" ]]; then

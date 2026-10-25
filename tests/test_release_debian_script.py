@@ -222,7 +222,7 @@ def test_release_debian_arm64_script_routes_arm64_build_and_package_wrappers() -
     assert "release_report_${PLATFORM}.json" in script
     assert "release_debian_arm64_backend.sh" in script
     assert "build_pyinstaller_debian_arm64.sh" in backend_helper
-    assert "build_nuitka_debian_arm64.sh" in backend_helper
+    assert 'build_nuitka_debian.sh" --platform debian_arm64' in backend_helper
     assert "build_pyoxidizer_debian_arm64.sh" in backend_helper
     assert "package_debian_arm64_deb.sh" in backend_helper
     assert "package_debian_arm64_appimage.sh" in backend_helper

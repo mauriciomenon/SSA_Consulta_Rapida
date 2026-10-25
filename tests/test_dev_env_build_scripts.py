@@ -205,16 +205,13 @@ def test_nuitka_debian_serializes_patchelf_install() -> None:
 
 
 def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
-    for platform, script_name in (
-        ("debian_amd64", "build_nuitka_debian.sh"),
-        ("debian_arm64", "build_nuitka_debian_arm64.sh"),
-    ):
+    for script_name in ("build_nuitka_debian.sh",):
         script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
             encoding="utf-8"
         )
 
-        assert f'VENV_DIR="${{REPO_ROOT}}/launchers/platforms/{platform}/venv"' in script
-        assert f'REQUIREMENTS_FILE="${{REPO_ROOT}}/launchers/platforms/{platform}/requirements.txt"' in script
+        assert 'VENV_DIR="${REPO_ROOT}/launchers/platforms/${PLATFORM}/venv"' in script
+        assert 'REQUIREMENTS_FILE="${REPO_ROOT}/launchers/platforms/${PLATFORM}/requirements.txt"' in script
         assert 'uv venv --python 3.13 "${VENV_DIR}"' in script
         assert 'uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"' in script
         assert '"${PYTHON_EXE}" -m nuitka' in script
@@ -231,9 +228,38 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert "ssa_nuitka_build" not in script
 
 
+def test_nuitka_debian_single_script_for_both_architectures() -> None:
+    """E-23: um script Nuitka Debian; o arm64 chega por --platform debian_arm64."""
+    build_dir = PROJECT_ROOT / "dev_env" / "build"
+    assert not (build_dir / "build_nuitka_debian_arm64.sh").exists()
+    helper = (build_dir / "release_debian_arm64_backend.sh").read_text(encoding="utf-8")
+    assert 'build_nuitka_debian.sh" --platform debian_arm64 "${args[@]}"' in helper
+    script = (build_dir / "build_nuitka_debian.sh").read_text(encoding="utf-8")
+    # Nenhum nome de alvo fixo fora do default e da validacao do --platform.
+    body = script.split("esac\n", 2)[2]
+    assert "debian_amd64" not in body
+    assert "debian_arm64" not in body
+
+
+@pytest.mark.parametrize("args", [["--platform", "windows_amd64"], ["--platform"]])
+def test_nuitka_debian_rejects_unknown_platform_before_building(args: list[str]) -> None:
+    import shutil
+    import subprocess
+
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash ausente")
+    script = PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_debian.sh"
+    result = subprocess.run(
+        [bash, str(script), *args], capture_output=True, text=True, timeout=30, check=False
+    )
+    assert result.returncode == 2, result.stderr
+    assert "debian_amd64 ou debian_arm64" in result.stderr
+
+
 def test_nuitka_debian_keeps_previous_dist_until_new_build_is_copied() -> None:
     remove_dist = 'rm -rf -- "${GUI_DIST}" "${CLI_DIST}"'
-    for script_name in ("build_nuitka_debian.sh", "build_nuitka_debian_arm64.sh"):
+    for script_name in ("build_nuitka_debian.sh",):
         lines = [
             line.strip()
             for line in (PROJECT_ROOT / "dev_env" / "build" / script_name)

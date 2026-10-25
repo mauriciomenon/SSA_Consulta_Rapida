@@ -8,7 +8,6 @@ from scripts.nuitka_config_args import REPO_ROOT, tracked_config_files
 NUITKA_SCRIPTS = (
     "dev_env/build/build_nuitka_clean.bat",
     "dev_env/build/build_nuitka_debian.sh",
-    "dev_env/build/build_nuitka_debian_arm64.sh",
 )
 
 

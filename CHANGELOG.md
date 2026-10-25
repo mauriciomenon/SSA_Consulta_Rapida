@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Build Nuitka Debian: um script so, `dev_env/build/build_nuitka_debian.sh`, com `--platform debian_amd64` (padrao) ou `--platform debian_arm64`; um alvo diferente para com codigo 2 antes de qualquer passo de build. Sai `build_nuitka_debian_arm64.sh`, que era copia do amd64 com outro nome de alvo; `release_debian_arm64.sh` ja chama o novo formato. Quem rodava o `_arm64.sh` direto deve usar `bash dev_env/build/build_nuitka_debian.sh --platform debian_arm64`.
 - Guia de migracao (Windows): o clone passa a ser feito em `%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6`. Antes o guia mandava clonar em `C:\Users\<usuario>\git\SSA_Consulta_Rapida`, e o passo seguinte (`.\dev_env\activate_env.ps1`) era bloqueado pela guarda nativa. No guia de distribuicao, o exemplo Debian usava `~/gitlab`, pasta que a guarda bloqueia no Linux; agora usa `~/gitlab_repo/ssa_consulta_rapida_pyqt6`.
 - README, nova secao "Pasta do clone (guarda nativa)": a pasta exigida em cada sistema pelos scripts de ambiente, testes, hooks e build (Windows: `%USERPROFILE%\gitlab\ssa_consulta_rapida_pyqt6`; WSL: `~/gitlab_repo/ssa_consulta_rapida_pyqt6` em ext4; Linux e macOS: qualquer pasta fora de `/mnt/*` e `~/gitlab`). Antes a regra so aparecia na mensagem de bloqueio.
 - **Python minimo passa a 3.11** (antes 3.10; CI e builds ja usavam 3.13): exigido pelas correcoes de seguranca abaixo.
