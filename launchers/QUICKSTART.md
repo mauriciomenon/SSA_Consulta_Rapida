@@ -6,19 +6,14 @@
 
 ```
 launchers/
-├── BUILD_MULTIPLATFORM.md          # Documentacao completa
 ├── build_multiplatform.py          # Script principal de build
 ├── convert_icon.py                 # Conversao de icones
-├── platforms/                      # Configuracoes por plataforma
-│   ├── windows_amd64/
-│   │   ├── requirements.txt        # dependencias otimizadas
-│   │   └── build_config.json       # Config PyInstaller
-│   ├── macos_arm64/
-│   │   ├── requirements.txt
-│   │   └── build_config.json
-│   └── debian_amd64/
-│       ├── requirements.txt
-│       └── build_config.json
+└── platforms/                      # Um diretorio por alvo
+    ├── windows_amd64/              # requirements.txt + build_config.json (PyInstaller)
+    ├── windows_arm64/
+    ├── macos_arm64/
+    ├── debian_amd64/
+    └── debian_arm64/
 ```
 
 ### configuracao Atual (macOS ARM64)
@@ -48,14 +43,12 @@ uv run --no-sync launchers/build_multiplatform.py --list-platforms
 uv run --no-sync launchers/build_multiplatform.py --detect-platform
 ```
 
-### dependencias Otimizadas (6 total)
+### Dependencias
 
-- PyQt6==6.8.0
-- pandas==2.2.3
-- openpyxl==3.1.5
-- Pillow>=13.0.0
-- packaging==24.2
-- pyinstaller==6.0.0
+As versoes vem do `pyproject.toml` e do `uv.lock` (extra `build`: PyInstaller,
+Nuitka, Pillow, CairoSVG). `launchers/platforms/<alvo>/requirements.txt` repete
+as mesmas faixas para o ambiente de build de cada alvo; nao instale versoes
+fora do lock.
 
 ### Outputs Esperados
 
@@ -63,8 +56,9 @@ Apos execucao bem-sucedida:
 
 ```
 launchers/dist/macos_arm64/
-├── SSA_CLI                         # executavel CLI
-├── SSA_GUI.app/                    # Bundle macOS GUI
+├── SSA_CLI_v<versao>_macos_arm64/                     # CLI (onedir)
+├── SSA_GUI_v<versao>_macos_arm64.app/                 # Bundle macOS GUI
+└── SSA_Consulta_Rapida_v<versao>_macos_arm64_pyinstaller.dmg
 ```
 
 ### Configuracoes PyInstaller
@@ -127,11 +121,8 @@ uv run --no-sync launchers/build_multiplatform.py --debug
 
 ### Documentacao Completa
 
-Ver `BUILD_MULTIPLATFORM.md` para documentacao detalhada incluindo:
-- configuracao avancada
-- Troubleshooting completo
-- Integracao CI/CD
-- distribuicao multi-plataforma
+Fluxo de release e pacotes: `docs/GUIA_DISTRIBUICAO.md`. O detalhamento do
+builder (`BUILD_MULTIPLATFORM.md`) e documento local, fora do repositorio.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
 
