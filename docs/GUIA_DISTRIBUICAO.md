@@ -236,6 +236,7 @@ Notas:
   2. `iscc` no PATH
   3. caminhos padrao do Windows
 - Se Inno Setup nao estiver disponivel, o ZIP continua funcional.
+- O ZIP vai para `builds/packages/<plataforma>/`; o script `.iss` e o instalador, para `dist_packages/`.
 
 ### 3) Criar pacote de outros build systems (laboratorio)
 
@@ -306,7 +307,8 @@ Notas Debian:
 
 ### Artefatos finais de distribuicao (nunca versionar)
 
-- ZIP/installer final: `dist_packages/`
+- ZIP final: `builds/packages/<plataforma>/`
+- Instalador Inno Setup: `dist_packages/`
 - `.deb` e AppImage Debian manual: `builds/packages/<plataforma>/`
 - Script `.iss` gerado: `dist_packages/installer_<backend>.iss`
 
@@ -399,7 +401,7 @@ SUPORTE
 
 - [ ] Build canonico concluido em `launchers/dist/<plataforma>/`.
 - [ ] `launchers/test_complete.py` sem erro bloqueante.
-- [ ] ZIP gerado em `dist_packages/`.
+- [ ] ZIP gerado em `builds/packages/<plataforma>/`.
 - [ ] Instalador (quando aplicavel) gerado em `dist_packages/`.
 - [ ] Nome inclui versao e build system.
 - [ ] Smoke manual: `--version`, `--help`, `--gui`.
