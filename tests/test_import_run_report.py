@@ -1848,3 +1848,12 @@ def test_run_importer_logic_full_rescan_success_promotes_candidate_at_end(
     candidate_path = Path(str(payload["paths"]["candidate_db_path"]))
     assert not candidate_path.exists()
     assert payload["paths"]["candidate_preserved"] is False
+
+
+def test_suite_log_dir_is_outside_the_repository() -> None:
+    """SS-07: os testes nao gravam import_run_*.json/ssa.log em <repo>/logs (a poda de 50 apagava os reais)."""
+    from utils.robust_logging import resolve_log_dir
+
+    repo_root = Path(__file__).resolve().parents[1]
+    log_dir = resolve_log_dir("logs").resolve()
+    assert not log_dir.is_relative_to(repo_root), log_dir

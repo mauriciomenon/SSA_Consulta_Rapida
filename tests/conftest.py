@@ -9,6 +9,12 @@ import tempfile
 # Force unbuffered stdout/stderr for visibility in CI / tooling
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
+# SS-07: sem raiz de runtime propria, import_run_*.json, ssa.log e ssa.json dos testes
+# caiam em <repo>/logs e a poda (50 relatorios) apagava os relatorios reais. Sobrescreve
+# um SSA_RUNTIME_ROOT do shell de proposito: os testes nunca gravam no runtime real.
+_TEST_RUNTIME_ROOT = tempfile.mkdtemp(prefix="ssa_test_runtime_")
+os.environ["SSA_RUNTIME_ROOT"] = _TEST_RUNTIME_ROOT
+
 # Basic logging config if not already configured
 if not logging.getLogger().handlers:
     logging.basicConfig(
@@ -106,6 +112,7 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: D401
             "Tracked GUI preferences changed during tests: %s",
             _TRACKED_GUI_PREFS_PATH,
         )
+    shutil.rmtree(_TEST_RUNTIME_ROOT, ignore_errors=True)
     if _TEST_SSA_CONFIG_DIR is None:
         return
     with suppress(Exception):
