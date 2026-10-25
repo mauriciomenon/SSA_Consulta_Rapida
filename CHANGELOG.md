@@ -103,7 +103,7 @@ All notable changes to this project are documented in this file.
 - Corrige paridade de importacao, isolamento de resultados e recarga apos gravacao parcial.
 - Preserva cancelamento, limpeza de busca e desfazer.
 - Limita caches por memoria e evita reter DataFrames filtrados nos detalhes.
-- Publica fontes; evidencias e limites em `docs/RELEASE_NOTES_v4.50.md`.
+- Publica fontes; evidencias e limites no doc local `docs/RELEASE_NOTES_v4.50.md` (fora do repositorio).
 
 
 ## [v4.47] - 2026-08-09
@@ -443,7 +443,7 @@ Released: https://github.com/mauriciomenon/SSA_Consulta_Rapida/releases/tag/v4.0
 
 ---
 
-For the full technical changelog and implementation details, see `docs_saida/CHANGELOG_IMPLEMENTACOES.md` and `docs/HISTORICO_ULTIMOS_50_COMMITS.md`.
+For the full technical changelog and implementation details, see `docs_saida/CHANGELOG_IMPLEMENTACOES.md`. (`docs/HISTORICO_ULTIMOS_50_COMMITS.md` was removed in e36d54c0, 2025-11-11.)
 
 ## Atualizacao 2026-03-01 (ciclo gui-tema-import)
 - Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
