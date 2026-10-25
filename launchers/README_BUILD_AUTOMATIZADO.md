@@ -49,8 +49,8 @@
 | 2 | Instalacao deps | uv pip | Pacotes instalados |
 | 3 | Validacao configs | script `scripts/validate_configs.py` | OK ou falha |
 | 4 | Lint rapido (opcional) | flake8/ruff configurado minimo | Relatorio limpo |
-| 5 | Testes smoke | pytest -k smoke | Passando 100% |
-| 6 | Testes unit core | pytest (subset) | Passando |
+| 5 | Smoke da CLI | `uv run --no-sync python scripts/smoke_cli.py --json` | Importa 1 linha |
+| 6 | Suite de testes | `uv run --no-sync pytest -q` | Passando |
 | 7 | Verificacao docs | `scripts/check_docs.py` | Sem vazios |
 | 8 | Build artefato | script em `build/` | Wheel / dist |
 | 9 | Publicacao (manual) | upload (PyPI interno?) | Artefato versionado |
@@ -83,8 +83,8 @@ ci/
 ```bash
 uv run --no-sync scripts/validate_configs.py
 uv run --no-sync scripts/check_docs.py
-pytest -k smoke
-pytest -k core
+uv run --no-sync python scripts/smoke_cli.py --json
+uv run --no-sync pytest -q
 uv run --no-sync launchers/build_all.py  # se aplicavel
 ```
 
