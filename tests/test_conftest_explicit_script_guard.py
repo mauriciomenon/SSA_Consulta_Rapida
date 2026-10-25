@@ -43,7 +43,10 @@ _SUPPORT_MODULES = {
     "legacy_report_utils.py",
     "release_script_assertions.py",
     "reporting_utils.py",
+    "run_import_detailed.py",
     "run_import_verification.py",
+    "run_modular_import.py",
+    "run_quick_import.py",
     "teste_simples_refinamentos.py",
 }
 
