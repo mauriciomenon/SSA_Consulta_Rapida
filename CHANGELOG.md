@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- `scripts/create_distribution.py`: sai a opcao `--include-sample-db` e o banco de exemplo `dist_assets/sample_db/ssas_example.db` (schema antigo, 82 colunas, sem uso). O pacote e o instalador nao tem mais `BancoExemplo/`; o `LEIA-ME-USUARIO.txt` perde a secao 6, e "Banco local escolhido explicitamente" passa a ser a 6. Para levar um banco junto, use `--include-local-db <caminho>`.
+
 - Pasta `exportacao/` da pasta de runtime: nao e mais criada pelos builds, pelo pacote nem pelo setup, porque nenhum export grava nela (CSV/XLSX vao para `docs_saida`). O `.gitignore` deixa de ignorar `exportacao/`, que e o pacote de codigo do export: um arquivo novo ali ficava fora do Git sem aviso.
 
 - Busca com regex (`~`) e filtros: com o pyarrow instalado (extra `web`/Streamlit), `\w`, `\s` e `\b` so reconheciam ASCII, e `~^\w+$` nao achava "ação", "niño", "straße" nem "garçon". Agora o texto usa sempre o armazenamento Python do pandas, e a busca da o mesmo resultado com ou sem pyarrow.

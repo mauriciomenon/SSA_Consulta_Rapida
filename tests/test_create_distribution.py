@@ -308,7 +308,6 @@ def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> Non
         "pyinstaller",
         "1.0.0",
         "SSA_GUI.exe",
-        include_sample_db=False,
     )
 
     content = (tmp_path / "LEIA-ME-USUARIO.txt").read_text(encoding="utf-8")
@@ -318,6 +317,19 @@ def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> Non
     assert "No ZIP portatil, docs_entrada fica ao lado do executavel" in content
     assert "--gui --runtime-home" in content
     assert "nunca e substituido pelo instalador" in content
+
+
+def test_sample_db_option_and_readme_section_are_gone(tmp_path: Path, monkeypatch) -> None:
+    """E-16: ninguem usava o banco de exemplo; a opcao e a secao do LEIA-ME sairam."""
+    monkeypatch.setattr(sys, "argv", ["create_distribution.py", "--include-sample-db"])
+    with pytest.raises(SystemExit) as exc:
+        create_distribution._parse_distribution_args()
+    assert exc.value.code == 2
+    create_distribution.create_readme_usuario(tmp_path, "pyinstaller", "1.0.0", "SSA_GUI.exe")
+    content = (tmp_path / "LEIA-ME-USUARIO.txt").read_text(encoding="utf-8")
+    assert "BANCO DE EXEMPLO" not in content
+    assert "6. BANCO LOCAL ESCOLHIDO EXPLICITAMENTE" in content
+    assert not (create_distribution.PROJECT_ROOT / "dist_assets" / "sample_db").exists()
 
 
 def test_get_version_reads_config_version_without_default(
@@ -421,14 +433,8 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
         )
 
 
-@pytest.mark.parametrize(
-    ("version", "include_missing_sample_db"),
-    [("4.50", False), ("4.50", True), ("4.50/missing", False)],
-)
-def test_create_zip_package_uses_short_staging_and_removes_it(
-    version: str,
-    include_missing_sample_db: bool,
-) -> None:
+@pytest.mark.parametrize("version", ["4.50", "4.50/missing"])
+def test_create_zip_package_uses_short_staging_and_removes_it(version: str) -> None:
     source_script = Path(create_distribution.__file__).resolve()
     package_name = "SSA_Consulta_Rapida_v4.50_pyinstaller"
     runtime_name = "SSA_CLI_v4.50_windows_amd64"
@@ -470,13 +476,10 @@ def observe(event, args):
         staging.append(args[0])
 
 sys.addaudithook(observe)
-result = namespace["create_zip_package"](
-    "pyinstaller", sys.argv[3], include_sample_db=sys.argv[2] == "True"
-)
+result = namespace["create_zip_package"]("pyinstaller", sys.argv[2])
 print(json.dumps({"zip": str(result) if result else None, "staging": staging}))
 """,
                 str(script),
-                str(include_missing_sample_db),
                 version,
             ],
             cwd=source_script.parent.parent,
@@ -491,7 +494,7 @@ print(json.dumps({"zip": str(result) if result else None, "staging": staging}))
         staging = Path(report["staging"][0])
         assert staging.parent.resolve() == Path(tempfile.gettempdir()).resolve()
         assert not staging.exists()
-        if include_missing_sample_db or "/" in version:
+        if "/" in version:
             assert report["zip"] is None
             return
 
@@ -823,131 +826,6 @@ def test_inno_excludes_preserve_nested_runtime_database_only_when_requested() ->
     # linha Source dedicada; file_cache/historico_backups nao vazam.
     assert "data\\*" in runtime_excludes
     assert "docs_entrada\\*" in runtime_excludes
-
-
-def test_create_zip_package_keeps_sample_db_out_by_default(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake" / "windows_amd64"
-    build_dir.mkdir(parents=True)
-    dist_output = project_root / "dist_packages"
-    dist_output.mkdir(parents=True)
-
-    sample_db_dir = project_root / "dist_assets" / "sample_db"
-    sample_db_dir.mkdir(parents=True)
-    (sample_db_dir / "ssas_example.db").write_text("sample db", encoding="utf-8")
-    (sample_db_dir / "LEIA-ME.txt").write_text("sample readme", encoding="utf-8")
-
-    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
-
-    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
-    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
-    monkeypatch.setattr(
-        create_distribution,
-        "BUILD_SYSTEMS",
-        {
-            "fake": {
-                "name": "Fake",
-                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake/windows_amd64",
-                "internal_dir": None,
-            }
-        },
-    )
-
-    result = create_distribution.create_zip_package("fake", "1.0.0")
-
-    assert result is not None
-    with zipfile.ZipFile(result, "r") as zf:
-        names = zf.namelist()
-        assert any(name.endswith("SSA_Consulta_Rapida.exe") for name in names)
-        assert not any("BancoExemplo/" in name for name in names)
-
-
-def test_create_zip_package_includes_fixed_sample_db_only_when_option_enabled(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake" / "windows_amd64"
-    build_dir.mkdir(parents=True)
-    dist_output = project_root / "dist_packages"
-    dist_output.mkdir(parents=True)
-
-    sample_db_dir = project_root / "dist_assets" / "sample_db"
-    sample_db_dir.mkdir(parents=True)
-    (sample_db_dir / "ssas_example.db").write_text("sample db", encoding="utf-8")
-    (sample_db_dir / "LEIA-ME.txt").write_text("sample readme", encoding="utf-8")
-
-    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
-    (build_dir / "local.db").write_text("local db", encoding="utf-8")
-
-    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
-    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
-    monkeypatch.setattr(
-        create_distribution,
-        "BUILD_SYSTEMS",
-        {
-            "fake": {
-                "name": "Fake",
-                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake/windows_amd64",
-                "internal_dir": None,
-            }
-        },
-    )
-
-    result = create_distribution.create_zip_package(
-        "fake",
-        "1.0.0",
-        include_sample_db=True,
-    )
-
-    assert result is not None
-    with zipfile.ZipFile(result, "r") as zf:
-        names = zf.namelist()
-        assert any(name.endswith("BancoExemplo/ssas_example.db") for name in names)
-        assert any(name.endswith("BancoExemplo/LEIA-ME.txt") for name in names)
-        assert not any(name.endswith("local.db") for name in names)
-
-
-def test_create_zip_package_returns_none_when_sample_db_assets_are_missing(
-    tmp_path: Path,
-    monkeypatch,
-    caplog,
-) -> None:
-    project_root = tmp_path / "project"
-    build_dir = project_root / "builds" / "fake" / "windows_amd64"
-    build_dir.mkdir(parents=True)
-    dist_output = project_root / "dist_packages"
-    dist_output.mkdir(parents=True)
-    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
-
-    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
-    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
-    monkeypatch.setattr(
-        create_distribution,
-        "BUILD_SYSTEMS",
-        {
-            "fake": {
-                "name": "Fake",
-                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/fake/windows_amd64",
-                "internal_dir": None,
-            }
-        },
-    )
-
-    result = create_distribution.create_zip_package(
-        "fake",
-        "1.0.0",
-        include_sample_db=True,
-    )
-
-    assert result is None
-    assert "Assets fixos do banco de exemplo ausentes" in caplog.text
 
 
 def test_create_zip_package_includes_only_selected_local_db_when_option_enabled(
@@ -1370,58 +1248,6 @@ def test_create_inno_setup_script_uses_sourcepath_outputdir(
     assert 'Source: "{#SourceDir}\\SSA_GUI.exe"' in iss_content
     assert 'Parameters: "--gui --runtime-home"' in iss_content
     assert 'Name: "{app}\\data"' not in iss_content
-
-
-def test_create_inno_setup_script_includes_sample_db_when_option_enabled(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    project_root = tmp_path / "project"
-    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
-    dist_output = project_root / "dist_packages"
-    sample_db_dir = project_root / "dist_assets" / "sample_db"
-    canonical_dir.mkdir(parents=True)
-    dist_output.mkdir(parents=True)
-    sample_db_dir.mkdir(parents=True)
-    (canonical_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
-    (sample_db_dir / "ssas_example.db").write_text("sample db", encoding="utf-8")
-    (sample_db_dir / "LEIA-ME.txt").write_text("sample readme", encoding="utf-8")
-
-    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
-    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
-    monkeypatch.setattr(
-        create_distribution,
-        "BUILD_SYSTEMS",
-        {
-            "pyinstaller": {
-                "name": "PyInstaller",
-                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/pyinstaller",
-                "internal_dir": "_internal",
-                "canonical_dirs": ["launchers/dist/windows_amd64"],
-            }
-        },
-    )
-
-    iss_path = create_distribution.create_inno_setup_script(
-        "pyinstaller",
-        "1.0.0",
-        include_sample_db=True,
-    )
-
-    assert iss_path is not None
-    iss_content = iss_path.read_text(encoding="utf-8")
-    expected_db = str((sample_db_dir / "ssas_example.db").resolve()).replace("/", "\\")
-    expected_readme = str((sample_db_dir / "LEIA-ME.txt").resolve()).replace("/", "\\")
-    assert 'Name: "{userdocs}\\SSA Consulta Rapida\\BancoExemplo"' in iss_content
-    assert (
-        f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "ssas_example.db"; Flags: ignoreversion'
-        in iss_content
-    )
-    assert (
-        f'Source: "{expected_readme}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "LEIA-ME.txt"; Flags: ignoreversion'
-        in iss_content
-    )
 
 
 @pytest.mark.parametrize("app_subdir", ["", "SSA_GUI_v1_windows_amd64"])

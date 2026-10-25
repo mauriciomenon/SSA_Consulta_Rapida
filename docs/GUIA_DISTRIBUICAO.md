@@ -200,12 +200,6 @@ uv run --no-sync launchers/test_complete.py
 uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --skip-installer
 ```
 
-Para incluir tambem o banco de exemplo fixo do repositorio:
-
-```bash
-uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --skip-installer --include-sample-db
-```
-
 Para incluir um banco local escolhido explicitamente:
 
 ```bash
@@ -216,12 +210,6 @@ uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --ski
 
 ```bash
 uv run --no-sync scripts/create_distribution.py --build-system pyinstaller
-```
-
-Para incluir tambem o banco de exemplo fixo do repositorio:
-
-```bash
-uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --include-sample-db
 ```
 
 Para incluir um banco local escolhido explicitamente:
@@ -336,7 +324,6 @@ Pacote ZIP:
 SSA_Consulta_Rapida_v<versao>_<build_system>/
 ├── <executavel_principal>
 ├── BancoLocal/                    # opcional com --include-local-db
-├── BancoExemplo/                  # opcional com --include-sample-db
 ├── config/
 ├── docs/
 ├── LEIA-ME-USUARIO.txt
@@ -357,13 +344,10 @@ Politica operacional (v4.43+):
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
   - `uv run --no-sync scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
   - nunca usar isso para pacote de distribuicao geral.
-- banco local da maquina que gerou o pacote continua bloqueado no empacotador, mesmo quando `--include-sample-db` estiver ligado.
-- `--include-sample-db` libera apenas o asset fixo e aprovado em `dist_assets/sample_db/`.
+- banco local da maquina que gerou o pacote continua bloqueado no empacotador.
 - `--include-local-db <caminho>` libera apenas o arquivo `.db` indicado no parametro.
 - com `--include-local-db`, o ZIP recebe esse arquivo em `BancoLocal/`.
-- no ZIP, o banco aprovado entra em `BancoExemplo/ssas_example.db`.
 - no instalador Windows, o banco local escolhido vai para `{userdocs}\\SSA Consulta Rapida\\BancoLocal`.
-- no instalador Windows, o banco aprovado vai para `{userdocs}\\SSA Consulta Rapida\\BancoExemplo`.
 
 ## Distribuicao para Usuario Final
 
@@ -381,11 +365,6 @@ INSTALACAO
 PRIMEIRO USO
 1. Coloque arquivos de entrada em docs_entrada/.
 2. Execute Atualizar Dados ou Reescaneamento Completo conforme o caso.
-
-BANCO DE EXEMPLO OPCIONAL
-1. Se o pacote tiver sido gerado com `--include-sample-db`, use o banco em `BancoExemplo/ssas_example.db`.
-2. Nao misture esse arquivo com `data/ssas.db`.
-3. Leia `BancoExemplo/LEIA-ME.txt` antes de reutilizar o arquivo.
 
 BANCO LOCAL OPCIONAL
 1. Se o pacote tiver sido gerado com `--include-local-db`, use o banco em `BancoLocal/`.
@@ -441,20 +420,6 @@ uv run --no-sync scripts/copy_data_to_builds.py --build-system pyinstaller --all
 
 Use somente em ambiente controlado.
 
-### Banco de exemplo opcional
-
-Se voce quer um pacote com um banco de exemplo controlado, use:
-
-```bash
-uv run --no-sync scripts/create_distribution.py --build-system pyinstaller --include-sample-db
-```
-
-Contrato dessa flag:
-- inclui so `dist_assets/sample_db/ssas_example.db`
-- inclui tambem `dist_assets/sample_db/LEIA-ME.txt`
-- nao desbloqueia `data/ssas.db`
-- nao desbloqueia `.db`, `.xls` ou `.xlsx` locais do build
-
 ### Banco local opcional
 
 Se voce quer um pacote com um banco local especifico, use:
@@ -468,7 +433,6 @@ Contrato dessa flag:
 - o arquivo vai para `BancoLocal/` no ZIP
 - no instalador Windows, o arquivo vai para `{userdocs}\\SSA Consulta Rapida\\BancoLocal`
 - nao desbloqueia outros `.db` locais do build
-- nao altera a opcao `--include-sample-db`
 
 ## Historical Snapshot
 
