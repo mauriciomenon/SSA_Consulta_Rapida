@@ -451,6 +451,15 @@ def test_windows_activation_avoids_dynamic_eval_and_silent_catches() -> None:
     assert silent_catch.search(direnv_common) is None
 
 
+def test_profile_snippet_points_to_existing_activation_helper() -> None:
+    """BL-32: o snippet do $PROFILE so ativa se o helper existir no caminho que ele monta."""
+    snippet = _read_repo_text("scripts", "append_profile_snippet.ps1")
+    helpers = re.findall(r"Join-Path \$repoRoot '([^']+)'", snippet)
+    assert helpers, "snippet sem Join-Path $repoRoot"
+    for helper in helpers:
+        assert (PROJECT_ROOT / Path(*helper.split("\\"))).is_file(), helper
+
+
 def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     script = _read_repo_text("scripts", "ci_quality_gates.sh")
 
