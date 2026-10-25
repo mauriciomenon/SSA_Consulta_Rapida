@@ -27,3 +27,32 @@ def test_script_fora_do_padrao_e_recusado():
 def test_arquivo_de_teste_continua_coletado():
     res = _collect("tests/test_config_dir_project_root.py::test_config_paths_follow_env_when_set")
     assert res.returncode == 0, res.stdout + res.stderr
+
+
+# BL-40: modulos de apoio importados por testes coletados; qualquer outro .py solto em tests/
+# precisa casar com python_files, senao nunca roda (havia ~38 scripts assim).
+_SUPPORT_MODULES = {
+    "__init__.py",
+    "conftest.py",
+    "automated_system_tests.py",
+    "gui_filters_advanced_contract_helpers.py",
+    "historico_otimizacoes_cli.py",
+    "historico_otimizacoes_execucao.py",
+    "legacy_config_utils.py",
+    "legacy_path_utils.py",
+    "legacy_report_utils.py",
+    "release_script_assertions.py",
+    "reporting_utils.py",
+    "run_import_verification.py",
+    "teste_simples_refinamentos.py",
+}
+
+
+def test_tests_dir_has_no_uncollected_scripts() -> None:
+    stray = sorted(
+        path.name
+        for path in (PROJECT_ROOT / "tests").glob("*.py")
+        if not (path.name.startswith("test_") or path.name.endswith("_test.py"))
+        and path.name not in _SUPPORT_MODULES
+    )
+    assert stray == [], stray

@@ -272,16 +272,14 @@ uv run --python $PY_RUNTIME main.py --gui
 
 ### **Teste 3: Executar Testes Automatizados**
 ```powershell
-# Executar testes basicos (uv-first)
-uv run --python $PY_RUNTIME python -m pytest tests\test_imports.py -v
+# Smoke da CLI: importa uma planilha sintetica e confere a linha no banco
+uv run --no-sync python scripts\smoke_cli.py --json
 
+# Teste de banco
+uv run --no-sync pytest -q tests\test_database.py
 
-# Executar teste de banco (uv-first)
-uv run --python $PY_RUNTIME python -m pytest tests\test_database.py -q
-
-
-# Executar teste de sistema completo
-uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py
+# Suite completa
+uv run --no-sync pytest -q
 ```
 
 ---
@@ -358,10 +356,8 @@ type config\gui_poc_preferences.json    # ← Configuracoes da GUI POC
 
 ### **3. Arquivos de Exemplo e Testes**
 ```powershell
-# Ver exemplos de uso
-ls tests\teste_*.py                      # ← Testes de exemplo
-type tests\main_test.py                  # ← Teste do main
-type tests\test_imports.py               # ← Teste de importacao
+# Guia da suite de testes (como rodar e o que cada pasta contem)
+type tests\README.md
 ```
 
 ### **4. Scripts de Desenvolvimento**

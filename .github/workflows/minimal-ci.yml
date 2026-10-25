@@ -219,7 +219,6 @@ jobs:
               for file_path in Path("tests").iterdir()
               if file_path.is_file()
               and (file_path.name.startswith("test_") or file_path.name.endswith("_test.py"))
-              and file_path.name not in {"gui_poc_smoke_test.py", "main_test.py"}
           )
 
           def bucket(file_path: Path) -> str:
