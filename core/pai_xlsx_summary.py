@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
-from pathlib import Path
 from typing import Any, TypedDict
 
 import pandas as pd
-from openpyxl import load_workbook
 
 SUMMARY_SSA_EXAMPLE_LIMIT = 20
 SUMMARY_GROUP_EXAMPLE_LIMIT = 10
@@ -112,44 +110,6 @@ def _empty_pai_xlsx_summary(summary_error: str | None) -> PaiXlsxSummary:
         ssa_examples_by_executor_sector={},
         summary_error=summary_error,
     )
-
-
-def read_pai_xlsx_summary(path: Path | None) -> PaiXlsxSummary:
-    if path is None or not path.is_file():
-        return empty_pai_xlsx_summary()
-    workbook = None
-    try:
-        workbook = load_workbook(path, read_only=True, data_only=True)
-    except (OSError, ValueError) as exc:
-        logger.warning("Failed to read PAI summary XLSX %s: %s", path, exc)
-        return _summary_read_error(type(exc).__name__)
-    try:
-        sheet = workbook.active
-        if sheet is None:
-            return _empty_pai_xlsx_summary("summary_read_error:no_active_sheet")
-        header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), None)
-        if header_row is None:
-            return _empty_pai_xlsx_summary("summary_read_error:missing_header")
-        column_positions = _summary_column_positions(header_row)
-        if all(position is None for position in column_positions.values()):
-            return _empty_pai_xlsx_summary("summary_read_error:no_summary_columns")
-        active_positions = {
-            key: position
-            for key, position in column_positions.items()
-            if position is not None
-        }
-        summary = _PaiXlsxSummaryAccumulator()
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            summary.add_row(
-                {
-                    key: _row_value(row, position)
-                    for key, position in active_positions.items()
-                }
-            )
-        return summary.to_summary()
-    finally:
-        if workbook is not None:
-            workbook.close()
 
 
 def _summary_read_error(error_name: str) -> PaiXlsxSummary:

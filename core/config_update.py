@@ -52,12 +52,6 @@ def split_default_filter_markers(term: str) -> tuple[bool, str]:
     return False, candidate
 
 
-def strip_negative_marker(term: str) -> str:
-    if term and term[0] in {"!", "-"}:
-        return term[1:].strip()
-    return term
-
-
 def resolve_filter_mode_change(raw_filter_mode: str) -> dict[str, Any]:
     requested_mode = str(raw_filter_mode or "").strip().lower()
     changed_filter_mode = False

@@ -42,16 +42,6 @@ def _set_fixed_height(window: Any, widget: Any, height: int, label: str) -> None
     widget.setFixedHeight(height)
 
 
-def _apply_toolbar_compact_font(window: Any, widget: Any) -> None:
-    toolbar_font = getattr(window, "_toolbar_compact_font", None)
-    if toolbar_font is None:
-        return
-    try:
-        widget.setFont(cast(Any, QFont(toolbar_font)))
-    except Exception as exc:
-        logger.debug("Falha ao aplicar fonte compacta da barra superior: %s", exc)
-
-
 def _quick_situacao_button_style(window: Any, *, state: int) -> str:
     roles = dict(getattr(window, "_current_theme_roles", {}) or {})
     if not roles:

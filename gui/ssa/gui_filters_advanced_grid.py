@@ -476,15 +476,6 @@ def _store_advanced_grid_viewport_metrics(
     state.last_max_scroll_h = int(max_scroll_h)
 
 
-def _grid_relayout_needed(window: Any, plan: Any, visible_count: int) -> bool:
-    state = advanced_panel_state(window)
-    if state is None:
-        return False
-    return not (
-        state.grid_cols == plan.cols and state.last_widget_count == visible_count
-    )
-
-
 def _resolve_grid_cell_width_budget(grid: Any, effective_width: int, cols: int) -> int:
     spacing, horizontal_padding, _vertical_spacing, _vertical_padding = (
         _advanced_grid_spacing_metrics(grid)

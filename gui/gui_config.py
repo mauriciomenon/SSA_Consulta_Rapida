@@ -855,32 +855,6 @@ def _create_gui_main_preferences_file(config_path: str) -> None:
     )
 
 
-def ensure_gui_main_preferences_file(config_path: str | None = None) -> bool:
-    """Ensure GUI preferences file exists, creating it atomically when missing."""
-    if not config_path:
-        config_path = get_gui_main_preferences_path()
-    if os.path.exists(config_path):
-        return True
-    try:
-        _create_gui_main_preferences_file(config_path)
-        return True
-    except Exception as exc:
-        logger.error(
-            "Unable to ensure GUI preferences file at %s: %s", config_path, exc
-        )
-        return False
-
-
-def reload_gui_main_preferences_in_place(
-    *, auto_create: bool = False
-) -> Dict[str, Any]:
-    """Reload GUI preferences from disk into shared in-memory dict."""
-    loaded = load_gui_main_preferences(auto_create=auto_create)
-    GUI_MAIN_PREFERENCES.clear()
-    GUI_MAIN_PREFERENCES.update(loaded)
-    return GUI_MAIN_PREFERENCES
-
-
 def load_gui_main_preferences(
     config_path: str | None = None,
     *,

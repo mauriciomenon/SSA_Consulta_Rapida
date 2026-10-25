@@ -125,34 +125,6 @@ def _attempt_save_settings(settings: dict) -> bool:
         return False
 
 
-def print_help():
-    """Exibe a mensagem de ajuda para os comandos da CLI."""
-    print("\n" + "=" * 50 + "\nAJUDA DE COMANDOS\n" + "=" * 50)
-    print("O uso principal é digitar termos para filtrar os dados.\n")
-    print("Comandos especiais:")
-    print("  -d <N>            : Mostra os DETALHES completos da SSA na linha N.")
-    print(
-        "  -e <nome_arquivo> : EXPORTA os resultados atuais para um arquivo CSV, XLSX e JSON."
-    )
-    print(
-        "  -rescan           : Força uma nova verificação e importação de todos os relatórios."
-    )
-    print(
-        "  -v, voltar        : Desfaz o último filtro aplicado, voltando ao estado anterior."
-    )
-    print(
-        "  -r, resetar       : Zera todos os filtros e recarrega a exibição com todos os dados do banco (ou com filtros padrão)."
-    )
-    print(
-        "  -c, config        : Abre o menu de configurações interativo para personalizar a exibição e preferências."
-    )
-    print(
-        "  -h, ajuda         : Exibe esta mensagem de ajuda com todos os comandos disponíveis."
-    )
-    print("  -q, sair          : Encerra o programa e sai da aplicação.")
-    print("=" * 50)
-
-
 def handle_config_command():
     """Gerencia o menu de configuracoes interativo."""
     while True:

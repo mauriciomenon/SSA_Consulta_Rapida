@@ -24,39 +24,6 @@ class FilterCacheParts:
         )
 
 
-def build_filter_cache_fingerprint(
-    column_filters: dict | None,
-    advanced_filters: dict | None,
-    *,
-    advanced_filters_active: bool,
-    exclude_terminal_statuses: bool,
-) -> tuple:
-    """Build a lightweight fingerprint to decide whether the digest is stale."""
-    parts = build_filter_cache_parts(
-        column_filters,
-        advanced_filters,
-        advanced_filters_active=advanced_filters_active,
-        exclude_terminal_statuses=exclude_terminal_statuses,
-    )
-    return parts.fingerprint()
-
-
-def build_filter_cache_snapshot(
-    column_filters: dict | None,
-    advanced_filters: dict | None,
-    *,
-    advanced_filters_active: bool,
-    exclude_terminal_statuses: bool,
-) -> tuple[tuple, str]:
-    parts = build_filter_cache_parts(
-        column_filters,
-        advanced_filters,
-        advanced_filters_active=advanced_filters_active,
-        exclude_terminal_statuses=exclude_terminal_statuses,
-    )
-    return parts.fingerprint(), build_filter_cache_context_from_parts(parts)
-
-
 def build_filter_cache_context(
     column_filters: dict | None,
     advanced_filters: dict | None,

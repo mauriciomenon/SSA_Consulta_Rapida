@@ -459,15 +459,6 @@ def validate_source_protection_command(args: argparse.Namespace) -> int:
     return 0
 
 
-def _asset_suffixes_for_platform(platform_name: str) -> tuple[str, ...]:
-    payload = _load_release_targets()
-    packages = _enabled_target_names(payload, "packages", platform_name)
-    suffixes: list[str] = []
-    for package in packages:
-        suffixes.extend(PACKAGE_ASSET_SUFFIXES.get(package, (f".{package}",)))
-    return tuple(suffix.lower() for suffix in suffixes)
-
-
 def _split_csv(value: str) -> list[str]:
     return [item.strip().lower() for item in value.split(",") if item.strip()]
 

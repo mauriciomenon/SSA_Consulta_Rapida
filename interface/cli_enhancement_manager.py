@@ -297,8 +297,3 @@ class CLIEnhancementManager:
 
 # Instância global
 enhancement_manager = CLIEnhancementManager()
-
-
-def print_cli_enhancements_status():
-    """Função de conveniência para imprimir status."""
-    print(enhancement_manager.get_status_report())

@@ -612,9 +612,6 @@ class QCheckBox(QWidget):
     def setEnabled(self, *a, **k):
         pass
 
-class QItemSelectionModel:
-    Select = 0
-
 class QTimer:
     def __init__(self, *a, **k):
         self.timeout = _Sig()

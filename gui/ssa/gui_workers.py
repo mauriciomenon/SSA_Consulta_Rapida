@@ -279,10 +279,6 @@ def is_worker_alive(worker, sip_module) -> bool:
         return False
 
 
-def is_data_loader_worker_alive(worker, sip_module) -> bool:
-    return is_worker_alive(worker, sip_module)
-
-
 def is_data_loader_worker_running(worker, sip_module) -> bool:
     if not is_worker_alive(worker, sip_module):
         return False
@@ -511,109 +507,6 @@ def cleanup_rescan_worker_on_close(
             and getattr(window, "_active_rescan_worker", None) is worker
         ):
             window._active_rescan_worker = None
-
-
-def cleanup_window_workers_on_close(
-    window,
-    *,
-    data_loader_workers: list,
-    data_loader_meta: dict,
-    max_data_loader_workers: int,
-    rescan_workers: list,
-    rescan_meta: dict,
-    max_rescan_workers: int,
-    retired_ttl_sec: float,
-    retired_force_wait_ms: int,
-    sip_module,
-) -> None:
-    data_worker = getattr(window, "data_loader_thread", None)
-    if data_worker is not None:
-        try:
-            retain_data_loader_worker_until_finished(
-                window,
-                data_worker,
-                global_workers=data_loader_workers,
-                global_meta=data_loader_meta,
-                max_global_workers=max_data_loader_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-            cancel_fn = getattr(data_worker, "cancel", None)
-            interruption_fn = getattr(data_worker, "requestInterruption", None)
-            if callable(cancel_fn):
-                cancel_fn()
-            elif callable(interruption_fn):
-                interruption_fn()
-            if hasattr(data_worker, "quit"):
-                data_worker.quit()
-        except Exception as exc:
-            logger.debug("Falha no cleanup do data loader durante closeEvent: %s", exc)
-
-    filter_worker = getattr(window, "filter_thread", None)
-    filter_worker_running = False
-    if filter_worker is not None and hasattr(filter_worker, "isRunning"):
-        try:
-            filter_worker_running = bool(filter_worker.isRunning())
-        except Exception as exc:
-            filter_worker_running = True
-            logger.debug(
-                "Falha ao consultar estado do filter worker no closeEvent: %s",
-                exc,
-            )
-    if filter_worker_running:
-        try:
-            window._cancel_active_filter_worker("closeEvent")
-        except Exception as exc:
-            logger.debug("Filter cleanup fallback in closeEvent: %s", exc)
-            try:
-                worker_for_fallback = filter_worker
-                if worker_for_fallback is not None:
-                    worker_for_fallback.quit()
-            except Exception as fallback_exc:
-                logger.debug(
-                    "Falha no fallback de encerramento do filter worker: %s",
-                    fallback_exc,
-                )
-
-    try:
-        prune_retired_data_loader_workers(
-            window,
-            global_workers=data_loader_workers,
-            global_meta=data_loader_meta,
-            max_global_workers=max_data_loader_workers,
-            retired_ttl_sec=retired_ttl_sec,
-            retired_force_wait_ms=retired_force_wait_ms,
-            sip_module=sip_module,
-        )
-    except Exception as exc:
-        logger.debug("Falha ao podar workers aposentados no closeEvent: %s", exc)
-
-    cleanup_rescan_worker_on_close(
-        window,
-        getattr(window, "_active_rescan_worker", None),
-        global_workers=rescan_workers,
-        global_meta=rescan_meta,
-        max_global_workers=max_rescan_workers,
-        retired_ttl_sec=retired_ttl_sec,
-        retired_force_wait_ms=retired_force_wait_ms,
-        sip_module=sip_module,
-    )
-
-    pai_worker = getattr(window, "_active_pai_api_worker", None)
-    if pai_worker is not None and hasattr(pai_worker, "isRunning"):
-        try:
-            if pai_worker.isRunning():
-                cancel_fn = getattr(pai_worker, "cancel", None)
-                if callable(cancel_fn):
-                    cancel_fn()
-                else:
-                    pai_worker.requestInterruption()
-                pai_worker.quit()
-        except Exception as exc:
-            logger.debug(
-                "Falha no cleanup do PaiApi worker no closeEvent: %s", exc
-            )
 
 
 def prune_retired_rescan_workers(

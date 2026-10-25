@@ -572,8 +572,3 @@ __all__ = [
     "JSONFormatter",
     "ContextFilter",
 ]
-
-
-def get_component_logger(name: str, component: str) -> logging.Logger:
-    """Shortcut para obter logger de componente."""
-    return get_robust_logger().get_logger(name, component)

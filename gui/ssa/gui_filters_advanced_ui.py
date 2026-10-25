@@ -209,13 +209,6 @@ def _apply_windows_field_title(box: QGroupBox, title: str) -> bool:
         return False
 
 
-def _safe_len(value: Any) -> int:
-    try:
-        return len(value)
-    except Exception:
-        return 0
-
-
 def _make_multiselect_box(
     self,
     title: str,

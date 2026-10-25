@@ -351,11 +351,6 @@ def _compute_years_from_data_cadastro(
     return valid_years, notice
 
 
-def _compute_years_from_semana(series: pd.Series) -> pd.Series:
-    nums = pd.to_numeric(series, errors="coerce").astype("Int64")
-    return (nums // 100).astype("Int64")
-
-
 def ano_emissao_series(df: pd.DataFrame) -> tuple[pd.Series, str | None]:
     """Regra unica do ano de emissao (filtro e lista de opcoes, RD-06).
 

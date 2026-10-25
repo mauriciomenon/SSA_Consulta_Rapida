@@ -95,13 +95,6 @@ def _check_executable(exe_path: Path, name: str) -> bool:
     return True
 
 
-# --- Tests --------------------------------------------------------------------
-@pytest.mark.smoke
-def test_executable(exe_path, name):
-    ok = _check_executable(exe_path, name)
-    assert ok, f"Executable '{name}' ausente ou falhou no smoke funcional"
-
-
 # Retem main for manual execution ------------------------------------------------
 def main():  # pragma: no cover
     base_dir = Path(__file__).parent.parent
