@@ -14,9 +14,6 @@ try:
         bootstrap_entry_runtime,
         GUI_SMOKE_OK_MARKER,
         log_launcher_failure,
-        seed_runtime_config,
-        seed_runtime_data,
-        seed_runtime_resources,
         SMOKE_TEST_ENV,
     )
 except ModuleNotFoundError as exc:
@@ -26,9 +23,6 @@ except ModuleNotFoundError as exc:
         bootstrap_entry_runtime,
         GUI_SMOKE_OK_MARKER,
         log_launcher_failure,
-        seed_runtime_config,
-        seed_runtime_data,
-        seed_runtime_resources,
         SMOKE_TEST_ENV,
     )
 
@@ -37,31 +31,6 @@ exe_path: Path | None = None
 is_frozen_runtime = False
 app_dir = ""
 _runtime_prepared = False
-
-
-def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path:
-    return seed_runtime_config(
-        runtime_dir,
-        bundled_config,
-        logger_name="gui_entry",
-    )
-
-
-def _seed_runtime_data(runtime_dir: Path, bundled_data: Path | None) -> Path:
-    return seed_runtime_data(
-        runtime_dir,
-        bundled_data,
-        logger_name="gui_entry",
-        copy_all=False,
-    )
-
-
-def _seed_runtime_resources(runtime_dir: Path, bundled_resources: Path | None) -> Path:
-    return seed_runtime_resources(
-        runtime_dir,
-        bundled_resources,
-        logger_name="gui_entry",
-    )
 
 
 def _bootstrap_runtime() -> str:

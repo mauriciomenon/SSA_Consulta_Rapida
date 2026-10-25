@@ -256,11 +256,6 @@ def verify_database_integrity():
     return summary
 
 
-def analyze_database_integrity():
-    """Backward-compatible alias for legacy callers."""
-    return verify_database_integrity()
-
-
 def repair_database_if_needed(
     report: dict[str, object] | None = None,
 ) -> dict[str, object]:

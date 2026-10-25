@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import QApplication
 from gui.workers.data_loader_processing import (
     DEFAULT_UI_SORT_SPEC,
     prepare_dataframe_for_ui,
-    sanitize_ssa_like_value,
+    sanitize_ssa_like_series,
 )
 from gui.workers.data_loader_query import (
     SQLITE_OFFSET_WITHOUT_LIMIT,
@@ -275,9 +275,9 @@ def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
     assert set(prepared_df["situacao"].tolist()) == {"STE", "SCA"}
 
 
-def test_sanitize_ssa_like_value_does_not_fold_unrelated_text_with_nine_digits():
-    assert sanitize_ssa_like_value("Order 123-456-789") == "Order 123-456-789"
-    assert sanitize_ssa_like_value("SSA-202500001") == "202500001"
+def test_sanitize_ssa_like_series_does_not_fold_unrelated_text_with_nine_digits():
+    values = pd.Series(["Order 123-456-789", "SSA-202500001"], dtype="object")
+    assert sanitize_ssa_like_series(values).tolist() == ["Order 123-456-789", "202500001"]
 
 
 def test_prepare_dataframe_for_ui_fallback_sort_matches_sqlite_integer_cast_prefix():

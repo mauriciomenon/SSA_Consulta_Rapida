@@ -17,8 +17,6 @@ try:
         bootstrap_entry_runtime,
         log_launcher_failure,
         resolve_runtime_home,
-        seed_runtime_config,
-        seed_runtime_data,
     )
 except ModuleNotFoundError as exc:
     if exc.name != "launchers" and not str(exc.name).startswith("launchers."):
@@ -29,8 +27,6 @@ except ModuleNotFoundError as exc:
         bootstrap_entry_runtime,
         log_launcher_failure,
         resolve_runtime_home,
-        seed_runtime_config,
-        seed_runtime_data,
     )
 
 exe_path: Path | None = None
@@ -54,23 +50,6 @@ class ImportExecutionStats(TypedDict):
     total_candidates: int
     processed_files: int
     error_count: int
-
-
-def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path:
-    return seed_runtime_config(
-        runtime_dir,
-        bundled_config,
-        logger_name="cli_entry",
-    )
-
-
-def _seed_runtime_data(runtime_dir: Path, bundled_data: Path | None) -> Path:
-    return seed_runtime_data(
-        runtime_dir,
-        bundled_data,
-        logger_name="cli_entry",
-        copy_all=True,
-    )
 
 
 def _bootstrap_runtime() -> str:

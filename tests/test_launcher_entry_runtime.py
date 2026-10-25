@@ -634,11 +634,11 @@ def test_cli_entry_pyoxidizer_runtime_uses_executable_dir_as_bundle_root(
 
 
 def test_cli_seed_runtime_config_does_not_overwrite_user_files(tmp_path: Path) -> None:
-    namespace = runpy.run_path(
-        str(REPO_ROOT / "launchers" / "cli_entry.py"),
-        run_name="test_cli_seed_config",
-    )
-    seed_config = namespace["_seed_runtime_config"]
+    from launchers.runtime_entry_helpers import seed_runtime_config
+
+    def seed_config(runtime_dir: Path, bundled_config: Path) -> Path:
+        return seed_runtime_config(runtime_dir, bundled_config, logger_name="cli_entry")
+
     runtime_dir = tmp_path / "runtime"
     bundled_config = tmp_path / "bundle" / "config"
     bundled_config_nested = bundled_config / "nested"
@@ -658,11 +658,11 @@ def test_cli_seed_runtime_config_does_not_overwrite_user_files(tmp_path: Path) -
 def test_gui_seed_runtime_resources_does_not_overwrite_user_files(
     tmp_path: Path,
 ) -> None:
-    namespace = runpy.run_path(
-        str(REPO_ROOT / "launchers" / "gui_entry.py"),
-        run_name="test_gui_seed_resources",
-    )
-    seed_resources = namespace["_seed_runtime_resources"]
+    from launchers.runtime_entry_helpers import seed_runtime_resources
+
+    def seed_resources(runtime_dir: Path, bundled_resources: Path) -> Path:
+        return seed_runtime_resources(runtime_dir, bundled_resources, logger_name="gui_entry")
+
     runtime_dir = tmp_path / "runtime"
     bundled_resources = tmp_path / "bundle" / "resources"
     bundled_resources_nested = bundled_resources / "icons"

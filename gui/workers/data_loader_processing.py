@@ -49,13 +49,6 @@ class LoadedDataFrames:
     attrs: dict[str, Any]
 
 
-def sanitize_ssa_like_value(value) -> str:
-    try:
-        return str(sanitize_ssa_like_series(pd.Series([value], dtype="object")).iloc[0])
-    except Exception:
-        return ""
-
-
 def coerce_sqlite_integer_prefix_series(values: pd.Series) -> pd.Series:
     return (
         values.astype(str)

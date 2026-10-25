@@ -50,7 +50,7 @@ def test_analyze_db_integrity_uses_ssa_table_and_runs(tmp_path, monkeypatch):
         / "analyze_db_integrity.py",
         "analyze_db_integrity_test",
     )
-    result = module.analyze_database_integrity()
+    result = module.verify_database_integrity()
 
     assert module.TABLE_NAME == "ssa_table"
     assert isinstance(result, dict)
@@ -76,7 +76,7 @@ def test_analyze_db_integrity_reports_empty_fields_as_aggregate_flag(
         / "analyze_db_integrity.py",
         "analyze_db_integrity_aggregate_flag_test",
     )
-    result = module.analyze_database_integrity()
+    result = module.verify_database_integrity()
 
     assert result["empty_fields"] is True
 
@@ -94,7 +94,7 @@ def test_analyze_db_integrity_handles_empty_table_without_zero_division(
         / "analyze_db_integrity.py",
         "analyze_db_integrity_empty_table_test",
     )
-    result = module.analyze_database_integrity()
+    result = module.verify_database_integrity()
 
     assert result["total_records"] == 0
     assert result["empty_fields"] is False
@@ -118,7 +118,7 @@ def test_analyze_db_integrity_duplicate_count_not_limited_to_top10(
         / "analyze_db_integrity.py",
         "analyze_db_integrity_duplicate_count_test",
     )
-    result = module.analyze_database_integrity()
+    result = module.verify_database_integrity()
 
     assert result["has_duplicates"] is True
     assert result["duplicate_count"] == 12
