@@ -28,6 +28,26 @@ def _read_repo_text(*parts: str) -> str:
     return (PROJECT_ROOT.joinpath(*parts)).read_text(encoding="utf-8")
 
 
+def _is_wsl() -> bool:
+    osrelease = Path("/proc/sys/kernel/osrelease")
+    return osrelease.is_file() and "microsoft" in osrelease.read_text(encoding="utf-8").lower()
+
+
+@NATIVE_POSIX_ONLY
+@pytest.mark.skipif(_is_wsl(), reason="no WSL o script roda o teste de verdade")
+def test_native_host_guard_test_is_skipped_outside_wsl() -> None:
+    """BL-23: fora do WSL o teste da guarda sai com 77 (ignorado) e diz por que."""
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash ausente")
+    result = subprocess.run(
+        [bash, str(PROJECT_ROOT / "tests" / "scripts" / "native_host_guard_test.sh")],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert result.returncode == 77, result.stderr
+    assert "IGNORADO - este teste so roda no WSL" in result.stderr
+
+
 def test_key_shell_scripts_parse_with_available_bash() -> None:
     bash = shutil.which("bash")
     assert bash is not None, "bash must be available for shell contract tests"

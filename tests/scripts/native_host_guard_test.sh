@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
+# Teste da guarda nativa do lado WSL (BL-23): so roda dentro do WSL, no clone
+# ~/gitlab_repo/ssa_consulta_rapida_pyqt6 em ext4. Fora do WSL sai com codigo 77
+# (ignorado, nao e aprovacao). O lado Windows nativo e native_host_guard_test.ps1.
 set -euo pipefail
+
+os_release=""
+if [[ -r /proc/sys/kernel/osrelease ]]; then
+  IFS= read -r os_release < /proc/sys/kernel/osrelease || true
+fi
+if [[ "$(printf '%s' "$os_release" | LC_ALL=C tr '[:upper:]' '[:lower:]')" != *microsoft* ]]; then
+  printf 'native host guard tests: IGNORADO - este teste so roda no WSL (host atual: %s)\n' "$(uname -s)" >&2
+  exit 77
+fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 # shellcheck disable=SC1091
