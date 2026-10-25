@@ -3,7 +3,7 @@
 - Build e testes exigem ferramentas nativas e clone do proprio host; nao compartilhar checkout ou venv entre sistemas.
 
 ## Visao geral
-- `.envrc` inicializa tudo: tenta pyenv + pyenv-virtualenv, garante a versao estavel (`3.13.12`, lida de `.python-version` se existir) e ativa o virtualenv `ssa_consulta_stable_<versao>`.
+- `.envrc` inicializa tudo (Linux/macOS): com `uv` no PATH cria ou reaproveita `.venv` (`uv venv --python <versao>`) e ativa; sem uv, tenta pyenv + pyenv-virtualenv (`ssa_consulta_stable_<versao>`). A versao estavel e `3.13.12` (`SSA_PYTHON_STABLE_VERSION`); um `.python-version` na raiz, se voce criar um, tem precedencia. O repositorio nao traz esse arquivo.
 - A variante "free-threaded" usa `SSA_PYTHON_VARIANT=free-threaded` (ou `SSA_USE_FREE_THREADED=1`) e provisiona `3.14-dev` por padrao (`SSA_PYTHON_FT_VERSION` pode ajustar).
 - Sem pyenv, o fluxo cria `.venv` (ou `.venv_ft` para a variante livre do GIL) com `python -m venv` e ativa automaticamente.
 - O PATH recebe `scripts/` e `scripts_manutencao/`, alem de exportar `PYTHONUTF8=1` e `PYTHONDONTWRITEBYTECODE=1`.
@@ -14,15 +14,15 @@
 2. Na raiz do repositorio: `direnv allow` (apenas quando `.envrc` mudar).
 3. Ao entrar na pasta, o prompt mostra `[env] python ...` com a versao ativa.
 
-Sem direnv, rode `source ./activate_repo.sh` (pode definir `SSA_PYTHON_VARIANT=free-threaded` antes). O wrapper `activate_env.sh` apenas chama o mesmo helper.
+Sem direnv, rode `source dev_env/activate_repo.sh` na raiz (pode definir `SSA_PYTHON_VARIANT=free-threaded` antes). O wrapper `dev_env/activate_env.sh` apenas chama o mesmo helper.
 
 ### Windows 11 (PowerShell)
-- Adicione ao profile: `. .\activate_repo.ps1` (ou use `scripts/append_profile_snippet.ps1`).
-- Escolha de variante: `. .\activate_repo.ps1 -Variant free-threaded` ou via `SSA_PYTHON_VARIANT`.
-- `activate_env.ps1` continua disponivel e delega para `activate_repo.ps1`.
+- Adicione ao profile: `. .\dev_env\activate_repo.ps1` (ou use `scripts/append_profile_snippet.ps1`).
+- Escolha de variante: `. .\dev_env\activate_repo.ps1 -Variant free-threaded` ou via `SSA_PYTHON_VARIANT`.
+- `dev_env\activate_env.ps1` continua disponivel e delega para `dev_env\activate_repo.ps1` (no PowerShell o fluxo usa pyenv-win ou `.venv`, sem uv).
 
 ### Variantes suportadas
-- **stable** (padrao): usa `SSA_PYTHON_STABLE_VERSION` (default 3.13.12 ou o valor de `.python-version`).
+- **stable** (padrao): usa `SSA_PYTHON_STABLE_VERSION` (default 3.13.12; um `.python-version` local tem precedencia).
 - **free-threaded**: liga o build 3.14 `--disable-gil`. Ajuste com `SSA_PYTHON_FT_VERSION` se for usar outro rotulo do pyenv.
 
 ## Notas praticas

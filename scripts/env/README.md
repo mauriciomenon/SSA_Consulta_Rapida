@@ -12,14 +12,15 @@ Scripts de bootstrap de ambiente Python com suporte multiplataforma (Windows, ma
 ## Como Funciona
 
 ### 1. Detecção de Versão Python
-- Lê `.python-version` na raiz do repo (atualmente: **3.13.12**)
-- Fallback para `SSA_PYTHON_STABLE_VERSION` (default: 3.13.12)
+- `SSA_PYTHON_STABLE_VERSION` (default: 3.13.12)
+- Um `.python-version` na raiz, se existir, tem precedencia (o repositorio nao traz esse arquivo)
 - Variante free-threaded usa `SSA_PYTHON_FT_VERSION` (default: 3.14-dev)
 
 ### 2. Estratégia de Ambiente (em ordem de precedência)
-1. **pyenv + virtualenv** (preferido): Cria `ssa_consulta_stable_3_13_12`
-2. **pyenv local** (se virtualenv indisponível): Usa `.python-version` via `pyenv local`
-3. **venv local** (fallback): Cria `.venv` com Python do sistema
+1. **uv** (preferido, so em `direnv_common.sh`): cria ou reaproveita `.venv` com `uv venv --python <versao>`
+2. **pyenv + virtualenv**: Cria `ssa_consulta_stable_3_13_12`
+3. **pyenv local** (se virtualenv indisponível): Usa `pyenv local`
+4. **venv local** (fallback): Cria `.venv` com Python do sistema
 
 ### 3. Variantes de Python
 - **stable** (default): Versão estável de produção (3.13.12)
@@ -60,7 +61,7 @@ ssa_env_apply manual
 
 | Variável | Descrição | Default |
 |----------|-----------|---------|
-| `SSA_PYTHON_STABLE_VERSION` | Versão Python estável | Lê de `.python-version` ou 3.13.12 |
+| `SSA_PYTHON_STABLE_VERSION` | Versão Python estável | 3.13.12 (um `.python-version` local tem precedencia) |
 | `SSA_PYTHON_FT_VERSION` | Versão free-threaded | 3.14-dev |
 | `SSA_PYTHON_VARIANT` | Variante a usar | stable |
 | `SSA_USE_FREE_THREADED` | Atalho para free-threaded | 0 |
