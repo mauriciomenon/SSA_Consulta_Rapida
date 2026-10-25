@@ -25,6 +25,7 @@ class _FakeRobustLogger:
         logger = logging.getLogger(f"test.cf06.{name}.{component}")
         logger.handlers = [_Capture()]
         logger.propagate = False
+        logger.setLevel(logging.WARNING)  # BL-43: nao herdar o nivel do logger raiz
         return logger
 
 
