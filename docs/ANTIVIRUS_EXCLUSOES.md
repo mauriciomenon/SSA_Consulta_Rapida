@@ -19,16 +19,19 @@ Ferramentas de build Python (PyInstaller, Nuitka, PyOxidizer) geram executaveis 
 2. Virus & threat protection
 3. Manage settings
 4. Add or remove exclusions
-5. Adicionar:
-   - `<repo>\build\`
-   - `<repo>\dist\`
+5. Adicionar (pastas onde os builds gravam):
+   - `<repo>\launchers\dist\` (executaveis PyInstaller)
+   - `<repo>\launchers\platforms\` (temporarios do PyInstaller em `<alvo>\temp`)
+   - `<repo>\builds\` (Nuitka, PyOxidizer e ZIPs em `builds\packages`)
+   - `<repo>\dist_packages\` (instalador Inno Setup)
 
 **Via PowerShell (Admin):**
 
 ```powershell
-$Repo = "C:\caminho\para\SSA_Consulta_Rapida"
-Add-MpPreference -ExclusionPath "$Repo\build"
-Add-MpPreference -ExclusionPath "$Repo\dist"
+$Repo = "$env:USERPROFILE\gitlab\ssa_consulta_rapida_pyqt6"  # pasta exigida pela guarda nativa
+foreach ($dir in "launchers\dist", "launchers\platforms", "builds", "dist_packages") {
+    Add-MpPreference -ExclusionPath (Join-Path $Repo $dir)
+}
 ```
 
 Nao use `-ExclusionExtension "*.exe"`: a exclusao por extensao vale para o
@@ -38,7 +41,7 @@ sistema inteiro, nao so para o repositorio.
 
 **Avast/AVG:**
 - Settings > General > Exclusions
-- Add folders: `<repo>\build\` e `<repo>\dist\`
+- Add folders: as quatro pastas da lista do Windows Defender acima
 
 **Kaspersky:**
 - Settings > Additional > Threats and Exclusions > Exclusions > Manage Exclusions
