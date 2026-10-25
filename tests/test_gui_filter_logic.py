@@ -1019,7 +1019,8 @@ class TestGUIFilterLogic:
         assert "SAM API" in captured["groups"]
         assert "Interface" in captured["groups"]
         assert "Tabela e colunas exibidas" in captured["groups"]
-        assert "Cache e comportamento" in captured["groups"]
+        assert "Comportamento" in captured["groups"]
+        assert "Cache e comportamento" not in captured["groups"]
         assert "Larguras de colunas" in captured["groups"]
         assert "Usuario SAM" in captured["labels"]
         assert "Chave do cofre" in captured["labels"]
@@ -1029,10 +1030,7 @@ class TestGUIFilterLogic:
             name.startswith("preferencesColumnWidthSpin_")
             for name in captured["width_spins"]
         )
-        assert (
-            captured["checks"]["preferencesAutoLoadCheck"]
-            == "Carregar dados do banco ao iniciar"
-        )
+        assert "preferencesAutoLoadCheck" not in captured["checks"]
         assert (
             captured["checks"]["preferencesShowProgressCheck"]
             == "Mostrar progresso na barra superior"
@@ -1121,13 +1119,10 @@ class TestGUIFilterLogic:
         previous_page_size = gui_settings.get("page_size")
         previous_window_width = gui_settings.get("window_width")
         previous_window_height = gui_settings.get("window_height")
-        previous_auto_load = gui_settings.get("auto_load")
         previous_progress = gui_settings.get("show_progress_bar")
         previous_sort = gui_settings.get("enable_column_sorting")
         previous_show_details = gui_settings.get("show_details_panel")
         previous_double_click = gui_settings.get("enable_double_click_details")
-        previous_cache_enabled = gui_settings.get("cache_enabled")
-        previous_cache_auto_clear = gui_settings.get("cache_auto_clear")
         previous_pai_api = copy.deepcopy(gui_settings.get("pai_api"))
         previous_column_widths = copy.deepcopy(gui_ssa.GUI_MAIN_PREFERENCES.get("column_widths"))
         previous_saved_widths = copy.deepcopy(getattr(self.window, "_saved_gui_column_widths", {}))
@@ -1159,7 +1154,9 @@ class TestGUIFilterLogic:
             window_width_spin = dialog.findChild(QSpinBox, "preferencesWindowWidthSpin")
             window_height_spin = dialog.findChild(QSpinBox, "preferencesWindowHeightSpin")
             cache_size_spin = dialog.findChild(QSpinBox, "preferencesCacheSizeSpin")
-            auto_load_check = dialog.findChild(QCheckBox, "preferencesAutoLoadCheck")
+            # CF-12: os 3 checkboxes sem efeito sairam da tela.
+            for removed in ("preferencesAutoLoadCheck", "preferencesCacheEnabledCheck", "preferencesCacheAutoClearCheck"):
+                assert dialog.findChild(QCheckBox, removed) is None, removed
             show_progress_check = dialog.findChild(
                 QCheckBox, "preferencesShowProgressCheck"
             )
@@ -1171,12 +1168,6 @@ class TestGUIFilterLogic:
             )
             double_click_check = dialog.findChild(
                 QCheckBox, "preferencesDoubleClickDetailsCheck"
-            )
-            cache_enabled_check = dialog.findChild(
-                QCheckBox, "preferencesCacheEnabledCheck"
-            )
-            cache_auto_clear_check = dialog.findChild(
-                QCheckBox, "preferencesCacheAutoClearCheck"
             )
             api_enabled_check = dialog.findChild(
                 QCheckBox, "preferencesPaiApiEnabledCheck"
@@ -1213,13 +1204,10 @@ class TestGUIFilterLogic:
             assert window_width_spin is not None
             assert window_height_spin is not None
             assert cache_size_spin is not None
-            assert auto_load_check is not None
             assert show_progress_check is not None
             assert column_sorting_check is not None
             assert show_details_check is not None
             assert double_click_check is not None
-            assert cache_enabled_check is not None
-            assert cache_auto_clear_check is not None
             assert api_enabled_check is not None
             assert api_scrap_check is not None
             assert api_auto_refresh_check is not None
@@ -1240,13 +1228,10 @@ class TestGUIFilterLogic:
             window_width_spin.setValue(1320)
             window_height_spin.setValue(910)
             cache_size_spin.setValue(70)
-            auto_load_check.setChecked(True)
             show_progress_check.setChecked(False)
             column_sorting_check.setChecked(False)
             show_details_check.setChecked(False)
             double_click_check.setChecked(False)
-            cache_enabled_check.setChecked(False)
-            cache_auto_clear_check.setChecked(True)
             api_enabled_check.setChecked(False)
             api_scrap_check.setChecked(False)
             api_auto_refresh_check.setChecked(True)
@@ -1283,13 +1268,12 @@ class TestGUIFilterLogic:
         assert gui_settings.get("page_size") == 80
         assert gui_settings.get("window_width") == 1320
         assert gui_settings.get("window_height") == 910
-        assert gui_settings.get("auto_load") is True
         assert gui_settings.get("show_progress_bar") is False
         assert gui_settings.get("enable_column_sorting") is False
         assert gui_settings.get("show_details_panel") is False
         assert gui_settings.get("enable_double_click_details") is False
-        assert gui_settings.get("cache_enabled") is False
-        assert gui_settings.get("cache_auto_clear") is True
+        for removed_key in ("auto_load", "cache_enabled", "cache_auto_clear"):
+            assert removed_key not in gui_settings, removed_key
         assert getattr(self.window, "_restored_page_size", None) == 80
         assert getattr(self.window, "_restored_window_width", None) == 1320
         assert getattr(self.window, "_restored_window_height", None) == 910
@@ -1303,7 +1287,7 @@ class TestGUIFilterLogic:
         assert self.window.details_group.isVisible() is False
         resize_mock.assert_any_call(expected_runtime_width, expected_runtime_height)
         assert self.window.table_widget.horizontalHeader().sectionsClickable() is False
-        assert clear_calls == ["clear"]
+        assert clear_calls == []
         assert refresh_calls == ["refresh"]
         pai_api_settings = gui_settings.get("pai_api") or {}
         assert pai_api_settings.get("enabled") is False
@@ -1328,13 +1312,10 @@ class TestGUIFilterLogic:
         gui_settings["page_size"] = previous_page_size
         gui_settings["window_width"] = previous_window_width
         gui_settings["window_height"] = previous_window_height
-        gui_settings["auto_load"] = previous_auto_load
         gui_settings["show_progress_bar"] = previous_progress
         gui_settings["enable_column_sorting"] = previous_sort
         gui_settings["show_details_panel"] = previous_show_details
         gui_settings["enable_double_click_details"] = previous_double_click
-        gui_settings["cache_enabled"] = previous_cache_enabled
-        gui_settings["cache_auto_clear"] = previous_cache_auto_clear
         gui_settings["pai_api"] = previous_pai_api
         gui_ssa.GUI_MAIN_PREFERENCES["column_widths"] = previous_column_widths
         self.window._saved_gui_column_widths = previous_saved_widths

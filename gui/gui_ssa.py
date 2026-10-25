@@ -3636,7 +3636,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         state["cache_size_spin"].setValue(
             int(default_gui_settings.get("filter_cache_size", 50))
         )
-        state["auto_load_checkbox"].setChecked(bool(default_gui_settings.get("auto_load", False)))
         state["show_progress_checkbox"].setChecked(
             bool(default_gui_settings.get("show_progress_bar", True))
         )
@@ -3648,12 +3647,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         state["double_click_checkbox"].setChecked(
             bool(default_gui_settings.get("enable_double_click_details", True))
-        )
-        state["cache_enabled_checkbox"].setChecked(
-            bool(default_gui_settings.get("cache_enabled", True))
-        )
-        state["cache_auto_clear_checkbox"].setChecked(
-            bool(default_gui_settings.get("cache_auto_clear", False))
         )
         default_api_options = state["default_api_options"]
         state["api_enabled_checkbox"].setChecked(bool(default_api_options.enabled))
@@ -4002,14 +3995,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 FilterWorker.reset_shared_cache(max_size=selected_cache_size)
             settings_changed = True
         toggle_specs = (
-            ("auto_load_checkbox", "auto_load", False, None, None, False),
             (
                 "show_progress_checkbox",
                 "show_progress_bar",
                 True,
                 self._apply_progress_bar_preference,
                 None,
-                False,
             ),
             (
                 "enable_sort_checkbox",
@@ -4017,7 +4008,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 True,
                 self._apply_column_sorting_preference,
                 None,
-                False,
             ),
             (
                 "show_details_checkbox",
@@ -4025,7 +4015,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 True,
                 self._apply_details_panel_visibility_preference,
                 None,
-                False,
             ),
             (
                 "double_click_checkbox",
@@ -4033,16 +4022,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 True,
                 None,
                 "_double_click_details_enabled",
-                False,
-            ),
-            ("cache_enabled_checkbox", "cache_enabled", True, None, None, False),
-            (
-                "cache_auto_clear_checkbox",
-                "cache_auto_clear",
-                False,
-                None,
-                None,
-                True,
             ),
         )
         for (
@@ -4051,7 +4030,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             default_value,
             apply_callback,
             instance_attr,
-            clear_cache_on_enable,
         ) in toggle_specs:
             selected_enabled = bool(state[checkbox_key].isChecked())
             if selected_enabled == bool(gui_settings.get(setting_key, default_value)):
@@ -4061,11 +4039,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 apply_callback(selected_enabled)
             if instance_attr is not None:
                 setattr(self, instance_attr, selected_enabled)
-            if clear_cache_on_enable and selected_enabled:
-                try:
-                    self.clear_filter_cache()
-                except Exception as exc:
-                    logger.debug("Falha ao limpar cache ao aplicar preferencia: %s", exc)
             settings_changed = True
         return settings_changed, selected_theme, page_size, page_size_saved
 

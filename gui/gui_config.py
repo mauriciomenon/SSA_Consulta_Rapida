@@ -382,7 +382,6 @@ DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
     "page_size": 50,
     "window_width": 1200,
     "window_height": 890,
-    "auto_load": False,
     "debounce_delay": 800,
     "default_filter_mode": "contains",
     "show_progress_bar": True,
@@ -392,8 +391,6 @@ DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
     "table_cell_alignment": "right",
     "theme": "classico",
     "filter_cache_size": 50,
-    "cache_enabled": True,
-    "cache_auto_clear": False,
     "theme_default": None,
     "pai_api": default_pai_api_settings(),
 }

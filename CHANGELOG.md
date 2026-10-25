@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Preferencias da GUI: sairam "Carregar dados do banco ao iniciar", "Usar cache de filtros" e "Limpar cache ao recarregar dados", que nao mudavam nada. A GUI sempre carrega o banco ao abrir (a caixa vinha desmarcada e mostrava o contrario), o cache de filtros esta sempre ligado (o tamanho continua em "Cache de filtros") e toda recarga ja limpa o cache. O grupo passa a se chamar "Comportamento". Preferencias salvas com essas chaves continuam abrindo normalmente.
+
 - `scripts/create_distribution.py`: sai a opcao `--include-sample-db` e o banco de exemplo `dist_assets/sample_db/ssas_example.db` (schema antigo, 82 colunas, sem uso). O pacote e o instalador nao tem mais `BancoExemplo/`; o `LEIA-ME-USUARIO.txt` perde a secao 6, e "Banco local escolhido explicitamente" passa a ser a 6. Para levar um banco junto, use `--include-local-db <caminho>`.
 
 - Pasta `exportacao/` da pasta de runtime: nao e mais criada pelos builds, pelo pacote nem pelo setup, porque nenhum export grava nela (CSV/XLSX vao para `docs_saida`). O `.gitignore` deixa de ignorar `exportacao/`, que e o pacote de codigo do export: um arquivo novo ali ficava fora do Git sem aviso.

@@ -457,7 +457,7 @@ def _build_column_widths_section(
 def _build_behavior_section(
     content_layout: QVBoxLayout, gui_settings: dict[str, Any]
 ) -> dict[str, Any]:
-    behavior_group = QGroupBox("Cache e comportamento")
+    behavior_group = QGroupBox("Comportamento")
     behavior_group.setObjectName("preferencesBehaviorGroup")
     behavior_layout = QVBoxLayout(behavior_group)
     behavior_layout.setContentsMargins(8, 8, 8, 8)
@@ -465,22 +465,17 @@ def _build_behavior_section(
     toggles_layout.setContentsMargins(0, 6, 0, 0)
     toggles_layout.setSpacing(6)
 
-    auto_load_checkbox = QCheckBox("Carregar dados do banco ao iniciar")
-    auto_load_checkbox.setObjectName("preferencesAutoLoadCheck")
-    auto_load_checkbox.setChecked(bool(gui_settings.get("auto_load", False)))
-    toggles_layout.addWidget(auto_load_checkbox, 0, 0)
-
     show_progress_checkbox = QCheckBox("Mostrar progresso na barra superior")
     show_progress_checkbox.setObjectName("preferencesShowProgressCheck")
     show_progress_checkbox.setChecked(bool(gui_settings.get("show_progress_bar", True)))
-    toggles_layout.addWidget(show_progress_checkbox, 0, 1)
+    toggles_layout.addWidget(show_progress_checkbox, 0, 0)
 
     enable_sort_checkbox = QCheckBox("Permitir ordenacao por clique no cabecalho")
     enable_sort_checkbox.setObjectName("preferencesColumnSortingCheck")
     enable_sort_checkbox.setChecked(
         bool(gui_settings.get("enable_column_sorting", True))
     )
-    toggles_layout.addWidget(enable_sort_checkbox, 0, 2)
+    toggles_layout.addWidget(enable_sort_checkbox, 0, 1)
 
     show_details_checkbox = QCheckBox("Mostrar detalhes")
     show_details_checkbox.setObjectName("preferencesShowDetailsCheck")
@@ -494,28 +489,13 @@ def _build_behavior_section(
     )
     toggles_layout.addWidget(double_click_checkbox, 1, 1)
 
-    cache_enabled_checkbox = QCheckBox("Usar cache de filtros")
-    cache_enabled_checkbox.setObjectName("preferencesCacheEnabledCheck")
-    cache_enabled_checkbox.setChecked(bool(gui_settings.get("cache_enabled", True)))
-    toggles_layout.addWidget(cache_enabled_checkbox, 1, 2)
-
-    cache_auto_clear_checkbox = QCheckBox("Limpar cache ao recarregar dados")
-    cache_auto_clear_checkbox.setObjectName("preferencesCacheAutoClearCheck")
-    cache_auto_clear_checkbox.setChecked(
-        bool(gui_settings.get("cache_auto_clear", False))
-    )
-    toggles_layout.addWidget(cache_auto_clear_checkbox, 2, 0, 1, 2)
-
     behavior_layout.addLayout(toggles_layout)
     content_layout.addWidget(behavior_group)
     return {
-        "auto_load_checkbox": auto_load_checkbox,
         "show_progress_checkbox": show_progress_checkbox,
         "enable_sort_checkbox": enable_sort_checkbox,
         "show_details_checkbox": show_details_checkbox,
         "double_click_checkbox": double_click_checkbox,
-        "cache_enabled_checkbox": cache_enabled_checkbox,
-        "cache_auto_clear_checkbox": cache_auto_clear_checkbox,
     }
 
 
