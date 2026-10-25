@@ -36,13 +36,18 @@ def test_quality_gates_failures(tmp_path):
         str(bad_doc),
         "--fail-on-issues",
     ]
-    validate_cfg_cmd = [sys.executable, str(SCRIPTS_DIR / "validate_configs.py"), str(bad_cfg_dir)]
+    validate_cfg_cmd = [
+        sys.executable, str(SCRIPTS_DIR / "validate_configs.py"),
+        "--config-dir", str(bad_cfg_dir), "--json",
+    ]
 
     r1 = subprocess.run(check_docs_cmd, capture_output=True, text=True)
     r2 = subprocess.run(validate_cfg_cmd, capture_output=True, text=True)
 
     assert r1.returncode != 0, f"check_docs deveria falhar: stdout={r1.stdout} stderr={r1.stderr}"
-    assert r2.returncode != 0, f"validate_configs deveria falhar: stdout={r2.stdout} stderr={r2.stderr}"
+    assert r2.returncode == 2, f"validate_configs deveria falhar: stdout={r2.stdout} stderr={r2.stderr}"
+    # BL-38: antes o argumento posicional caia no erro do argparse e o JSON invalido nunca era lido.
+    assert [issue["rule"] for issue in json.loads(r2.stdout)["issues"]] == ["json.parse"]
 
     # Agora roda agregador (espera overall_status != ok)
     aggregator_cmd = [sys.executable, str(SCRIPTS_DIR / "run_quality_gates.py"), "--extra-doc", str(bad_doc), "--extra-config-dir", str(bad_cfg_dir)]
@@ -63,8 +68,10 @@ def test_quality_gates_failures(tmp_path):
     assert parsed is not None, f"Não foi possível parsear JSON do agregador. Saída: {r3.stdout}"
     assert parsed.get("overall_status") in {"fail", "error"}
     # Deve conter chaves dos gates
-    for gate in ("check_docs", "validate_configs"):
+    for gate in ("check_docs", "validate_configs", "validate_configs_extra_1"):
         assert gate in parsed, f"Gate {gate} ausente no summary"
+    assert parsed["validate_configs_extra_1"]["status"] == "error"  # JSON invalido = fatal (exit 2), parsed["validate_configs_extra_1"]
+    assert parsed["check_docs"]["status"] == "fail", parsed["check_docs"]
 
 
 @pytest.mark.integration
