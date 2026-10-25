@@ -724,28 +724,25 @@ class TestWorkerRegression:
         def run_worker(thread_id):
             try:
                 worker = FilterWorker(df, [[f"thread_{thread_id}"]])
-
-                def mock_filter(df, parsed):
-                    return df.head(10)
-
-                with patch(
-                    "gui.workers.filter_worker.filter_dataframe",
-                    side_effect=mock_filter,
-                ):
-                    worker.run()
-                    results.append(thread_id)
+                worker.run()
+                results.append(thread_id)
             except Exception as e:
                 errors.append((thread_id, str(e)))
 
-        # Executar 10 workers em paralelo
-        threads = []
-        for i in range(10):
-            t = threading.Thread(target=run_worker, args=(i,))
-            threads.append(t)
-            t.start()
+        def mock_filter(df, parsed):
+            return df.head(10)
 
-        for t in threads:
-            t.join()
+        # SS-09: patch() nao e seguro entre threads; aplicado em cada thread, uma delas
+        # restaurava o mock de outra e filter_dataframe ficava trocado no resto da suite.
+        with patch("gui.workers.filter_worker.filter_dataframe", side_effect=mock_filter):
+            threads = []
+            for i in range(10):
+                t = threading.Thread(target=run_worker, args=(i,))
+                threads.append(t)
+                t.start()
+
+            for t in threads:
+                t.join()
 
         # Todos devem completar sem erro
         assert len(results) == 10
