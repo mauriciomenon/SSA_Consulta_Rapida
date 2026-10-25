@@ -42,6 +42,7 @@ from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import details_derivadas_model  # noqa: E402
 from gui.ssa import filter_aliases  # noqa: E402
+from gui.ssa import filter_search_undo_controller as search_undo_controller  # noqa: E402
 from gui.ssa import filter_domain_rules  # noqa: E402
 from gui.ssa import gui_filters_advanced_layout as advanced_layout  # noqa: E402
 from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
@@ -4499,6 +4500,9 @@ class TestGUIFilterLogic:
         self.window._df_last_search_filtered = previous_subset
         self.window._active_filter_search_display = "MEL"
         self.window.paginator.set_dataframe(self.base_df.copy())
+        self.window._ensure_data_revision()
+        # BL-41: resultado guardado vale para a versao dos dados de onde saiu.
+        self.window._df_last_search_marker = search_undo_controller.data_marker(self.window)
 
         captured_sources: list[pd.DataFrame] = []
         original_apply_terms = self.window._apply_general_search_terms

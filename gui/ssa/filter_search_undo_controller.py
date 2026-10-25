@@ -14,6 +14,14 @@ from utils.robust_logging import get_robust_logger
 logger = get_robust_logger().get_logger(__name__, "gui")
 
 
+def data_marker(window: Any) -> tuple[Any, int]:
+    """Marca dos dados carregados: muda a cada recarga (uuid) ou edicao/ordenacao (revisao)."""
+    return (
+        getattr(window, "_data_uuid", None),
+        int(getattr(window, "_data_revision", 0) or 0),
+    )
+
+
 def _can_use_last_search_result(
     window: Any,
     *,
@@ -21,6 +29,9 @@ def _can_use_last_search_result(
     has_column_filters: bool,
 ) -> bool:
     if not isinstance(last_search_filtered, pd.DataFrame):
+        return False
+    # BL-41: resultado de outra versao dos dados (recarga, edicao, ordenacao) nao serve de base.
+    if getattr(window, "_df_last_search_marker", None) != data_marker(window):
         return False
     if not list(last_search_filtered.columns):
         return False

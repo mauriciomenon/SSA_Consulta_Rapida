@@ -919,6 +919,8 @@ class FilterGUISSAMixin:
         self._pending_search_display = search_text
         self._active_filter_search_display = search_text
         self._active_filter_search_request_id = request_id
+        # BL-41: marca dos dados de onde este pedido parte; vai junto do resultado guardado.
+        self._filter_request_data_marker = search_undo_controller.data_marker(self)
         self._filter_ui_state().set_busy()
 
         # Modo síncrono (sem QThread) opcional para testes
@@ -1010,8 +1012,10 @@ class FilterGUISSAMixin:
                 "Falha ao ordenar numero_ssa no fim do filtro geral: %s", exc
             )
         previous_search_baseline = self._df_last_search_filtered
+        previous_search_marker = getattr(self, "_df_last_search_marker", None)
         # Atualiza baseline do resultado da busca global para o refresh pos-busca
         self._df_last_search_filtered = df_filtrado
+        self._df_last_search_marker = getattr(self, "_filter_request_data_marker", None)
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
         refresh_completed = self._refresh_after_filter_change(
@@ -1019,6 +1023,7 @@ class FilterGUISSAMixin:
         )
         if not refresh_completed:
             self._df_last_search_filtered = previous_search_baseline
+            self._df_last_search_marker = previous_search_marker
             self._sync_clear_filter_button_state()
             self._apply_search_display()
             self._apply_filter_result_width_safety("filter_finished", deferred=True)
@@ -1297,6 +1302,9 @@ class FilterGUISSAMixin:
                 worker if worker is not None else getattr(self, "filter_thread", None)
             )
             self._cleanup_filter_worker(target_worker)
+            # BL-41: sem isto filter_thread apontava para o worker ja encerrado e o
+            # refino incremental (que exige nenhum worker ativo) nunca rodava.
+            self._clear_active_filter_worker_reference(target_worker)
             if not getattr(self, "_data_load_busy", False):
                 self._filter_ui_state().set_cleanup()
             try:

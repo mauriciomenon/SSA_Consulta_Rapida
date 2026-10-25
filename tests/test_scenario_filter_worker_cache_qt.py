@@ -143,3 +143,53 @@ class TestScenarioFilterWorkerCache(GUIFilterScenarioHarness):
             "Teste A",
             "Teste A secundario",
         }
+
+
+class TestScenarioSearchRefinement(GUIFilterScenarioHarness):
+    """BL-41: o refino incremental liga no caminho assincrono e respeita a revisao dos dados."""
+
+    def setup_method(self):
+        super().setup_method()
+        FilterWorker.clear_shared_cache()
+        df = self.base_df.copy()
+        df["descricao_ssa"] = ["alfa um", "alfa dois", "beta", "gama", "alfa tres"]
+        self.bind_window_dataframes(df)
+        self.enable_async_filtering()
+
+    def _spy_filter_sources(self, monkeypatch) -> list[int]:
+        sources: list[int] = []
+        real_start = self.window._start_general_filter_worker
+
+        def spy_start(filter_source, *args, **kwargs):
+            sources.append(len(filter_source))
+            return real_start(filter_source, *args, **kwargs)
+
+        monkeypatch.setattr(self.window, "_start_general_filter_worker", spy_start)
+        return sources
+
+    def _search(self, text: str) -> list[str]:
+        self.window.search_input.setText(text)
+        self.window.initiate_filtering()
+        self.wait_until_filter_idle()
+        return self.window.df_exibido["descricao_ssa"].astype(str).tolist()
+
+    def test_async_search_releases_worker_and_refines_from_last_result(self, monkeypatch):
+        sources = self._spy_filter_sources(monkeypatch)
+
+        assert sorted(self._search("alfa")) == ["alfa dois", "alfa tres", "alfa um"]
+        assert self.window.filter_thread is None
+        assert self._search("alfa dois") == ["alfa dois"]
+
+        assert sources == [5, 3]
+        assert self.window.filter_thread is None
+
+    def test_refinement_after_inplace_edit_starts_from_full_data(self, monkeypatch):
+        sources = self._spy_filter_sources(monkeypatch)
+
+        assert len(self._search("alfa")) == 3
+        self.window.df_completo.loc[2, "descricao_ssa"] = "alfa novo"
+        self.window._bump_data_revision("test_inplace_edit")
+
+        assert self._search("alfa novo") == ["alfa novo"]
+        assert sources == [5, 5]
+

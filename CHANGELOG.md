@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Busca geral na GUI: refinar uma busca (acrescentar termos, ex.: "alfa" e depois "alfa dois") passa a filtrar so o resultado anterior, como foi projetado. Antes a GUI nunca soltava o worker da busca terminada, o refino nunca ligava e toda busca percorria a tabela inteira. O resultado anterior so e reaproveitado se os dados nao mudaram desde ele (recarga, edicao ou ordenacao voltam a buscar na tabela inteira).
+
 - Preferencias da GUI: sairam "Carregar dados do banco ao iniciar", "Usar cache de filtros" e "Limpar cache ao recarregar dados", que nao mudavam nada. A GUI sempre carrega o banco ao abrir (a caixa vinha desmarcada e mostrava o contrario), o cache de filtros esta sempre ligado (o tamanho continua em "Cache de filtros") e toda recarga ja limpa o cache. O grupo passa a se chamar "Comportamento". Preferencias salvas com essas chaves continuam abrindo normalmente.
 
 - `scripts/create_distribution.py`: sai a opcao `--include-sample-db` e o banco de exemplo `dist_assets/sample_db/ssas_example.db` (schema antigo, 82 colunas, sem uso). O pacote e o instalador nao tem mais `BancoExemplo/`; o `LEIA-ME-USUARIO.txt` perde a secao 6, e "Banco local escolhido explicitamente" passa a ser a 6. Para levar um banco junto, use `--include-local-db <caminho>`.

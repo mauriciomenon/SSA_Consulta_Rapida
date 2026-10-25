@@ -27,6 +27,10 @@ def _make_window(**overrides):
         "_active_filter_search_display": "alpha",
         "filter_thread": None,
         "_normalize_chunk_for_parse": normalize_chunk_for_parse,
+        # BL-41: o resultado guardado vale so para a mesma versao dos dados.
+        "_data_uuid": "carga-1",
+        "_data_revision": 3,
+        "_df_last_search_marker": ("carga-1", 3),
     }
     base.update(overrides)
     return SimpleNamespace(**base)
@@ -40,6 +44,9 @@ def _make_window(**overrides):
         {"_advanced_filters_active": True},
         {"_active_filter_search_display": ""},
         {"filter_thread": MagicMock()},
+        {"_data_revision": 4},
+        {"_data_uuid": "carga-2"},
+        {"_df_last_search_marker": None},
     ],
     ids=[
         "exclude_ste",
@@ -47,6 +54,9 @@ def _make_window(**overrides):
         "advanced_active",
         "empty_display",
         "filter_thread_active",
+        "data_revision_changed",
+        "data_reloaded",
+        "result_without_marker",
     ],
 )
 def test_select_source_does_not_reuse_last_search_when_gate_blocks(overrides):
