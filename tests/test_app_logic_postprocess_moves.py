@@ -386,3 +386,53 @@ def test_move_to_available_destination_repeated_name_error_has_context(
     assert "attempt=2" in message
     assert "same.xlsx" in message
     assert source.read_text(encoding="utf-8") == "new"
+
+
+def _no_hard_link(monkeypatch) -> None:
+    def _raise(src, dst):
+        raise OSError(errno.EXDEV, "sem hard link neste sistema de arquivos")
+
+    monkeypatch.setattr(import_postprocess.os, "link", _raise)
+
+
+def test_copy_fallback_never_overwrites_file_that_appears_at_destination(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """MEM-31: corrida no destino durante o fallback de copia falha explicita e preserva tudo."""
+    source = tmp_path / "source.xlsx"
+    source.write_text("novo", encoding="utf-8")
+    destination = tmp_path / "dest.xlsx"
+    _no_hard_link(monkeypatch)
+    real_open = import_postprocess.os.open
+
+    def _racing_open(path, flags, mode=0o777):
+        Path(path).write_text("de outro processo", encoding="utf-8")
+        return real_open(path, flags, mode)
+
+    monkeypatch.setattr(import_postprocess.os, "open", _racing_open)
+
+    with pytest.raises(FileExistsError):
+        import_postprocess._move_without_overwrite(source, destination)
+
+    assert source.read_text(encoding="utf-8") == "novo"
+    assert destination.read_text(encoding="utf-8") == "de outro processo"
+
+
+def test_copy_fallback_on_protected_destination_keeps_source(tmp_path: Path, monkeypatch) -> None:
+    """MEM-31: destino protegido (sem permissao) falha explicita, sem destino parcial."""
+    source = tmp_path / "source.xlsx"
+    source.write_text("dados", encoding="utf-8")
+    destination = tmp_path / "protegida" / "dest.xlsx"
+    destination.parent.mkdir()
+    _no_hard_link(monkeypatch)
+
+    def _denied(path, flags, mode=0o777):
+        raise PermissionError(errno.EACCES, "acesso negado", str(path))
+
+    monkeypatch.setattr(import_postprocess.os, "open", _denied)
+
+    with pytest.raises(PermissionError):
+        import_postprocess._move_without_overwrite(source, destination)
+
+    assert source.read_text(encoding="utf-8") == "dados"
+    assert not destination.exists()
