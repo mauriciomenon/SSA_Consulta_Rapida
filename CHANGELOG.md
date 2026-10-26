@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Busca com regex (`~`) recusada (quantificador `* + ? {n}` em base grande, padrao perigoso, longo demais ou invalido) mostra o motivo na barra de status da GUI, ex.: "Aviso: regex com quantificador recusada nesta base grande; coloque antes um termo simples que reduza a base". Antes aparecia so "nenhum resultado", como se nao houvesse SSA.
+
 - Streamlit: o "Limite" de linhas vale so para a tabela exibida, depois da ordenacao (antes ordenacao, totais, graficos e exportacoes viam so as primeiras 500 linhas); a tabela avisa "Exibindo N de M". "Gerar Excel" nao quebra mais a pagina quando ha valor ausente.
 
 - Pacotes: `config/build_info.json` passa a registrar o branch (`git_branch`) e o canal (`release_channel`: `oficial` so quando gerado do `main`, `teste` nos demais). A janela "Sobre" de um build de teste mostra "Build de teste (branch <nome>): nao e release oficial".

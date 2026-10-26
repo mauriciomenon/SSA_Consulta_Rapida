@@ -50,6 +50,7 @@ except ImportError:
 # Imports do core
 from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_MARKER_ATTR
 from core.search_filter_constants import (
+    FILTER_REGEX_BLOCKED_ATTR,
     FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
     FILTER_SOURCE_REVISION_ATTR,
     FILTER_SOURCE_TOKEN_ATTR,
@@ -1058,7 +1059,15 @@ class FilterGUISSAMixin:
         except Exception:
             filtered_total_current = None
         zero_results_suffix = ""
-        if filtered_total_current == 0:
+        regex_blocked = (
+            df_filtrado.attrs.get(FILTER_REGEX_BLOCKED_ATTR)
+            if isinstance(df_filtrado, pd.DataFrame)
+            else None
+        )
+        if regex_blocked:
+            # BL-47: sem isto a regex recusada aparecia como "nenhum resultado".
+            zero_results_suffix = f"Aviso: {regex_blocked}."
+        elif filtered_total_current == 0:
             try:
                 if self._has_any_active_filters():
                     zero_results_suffix = "Aviso: nenhum resultado para o filtro atual."

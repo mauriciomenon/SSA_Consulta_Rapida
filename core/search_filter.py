@@ -15,6 +15,7 @@ from core.search_filter_constants import (
     FILTER_DEFAULT_GROUP_INDEX,
     FILTER_EXACT_IDENTIFIER_COLUMNS,
     FILTER_FIELD_SEPARATOR,
+    FILTER_REGEX_BLOCKED_ATTR,
     FILTER_SEARCH_CACHE_ATTR,
     FILTER_SEARCH_MARKER_ATTR,
     FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
@@ -22,7 +23,7 @@ from core.search_filter_constants import (
     FILTER_SOURCE_TOKEN_ATTR,
 )
 from core.search_filter_defaults import DEFAULT_FILTER_SEARCH_COLUMNS
-from core.regex_safety import safe_regex_contains
+from core.regex_safety import regex_block_reason, safe_regex_contains
 
 logger = logging.getLogger(__name__)
 _NORMALIZED_SEARCH_CACHE_LOCK = threading.Lock()
@@ -568,6 +569,7 @@ def _mask_for_filter_term(
     available_search_cols: list[str],
     normalized_column_cache: dict[str, pd.Series],
     should_cancel: Callable[[], bool] | None = None,
+    blocked_reasons: list[str] | None = None,
 ) -> pd.Series:
     mode = term.get("mode", "contains")
     value = term.get("value", "") or ""
@@ -578,6 +580,11 @@ def _mask_for_filter_term(
         reject_quantifiers = (
             len(candidate_index) * max(len(available_search_cols), 1) > 50_000
         )
+        reason = regex_block_reason(pattern, reject_quantifiers=reject_quantifiers)
+        if reason is not None:
+            if blocked_reasons is not None:
+                blocked_reasons.append(reason)
+            return pd.Series(False, index=candidate_index)
         return _regex_column_match_mask(
             candidate_index=candidate_index,
             available_search_cols=available_search_cols,
@@ -665,6 +672,7 @@ def filter_dataframe(
         len(available_search_cols),
         list(available_search_cols),
     )
+    blocked_reasons: list[str] = []
     final_mask = _combine_filter_term_masks(
         df,
         terms,
@@ -674,12 +682,19 @@ def filter_dataframe(
             available_search_cols=available_search_cols,
             normalized_column_cache=normalized_column_cache,
             should_cancel=should_cancel,
+            blocked_reasons=blocked_reasons,
         ),
         should_cancel=should_cancel,
     )
-    if final_mask.any():
-        return clear_filter_search_attrs(df[final_mask])
-    return clear_filter_search_attrs(df.iloc[0:0])
+    result = clear_filter_search_attrs(
+        df[final_mask] if final_mask.any() else df.iloc[0:0]
+    )
+    # A base pode ser um resultado anterior (refino); nao herdar aviso antigo.
+    result.attrs.pop(FILTER_REGEX_BLOCKED_ATTR, None)
+    if blocked_reasons:
+        logger.warning("Busca: %s", blocked_reasons[0])
+        result.attrs[FILTER_REGEX_BLOCKED_ATTR] = blocked_reasons[0]
+    return result
 
 
 def _run_filter_dataframe_func(

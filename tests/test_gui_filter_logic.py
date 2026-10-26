@@ -16144,6 +16144,28 @@ class TestGUIFilterLogic:
             "Status: Busca para 'SVP, R001'. Aviso: nenhum resultado para o filtro atual."
         )
 
+    def test_on_filter_finished_shows_why_regex_was_refused(self):
+        """BL-47: zero SSAs por regex recusada mostra o motivo, nao 'nenhum'."""
+        from core.search_filter_constants import FILTER_REGEX_BLOCKED_ATTR
+
+        self.window.search_input.setText("~bo+mba")
+        self.window._active_filter_request_id = 89
+        self.window._active_filter_search_request_id = 89
+        self.window._active_filter_search_display = "~bo+mba"
+        self.window._pending_search_display = "~bo+mba"
+        empty = self.base_df.iloc[0:0].copy()
+        empty.attrs[FILTER_REGEX_BLOCKED_ATTR] = "regex recusada: teste"
+        self.window.df_exibido = empty.copy()
+        self.window._df_last_search_filtered = empty.copy()
+        with patch.object(
+            self.window, "_refresh_after_filter_change", lambda **_kwargs: True
+        ):
+            self.window.on_filter_finished(empty, request_id=89)
+
+        assert self.window.status_label.text() == (
+            "Status: Busca para '~bo+mba'. Aviso: regex recusada: teste."
+        )
+
     def test_build_gui_general_search_columns_excludes_dates_but_keeps_weeks(self):
         df = pd.DataFrame(
             {

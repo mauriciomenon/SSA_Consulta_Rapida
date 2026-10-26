@@ -151,6 +151,30 @@ def is_safe_regex_pattern(pattern: str, *, reject_quantifiers: bool = False) -> 
     )
 
 
+def regex_block_reason(pattern: str, *, reject_quantifiers: bool = False) -> str | None:
+    """Motivo legivel pelo qual safe_regex_contains recusaria o padrao, ou None.
+
+    BL-47: a recusa so ia para o log; a GUI mostrava "nenhum resultado".
+    """
+    pattern_text = str(pattern or "")
+    if not pattern_text:
+        return None
+    if len(pattern_text) > _MAX_REGEX_PATTERN_LENGTH:
+        return f"regex recusada: mais de {_MAX_REGEX_PATTERN_LENGTH} caracteres"
+    if not is_safe_regex_pattern(pattern_text, reject_quantifiers=reject_quantifiers):
+        if reject_quantifiers and is_safe_regex_pattern(pattern_text):
+            return (
+                "regex com quantificador (* + ? {n}) recusada nesta base grande; "
+                "coloque antes um termo simples que reduza a base"
+            )
+        return "regex recusada por seguranca (padrao com risco de lentidao)"
+    try:
+        re.compile(pattern_text)
+    except re.error as exc:
+        return f"regex invalida ({exc})"
+    return None
+
+
 def safe_regex_contains(
     series: pd.Series,
     pattern: str,

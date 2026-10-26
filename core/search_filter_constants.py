@@ -8,3 +8,5 @@ FILTER_SEARCH_SIGNATURE_CACHE_ATTR = "_filter_search_signature_cache"
 FILTER_SOURCE_REVISION_ATTR = "ssa_data_revision"
 FILTER_SOURCE_TOKEN_ATTR = "ssa_filter_source_token"
 FILTER_EXACT_IDENTIFIER_COLUMNS = ("numero_ssa", "derivada_de")
+# BL-47: motivo legivel quando uma regex da busca e recusada (a GUI mostra no status).
+FILTER_REGEX_BLOCKED_ATTR = "ssa_regex_bloqueada"

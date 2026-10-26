@@ -688,6 +688,28 @@ def test_filter_dataframe_blocks_nested_quantified_alternation_group() -> None:
     assert out.empty
 
 
+def test_filter_dataframe_records_why_regex_was_refused() -> None:
+    """BL-47: regex recusada vira aviso legivel em attrs, nao so log."""
+    from core.search_filter_constants import FILTER_REGEX_BLOCKED_ATTR
+
+    big = pd.DataFrame(
+        {
+            "numero_ssa": [f"2025{i:05d}" for i in range(25_001)],
+            "descricao_ssa": ["bomba"] * 25_001,
+        }
+    )
+    blocked = filter_dataframe(big, ["~bo+mba"], ["numero_ssa", "descricao_ssa"])
+    assert blocked.empty
+    assert "quantificador" in blocked.attrs[FILTER_REGEX_BLOCKED_ATTR]
+
+    allowed = filter_dataframe(big.head(3), ["~bo+mba"], ["descricao_ssa"])
+    assert len(allowed) == 3
+    assert FILTER_REGEX_BLOCKED_ATTR not in allowed.attrs
+
+    invalid = filter_dataframe(big.head(3), ["~bo(mba"], ["descricao_ssa"])
+    assert "invalida" in invalid.attrs[FILTER_REGEX_BLOCKED_ATTR]
+
+
 @pytest.mark.parametrize(
     ("pattern", "reject_quantifiers", "expected"),
     [
