@@ -215,9 +215,17 @@ def test_source_import_passes_roots_and_refreshes_state(
     cached_filters.clear.assert_called_once_with()
     assert source_ui.session_state["recent_api_df"] is None
     source_ui.rerun.assert_called_once_with()
+    # BL-13 M3: o rerun descartava a mensagem; ela so aparece na execucao seguinte.
+    source_ui.error.assert_not_called()
+    source_ui.success.assert_not_called()
+    source_ui.button.side_effect = lambda _label, *, key: False
+    app._render_source_ops_panel("unselected.db", "unselected-docs")
     if blocked:
         source_ui.success.assert_not_called()
         assert "status bloqueante (candidate_invalid)" in source_ui.error.call_args.args[0]
     else:
         source_ui.error.assert_not_called()
         source_ui.success.assert_called_once_with("Importacao concluida.")
+    # Exibida uma vez so.
+    app._render_source_ops_panel("unselected.db", "unselected-docs")
+    assert source_ui.error.call_count + source_ui.success.call_count == 1

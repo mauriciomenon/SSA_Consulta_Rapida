@@ -41,6 +41,7 @@ build_dataframe_filter_hash = importlib.import_module(
     "core.dataframe_fingerprint"
 ).build_dataframe_filter_hash
 _STREAMLIT_DATA_REVISION_ATTR = "_streamlit_data_revision"
+_IMPORT_NOTICE_KEY = "streamlit_import_notice"
 filter_dataframe = app_logic.filter_dataframe
 get_filtered_data = app_logic.get_filtered_data
 import_files_to_database = app_logic.import_files_to_database
@@ -1066,6 +1067,10 @@ def _default_table_state(persisted: dict[str, Any]) -> dict[str, Any]:
 
 def _render_source_ops_panel(db_path: str, docs_dir: str) -> None:
     """Fonte de dados avancada: selecao de banco/pasta e disparo de importacao."""
+    notice = st.session_state.pop(_IMPORT_NOTICE_KEY, None)
+    if notice:
+        level, text = notice
+        getattr(st, level)(text)
     with st.expander("Fonte de dados avancada", expanded=False):
         source_db_input = st.text_input(
             "Arquivo do banco",
@@ -1137,23 +1142,28 @@ def _render_source_ops_panel(db_path: str, docs_dir: str) -> None:
                 status = getattr(outcome, "status", None)
                 status_value = getattr(status, "value", "")
                 if outcome is not None and _import_outcome.is_blocking_status(status):
-                    st.error(
+                    notice = (
+                        "error",
                         f"Importacao terminou com status bloqueante ({status_value})."
                         + (
                             " O banco recebeu alteracoes parciais."
                             if outcome.primary_database_changed else ""
-                        )
+                        ),
                     )
                 elif outcome is not None and outcome.primary_database_changed:
-                    st.success("Importacao concluida.")
+                    notice = ("success", "Importacao concluida.")
                 elif status_value == "deterministic_rejections_only":
-                    st.info(
-                        "Arquivos rejeitados por regra deterministica; banco inalterado."
+                    notice = (
+                        "info",
+                        "Arquivos rejeitados por regra deterministica; banco inalterado.",
                     )
                 elif ok:
-                    st.success("Importacao concluida.")
+                    notice = ("success", "Importacao concluida.")
                 else:
-                    st.info("Nenhum arquivo novo processado.")
+                    notice = ("info", "Nenhum arquivo novo processado.")
+                # BL-13 M3: o rerun descarta o que esta execucao desenhou; a mensagem
+                # vai para a proxima (exibida no inicio deste painel).
+                st.session_state[_IMPORT_NOTICE_KEY] = notice
                 _trigger_rerun()
             except Exception as exc:
                 st.error(f"Importacao falhou: {exc}")

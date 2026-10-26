@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Streamlit: o resultado de "Carregar dados"/"Reimportar" (concluida, nada novo, rejeitados ou status bloqueante com alteracoes parciais) aparece no painel de fonte de dados depois que a pagina recarrega. Antes a recarga automatica apagava a mensagem e o operador nao via, por exemplo, que a importacao tinha parado com o banco parcialmente alterado.
+
 - Streamlit: falha ao ler o banco (ex.: travado por uma importacao da GUI) mostra o erro e tenta de novo na proxima interacao. Antes virava "Banco nao encontrado ou sem dados" e ficava assim ate uma importacao ou reinicio do servidor.
 
 - Streamlit: depois de uma reimportacao que so muda campos no meio da base (ex.: uma SSA passa de AAD a STE), filtros, opcoes de Estado, KPIs semanais e "Tem derivada" mostram os dados novos. Antes o cache reconhecia a base so pelo tamanho e pelas 10 primeiras/ultimas SSAs e devolvia o resultado velho ate reiniciar o servidor.
