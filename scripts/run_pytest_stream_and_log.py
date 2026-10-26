@@ -3,7 +3,7 @@
 Run pytest streaming output to terminal while writing to a log file, with external timeout.
 
 Usage:
-  python scripts/run_pytest_stream_and_log.py --test tests/test_terminal_integration.py --timeout 60
+  python scripts/run_pytest_stream_and_log.py --test tests/test_database.py --timeout 60
 
 This shows output live (for interactive debugging) and also saves it to
 `local_ai_private/pytest_terminal_integration_stream.log`.

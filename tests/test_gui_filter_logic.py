@@ -5677,34 +5677,6 @@ class TestGUIFilterLogic:
         assert "descricao_execucao" not in self.window._column_to_or_group
         assert "descricao_execucao" not in self.window._active_column_filters
 
-    @pytest.mark.skip(
-        reason="exclude_ste_checkbox está oculto na UI atual; efeito funcional coberto por test_exclude_ste_sca_combined_with_or_group"
-    )
-    def test_exclude_checkbox_and_clear_filter_button(self):
-        self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
-        QApplication.processEvents()
-        all_records = set(self._extract_visible_ssa())
-        # Com o perfil aplicado na nova semântica, apenas 3 está visível antes do checkbox
-        assert 3 in all_records
-
-        cast(Any, QTest).mouseClick(
-            self.window.exclude_ste_checkbox, Qt.MouseButton.LeftButton
-        )
-        QApplication.processEvents()
-        remaining = set(self._extract_visible_ssa())
-        assert 2 not in remaining and 3 not in remaining
-
-        self.window.search_input.setText("Teste A, Teste D")
-        self.window.initiate_filtering()
-        QApplication.processEvents()
-        assert self.window.search_input.text() == "Teste A, Teste D"
-
-        assert self.window.clear_filter_button.isEnabled()
-        self.window.clear_filter()
-        QApplication.processEvents()
-        assert self.window.search_input.text() == ""
-        assert set(self._extract_visible_ssa()) == set(self.base_df["numero_ssa"])
-
     def test_persistent_filters_order(self):
         with (
             patch("gui.gui_ssa.QMessageBox.information", return_value=None),
