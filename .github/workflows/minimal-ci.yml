@@ -151,7 +151,8 @@ jobs:
       - name: Sync dev dependencies
         run: |
           set -euo pipefail
-          uv sync --frozen
+          # REPO-09: --extra web traz streamlit/pyarrow; sem ele os testes Arrow nullable eram pulados.
+          uv sync --frozen --extra web
 
       - name: Py compile changed Python paths
         run: |
