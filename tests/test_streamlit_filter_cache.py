@@ -210,6 +210,27 @@ def test_build_advanced_filter_options_collects_new_filters() -> None:
     assert 2 in options["num_reprogramacoes"]
 
 
+def test_ano_emissao_follows_gui_rule() -> None:
+    """BL-13 M4 (RD-06): ano/semana de emissao vem de semana_cadastro, como na GUI."""
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202200005", "202500999"],
+            "situacao": ["ABERTO", "ABERTO"],
+            "data_cadastro": ["2022-01-01 14:35:43", None],
+            "semana_cadastro": [202152, 202503],
+        }
+    )
+    options = _build_advanced_filter_options(df)
+    assert options["ano_emissao"] == [2025, 2021]
+    assert options["ano_semana_emissao"] == [202503, 202152]
+    out = apply_all_filters_cached(df, "", [], [], [], advanced_filters={"ano_emissao": [2021]})
+    assert out["numero_ssa"].tolist() == ["202200005"]
+    out = apply_all_filters_cached(
+        df, "", [], [], [], advanced_filters={"ano_semana_emissao": [202503]}
+    )
+    assert out["numero_ssa"].tolist() == ["202500999"]
+
+
 def test_apply_all_filters_cached_applies_advanced_executor_and_reprog() -> None:
     df = pd.DataFrame(
         {

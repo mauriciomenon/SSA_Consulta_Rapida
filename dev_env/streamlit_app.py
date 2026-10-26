@@ -42,6 +42,9 @@ build_dataframe_filter_hash = importlib.import_module(
 ).build_dataframe_filter_hash
 _STREAMLIT_DATA_REVISION_ATTR = "_streamlit_data_revision"
 _IMPORT_NOTICE_KEY = "streamlit_import_notice"
+ano_emissao_series = importlib.import_module(
+    "gui.ssa.gui_filters_advanced_logic"
+).ano_emissao_series
 filter_dataframe = app_logic.filter_dataframe
 get_filtered_data = app_logic.get_filtered_data
 import_files_to_database = app_logic.import_files_to_database
@@ -1318,14 +1321,6 @@ if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
     )(_compute_sidebar_weekly_kpis_cached)
 
 
-def _compute_year_from_date_series(df: pd.DataFrame, col_name: str) -> pd.Series:
-    if col_name not in df.columns:
-        return pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
-    parsed = pd.to_datetime(df[col_name], errors="coerce")
-    years = parsed.dt.year
-    return years.astype("Int64")
-
-
 def _compute_year_from_week_series(df: pd.DataFrame, col_name: str) -> pd.Series:
     if col_name not in df.columns:
         return pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
@@ -1347,6 +1342,17 @@ def _compute_yearweek_from_week_series(df: pd.DataFrame, col_name: str) -> pd.Se
     if col_name not in df.columns:
         return pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
     return pd.to_numeric(df[col_name], errors="coerce").astype("Int64")
+
+
+def _ano_emissao(df: pd.DataFrame) -> pd.Series:
+    """BL-13 M4: mesma regra da GUI (RD-06): ano ISO de semana_cadastro, senao da data."""
+    return ano_emissao_series(df)[0]
+
+
+def _ano_semana_emissao(df: pd.DataFrame) -> pd.Series:
+    """BL-13 M4: semana_cadastro (como a GUI); sem ela, semana ISO de data_cadastro."""
+    weeks = _compute_yearweek_from_week_series(df, "semana_cadastro")
+    return weeks.fillna(_compute_yearweek_from_date_series(df, "data_cadastro"))
 
 
 def _compute_derivada_flags(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series]:
@@ -1623,12 +1629,9 @@ def _apply_advanced_streamlit_filters(
         int(v) for v in (adv.get("ano_emissao_exclude") or []) if str(v).isdigit()
     ]
     if ano_emissao_values or ano_emissao_exclude_values:
-        ano_emissao_series = _compute_year_from_date_series(
-            filtered_df, "data_cadastro"
-        )
         filtered_df = _apply_numeric_series_include_exclude_filter(
             filtered_df,
-            series=ano_emissao_series,
+            series=_ano_emissao(filtered_df),
             include_values=ano_emissao_values,
             exclude_values=ano_emissao_exclude_values,
         )
@@ -1659,9 +1662,7 @@ def _apply_advanced_streamlit_filters(
         if str(v).isdigit()
     ]
     if ano_semana_emissao_values or ano_semana_emissao_exclude_values:
-        ano_semana_emissao_series = _compute_yearweek_from_date_series(
-            filtered_df, "data_cadastro"
-        )
+        ano_semana_emissao_series = _ano_semana_emissao(filtered_df)
         filtered_df = _apply_numeric_series_include_exclude_filter(
             filtered_df,
             series=ano_semana_emissao_series,
@@ -1925,7 +1926,7 @@ def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
         return sorted(values, key=str)
 
     ano_emissao = (
-        _compute_year_from_date_series(df, "data_cadastro")
+        _ano_emissao(df)
         .dropna()
         .astype(int)
         .unique()
@@ -1939,7 +1940,7 @@ def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
         .tolist()
     )
     ano_semana_emissao = (
-        _compute_yearweek_from_date_series(df, "data_cadastro")
+        _ano_semana_emissao(df)
         .dropna()
         .astype(int)
         .unique()
