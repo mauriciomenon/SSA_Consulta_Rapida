@@ -1015,3 +1015,23 @@ def test_insert_dataframe_to_db_rolls_back_partial_write_on_to_sql_failure(
 
     result = query_db(temp_db_path, table_name)
     assert result.empty
+
+
+def test_query_db_loads_invalid_utf8_cell_and_warns(tmp_path, caplog):
+    """MEM-12: UTF-8 invalido (C++ antigo gravava \\xC2 solto) nao derruba a carga; avisa SSA e coluna."""
+    db_path = tmp_path / "utf8_invalido.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT, descricao_ssa TEXT)")
+        conn.execute("INSERT INTO ssa_table VALUES (\x27202512345\x27, \x27ok\x27)")
+        conn.execute(
+            "INSERT INTO ssa_table VALUES (\x27202512346\x27, CAST(X\x2754726F6361C220\x27 AS TEXT))"
+        )
+        conn.commit()
+
+    with caplog.at_level(logging.WARNING):
+        df = query_db(str(db_path), "ssa_table", raise_on_error=True, read_only=True)
+
+    assert df["numero_ssa"].tolist() == ["202512345", "202512346"]
+    assert df["descricao_ssa"].tolist() == ["ok", "Troca\ufffd "]
+    assert "descricao_ssa (1; ex.: 202512346)" in caplog.text
+    assert "UTF-8 invalido" in caplog.text

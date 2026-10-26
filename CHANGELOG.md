@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Banco com texto em UTF-8 invalido (gravado pelo app C++ antigo no macOS, que deixava um byte `\xC2` solto em celulas com espaco nao separavel) nao derruba mais a carga na GUI e na CLI: antes a leitura parava com `Could not decode to UTF-8`. As celulas afetadas aparecem com o caractere de substituicao (U+FFFD) e o log avisa quantas sao, em quais colunas e exemplos de SSA. O banco nao e alterado; bancos sem esse defeito carregam como antes.
+
 - Busca geral na GUI: refinar uma busca (acrescentar termos, ex.: "alfa" e depois "alfa dois") passa a filtrar so o resultado anterior, como foi projetado. Antes a GUI nunca soltava o worker da busca terminada, o refino nunca ligava e toda busca percorria a tabela inteira. O resultado anterior so e reaproveitado se os dados nao mudaram desde ele (recarga, edicao ou ordenacao voltam a buscar na tabela inteira).
 
 - Preferencias da GUI: sairam "Carregar dados do banco ao iniciar", "Usar cache de filtros" e "Limpar cache ao recarregar dados", que nao mudavam nada. A GUI sempre carrega o banco ao abrir (a caixa vinha desmarcada e mostrava o contrario), o cache de filtros esta sempre ligado (o tamanho continua em "Cache de filtros") e toda recarga ja limpa o cache. O grupo passa a se chamar "Comportamento". Preferencias salvas com essas chaves continuam abrindo normalmente.

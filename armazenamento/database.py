@@ -286,6 +286,42 @@ def initialize_database(
     return True
 
 
+
+_INVALID_UTF8_MARKER = "Could not decode to UTF-8"
+_REPLACEMENT_CHAR = "\ufffd"
+
+
+def _decode_sqlite_text_replacing(raw: bytes) -> str:
+    return raw.decode("utf-8", errors="replace")
+
+
+def _warn_invalid_utf8_cells(df: pd.DataFrame, db_path: str) -> None:
+    """Avisa quais celulas tinham UTF-8 invalido (MEM-12: C++ antigo gravava \\xC2 solto)."""
+    affected: list[str] = []
+    total = 0
+    for column in df.columns:
+        series = df[column]
+        if not (pd.api.types.is_string_dtype(series) or series.dtype == object):
+            continue
+        mask = series.astype("string").str.contains(_REPLACEMENT_CHAR, regex=False, na=False)
+        count = int(mask.sum())
+        if not count:
+            continue
+        total += count
+        examples = (
+            df.loc[mask, "numero_ssa"].astype(str).head(5).tolist()
+            if "numero_ssa" in df.columns
+            else []
+        )
+        affected.append(f"{column} ({count}; ex.: {', '.join(examples) or '-'})")
+    logger.warning(
+        "Banco '%s' tem %s celula(s) com UTF-8 invalido, exibidas com U+FFFD: %s. "
+        "O banco nao foi alterado.",
+        db_path,
+        total,
+        "; ".join(affected) or "nenhuma coluna de texto identificada",
+    )
+
 def query_db(
     db_path: str,
     table_name: str,
@@ -350,12 +386,26 @@ def query_db(
                 len(params or ()),
             )
             # pd.read_sql_query e otimo para SELECTs
-            df = pd.read_sql_query(
-                effective_query,
-                conn,
-                params=cast(Any, params),
-                dtype_backend="numpy_nullable",
-            )
+            try:
+                df = pd.read_sql_query(
+                    effective_query,
+                    conn,
+                    params=cast(Any, params),
+                    dtype_backend="numpy_nullable",
+                )
+            except (sqlite3.OperationalError, pd.errors.DatabaseError) as exc:
+                if _INVALID_UTF8_MARKER not in str(exc):
+                    raise
+                # MEM-12: so neste caso a leitura repete decodificando com U+FFFD; um
+                # text_factory em Python em toda leitura deixaria a carga normal lenta.
+                conn.text_factory = _decode_sqlite_text_replacing
+                df = pd.read_sql_query(
+                    effective_query,
+                    conn,
+                    params=cast(Any, params),
+                    dtype_backend="numpy_nullable",
+                )
+                _warn_invalid_utf8_cells(df, db_path)
             if cancel_callback_error is not None:
                 raise RuntimeError(
                     "query_db cancel callback failed"
