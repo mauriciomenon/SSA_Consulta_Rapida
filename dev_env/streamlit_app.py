@@ -1430,23 +1430,6 @@ if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
     )(_build_derivada_context_map)
 
 
-def _attach_derivada_context(
-    df: pd.DataFrame, base_context_map: Optional[pd.DataFrame] = None
-) -> pd.DataFrame:
-    if df.empty:
-        return df
-    if "numero_ssa" not in df.columns:
-        return df
-    context_map = (
-        base_context_map if isinstance(base_context_map, pd.DataFrame) else None
-    )
-    if context_map is None:
-        if "derivada_de" not in df.columns:
-            return df
-        context_map = _build_derivada_context_map(df)
-    df.attrs["_derivada_context_map"] = context_map
-    return df
-
 
 def _build_active_summary(
     *,
@@ -1800,7 +1783,6 @@ def apply_all_filters_cached(
     emissores: list,
     *,
     advanced_filters: Optional[dict[str, Any]] = None,
-    base_derivada_context_map: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """Aplica todos os filtros com cache inteligente."""
     df_token = _compute_df_cache_token(df)
@@ -1837,9 +1819,6 @@ def apply_all_filters_cached(
 
     # Reset index
     filtered_df = filtered_df.reset_index(drop=True)
-    filtered_df = _attach_derivada_context(
-        filtered_df, base_context_map=base_derivada_context_map
-    )
 
     # Armazena no cache
     filter_cache.put(
@@ -2022,14 +2001,18 @@ if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
 
 
 def _build_table_with_derivada_context(
-    view_df: pd.DataFrame, filtered_df: pd.DataFrame
+    view_df: pd.DataFrame,
+    filtered_df: pd.DataFrame,
+    base_context_map: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
+    """Colunas de derivadas da tabela; o mapa da base vem por argumento (BL-13 L5:
+    em attrs ele era copiado a cada operacao do pandas)."""
     if view_df.empty:
         return view_df
     if "numero_ssa" not in filtered_df.columns:
         return view_df
 
-    context_map = filtered_df.attrs.get("_derivada_context_map")
+    context_map = base_context_map
     if not isinstance(context_map, pd.DataFrame):
         if "derivada_de" not in filtered_df.columns:
             return view_df
@@ -3034,7 +3017,6 @@ if REAL_RUNTIME and not raw_df.empty:
         executor_filter,
         emissor_filter,
         advanced_filters=advanced_filters,
-        base_derivada_context_map=base_derivada_context_map,
     )
     if sidebar_filtered_metric_slot is not None:
         sidebar_filtered_metric_slot.metric("SSAs no filtro atual", len(filtered_df))
@@ -3212,7 +3194,9 @@ if REAL_RUNTIME and not raw_df.empty:
         )
         _remember_width_profile_for_bucket(table_state, width_bucket, width_profile)
 
-        table_view_df = _build_table_with_derivada_context(view_df, filtered_df)
+        table_view_df = _build_table_with_derivada_context(
+            view_df, filtered_df, base_derivada_context_map
+        )
         if sort_column != "(Sem ordenacao)" and sort_column in table_view_df.columns:
             try:
                 table_view_df = table_view_df.sort_values(

@@ -909,6 +909,31 @@ def test_apply_all_filters_cached_keeps_regex_refusal_reason() -> None:
         assert "invalida" in out.attrs[FILTER_REGEX_BLOCKED_ATTR]
 
 
+def test_derivada_map_passed_as_argument_not_attrs() -> None:
+    """BL-13 L5: o mapa (51 mil linhas) ia em attrs e era copiado a cada operacao."""
+    from dev_env.streamlit_app import (
+        _build_derivada_context_map,
+        _build_table_with_derivada_context,
+    )
+
+    base = pd.DataFrame(
+        {
+            "numero_ssa": ["P1", "C1"],
+            "situacao": ["AAD", "STE"],
+            "setor_executor": ["IEE3"] * 2,
+            "setor_emissor": ["IEE3"] * 2,
+            "derivada_de": ["", "P1"],
+        }
+    )
+    base_map = _build_derivada_context_map(base)
+    out = apply_all_filters_cached(
+        base, "", ["AAD"], [], []
+    )
+    assert "_derivada_context_map" not in out.attrs
+    table = _build_table_with_derivada_context(out[["numero_ssa"]], out, base_map)
+    assert table["_tem_derivadas_ctx"].tolist() == ["Sim"]
+
+
 def test_csv_export_uses_display_labels_and_bom() -> None:
     """BL-13 L2: CSV saia com nomes internos e UTF-8 sem BOM (Excel quebra acentos)."""
     from dev_env.streamlit_app import _csv_export_bytes
