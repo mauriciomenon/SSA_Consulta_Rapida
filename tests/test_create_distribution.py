@@ -1453,3 +1453,20 @@ def test_inno_script_refuses_windows_arm64_source(tmp_path: Path, monkeypatch, c
     assert create_distribution.create_inno_setup_script("pyinstaller", "1.0.0") is None
     assert "arm64" in caplog.text
     assert not list(tmp_path.rglob("*.iss"))
+
+
+def test_create_zip_package_reports_temp_dir_failure(tmp_path: Path, monkeypatch, caplog) -> None:
+    """MEM-35: falha ao criar o TEMP do staging vira erro claro e None, nao excecao crua."""
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    monkeypatch.setattr(create_distribution, "_resolve_build_directory", lambda _bs: build_dir)
+    monkeypatch.setattr(create_distribution, "_package_output_dir", lambda _bd: tmp_path / "out")
+
+    def _no_temp(*_args, **_kwargs):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(create_distribution.tempfile, "mkdtemp", _no_temp)
+
+    assert create_distribution.create_zip_package("pyinstaller", "1.0.0") is None
+    assert "Nao foi possivel criar a pasta temporaria do pacote" in caplog.text
+    assert "No space left on device" in caplog.text

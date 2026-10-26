@@ -1019,7 +1019,16 @@ def create_zip_package(
     package_output_dir.mkdir(parents=True, exist_ok=True)
 
     # Manter o staging curto para as dependencias aninhadas no Windows.
-    temp_dir = Path(tempfile.mkdtemp(prefix="ssa_pkg_"))
+    try:
+        temp_dir = Path(tempfile.mkdtemp(prefix="ssa_pkg_"))
+    except OSError as exc:
+        # MEM-35: antes a excecao subia crua; o contrato desta funcao e None com log.
+        logger.error(
+            "Nao foi possivel criar a pasta temporaria do pacote em '%s': %s",
+            tempfile.gettempdir(),
+            exc,
+        )
+        return None
 
     package_name = f"SSA_Consulta_Rapida_v{version}_{build_system}"
     package_dir = temp_dir / package_name
