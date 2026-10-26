@@ -4,18 +4,18 @@ import pandas as pd
 import pytest
 
 import shared  # noqa: F401  (BL-42: politica de armazenamento de str)
-from core.regex_safety import safe_regex_contains
+from core.regex_safety import is_safe_regex_pattern, safe_regex_contains
 from core.search_filter import filter_dataframe, parse_search_terms
 
 # BL-42: idiomas exigidos pelo dono: pt, es, en e acentos de de, fr, it (escapes mantem o arquivo ASCII).
 PALAVRAS_ACENTUADAS = [
-    "ação", "niño", "straße", "garçon", "élève", "città", "über",
+    "a\u00e7\u00e3o", "ni\u00f1o", "stra\u00dfe", "gar\u00e7on", "\u00e9l\u00e8ve", "citt\u00e0", "\u00fcber",
 ]
 CASOS_UNICODE = [
-    (r"^\w+$", "á", False),
-    (r"\ba\b", "á", True),
-    (r"^AÇÃO$", "ação", True),
-    (r"\bman\w+o\b", "a manutenção foi", True),
+    (r"^\w+$", "a\u0301", False),
+    (r"\ba\b", "a\u0301", True),
+    (r"^A\u00c7\u00c3O$", "a\u00e7\u00e3o", True),
+    (r"\bman\w+o\b", "a manuten\u00e7\u00e3o foi", True),
     *[(r"^\w+$", palavra, True) for palavra in PALAVRAS_ACENTUADAS],
 ]
 
@@ -23,7 +23,7 @@ CASOS_UNICODE = [
 def test_dtype_str_padrao_usa_armazenamento_python():
     """Com ou sem pyarrow instalado, a busca roda no re do Python."""
     assert pd.get_option("mode.string_storage") == "python"
-    dtype = pd.Series(["ação"]).dtype
+    dtype = pd.Series(["a\u00e7\u00e3o"]).dtype
     assert isinstance(dtype, pd.StringDtype) and dtype.storage == "python"
 
 
@@ -61,3 +61,22 @@ def test_invalid_regex_keeps_literal_fallback_contract():
     series = pd.Series(["[abc", "other"])
     assert safe_regex_contains(series, "[abc", fallback_literal=True).tolist() == [True, False]
     assert safe_regex_contains(series, "[abc").tolist() == [False, False]
+
+
+@pytest.mark.parametrize("padrao", [r"a*a*a*a*b", r"\w+\s+\w+\s+\w+\s+x", r"a{2,}b{1,}c+d*"])
+def test_guarda_recusa_mais_de_tres_quantificadores_sem_limite(padrao):
+    """MEM-22: 'a*a*a*a*a*a*b' passava e travava o worker (backtracking de grau alto)."""
+    assert is_safe_regex_pattern(padrao) is False
+
+
+@pytest.mark.parametrize("padrao", [r"bomba.*falha", r"a+b*c{2,}", r"[+-]?\d+,\d+", r"a{2,5}b{1,3}c+d*e?"])
+def test_guarda_aceita_ate_tres_quantificadores_sem_limite(padrao):
+    assert is_safe_regex_pattern(padrao) is True
+
+
+def test_ponto_estrela_inicial_nao_muda_o_resultado():
+    serie = pd.Series(["bomba com falha", "bomba ok", None, "linha 1\nbomba falha"], name="d")
+    for padrao in (r".*bomba.*falha", r".*?bomba.*falha", r".*.*bomba.*falha"):
+        assert safe_regex_contains(serie, padrao).tolist() == [True, False, False, True], padrao
+    assert safe_regex_contains(serie, ".*").tolist() == [True, True, True, True]
+

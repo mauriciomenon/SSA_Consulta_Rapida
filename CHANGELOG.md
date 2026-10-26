@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Busca com regex (`~`): expressoes com mais de 3 repeticoes sem limite (`*`, `+`, `{n,}`), como `a*a*a*a*b`, passam a ser recusadas como as demais expressoes perigosas (aviso no log). Antes passavam pela guarda e podiam travar a busca dentro do motor de regex, sem como cancelar. Um `.*` no inicio da expressao e ignorado: o resultado e o mesmo e a busca fica ate 70 vezes mais rapida (19 s para 0,3 s em 100 mil descricoes no teste).
+
 - Banco com texto em UTF-8 invalido (gravado pelo app C++ antigo no macOS, que deixava um byte `\xC2` solto em celulas com espaco nao separavel) nao derruba mais a carga na GUI e na CLI: antes a leitura parava com `Could not decode to UTF-8`. As celulas afetadas aparecem com o caractere de substituicao (U+FFFD) e o log avisa quantas sao, em quais colunas e exemplos de SSA. O banco nao e alterado; bancos sem esse defeito carregam como antes.
 
 - Busca geral na GUI: refinar uma busca (acrescentar termos, ex.: "alfa" e depois "alfa dois") passa a filtrar so o resultado anterior, como foi projetado. Antes a GUI nunca soltava o worker da busca terminada, o refino nunca ligava e toda busca percorria a tabela inteira. O resultado anterior so e reaproveitado se os dados nao mudaram desde ele (recarga, edicao ou ordenacao voltam a buscar na tabela inteira).

@@ -14,6 +14,11 @@ _MAX_REGEX_PATTERN_LENGTH = 120
 _QUANTIFIER_START_CHARS = {"+", "*", "?", "{"}
 _REGEX_META_CHARS = frozenset("*+?{}|()[]")
 _BACKREF_CHARS = frozenset("123456789")
+# MEM-22: com 4+ quantificadores sem limite ('a*a*a*a*b') o re faz backtracking polinomial
+# de grau alto e trava o worker dentro do C, sem cancelamento. 3 cobre as buscas usuais.
+_MAX_UNBOUNDED_QUANTIFIERS = 3
+_OPEN_ENDED_REPEAT = re.compile(r"\{\d*,\s*\}")
+_LEADING_ANY = re.compile(r"^(?:\.\*\??)+")
 
 
 class _RegexScanResult(NamedTuple):
@@ -23,6 +28,7 @@ class _RegexScanResult(NamedTuple):
     has_backref: bool
     has_quantifier: bool
     meta_char_count: int
+    unbounded_quantifier_count: int
 
 
 def _true_mask(series: pd.Series) -> pd.Series:
@@ -39,6 +45,7 @@ def _scan_regex_pattern(pattern_text: str) -> _RegexScanResult:
     has_backref = False
     has_unescaped_quantifier = False
     meta_char_count = 0
+    unbounded_quantifier_count = 0
 
     for index, char in enumerate(pattern_text):
         if char in _REGEX_META_CHARS:
@@ -76,6 +83,10 @@ def _scan_regex_pattern(pattern_text: str) -> _RegexScanResult:
         if char in _QUANTIFIER_START_CHARS:
             has_unescaped_quantifier = True
             quantifier_chain += 1
+            if char in "*+" or (
+                char == "{" and _OPEN_ENDED_REPEAT.match(pattern_text, index)
+            ):
+                unbounded_quantifier_count += 1
             if quantifier_chain >= 3:
                 has_heavy_quantifier_chain = True
         else:
@@ -118,6 +129,7 @@ def _scan_regex_pattern(pattern_text: str) -> _RegexScanResult:
         has_backref=has_backref,
         has_quantifier=has_unescaped_quantifier,
         meta_char_count=meta_char_count,
+        unbounded_quantifier_count=unbounded_quantifier_count,
     )
 
 
@@ -135,6 +147,7 @@ def is_safe_regex_pattern(pattern: str, *, reject_quantifiers: bool = False) -> 
         or scan.has_backref
         or (reject_quantifiers and scan.has_quantifier)
         or scan.meta_char_count > 16
+        or scan.unbounded_quantifier_count > _MAX_UNBOUNDED_QUANTIFIERS
     )
 
 
@@ -162,8 +175,13 @@ def safe_regex_contains(
             return pd.Series(False, index=series.index, name=series.name)
         logger.warning("Regex de filtro bloqueado por seguranca; usando busca literal.")
         return series.str.contains(pattern_text, case=False, na=False, regex=False)
+    # MEM-22: '.*' inicial nao muda o resultado de search (que ja tenta toda posicao), mas
+    # deixa a busca quadratica: '.*bomba.*falha' levou 19 s contra 0,3 s em 100 mil textos.
+    search_pattern = _LEADING_ANY.sub("", pattern_text)
+    if not search_pattern:
+        return _true_mask(series)
     try:
-        compiled = re.compile(pattern_text, re.IGNORECASE)
+        compiled = re.compile(search_pattern, re.IGNORECASE)
         return series.str.contains(compiled, na=False, regex=True)
     except re.error as exc:
         logger.warning("Regex de filtro invalido: %s", exc)
