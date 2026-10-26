@@ -909,6 +909,28 @@ def test_apply_all_filters_cached_keeps_regex_refusal_reason() -> None:
         assert "invalida" in out.attrs[FILTER_REGEX_BLOCKED_ATTR]
 
 
+def test_theme_change_keeps_persisted_width_memory(tmp_path, monkeypatch) -> None:
+    """BL-13 L4: com banco vazio, trocar o tema regravava largura padrao e memoria vazia."""
+    from dev_env.streamlit_app import _persist_theme_choice
+
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("SSA_STREAMLIT_UI_STATE_FILE", "streamlit_ui_state_test.json")
+    monkeypatch.setattr(st, "session_state", {}, raising=False)
+    _persist_streamlit_state(
+        theme_name="Grafite",
+        width_profile="Largo (2000)",
+        width_profile_by_bucket={"lg": "XL (2400)"},
+        streamlit_render_stats={},
+    )
+
+    _persist_theme_choice("Solar")
+
+    loaded = _load_persisted_streamlit_state()
+    assert loaded["theme_name"] == "Solar"
+    assert loaded["width_profile"] == "Largo (2000)"
+    assert loaded["width_profile_by_bucket"] == {"lg": "XL (2400)"}
+
+
 def test_derivada_map_passed_as_argument_not_attrs() -> None:
     """BL-13 L5: o mapa (51 mil linhas) ia em attrs e era copiado a cada operacao."""
     from dev_env.streamlit_app import (

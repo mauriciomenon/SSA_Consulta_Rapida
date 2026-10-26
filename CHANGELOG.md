@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Streamlit: trocar o tema preserva a largura de tabela escolhida (e a memoria por tamanho de tela). Antes, com o banco vazio, a troca de tema regravava a largura padrao.
+
 - Streamlit: "Baixar CSV" usa os nomes de coluna exibidos (como o Excel do proprio app e o exportador da GUI) e grava UTF-8 com BOM, para o Excel abrir acentos corretamente. Antes saia com nomes internos (`numero_ssa`) e sem BOM.
 
 - Streamlit: "Arquivos de entrada" conta so as planilhas que a importacao aceita (`.xlsx`); antes contava tambem `.xls` e `.csv`, que a importacao rejeita. Pasta sem permissao de leitura mostra "indisponivel (ver log)" em vez de 0.

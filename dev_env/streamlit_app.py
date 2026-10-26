@@ -670,6 +670,25 @@ def _update_render_telemetry(width_profile: str, render_ms: float) -> None:
     )
 
 
+def _persist_theme_choice(theme_name: str) -> None:
+    """Grava o tema sem perder a largura salva (BL-13 L4: com banco vazio a tabela nao
+    chega a criar streamlit_table_state e o tema regravava a largura padrao)."""
+    table_state = (
+        st.session_state.get("streamlit_table_state")
+        or _load_persisted_streamlit_state()
+    )
+    _persist_streamlit_state(
+        theme_name=theme_name,
+        width_profile=str(table_state.get("width_profile", "Padrao (1600)")),
+        width_profile_by_bucket=_normalize_width_profile_memory(
+            table_state.get("width_profile_by_bucket", {})
+        ),
+        streamlit_render_stats=_normalize_render_stats(
+            st.session_state.get("streamlit_render_stats", {})
+        ),
+    )
+
+
 def _resolve_width_bucket(width_px: int) -> str:
     if width_px < 1280:
         return "xs"
@@ -2317,14 +2336,7 @@ if REAL_RUNTIME:
         )
         if selected_theme_header != active_theme_name:
             st.session_state["streamlit_theme_name"] = selected_theme_header
-            _persist_streamlit_state(
-                theme_name=selected_theme_header,
-                width_profile="Padrao (1600)",
-                width_profile_by_bucket={},
-                streamlit_render_stats=_normalize_render_stats(
-                    st.session_state.get("streamlit_render_stats", {})
-                ),
-            )
+            _persist_theme_choice(selected_theme_header)
             _trigger_rerun()
         st.caption(f"Atualizado as {datetime.now().strftime('%H:%M:%S')}")
 
