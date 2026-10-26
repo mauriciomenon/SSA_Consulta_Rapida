@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Streamlit: o filtro "Tem derivadas" conta as derivadas na base inteira, como a coluna "Tem derivadas" e a GUI. Antes, combinado com Estado/Setor/busca, perdia SSAs cujas derivadas estavam fora do filtro (ex.: SSA AAD com derivada STE sumia com Estado=AAD, embora a coluna mostrasse "Sim").
+
 - Streamlit: nos filtros de data, um limite digitado so com a data vale o dia inteiro. "Data emissao fim" = 10/05/2024 inclui SSAs cadastradas em 10/05 a qualquer hora (antes so ate 00:00), e "!10/05/2024" exclui o dia (antes nao excluia nada). Limite com hora continua exato.
 
 - Streamlit: "Execucao concluida" conta as SSAs encerradas normalmente (STE e SES). Antes contava a situacao "EXECUTADA", que o SAM nao usa, e mostrava sempre 0,0% (na base atual o valor correto e 80,2%).

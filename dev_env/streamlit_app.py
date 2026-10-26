@@ -1617,7 +1617,10 @@ def _apply_yearweek_manual_boundary_filter(
 
 
 def _apply_advanced_streamlit_filters(
-    filtered_df: pd.DataFrame, advanced_filters: Optional[dict[str, Any]]
+    filtered_df: pd.DataFrame,
+    advanced_filters: Optional[dict[str, Any]],
+    *,
+    derivada_source: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     adv = advanced_filters or {}
     if not adv:
@@ -1740,7 +1743,12 @@ def _apply_advanced_streamlit_filters(
     tem_derivada_mode = str(adv.get("tem_derivada") or "todos").strip().lower()
     tem_derivadas_mode = str(adv.get("tem_derivadas") or "todos").strip().lower()
     if tem_derivada_mode != "todos" or tem_derivadas_mode != "todos":
-        has_derivada, has_children, _ = _compute_derivada_flags(filtered_df)
+        # BL-13 M6: filhos contados na base inteira (como a coluna "Tem derivadas" e a
+        # GUI), nao no subconjunto ja filtrado por Estado/Setor/busca.
+        source = filtered_df if derivada_source is None else derivada_source
+        has_derivada, has_children, _ = _compute_derivada_flags(source)
+        has_derivada = has_derivada.reindex(filtered_df.index, fill_value=False)
+        has_children = has_children.reindex(filtered_df.index, fill_value=False)
         if tem_derivada_mode == "sim":
             filtered_df = filtered_df[has_derivada]
             has_children = has_children[has_derivada]
@@ -1806,7 +1814,9 @@ def apply_all_filters_cached(
     if emissores and "setor_emissor" in filtered_df.columns:
         filtered_df = filtered_df[filtered_df["setor_emissor"].isin(emissores)]
 
-    filtered_df = _apply_advanced_streamlit_filters(filtered_df, advanced_filters)
+    filtered_df = _apply_advanced_streamlit_filters(
+        filtered_df, advanced_filters, derivada_source=df
+    )
 
     # Reset index
     filtered_df = filtered_df.reset_index(drop=True)
