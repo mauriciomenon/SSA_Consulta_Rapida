@@ -285,3 +285,51 @@ def test_sync_platform_replaces_target_symlink_without_writing_through(
     assert external.read_text(encoding="utf-8") == "nao tocar"
     assert not (target_dir / "artifact").is_symlink()
     assert (target_dir / "artifact").read_text(encoding="utf-8") == "novo"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink POSIX")
+def test_sync_platform_replaces_directory_symlink_inside_target(tmp_path: Path) -> None:
+    """MEM-55: diretorio do destino que e symlink vira diretorio real; o apontado nao muda."""
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "sync_pyinstaller_outputs_dir_symlink_target",
+        root / "scripts" / "sync_pyinstaller_outputs.py",
+    )
+    source_dir = tmp_path / "launchers" / "dist" / "windows_amd64"
+    target_dir = tmp_path / "builds" / "pyinstaller" / "windows_amd64"
+    (source_dir / "_internal").mkdir(parents=True)
+    (source_dir / "_internal" / "lib.txt").write_text("novo", encoding="utf-8")
+    target_dir.mkdir(parents=True)
+    outside = tmp_path / "fora"
+    outside.mkdir()
+    (target_dir / "_internal").symlink_to(outside, target_is_directory=True)
+
+    assert module._sync_platform(tmp_path, "windows_amd64", verbose=False) is True
+
+    assert list(outside.iterdir()) == []
+    assert not (target_dir / "_internal").is_symlink()
+    assert (target_dir / "_internal" / "lib.txt").read_text(encoding="utf-8") == "novo"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink POSIX")
+def test_sync_platform_refuses_symlinked_target_root(tmp_path: Path) -> None:
+    """MEM-55: raiz do destino como symlink e recusada sem escrever nem apagar o link."""
+    root = Path(__file__).resolve().parents[1]
+    module = _load_module(
+        "sync_pyinstaller_outputs_root_symlink",
+        root / "scripts" / "sync_pyinstaller_outputs.py",
+    )
+    source_dir = tmp_path / "launchers" / "dist" / "windows_amd64"
+    source_dir.mkdir(parents=True)
+    (source_dir / "artifact").write_text("novo", encoding="utf-8")
+    outside = tmp_path / "fora"
+    outside.mkdir()
+    (tmp_path / "builds").mkdir()
+    (tmp_path / "builds" / "pyinstaller").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="symlink, recusado"):
+        module._sync_platform(tmp_path, "windows_amd64", verbose=False)
+
+    assert list(outside.iterdir()) == []
+    assert (tmp_path / "builds" / "pyinstaller").is_symlink()
+

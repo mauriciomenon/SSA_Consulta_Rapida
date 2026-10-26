@@ -65,19 +65,24 @@ def _file_is_current(source_path: Path, target_path: Path) -> bool:
     )
 
 
+def _is_real_directory(path: Path) -> bool:
+    # MEM-55: symlink para diretorio passa em is_dir(); escrever nele sairia da pasta de build.
+    return path.is_dir() and not path.is_symlink()
+
+
 def _sync_directory_symlink(source_path: Path, target_path: Path, allowed_root: Path) -> None:
     resolved_source = source_path.resolve(strict=True)
     try:
         resolved_source.relative_to(allowed_root)
     except ValueError:
         return
-    if _exists_or_symlink(target_path) and not target_path.is_dir():
+    if _exists_or_symlink(target_path) and not _is_real_directory(target_path):
         _remove_path(target_path)
     _sync_tree_incremental(resolved_source, target_path, allowed_root=allowed_root)
 
 
 def _sync_directory(target_path: Path) -> None:
-    if _exists_or_symlink(target_path) and not target_path.is_dir():
+    if _exists_or_symlink(target_path) and not _is_real_directory(target_path):
         _remove_path(target_path)
     target_path.mkdir(parents=True, exist_ok=True)
 
@@ -132,6 +137,16 @@ def _remove_stale_entries(source_dir: Path, target_dir: Path) -> None:
 def _sync_tree_incremental(
     source_dir: Path, target_dir: Path, *, allowed_root: Path
 ) -> None:
+    # MEM-55: a raiz do destino (ou um pai dela dentro do repo) nao pode ser symlink; nao e
+    # artefato do build, entao para com erro em vez de apagar o link.
+    try:
+        parts = target_dir.relative_to(allowed_root).parts
+    except ValueError:
+        parts = ()
+    levels = [allowed_root.joinpath(*parts[:depth]) for depth in range(1, len(parts) + 1)]
+    for level in levels or [target_dir]:
+        if level.is_symlink():
+            raise RuntimeError(f"Destino do sync e symlink, recusado: {level}")
     target_dir.mkdir(parents=True, exist_ok=True)
 
     for source_path in source_dir.rglob("*"):
