@@ -907,3 +907,21 @@ def test_apply_all_filters_cached_keeps_regex_refusal_reason() -> None:
         out = apply_all_filters_cached(df, "~bo(mba", ["ABERTO"], [], [])
         assert out.empty
         assert "invalida" in out.attrs[FILTER_REGEX_BLOCKED_ATTR]
+
+
+def test_input_files_count_matches_importer(tmp_path, monkeypatch) -> None:
+    """BL-13 L3: contava .xls/.csv (o importador so aceita .xlsx) e escondia erro como 0."""
+    from pathlib import Path
+
+    from dev_env.streamlit_app import _list_spreadsheet_files_count
+
+    for name in ("a.xlsx", "b.xls", "c.csv"):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+    assert _list_spreadsheet_files_count(str(tmp_path)) == 1
+    assert _list_spreadsheet_files_count(str(tmp_path / "nao_existe")) == 0
+
+    def denied(_self):
+        raise PermissionError("acesso negado")
+
+    monkeypatch.setattr(Path, "iterdir", denied)
+    assert _list_spreadsheet_files_count(str(tmp_path)) is None

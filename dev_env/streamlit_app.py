@@ -43,6 +43,9 @@ build_dataframe_filter_hash = importlib.import_module(
 _STREAMLIT_DATA_REVISION_ATTR = "_streamlit_data_revision"
 _IMPORT_NOTICE_KEY = "streamlit_import_notice"
 _LOOPBACK_ADDRESSES = frozenset({"127.0.0.1", "localhost", "::1"})
+SUPPORTED_IMPORT_SUFFIXES = importlib.import_module(
+    "core.import_formats"
+).SUPPORTED_IMPORT_SUFFIXES
 _ssa_status_module = importlib.import_module("shared.ssa_status")
 SSA_ENCERRADAS_NORMAL = _ssa_status_module.SSA_ENCERRADAS_NORMAL
 status_code_series = _ssa_status_module.status_code_series
@@ -2195,22 +2198,21 @@ def _compute_table_render_height(page_len: int, configured_height: int) -> int:
     return int(bounded)
 
 
-def _list_spreadsheet_files_count(docs_dir: str) -> int:
-    try:
-        docs_path = Path(docs_dir)
-        if not docs_path.exists() or not docs_path.is_dir():
-            return 0
-        count = 0
-        for file_path in docs_path.iterdir():
-            if file_path.is_file() and file_path.suffix.lower() in {
-                ".xlsx",
-                ".xls",
-                ".csv",
-            }:
-                count += 1
-        return count
-    except Exception:
+def _list_spreadsheet_files_count(docs_dir: str) -> int | None:
+    """Planilhas que o importador aceita; None se a pasta nao pode ser lida (BL-13 L3)."""
+    docs_path = Path(docs_dir)
+    if not docs_path.is_dir():
         return 0
+    try:
+        return sum(
+            1
+            for file_path in docs_path.iterdir()
+            if file_path.is_file()
+            and file_path.suffix.lower() in SUPPORTED_IMPORT_SUFFIXES
+        )
+    except OSError as exc:
+        logger.warning("Falha ao listar planilhas em %s: %s", docs_dir, exc)
+        return None
 
 
 def _limit_table_rows(df: pd.DataFrame, limit: int) -> tuple[pd.DataFrame, int]:
@@ -2342,7 +2344,10 @@ if REAL_RUNTIME:
         db_size_mb = (db_file.stat().st_size / (1024 * 1024)) if db_exists else 0.0
         sheet_files_count = _list_spreadsheet_files_count(docs_dir)
         st.caption(f"DB: {'ok' if db_exists else 'ausente'} | {db_size_mb:.1f} MB")
-        st.caption(f"Arquivos de entrada: {sheet_files_count}")
+        st.caption(
+            "Arquivos de entrada: "
+            + ("indisponivel (ver log)" if sheet_files_count is None else str(sheet_files_count))
+        )
 
 raw_df = pd.DataFrame()
 if REAL_RUNTIME:
