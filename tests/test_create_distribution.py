@@ -78,6 +78,35 @@ def test_create_zip_package_returns_none_when_exe_missing(
     assert "Executavel primario ausente no diretorio" in caplog.text
 
 
+def test_create_zip_package_names_zip_with_platform(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REL-01: amd64 e arm64 geravam o mesmo SSA_Consulta_Rapida_v<ver>_pyinstaller.zip."""
+    project_root = tmp_path / "project"
+    build_dir = project_root / "launchers" / "dist" / "windows_arm64"
+    build_dir.mkdir(parents=True)
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(
+        create_distribution, "_resolve_build_directory", lambda _system: build_dir
+    )
+
+    def fake_staging(_system, _info, _build_dir, package_dir, *_rest):
+        (package_dir / "LEIA-ME.txt").write_text("x", encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(create_distribution, "_prepare_package_staging", fake_staging)
+
+    result = create_distribution.create_zip_package("pyinstaller", "4.51")
+
+    expected_name = "SSA_Consulta_Rapida_v4.51_windows_arm64_pyinstaller"
+    assert result == (
+        project_root / "builds" / "packages" / "windows_arm64" / f"{expected_name}.zip"
+    )
+    assert result is not None
+    with zipfile.ZipFile(result) as zipf:
+        assert zipf.namelist() == [f"{expected_name}/LEIA-ME.txt"]
+
+
 def test_create_zip_package_logs_temp_cleanup_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -436,7 +465,7 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
 @pytest.mark.parametrize("version", ["4.50", "4.50/missing"])
 def test_create_zip_package_uses_short_staging_and_removes_it(version: str) -> None:
     source_script = Path(create_distribution.__file__).resolve()
-    package_name = "SSA_Consulta_Rapida_v4.50_pyinstaller"
+    package_name = "SSA_Consulta_Rapida_v4.50_windows_amd64_pyinstaller"
     runtime_name = "SSA_CLI_v4.50_windows_amd64"
     deep_files = (
         "lxml/isoschematron/resources/xsl/iso-schematron-xslt1/"

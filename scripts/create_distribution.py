@@ -1030,7 +1030,10 @@ def create_zip_package(
         )
         return None
 
-    package_name = f"SSA_Consulta_Rapida_v{version}_{build_system}"
+    # REL-01: com a plataforma no nome, amd64 e arm64 nao geram o mesmo ZIP.
+    package_name = (
+        f"SSA_Consulta_Rapida_v{version}_{package_output_dir.name}_{build_system}"
+    )
     package_dir = temp_dir / package_name
 
     try:
