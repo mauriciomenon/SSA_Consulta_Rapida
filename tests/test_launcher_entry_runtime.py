@@ -45,10 +45,11 @@ def test_cli_info_flags_exit_without_loading_database(
 
     assert process.returncode == 0
     assert process.stderr == ""
-    assert "v4.51" in process.stdout
+    expected = "v" + (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    assert expected in process.stdout
     assert not (tmp_path / "missing.db").exists()
     if flag == "--version":
-        assert process.stdout.strip() == "v4.51"
+        assert process.stdout.strip() == expected
     else:
         assert "Uso: SSA_CLI" in process.stdout
 

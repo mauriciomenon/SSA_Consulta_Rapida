@@ -6,9 +6,9 @@ desktop (PyQt6) e web (Streamlit).
 
 ## Versao
 
-Versao do codigo nesta candidata local: **4.51**. A ultima release publicada e **v4.50**. As fontes centrais sao `VERSION`, `config/version.json` e os metadados do pacote.
+Versao do codigo nesta candidata: **4.52** (pre-release v4.52-rc1, branch rev). A ultima release oficial publicada e **v4.51**. As fontes centrais sao `VERSION`, `config/version.json` e os metadados do pacote.
 
-[Notas da candidata](RELEASE_NOTES_v4.51.md)
+[Notas da candidata](RELEASE_NOTES_v4.52.md)
 
 A documentacao operacional detalhada fica em `docs/`; apenas os guias
 exigidos por testes e empacotamento sao versionados.

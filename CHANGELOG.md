@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.52-rc1] - 2026-10-26 (pre-release do branch rev)
+
 ### Estabilizacao (branch rev)
 
 - GUI: menu Arquivo > "Salvar estado da tela..." grava num arquivo `.ssa-estado.json` (pasta Documentos por padrao) os filtros, a ordenacao, as colunas visiveis com ordem e largura, a pagina e a SSA em foco, sem as linhas do banco. "Abrir estado salvo..." reaplica esse estado sobre os dados ja carregados (sem recarregar nem gravar o banco; numa copia de janela vale sobre os dados congelados dela) e avisa na barra de status se o banco mudou desde que o estado foi salvo. Arquivo de versao desconhecida e recusado sem alterar a tela. "Salvar filtro" continua igual.
