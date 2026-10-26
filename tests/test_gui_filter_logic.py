@@ -14901,6 +14901,28 @@ class TestGUIFilterLogic:
         self.window.closeEvent(final)
         assert final.isAccepted() is True
 
+    def test_close_defers_while_vacuum_analyze_runs(self):
+        """MEM-27: X durante VACUUM/ANALYZE adia o fechamento; terminado, fecha."""
+        class _VacuumThread:
+            def __init__(self):
+                self.alive = True
+
+            def is_alive(self):
+                return self.alive
+
+        vacuum_thread = _VacuumThread()
+        self.window._vacuum_analyze_thread = vacuum_thread
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+        assert event.isAccepted() is False
+        assert vacuum_thread in tuple(getattr(self.window, "_shutdown_pending_operations", ()))
+
+        vacuum_thread.alive = False
+        final = QCloseEvent()
+        self.window.closeEvent(final)
+        assert final.isAccepted() is True
+
     def test_forced_close_conservative_when_copy_thread_state_unknown(self):
         """Falha ao consultar a thread de staging nao pode liberar o X."""
         class _BrokenCopyThread:

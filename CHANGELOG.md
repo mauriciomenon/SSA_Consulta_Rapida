@@ -6,6 +6,9 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- GUI: fechar a janela durante "Vacuum/Analyze" do banco espera a operacao terminar, como ja acontecia com importacao e copia de banco. Antes a janela fechava e a manutencao era perdida no meio (o banco ficava integro, mas o VACUUM nao valia). Se a operacao passar do prazo do fechamento forcado, a janela fecha mesmo assim.
+- CLI sem banco (antes do primeiro reescaneamento): o aviso "Banco de dados nao encontrado" sai sem o traceback do Python no terminal.
+
 - Busca com regex (`~`): expressoes com mais de 3 repeticoes sem limite (`*`, `+`, `{n,}`), como `a*a*a*a*b`, passam a ser recusadas como as demais expressoes perigosas (aviso no log). Antes passavam pela guarda e podiam travar a busca dentro do motor de regex, sem como cancelar. Um `.*` no inicio da expressao e ignorado: o resultado e o mesmo e a busca fica ate 70 vezes mais rapida (19 s para 0,3 s em 100 mil descricoes no teste).
 
 - Banco com texto em UTF-8 invalido (gravado pelo app C++ antigo no macOS, que deixava um byte `\xC2` solto em celulas com espaco nao separavel) nao derruba mais a carga na GUI e na CLI: antes a leitura parava com `Could not decode to UTF-8`. As celulas afetadas aparecem com o caractere de substituicao (U+FFFD) e o log avisa quantas sao, em quais colunas e exemplos de SSA. O banco nao e alterado; bancos sem esse defeito carregam como antes.

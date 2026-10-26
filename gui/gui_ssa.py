@@ -5894,6 +5894,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Falha ao consultar thread de copia de banco no shutdown: %s",
                     exc,
                 )
+        # MEM-27: VACUUM/ANALYZE roda em thread daemon; fechar no meio perdia a
+        # manutencao (o SQLite desfaz, sem corromper). Adia como os demais ate o
+        # prazo do fechamento forcado, que pode encerrar porque o banco fica integro.
+        vacuum_thread = getattr(self, "_vacuum_analyze_thread", None)
+        if vacuum_thread is not None:
+            try:
+                if vacuum_thread.is_alive():
+                    running_operations.append(vacuum_thread)
+                    running_labels.append("vacuum_analyze")
+            except (RuntimeError, AttributeError) as exc:
+                running_operations.append(vacuum_thread)
+                running_labels.append("vacuum_analyze")
+                logger.warning(
+                    "Falha ao consultar thread de VACUUM no shutdown: %s", exc
+                )
         # O registro de stagings ativos e a fonte de verdade: cobre threads
         # cuja referencia ja foi substituida (request expirado/novo).
         if ssa_database_operations is None:
