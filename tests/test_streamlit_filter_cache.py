@@ -909,6 +909,16 @@ def test_apply_all_filters_cached_keeps_regex_refusal_reason() -> None:
         assert "invalida" in out.attrs[FILTER_REGEX_BLOCKED_ATTR]
 
 
+def test_csv_export_uses_display_labels_and_bom() -> None:
+    """BL-13 L2: CSV saia com nomes internos e UTF-8 sem BOM (Excel quebra acentos)."""
+    from dev_env.streamlit_app import _csv_export_bytes
+
+    df = pd.DataFrame({"numero_ssa": ["202500001"], "descricao_ssa": ["valvula"]})
+    data = _csv_export_bytes(df, {"numero_ssa": "Numero SSA", "descricao_ssa": "Descricao"})
+    assert data.startswith(b"\xef\xbb\xbf")
+    assert data.decode("utf-8-sig").splitlines()[0] == "Numero SSA,Descricao"
+
+
 def test_input_files_count_matches_importer(tmp_path, monkeypatch) -> None:
     """BL-13 L3: contava .xls/.csv (o importador so aceita .xlsx) e escondia erro como 0."""
     from pathlib import Path

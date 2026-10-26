@@ -2198,6 +2198,14 @@ def _compute_table_render_height(page_len: int, configured_height: int) -> int:
     return int(bounded)
 
 
+def _csv_export_bytes(view_df: pd.DataFrame, rename_map: dict[str, str]) -> bytes:
+    """BL-13 L2: rotulos de exibicao e utf-8-sig, como o exportador da GUI e o Excel daqui."""
+    from exportacao.exporter import sanitize_spreadsheet_dataframe
+
+    safe_df = sanitize_spreadsheet_dataframe(view_df.rename(columns=rename_map))
+    return safe_df.to_csv(index=False).encode("utf-8-sig")
+
+
 def _list_spreadsheet_files_count(docs_dir: str) -> int | None:
     """Planilhas que o importador aceita; None se a pasta nao pode ser lida (BL-13 L3)."""
     docs_path = Path(docs_dir)
@@ -3390,10 +3398,8 @@ if REAL_RUNTIME and not raw_df.empty:
         st.subheader("Exportacao")
         export_left, export_right = st.columns([2.2, 1.8])
         from exportacao.exporter import sanitize_spreadsheet_cell
-        from exportacao.exporter import sanitize_spreadsheet_dataframe
 
-        safe_csv_df = sanitize_spreadsheet_dataframe(view_df)
-        csv_data = safe_csv_df.to_csv(index=False).encode("utf-8")
+        csv_data = _csv_export_bytes(view_df, rename_map)
         with export_left:
             st.caption("Arquivos")
             st.download_button(

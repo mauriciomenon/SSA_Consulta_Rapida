@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Streamlit: "Baixar CSV" usa os nomes de coluna exibidos (como o Excel do proprio app e o exportador da GUI) e grava UTF-8 com BOM, para o Excel abrir acentos corretamente. Antes saia com nomes internos (`numero_ssa`) e sem BOM.
+
 - Streamlit: "Arquivos de entrada" conta so as planilhas que a importacao aceita (`.xlsx`); antes contava tambem `.xls` e `.csv`, que a importacao rejeita. Pasta sem permissao de leitura mostra "indisponivel (ver log)" em vez de 0.
 
 - Streamlit: o painel "Fonte de dados avancada" so funciona com o servidor em 127.0.0.1 (como `main.py --web` inicia). Rodando `streamlit run` direto, que escuta na rede, o painel avisa e nao deixa trocar banco/pasta nem importar. O botao "Carregar dados" passa a se chamar "Importar novas planilhas" e pede "Aplicar fonte" antes, quando ha caminho digitado nao aplicado (antes importava no banco anterior).
