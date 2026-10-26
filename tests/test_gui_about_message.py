@@ -8,7 +8,6 @@ from gui import gui_ssa
 
 
 def test_build_about_message_includes_commit_hash(monkeypatch) -> None:
-    monkeypatch.setattr(gui_ssa, "resolve_uv_version_text", lambda: "0.0.0-test")
     monkeypatch.setattr(gui_ssa, "resolve_git_commit_hash_text", lambda: "abc1234")
     monkeypatch.setattr(
         gui_ssa, "resolve_git_commit_datetime_text", lambda: "2026-07-06T09:27:56-03:00"
@@ -72,7 +71,6 @@ def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> 
         lambda: (build_info,),
         raising=False,
     )
-    monkeypatch.setattr(gui_ssa, "resolve_uv_version_text", lambda: "indisponivel")
     monkeypatch.setattr(
         gui_ssa, "resolve_git_commit_hash_text", lambda: "indisponivel"
     )
@@ -83,20 +81,6 @@ def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> 
     assert "Autor: Mauricio Menon" in message
     assert "Commit: def5678" in message
     assert "Data: 2026-04-28T06:30:00-03:00" in message
-
-
-def test_resolve_uv_version_uses_resolved_executable(monkeypatch) -> None:
-    captured = {}
-
-    def _fake_run(cmd, **_kwargs):  # noqa: ANN001
-        captured["cmd"] = cmd
-        return SimpleNamespace(stdout="uv 0.9.18", stderr="")
-
-    monkeypatch.setattr(gui_ssa.shutil, "which", lambda name: f"/tools/{name}")
-    monkeypatch.setattr(gui_ssa.subprocess, "run", _fake_run)
-
-    assert gui_ssa.resolve_uv_version_text() == "uv 0.9.18"
-    assert captured["cmd"] == ["/tools/uv", "--version"]
 
 
 def test_resolve_git_commit_returns_unavailable_without_git(monkeypatch) -> None:

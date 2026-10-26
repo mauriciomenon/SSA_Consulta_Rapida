@@ -1647,7 +1647,6 @@ class TestGUIFilterLogic:
     def test_preferences_theme_combo_popup_does_not_use_delayed_clamp(
         self, monkeypatch
     ):
-        clamp_calls: list[tuple[str, str, bool]] = []
         timer_delays: list[int] = []
 
         def _fake_base_show_popup(_self) -> None:
@@ -1657,14 +1656,6 @@ class TestGUIFilterLogic:
             timer_delays.append(int(delay))
             callback()
 
-        def _fake_clamp(combo_box, popup) -> None:
-            clamp_calls.append(
-                (
-                    str(combo_box.objectName() or ""),
-                    type(popup).__name__,
-                    popup is not None,
-                )
-            )
 
         def _fake_exec(dialog):
             combo = dialog.findChild(QComboBox, "preferencesThemeCombo")
@@ -1674,16 +1665,12 @@ class TestGUIFilterLogic:
 
         monkeypatch.setattr(QComboBox, "showPopup", _fake_base_show_popup)
         monkeypatch.setattr(gui_ssa.QTimer, "singleShot", _fake_single_shot)
-        monkeypatch.setattr(
-            gui_ssa.ssa_gui_theme_dialog,
-            "clamp_theme_popup_to_screen",
-            _fake_clamp,
-        )
         monkeypatch.setattr(QDialog, "exec", _fake_exec)
 
         self.window._open_preferences_dialog()
 
-        assert clamp_calls == []
+        # BL-35: o clamp saiu (44e3bf00 trocou por combobox-popup: 0).
+        assert not hasattr(gui_ssa.ssa_gui_theme_dialog, "clamp_theme_popup_to_screen")
         assert timer_delays == []
 
     def test_details_derivadas_tab_refreshes_when_selection_changes(self, monkeypatch):

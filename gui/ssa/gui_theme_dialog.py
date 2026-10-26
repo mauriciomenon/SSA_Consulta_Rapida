@@ -58,24 +58,6 @@ def _resolve_theme_dialog_screen_geometry(target_widget, dialog):
     return screen.availableGeometry()
 
 
-def clamp_theme_popup_to_screen(combo_box, popup) -> None:
-    available = _resolve_widget_screen_geometry(combo_box)
-    if available is None:
-        return
-    try:
-        popup.setMaximumHeight(max(180, int(available.height()) - 12))
-    except Exception as exc:
-        logger.debug("Falha ao limitar altura do popup de tema: %s", exc)
-    popup.adjustSize()
-    geometry = popup.frameGeometry()
-    max_x = available.right() - geometry.width() + 1
-    max_y = available.bottom() - geometry.height() + 1
-    target_x = max(available.left(), min(geometry.x(), max_x))
-    target_y = max(available.top(), min(geometry.y(), max_y))
-    if target_x != geometry.x() or target_y != geometry.y():
-        popup.move(target_x, target_y)
-
-
 def _position_theme_dialog_within_screen(target_widget, dialog) -> None:
     available = _resolve_theme_dialog_screen_geometry(target_widget, dialog)
     if available is None:

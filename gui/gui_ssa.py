@@ -642,27 +642,6 @@ def resolve_app_version_text() -> str:
     return app_version
 
 
-def resolve_uv_version_text() -> str:
-    """Resolve versao do uv para exibicao em UI."""
-    uv_exe = shutil.which("uv")
-    if not uv_exe:
-        return "indisponivel"
-    try:
-        result = subprocess.run(  # nosec B603
-            [uv_exe, "--version"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-            check=False,
-        )
-        output = str(result.stdout or result.stderr).strip()
-        if output:
-            return output
-    except Exception as exc:
-        logger.debug("Falha ao resolver versao do uv: %s", exc)
-    return "indisponivel"
-
-
 def _iter_build_info_candidates():
     seen = set()
     raw_candidates = []

@@ -89,14 +89,11 @@ def test_theme_selection_combo_uses_stable_popup_without_delayed_clamp(monkeypat
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     _ = app
     timer_delays = []
-    clamp_calls = []
 
     def _fake_single_shot(delay, callback):
         timer_delays.append(int(delay))
         callback()
 
-    def _fake_clamp(combo_box, popup):
-        clamp_calls.append((combo_box, popup))
 
     def _fake_exec(dialog):
         combo = dialog.findChild(QtWidgets.QComboBox)
@@ -106,11 +103,6 @@ def test_theme_selection_combo_uses_stable_popup_without_delayed_clamp(monkeypat
         return QtWidgets.QDialog.DialogCode.Rejected
 
     monkeypatch.setattr(QtCore.QTimer, "singleShot", _fake_single_shot)
-    monkeypatch.setattr(
-        gui_theme_dialog,
-        "clamp_theme_popup_to_screen",
-        _fake_clamp,
-    )
     monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec)
 
     gui_theme_dialog.show_theme_selection_dialog(
@@ -121,4 +113,4 @@ def test_theme_selection_combo_uses_stable_popup_without_delayed_clamp(monkeypat
     )
 
     assert timer_delays == []
-    assert clamp_calls == []
+    assert not hasattr(gui_theme_dialog, "clamp_theme_popup_to_screen")
