@@ -2,7 +2,7 @@
 
 ## Problema Comum
 
-Ferramentas de build Python (PyInstaller, Nuitka, PyOxidizer) geram executaveis que podem ser sinalizados como falso-positivos por antivirus porque:
+Ferramentas de build Python (PyInstaller, Nuitka) geram executaveis que podem ser sinalizados como falso-positivos por antivirus porque:
 
 1. Empacotam Python interpreter completo
 2. Criam executaveis auto-extraiveis
@@ -22,7 +22,7 @@ Ferramentas de build Python (PyInstaller, Nuitka, PyOxidizer) geram executaveis 
 5. Adicionar (pastas onde os builds gravam):
    - `<repo>\launchers\dist\` (executaveis PyInstaller)
    - `<repo>\launchers\platforms\` (temporarios do PyInstaller em `<alvo>\temp`)
-   - `<repo>\builds\` (Nuitka, PyOxidizer e ZIPs em `builds\packages`)
+   - `<repo>\builds\` (Nuitka e ZIPs em `builds\packages`)
    - `<repo>\dist_packages\` (instalador Inno Setup)
 
 **Via PowerShell (Admin):**

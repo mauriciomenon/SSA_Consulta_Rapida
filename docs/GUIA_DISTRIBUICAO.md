@@ -21,8 +21,8 @@
 - PR #58 e PR #59: merged; `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados antes de qualquer rebuild.
 - Artefatos v4.43 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-  - Windows AMD64: `pyinstaller`, `nuitka`, `pyoxidizer` + `zip`.
-  - Debian AMD64/ARM64: `pyinstaller`, `nuitka`, `pyoxidizer` + `deb`, `appimage`, `tar`; `pyoxidizer/appimage` nao e suportado.
+  - Windows AMD64: `pyinstaller`, `nuitka` + `zip`.
+  - Debian AMD64/ARM64: `pyinstaller`, `nuitka` + `deb`, `appimage`, `tar`.
   - macOS ARM64: `pyinstaller` + `dmg`.
 - Interface operacional primaria:
   - Windows: `release.ps1`.
@@ -37,8 +37,6 @@
 - Protecao de codigo:
   - Nuitka e o backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
-  - PyOxidizer usa `pyoxidizer==0.24.0` por padrao via `uv tool run`, com override explicito por `SSA_PYOXIDIZER_UV_PACKAGE`.
-  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
 - `setup_env.sh` e `setup_env.ps1` nao executam instalador remoto de pyenv sem opt-in e SHA256 explicitos.
 - `dev_env/setup_msvc_path.ps1` e diagnostico/sessao; nao altera PATH permanente do usuario por padrao.
 - Proximo passo operacional historico: rebuildar Windows AMD64, Debian AMD64, Debian ARM64 e macOS ARM64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.43.
@@ -99,8 +97,9 @@ Dry-run macOS sem remoto Debian:
 - Fluxo automatico Debian AMD64: `dev_env/build/release_debian.sh`.
 - Saida de release Windows AMD64: `builds/packages/windows_amd64/` e `dist_packages/`.
 - Saida de release Debian AMD64: `builds/packages/debian_amd64/`.
-- Backends reconhecidos pelo parser do empacotador: `pyinstaller`, `nuitka`, `pyoxidizer`.
-- Backends de release operacional neste baseline: `pyinstaller`, `nuitka`, `pyoxidizer`.
+- Backends reconhecidos pelo parser do empacotador: `pyinstaller`, `nuitka`.
+- Backends de release operacional neste baseline: `pyinstaller`, `nuitka`.
+- O PyOxidizer foi removido na v4.52: o pyoxidizer 0.24.0 esta sem manutencao desde 2022-12-30 e so embute CPython 3.10, que o projeto nao suporta mais.
 - `pytoexe`/`py2exe`: nao suportados neste repositorio (fora das choices dos scripts atuais).
 
 ## Release Automatico Local (historico)
@@ -230,26 +229,24 @@ Notas:
 
 ```bash
 uv run --no-sync scripts/create_distribution.py --build-system nuitka --skip-installer
-uv run --no-sync scripts/create_distribution.py --build-system pyoxidizer --skip-installer
 ```
 
 Importante:
 - Para Windows/Debian protegido, usar Nuitka como padrao.
 - Para macOS ARM64, usar PyInstaller + DMG.
-- `pyoxidizer` permanece opcional e deve passar protecao de fonte antes de qualquer publicacao.
 
 ### 4) Criar .deb e AppImage Debian manualmente
 
 Fluxo recomendado para Debian AMD64:
 
 ```bash
-bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y
+bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka --package deb -y
 ```
 
 Fluxo remoto por SSH:
 
 ```bash
-bash dev_env/build/release_debian.sh --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --backend pyinstaller,nuitka,pyoxidizer --package deb -y
+bash dev_env/build/release_debian.sh --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --backend pyinstaller,nuitka --package deb -y
 ```
 
 AppImage Debian AMD64:
@@ -272,7 +269,7 @@ bash dev_env/build/package_debian_arm64_appimage.sh --build-system pyinstaller -
 ```
 
 Notas Debian:
-- `.deb` aceita `pyinstaller`, `nuitka` e `pyoxidizer`.
+- `.deb` aceita `pyinstaller` e `nuitka`.
 - AppImage aceita `pyinstaller` e `nuitka`.
 - Debian ARM64 requer host Debian ARM64 nativo; este fluxo nao faz cross-compilation.
 - `--prepare-only` valida AppDir sem exigir `appimagetool`.
@@ -284,14 +281,12 @@ Notas Debian:
 
 - PyInstaller: `launchers/platforms/<plataforma>/temp/`
 - Nuitka: `builds/nuitka/<plataforma>/*.build/`
-- PyOxidizer: `build/<target>/`
 
 ### Artefatos linkados/intermediarios (nunca versionar)
 
 - Tradicional (PyInstaller, canonico): `launchers/dist/<plataforma>/`
 - Tradicional (equivalente/espelho): `builds/pyinstaller/<plataforma>/`
 - Nuitka: `builds/nuitka/<plataforma>/<entry>.dist/`
-- PyOxidizer: `builds/pyoxidizer/<plataforma>/`
 
 ### Artefatos finais de distribuicao (nunca versionar)
 
@@ -305,7 +300,6 @@ Notas Debian:
 - Tradicional (PyInstaller, onedir): `launchers/dist/windows_amd64/SSA_GUI_v<versao>_windows_amd64/SSA_GUI_v<versao>_windows_amd64.exe`
 - Tradicional (equivalente/espelho): `builds/pyinstaller/windows_amd64/SSA_GUI_v<versao>_windows_amd64/SSA_GUI_v<versao>_windows_amd64.exe`
 - Nuitka: `builds/nuitka/windows_amd64/gui_entry.dist/SSA_GUI_v<versao>_windows_amd64.exe`
-- PyOxidizer: `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
 
 ### Exes principais esperados (Debian)
 
@@ -314,7 +308,6 @@ Use `<plataforma>` como `debian_amd64` ou `debian_arm64`.
 - Tradicional (PyInstaller, onedir): `launchers/dist/<plataforma>/SSA_GUI_v<versao>_<plataforma>/SSA_GUI_v<versao>_<plataforma>`
 - Tradicional (equivalente/espelho): `builds/pyinstaller/<plataforma>/SSA_GUI_v<versao>_<plataforma>/SSA_GUI_v<versao>_<plataforma>`
 - Nuitka: `builds/nuitka/<plataforma>/gui_entry.dist/SSA_GUI_v<versao>_<plataforma>`
-- PyOxidizer: `builds/pyoxidizer/<plataforma>/SSA_Consulta_Rapida`
 
 ## Estrutura Esperada dos Pacotes
 
