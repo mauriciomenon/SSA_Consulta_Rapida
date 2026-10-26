@@ -196,14 +196,15 @@ def test_streamlit_reports_partial_update_as_error():
         raw_status="updated_partial", legacy_result=True, run_id="partial",
         reason="partial error", primary_db_path="db", working_db_path="db",
     )
-    streamlit = MagicMock()
-    exec(compile(ast.Module(body=[classification], type_ignores=[]), "streamlit-status", "exec"), {
-        "st": streamlit, "outcome": outcome, "status": outcome.status,
+    namespace = {
+        "st": MagicMock(), "outcome": outcome, "status": outcome.status,
         "status_value": outcome.status.value, "_import_outcome": import_outcome, "ok": True,
-    })
-    streamlit.error.assert_called_once()
-    streamlit.success.assert_not_called()
-    assert "parciais" in streamlit.error.call_args.args[0]
+    }
+    exec(compile(ast.Module(body=[classification], type_ignores=[]), "streamlit-status", "exec"), namespace)
+    # BL-13 M3: a classificacao vira (nivel, texto), exibida apos o rerun.
+    level, text = namespace["notice"]
+    assert level == "error"
+    assert "parciais" in text
 
 
 @pytest.mark.parametrize("changed", [False, True])
