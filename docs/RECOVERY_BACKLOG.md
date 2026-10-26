@@ -1,5 +1,8 @@
 # Pendencias de estabilizacao
 
+> Historico ate 2026-10-02 (REPO-19). A rodada de estabilizacao do branch `rev` (desde 2026-10-22) reconciliou
+> os itens `[ ]` daqui no backlog de trabalho dela; o que foi entregue esta no CHANGELOG.md. Nao acrescentar itens novos aqui.
+
 ## 2026-09-28 - Debito DeepSource e triagem de P1s do PR 135
 
 - [x] Prefetch de tree_data na selecao para encurtar o duplo clique
