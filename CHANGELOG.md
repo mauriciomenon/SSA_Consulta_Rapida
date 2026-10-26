@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Streamlit: "Execucao concluida" conta as SSAs encerradas normalmente (STE e SES). Antes contava a situacao "EXECUTADA", que o SAM nao usa, e mostrava sempre 0,0% (na base atual o valor correto e 80,2%).
+
 - Streamlit: filtros e opcoes "Ano emissao" e "AnoSemana emissao" seguem a regra da GUI (semana de cadastro do SAM; a data so quando falta a semana). Antes usavam o ano de calendario da data: SSAs da virada do ano (ex.: 01/01/2022 na semana 202152) caiam em ano diferente da GUI, e SSAs sem data de cadastro sumiam do filtro.
 
 - Streamlit: o resultado de "Carregar dados"/"Reimportar" (concluida, nada novo, rejeitados ou status bloqueante com alteracoes parciais) aparece no painel de fonte de dados depois que a pagina recarrega. Antes a recarga automatica apagava a mensagem e o operador nao via, por exemplo, que a importacao tinha parado com o banco parcialmente alterado.

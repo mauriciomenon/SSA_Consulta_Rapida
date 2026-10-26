@@ -210,6 +210,14 @@ def test_build_advanced_filter_options_collects_new_filters() -> None:
     assert 2 in options["num_reprogramacoes"]
 
 
+def test_execution_rate_counts_normal_closures() -> None:
+    """BL-13 M10: contava 'EXECUTADA', codigo que o SAM nao usa (sempre 0,0%)."""
+    from dev_env.streamlit_app import _execution_rate
+
+    assert round(_execution_rate(pd.Series(["STE", "SES", "AAD"])), 1) == 66.7
+    assert _execution_rate(pd.Series([], dtype=object)) == 0.0
+
+
 def test_ano_emissao_follows_gui_rule() -> None:
     """BL-13 M4 (RD-06): ano/semana de emissao vem de semana_cadastro, como na GUI."""
     df = pd.DataFrame(

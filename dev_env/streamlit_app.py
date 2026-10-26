@@ -42,6 +42,9 @@ build_dataframe_filter_hash = importlib.import_module(
 ).build_dataframe_filter_hash
 _STREAMLIT_DATA_REVISION_ATTR = "_streamlit_data_revision"
 _IMPORT_NOTICE_KEY = "streamlit_import_notice"
+_ssa_status_module = importlib.import_module("shared.ssa_status")
+SSA_ENCERRADAS_NORMAL = _ssa_status_module.SSA_ENCERRADAS_NORMAL
+status_code_series = _ssa_status_module.status_code_series
 ano_emissao_series = importlib.import_module(
     "gui.ssa.gui_filters_advanced_logic"
 ).ano_emissao_series
@@ -1342,6 +1345,14 @@ def _compute_yearweek_from_week_series(df: pd.DataFrame, col_name: str) -> pd.Se
     if col_name not in df.columns:
         return pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
     return pd.to_numeric(df[col_name], errors="coerce").astype("Int64")
+
+
+def _execution_rate(situacao: pd.Series) -> float:
+    """BL-13 M10: % de encerradas normalmente (STE/SES); antes contava 'EXECUTADA', inexistente."""
+    if situacao.empty:
+        return 0.0
+    closed = status_code_series(situacao).isin(SSA_ENCERRADAS_NORMAL).sum()
+    return float(closed) / len(situacao) * 100
 
 
 def _ano_emissao(df: pd.DataFrame) -> pd.Series:
@@ -3052,9 +3063,7 @@ if REAL_RUNTIME and not raw_df.empty:
         status_cols[2].metric("Colunas exibidas", len(view_df.columns))
 
         if "situacao" in filtered_df.columns and total_ssas:
-            status_counts = filtered_df["situacao"].value_counts()
-            executadas = int(status_counts.get("EXECUTADA", 0))
-            exec_rate = (executadas / total_ssas * 100) if total_ssas else 0
+            exec_rate = _execution_rate(filtered_df["situacao"])
             st.caption(f"Execucao concluida: {exec_rate:.1f}%")
         else:
             st.caption("Execucao concluida: -")
