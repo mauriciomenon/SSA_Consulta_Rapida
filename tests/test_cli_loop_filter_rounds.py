@@ -128,6 +128,35 @@ def test_render_cli_page_exits_when_printer_requests_app_exit(
     assert excinfo.value.code == 0
 
 
+def test_start_cli_loop_prints_why_regex_was_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-47b: a CLI dizia so 'Nenhum resultado' quando a regex era recusada."""
+    from core.search_filter_constants import FILTER_REGEX_BLOCKED_ATTR
+
+    base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
+    refused = base_df.iloc[0:0].copy()
+    refused.attrs[FILTER_REGEX_BLOCKED_ATTR] = "regex recusada: teste"
+    monkeypatch.setattr(cli, "_get_initial_state", lambda *_a, **_k: (base_df, []))
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {"default_filters": [], "user_preferences": {}},
+    )
+    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
+    monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
+    monkeypatch.setattr(cli, "_render_single_page", lambda *_a, **_k: None)
+    monkeypatch.setattr(cli, "filter_dataframe", lambda _df, _terms: refused)
+    inputs = iter(["~bo+mba", "q"])
+    monkeypatch.setattr(builtins, "input", lambda _prompt: next(inputs))
+
+    out = io.StringIO()
+    with redirect_stdout(out), pytest.raises(SystemExit):
+        cli.start_cli_loop("dummy.db", "ssa_table")
+
+    assert "Aviso: regex recusada: teste." in out.getvalue()
+
+
 def test_start_cli_loop_accumulates_literal_terms_without_rewriting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

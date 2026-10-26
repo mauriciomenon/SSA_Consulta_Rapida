@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file.
 
 - Pacotes: o ZIP combinado de `scripts/create_distribution.py` leva a plataforma no nome e na pasta interna (ex.: `SSA_Consulta_Rapida_v4.51_windows_arm64_pyinstaller.zip`). Antes os builds Windows amd64 e arm64 geravam o mesmo nome (`SSA_Consulta_Rapida_v4.51_pyinstaller.zip`) e podiam ser trocados na entrega.
 
-- Busca com regex (`~`) recusada (quantificador `* + ? {n}` em base grande, padrao perigoso, longo demais ou invalido) mostra o motivo na barra de status da GUI, ex.: "Aviso: regex com quantificador recusada nesta base grande; coloque antes um termo simples que reduza a base". Antes aparecia so "nenhum resultado", como se nao houvesse SSA.
+- Busca com regex (`~`) recusada (quantificador `* + ? {n}` em base grande, padrao perigoso, longo demais ou invalido) mostra o motivo na barra de status da GUI e na CLI interativa, ex.: "Aviso: regex com quantificador recusada nesta base grande; coloque antes um termo simples que reduza a base". Antes aparecia so "nenhum resultado", como se nao houvesse SSA.
 
 - Streamlit: o "Limite" de linhas vale so para a tabela exibida, depois da ordenacao (antes ordenacao, totais, graficos e exportacoes viam so as primeiras 500 linhas); a tabela avisa "Exibindo N de M". "Gerar Excel" nao quebra mais a pagina quando ha valor ausente.
 

@@ -23,6 +23,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 from armazenamento.database import get_ssa_query, query_db
 from core import import_outcome
 from core.app_logic import filter_dataframe, parse_search_terms, run_importer_logic
+from core.search_filter_constants import FILTER_REGEX_BLOCKED_ATTR
 from core.config_manager import (
     load_display_mappings_integrity,
     load_settings,
@@ -1522,6 +1523,11 @@ def start_cli_loop(db_path: str, table_name: str):
 
                         # Aplica filtro acumulativo sobre os dados atuais
                         new_filtered_df = filter_dataframe(current_df, parsed_terms)
+                        regex_blocked = new_filtered_df.attrs.get(
+                            FILTER_REGEX_BLOCKED_ATTR
+                        )
+                        if regex_blocked:
+                            print(f"Aviso: {regex_blocked}.")
                         if new_filtered_df.empty:
                             print(
                                 "Nenhum resultado encontrado para o filtro. Tente outros termos."
