@@ -1,5 +1,7 @@
 # CHANGELOG DE IMPLEMENTACOES
 
+> Historico ate a v4.47 (2026-08-09), mantido como registro. A v4.50 em diante esta em `CHANGELOG.md` (REPO-25).
+
 ## 2026-08-09 - Release v4.47 (filtros, cache e integridade)
 - Barra rapida de situacao alterna inclusao, exclusao (`!STATUS`) e estado neutro sem novo operador.
 - Estado visual fica sincronizado com filtros ativos, por coluna e avancados; multiplos setores exibem `...`.
