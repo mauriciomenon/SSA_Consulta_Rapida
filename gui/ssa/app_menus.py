@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 def database_operation_in_progress(window: Any) -> bool:
+    if getattr(window, "_is_window_copy", False):
+        # Copia temporaria nunca opera o banco: a janela principal tem a vez.
+        return True
     if any(bool(getattr(window, flag, False)) for flag in (
         "_data_load_busy", "_other_db_validation_running",
         "_vacuum_analyze_running", "_is_shutting_down",
@@ -110,6 +113,28 @@ def _add_file_menu(window: Any, arquivo_menu: Any, action_cls: Any) -> None:
         "Exportar lista",
         window._export_current_list_txt,
     )
+    arquivo_menu.addSeparator()
+    _add_action(
+        arquivo_menu,
+        action_cls,
+        window,
+        "Nova janela com a tela atual (copia temporaria)",
+        window.open_window_copy,
+        status_tip=(
+            "Abre outra janela com as linhas da tela atual congeladas (ate 3):"
+            " filtra, ordena e abre detalhes sem recarregar do banco."
+        ),
+    )
+    if getattr(window, "_is_window_copy", False):
+        _add_action(
+            arquivo_menu,
+            action_cls,
+            window,
+            "Voltar ao estado congelado",
+            window.restore_frozen_copy_state,
+            status_tip="Limpa os filtros desta copia e volta as linhas recebidas.",
+        )
+    arquivo_menu.addSeparator()
     _add_action(arquivo_menu, action_cls, window, "Sair", window.close)
 
 

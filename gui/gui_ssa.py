@@ -85,6 +85,7 @@ from core.pai_scrap_report_provider import (
     run_pai_scrap_report_secret_validate,
 )
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
+from gui.ssa import window_copies as ssa_window_copies  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
 from gui.gui_config import get_gui_main_preferences_path  # noqa: F401 - re-export for compatibility
@@ -905,6 +906,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug("Falha ao aplicar altura fixa em %s: %s", label, exc)
 
     def _persist_gui_preferences(self):
+        if getattr(self, "_is_window_copy", False):
+            # Copia temporaria nao grava preferencias: a janela principal e a dona.
+            return True
         persisted = ssa_system_controller.queue_gui_preferences_write(
             GUI_MAIN_PREFERENCES
         )
@@ -1197,18 +1201,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         return width, height
 
-    def __init__(self):
+    def __init__(self, copy_from: Any = None, copy_number: int = 0):
         if not QT_AVAILABLE:
             raise RuntimeError("GUI unavailable: PyQt6 import failed")
         _apply_preferred_application_font()
         super().__init__()
+        # Copia temporaria (menu Arquivo): dados da tela de origem congelados em
+        # memoria, sem recarga do banco, importacao, SAM API nem preferencias.
+        self._is_window_copy = copy_from is not None
+        self._window_copy_number = copy_number
         try:
             # Evita acumulo de janelas/widgets fechados (impacta performance ao reaplicar tema global).
             self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         except Exception as exc:
             logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
         self._app_version = resolve_app_version_text()
-        self.setWindowTitle(f"Consulta Rapida de SSAs v{self._app_version}")
+        self.setWindowTitle(
+            f"Consulta Rapida de SSAs v{self._app_version}"
+            + (f" - copia {copy_number} (dados congelados)" if self._is_window_copy else "")
+        )
         startup_gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         restored_startup_width, restored_startup_height = (
             self._sanitize_window_size_preferences(
@@ -1400,7 +1411,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.persistent_filters = []
 
         self.init_ui()
-        self.initialize_pai_api_auto_refresh()
+        if not self._is_window_copy:
+            self.initialize_pai_api_auto_refresh()
 
         # Carrega filtros apos a GUI estar configurada
         self.load_persistent_filters()
@@ -1417,9 +1429,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Aplica perfil inicial de filtros por setor
         self._apply_initial_filter_profile()
 
+        if self._is_window_copy:
+            self._seed_frozen_copy(copy_from)
+            return
         # Inicia a carga imediatamente para evitar um segundo passo artificial
         # apos a janela aparecer.
         self.load_data()
+
+    def _seed_frozen_copy(self, source: Any) -> None:
+        """Copia recebe as linhas que estavam na tela de origem: esse e o estado congelado.
+
+        Filtros na copia so reduzem esses dados; limpar os filtros volta exatamente a eles
+        e nunca alem (os dados da copia sao so essas linhas).
+        """
+        frozen = getattr(source, "df_exibido", None)
+        if not isinstance(frozen, pd.DataFrame) or frozen.empty:
+            frozen = getattr(source, "df_completo", pd.DataFrame())
+        self.on_data_loaded(frozen.copy(deep=True))
+        origin = str(getattr(getattr(source, "search_input", None), "text", lambda: "")() or "")
+        if origin.strip():
+            self.setWindowTitle(f"{self.windowTitle()} - origem: {origin.strip()}")
+
+    def open_window_copy(self) -> Any:
+        """Menu Arquivo: abre uma copia temporaria da tela atual (ate 3)."""
+        copy_window = ssa_window_copies.open_window_copy(self, SSAMainWindow)
+        if copy_window is None:
+            self.status_label.setText(
+                f"Status: limite de {ssa_window_copies.MAX_WINDOW_COPIES} copias abertas;"
+                " feche uma para abrir outra."
+            )
+            return None
+        copy_window.show()
+        return copy_window
+
+    def restore_frozen_copy_state(self) -> None:
+        """Copia: volta ao estado congelado (todas as linhas recebidas, sem filtros)."""
+        self._clear_all_filters_global()
 
     def init_ui(self):
         central_widget = QWidget()
@@ -5988,6 +6033,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def closeEvent(self, event):
         """Adia o fechamento com a GUI operante ou encerra apos o prazo."""
+        if getattr(self, "_is_window_copy", False):
+            ssa_window_copies.forget_window_copy(self)
+        else:
+            ssa_window_copies.close_all_window_copies()
         self._is_shutting_down = True
         try:
             shutdown_complete = self.shutdown()
