@@ -784,3 +784,20 @@ def test_excel_cell_value_accepts_missing_values() -> None:
     for col, value in enumerate([pd.NA, pd.NaT, None, 3, "texto"], 1):
         ws.cell(row=1, column=col, value=_excel_cell_value(value))
     assert [c.value for c in ws[1]] == [None, None, None, 3, "texto"]
+
+
+def test_apply_all_filters_cached_keeps_regex_refusal_reason() -> None:
+    """BL-47b: o motivo da regex recusada sobrevive aos filtros e ao cache."""
+    from core.search_filter_constants import FILTER_REGEX_BLOCKED_ATTR
+
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["947001", "947002"],
+            "situacao": ["ABERTO", "ABERTO"],
+            "descricao_ssa": ["bomba", "motor"],
+        }
+    )
+    for _ in range(2):  # 2a chamada vem do cache
+        out = apply_all_filters_cached(df, "~bo(mba", ["ABERTO"], [], [])
+        assert out.empty
+        assert "invalida" in out.attrs[FILTER_REGEX_BLOCKED_ATTR]

@@ -33,7 +33,9 @@ path_safety_module = importlib.import_module("utils.path_safety")
 remote_itaipu_module = importlib.import_module("utils.remote_itaipu")
 date_utils_module = importlib.import_module("shared.date_utils")
 version_module = importlib.import_module("utils.version")
+search_filter_constants_module = importlib.import_module("core.search_filter_constants")
 
+FILTER_REGEX_BLOCKED_ATTR = search_filter_constants_module.FILTER_REGEX_BLOCKED_ATTR
 filter_dataframe = app_logic.filter_dataframe
 get_filtered_data = app_logic.get_filtered_data
 import_files_to_database = app_logic.import_files_to_database
@@ -2955,6 +2957,9 @@ if REAL_RUNTIME and not raw_df.empty:
     )
     if sidebar_filtered_metric_slot is not None:
         sidebar_filtered_metric_slot.metric("SSAs no filtro atual", len(filtered_df))
+    regex_blocked = filtered_df.attrs.get(FILTER_REGEX_BLOCKED_ATTR)
+    if regex_blocked:
+        st.warning(f"Aviso: {regex_blocked}.")
 
     view_df = filtered_df[selected_columns] if selected_columns else filtered_df
     rename_map = {col: DISPLAY_MAPPINGS.get(col, col) for col in view_df.columns}
