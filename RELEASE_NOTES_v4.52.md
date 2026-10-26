@@ -38,3 +38,15 @@ Publicada em 2026-10-26: https://github.com/mauriciomenon/SSA_Consulta_Rapida/re
 | SSA_Consulta_Rapida_v4.52_windows_arm64.zip | cf99e4849e037fd0c7b76d5320b2663e64f413ad65fdd15841073701d236be8d |
 | SSA_Consulta_Rapida_v4.52_debian_amd64.deb | a1e850957b31f3e9f996161220494d8e1ee4ff999ba2878e91561cd7e032e106 |
 | SSA_Consulta_Rapida_v4.52_debian_arm64.deb | 029c804cabb104b2d91dc41d019e6dfa62a92a00cbab36312a74e5c70da7ccb6 |
+
+## v4.52-rc2 (2026-10-26)
+
+Pre-release no commit 376ce9c4 = rc1 + "Desfazer" com 10 niveis. Suite: 3709 passed. https://github.com/mauriciomenon/SSA_Consulta_Rapida/releases/tag/v4.52-rc2 (GitLab com links para os mesmos arquivos).
+
+| Asset | SHA-256 |
+| --- | --- |
+| SSA_Consulta_Rapida_v4.52-rc2_debian_amd64.deb | 56f2900cfe1960bbe3c8d7af4e69aaaf92e18eedb27f62f4a022e0008157964a |
+| SSA_Consulta_Rapida_v4.52-rc2_debian_arm64.deb | 9b469b4593065b195d6fc894c62bb8a74e4c49a0fff672a8f72d8e3057bd0de9 |
+| SSA_Consulta_Rapida_v4.52-rc2_macos_arm64.dmg | b64297fb2b4c4c0cbe849457921324e3f19cccbf0f4dff0bc1f8f1b86766215c |
+| SSA_Consulta_Rapida_v4.52-rc2_windows_amd64.zip | 8df11f5fcef956e468b97b8b7f7826c42d72ae5a9152a19c97e5a09cf9b10b16 |
+| SSA_Consulta_Rapida_v4.52-rc2_windows_arm64.zip | 8988712ec792dba489b0cd483aa320c98dcc282fbe824af2d2ff94f8a2794506 |
