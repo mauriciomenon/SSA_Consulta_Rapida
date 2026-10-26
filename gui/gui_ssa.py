@@ -767,6 +767,9 @@ def build_about_message(app_version: str) -> str:
         f"Data: {build_datetime}",
         f"Commit: {commit_hash}",
     ]
+    if build_info.get("release_channel") == "teste":
+        branch = str(build_info.get("git_branch") or "?")
+        lines.append(f"Build de teste (branch {branch}): nao e release oficial")
     return "\n".join(lines)
 
 

@@ -303,6 +303,7 @@ def test_build_info_payload_includes_toolchain_versions(monkeypatch):
 
     outputs: dict[tuple[str, ...], str] = {
         ("git", "rev-parse", "HEAD"): "test-commit-id",
+        ("git", "rev-parse", "--abbrev-ref", "HEAD"): "rev",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
@@ -332,6 +333,7 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
     called_cmds: set[tuple[str, ...]] = set()
     outputs: dict[tuple[str, ...], str] = {
         ("git", "rev-parse", "HEAD"): "test-commit-id",
+        ("git", "rev-parse", "--abbrev-ref", "HEAD"): "rev",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
@@ -366,6 +368,7 @@ def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
 def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_path):
     outputs = {
         ("git", "rev-parse", "HEAD"): "test-commit-id",
+        ("git", "rev-parse", "--abbrev-ref", "HEAD"): "rev",
         ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
         ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
         ("uv", "--version"): "uv 0.9.18",
@@ -388,6 +391,23 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
     assert payload["rustc_version"] == "rustc 1.90.0"
+
+
+@pytest.mark.parametrize(("branch", "channel"), [("main", "oficial"), ("rev", "teste"), ("HEAD", "teste"), ("", "teste")])
+def test_write_build_info_records_branch_and_release_channel(monkeypatch, tmp_path, branch, channel):
+    """REL-02: build fora do main e build de teste; o build_info registra isso."""
+    outputs = {
+        ("git", "rev-parse", "HEAD"): "test-commit-id",
+        ("git", "rev-parse", "--abbrev-ref", "HEAD"): branch,
+    }
+    monkeypatch.setattr(
+        write_build_info, "_run_output", lambda args, cwd, require_success: outputs.get(tuple(args), "")
+    )
+
+    payload = write_build_info.build_payload(tmp_path, "pyinstaller", "macos_arm64", "4.51")
+
+    assert payload["git_branch"] == branch
+    assert payload["release_channel"] == channel
 
 
 def test_write_build_info_logs_required_metadata_command_failure(

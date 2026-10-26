@@ -87,6 +87,9 @@ def build_payload(
     app_version: str,
 ) -> dict[str, str]:
     commit = _run_output(["git", "rev-parse", "HEAD"], repo_root, require_success=True)
+    # REL-02 (dono 25/10): build fora do main e de teste de processo e diz isso no build_info
+    # e no Sobre. HEAD destacado (checkout de tag) tambem conta como teste: o oficial sai do main.
+    branch = _run_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], repo_root, require_success=False)
     return {
         "app_version": app_version,
         "build_datetime": datetime.datetime.now()
@@ -94,6 +97,7 @@ def build_payload(
         .isoformat(timespec="seconds"),
         "build_system": build_system,
         "c_compiler_version": _c_compiler_version(repo_root),
+        "git_branch": branch,
         "git_commit": commit,
         "git_commit_datetime": _run_output(
             ["git", "log", "-1", "--format=%cI"],
@@ -107,6 +111,7 @@ def build_payload(
             require_success=True,
         ),
         "platform": platform_name,
+        "release_channel": "oficial" if branch == "main" else "teste",
         "rustc_version": _first_tool_version((["rustc", "--version"],), repo_root),
         "uv_version": _run_output(["uv", "--version"], repo_root, require_success=True),
     }

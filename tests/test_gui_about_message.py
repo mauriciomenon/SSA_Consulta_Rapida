@@ -4,6 +4,8 @@ import os
 from types import SimpleNamespace
 from typing import Any, cast
 
+import pytest
+
 from gui import gui_ssa
 
 
@@ -185,3 +187,19 @@ def test_open_installation_guide_uses_bundled_internal_docs(
         "fake-open", os.path.abspath(str(guide_path))
     )
     assert opened["shell"] is False
+
+
+@pytest.mark.parametrize(("channel", "expected"), [("teste", True), ("oficial", False)])
+def test_about_message_flags_test_build(monkeypatch, channel, expected) -> None:
+    """REL-02: o Sobre de um build fora do main diz que e build de teste."""
+    monkeypatch.setattr(
+        gui_ssa,
+        "_load_embedded_build_info",
+        lambda: {"release_channel": channel, "git_branch": "rev", "git_commit_short": "abc1234"},
+    )
+    monkeypatch.setattr(gui_ssa, "resolve_git_commit_hash_text", lambda: "abc1234")
+
+    message = gui_ssa.build_about_message("4.51")
+
+    assert ("Build de teste (branch rev): nao e release oficial" in message) is expected
+
