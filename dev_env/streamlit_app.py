@@ -1563,9 +1563,12 @@ def _apply_datetime_manual_boundary_filter(
     end_conditions = _parse_manual_boundary_conditions(end_raw, is_start=False)
     if not start_conditions and not end_conditions:
         return filtered_df
-    parsed = pd.to_datetime(filtered_df[column_name], errors="coerce")
+    parsed_exact = pd.to_datetime(filtered_df[column_name], errors="coerce")
+    parsed_day = parsed_exact.dt.normalize()
     mask = pd.Series(True, index=filtered_df.index)
     for op, boundary in start_conditions + end_conditions:
+        # BL-13 M7: limite so com data vale o dia inteiro (as datas do banco tem hora).
+        parsed = parsed_day if boundary == boundary.normalize() else parsed_exact
         if op == "ge":
             current_mask = parsed.ge(boundary).fillna(False)
         elif op == "le":

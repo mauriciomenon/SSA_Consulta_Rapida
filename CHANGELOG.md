@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Streamlit: nos filtros de data, um limite digitado so com a data vale o dia inteiro. "Data emissao fim" = 10/05/2024 inclui SSAs cadastradas em 10/05 a qualquer hora (antes so ate 00:00), e "!10/05/2024" exclui o dia (antes nao excluia nada). Limite com hora continua exato.
+
 - Streamlit: "Execucao concluida" conta as SSAs encerradas normalmente (STE e SES). Antes contava a situacao "EXECUTADA", que o SAM nao usa, e mostrava sempre 0,0% (na base atual o valor correto e 80,2%).
 
 - Streamlit: filtros e opcoes "Ano emissao" e "AnoSemana emissao" seguem a regra da GUI (semana de cadastro do SAM; a data so quando falta a semana). Antes usavam o ano de calendario da data: SSAs da virada do ano (ex.: 01/01/2022 na semana 202152) caiam em ano diferente da GUI, e SSAs sem data de cadastro sumiam do filtro.

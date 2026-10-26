@@ -364,6 +364,26 @@ def test_apply_all_filters_cached_supports_manual_date_conditions_with_not() -> 
     assert out["numero_ssa"].tolist() == ["1", "2"]
 
 
+def test_date_only_boundaries_cover_the_whole_day() -> None:
+    """BL-13 M7: fim=10/05 descartava 10/05 14:00; !10/05 nao excluia nada (datas com hora)."""
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2"],
+            "situacao": ["ABERTO", "ABERTO"],
+            "data_cadastro": ["2024-05-09 08:00:00", "2024-05-10 14:00:00"],
+        }
+    )
+
+    def run(**adv: str) -> list[str]:
+        return apply_all_filters_cached(df, "", [], [], [], advanced_filters=adv)[
+            "numero_ssa"
+        ].tolist()
+
+    assert run(data_emissao_fim="2024-05-10") == ["1", "2"]
+    assert run(data_emissao_inicio="!2024-05-10") == ["1"]
+    assert run(data_emissao_fim="2024-05-10 12:00") == ["1"]
+
+
 def test_apply_all_filters_cached_supports_execucao_date_not_equal() -> None:
     df = pd.DataFrame(
         {
