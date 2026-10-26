@@ -6080,9 +6080,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def closeEvent(self, event):
         """Adia o fechamento com a GUI operante ou encerra apos o prazo."""
-        if getattr(self, "_is_window_copy", False):
-            ssa_window_copies.forget_window_copy(self)
-        else:
+        if not getattr(self, "_is_window_copy", False):
             ssa_window_copies.close_all_window_copies()
         self._is_shutting_down = True
         try:
@@ -6213,6 +6211,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     timer.stop()
                 except RuntimeError as exc:
                     logger.debug("Falha ao parar %s no shutdown: %s", timer_attr, exc)
+        if is_copy:
+            # So agora: um fechamento adiado (worker ativo) mantem a copia rastreada.
+            ssa_window_copies.forget_window_copy(self)
         event.accept()
 
 

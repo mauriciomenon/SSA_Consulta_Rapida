@@ -106,6 +106,7 @@ def validate_payload(payload: Any) -> dict[str, Any]:
     checks = (
         ("colunas.visiveis", colunas.get("visiveis"), (list, type(None))),
         ("colunas.larguras", colunas.get("larguras"), (dict, type(None))),
+        ("ordenacao.coluna", ordenacao.get("coluna"), (str, type(None))),
         ("ordenacao.crescente", ordenacao.get("crescente"), (bool, type(None))),
         ("pagina", payload.get("pagina"), (int, type(None))),
     )
@@ -173,24 +174,37 @@ def apply_state_payload(window: Any, payload: Any, db_path: str) -> list[str]:
     window._update_undo_button_state()
     _apply_sort_indicator(window)
 
-    focused = str(payload.get("ssa_em_foco") or "").strip()
     if _filter_in_flight(window):
-        # ponytail: com busca assincrona so a SSA em foco e reposta (mecanismo do salto);
-        # pagina e larguras sem SSA em foco ficam como o filtro renderizar.
-        if focused:
-            window._pending_jump_to_ssa = {
-                "numero_ssa": focused,
-                "request_id": getattr(window, "_active_filter_request_id", None),
-            }
+        # Busca assincrona: pagina, larguras e SSA em foco entram quando o request
+        # correspondente terminar (on_filter_finished chama consume_pending_view).
+        window._pending_screen_view = {
+            "request_id": getattr(window, "_active_filter_request_id", None),
+            "payload": payload,
+        }
     else:
-        paginator = window.paginator
-        page = max(1, min(int(payload.get("pagina") or 1), int(paginator.total_pages)))
-        paginator.current_page = page
-        window.display_current_page(page, update_details=False)
-        window._restore_column_widths(payload["colunas"].get("larguras") or {})
-        if focused:
-            window._jump_to_ssa(focused, _allow_refilter=False)
+        _apply_view_position(window, payload)
 
     if payload["dados"] != data_identity(window, db_path):
         warnings.append(DB_CHANGED_WARNING)
     return warnings
+
+
+def _apply_view_position(window: Any, payload: dict[str, Any]) -> None:
+    """Pagina, larguras e SSA em foco: so depois que o filtro restaurado terminou."""
+    paginator = window.paginator
+    page = max(1, min(int(payload.get("pagina") or 1), int(paginator.total_pages)))
+    paginator.current_page = page
+    window.display_current_page(page, update_details=False)
+    window._restore_column_widths(payload["colunas"].get("larguras") or {})
+    focused = str(payload.get("ssa_em_foco") or "").strip()
+    if focused:
+        window._jump_to_ssa(focused, _allow_refilter=False)
+
+
+def consume_pending_view(window: Any, request_id: Any) -> None:
+    """Chamado ao fim de um filtro: aplica a posicao salva se o request e o da restauracao."""
+    pending = getattr(window, "_pending_screen_view", None)
+    if not pending or pending.get("request_id") != request_id:
+        return
+    window._pending_screen_view = None
+    _apply_view_position(window, pending["payload"])

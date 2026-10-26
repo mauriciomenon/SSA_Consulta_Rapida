@@ -65,6 +65,7 @@ from gui.helpers.formatting_helpers import (
     normalize_chunk_for_parse,
 )
 from gui.ssa import gui_details as ssa_gui_details
+from gui.ssa import screen_state_mirror
 from gui.ssa.column_filter_runtime import (
     ColumnFilterRuntimeState,
     apply_column_filters_with_state,
@@ -1088,6 +1089,8 @@ class FilterGUISSAMixin:
         self._apply_search_display()
         self._apply_filter_result_width_safety("filter_finished", deferred=True)
         self._consume_pending_jump_to_ssa(effective_request_id)
+        # BL-51: posicao de um estado salvo aberto durante este filtro.
+        screen_state_mirror.consume_pending_view(self, effective_request_id)
 
     def on_filter_error(self, error_msg: str, request_id: int | None = None):
         if bool(getattr(self, "_is_shutting_down", False)):

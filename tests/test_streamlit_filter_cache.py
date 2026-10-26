@@ -416,6 +416,9 @@ def test_date_only_boundaries_cover_the_whole_day() -> None:
     assert run(data_emissao_fim="2024-05-10") == ["1", "2"]
     assert run(data_emissao_inicio="!2024-05-10") == ["1"]
     assert run(data_emissao_fim="2024-05-10 12:00") == ["1"]
+    # Revisao Codex: meia-noite digitada e hora exata, nao o dia inteiro.
+    assert run(data_emissao_fim="2024-05-10 00:00") == ["1"]
+    assert run(data_emissao_inicio="!2024-05-10 00:00") == ["1", "2"]
 
 
 def test_apply_all_filters_cached_supports_execucao_date_not_equal() -> None:

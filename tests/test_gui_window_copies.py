@@ -119,3 +119,31 @@ class TestGUIWindowCopies:
         copy_window.close()
         assert calls == []
         assert window_copies.open_copy_count() == 0
+
+    def test_deferred_copy_close_keeps_copy_tracked(self, monkeypatch):
+        """Revisao Codex: fechamento adiado (worker ativo) nao pode soltar a vaga da copia."""
+        copy_window = self.main.open_window_copy()
+        monkeypatch.setattr(copy_window, "shutdown", lambda: False)
+        copy_window.close()
+        assert window_copies.open_copy_count() == 1
+        monkeypatch.undo()
+        copy_window.close()
+        assert window_copies.open_copy_count() == 0
+
+
+def test_pending_view_applies_only_for_its_request(monkeypatch):
+    """Revisao Codex: com filtro assincrono, pagina/larguras/foco entram no fim do request certo."""
+    from gui.ssa import screen_state_mirror
+
+    applied = []
+    monkeypatch.setattr(screen_state_mirror, "_apply_view_position", lambda w, p: applied.append(p))
+
+    class _Win:
+        _pending_screen_view = {"request_id": 5, "payload": {"pagina": 3}}
+
+    win = _Win()
+    screen_state_mirror.consume_pending_view(win, 4)
+    assert applied == []
+    screen_state_mirror.consume_pending_view(win, 5)
+    assert applied == [{"pagina": 3}]
+    assert win._pending_screen_view is None

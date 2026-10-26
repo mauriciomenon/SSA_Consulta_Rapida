@@ -1585,9 +1585,9 @@ def _apply_datetime_manual_boundary_filter(
     parsed_exact = pd.to_datetime(filtered_df[column_name], errors="coerce")
     parsed_day = parsed_exact.dt.normalize()
     mask = pd.Series(True, index=filtered_df.index)
-    for op, boundary in start_conditions + end_conditions:
+    for op, boundary, has_time in start_conditions + end_conditions:
         # BL-13 M7: limite so com data vale o dia inteiro (as datas do banco tem hora).
-        parsed = parsed_day if boundary == boundary.normalize() else parsed_exact
+        parsed = parsed_exact if has_time else parsed_day
         if op == "ge":
             current_mask = parsed.ge(boundary).fillna(False)
         elif op == "le":
@@ -1617,7 +1617,7 @@ def _apply_yearweek_manual_boundary_filter(
         return filtered_df
     week_series = _compute_yearweek_from_week_series(filtered_df, week_column)
     mask = pd.Series(True, index=filtered_df.index)
-    for op, boundary in start_conditions + end_conditions:
+    for op, boundary, _has_time in start_conditions + end_conditions:
         year_week = _date_to_yearweek(boundary)
         if year_week is None:
             continue
@@ -2144,20 +2144,22 @@ def _resolve_include_exclude_values(
 
 def _parse_manual_boundary_conditions(
     raw_value: Any, *, is_start: bool
-) -> list[tuple[str, pd.Timestamp]]:
+) -> list[tuple[str, pd.Timestamp, bool]]:
+    """(operador, limite, tem_hora): tem_hora vem do texto digitado (BL-13 M7, revisao
+    Codex: '2024-05-10 00:00' e meia-noite exata, nao o dia inteiro)."""
     include_tokens, exclude_tokens = _split_manual_filter_tokens(raw_value)
-    conditions: list[tuple[str, pd.Timestamp]] = []
+    conditions: list[tuple[str, pd.Timestamp, bool]] = []
 
     for token in include_tokens:
         parsed = _normalize_date_boundary(token)
         if parsed is None:
             continue
-        conditions.append(("ge" if is_start else "le", parsed))
+        conditions.append(("ge" if is_start else "le", parsed, ":" in str(token)))
     for token in exclude_tokens:
         parsed = _normalize_date_boundary(token)
         if parsed is None:
             continue
-        conditions.append(("ne", parsed))
+        conditions.append(("ne", parsed, ":" in str(token)))
     return conditions
 
 
