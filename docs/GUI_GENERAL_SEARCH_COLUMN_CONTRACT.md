@@ -16,6 +16,13 @@ Regra central:
 3. `^`, `$`, `=`, `~` mantem os modos atuais;
 4. filtro por coluna continua com semantica propria dentro da coluna.
 
+Limite conhecido (MEM-17, igual no C++): a virgula nao tem escape. Ela sempre separa termos, inclusive
+dentro de numero decimal e de regex:
+1. `valvula 3,5` vira dois termos (`valvula 3` E `5`): o resultado inclui o esperado, mas pode trazer mais;
+2. `~a{1,2}b` quebra a regex em `~a{1` e `2}b`;
+3. para casar uma virgula literal, use regex com ponto (`~valvula 3.5` casa `3,5` e `3.5`); para
+   repeticao, use `{n}` ou repita o trecho em vez de `{n,m}`.
+
 Fora de escopo neste ciclo:
 1. fuzzy search;
 2. alias de negocio;
