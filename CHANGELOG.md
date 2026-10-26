@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- `main.py --web`: se a porta (8501 por padrao) ja estiver em uso, o launcher avisa "Porta N ja esta em uso" e nao inicia. Antes anunciava "Acesse http://localhost:8501/", que abria a instancia de outra pessoa (outro banco/versao), e o erro ficava so em `logs/streamlit.log`.
+
 - Streamlit: nos campos "(! exclui)" (Executor, Estado detalhado, anos, semanas, reprogramacoes), um valor digitado que nao existe nas opcoes (ex.: nome parcial "silva" ou "!ZZZ") gera o aviso "Ignorado (nao existe nas opcoes): ...". Antes era descartado sem aviso e a tabela mostrava todas as SSAs.
 
 - Streamlit: o filtro "Tem derivadas" conta as derivadas na base inteira, como a coluna "Tem derivadas" e a GUI. Antes, combinado com Estado/Setor/busca, perdia SSAs cujas derivadas estavam fora do filtro (ex.: SSA AAD com derivada STE sumia com Estado=AAD, embora a coluna mostrasse "Sim").

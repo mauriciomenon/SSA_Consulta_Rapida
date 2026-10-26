@@ -329,3 +329,28 @@ def test_wait_for_streamlit_in_worker_thread_skips_signal_handlers(monkeypatch):
     assert not worker.is_alive()
     assert handler_calls == []
     assert process.waited is True
+
+
+def test_launch_refuses_busy_port(monkeypatch, tmp_path, capsys):
+    """BL-13 M9: porta ocupada anunciava a URL da instancia de outra pessoa."""
+    import socket
+
+    script = tmp_path / "dev_env" / "streamlit_app.py"
+    script.parent.mkdir()
+    script.write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        streamlit_launcher, "_resolve_streamlit_launch_command", lambda: (["streamlit"], "PATH")
+    )
+
+    def no_popen(*_args, **_kwargs):
+        raise AssertionError("nao deveria iniciar o Streamlit")
+
+    monkeypatch.setattr(streamlit_launcher.subprocess, "Popen", no_popen)
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        assert streamlit_launcher.launch_streamlit(str(tmp_path), port=port) is False
+    out = capsys.readouterr().out
+    assert f"Porta {port} ja esta em uso" in out
+    assert "Acesse" not in out

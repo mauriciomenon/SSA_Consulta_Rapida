@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -176,6 +177,18 @@ def launch_streamlit(
     ]
     if port:
         cmd.append(f"--server.port={port}")
+        # BL-13 M9: com a porta ocupada o Streamlit filho sai ("Port ... is not
+        # available") e o aviso abaixo mandava abrir a instancia de outra pessoa.
+        # ponytail: checagem antes do Popen (corrida curta); poll() depois se precisar.
+        with socket.socket() as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                print(
+                    f"Porta {port} ja esta em uso (outra instancia?). "
+                    "Feche-a ou use outra porta."
+                )
+                return False
 
     logs_dir = os.path.join(log_root or project_root, "logs")
     os.makedirs(logs_dir, exist_ok=True)
