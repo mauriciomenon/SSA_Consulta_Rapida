@@ -251,8 +251,9 @@ assert_debian_host() {
   [[ "$(uname -s)" == "Linux" ]] || die "este script local deve rodar em Linux (Debian ou Ubuntu)"
   if [[ -r /etc/os-release ]]; then
     # shellcheck disable=SC1091
-    os_name="$(. /etc/os-release && printf '%s' "${ID:-}")"
-    [[ "${os_name}" == "debian" || "${os_name}" == "ubuntu" ]] || die "host Linux nao Debian/Ubuntu: ${os_name}"
+    os_name="$(. /etc/os-release && printf '%s %s' "${ID:-}" "${ID_LIKE:-}")"
+    # Derivadas com dpkg (Devuan: ID=devuan, ID_LIKE=debian) geram o mesmo .deb.
+    [[ " ${os_name} " == *" debian "* || " ${os_name} " == *" ubuntu "* ]] || die "host Linux nao Debian/Ubuntu: ${os_name}"
   fi
 }
 
