@@ -42,6 +42,7 @@ build_dataframe_filter_hash = importlib.import_module(
 ).build_dataframe_filter_hash
 _STREAMLIT_DATA_REVISION_ATTR = "_streamlit_data_revision"
 _IMPORT_NOTICE_KEY = "streamlit_import_notice"
+_LOOPBACK_ADDRESSES = frozenset({"127.0.0.1", "localhost", "::1"})
 _ssa_status_module = importlib.import_module("shared.ssa_status")
 SSA_ENCERRADAS_NORMAL = _ssa_status_module.SSA_ENCERRADAS_NORMAL
 status_code_series = _ssa_status_module.status_code_series
@@ -1077,6 +1078,15 @@ def _render_source_ops_panel(db_path: str, docs_dir: str) -> None:
     if notice:
         level, text = notice
         getattr(st, level)(text)
+    address = str(st.get_option("server.address") or "")
+    if address not in _LOOPBACK_ADDRESSES:
+        # BL-13 L6: 'streamlit run' direto escuta em todas as interfaces; o painel
+        # autoriza qualquer caminho digitado e importa, entao so vale em loopback.
+        st.warning(
+            "Fonte de dados e importacao so com o servidor em 127.0.0.1 "
+            f"(use main.py --web); endereco atual: '{address or 'todas as interfaces'}'."
+        )
+        return
     with st.expander("Fonte de dados avancada", expanded=False):
         source_db_input = st.text_input(
             "Arquivo do banco",
@@ -1093,7 +1103,7 @@ def _render_source_ops_panel(db_path: str, docs_dir: str) -> None:
             "Aplicar fonte", key="apply_source_paths"
         )
         run_load = source_actions[1].button(
-            "Carregar dados", key="load_data_ops"
+            "Importar novas planilhas", key="load_data_ops"
         )
         run_reimport = source_actions[2].button(
             "Reimportar planilhas", key="reimport_data_ops"
@@ -1120,7 +1130,11 @@ def _render_source_ops_panel(db_path: str, docs_dir: str) -> None:
                 )
             except PathSafetyError as exc:
                 st.error(str(exc))
-        if run_load or run_reimport:
+        typed_pending = (source_db_input, source_docs_input) != (db_path, docs_dir)
+        if (run_load or run_reimport) and typed_pending and not apply_source:
+            # BL-13 L1: importava no banco anterior, ignorando o caminho digitado.
+            st.warning("Clique em 'Aplicar fonte' antes de importar para o caminho digitado.")
+        elif run_load or run_reimport:
             source_state = st.session_state.get("streamlit_source_state", {})
             op_db = str(source_state.get("db_path", db_path))
             op_docs = str(source_state.get("docs_dir", docs_dir))

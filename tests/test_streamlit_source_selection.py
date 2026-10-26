@@ -58,8 +58,39 @@ def source_ui(monkeypatch):
     ui.columns.return_value = [ui, ui, ui]
     ui.button.return_value = False
     ui.text_input.side_effect = lambda _label, *, value, key: value
+    ui.get_option.return_value = "127.0.0.1"
     monkeypatch.setattr(app, "st", ui)
     return ui
+
+
+@pytest.mark.parametrize("address", ["", "0.0.0.0", "192.168.0.10"])
+def test_source_ops_refused_when_not_loopback(monkeypatch, source_ui, address):
+    """BL-13 L6: via 'streamlit run' direto o servidor escuta na rede; ninguem de fora
+    pode apontar banco/pasta nem disparar importacao."""
+    source_ui.get_option.return_value = address
+    source_ui.button.return_value = True
+    importer = Mock()
+    monkeypatch.setattr(app, "import_files_to_database", importer)
+
+    app._render_source_ops_panel("db.db", "docs")
+
+    importer.assert_not_called()
+    assert "streamlit_source_state" not in source_ui.session_state
+    assert "127.0.0.1" in source_ui.warning.call_args.args[0]
+
+
+def test_import_waits_for_applied_source(monkeypatch, source_ui):
+    """BL-13 L1: caminho digitado sem 'Aplicar fonte' importava no banco anterior."""
+    source_ui.text_input.side_effect = lambda _label, *, value, key: value + "-novo"
+    source_ui.button.side_effect = lambda _label, *, key, **_kw: key == "load_data_ops"
+    importer = Mock()
+    monkeypatch.setattr(app, "import_files_to_database", importer)
+
+    app._render_source_ops_panel("db.db", "docs")
+
+    importer.assert_not_called()
+    labels = [c.args[0] for c in source_ui.button.call_args_list]
+    assert "Importar novas planilhas" in labels
 
 
 def test_new_database_selection_authorizes_only_current_call(tmp_path, monkeypatch):
