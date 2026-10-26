@@ -430,12 +430,17 @@ def query_db(
         if cancel_requested:
             logger.debug("query_db interrompida por cancelamento (SQLITE_INTERRUPT).")
             raise InterruptedError("Database query cancelled") from e
-        logger.exception(
-            "Erro ao executar consulta '%s' com %s parametros: %s",
-            query or table_name,
-            len(params or ()),
-            e,
-        )
+        if isinstance(e, FileNotFoundError):
+            # REPO-16: banco ausente e estado esperado (CLI antes do 1o rescan); a
+            # mensagem ja diz o caminho, o traceback so poluia o stderr.
+            logger.error("%s", e)
+        else:
+            logger.exception(
+                "Erro ao executar consulta '%s' com %s parametros: %s",
+                query or table_name,
+                len(params or ()),
+                e,
+            )
         if raise_on_error:
             raise
         logger.warning(

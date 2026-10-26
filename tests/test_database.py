@@ -1035,3 +1035,13 @@ def test_query_db_loads_invalid_utf8_cell_and_warns(tmp_path, caplog):
     assert df["descricao_ssa"].tolist() == ["ok", "Troca\ufffd "]
     assert "descricao_ssa (1; ex.: 202512346)" in caplog.text
     assert "UTF-8 invalido" in caplog.text
+
+
+def test_query_db_missing_database_logs_without_traceback(tmp_path, caplog):
+    """REPO-16: CLI sem banco gravava traceback no stderr; o caminho basta."""
+    db_path = tmp_path / "nao_existe.db"
+    with caplog.at_level(logging.ERROR):
+        assert query_db(str(db_path), "ssa_table").empty
+    assert f"Banco de dados nao encontrado: {db_path}" in caplog.text
+    assert "Traceback" not in caplog.text
+    assert not db_path.exists()
