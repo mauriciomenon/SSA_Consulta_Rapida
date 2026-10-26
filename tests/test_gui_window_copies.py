@@ -104,3 +104,18 @@ class TestGUIWindowCopies:
         assert self.main.open_window_copy() is None
         window_copies.close_all_window_copies()
         assert window_copies.open_copy_count() == 0
+
+    def test_closing_copy_keeps_main_preferences_writer(self, monkeypatch):
+        """Revisao CodeRabbit: fechar a copia desligava o gravador global da principal."""
+        from gui.ssa import gui_preferences_persistence
+
+        calls = []
+        monkeypatch.setattr(
+            gui_preferences_persistence,
+            "shutdown_gui_preferences_writer",
+            lambda timeout=0.0: calls.append(timeout) or True,
+        )
+        copy_window = self.main.open_window_copy()
+        copy_window.close()
+        assert calls == []
+        assert window_copies.open_copy_count() == 0

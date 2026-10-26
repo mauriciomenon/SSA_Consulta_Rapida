@@ -100,6 +100,18 @@ def validate_payload(payload: Any) -> dict[str, Any]:
     for key in ("filtros", "ordenacao", "colunas", "dados"):
         if not isinstance(payload.get(key), dict):
             raise ValueError(f"Arquivo de estado invalido: secao '{key}' ausente.")
+    # Arquivo vem do usuario: tipos errados recusam o arquivo inteiro antes de aplicar
+    # qualquer parte (nada fica pela metade na tela).
+    colunas, ordenacao = payload["colunas"], payload["ordenacao"]
+    checks = (
+        ("colunas.visiveis", colunas.get("visiveis"), (list, type(None))),
+        ("colunas.larguras", colunas.get("larguras"), (dict, type(None))),
+        ("ordenacao.crescente", ordenacao.get("crescente"), (bool, type(None))),
+        ("pagina", payload.get("pagina"), (int, type(None))),
+    )
+    for name, value, types in checks:
+        if not isinstance(value, types) or (name == "pagina" and isinstance(value, bool)):
+            raise ValueError(f"Arquivo de estado invalido: '{name}' com tipo inesperado.")
     return payload
 
 

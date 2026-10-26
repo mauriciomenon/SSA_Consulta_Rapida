@@ -180,6 +180,10 @@ def launch_streamlit(
         # available") e o aviso abaixo mandava abrir a instancia de outra pessoa.
         # ponytail: checagem antes do Popen (corrida curta); poll() depois se precisar.
         with socket.socket() as probe:
+            if os.name != "nt":
+                # Como o servidor do Streamlit: porta em TIME_WAIT (logo apos parar)
+                # nao e "em uso". No Windows SO_REUSEADDR permitiria roubar a porta.
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
                 probe.bind(("127.0.0.1", port))
             except OSError:

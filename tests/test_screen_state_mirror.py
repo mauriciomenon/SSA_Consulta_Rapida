@@ -136,3 +136,24 @@ class TestScreenStateMirror:
         }
         for row_value in ("Bomba A", "Motor C", "202500001", "MEL4"):
             assert row_value not in text
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("visiveis", "numero_ssa"), ("larguras", [1, 2]), ("crescente", "sim"), ("pagina", "2")],
+)
+def test_payload_with_wrong_types_is_refused(field, value):
+    """Revisao CodeRabbit: arquivo do usuario com tipo errado recusa tudo antes de aplicar."""
+    payload = {
+        "versao_formato": mirror.FORMAT_VERSION,
+        "filtros": {},
+        "ordenacao": {"coluna": None, "crescente": True},
+        "colunas": {"visiveis": [], "larguras": {}},
+        "dados": {},
+        "pagina": 1,
+    }
+    target = payload["colunas"] if field in ("visiveis", "larguras") else payload
+    target = payload["ordenacao"] if field == "crescente" else target
+    target[field] = value
+    with pytest.raises(ValueError, match="tipo inesperado"):
+        mirror.validate_payload(payload)

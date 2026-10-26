@@ -1427,8 +1427,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._persist_gui_preferences()
         except Exception as exc:
             logger.debug("Failed to persist preferred startup theme: %s", exc)
-        # Aplica perfil inicial de filtros por setor
-        self._apply_initial_filter_profile()
+        # Aplica perfil inicial de filtros por setor (a copia herda so as linhas da origem)
+        if not self._is_window_copy:
+            self._apply_initial_filter_profile()
 
         if self._is_window_copy:
             self._seed_frozen_copy(copy_from)
@@ -6165,7 +6166,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Barreira final atomica: impede novos stagings e conta os vivos
         # sob o mesmo lock — um backup iniciado entre a ultima checagem e
         # o accept morreria no meio, deixando .copy-* parcial.
-        if ssa_database_operations is None:
+        is_copy = getattr(self, "_is_window_copy", False)
+        if is_copy:
+            # Copia nao faz staging; barreira e gravador de preferencias sao
+            # globais e pertencem a janela principal (que segue aberta).
+            staging_pending = 0
+        elif ssa_database_operations is None:
             staging_pending = 0  # headless: nenhum staging possivel
         else:
             try:
@@ -6190,7 +6196,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 shutdown_gui_preferences_writer,
             )
 
-            if not shutdown_gui_preferences_writer(timeout=0.0):
+            if not is_copy and not shutdown_gui_preferences_writer(timeout=0.0):
                 logger.debug("Gravador de preferencias encerrando em background.")
         except Exception as exc:
             logger.error("Falha ao encerrar gravador de preferencias: %s", exc)
