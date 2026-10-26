@@ -31,7 +31,6 @@
 - Protecao de codigo:
   - Nuitka continua backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
-  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
 - Proximo passo operacional historico: rebuildar Windows AMD64 e Debian AMD64 a partir daquele HEAD, validar artefatos e atualizar a release somente com pacotes novos.
 
 ## 1. Objetivos

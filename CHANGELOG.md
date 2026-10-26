@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Builds: o backend PyOxidizer foi removido (pacotes `_pyoxidizer`, `-Backend pyoxidizer` e `--build-system pyoxidizer` deixam de existir). O PyOxidizer esta sem manutencao desde 2022 e so embute o Python 3.10, que o projeto nao suporta mais; PyInstaller e Nuitka seguem como antes.
+
 - GUI no Windows ARM64: a janela "Sobre" avisa que a interface web nao esta disponivel nesta arquitetura porque o pyarrow (usado pelo Streamlit) ainda nao tem pacote para ela; a limitacao e de compilacao, nao do usuario.
 
 - Streamlit: trocar o tema preserva a largura de tabela escolhida (e a memoria por tamanho de tela). Antes, com o banco vazio, a troca de tema regravava a largura padrao.

@@ -703,10 +703,10 @@ def test_create_zip_package_preserves_only_external_runtime_database(
 
 
 @pytest.mark.parametrize("has_database", [True, False])
-def test_pyoxidizer_zip_includes_only_requested_runtime_database(
+def test_generic_zip_includes_only_requested_runtime_database(
     tmp_path: Path, monkeypatch, has_database: bool
 ) -> None:
-    build_dir = tmp_path / "builds" / "pyoxidizer" / "windows_amd64"
+    build_dir = tmp_path / "builds" / "fake" / "windows_amd64"
     data_dir = build_dir / "data"
     data_dir.mkdir(parents=True)
     (build_dir / "SSA_Consulta_Rapida.exe").write_bytes(b"exe")
@@ -719,9 +719,21 @@ def test_pyoxidizer_zip_includes_only_requested_runtime_database(
             conn.execute("INSERT INTO rows VALUES ('runtime db')")
             conn.commit()
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/windows_amd64/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake/windows_amd64",
+                "internal_dir": None,
+            }
+        },
+    )
 
     result = create_distribution.create_zip_package(
-        "pyoxidizer", "1.0.0", include_runtime_db=True
+        "fake", "1.0.0", include_runtime_db=True
     )
 
     if not has_database:
@@ -1422,12 +1434,12 @@ def test_create_inno_setup_script_uses_absolute_source_when_relpath_fails(
     assert 'Source: "{#SourceDir}\\SSA_GUI.exe"' in iss_content
 
 
-def test_resolve_inno_source_pyoxidizer_uses_exe_path_from_build_info(
+def test_resolve_inno_source_generic_uses_exe_path_from_build_info(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     project_root = tmp_path / "project"
-    source_dir = project_root / "builds" / "pyoxidizer"
+    source_dir = project_root / "builds" / "fake"
     source_dir.mkdir(parents=True)
     (source_dir / "SSA_Consulta_Rapida.exe").write_text("exe", encoding="utf-8")
 
@@ -1436,21 +1448,26 @@ def test_resolve_inno_source_pyoxidizer_uses_exe_path_from_build_info(
         create_distribution,
         "BUILD_SYSTEMS",
         {
-            "pyoxidizer": {
-                "name": "PyOxidizer",
-                "exe_path": "builds/pyoxidizer/SSA_Consulta_Rapida.exe",
-                "base_dir": "builds/pyoxidizer",
-                "internal_dir": "lib",
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
             }
         },
     )
 
-    resolved = create_distribution._resolve_inno_source("pyoxidizer")
+    resolved = create_distribution._resolve_inno_source("fake")
 
     assert resolved is not None
     resolved_dir, resolved_exe = resolved
     assert resolved_dir == source_dir
     assert resolved_exe == "SSA_Consulta_Rapida.exe"
+
+
+def test_build_systems_exclude_removed_pyoxidizer_backend() -> None:
+    """BL-45: --build-system usa as chaves de BUILD_SYSTEMS; PyOxidizer saiu."""
+    assert sorted(create_distribution.BUILD_SYSTEMS) == ["nuitka", "pyinstaller"]
 
 
 def test_script_runs_by_path_from_other_cwd(tmp_path: Path) -> None:

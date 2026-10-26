@@ -19,52 +19,25 @@ def _load_module(module_name: str, path: Path):
     return module
 
 
-def test_resolve_target_build_dirs_pyoxidizer_prefers_legacy_root_when_present(
-    tmp_path: Path,
+def test_copy_data_rejects_removed_pyoxidizer_build_system(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """BL-45: --build-system pyoxidizer deixou de ser opcao valida."""
     root = Path(__file__).resolve().parents[1]
     module = _load_module(
         "copy_data_to_builds", root / "scripts" / "copy_data_to_builds.py"
     )
-    legacy_dir = tmp_path / "builds" / "pyoxidizer"
-    legacy_dir.mkdir(parents=True)
-
-    resolved = module.resolve_target_build_dirs(tmp_path, "pyoxidizer")
-
-    assert resolved == [legacy_dir]
-
-
-def test_resolve_target_build_dirs_pyoxidizer_uses_platform_fallbacks_without_root(
-    tmp_path: Path,
-) -> None:
-    root = Path(__file__).resolve().parents[1]
-    module = _load_module(
-        "copy_data_to_builds", root / "scripts" / "copy_data_to_builds.py"
+    monkeypatch.setattr(
+        "sys.argv", ["copy_data_to_builds.py", "--build-system", "pyoxidizer"]
     )
 
-    resolved = module.resolve_target_build_dirs(tmp_path, "pyoxidizer")
+    with pytest.raises(SystemExit) as excinfo:
+        module.main()
 
-    expected = [tmp_path / rel for rel in module.PYOXIDIZER_PLATFORM_DIRS]
-    assert resolved == expected
-    assert tmp_path / "builds" / "pyoxidizer" not in resolved
-
-
-def test_resolve_target_build_dirs_pyoxidizer_prefers_specific_targets_over_legacy_root(
-    tmp_path: Path,
-) -> None:
-    root = Path(__file__).resolve().parents[1]
-    module = _load_module(
-        "copy_data_to_builds_pyoxidizer_specifics",
-        root / "scripts" / "copy_data_to_builds.py",
-    )
-    legacy_dir = tmp_path / "builds" / "pyoxidizer"
-    legacy_dir.mkdir(parents=True)
-    specific_dir = tmp_path / module.PYOXIDIZER_PLATFORM_DIRS[0]
-    specific_dir.mkdir(parents=True)
-
-    resolved = module.resolve_target_build_dirs(tmp_path, "pyoxidizer")
-
-    assert resolved == [specific_dir]
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "invalid choice" in err
+    assert "pyoxidizer" in err
 
 
 def test_copy_data_to_build_reuses_staged_config_for_multiple_runtime_dirs(

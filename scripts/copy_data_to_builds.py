@@ -8,7 +8,6 @@ Copia automaticamente:
 
 Uso:
     uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
-    uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyoxidizer --allow-local-data
     uv run --python 3.13 scripts/copy_data_to_builds.py --build-system nuitka --allow-local-data
     uv run --python 3.13 scripts/copy_data_to_builds.py --all --allow-local-data  # Copia para todos os builds
 """
@@ -40,9 +39,6 @@ PYINSTALLER_EQUIVALENT_DIRS = tuple(
 )
 NUITKA_PLATFORM_DIRS = tuple(
     f"builds/nuitka/{platform}" for platform in _SUPPORTED_PLATFORMS
-)
-PYOXIDIZER_PLATFORM_DIRS = tuple(
-    f"builds/pyoxidizer/{platform}" for platform in _SUPPORTED_PLATFORMS
 )
 
 
@@ -105,19 +101,6 @@ def resolve_target_build_dirs(base_dir: Path, build_system: str) -> list[Path]:
         if targets:
             return targets
         return [base_dir / rel for rel in NUITKA_PLATFORM_DIRS]
-
-    if build_system == "pyoxidizer":
-        platform_targets: list[Path] = []
-        for rel_path in PYOXIDIZER_PLATFORM_DIRS:
-            candidate = base_dir / rel_path
-            if candidate.exists():
-                platform_targets.append(candidate)
-        if platform_targets:
-            return platform_targets
-        legacy_dir = base_dir / "builds" / "pyoxidizer"
-        if legacy_dir.exists():
-            return [legacy_dir]
-        return [base_dir / rel for rel in PYOXIDIZER_PLATFORM_DIRS]
 
     legacy_dir = base_dir / "builds" / build_system
     return [legacy_dir]
@@ -273,7 +256,7 @@ def main():
     parser = argparse.ArgumentParser(description="Copia dados (DB e Excel) para builds")
     parser.add_argument(
         "--build-system",
-        choices=["pyinstaller", "pyoxidizer", "nuitka"],
+        choices=["pyinstaller", "nuitka"],
         help="Build system especifico para copiar dados",
     )
     parser.add_argument(
@@ -333,7 +316,6 @@ def main():
     # Mapeamento de build system para diretorios (ancorado ao base_dir)
     build_dirs = {
         "pyinstaller": resolve_target_build_dirs(base_dir, "pyinstaller"),
-        "pyoxidizer": resolve_target_build_dirs(base_dir, "pyoxidizer"),
         "nuitka": resolve_target_build_dirs(base_dir, "nuitka"),
     }
 

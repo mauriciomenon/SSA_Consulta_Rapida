@@ -56,7 +56,6 @@ def is_frozen_entry(
 ) -> bool:
     return bool(
         getattr(sys, "frozen", False)
-        or getattr(sys, "oxidized", False)
         or "__compiled__" in global_vars
         or exe_path.parent.name.endswith(".dist")
         or exe_path.name.startswith(executable_prefixes)

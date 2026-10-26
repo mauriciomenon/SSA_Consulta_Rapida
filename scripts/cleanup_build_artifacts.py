@@ -45,7 +45,6 @@ def _remove_path(path: Path) -> bool:
 
 def _collect_paths(repo_root: Path, scope: str) -> list[Path]:
     temp_paths = [
-        repo_root / "build" / "pyoxidizer_stage_windows_amd64",
         repo_root / "build" / "x86_64-pc-windows-msvc",
         repo_root / "build" / "x86_64-unknown-linux-gnu",
         repo_root / "launchers" / "platforms" / "windows_amd64" / "temp",
@@ -57,7 +56,6 @@ def _collect_paths(repo_root: Path, scope: str) -> list[Path]:
     return temp_paths + [
         repo_root / "builds" / "pyinstaller",
         repo_root / "builds" / "nuitka",
-        repo_root / "builds" / "pyoxidizer",
         repo_root / "launchers" / "dist",
         repo_root / "dist_packages",
     ]

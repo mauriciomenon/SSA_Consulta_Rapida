@@ -139,7 +139,6 @@ atexit.register(_cleanup_streamlit_processes)
 def _resolve_streamlit_launch_command() -> tuple[Optional[list[str]], str]:
     is_frozen_mode = bool(
         getattr(sys, "frozen", False)
-        or getattr(sys, "oxidized", False)
         or "__compiled__" in globals()
     )
     if not is_frozen_mode and importlib.util.find_spec("streamlit") is not None:

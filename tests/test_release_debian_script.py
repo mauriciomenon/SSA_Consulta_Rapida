@@ -117,7 +117,6 @@ def test_release_debian_script_writes_report_and_validates_payloads() -> None:
     assert "run_validation_phase" in script
     assert "scripts/smoke_cli.py" in script
     assert "--executable" in script
-    assert "builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida" in script
     assert "smoke importacao ignorado" not in script
     assert "source-protection" in REPORT_SCRIPT.read_text(encoding="utf-8")
     assert '--repo-root "${root}"' in script
@@ -128,16 +127,6 @@ def test_release_debian_script_writes_report_and_validates_payloads() -> None:
     assert "gui_entry.dist" in script
     report_script = REPORT_SCRIPT.read_text(encoding="utf-8")
     assert "hashlib.sha256" in report_script
-
-
-def test_pyoxidizer_debian_scripts_retry_preflight_without_rtk() -> None:
-    for script in (
-        read_repo_text("dev_env", "build", "build_pyoxidizer_debian.sh"),
-    ):
-        assert "PYOXIDIZER_CHECK_RETRIES=3" in script
-        assert "attempt <= PYOXIDIZER_CHECK_RETRIES" in script
-        assert "nova tentativa ${attempt}/${PYOXIDIZER_CHECK_RETRIES}" in script
-        assert 'rtk uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}"' not in script
 
 
 def test_release_targets_json_rejects_non_object_root(tmp_path, monkeypatch) -> None:
@@ -200,7 +189,7 @@ def test_release_debian_script_calls_only_debian_build_wrappers() -> None:
 
     assert "build_pyinstaller_debian.sh" in script
     assert "build_nuitka_debian.sh" in script
-    assert "build_pyoxidizer_debian.sh" in script
+    assert "build_pyoxidizer_debian.sh" not in script
     assert "package_debian_amd64_deb.sh" in script
     assert "package_debian_amd64_appimage.sh" in script
     assert "package_debian_arm64" not in script
@@ -222,7 +211,7 @@ def test_release_debian_arm64_script_routes_arm64_build_and_package_wrappers() -
     assert "release_debian_arm64_backend.sh" in script
     assert 'build_pyinstaller_debian.sh" --platform debian_arm64' in backend_helper
     assert 'build_nuitka_debian.sh" --platform debian_arm64' in backend_helper
-    assert 'build_pyoxidizer_debian.sh" --platform debian_arm64' in backend_helper
+    assert "build_pyoxidizer_debian.sh" not in backend_helper
     assert "package_debian_arm64_deb.sh" in backend_helper
     assert "package_debian_arm64_appimage.sh" in backend_helper
     assert "package_debian_arm64_tar.sh" in backend_helper
@@ -276,10 +265,8 @@ def test_release_debian_script_declares_tar_packages_and_supported_pairs() -> No
     assert 'mv -f -- "${tmp_file}" "${output_file}"' in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz" in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz" in script
-    assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz" in script
     assert "release_target_reason" in script
     assert "is_supported_package_pair" in script
-    assert "appimage:pyoxidizer)" not in script
     assert 'pacote ignorado ${package_kind} ${backend}: $(release_target_reason' in script
     package_backend_body = section_between(
         script,
@@ -315,7 +302,6 @@ def test_release_targets_json_defines_validated_targets() -> None:
     assert [item["name"] for item in payload["backends"]] == [
         "pyinstaller",
         "nuitka",
-        "pyoxidizer",
     ]
     assert [item["name"] for item in payload["packages"]] == [
         "deb",
@@ -328,12 +314,12 @@ def test_release_targets_json_defines_validated_targets() -> None:
         REPORT_MODULE._load_release_targets(),
         "backends",
         "debian_amd64",
-    ) == ["pyinstaller", "nuitka", "pyoxidizer"]
+    ) == ["pyinstaller", "nuitka"]
     assert REPORT_MODULE._enabled_target_names(
         REPORT_MODULE._load_release_targets(),
         "backends",
         "debian_arm64",
-    ) == ["pyinstaller", "nuitka", "pyoxidizer"]
+    ) == ["pyinstaller", "nuitka"]
     assert REPORT_MODULE._enabled_target_names(
         REPORT_MODULE._load_release_targets(),
         "packages",
@@ -354,18 +340,7 @@ def test_release_targets_json_defines_validated_targets() -> None:
         "packages",
         "macos_arm64",
     ) == ["dmg"]
-    assert REPORT_MODULE._unsupported_pair_reason(
-        REPORT_MODULE._load_release_targets(),
-        "debian_amd64",
-        "pyoxidizer",
-        "appimage",
-    )
-    assert REPORT_MODULE._unsupported_pair_reason(
-        REPORT_MODULE._load_release_targets(),
-        "debian_arm64",
-        "pyoxidizer",
-        "appimage",
-    )
+    assert payload["unsupported_pairs"] == []
     assert payload["asset_name_templates"]["debian_arm64"]["deb"] == (
         "ssa-consulta-rapida-{backend}-arm64_{app_version}_arm64.deb"
     )
@@ -408,7 +383,7 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
     package_dir = tmp_path / "builds" / "packages" / "debian_amd64"
     package_dir.mkdir(parents=True)
     current = package_dir / "SSA_Consulta_Rapida_v4.44_debian_amd64_nuitka_cli.tar.gz"
-    stale = package_dir / "SSA_Consulta_Rapida_v4.44_debian_amd64_pyoxidizer.tar.gz"
+    stale = package_dir / "SSA_Consulta_Rapida_v4.44_debian_amd64_pyinstaller_cli.tar.gz"
     current.write_bytes(b"current")
     stale.write_bytes(b"stale")
 
@@ -496,9 +471,18 @@ def test_release_target_reason_rejects_disabled_target_pair() -> None:
         )
 
 
+@pytest.mark.parametrize("platform", ["debian_amd64", "debian_arm64", "windows_amd64"])
+def test_release_target_rejects_removed_pyoxidizer_backend(platform: str) -> None:
+    """BL-45: PyOxidizer saiu de release_targets.json; --backend pyoxidizer e recusado."""
+    with pytest.raises(REPORT_MODULE.ReleaseReportError, match="backend invalido"):
+        REPORT_MODULE.check_release_target(
+            argparse.Namespace(platform=platform, backend="pyoxidizer", package=None)
+        )
+
+
 def test_release_debian_expected_asset_names_cover_supported_package_matrix() -> None:
     names = REPORT_MODULE._expected_debian_asset_names(
-        ["pyinstaller", "nuitka", "pyoxidizer"],
+        ["pyinstaller", "nuitka"],
         ["deb", "appimage", "tar"],
         "4.44",
     )
@@ -506,20 +490,18 @@ def test_release_debian_expected_asset_names_cover_supported_package_matrix() ->
     assert names == {
         "ssa-consulta-rapida-pyinstaller-amd64_4.44_amd64.deb",
         "ssa-consulta-rapida-nuitka-amd64_4.44_amd64.deb",
-        "ssa-consulta-rapida-pyoxidizer-amd64_4.44_amd64.deb",
         "SSA_Consulta_Rapida_v4.44_debian_amd64_pyinstaller.AppImage",
         "SSA_Consulta_Rapida_v4.44_debian_amd64_nuitka.AppImage",
         "SSA_Consulta_Rapida_v4.44_debian_amd64_pyinstaller_cli.tar.gz",
         "SSA_Consulta_Rapida_v4.44_debian_amd64_pyinstaller_gui.tar.gz",
         "SSA_Consulta_Rapida_v4.44_debian_amd64_nuitka_cli.tar.gz",
         "SSA_Consulta_Rapida_v4.44_debian_amd64_nuitka_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.44_debian_amd64_pyoxidizer.tar.gz",
     }
 
 
 def test_release_debian_arm64_expected_asset_names_cover_supported_package_matrix() -> None:
     names = REPORT_MODULE._expected_debian_asset_names(
-        ["pyinstaller", "nuitka", "pyoxidizer"],
+        ["pyinstaller", "nuitka"],
         ["deb", "appimage", "tar"],
         "4.44",
         "debian_arm64",
@@ -529,14 +511,12 @@ def test_release_debian_arm64_expected_asset_names_cover_supported_package_matri
     assert names == {
         "ssa-consulta-rapida-pyinstaller-arm64_4.44_arm64.deb",
         "ssa-consulta-rapida-nuitka-arm64_4.44_arm64.deb",
-        "ssa-consulta-rapida-pyoxidizer-arm64_4.44_arm64.deb",
         "SSA_Consulta_Rapida_v4.44_debian_arm64_pyinstaller.AppImage",
         "SSA_Consulta_Rapida_v4.44_debian_arm64_nuitka.AppImage",
         "SSA_Consulta_Rapida_v4.44_debian_arm64_pyinstaller_cli.tar.gz",
         "SSA_Consulta_Rapida_v4.44_debian_arm64_pyinstaller_gui.tar.gz",
         "SSA_Consulta_Rapida_v4.44_debian_arm64_nuitka_cli.tar.gz",
         "SSA_Consulta_Rapida_v4.44_debian_arm64_nuitka_gui.tar.gz",
-        "SSA_Consulta_Rapida_v4.44_debian_arm64_pyoxidizer.tar.gz",
     }
 
 
@@ -591,10 +571,9 @@ def test_release_macos_report_filters_stale_dmg_assets(tmp_path, monkeypatch) ->
 
 
 def test_release_report_normalizes_csv_arguments() -> None:
-    assert REPORT_MODULE._split_csv(" nuitka, pyinstaller,,PYoxidizer ") == [
+    assert REPORT_MODULE._split_csv(" nuitka, ,,PYinstaller ") == [
         "nuitka",
         "pyinstaller",
-        "pyoxidizer",
     ]
 
 

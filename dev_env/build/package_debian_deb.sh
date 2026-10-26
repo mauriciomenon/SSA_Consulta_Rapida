@@ -13,7 +13,7 @@ Uso: $(basename "$0") [opcoes]
 Gera pacote .deb Debian ${DEBIAN_ARCH_LABEL} a partir dos artefatos Linux ja criados.
 
 Opcoes:
-  --build-system NAME   pyinstaller, nuitka ou pyoxidizer (default: pyinstaller)
+  --build-system NAME   pyinstaller ou nuitka (default: pyinstaller)
   --output-dir DIR      diretorio final dos pacotes (default: builds/packages/${DEBIAN_PLATFORM})
   --staging-dir DIR     diretorio temporario (default: build/package_${DEBIAN_PLATFORM}_deb)
   --keep-staging        nao remove staging ao terminar
@@ -73,9 +73,9 @@ CLI_TARGET=""
 GUI_TARGET=""
 
 case "${BUILD_SYSTEM}" in
-  pyinstaller | nuitka | pyoxidizer) ;;
+  pyinstaller | nuitka) ;;
   *)
-    echo "Erro: --build-system deve ser pyinstaller, nuitka ou pyoxidizer." >&2
+    echo "Erro: --build-system deve ser pyinstaller ou nuitka." >&2
     exit 2
     ;;
 esac
@@ -126,13 +126,6 @@ case "${BUILD_SYSTEM}" in
     )"
     write_wrapper "${BIN_DIR}/${APP_ID}-cli" "${CLI_TARGET#"${PACKAGE_ROOT}"}"
     write_wrapper "${BIN_DIR}/${APP_ID}-gui" "${GUI_TARGET#"${PACKAGE_ROOT}"}"
-    ;;
-  pyoxidizer)
-    copy_dir_checked "${REPO_ROOT}/builds/pyoxidizer/${DEBIAN_PLATFORM}" "${INSTALL_ROOT}/runtime"
-    CLI_TARGET="$(first_existing_executable "${INSTALL_ROOT}/runtime/SSA_Consulta_Rapida")"
-    GUI_TARGET="${CLI_TARGET}"
-    write_wrapper "${BIN_DIR}/${APP_ID}-cli" "${CLI_TARGET#"${PACKAGE_ROOT}"}"
-    write_wrapper "${BIN_DIR}/${APP_ID}-gui" "${GUI_TARGET#"${PACKAGE_ROOT}"}" "--gui"
     ;;
 esac
 

@@ -77,14 +77,9 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert "& $powershellHost @releaseArgs" in script
     assert "Initialize-WindowsBuildExtra $RepoRoot $BackendCsv" in script
     assert "Backend Windows invalido" in script
-    assert "pyoxidizer ou combinacoes" in script
-    assert '$value -eq "pyoxidizer"' in script
-    assert "$needsPyoxidizer = $true" in script
-    assert "SSA_PYOXIDIZER_UV_PACKAGE" in script
-    assert "pyoxidizer==0.24.0" in script
-    assert '"pyoxidizer",' in script
-    assert '"--version"' in script
-    assert "uv tool run --python 3.13 --from pyoxidizer" not in script
+    assert "Use nuitka, pyinstaller ou combinacoes" in script
+    # BL-45: backend PyOxidizer removido do release Windows.
+    assert "pyoxidizer" not in script.lower()
     assert '"--extra"' in script
     assert '"build"' in script
     assert "$args = @(" not in script
@@ -118,12 +113,10 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     ("preflight", "pyinstaller", "powershell"),
     ("preflight", "pyinstaller,nuitka", None),
     ("preflight", "nuitka", None),
-    ("preflight", "pyoxidizer", None),
     ("dry-run", "pyinstaller", None),
     ("package", "pyinstaller", None),
     ("package", "pyinstaller", "uv"),
     ("package", "nuitka", None),
-    ("package", "pyoxidizer", None),
 ])
 def test_windows_release_scopes_x64_environment_and_restores_caller(
     tmp_path: Path, previous_environment: str | None, stage: str, backend: str, failure: str | None,
@@ -237,6 +230,35 @@ try {
         assert [call["command"] for call in calls] == ["powershell"]
     if failure is None and stage == "preflight":
         assert calls[-1]["command"] == "powershell"
+
+
+def test_windows_release_rejects_removed_pyoxidizer_backend(tmp_path: Path) -> None:
+    """BL-45: -Backend pyoxidizer falha antes de qualquer chamada ao uv."""
+    powershell = shutil.which("pwsh") or shutil.which("powershell")
+    if powershell is None:
+        pytest.skip("PowerShell necessario para validar backend recusado")
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$ast = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_ROOT_SCRIPT, [ref]$null, [ref]$null)
+$function = $ast.EndBlock.Statements | Where-Object {
+    $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -eq 'Initialize-WindowsBuildExtra'
+}
+. ([scriptblock]::Create($function.Extent.Text))
+try {
+    Initialize-WindowsBuildExtra $env:SSA_TEST_REPO 'pyoxidizer' 'windows_amd64'
+    Write-Output 'sem erro'
+} catch { Write-Output $_.Exception.Message }
+"""
+    env = os.environ | {
+        "SSA_TEST_ROOT_SCRIPT": str(PROJECT_ROOT / "release.ps1"),
+        "SSA_TEST_REPO": str(tmp_path),
+    }
+    result = subprocess.run(
+        [powershell, "-NoProfile", "-Command", command],
+        cwd=tmp_path, env=env, capture_output=True, text=True, check=False, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Backend Windows invalido: pyoxidizer" in result.stdout
 
 
 def test_root_release_bash_exposes_simple_defaults() -> None:

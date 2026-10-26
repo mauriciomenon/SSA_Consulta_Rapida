@@ -116,7 +116,6 @@ guarded_entrypoints=(
   dev_env/bootstrap.sh
   dev_env/build/build_nuitka_debian.sh
   dev_env/build/build_pyinstaller_debian.sh
-  dev_env/build/build_pyoxidizer_debian.sh
   dev_env/build/package_debian_arm64_tar.sh
   dev_env/build/release_debian.sh
   dev_env/build/release_debian_arm64.sh

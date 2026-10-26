@@ -326,7 +326,7 @@ def _expected_debian_asset_names(
                     platform_name=platform_name,
                 )
             )
-        if "appimage" in packages and backend != "pyoxidizer":
+        if "appimage" in packages:
             names.add(
                 templates["appimage"].format(
                     app_version=app_version,

@@ -369,10 +369,6 @@ validate_build_payload() {
         "${build_root}/gui_entry.dist"
       )
       ;;
-    pyoxidizer)
-      build_root="${root}/builds/pyoxidizer/debian_amd64"
-      bundle_roots=("${build_root}")
-      ;;
   esac
 
   [[ -d "${build_root}" ]] || die "artefato ${backend} nao encontrado: ${build_root}"
@@ -411,9 +407,6 @@ resolve_import_smoke_executable() {
       ;;
     nuitka)
       smoke_exe="${root}/builds/nuitka/debian_amd64/cli_entry.dist/SSA_CLI_v${app_version}_debian_amd64"
-      ;;
-    pyoxidizer)
-      smoke_exe="${root}/builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida"
       ;;
     *)
       die "backend sem executavel para smoke de importacao: ${backend}"
@@ -465,7 +458,6 @@ run_build_backend() {
   case "${backend}" in
     pyinstaller) bash "${root}/dev_env/build/build_pyinstaller_debian.sh" "${args[@]}" ;;
     nuitka) bash "${root}/dev_env/build/build_nuitka_debian.sh" "${args[@]}" ;;
-    pyoxidizer) bash "${root}/dev_env/build/build_pyoxidizer_debian.sh" "${args[@]}" ;;
     *) die "backend desconhecido: ${backend}" ;;
   esac
 }
@@ -540,12 +532,6 @@ write_tar_packages() {
         "gui_entry.dist" \
         "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_gui.tar.gz"
       ;;
-    pyoxidizer)
-      write_tar_archive \
-        "${root}/builds/pyoxidizer" \
-        "debian_amd64" \
-        "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz"
-      ;;
     *) die "backend invalido para tar: ${backend}" ;;
   esac
 }
@@ -583,9 +569,6 @@ validate_package_payload() {
     tar:nuitka)
       validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz"
       validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_gui.tar.gz"
-      ;;
-    tar:pyoxidizer)
-      validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz"
       ;;
   esac
 }

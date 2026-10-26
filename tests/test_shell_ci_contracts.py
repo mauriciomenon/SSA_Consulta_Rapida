@@ -112,7 +112,6 @@ ENVIRONMENT_SCRIPTS = (
     "scripts/env/setup_env.sh",
     "scripts/env/setup_env.ps1",
     "dev_env/activate_env.bat",
-    "dev_env/setup_pyox_venv.bat",
 )
 
 

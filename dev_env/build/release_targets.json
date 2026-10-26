@@ -16,13 +16,6 @@
       "windows_amd64": true,
       "debian_amd64": true,
       "debian_arm64": true
-    },
-    {
-      "name": "pyoxidizer",
-      "order": 3,
-      "windows_amd64": true,
-      "debian_amd64": true,
-      "debian_arm64": true
     }
   ],
   "packages": [
@@ -56,20 +49,7 @@
       "macos_arm64": true
     }
   ],
-  "unsupported_pairs": [
-    {
-      "platform": "debian_amd64",
-      "backend": "pyoxidizer",
-      "package": "appimage",
-      "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais."
-    },
-    {
-      "platform": "debian_arm64",
-      "backend": "pyoxidizer",
-      "package": "appimage",
-      "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais."
-    }
-  ],
+  "unsupported_pairs": [],
   "asset_name_templates": {
     "debian_amd64": {
       "deb": "ssa-consulta-rapida-{backend}-amd64_{app_version}_amd64.deb",

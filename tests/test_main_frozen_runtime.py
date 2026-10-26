@@ -177,7 +177,6 @@ def test_prepare_runtime_source_mode_honors_runtime_root(
 ) -> None:
     """CD-02: fora do pacote, SSA_RUNTIME_ROOT define docs_entrada/data do main.py."""
     monkeypatch.delattr(sys, "frozen", raising=False)
-    monkeypatch.delattr(sys, "oxidized", raising=False)
     monkeypatch.chdir(tmp_path)
     if override is None:
         monkeypatch.delenv("SSA_RUNTIME_ROOT", raising=False)

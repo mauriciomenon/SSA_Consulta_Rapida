@@ -98,8 +98,7 @@ def test_debian_deb_engine_is_arch_aware_without_hardcoded_target() -> None:
     assert "${DEBIAN_ARCH_LABEL}" in content
     assert "SSA_CLI_v${APP_VERSION}_${DEBIAN_PLATFORM}" in content
     assert "SSA_GUI_v${APP_VERSION}_${DEBIAN_PLATFORM}" in content
-    assert "pyinstaller | nuitka | pyoxidizer" in content
-    assert "--gui" in content
+    assert "pyinstaller | nuitka)" in content
     assert "default_package_staging_dir deb" in content
     assert '${CLI_TARGET#"${PACKAGE_ROOT}"}' in content
     assert "${CLI_TARGET#${PACKAGE_ROOT}}" not in content

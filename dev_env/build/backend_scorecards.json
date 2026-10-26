@@ -14,13 +14,5 @@
     "protected_release": false,
     "security_score": 2,
     "source_protection_score": 2
-  },
-  "pyoxidizer": {
-    "easy_user_dirs_score": 3,
-    "note": "Empacotamento forte, mas requer embedding sem fonte Python exposta.",
-    "package_size_score": 2,
-    "protected_release": false,
-    "security_score": 3,
-    "source_protection_score": 3
   }
 }

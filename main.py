@@ -23,11 +23,8 @@ from interface.streamlit_launcher import launch_streamlit, wait_for_streamlit
 from launchers.main_runtime import (
     _get_project_root,
     ensure_runtime_environment,
-    patch_pyoxidizer_pandas,
 )
 from utils.ascii_sanitizer import sanitize_ascii_arg, sanitize_ascii_text
-
-patch_pyoxidizer_pandas()
 
 # Suppress pandas FutureWarnings about chained assignment
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -747,7 +744,7 @@ def main(cli_args=None):
 
     APP_VERSION = get_app_version()
 
-    # Fix para PyOxidizer: sys.argv[0] pode ser None
+    # sys.argv[0] pode vir vazio ou None em executaveis embutidos
     prog_name = sys_argv[0] if sys_argv and sys_argv[0] else "SSA_Consulta_Rapida"
     parser = build_argument_parser(APP_VERSION, prog_name)
 

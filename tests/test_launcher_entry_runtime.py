@@ -594,45 +594,6 @@ def test_gui_entry_runtime_home_copies_external_database_without_overwrite(
     assert target_db.read_text(encoding="utf-8") == "user-db"
 
 
-def test_cli_entry_pyoxidizer_runtime_uses_executable_dir_as_bundle_root(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    bundle_root = tmp_path / "pyoxidizer"
-    bundled_config = bundle_root / "config"
-    bundled_data = bundle_root / "data"
-    bundled_config.mkdir(parents=True)
-    bundled_data.mkdir()
-    (bundled_config / "build_info.json").write_text("{}", encoding="utf-8")
-    (bundled_data / "ssas.db").write_text("bundle-db", encoding="utf-8")
-    executable = bundle_root / "SSA_Consulta_Rapida.exe"
-    executable.write_text("", encoding="utf-8")
-
-    monkeypatch.setattr(sys, "executable", str(executable))
-    monkeypatch.setattr(sys, "oxidized", True, raising=False)
-    monkeypatch.delattr(sys, "_MEIPASS", raising=False)
-    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
-
-    original_cwd = Path.cwd()
-    original_sys_path = list(sys.path)
-    try:
-        namespace = runpy.run_path(
-            str(REPO_ROOT / "launchers" / "cli_entry.py"),
-            run_name="test_cli_entry_pyoxidizer",
-        )
-        _bootstrap_entry_namespace(namespace)
-        runtime_root = Path(os.environ["SSA_RUNTIME_ROOT"])
-        assert namespace["app_dir"] == str(bundle_root)
-        assert Path(os.environ["SSA_CONFIG_DIR"]) == runtime_root / "config"
-        assert (runtime_root / "config" / "build_info.json").is_file()
-        assert (runtime_root / "data" / "ssas.db").read_text(encoding="utf-8") == (
-            "bundle-db"
-        )
-    finally:
-        os.chdir(original_cwd)
-        sys.path[:] = original_sys_path
-
-
 def test_cli_seed_runtime_config_does_not_overwrite_user_files(tmp_path: Path) -> None:
     from launchers.runtime_entry_helpers import seed_runtime_config
 

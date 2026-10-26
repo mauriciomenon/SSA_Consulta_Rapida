@@ -11,7 +11,7 @@ Uso: package_debian_arm64_tar.sh [opcoes]
 Gera pacote tar.gz Debian arm64 a partir dos artefatos Linux ja criados.
 
 Opcoes:
-  --build-system NAME   pyinstaller, nuitka ou pyoxidizer (default: pyinstaller)
+  --build-system NAME   pyinstaller ou nuitka (default: pyinstaller)
   --output-dir DIR      diretorio final dos pacotes (default: builds/packages/debian_arm64)
   -h, --help            mostra esta ajuda
 USAGE
@@ -93,8 +93,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "${BUILD_SYSTEM}" in
-  pyinstaller | nuitka | pyoxidizer) ;;
-  *) die "--build-system deve ser pyinstaller, nuitka ou pyoxidizer." ;;
+  pyinstaller | nuitka) ;;
+  *) die "--build-system deve ser pyinstaller ou nuitka." ;;
 esac
 
 assert_debian_arm64
@@ -121,12 +121,6 @@ case "${BUILD_SYSTEM}" in
       "${REPO_ROOT}/builds/nuitka/${PLATFORM}" \
       "gui_entry.dist" \
       "${OUTPUT_DIR}/SSA_Consulta_Rapida_v${APP_VERSION}_${PLATFORM}_nuitka_gui.tar.gz"
-    ;;
-  pyoxidizer)
-    write_tar_archive \
-      "${REPO_ROOT}/builds/pyoxidizer" \
-      "${PLATFORM}" \
-      "${OUTPUT_DIR}/SSA_Consulta_Rapida_v${APP_VERSION}_${PLATFORM}_pyoxidizer.tar.gz"
     ;;
 esac
 

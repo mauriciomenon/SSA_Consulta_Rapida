@@ -1,54 +1,19 @@
 from __future__ import annotations
 
-import builtins
 import json
 import os
 import shutil
 import sys
-from collections.abc import Mapping, Sequence
 from pathlib import Path
-from types import ModuleType
-from typing import Any, cast
 
 
 APP_RUNTIME_NAME = "SSA_Consulta_Rapida"
-_original_import = builtins.__import__
-_pandas_patch_installed = False
 _runtime_environment_initialized = False
 _runtime_root = ""
 
 
-def patch_pyoxidizer_pandas() -> None:
-    """Patch pandas delvewheel imports when running under PyOxidizer."""
-    global _pandas_patch_installed
-    if _pandas_patch_installed or not getattr(sys, "oxidized", False):
-        return
-
-    def _patched_import(
-        name: str,
-        globals: Mapping[str, object] | None = None,
-        locals: Mapping[str, object] | None = None,
-        fromlist: Sequence[str] | None = (),
-        level: int = 0,
-    ) -> ModuleType:
-        module = _original_import(name, globals, locals, fromlist, level)
-        module_name = getattr(module, "__name__", name)
-        if module_name == "pandas" or str(module_name).startswith("pandas."):
-            if not hasattr(module, "__file__") or module.__file__ is None:
-                module.__file__ = os.path.join(
-                    os.path.dirname(sys.executable),
-                    f"{name.replace('.', os.sep)}.py",
-                )
-        return module
-
-    builtins.__import__ = cast(Any, _patched_import)
-    _pandas_patch_installed = True
-
-
 def _get_project_root() -> str:
     """Return trusted code/bundle root for source and frozen builds."""
-    if getattr(sys, "oxidized", False):
-        return os.path.dirname(sys.executable)
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return os.path.abspath(os.fspath(getattr(sys, "_MEIPASS")))
     if "__compiled__" in globals():
@@ -294,7 +259,6 @@ def _enter_runtime_dir(runtime_dir: Path) -> None:
 def _prepare_frozen_runtime(project_root_path: str) -> str:
     is_frozen_mode = bool(
         getattr(sys, "frozen", False)
-        or getattr(sys, "oxidized", False)
         or "__compiled__" in globals()
     )
     if not is_frozen_mode:

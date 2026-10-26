@@ -15,7 +15,6 @@ on:
         options:
           - nuitka
           - pyinstaller
-          - pyoxidizer
       skip_installer:
         description: "Gerar somente ZIP, sem instalador Inno"
         required: true

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import ast
-from types import SimpleNamespace
 
 import pytest
 
@@ -101,109 +99,9 @@ def test_repository_line_ending_policy_covers_build_scripts() -> None:
     assert "*.bat text eol=crlf" in attributes
     assert "*.ps1 text eol=crlf" in attributes
 
-    for relative_path in (
-        "pyoxidizer.bzl",
-        "docs/GUIA_DISTRIBUICAO.md",
-    ):
+    for relative_path in ("docs/GUIA_DISTRIBUICAO.md",):
         data = (PROJECT_ROOT / relative_path).read_bytes()
         assert b"\r\n" not in data
-
-
-def test_pyoxidizer_config_defaults_and_paths() -> None:
-    root_config = PROJECT_ROOT / "pyoxidizer.bzl"
-
-    root_text = root_config.read_text(encoding="utf-8")
-
-    assert not (PROJECT_ROOT / "dev_env" / "build" / "pyoxidizer.bzl").exists()
-    assert 'PROJECT_ROOT in ("", ".")' in root_text
-    assert '""\n    if PROJECT_ROOT in ("", ".")' in root_text
-    assert 'strip_prefix=PROJECT_PREFIX' in root_text
-    assert '"launchers/platforms/**/venv/**"' in root_text
-    assert '"launchers/platforms/**/temp/**"' in root_text
-    assert '"launchers/dist/**"' in root_text
-    assert '"docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md"' in root_text
-    assert '"config/build_info.json"' in root_text
-
-
-def test_pyoxidizer_config_embeds_app_code_without_filesystem_python_sources() -> None:
-    root_config = PROJECT_ROOT / "pyoxidizer.bzl"
-
-    root_text = root_config.read_text(encoding="utf-8")
-
-    assert 'policy.resources_location = "in-memory"' in root_text
-    assert 'policy.resources_location_fallback = "filesystem-relative:lib"' in root_text
-    assert "python_config.oxidized_importer = True" in root_text
-    assert "python_config.filesystem_importer = False" in root_text
-    assert "exe.read_package_root(" in root_text
-    assert '"core"' in root_text
-    assert '"main"' in root_text
-    assert '"core/*.py"' not in root_text
-    assert '"main.py"' not in root_text
-
-
-def test_pyoxidizer_includes_only_the_required_launcher_module() -> None:
-    root_text = (PROJECT_ROOT / "pyoxidizer.bzl").read_text(encoding="utf-8")
-    make_exe = next(node for node in ast.parse(root_text).body if isinstance(node, ast.FunctionDef) and node.name == "make_exe")
-    added = []
-    scanned = []
-
-    def read_package_root(*, path, packages):
-        if path == str(PROJECT_ROOT):
-            assert "launchers" not in packages
-            return []
-        scanned.append((path, packages))
-        return [SimpleNamespace(name="main_runtime", source=(PROJECT_ROOT / "launchers/main_runtime.py").read_text(), is_package=False)]
-
-    exe = SimpleNamespace(
-        pip_install=lambda _args: [],
-        read_package_root=read_package_root,
-        make_python_module_source=lambda **fields: SimpleNamespace(**fields),
-        add_python_resource=added.append,
-        add_python_resources=added.extend,
-    )
-    distribution = SimpleNamespace(
-        make_python_packaging_policy=lambda: SimpleNamespace(set_resource_handling_mode=lambda _mode: None),
-        make_python_interpreter_config=SimpleNamespace,
-        to_python_executable=lambda **_kwargs: exe,
-    )
-    namespace = {
-        "PROJECT_ROOT": str(PROJECT_ROOT), "PROJECT_PREFIX": f"{PROJECT_ROOT}/",
-        "default_python_distribution": lambda: distribution,
-    }
-    exec(compile(ast.Module(body=[make_exe], type_ignores=[]), "pyoxidizer.bzl", "exec"), namespace)
-    build_executable = namespace["make_exe"]
-    assert callable(build_executable)
-    build_executable()
-    assert scanned == [(f"{PROJECT_ROOT}/launchers", ["main_runtime"])]
-    assert [(resource.name, resource.is_package) for resource in added] == [
-        ("launchers", True), ("launchers.main_runtime", False),
-    ]
-    compile(added[1].source, "launchers.main_runtime", "exec")
-    stage = (PROJECT_ROOT / "dev_env/build/build_pyoxidizer.bat").read_text()
-    assert 'copy /Y "%REPO_ROOT%\\launchers\\main_runtime.py" "%STAGE_DIR%\\launchers\\main_runtime.py"' in stage
-
-
-def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
-    for script_name in ("build_pyoxidizer_debian.sh",):
-        script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
-            encoding="utf-8"
-        )
-        assert 'PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"' in script
-        assert 'PYOXIDIZER_UV_PACKAGE="${SSA_PYOXIDIZER_UV_PACKAGE:-pyoxidizer==0.24.0}"' in script
-        assert 'uv tool run --python 3.13 --from "${PYOXIDIZER_UV_PACKAGE}" pyoxidizer --version' in script
-        assert '--from pyoxidizer pyoxidizer build' not in script
-        assert '--var SSA_PROJECT_ROOT "${REPO_ROOT}"' in script
-        assert '--path "${REPO_ROOT}"' in script
-        assert 'BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"' in script
-        assert "cleanup_build_info" in script
-        assert 'BUILD_INFO_BACKUP_CANDIDATE="$(mktemp "${BUILD_INFO_FILE}.XXXXXX")"' in script
-        assert 'rm -f "${BUILD_INFO_BACKUP_CANDIDATE}"' in script
-        assert 'BUILD_INFO_BACKUP="${BUILD_INFO_BACKUP_CANDIDATE}"' in script
-        assert "write_build_info.py" in script
-        assert "--build-system pyoxidizer" in script
-        assert '--platform "${PLATFORM}"' in script
-        assert 'if [[ -z "${APP_VERSION}" ]]; then' in script
-        assert 'if [[ ! -s "${BUILD_INFO_FILE}" ]]; then' in script
 
 
 def test_nuitka_debian_serializes_patchelf_install() -> None:
@@ -242,7 +140,7 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert script.count('--output-dir="${FINAL_BUILD_DIR}"') == 2
 
 
-DEBIAN_BACKENDS = ("pyinstaller", "nuitka", "pyoxidizer")
+DEBIAN_BACKENDS = ("pyinstaller", "nuitka")
 
 
 @pytest.mark.parametrize("backend", DEBIAN_BACKENDS)
@@ -292,11 +190,8 @@ def test_nuitka_debian_clears_previous_dist_once_before_building() -> None:
     assert not any(line.startswith("cp -a ") for line in lines)
 
 
-def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> None:
+def test_nuitka_windows_includes_docs_and_build_info() -> None:
     nuitka_script = (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_clean.bat").read_text(
-        encoding="utf-8"
-    )
-    pyoxidizer_script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyoxidizer.bat").read_text(
         encoding="utf-8"
     )
 
@@ -308,32 +203,6 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "version_short ausente" in nuitka_script
     assert 'if not defined APP_VERSION set "APP_VERSION=0.0"' not in nuitka_script
     assert 'if not defined FILE_VERSION set "FILE_VERSION=0.0.0.0"' not in nuitka_script
-    assert 'set "MSVC_LINK="' in pyoxidizer_script
-    assert "if not defined MSVC_LINK" in pyoxidizer_script
-    assert "where link.exe" in pyoxidizer_script
-    assert 'set "PYOXIDIZER_UV_PACKAGE=pyoxidizer==0.24.0"' in pyoxidizer_script
-    assert 'uv tool run --python 3.13 --from "%PYOXIDIZER_UV_PACKAGE%" pyoxidizer --version' in pyoxidizer_script
-    assert "--from pyoxidizer pyoxidizer build" not in pyoxidizer_script
-    assert 'set "APP_VERSION=%%A"' in pyoxidizer_script
-    assert "version_short ausente" in pyoxidizer_script
-    assert 'if not defined APP_VERSION set "APP_VERSION=0.0"' not in pyoxidizer_script
-    assert 'if not defined APP_VERSION_PE set "APP_VERSION_PE=0.0.0.0"' not in pyoxidizer_script
-    assert 'set "PYOX_RUNTIME_PYTHON=3.10"' in pyoxidizer_script
-    assert "uv run --python %PYOX_RUNTIME_PYTHON%" in pyoxidizer_script
-    assert "SSA_PYOXIDIZER_SMOKE_LOG" in pyoxidizer_script
-    assert "scripts\\smoke_cli.py" in pyoxidizer_script
-    assert "--executable" in pyoxidizer_script
-    assert "rcedit.exe" in pyoxidizer_script
-    assert "--set-icon" in pyoxidizer_script
-    assert "--set-file-version" in pyoxidizer_script
-    assert "--set-product-version" in pyoxidizer_script
-    assert '--set-version-string "ProductName" "SSA Consulta Rapida"' in pyoxidizer_script
-    assert r"config\version.json" in pyoxidizer_script
-    assert "build_info.json" in pyoxidizer_script
-    assert "write_build_info.py" in pyoxidizer_script
-    assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
-    assert "--build-system pyoxidizer" in pyoxidizer_script
-    assert "--platform windows_amd64" in pyoxidizer_script
 
 
 def test_pyinstaller_windows_checks_clean_errorlevel() -> None:
@@ -458,13 +327,3 @@ def test_windows_launchers_use_repo_relative_paths_and_distinct_modes() -> None:
     # CD-18: launchers .bat do PyInstaller apontavam para um .exe que nenhum build gera.
     for legacy in ("launcher_ssa_consulta_rapida_cli.bat", "launcher_ssa_consulta_rapida_gui.bat"):
         assert not (PROJECT_ROOT / "launchers" / legacy).exists()
-
-
-def test_pyoxidizer_debian_runtime_includes_version_json() -> None:
-    for script_name in ("build_pyoxidizer_debian.sh",):
-        script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
-            encoding="utf-8"
-        )
-        assert 'VERSION_FILE="${REPO_ROOT}/config/version.json"' in script
-        assert 'mkdir -p "${TARGET_BUILD_DIR}/config"' in script
-        assert 'cp -f "${VERSION_FILE}" "${TARGET_BUILD_DIR}/config/version.json"' in script

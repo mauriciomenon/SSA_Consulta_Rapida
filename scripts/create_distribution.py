@@ -7,7 +7,7 @@ Cria:
 
 Uso:
     uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
-    uv run --python 3.13 scripts/create_distribution.py --build-system pyoxidizer --skip-installer
+    uv run --python 3.13 scripts/create_distribution.py --build-system nuitka --skip-installer
     uv run --python 3.13 scripts/create_distribution.py --all
 """
 
@@ -91,12 +91,6 @@ BUILD_SYSTEMS = {
             "builds/pyinstaller/debian_amd64",
         ],
         "internal_dir": "_internal",
-    },
-    "pyoxidizer": {
-        "name": "PyOxidizer",
-        "exe_path": "builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe",
-        "base_dir": "builds/pyoxidizer/windows_amd64",
-        "internal_dir": "lib",
     },
     "nuitka": {
         "name": "Nuitka",
@@ -608,18 +602,6 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
         if source_dir is None:
             return None
         exe_name = _resolve_primary_executable_name(source_dir, prefer_gui=True)
-        if exe_name is None:
-            return None
-        return source_dir, exe_name
-
-    if build_system == "pyoxidizer":
-        base_dir_value = BUILD_SYSTEMS["pyoxidizer"].get("base_dir")
-        if not isinstance(base_dir_value, str):
-            return None
-        source_dir = PROJECT_ROOT / base_dir_value
-        if not source_dir.exists():
-            return None
-        exe_name = _resolve_primary_executable_name(source_dir, prefer_gui=False)
         if exe_name is None:
             return None
         return source_dir, exe_name

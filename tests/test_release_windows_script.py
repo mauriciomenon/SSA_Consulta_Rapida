@@ -150,16 +150,9 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert "release_targets.json" not in script
     assert_before(script, 'Assert-Tool "git"', "$repoRoot = Resolve-RepoRoot")
     assert_before(script, 'Assert-Tool "uv"', "$repoRoot = Resolve-RepoRoot")
-    assert '($selectedBackends -contains "pyoxidizer")' in script
-    assert "SSA_PYOXIDIZER_UV_PACKAGE" in script
-    assert "pyoxidizer==0.24.0" in script
-    assert '"pyoxidizer",' in script
-    assert '"--version"' in script
-    assert_before(
-        script,
-        "$selectedBackends = Get-SelectedBackends $Backend",
-        'Assert-Tool "rcedit.exe"',
-    )
+    # BL-45: backend PyOxidizer removido; sem preflight de pyoxidizer/rcedit.
+    assert "pyoxidizer" not in script.lower()
+    assert "rcedit.exe" not in script
     assert "Assert-CleanReleaseWorkspace" in script
     assert '"diff", "--cached", "--name-only"' in script
     assert '"diff", "--ignore-cr-at-eol", "--name-only"' in script
@@ -207,7 +200,6 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert "build_nuitka_clean.bat" in nuitka_wrapper
     nuitka_script = read_repo_text("dev_env", "build", "build_nuitka_clean.bat")
     assert "uv run --python 3.13 --extra build python -m nuitka" in nuitka_script
-    assert "build_pyoxidizer.bat" in script
     assert "scripts.create_distribution" in script
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
@@ -384,7 +376,6 @@ def test_release_windows_script_exposes_backend_scorecard() -> None:
     assert [item["name"] for item in targets["backends"]] == [
         "pyinstaller",
         "nuitka",
-        "pyoxidizer",
     ]
     assert [item["name"] for item in targets["packages"] if item.get("windows_amd64")] == [
         "zip",

@@ -1,8 +1,7 @@
 """Aplicacao das variaveis SSA_* do runtime empacotado (CF-06).
 
-Usado por launchers/main_runtime.py (PyOxidizer) e launchers/runtime_entry_helpers.py
-(Nuitka/PyInstaller). Fica em shared/ porque o PyOxidizer so empacota
-launchers.main_runtime da pasta launchers/.
+Usado por launchers/main_runtime.py (main.py) e launchers/runtime_entry_helpers.py
+(Nuitka/PyInstaller).
 """
 
 from __future__ import annotations

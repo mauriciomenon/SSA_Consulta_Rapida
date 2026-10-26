@@ -158,7 +158,6 @@ function Initialize-WindowsBuildExtra {
         pyinstaller = "PyInstaller"
     }
     $modules = @()
-    $needsPyoxidizer = $false
     foreach ($backend in ($BackendCsv -split ",")) {
         $value = $backend.Trim().ToLowerInvariant()
         if ($moduleByBackend.ContainsKey($value)) {
@@ -168,15 +167,11 @@ function Initialize-WindowsBuildExtra {
             }
             continue
         }
-        if ($value -eq "pyoxidizer") {
-            $needsPyoxidizer = $true
-            continue
-        }
         if (-not [string]::IsNullOrWhiteSpace($value)) {
-            throw "Backend Windows invalido: $value. Use nuitka, pyinstaller, pyoxidizer ou combinacoes separadas por virgula."
+            throw "Backend Windows invalido: $value. Use nuitka, pyinstaller ou combinacoes separadas por virgula."
         }
     }
-    if ($modules.Count -eq 0 -and -not $needsPyoxidizer) {
+    if ($modules.Count -eq 0) {
         return
     }
     if (-not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
@@ -221,23 +216,6 @@ function Initialize-WindowsBuildExtra {
             throw "Dependencias de build ausentes ou indisponiveis para ${BackendCsv}. Use 'uv sync --extra build' ou verifique a rede/cache do uv. Detalhe: $detail"
         } finally {
             Pop-Location
-        }
-    }
-    if ($needsPyoxidizer) {
-        $pyoxidizerPackage = if ($env:SSA_PYOXIDIZER_UV_PACKAGE) { $env:SSA_PYOXIDIZER_UV_PACKAGE } else { "pyoxidizer==0.24.0" }
-        $pyoxidizerOutput = & uv @(
-            "tool",
-            "run",
-            "--python",
-            "3.13",
-            "--from",
-            $pyoxidizerPackage,
-            "pyoxidizer",
-            "--version"
-        ) 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $detail = ($pyoxidizerOutput | Out-String -Width 240).Trim()
-            throw "PyOxidizer indisponivel via uv tool: $pyoxidizerPackage. Detalhe: $detail"
         }
     }
 }
