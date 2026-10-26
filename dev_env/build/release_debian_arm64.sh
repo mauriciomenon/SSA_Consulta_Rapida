@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PLATFORM="debian_arm64"
+# shellcheck disable=SC2034  # usado por release_debian_arm64_backend.sh (carregado por source)
 PACKAGE_ARCH="arm64"
 MACHINE_LABEL="arm64/aarch64"
 DEFAULT_BACKENDS_CSV="nuitka"
