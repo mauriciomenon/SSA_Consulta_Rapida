@@ -481,6 +481,6 @@ class PersistentFilterUiController:
         )
         if callable(refresh_quick_situacao):
             refresh_quick_situacao()
-        # The GUI filter undo contract is a single snapshot, not a stack.
+        # Empilha o estado anterior (historico de Desfazer, BL-49); None esvazia.
         self.window._last_filter_state = undo_state_before_apply
         self.window._update_undo_button_state()

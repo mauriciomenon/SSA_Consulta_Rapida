@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.52-rc2] - 2026-10-26 (pre-release do branch rev)
+
+### Estabilizacao (branch rev)
+
+- GUI: "Desfazer" da busca e dos filtros agora guarda ate 10 estados anteriores (antes so 1). Cada clique volta um passo; o botao fica ativo enquanto houver passos e o mais antigo e descartado apos o 10o. Recarregar os dados limpa o historico; uma copia de janela comeca sem historico.
+
 ## [4.52-rc1] - 2026-10-26 (pre-release do branch rev)
 
 ### Estabilizacao (branch rev)

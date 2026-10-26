@@ -73,11 +73,15 @@ class TestGUIWindowCopies:
     def test_copy_freezes_visible_rows_without_touching_database(self):
         self.main.search_input.setText("bomba")
         self.main.df_exibido = self.base_df.iloc[:2].copy()  # o que esta na tela
+        self.main._last_filter_state = {"search_text": "anterior"}
 
         copy_window = self.main.open_window_copy()
 
         assert copy_window is not None
         assert copy_window._is_window_copy is True
+        # BL-49: a copia nao herda o historico de Desfazer da origem.
+        assert self.main._last_filter_state is not None
+        assert copy_window._last_filter_state is None
         assert self.load_calls == []  # nenhuma recarga do banco na copia
         assert sorted(copy_window.df_completo["numero_ssa"]) == ["202500001", "202500002"]
         assert copy_window.df_completo is not self.main.df_exibido

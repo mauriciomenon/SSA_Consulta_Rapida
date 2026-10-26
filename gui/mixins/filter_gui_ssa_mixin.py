@@ -276,6 +276,20 @@ class FilterGUISSAMixin:
 
         def __getattr__(self, name: str) -> Any: ...
 
+    @property
+    def _last_filter_state(self) -> dict | None:
+        """Topo do historico de Desfazer (BL-49); None quando vazio."""
+        history = search_undo_controller.filter_undo_history(self)
+        return history[-1] if history else None
+
+    @_last_filter_state.setter
+    def _last_filter_state(self, state: dict | None) -> None:
+        """None esvazia o historico; um estado entra no topo como mais um nivel."""
+        if state is None:
+            search_undo_controller.filter_undo_history(self).clear()
+        else:
+            search_undo_controller.push_filter_undo_state(self, state)
+
     def _safe_store_last_filter_state(
         self,
         reason: str = "",

@@ -7854,7 +7854,7 @@ class TestGUIFilterLogic:
         assert "202500777" in html
         assert "202500888" in html
 
-    def test_advanced_emissor_include_status_exclude_and_single_undo_contract(self):
+    def test_advanced_emissor_include_status_exclude_and_undo_history_contract(self):
         scenario_df = pd.DataFrame(
             {
                 "numero_ssa": [
@@ -7932,6 +7932,14 @@ class TestGUIFilterLogic:
             "202600002",
             "202600001",
         ]
+        # BL-49: ainda resta o nivel anterior ao filtro de emissor.
+        assert self.window.undo_filter_btn.isEnabled() is True
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert not self.window._advanced_filters.get("setor_emissor")
+        assert len(self.window.df_exibido) == len(scenario_df)
         assert self.window.undo_filter_btn.isEnabled() is False
 
     def test_update_details_from_series_resolves_related_ssas_without_full_index_build(

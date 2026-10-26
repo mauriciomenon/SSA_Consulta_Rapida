@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from typing import Any, cast
 
 import pandas as pd
@@ -12,6 +12,28 @@ from gui.ssa.search_refinement import can_reuse_refined_search
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
+
+# BL-49: niveis de Desfazer, como kMaxFilterHistoryDepth do app C++.
+MAX_FILTER_UNDO_DEPTH = 10
+
+
+def filter_undo_history(window: Any) -> deque:
+    """Pilha de estados anteriores (topo = proximo Desfazer); o mais antigo sai apos 10."""
+    history = getattr(window, "_filter_undo_history", None)
+    if history is None:
+        history = deque(maxlen=MAX_FILTER_UNDO_DEPTH)
+        window._filter_undo_history = history
+    return history
+
+
+def push_filter_undo_state(window: Any, state: dict) -> None:
+    """Empilha `state`, exceto quando igual ao topo (mesma assinatura)."""
+    history = filter_undo_history(window)
+    if history and filter_state_signature(
+        window, state=history[-1]
+    ) == filter_state_signature(window, state=state):
+        return
+    history.append(state)
 
 
 def data_marker(window: Any) -> tuple[Any, int]:
@@ -249,19 +271,10 @@ def store_last_filter_state(
             search_text_override=search_text_override,
             pending_search_display_override=pending_search_display_override,
         )
-        signature = filter_state_signature(window, state=state)
-        if (
-            getattr(window, "_last_filter_state_signature", None) == signature
-            and getattr(window, "_last_filter_state", None) is not None
-        ):
-            window._update_undo_button_state()
-            return
-        window._last_filter_state = state
-        window._last_filter_state_signature = signature
+        push_filter_undo_state(window, state)
     except Exception as exc:
         logger.warning("Falha ao gerar snapshot de estado de filtros: %s", exc)
-        window._last_filter_state = None
-        window._last_filter_state_signature = None
+        filter_undo_history(window).clear()
     window._update_undo_button_state()
 
 
@@ -362,8 +375,9 @@ def restore_last_filter_state(
 ) -> None:
     if state is not None and not isinstance(state, dict):
         state = None
-    if state is None:
-        state = getattr(window, "_last_filter_state", None)
+    history = filter_undo_history(window)
+    if state is None and history:
+        state = history[-1]
     if state is None:
         return
     window._invalidate_active_filter_request("restore_last_filter_state")
@@ -380,15 +394,12 @@ def restore_last_filter_state(
         except Exception as exc:
             logger.debug("Falha ao atualizar tags de filtros no restore: %s", exc)
         window._render_restored_filter_state(restored_search_text)
-        if consume_undo:
-            window._last_filter_state = None
-            window._last_filter_state_signature = None
+        if consume_undo and history:
+            history.pop()
     finally:
         window._restoring_filter_state = False
         window._update_undo_button_state()
 
 
 def update_undo_button_state(window: Any) -> None:
-    window._set_undo_filter_buttons_enabled(
-        getattr(window, "_last_filter_state", None) is not None
-    )
+    window._set_undo_filter_buttons_enabled(bool(filter_undo_history(window)))
