@@ -419,7 +419,30 @@ def test_build_column_presets_contains_core_and_all() -> None:
 def test_compute_df_cache_token_handles_rows_without_columns() -> None:
     df = pd.DataFrame(index=[0, 1, 2])
     token = _compute_df_cache_token(df)
-    assert token == (3, tuple(), None, None)
+    assert token[:2] == (3, tuple())
+
+
+def test_compute_df_cache_token_sees_content_change_and_subsets() -> None:
+    """BL-13 M1: o token antigo (len + 10 primeiros/ultimos numero_ssa) ignorava o meio."""
+    from dev_env.streamlit_app import _STREAMLIT_DATA_REVISION_ATTR
+
+    numeros = [f"2025{i:05d}" for i in range(100)]
+    before = pd.DataFrame({"numero_ssa": numeros, "situacao": ["AAD"] * 100})
+    after = before.copy()
+    after.loc[50, "situacao"] = "STE"
+    # Sem revisao de carga: hash do conteudo.
+    assert _compute_df_cache_token(before) != _compute_df_cache_token(after)
+    # Com revisao (cada carga do banco ganha uma nova).
+    before.attrs[_STREAMLIT_DATA_REVISION_ATTR] = "r1"
+    after.attrs[_STREAMLIT_DATA_REVISION_ATTR] = "r2"
+    assert _compute_df_cache_token(before) != _compute_df_cache_token(after)
+    # Subconjunto herda a revisao em attrs, mas nao o token do pai.
+    child = before.head(10)
+    assert _compute_df_cache_token(child) != _compute_df_cache_token(before)
+    assert _compute_df_cache_token(child) == _compute_df_cache_token(before.head(10))
+
+    out = apply_all_filters_cached(after, "", ["STE"], [], [])
+    assert out["numero_ssa"].tolist() == ["202500050"]
 
 
 def test_build_streamlit_column_config_uses_rename_map() -> None:

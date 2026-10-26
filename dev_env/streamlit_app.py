@@ -11,6 +11,7 @@ import os
 import sqlite3
 import sys
 import time
+import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional, Tuple, cast
@@ -36,6 +37,10 @@ version_module = importlib.import_module("utils.version")
 search_filter_constants_module = importlib.import_module("core.search_filter_constants")
 
 FILTER_REGEX_BLOCKED_ATTR = search_filter_constants_module.FILTER_REGEX_BLOCKED_ATTR
+build_dataframe_filter_hash = importlib.import_module(
+    "core.dataframe_fingerprint"
+).build_dataframe_filter_hash
+_STREAMLIT_DATA_REVISION_ATTR = "_streamlit_data_revision"
 filter_dataframe = app_logic.filter_dataframe
 get_filtered_data = app_logic.get_filtered_data
 import_files_to_database = app_logic.import_files_to_database
@@ -547,6 +552,8 @@ def load_dataframe(
             logger.info(f"Database query returned empty result: {db_path}")
         else:
             logger.debug(f"Loaded {len(df)} records from {db_path}")
+        # BL-13 M1: cada carga real do banco e uma revisao nova para as chaves de cache.
+        df.attrs[_STREAMLIT_DATA_REVISION_ATTR] = uuid.uuid4().hex
         return df
     except sqlite3.Error as e:
         logger.error(f"SQLite error loading data from {db_path}: {e}")
@@ -564,27 +571,25 @@ else:
 
 
 def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
-    """Compute lightweight token to reduce stale cache hits on equal shapes."""
-    cached_token = df.attrs.get("_streamlit_cache_token")
-    if cached_token is not None:
-        return cached_token
+    """Chave de cache do DataFrame (filter_cache e hash_funcs de st.cache_data).
 
+    BL-13 M1: o token antigo (len + 10 primeiros/ultimos numero_ssa, guardado em attrs e
+    herdado por subconjuntos) devolvia resultado velho apos reimportacao. Agora: revisao
+    carimbada por load_dataframe + quais linhas (numero_ssa); sem revisao, hash do
+    conteudo (~0,5 s em 51 mil x 80, por isso nao e o caminho comum).
+    ponytail: dentro de uma revisao, linhas iguais com colunas derivadas diferentes
+    colidem; hoje as derivadas mudam o conjunto de colunas, que entra na chave.
+    """
     columns = tuple(str(col) for col in df.columns)
-    if len(df.columns) == 0:
-        token = (len(df), columns, None, None)
-        df.attrs["_streamlit_cache_token"] = token
-        return token
-    if df.empty:
-        token = (0, columns, None, None)
-        df.attrs["_streamlit_cache_token"] = token
-        return token
-    sample_column = "numero_ssa" if "numero_ssa" in df.columns else df.columns[0]
-    sample_series = df[sample_column]
-    head_values = tuple(str(value) for value in sample_series.head(10).tolist())
-    tail_values = tuple(str(value) for value in sample_series.tail(10).tolist())
-    token = (len(df), columns, str(sample_column), head_values, tail_values)
-    df.attrs["_streamlit_cache_token"] = token
-    return token
+    revision = df.attrs.get(_STREAMLIT_DATA_REVISION_ATTR)
+    if revision is None:
+        return (len(df), columns, build_dataframe_filter_hash(df))
+    rows = df["numero_ssa"] if "numero_ssa" in df.columns else df.index
+    rows_digest = hashlib.blake2b(
+        pd.util.hash_pandas_object(rows, index=False).to_numpy().tobytes(),
+        digest_size=8,
+    ).hexdigest()
+    return (len(df), columns, str(revision), rows_digest)
 
 
 _STREAMLIT_DF_HASH_FUNCS = {pd.DataFrame: _compute_df_cache_token}
