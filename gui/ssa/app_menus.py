@@ -118,6 +118,29 @@ def _add_file_menu(window: Any, arquivo_menu: Any, action_cls: Any) -> None:
         arquivo_menu,
         action_cls,
         window,
+        "Salvar estado da tela...",
+        window.save_screen_state,
+        status_tip=(
+            "Salva filtros, ordenacao, colunas, pagina e SSA em foco num arquivo"
+            " .ssa-estado.json (sem as linhas do banco)."
+        ),
+    )
+    _add_action(
+        arquivo_menu,
+        action_cls,
+        window,
+        "Abrir estado salvo...",
+        window.open_screen_state,
+        status_tip=(
+            "Reaplica um estado salvo sobre os dados ja carregados;"
+            " avisa se o banco mudou desde que foi salvo."
+        ),
+    )
+    arquivo_menu.addSeparator()
+    _add_action(
+        arquivo_menu,
+        action_cls,
+        window,
         "Nova janela com a tela atual (copia temporaria)",
         window.open_window_copy,
         status_tip=(

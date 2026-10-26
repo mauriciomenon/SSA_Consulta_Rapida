@@ -191,6 +191,12 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def open_window_copy(self) -> None:
             return None
 
+        def save_screen_state(self) -> None:
+            return None
+
+        def open_screen_state(self) -> None:
+            return None
+
         def close(self) -> None:
             return None
 
@@ -275,7 +281,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Opcoes" in window._menu_bar.menus
     assert "Ajuda" in window._menu_bar.menus
     assert "SAM API" in window._menu_bar.menus["Opcoes"].submenus
-    assert len(window._menu_bar.menus["Arquivo"].actions) == 3
+    assert len(window._menu_bar.menus["Arquivo"].actions) == 5
     assert len(window._menu_bar.menus["Importacao"].actions) == 4
     assert len(window._menu_bar.menus["Database"].actions) == 6
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
@@ -306,6 +312,8 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
 
     assert arquivo_labels == [
         "Exportar lista",
+        "Salvar estado da tela...",
+        "Abrir estado salvo...",
         "Nova janela com a tela atual (copia temporaria)",
         "Sair",
     ]

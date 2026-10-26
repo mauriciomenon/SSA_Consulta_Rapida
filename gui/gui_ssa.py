@@ -86,6 +86,7 @@ from core.pai_scrap_report_provider import (
 )
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.ssa import window_copies as ssa_window_copies  # noqa: E402
+from gui.ssa import screen_state_mirror as ssa_screen_state  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
 from gui.gui_config import get_gui_main_preferences_path  # noqa: F401 - re-export for compatibility
@@ -1461,6 +1462,51 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return None
         copy_window.show()
         return copy_window
+
+    def _screen_state_dialog_dir(self) -> str:
+        documents = Path.home() / "Documents"
+        return str(documents if documents.is_dir() else Path.home())
+
+    def save_screen_state(self) -> None:
+        """Menu Arquivo: salva o espelho da tela (filtros, ordenacao, colunas, foco)."""
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Salvar estado da tela",
+            os.path.join(self._screen_state_dialog_dir(), "estado" + ssa_screen_state.FILE_SUFFIX),
+            f"Estado da tela (*{ssa_screen_state.FILE_SUFFIX})",
+        )
+        if not path:
+            return
+        try:
+            saved = ssa_screen_state.save_state_file(self, str(path), DB_PATH)
+        except OSError as exc:
+            logger.warning("Falha ao salvar estado da tela em %s: %s", path, exc)
+            QMessageBox.warning(self, "Erro", f"Nao foi possivel salvar o estado:\n{exc}")
+            return
+        self.status_label.setText(f"Status: estado da tela salvo em {os.path.basename(saved)}.")
+
+    def open_screen_state(self) -> None:
+        """Menu Arquivo: reabre um espelho salvo sobre os dados ja carregados (sem banco)."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Abrir estado salvo",
+            self._screen_state_dialog_dir(),
+            f"Estado da tela (*{ssa_screen_state.FILE_SUFFIX});;JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            payload = ssa_screen_state.load_state_file(str(path))
+            warnings = ssa_screen_state.apply_state_payload(self, payload, DB_PATH)
+        except (OSError, ValueError) as exc:
+            logger.warning("Falha ao abrir estado da tela %s: %s", path, exc)
+            QMessageBox.warning(self, "Erro", f"Nao foi possivel abrir o estado:\n{exc}")
+            return
+        self.status_label.setText(
+            " ".join(warnings)
+            if warnings
+            else f"Status: estado da tela aberto de {os.path.basename(str(path))}."
+        )
 
     def restore_frozen_copy_state(self) -> None:
         """Copia: volta ao estado congelado (todas as linhas recebidas, sem filtros)."""

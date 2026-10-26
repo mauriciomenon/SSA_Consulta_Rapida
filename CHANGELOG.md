@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- GUI: menu Arquivo > "Salvar estado da tela..." grava num arquivo `.ssa-estado.json` (pasta Documentos por padrao) os filtros, a ordenacao, as colunas visiveis com ordem e largura, a pagina e a SSA em foco, sem as linhas do banco. "Abrir estado salvo..." reaplica esse estado sobre os dados ja carregados (sem recarregar nem gravar o banco; numa copia de janela vale sobre os dados congelados dela) e avisa na barra de status se o banco mudou desde que o estado foi salvo. Arquivo de versao desconhecida e recusado sem alterar a tela. "Salvar filtro" continua igual.
+
 - GUI: menu Arquivo > "Nova janela com a tela atual (copia temporaria)" abre ate 3 janelas iguais a principal com as linhas que estavam na tela congeladas. Na copia da para filtrar, ordenar e abrir detalhes sem recarregar do banco; "Voltar ao estado congelado" limpa os filtros e volta exatamente a essas linhas. Importacao, recarga e SAM API ficam so na janela principal; fechar a principal fecha as copias.
 
 - Builds: o backend PyOxidizer foi removido (pacotes `_pyoxidizer`, `-Backend pyoxidizer` e `--build-system pyoxidizer` deixam de existir). O PyOxidizer esta sem manutencao desde 2022 e so embute o Python 3.10, que o projeto nao suporta mais; PyInstaller e Nuitka seguem como antes.
