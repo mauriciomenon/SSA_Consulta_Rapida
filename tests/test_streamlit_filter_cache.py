@@ -364,6 +364,19 @@ def test_apply_all_filters_cached_supports_manual_date_conditions_with_not() -> 
     assert out["numero_ssa"].tolist() == ["1", "2"]
 
 
+def test_manual_tokens_not_in_options_are_reported(monkeypatch) -> None:
+    """BL-13 M8: 'silva' (parcial) e '!ZZZ' sumiam sem aviso e a tabela mostrava tudo."""
+    from dev_env.streamlit_app import _resolve_include_exclude_values
+
+    warnings: list[str] = []
+    monkeypatch.setattr(st, "warning", warnings.append, raising=False)
+
+    result = _resolve_include_exclude_values([], ["JOAO SILVA", "MARIA"], "silva, !ZZZ, MARIA")
+
+    assert result == (["MARIA"], [])
+    assert warnings == ["Ignorado (nao existe nas opcoes): silva, !ZZZ"]
+
+
 def test_tem_derivadas_counts_children_in_whole_base() -> None:
     """BL-13 M6: com Estado=AAD o filho STE sumia e P1 deixava de 'ter derivadas'."""
     df = pd.DataFrame(

@@ -2095,17 +2095,26 @@ def _resolve_include_exclude_values(
     include_values = _normalize_filter_selection(selected, options)
     include_tokens, exclude_tokens = _split_manual_filter_tokens(manual_text)
     option_map = {str(value).strip().casefold(): value for value in options}
+    ignored: list[str] = []
 
     for token in include_tokens:
         mapped = option_map.get(token.casefold())
-        if mapped is not None and mapped not in include_values:
+        if mapped is None:
+            ignored.append(token)
+        elif mapped not in include_values:
             include_values.append(mapped)
 
     exclude_values: list[Any] = []
     for token in exclude_tokens:
         mapped = option_map.get(token.casefold())
-        if mapped is not None and mapped not in exclude_values:
+        if mapped is None:
+            ignored.append(f"!{token}")
+        elif mapped not in exclude_values:
             exclude_values.append(mapped)
+
+    if ignored:
+        # BL-13 M8: antes sumia em silencio (sem include valido, a tabela mostrava tudo).
+        st.warning(f"Ignorado (nao existe nas opcoes): {', '.join(ignored)}")
 
     if include_values and exclude_values:
         include_values = [
