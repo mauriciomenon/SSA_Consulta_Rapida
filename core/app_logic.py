@@ -2830,6 +2830,7 @@ def get_filtered_data(
     filters: Dict[str, Any] | None = None,
     *,
     extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
+    raise_on_error: bool = False,
 ) -> pd.DataFrame:
     """
     Obtem dados filtrados do banco de dados.
@@ -2837,6 +2838,8 @@ def get_filtered_data(
     Args:
         db_path: Caminho para o banco de dados
         filters: Dicionario com filtros a aplicar
+        raise_on_error: repassa o erro de leitura em vez de devolver vazio (BL-13 M2:
+            o Streamlit nao pode cachear um "banco sem dados" que foi so um lock)
 
     Returns:
         DataFrame com dados filtrados
@@ -2877,4 +2880,6 @@ def get_filtered_data(
 
     except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.error(f"Erro ao obter dados filtrados: {e}")
+        if raise_on_error:
+            raise
         return pd.DataFrame()  # Retorna DataFrame vazio em caso de erro

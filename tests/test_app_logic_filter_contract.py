@@ -328,6 +328,9 @@ def test_get_filtered_data_returns_empty_on_database_error(
     out = get_filtered_data(str(db_path))
 
     assert out.empty
+    # BL-13 M2: o Streamlit pede a excecao para nao cachear um vazio falso.
+    with pytest.raises(sqlite3.OperationalError, match="forced db failure"):
+        get_filtered_data(str(db_path), raise_on_error=True)
 
 
 def test_get_filtered_data_ignores_unknown_filter_columns(

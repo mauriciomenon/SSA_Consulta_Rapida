@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
@@ -146,7 +147,24 @@ def test_load_dataframe_forwards_session_roots(tmp_path, monkeypatch):
     result = load(str(database), roots)
 
     pd.testing.assert_frame_equal(result, expected)
-    read_data.assert_called_once_with(str(database), extra_allowed_roots=roots)
+    read_data.assert_called_once_with(
+        str(database), extra_allowed_roots=roots, raise_on_error=True
+    )
+
+
+def test_load_dataframe_lets_read_error_out(tmp_path, monkeypatch):
+    """BL-13 M2: erro de leitura virava 'banco sem dados' e ficava no st.cache_data."""
+    database = tmp_path / "locked.db"
+    database.touch()
+    monkeypatch.setattr(
+        app,
+        "get_filtered_data",
+        Mock(side_effect=sqlite3.OperationalError("database is locked")),
+    )
+    load = getattr(app.load_dataframe, "__wrapped__", app.load_dataframe)
+
+    with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+        load(str(database), ())
 
 
 @pytest.mark.parametrize("action", ["load_data_ops", "reimport_data_ops"])

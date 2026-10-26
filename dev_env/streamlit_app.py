@@ -546,21 +546,18 @@ def load_dataframe(
         logger.warning(f"Database file not found: {db_path}")
         return pd.DataFrame()
 
-    try:
-        df = get_filtered_data(db_path, extra_allowed_roots=extra_allowed_roots)
-        if df.empty:
-            logger.info(f"Database query returned empty result: {db_path}")
-        else:
-            logger.debug(f"Loaded {len(df)} records from {db_path}")
-        # BL-13 M1: cada carga real do banco e uma revisao nova para as chaves de cache.
-        df.attrs[_STREAMLIT_DATA_REVISION_ATTR] = uuid.uuid4().hex
-        return df
-    except sqlite3.Error as e:
-        logger.error(f"SQLite error loading data from {db_path}: {e}")
-        return pd.DataFrame()
-    except Exception as e:
-        logger.error(f"Unexpected error loading data from {db_path}: {e}")
-        return pd.DataFrame()
+    # BL-13 M2: erro de leitura sai como excecao; st.cache_data nao cacheia excecao,
+    # entao a proxima execucao tenta de novo (antes um lock virava vazio cacheado).
+    df = get_filtered_data(
+        db_path, extra_allowed_roots=extra_allowed_roots, raise_on_error=True
+    )
+    if df.empty:
+        logger.info(f"Database query returned empty result: {db_path}")
+    else:
+        logger.debug(f"Loaded {len(df)} records from {db_path}")
+    # BL-13 M1: cada carga real do banco e uma revisao nova para as chaves de cache.
+    df.attrs[_STREAMLIT_DATA_REVISION_ATTR] = uuid.uuid4().hex
+    return df
 
 
 # Aplica cache do Streamlit se disponivel; adiciona clear() no fallback
@@ -2289,13 +2286,21 @@ if REAL_RUNTIME:
         st.caption(f"DB: {'ok' if db_exists else 'ausente'} | {db_size_mb:.1f} MB")
         st.caption(f"Arquivos de entrada: {sheet_files_count}")
 
-raw_df = (
-    load_dataframe(
-        db_path,
-        tuple(st.session_state["streamlit_source_state"].get("extra_allowed_roots", ())),
-    )
-    if REAL_RUNTIME else pd.DataFrame()
-)
+raw_df = pd.DataFrame()
+if REAL_RUNTIME:
+    try:
+        raw_df = load_dataframe(
+            db_path,
+            tuple(
+                st.session_state["streamlit_source_state"].get("extra_allowed_roots", ())
+            ),
+        )
+    except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as exc:
+        logger.error("Falha ao ler o banco %s: %s", db_path, exc)
+        st.error(
+            f"Falha ao ler o banco ({exc}). Se outra aplicacao esta importando,"
+            " aguarde e recarregue a pagina."
+        )
 sidebar_filtered_metric_slot: Any = None
 base_derivada_context_map: Optional[pd.DataFrame] = None
 if REAL_RUNTIME and raw_df.empty:
