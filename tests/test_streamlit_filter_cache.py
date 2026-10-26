@@ -760,3 +760,27 @@ def test_streamlit_cache_limit_matches_gui_rule(monkeypatch):
     assert streamlit_app._resolve_cache_max_entry_bytes() == filter_cache._resolve_cache_max_entry_bytes()
     monkeypatch.setenv("SSA_CACHE_MAX_MB", "0")
     assert streamlit_app._resolve_cache_max_entry_bytes() is None
+
+
+def test_limit_table_rows_keeps_total_and_cuts_only_display() -> None:
+    """BL-13 H1: o Limite corta so a tabela exibida, depois da ordenacao; o total segue completo."""
+    from dev_env.streamlit_app import _limit_table_rows
+
+    df = pd.DataFrame({"numero_ssa": list(range(1000))}).sort_values("numero_ssa", ascending=False)
+    shown, total = _limit_table_rows(df, 500)
+    assert total == 1000
+    assert len(shown) == 500
+    assert shown["numero_ssa"].iloc[0] == 999
+    assert _limit_table_rows(df, 0)[0] is df
+
+
+def test_excel_cell_value_accepts_missing_values() -> None:
+    """BL-13 H2: pd.NA/NaT de colunas nullable derrubavam o Gerar Excel."""
+    from openpyxl import Workbook
+
+    from dev_env.streamlit_app import _excel_cell_value
+
+    ws = Workbook().active
+    for col, value in enumerate([pd.NA, pd.NaT, None, 3, "texto"], 1):
+        ws.cell(row=1, column=col, value=_excel_cell_value(value))
+    assert [c.value for c in ws[1]] == [None, None, None, 3, "texto"]

@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- Streamlit: o "Limite" de linhas vale so para a tabela exibida, depois da ordenacao (antes ordenacao, totais, graficos e exportacoes viam so as primeiras 500 linhas); a tabela avisa "Exibindo N de M". "Gerar Excel" nao quebra mais a pagina quando ha valor ausente.
+
 - Pacotes: `config/build_info.json` passa a registrar o branch (`git_branch`) e o canal (`release_channel`: `oficial` so quando gerado do `main`, `teste` nos demais). A janela "Sobre" de um build de teste mostra "Build de teste (branch <nome>): nao e release oficial".
 
 - GUI: fechar a janela durante "Vacuum/Analyze" do banco espera a operacao terminar, como ja acontecia com importacao e copia de banco. Antes a janela fechava e a manutencao era perdida no meio (o banco ficava integro, mas o VACUUM nao valia). Se a operacao passar do prazo do fechamento forcado, a janela fecha mesmo assim.

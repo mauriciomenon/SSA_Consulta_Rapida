@@ -2151,6 +2151,27 @@ def _list_spreadsheet_files_count(docs_dir: str) -> int:
         return 0
 
 
+def _limit_table_rows(df: pd.DataFrame, limit: int) -> tuple[pd.DataFrame, int]:
+    """BL-13 H1: o Limite vale so para a tabela exibida, depois da ordenacao.
+
+    Antes cortava o resultado logo apos o filtro: ordenacao, totais, graficos e exportacoes
+    viam so as primeiras N linhas na ordem de insercao.
+    """
+    total = len(df)
+    if limit and total > limit:
+        return df.head(limit), total
+    return df, total
+
+
+def _excel_cell_value(value: Any) -> Any:
+    """BL-13 H2: openpyxl recusa pd.NA/NaT ('Cannot convert <NA> to Excel'); ausente vira vazio."""
+    from exportacao.exporter import sanitize_spreadsheet_cell
+
+    if pd.api.types.is_scalar(value) and pd.isna(value):
+        return None
+    return sanitize_spreadsheet_cell(value)
+
+
 def _is_real_streamlit_runtime() -> bool:
     # Evita executar UI completa fora do runtime do streamlit.
     try:
@@ -2932,8 +2953,6 @@ if REAL_RUNTIME and not raw_df.empty:
         advanced_filters=advanced_filters,
         base_derivada_context_map=base_derivada_context_map,
     )
-    if limit_rows and len(filtered_df) > limit_rows:
-        filtered_df = filtered_df.head(limit_rows).reset_index(drop=True)
     if sidebar_filtered_metric_slot is not None:
         sidebar_filtered_metric_slot.metric("SSAs no filtro atual", len(filtered_df))
 
@@ -3119,6 +3138,12 @@ if REAL_RUNTIME and not raw_df.empty:
                 )
             except Exception as exc:
                 logger.warning("Falha ao ordenar por %s: %s", sort_column, exc)
+        table_view_df, table_total = _limit_table_rows(table_view_df, limit_rows)
+        if len(table_view_df) < table_total:
+            st.caption(
+                f"Exibindo {len(table_view_df)} de {table_total} SSAs (Limite). "
+                "Totais, graficos e exportacoes usam todas."
+            )
 
         page_size, guarded_page_size = _apply_large_page_guard(
             page_size,
@@ -3343,7 +3368,7 @@ if REAL_RUNTIME and not raw_df.empty:
                             ws.cell(
                                 row=row_num,
                                 column=col_num,
-                                value=sanitize_spreadsheet_cell(value),
+                                value=_excel_cell_value(value),
                             )
                     wb.save(buffer)
                     buffer.seek(0)
