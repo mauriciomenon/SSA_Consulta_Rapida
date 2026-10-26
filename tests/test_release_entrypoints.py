@@ -74,7 +74,7 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert '"-Backend", $BackendCsv' in script
     assert '$releaseArgs += "-IncludeRuntimeDb"' in script
     assert "$releaseArgs = @(" in script
-    assert "& powershell @releaseArgs" in script
+    assert "& $powershellHost @releaseArgs" in script
     assert "Initialize-WindowsBuildExtra $RepoRoot $BackendCsv" in script
     assert "Backend Windows invalido" in script
     assert "pyoxidizer ou combinacoes" in script
@@ -108,7 +108,7 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
         "Assert-SsaWindowsVenv -VenvDir",
         "Invoke-WindowsRelease $repoRoot",
     )
-    assert_before(script, "Assert-WindowsReleaseHost", "& powershell @releaseArgs")
+    assert_before(script, "Assert-WindowsReleaseHost", "& $powershellHost @releaseArgs")
 
 
 @pytest.mark.parametrize("previous_environment", [None, "existing-environment"])
@@ -179,7 +179,9 @@ $SkipInstaller = $true
 $IncludeRuntimeDb = $false
 $DistributionModule = 'scripts.create_distribution'
 $failure = $null
-$rootAst = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_ROOT_SCRIPT, [ref]$null, [ref]$null)
+# release.ps1 chama o proprio host ((Get-Process -Id $PID).Path, REL-01); aponta para o stub.
+function Get-Process { param($Id) [pscustomobject]@{ Path = (Get-Command powershell -CommandType Application | Select-Object -First 1).Source } }
+$rootAst =[Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_ROOT_SCRIPT, [ref]$null, [ref]$null)
 $packageAst = [Management.Automation.Language.Parser]::ParseFile($env:SSA_TEST_PACKAGE_SCRIPT, [ref]$null, [ref]$null)
 foreach ($ast in @($rootAst, $packageAst)) {
     foreach ($statement in $ast.EndBlock.Statements) {
