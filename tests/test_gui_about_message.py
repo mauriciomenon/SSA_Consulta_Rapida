@@ -203,3 +203,15 @@ def test_about_message_flags_test_build(monkeypatch, channel, expected) -> None:
 
     assert ("Build de teste (branch rev): nao e release oficial" in message) is expected
 
+
+@pytest.mark.parametrize(("platform", "expected"), [("win-arm64", True), ("win-amd64", False), ("macosx-14.0-arm64", False)])
+def test_about_message_notes_web_unavailable_on_windows_arm64(monkeypatch, platform, expected) -> None:
+    """BL-48: no Windows ARM64 a interface web nao instala (pyarrow sem wheel); a culpa nao e do usuario."""
+    monkeypatch.setattr(gui_ssa, "_load_embedded_build_info", lambda: {})
+    monkeypatch.setattr(gui_ssa, "resolve_git_commit_hash_text", lambda: "abc1234")
+    monkeypatch.setattr(gui_ssa.sysconfig, "get_platform", lambda: platform)
+
+    message = gui_ssa.build_about_message("4.51")
+
+    assert ("limitacao de compilacao, nao do usuario" in message) is expected
+

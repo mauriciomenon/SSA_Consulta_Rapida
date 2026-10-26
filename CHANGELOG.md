@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Estabilizacao (branch rev)
 
+- GUI no Windows ARM64: a janela "Sobre" avisa que a interface web nao esta disponivel nesta arquitetura porque o pyarrow (usado pelo Streamlit) ainda nao tem pacote para ela; a limitacao e de compilacao, nao do usuario.
+
 - Streamlit: trocar o tema preserva a largura de tabela escolhida (e a memoria por tamanho de tela). Antes, com o banco vazio, a troca de tema regravava a largura padrao.
 
 - Streamlit: "Baixar CSV" usa os nomes de coluna exibidos (como o Excel do proprio app e o exportador da GUI) e grava UTF-8 com BOM, para o Excel abrir acentos corretamente. Antes saia com nomes internos (`numero_ssa`) e sem BOM.

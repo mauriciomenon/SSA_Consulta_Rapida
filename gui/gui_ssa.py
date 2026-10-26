@@ -28,6 +28,7 @@ import shutil
 import socket
 import subprocess  # nosec B404
 import sys
+import sysconfig
 import threading
 from threading import Event, Lock
 import time
@@ -770,6 +771,12 @@ def build_about_message(app_version: str) -> str:
     if build_info.get("release_channel") == "teste":
         branch = str(build_info.get("git_branch") or "?")
         lines.append(f"Build de teste (branch {branch}): nao e release oficial")
+    if sysconfig.get_platform() == "win-arm64":
+        # BL-48: pyarrow (exigido pelo Streamlit) ainda nao publica wheel win-arm64.
+        lines.append(
+            "Interface web indisponivel no Windows ARM64: o pyarrow ainda nao tem "
+            "pacote para esta arquitetura (limitacao de compilacao, nao do usuario)."
+        )
     return "\n".join(lines)
 
 
