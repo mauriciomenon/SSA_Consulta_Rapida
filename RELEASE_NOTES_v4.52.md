@@ -18,7 +18,7 @@ A ultima release oficial publicada segue sendo `v4.51`.
 - Builds: backend PyOxidizer removido (sem manutencao desde 2022 e preso no Python 3.10); ZIP combinado do Windows
   com a arquitetura no nome.
 
-Lista completa: secao "Unreleased" do `CHANGELOG.md`.
+Lista completa: secao "4.52-rc1" do `CHANGELOG.md`.
 
 Publicada em 2026-10-26: https://github.com/mauriciomenon/SSA_Consulta_Rapida/releases/tag/v4.52-rc1 (GitLab aponta para os mesmos arquivos; tag v4.52-rc1 em 640ac328).
 
