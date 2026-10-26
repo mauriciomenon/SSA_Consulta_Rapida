@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=83.0.0,<84"]
+requires = ["setuptools>=84.2.1,<85"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -68,8 +68,10 @@ exclude-newer = "7 days"
 # Excecoes verificadas em 24/10 (OSV limpo e provenance do PyPI do repositorio oficial),
 # so para correcao de seguranca: streamlit 1.66.1 (primeira que aceita pillow 13, que corrige
 # 41 avisos), certifi 2026.10.19 (aviso critico) e virtualenv 21.14.13 (aviso alto).
-# setuptools 84.1.0 (aviso baixo) nao tem attestation: espera a carencia.
-exclude-newer-package = { streamlit = "2026-10-22T00:00:00Z", certifi = "2026-10-21T00:00:00Z", virtualenv = "2026-10-23T00:00:00Z" }
+# setuptools 84.2.1 (25/10, pedido do dono): corrige GHSA-xmj3-9gf7-h52w (baixo), OSV limpo. O
+# projeto nunca publica attestation no PyPI (nem a 84.0.0 anterior); origem conferida pela release
+# v84.2.1 de pypa/setuptools criada por github-actions[bot] 6 s apos o upload, CI verde no commit.
+exclude-newer-package = { streamlit = "2026-10-22T00:00:00Z", certifi = "2026-10-21T00:00:00Z", virtualenv = "2026-10-23T00:00:00Z", setuptools = "2026-10-21T00:00:00Z" }
 constraint-dependencies = [
     "idna>=3.19,<4",
     "virtualenv>=21.7.9,<22",
