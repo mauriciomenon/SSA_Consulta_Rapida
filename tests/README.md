@@ -18,7 +18,6 @@ codigo de saida do pytest (nunca `|| true`).
 ## Configuracao (`pyproject.toml`)
 
 - `testpaths = ["tests"]`; coleta `test_*.py` e `*_test.py`.
-- `tests/legacy_tests/` fica fora (`--ignore`).
 - Marcadores: `performance`, `integration`, `legacy`, `slow`, `smoke`, `stress`.
 
 ## Isolamento (`tests/conftest.py`)
@@ -36,4 +35,3 @@ codigo de saida do pytest (nunca `|| true`).
 - `_helpers/`: utilitarios compartilhados (banco temporario, harness de cenarios da GUI).
 - `fixtures/`: arquivos de entrada dos testes.
 - `scripts/`: testes de shell e PowerShell da guarda nativa (rodam a parte).
-- `legacy_tests/`: testes antigos, fora da coleta.
