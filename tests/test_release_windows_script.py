@@ -545,3 +545,11 @@ def test_release_windows_requires_exact_runtime_database_in_bundles_and_zips() -
         "Assert-RuntimeDatabase -RepoRoot $repoRoot -RuntimeRoot $runtimeRoots",
         "Write-BackendReleaseZips $config.release_zips",
     )
+
+
+def test_release_ps1_reuses_pwsh_host_for_inner_script() -> None:
+    """release_windows.ps1 exige PowerShell 7; chamar `powershell` (5.1) quebrava todo release Windows."""
+    script = read_repo_text("release.ps1")
+    assert "& powershell @releaseArgs" not in script
+    assert "$powershellHost = (Get-Process -Id $PID).Path" in script
+    assert "& $powershellHost @releaseArgs" in script

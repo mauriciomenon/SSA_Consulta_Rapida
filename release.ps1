@@ -132,7 +132,10 @@ function Invoke-WindowsRelease {
         if ($IncludeRuntimeDb) {
             $releaseArgs += "-IncludeRuntimeDb"
         }
-        & powershell @releaseArgs
+        # release_windows.ps1 exige PowerShell 7 (BL-12b): reusa o mesmo host em vez de
+        # chamar o Windows PowerShell 5.1, que fazia todo release Windows parar.
+        $powershellHost = (Get-Process -Id $PID).Path
+        & $powershellHost @releaseArgs
         if ($LASTEXITCODE -ne 0) {
             throw "Release Windows falhou: codigo=$LASTEXITCODE; alvo=$TargetPlatform; backend=$BackendCsv; script=$script."
         }
